@@ -20,10 +20,10 @@ The basic flow is illustrated below.
 
 ```mermaid
 graph TD;
-    LiFiDiamond-->NXTPFacet;
-    LiFiDiamond-->HopFacet;
-    LiFiDiamond-->AnyswapFacet;
-    LiFiDiamond-->CBridgeFacet;
+    D{LiFiDiamond}-- DELEGATECALL -->NXTPFacet;
+    D{LiFiDiamond}-- DELEGATECALL -->HopFacet;
+    D{LiFiDiamond}-- DELEGATECALL -->AnyswapFacet;
+    D{LiFiDiamond}-- DELEGATECALL -->CBridgeFacet;
 ```
 ---
 
@@ -32,10 +32,10 @@ The LiFiDiamond contract is deployed along with some helper contracts that facil
 
 ```mermaid
 graph TD;
-    LiFiDiamond-->DiamondCutFacet;
-    LiFiDiamond-->DiamondLoupeFacet;
-    LiFiDiamond-->OwnershipFacet;
-    LiFiDiamond-->WithdrawFacet;
+    D{LiFiDiamond}-- DELEGATECALL -->DiamondCutFacet;
+    D{LiFiDiamond}-- DELEGATECALL -->DiamondLoupeFacet;
+    D{LiFiDiamond}-- DELEGATECALL -->OwnershipFacet;
+    D{LiFiDiamond}-- DELEGATECALL -->WithdrawFacet;
 ```
 ---
 
