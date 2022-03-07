@@ -16,7 +16,6 @@ describe('AnyswapFacet', function () {
   let lifiData: any
   let token: any
   let usdt: any
-  let uniswap: any
   let wmatic: any
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
