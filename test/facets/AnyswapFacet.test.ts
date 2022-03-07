@@ -1,20 +1,13 @@
 import { AnyswapFacet, ERC20__factory } from '../../typechain'
 import { deployments, network } from 'hardhat'
 import { constants, utils } from 'ethers'
-import {
-  uniswapRouterBytecode,
-  uniswapFactoryBytecode,
-  wethBytecode,
-  uniswapRouterAbi,
-  uniswapFactoryAbi,
-  wethAbi,
-} from '../../test/fixtures/uniswap'
 import { node_url } from '../../utils/network'
 
 const ANYSWAP_ROUTER = '0x4f3aff3a747fcade12598081e80c6605a8be192f'
 const USDT_ADDRESS = '0xc2132D05D31c914a87C6611C10748AEb04B58e8F'
-const WETH_ADDRESS = '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619'
+const WMATIC_ADDRESS = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'
 const anyUSDT_ADDRESS = '0xE3eeDa11f06a656FcAee19de663E84C7e61d3Cac'
+const UNISWAP_ADDRESS = '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff'
 
 describe('AnyswapFacet', function () {
   let lifi: AnyswapFacet
@@ -24,7 +17,7 @@ describe('AnyswapFacet', function () {
   let token: any
   let usdt: any
   let uniswap: any
-  let weth: any
+  let wmatic: any
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
   const setupTest = deployments.createFixture(
@@ -44,24 +37,7 @@ describe('AnyswapFacet', function () {
         '0x6722846282868a9c084b423aee79eb8ff69fc497'
       )
 
-      const UniswapFactory = new ethers.ContractFactory(
-        uniswapFactoryAbi,
-        uniswapFactoryBytecode,
-        alice
-      )
-      const uniswapFactory = await UniswapFactory.deploy(
-        '0x0000000000000000000000000000000000000000'
-      )
-      weth = ERC20__factory.connect(WETH_ADDRESS, alice)
-      const UniswapV2Router02 = new ethers.ContractFactory(
-        uniswapRouterAbi,
-        uniswapRouterBytecode,
-        alice
-      )
-      uniswap = await UniswapV2Router02.deploy(
-        uniswapFactory.address,
-        weth.address
-      )
+      wmatic = ERC20__factory.connect(WMATIC_ADDRESS, alice)
 
       usdt = ERC20__factory.connect(USDT_ADDRESS, alice)
       lifiData = {
@@ -118,19 +94,7 @@ describe('AnyswapFacet', function () {
     const to = lifi.address // should be a checksummed recipient address
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
-    await usdt.approve(uniswap.address, utils.parseUnits('2000', 6))
-
-    await uniswap.addLiquidityETH(
-      usdt.address,
-      utils.parseUnits('2000', 6),
-      0,
-      0,
-      alice.address,
-      deadline,
-      {
-        value: utils.parseEther('0.01'),
-      }
-    )
+    await usdt.approve(UNISWAP_ADDRESS, utils.parseUnits('2000', 6))
 
     const iface = new utils.Interface([
       'function swapETHForExactTokens(uint,address[],address,uint256)',
@@ -139,18 +103,18 @@ describe('AnyswapFacet', function () {
     // Generate swap calldata
     const uniswapData = iface.encodeFunctionData('swapETHForExactTokens', [
       utils.parseUnits('1000', 6),
-      [weth.address, usdt.address],
+      [wmatic.address, usdt.address],
       to,
       deadline,
     ])
 
     const swapData = [
       {
-        callTo: uniswap.address,
-        approveTo: uniswap.address,
+        callTo: UNISWAP_ADDRESS,
+        approveTo: UNISWAP_ADDRESS,
         sendingAssetId: '0x0000000000000000000000000000000000000000',
         receivingAssetId: usdt.address,
-        fromAmount: utils.parseEther('0.02'),
+        fromAmount: utils.parseEther('700'),
         callData: uniswapData,
       },
     ]
@@ -167,7 +131,7 @@ describe('AnyswapFacet', function () {
       .connect(alice)
       .swapAndStartBridgeTokensViaAnyswap(lifiData, swapData, AnyswapData, {
         gasLimit: 500000,
-        value: utils.parseEther('0.02'),
+        value: utils.parseEther('700'),
       })
   })
 })
