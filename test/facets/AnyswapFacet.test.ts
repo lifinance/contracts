@@ -1,4 +1,4 @@
-import { AnyswapFacet } from '../../typechain'
+import { AnyswapFacet, ERC20__factory } from '../../typechain'
 import { deployments, network } from 'hardhat'
 import { constants, utils } from 'ethers'
 import {
@@ -9,6 +9,12 @@ import {
   uniswapFactoryAbi,
   wethAbi,
 } from '../../test/fixtures/uniswap'
+import { node_url } from '../../utils/network'
+
+const ANYSWAP_ROUTER = '0x4f3aff3a747fcade12598081e80c6605a8be192f'
+const USDT_ADDRESS = '0xc2132D05D31c914a87C6611C10748AEb04B58e8F'
+const WETH_ADDRESS = '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619'
+const anyUSDT_ADDRESS = '0xE3eeDa11f06a656FcAee19de663E84C7e61d3Cac'
 
 describe('AnyswapFacet', function () {
   let lifi: AnyswapFacet
@@ -19,12 +25,7 @@ describe('AnyswapFacet', function () {
   let usdt: any
   let uniswap: any
   let weth: any
-  let router: any
   /* eslint-enable @typescript-eslint/no-explicit-any */
-
-  if (network.name != 'hardhat') {
-    throw 'Only hardhat supported for testing'
-  }
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
@@ -34,8 +35,14 @@ describe('AnyswapFacet', function () {
         await ethers.getContractAt('AnyswapFacet', diamond.address)
       )
 
-      alice = await ethers.getSigners()
-      alice = alice[0]
+      await network.provider.request({
+        method: 'hardhat_impersonateAccount',
+        params: ['0x6722846282868a9c084b423aee79eb8ff69fc497'],
+      })
+
+      alice = await ethers.getSigner(
+        '0x6722846282868a9c084b423aee79eb8ff69fc497'
+      )
 
       const UniswapFactory = new ethers.ContractFactory(
         uniswapFactoryAbi,
@@ -45,8 +52,7 @@ describe('AnyswapFacet', function () {
       const uniswapFactory = await UniswapFactory.deploy(
         '0x0000000000000000000000000000000000000000'
       )
-      const Weth = new ethers.ContractFactory(wethAbi, wethBytecode, alice)
-      weth = await Weth.deploy()
+      weth = ERC20__factory.connect(WETH_ADDRESS, alice)
       const UniswapV2Router02 = new ethers.ContractFactory(
         uniswapRouterAbi,
         uniswapRouterBytecode,
@@ -57,8 +63,7 @@ describe('AnyswapFacet', function () {
         weth.address
       )
 
-      usdt = await ethers.getContract('USDT')
-
+      usdt = ERC20__factory.connect(USDT_ADDRESS, alice)
       lifiData = {
         transactionId: utils.randomBytes(32),
         integrator: 'ACME Devs',
@@ -66,17 +71,28 @@ describe('AnyswapFacet', function () {
         sendingAssetId: usdt.address,
         receivingAssetId: usdt.address,
         receiver: alice.address,
-        destinationChainId: 137,
-        amount: utils.parseEther('1.006'),
+        destinationChainId: 100,
+        amount: utils.parseUnits('1000', 6),
       }
-      token = await ethers.getContract('AnyswapV5ERC20')
-      router = await ethers.getContract('AnyswapV5Router')
+      token = ERC20__factory.connect(anyUSDT_ADDRESS, alice)
       await usdt.approve(lifi.address, utils.parseUnits('1000', 6))
-      await token.connect(alice).setMinter(router.address)
-      await token.connect(alice).applyMinter()
-      await token.connect(alice).changeMPCOwner(router.address)
     }
   )
+
+  before(async function () {
+    this.timeout(0)
+    await network.provider.request({
+      method: 'hardhat_reset',
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: node_url('polygon'),
+            blockNumber: 25689963,
+          },
+        },
+      ],
+    })
+  })
 
   beforeEach(async () => {
     await setupTest()
@@ -85,11 +101,12 @@ describe('AnyswapFacet', function () {
   it('starts a bridge transaction on the sending chain', async () => {
     const AnyswapData = {
       token: token.address,
-      router: router.address,
+      router: ANYSWAP_ROUTER,
       amount: utils.parseUnits('1000', 6),
       recipient: alice.address,
-      toChainId: 138,
+      toChainId: 100,
     }
+
     await lifi
       .connect(alice)
       .startBridgeTokensViaAnyswap(lifiData, AnyswapData, {
@@ -140,7 +157,7 @@ describe('AnyswapFacet', function () {
 
     const AnyswapData = {
       token: token.address,
-      router: router.address,
+      router: ANYSWAP_ROUTER,
       amount: utils.parseUnits('1000', 6),
       recipient: alice.address,
       toChainId: 137,
