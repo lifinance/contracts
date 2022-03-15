@@ -25,9 +25,11 @@ graph TD;
     D{LiFiDiamond}-- DELEGATECALL -->AnyswapFacet;
     D{LiFiDiamond}-- DELEGATECALL -->CBridgeFacet;
 ```
+
 ---
 
 ### Diamond Helper Contracts
+
 The LiFiDiamond contract is deployed along with some helper contracts that facilitate things like upgrading facet contracts, look ups for methods on facet contracts, ownership checking and withdrawals of funds. For specific details please check out [EIP-2535](https://eips.ethereum.org/EIPS/eip-2535).
 
 ```mermaid
@@ -37,7 +39,12 @@ graph TD;
     D{LiFiDiamond}-- DELEGATECALL -->OwnershipFacet;
     D{LiFiDiamond}-- DELEGATECALL -->WithdrawFacet;
 ```
+
 ---
+
+## Docs
+
+You can read more details documentation on each facet [here](./docs/index.md).
 
 ## Getting Started
 
