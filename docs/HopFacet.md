@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Hop Facet works by forwarding Hop specific calls to the Hop Bridge contract. Hop works by swapping tokens into intermediate h tokens before bridging. For example to send USDC from one chain to another, we need to swap USDC for hUSDC and then send them to the Hop bridge contract. Hop provides a useful wrapper contract to do this for us so we only need to worry about sending USDC and calling `swapAndSend` on the wrapper. Native tokens like `ETH` can be sent directly to the bridge.
+The Hop Facet works by forwarding Hop specific calls to the [Hop Bridge contract](https://github.com/hop-protocol/contracts/blob/master/contracts/bridges/L2_Bridge.sol). Hop works by swapping tokens into intermediate **h** tokens before bridging. For example to send **USDC** from one chain to another, we need to swap **USDC** for **hUSDC** and then send them to the Hop bridge contract. Hop provides a useful [wrapper contract](https://github.com/hop-protocol/contracts/blob/master/contracts/bridges/L2_AmmWrapper.sol#L40) to do this for us so we only need to worry about sending **USDC** and calling [`swapAndSend`](https://github.com/hop-protocol/contracts/blob/3747b0b41defddc5b3c8ca328057847cd987c2c8/contracts/bridges/L2_AmmWrapper.sol#L40-L78) on the wrapper. Native tokens like **ETH** can be sent directly to the bridge.
 
 ```mermaid
 graph LR;
@@ -49,3 +49,17 @@ struct HopData {
 }
 
 ```
+
+## Swap Data
+
+Some methods accept a `SwapData _swapData` parameter.
+
+Swapping is performed by a swap specific library that expects an array of calldata to can be run on variaous DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
+
+The swap library can be found [here](../src/Libraries/LibSwap.sol).
+
+## LiFi Data
+
+Some methods accept a `LiFiData _lifiData` parameter.
+
+This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `LiFiData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
