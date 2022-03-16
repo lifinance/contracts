@@ -20,7 +20,7 @@ graph LR;
 - `function swapAndStartBridgeTokensViaHop( LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData, HopData memory _hopData)`
   - Performs swap(s) before bridging tokens using Hop
 
-## NXTP Specific Parameters
+## Hop Specific Parameters
 
 Some of the methods listed above take a variable labeled `_hopData`. This data is specific to Hop and is represented as the following struct type:
 
