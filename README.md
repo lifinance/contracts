@@ -44,7 +44,7 @@ graph TD;
 
 ## Docs
 
-You can read more details documentation on each facet [here](./docs/index.md).
+You can read more details documentation on each facet [here](./docs/README.md).
 
 ## Getting Started
 
