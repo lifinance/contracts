@@ -9,6 +9,7 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { IAnyswapToken } from "../Interfaces/IAnyswapToken.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { LibStorage } from "../Libraries/LibStorage.sol";
 
 /**
  * @title Anyswap Facet
@@ -17,6 +18,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
  */
 contract AnyswapFacet is ILiFi {
     /* ========== Types ========== */
+    LibStorage internal ls;
 
     struct AnyswapData {
         address token;
@@ -80,6 +82,10 @@ contract AnyswapFacet is ILiFi {
 
             // Swap
             for (uint8 i; i < _swapData.length; i++) {
+                require(
+                    ls.dexWhitelist[_swapData[i].approveTo] == true && ls.dexWhitelist[_swapData[i].callTo] == true,
+                    "Contract call not allowed!"
+                );
                 LibSwap.swap(_lifiData.transactionId, _swapData[i]);
             }
 
@@ -93,6 +99,10 @@ contract AnyswapFacet is ILiFi {
 
             // Swap
             for (uint8 i; i < _swapData.length; i++) {
+                require(
+                    ls.dexWhitelist[_swapData[i].approveTo] == true && ls.dexWhitelist[_swapData[i].callTo] == true,
+                    "Contract call not allowed!"
+                );
                 LibSwap.swap(_lifiData.transactionId, _swapData[i]);
             }
 

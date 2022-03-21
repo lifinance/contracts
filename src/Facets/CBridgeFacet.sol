@@ -7,6 +7,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { LibStorage } from "../Libraries/LibStorage.sol";
 
 /**
  * @title CBridge Facet
@@ -15,6 +16,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
  */
 contract CBridgeFacet is ILiFi {
     /* ========== Storage ========== */
+    LibStorage internal ls;
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.cbridge2");
     struct Storage {
@@ -100,6 +102,10 @@ contract CBridgeFacet is ILiFi {
 
             // Swap
             for (uint8 i; i < _swapData.length; i++) {
+                require(
+                    ls.dexWhitelist[_swapData[i].approveTo] == true && ls.dexWhitelist[_swapData[i].callTo] == true,
+                    "Contract call not allowed!"
+                );
                 LibSwap.swap(_lifiData.transactionId, _swapData[i]);
             }
 
@@ -113,6 +119,10 @@ contract CBridgeFacet is ILiFi {
 
             // Swap
             for (uint8 i; i < _swapData.length; i++) {
+                require(
+                    ls.dexWhitelist[_swapData[i].approveTo] == true && ls.dexWhitelist[_swapData[i].callTo] == true,
+                    "Contract call not allowed!"
+                );
                 LibSwap.swap(_lifiData.transactionId, _swapData[i]);
             }
 

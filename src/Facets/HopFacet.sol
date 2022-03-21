@@ -7,6 +7,7 @@ import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { LibStorage } from "../Libraries/LibStorage.sol";
 
 /**
  * @title Hop Facet
@@ -15,6 +16,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
  */
 contract HopFacet is ILiFi {
     /* ========== Storage ========== */
+    LibStorage internal ls;
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.hop");
     struct Storage {
@@ -104,6 +106,11 @@ contract HopFacet is ILiFi {
 
         // Swap
         for (uint8 i; i < _swapData.length; i++) {
+            require(
+                ls.dexWhitelist[_swapData[i].approveTo] == true && ls.dexWhitelist[_swapData[i].callTo] == true,
+                "Contract call not allowed!"
+            );
+
             LibSwap.swap(_lifiData.transactionId, _swapData[i]);
         }
 
