@@ -1,12 +1,10 @@
-import { ERC20__factory, CBridgeFacet } from '../../typechain'
+import { ERC20__factory, CBridgeFacet, DexManagerFacet } from '../../typechain'
 // import { expect } from '../chai-setup'
 import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { constants, Contract, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { expect } from '../chai-setup'
-//commented for being unused
-//import { send } from 'process'
 
 const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const DAI_ADDRESS = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
@@ -16,6 +14,7 @@ const CBRIDGE_ADDRESS = '0xc578cbaf5a411dfa9f0d227f97dadaa4074ad062'
 describe('CBridgeFacet', function () {
   let alice: SignerWithAddress
   let lifi: CBridgeFacet
+  let dexMgr: DexManagerFacet
   /* eslint-disable @typescript-eslint/no-explicit-any */
   let owner: any
   let lifiData: any
@@ -31,6 +30,11 @@ describe('CBridgeFacet', function () {
       lifi = <CBridgeFacet>(
         await ethers.getContractAt('CBridgeFacet', diamond.address)
       )
+
+      dexMgr = <DexManagerFacet>(
+        await ethers.getContractAt('DexManagerFacet', diamond.address)
+      )
+      await dexMgr.addDex(UNISWAP_ADDRESS)
 
       await network.provider.request({
         method: 'hardhat_impersonateAccount',
@@ -163,5 +167,66 @@ describe('CBridgeFacet', function () {
     )
       .to.emit(lifi, 'AssetSwapped')
       .and.to.emit(lifi, 'LiFiTransferStarted')
+  })
+
+  it('fails to perform a swap if the dex is not approved', async function () {
+    await dexMgr.removeDex(UNISWAP_ADDRESS)
+
+    const amountIn = utils.parseUnits('1020', 6)
+    const amountOut = utils.parseUnits('1000', 6) // 1 TestToken
+
+    const to = lifi.address // should be a checksummed recipient address
+    const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
+
+    const uniswap = new Contract(
+      UNISWAP_ADDRESS,
+      [
+        'function exactOutputSingle(tuple(address,address,uint24,address,uint256,uint256,uint256,uint160)) external payable returns (uint256)',
+      ],
+      alice
+    )
+
+    // Generate swap calldata
+    const swapData = await uniswap.populateTransaction.exactOutputSingle([
+      USDC_ADDRESS,
+      DAI_ADDRESS,
+      3000,
+      to,
+      deadline,
+      amountOut,
+      amountIn,
+      0,
+    ])
+
+    CBridgeData = {
+      receiver: alice.address,
+      token: DAI_ADDRESS,
+      amount: utils.parseUnits('1000', 6),
+      dstChainId: 137,
+      nonce: 1,
+      maxSlippage: 5000,
+    }
+
+    // Approve ERC20 for swapping
+    const token = ERC20__factory.connect(USDC_ADDRESS, alice)
+    await token.approve(lifi.address, amountIn)
+
+    await expect(
+      lifi.connect(alice).swapAndStartBridgeTokensViaCBridge(
+        lifiData,
+        [
+          {
+            callTo: <string>swapData.to,
+            approveTo: <string>swapData.to,
+            sendingAssetId: USDC_ADDRESS,
+            receivingAssetId: DAI_ADDRESS,
+            callData: <string>swapData?.data,
+            fromAmount: amountIn,
+          },
+        ],
+        CBridgeData,
+        { gasLimit: 500000 }
+      )
+    ).to.be.revertedWith('Contract call not allowed')
   })
 })

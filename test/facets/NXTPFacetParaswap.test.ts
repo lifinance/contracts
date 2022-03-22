@@ -1,4 +1,4 @@
-import { ERC20__factory, NXTPFacet } from '../../typechain'
+import { DexManagerFacet, ERC20__factory, NXTPFacet } from '../../typechain'
 import { expect } from '../chai-setup'
 import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
@@ -13,6 +13,7 @@ describe('NXTPFacet (Paraswap)', function () {
 
   let alice: SignerWithAddress
   let lifi: NXTPFacet
+  let dexMgr: DexManagerFacet
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let lifiData: any
@@ -23,7 +24,7 @@ describe('NXTPFacet (Paraswap)', function () {
 
       const [deployer] = await getUnnamedAccounts()
 
-      await deployments.fixture('InitFacets')
+      await deployments.fixture(['InitFacets', 'DeployDexManagerFacet'])
 
       await deployments.deploy('NXTPFacet', {
         from: deployer,
@@ -34,6 +35,14 @@ describe('NXTPFacet (Paraswap)', function () {
       const nxtpFacet = await ethers.getContract('NXTPFacet')
       const diamond = await ethers.getContract('LiFiDiamond')
 
+      dexMgr = <DexManagerFacet>(
+        await ethers.getContractAt('DexManagerFacet', diamond.address)
+      )
+
+      await dexMgr.batchAddDex([
+        '0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57',
+        '0x216b4b4ba9f3e719726886d34a177484278bfcae',
+      ])
       const ABI = ['function initNXTP(address)']
       const iface = new utils.Interface(ABI)
 

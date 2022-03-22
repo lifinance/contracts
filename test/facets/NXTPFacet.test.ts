@@ -1,4 +1,5 @@
-import { ERC20__factory, NXTPFacet } from '../../typechain'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { DexManagerFacet, ERC20__factory, NXTPFacet } from '../../typechain'
 import { expect } from '../chai-setup'
 import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
@@ -15,8 +16,7 @@ describe('NXTPFacet', function () {
 
   let alice: SignerWithAddress
   let lifi: NXTPFacet
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let dexMgr: DexManagerFacet
   let lifiData: any
 
   const setupTest = deployments.createFixture(
@@ -24,7 +24,12 @@ describe('NXTPFacet', function () {
       await deployments.fixture('DeployNXTPFacet')
       const diamond = await ethers.getContract('LiFiDiamond')
       lifi = <NXTPFacet>await ethers.getContractAt('NXTPFacet', diamond.address)
+      dexMgr = <DexManagerFacet>(
+        await ethers.getContractAt('DexManagerFacet', diamond.address)
+      )
       ;[alice] = await ethers.getSigners()
+
+      await dexMgr.addDex(UNISWAP_ADDRESS)
 
       lifiData = {
         transactionId: utils.randomBytes(32),
@@ -139,6 +144,67 @@ describe('NXTPFacet', function () {
       .to.emit(lifi, 'AssetSwapped')
       .and.to.emit(lifi, 'NXTPBridgeStarted')
       .and.to.emit(lifi, 'LiFiTransferStarted')
+  })
+
+  it('fails to perform a swap when the dex is not authorized', async function () {
+    await dexMgr.removeDex(UNISWAP_ADDRESS)
+
+    // Uniswap
+    const TOKEN = new Token(ChainId.RINKEBY, RINKEBY_TOKEN_ADDRESS, 18)
+    const DAI = new Token(ChainId.RINKEBY, RINKEBY_DAI_ADDRESS, 18)
+
+    const amountIn = utils.parseEther('12')
+    const amountOut = utils.parseEther('10') // 1 TestToken
+
+    const nxtpData = {
+      ...simpleNXTPData,
+    }
+
+    nxtpData.invariantData.initiator = lifi.address
+
+    const path = [DAI.address, TOKEN.address]
+    const to = lifi.address // should be a checksummed recipient address
+    const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
+
+    const uniswap = new Contract(
+      UNISWAP_ADDRESS,
+      [
+        'function swapTokensForExactTokens(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
+      ],
+      alice
+    )
+
+    // Generate swap calldata
+    const swapData = await uniswap.populateTransaction.swapTokensForExactTokens(
+      amountOut,
+      amountIn,
+      path,
+      to,
+      deadline
+    )
+
+    // Approve ERC20 for swapping
+    const token = ERC20__factory.connect(RINKEBY_DAI_ADDRESS, alice)
+    await token.approve(lifi.address, amountIn)
+
+    // Call LiFi smart contract to start the bridge process
+    await expect(
+      lifi.swapAndStartBridgeTokensViaNXTP(
+        lifiData,
+        [
+          {
+            callTo: <string>swapData.to,
+            approveTo: <string>swapData.to,
+            sendingAssetId: DAI.address,
+            receivingAssetId: TOKEN.address,
+            callData: <string>swapData?.data,
+            fromAmount: amountIn,
+          },
+        ],
+        nxtpData,
+        { gasLimit: 500000 }
+      )
+    ).to.be.revertedWith('Contract call not allowed!')
   })
 
   it('performs a swap with positive slippage then starts bridge transaction on the sending chain', async function () {

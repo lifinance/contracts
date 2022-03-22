@@ -1,7 +1,15 @@
-import { AnyswapFacet, ERC20__factory } from '../../typechain'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import {
+  AnyswapFacet,
+  DexManagerFacet,
+  ERC20,
+  ERC20__factory,
+} from '../../typechain'
 import { deployments, network } from 'hardhat'
 import { constants, utils } from 'ethers'
 import { node_url } from '../../utils/network'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
+import { expect } from '../chai-setup'
 
 const ANYSWAP_ROUTER = '0x4f3aff3a747fcade12598081e80c6605a8be192f'
 const USDT_ADDRESS = '0xc2132D05D31c914a87C6611C10748AEb04B58e8F'
@@ -11,13 +19,12 @@ const UNISWAP_ADDRESS = '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff'
 
 describe('AnyswapFacet', function () {
   let lifi: AnyswapFacet
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  let alice: any
+  let dexMgr: DexManagerFacet
+  let alice: SignerWithAddress
   let lifiData: any
-  let token: any
-  let usdt: any
-  let wmatic: any
-  /* eslint-enable @typescript-eslint/no-explicit-any */
+  let token: ERC20
+  let usdt: ERC20
+  let wmatic: ERC20
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
@@ -26,6 +33,10 @@ describe('AnyswapFacet', function () {
       lifi = <AnyswapFacet>(
         await ethers.getContractAt('AnyswapFacet', diamond.address)
       )
+      dexMgr = <DexManagerFacet>(
+        await ethers.getContractAt('DexManagerFacet', diamond.address)
+      )
+      await dexMgr.addDex(UNISWAP_ADDRESS)
 
       await network.provider.request({
         method: 'hardhat_impersonateAccount',
@@ -93,8 +104,6 @@ describe('AnyswapFacet', function () {
     const to = lifi.address // should be a checksummed recipient address
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
-    await usdt.approve(UNISWAP_ADDRESS, utils.parseUnits('2000', 6))
-
     const iface = new utils.Interface([
       'function swapETHForExactTokens(uint,address[],address,uint256)',
     ])
@@ -132,5 +141,51 @@ describe('AnyswapFacet', function () {
         gasLimit: 500000,
         value: utils.parseEther('700'),
       })
+  })
+
+  it('fails to perform a swap when the dex is not approved', async () => {
+    await dexMgr.removeDex(UNISWAP_ADDRESS)
+    const to = lifi.address // should be a checksummed recipient address
+    const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
+
+    const iface = new utils.Interface([
+      'function swapETHForExactTokens(uint,address[],address,uint256)',
+    ])
+
+    // Generate swap calldata
+    const uniswapData = iface.encodeFunctionData('swapETHForExactTokens', [
+      utils.parseUnits('1000', 6),
+      [wmatic.address, usdt.address],
+      to,
+      deadline,
+    ])
+
+    const swapData = [
+      {
+        callTo: UNISWAP_ADDRESS,
+        approveTo: UNISWAP_ADDRESS,
+        sendingAssetId: '0x0000000000000000000000000000000000000000',
+        receivingAssetId: usdt.address,
+        fromAmount: utils.parseEther('700'),
+        callData: uniswapData,
+      },
+    ]
+
+    const AnyswapData = {
+      token: token.address,
+      router: ANYSWAP_ROUTER,
+      amount: utils.parseUnits('1000', 6),
+      recipient: alice.address,
+      toChainId: 137,
+    }
+
+    await expect(
+      lifi
+        .connect(alice)
+        .swapAndStartBridgeTokensViaAnyswap(lifiData, swapData, AnyswapData, {
+          gasLimit: 500000,
+          value: utils.parseEther('700'),
+        })
+    ).to.be.revertedWith('Contract call not allowed!')
   })
 })

@@ -24,7 +24,7 @@ task(
   files = fs.readdirSync(__dirname + '/../' + libraryBasePath)
   for (const file of files) {
     const jsonFile = file.replace('sol', 'json')
-    if (jsonFile === 'AppStorage.json') {
+    if (jsonFile === 'LibStorage.json') {
       continue
     }
     const data = fs.readFileSync(
