@@ -7,16 +7,15 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import { LibStorage } from "../Libraries/LibStorage.sol";
+import "./Swapper.sol";
 
 /**
  * @title CBridge Facet
  * @author Li.Finance (https://li.finance)
  * @notice Provides functionality for bridging through CBridge
  */
-contract CBridgeFacet is ILiFi {
+contract CBridgeFacet is ILiFi, Swapper {
     /* ========== Storage ========== */
-    LibStorage internal ls;
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.cbridge2");
     struct Storage {
@@ -101,13 +100,7 @@ contract CBridgeFacet is ILiFi {
             uint256 _fromTokenBalance = LibAsset.getOwnBalance(_cBridgeData.token);
 
             // Swap
-            for (uint8 i; i < _swapData.length; i++) {
-                require(
-                    ls.dexWhitelist[_swapData[i].approveTo] == true && ls.dexWhitelist[_swapData[i].callTo] == true,
-                    "Contract call not allowed!"
-                );
-                LibSwap.swap(_lifiData.transactionId, _swapData[i]);
-            }
+            _executeSwaps(_lifiData, _swapData);
 
             uint256 _postSwapBalance = LibAsset.getOwnBalance(_cBridgeData.token) - _fromTokenBalance;
 
@@ -118,13 +111,7 @@ contract CBridgeFacet is ILiFi {
             uint256 _fromBalance = address(this).balance;
 
             // Swap
-            for (uint8 i; i < _swapData.length; i++) {
-                require(
-                    ls.dexWhitelist[_swapData[i].approveTo] == true && ls.dexWhitelist[_swapData[i].callTo] == true,
-                    "Contract call not allowed!"
-                );
-                LibSwap.swap(_lifiData.transactionId, _swapData[i]);
-            }
+            _executeSwaps(_lifiData, _swapData);
 
             uint256 _postSwapBalance = address(this).balance - _fromBalance;
 

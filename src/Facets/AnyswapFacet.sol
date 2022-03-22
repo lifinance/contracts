@@ -1,24 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IAnyswapRouter } from "../Interfaces/IAnyswapRouter.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { IAnyswapToken } from "../Interfaces/IAnyswapToken.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import { LibStorage } from "../Libraries/LibStorage.sol";
+import "./Swapper.sol";
 
 /**
  * @title Anyswap Facet
  * @author Li.Finance (https://li.finance)
  * @notice Provides functionality for bridging through Multichain (Prev. AnySwap)
  */
-contract AnyswapFacet is ILiFi {
+contract AnyswapFacet is ILiFi, Swapper {
     /* ========== Types ========== */
-    LibStorage internal ls;
 
     struct AnyswapData {
         address token;
@@ -81,13 +79,7 @@ contract AnyswapFacet is ILiFi {
             uint256 _fromTokenBalance = LibAsset.getOwnBalance(underlyingToken);
 
             // Swap
-            for (uint8 i; i < _swapData.length; i++) {
-                require(
-                    ls.dexWhitelist[_swapData[i].approveTo] == true && ls.dexWhitelist[_swapData[i].callTo] == true,
-                    "Contract call not allowed!"
-                );
-                LibSwap.swap(_lifiData.transactionId, _swapData[i]);
-            }
+            _executeSwaps(_lifiData, _swapData);
 
             uint256 _postSwapBalance = LibAsset.getOwnBalance(underlyingToken) - _fromTokenBalance;
 
@@ -98,13 +90,7 @@ contract AnyswapFacet is ILiFi {
             uint256 _fromBalance = address(this).balance;
 
             // Swap
-            for (uint8 i; i < _swapData.length; i++) {
-                require(
-                    ls.dexWhitelist[_swapData[i].approveTo] == true && ls.dexWhitelist[_swapData[i].callTo] == true,
-                    "Contract call not allowed!"
-                );
-                LibSwap.swap(_lifiData.transactionId, _swapData[i]);
-            }
+            _executeSwaps(_lifiData, _swapData);
 
             require(address(this).balance - _fromBalance >= _anyswapData.amount, "ERR_INVALID_AMOUNT");
 

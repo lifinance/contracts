@@ -7,16 +7,15 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import { LibStorage } from "../Libraries/LibStorage.sol";
+import "./Swapper.sol";
 
 /**
  * @title NXTP (Connext) Facet
  * @author Li.Finance (https://li.finance)
  * @notice Provides functionality for bridging through NXTP (Connext)
  */
-contract NXTPFacet is ILiFi {
+contract NXTPFacet is ILiFi, Swapper {
     /* ========== Storage ========== */
-    LibStorage internal ls;
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.nxtp");
     struct Storage {
@@ -94,13 +93,7 @@ contract NXTPFacet is ILiFi {
         uint256 _sendingAssetIdBalance = LibAsset.getOwnBalance(sendingAssetId);
 
         // Swap
-        for (uint8 i; i < _swapData.length; i++) {
-            require(
-                ls.dexWhitelist[_swapData[i].approveTo] == true && ls.dexWhitelist[_swapData[i].callTo] == true,
-                "Contract call not allowed!"
-            );
-            LibSwap.swap(_lifiData.transactionId, _swapData[i]);
-        }
+        _executeSwaps(_lifiData, _swapData);
 
         uint256 _postSwapBalance = LibAsset.getOwnBalance(sendingAssetId) - _sendingAssetIdBalance;
 
@@ -165,13 +158,7 @@ contract NXTPFacet is ILiFi {
         uint256 startingBalance = LibAsset.getOwnBalance(finalAssetId);
 
         // Swap
-        for (uint8 i; i < _swapData.length; i++) {
-            require(
-                ls.dexWhitelist[_swapData[i].approveTo] == true && ls.dexWhitelist[_swapData[i].callTo] == true,
-                "Contract call not allowed!"
-            );
-            LibSwap.swap(_lifiData.transactionId, _swapData[i]);
-        }
+        _executeSwaps(_lifiData, _swapData);
 
         uint256 postSwapBalance = LibAsset.getOwnBalance(finalAssetId);
 
