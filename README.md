@@ -1,3 +1,43 @@
+## Contest scope
+
+All solidity files in the `src` folder except `src/Interfaces/*` and `src/Libraries/LibBytes.sol`.
+
+| File                                                             | Docs                                 | SLOC | External contracts called | Libraries used |
+|------------------------------------------------------------------|--------------------------------------|------|---------------------------|----------------|
+| [LiFiDiamond.sol](./src/LiFiDiamond.sol)                         |                                      |   39 |                         0 |              1 |
+|                                                                  |                                      |      |                           |                |
+| **Facets - Logic**                                               |                                      |      |                           |                |
+| [Swapper.sol](./src/Facets/Swapper.sol)                          | ([docs](./docs/Swapper.md))          |   15 |                         0 |              2 |
+| [AnyswapFacet.sol](./src/Facets/AnyswapFacet.sol)                | ([docs](./docs/AnyswapFacet.md))     |   97 |                         2 |              4 |
+| [CBridgeFacet.sol](./src/Facets/CBridgeFacet.sol)                | ([docs](./docs/CBridgeFacet.md))     |  117 |                         1 |              3 |
+| [HopFacet.sol](./src/Facets/HopFacet.sol)                        | ([docs](./docs/HopFacet.md))         |  129 |                         1 |              3 |
+| [NXTPFacet.sol](./src/Facets/NXTPFacet.sol)                      | ([docs](./docs/NXTPFacet.sol))       |  122 |                         1 |              3 |
+| [GenericSwapFacet.sol](./src/Facets/GenericSwapFacet.sol)        | ([docs](./docs/GenericSwapFacet.md)) |   23 |                         0 |              1 |
+|                                                                  |                                      |      |                           |                |
+| **Facets - Management**                                          |                                      |      |                           |                |
+| [OwnershipFacet.sol](./src/Facets/OwnershipFacet.sol)            |                                      |   12 |                         0 |              1 |
+| [DiamondCutFacet.sol](./src/Facets/DiamondCutFacet.sol)          |                                      |   13 |                         0 |              1 |
+| [DiamondLoupeFacet.sol](./src/Facets/DiamondLoupeFacet.sol)      |                                      |   37 |                         0 |              1 |
+| [WithdrawFacet.sol](./src/Facets/WithdrawFacet.sol)              |                                      |   28 |                         1 |              1 |
+| [DexManagerFacet.sol](./src/Facets/DexManagerFacet.sol)          |                                      |   59 |                         0 |              2 |
+|                                                                  |                                      |      |                           |                |
+| **Libraries**                                                    |                                      |      |                           |                |
+| [LibAsset.sol](./src/Libraries/LibAsset.sol)                     | ([docs](./docs/LibAsset.md))         |   67 |                         1 |              0 |
+| [LibBytes.sol](./src/Libraries/LibBytes.sol) (Not part of audit) | ([docs](./docs/LibBytes.md))         |  291 |                         0 |              0 |
+| [LibDiamond.sol](./src/Libraries/LibDiamond.sol)                 | ([docs](./docs/LibDiamond.md))       |  171 |                         0 |              0 |
+| [LibStorage.sol](./src/Libraries/LibStorage.sol)                 | ([docs](./docs/LibStorage.md))       |    5 |                         0 |              0 |
+| [LibSwap.sol](./src/Libraries/LibSwap.sol)                       | ([docs](./docs/LibSwap.md))          |   50 |                         1 |              2 |
+| [LibUtil.sol](./src/Libraries/LibUtil.sol)                       | ([docs](./docs/LibUtil.md))          |   10 |                         0 |              1 |
+
+The following risks should be given special consideration during the audit:
+- Malicious calls (in [LibSwap.sol](./src/Libraries/LibSwap.sol))
+- Access to other users funds
+- Compromise access control
+
+## Planned improvements
+
+We are planning to to improve the LibSwap libraries to not only check the exchange calls using a contract address whitelist, but also use a function signature whitelist to ensure that only known functions are called in those contracts.
+
 [![CI](https://github.com/lifinance/lifi-contracts/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/lifinance/lifi-contracts/actions/workflows/main.yml)
 
 # LI.FI Smart Contracts

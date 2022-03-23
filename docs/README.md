@@ -1,11 +1,13 @@
 # Facets
 
+- [DEX Manager Facet](/DexManagerFacet.md)
+- [Swapper](./Swapper.md)
+- [Generic Swap Facet](./GenericSwapFacet.md)
 - [NXTP Facet](./NXTPFacet.md)
 - [Hop Facet](./HopFacet.md)
 - [AnySwap Facet](./AnyswapFacet.md)
 - [CBridge Facet](./CBridgeFacet.md)
-- [Generic Swap Facet](./GenericSwapFacet.md)
-- [DEX Manager Facet](/DexManagerFacet.md)
+
 
 # Libraries
 

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { LibAsset } from "./LibAsset.sol";
+import { LibAsset, IERC20 } from "./LibAsset.sol";
 import { LibUtil } from "./LibUtil.sol";
 
 library LibSwap {
@@ -32,7 +31,7 @@ library LibSwap {
         uint256 toAmount = LibAsset.getOwnBalance(_swapData.receivingAssetId);
         address fromAssetId = _swapData.sendingAssetId;
         if (!LibAsset.isNativeAsset(fromAssetId) && LibAsset.getOwnBalance(fromAssetId) < fromAmount) {
-            LibAsset.transferFromERC20(_swapData.sendingAssetId, msg.sender, address(this), fromAmount);
+            LibAsset.transferFromERC20(fromAssetId, msg.sender, address(this), fromAmount);
         }
 
         if (!LibAsset.isNativeAsset(fromAssetId)) {
