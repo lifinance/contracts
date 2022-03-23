@@ -14,13 +14,18 @@ import { expect } from '../chai-setup'
 const ANYSWAP_ROUTER = '0x4f3aff3a747fcade12598081e80c6605a8be192f'
 const USDT_ADDRESS = '0xc2132D05D31c914a87C6611C10748AEb04B58e8F'
 const WMATIC_ADDRESS = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'
+const MATIC_ROUTER = '0x2ef4a574b72e1f555185afa8a09c6d1a8ac4025c'
+const anyMATIC_ADDRESS = '0x21804205c744dd98fbc87898704564d5094bb167'
 const anyUSDT_ADDRESS = '0xE3eeDa11f06a656FcAee19de663E84C7e61d3Cac'
 const UNISWAP_ADDRESS = '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff'
+const BEEFY_ADDRESS = '0xFbdd194376de19a88118e84E279b977f165d01b8'
+const BEEFY_ROUTER = '0x6fF0609046A38D76Bd40C5863b4D1a2dCe687f73'
 
 describe('AnyswapFacet', function () {
   let lifi: AnyswapFacet
   let dexMgr: DexManagerFacet
   let alice: SignerWithAddress
+  let beefHolder: SignerWithAddress
   let lifiData: any
   let token: ERC20
   let usdt: ERC20
@@ -43,8 +48,17 @@ describe('AnyswapFacet', function () {
         params: ['0x6722846282868a9c084b423aee79eb8ff69fc497'],
       })
 
+      await network.provider.request({
+        method: 'hardhat_impersonateAccount',
+        params: ['0xf71b335a1d9449c381d867f4172fc1bb3d2bfb7b'],
+      })
+
       alice = await ethers.getSigner(
         '0x6722846282868a9c084b423aee79eb8ff69fc497'
+      )
+
+      beefHolder = await ethers.getSigner(
+        '0xf71b335a1d9449c381d867f4172fc1bb3d2bfb7b'
       )
 
       wmatic = ERC20__factory.connect(WMATIC_ADDRESS, alice)
@@ -82,6 +96,42 @@ describe('AnyswapFacet', function () {
 
   beforeEach(async () => {
     await setupTest()
+  })
+
+  it('starts a bridge transaction using native token on the sending chain', async () => {
+    const AnyswapData = {
+      token: anyMATIC_ADDRESS,
+      router: MATIC_ROUTER,
+      amount: utils.parseEther('1000'),
+      recipient: alice.address,
+      toChainId: 100,
+    }
+
+    await lifi
+      .connect(alice)
+      .startBridgeTokensViaAnyswap(lifiData, AnyswapData, {
+        gasLimit: 500000,
+        value: utils.parseEther('1000'),
+      })
+  })
+
+  it('starts a bridge transaction using anyToken implementation on the sending chain', async () => {
+    const beefy = ERC20__factory.connect(BEEFY_ADDRESS, beefHolder)
+    await beefy.approve(lifi.address, utils.parseEther('10'))
+
+    const AnyswapData = {
+      token: BEEFY_ADDRESS,
+      router: BEEFY_ROUTER,
+      amount: utils.parseEther('10'),
+      recipient: beefHolder.address,
+      toChainId: 100,
+    }
+
+    await lifi
+      .connect(beefHolder)
+      .startBridgeTokensViaAnyswap(lifiData, AnyswapData, {
+        gasLimit: 500000,
+      })
   })
 
   it('starts a bridge transaction on the sending chain', async () => {
