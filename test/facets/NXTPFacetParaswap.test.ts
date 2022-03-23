@@ -20,6 +20,16 @@ describe('NXTPFacet (Paraswap)', function () {
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers, getUnnamedAccounts }) => {
+      // setup wallet
+      await network.provider.request({
+        method: 'hardhat_impersonateAccount',
+        params: ['0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0'],
+      })
+      alice = await ethers.getSigner(
+        '0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0'
+      )
+
+      // setup contract
       const TX_MGR_ADDR = config['polygon'].txManagerAddress
 
       const [deployer] = await getUnnamedAccounts()
@@ -55,9 +65,11 @@ describe('NXTPFacet (Paraswap)', function () {
         initData
       )
 
-      lifi = <NXTPFacet>await ethers.getContractAt('NXTPFacet', diamond.address)
-      ;[alice] = await ethers.getSigners()
+      lifi = (<NXTPFacet>(
+        await ethers.getContractAt('NXTPFacet', diamond.address)
+      )).connect(alice)
 
+      // test data
       lifiData = {
         transactionId:
           '0x8bfe666c0d5012ba1c2e515cc37d2932f9faff7336e03f868c222f988274e180',

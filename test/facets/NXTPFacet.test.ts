@@ -21,16 +21,27 @@ describe('NXTPFacet', function () {
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
+      // setup wallet
+      await network.provider.request({
+        method: 'hardhat_impersonateAccount',
+        params: ['0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0'],
+      })
+      alice = await ethers.getSigner(
+        '0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0'
+      )
+
+      // setup contract
       await deployments.fixture('DeployNXTPFacet')
       const diamond = await ethers.getContract('LiFiDiamond')
-      lifi = <NXTPFacet>await ethers.getContractAt('NXTPFacet', diamond.address)
+      lifi = (<NXTPFacet>(
+        await ethers.getContractAt('NXTPFacet', diamond.address)
+      )).connect(alice)
       dexMgr = <DexManagerFacet>(
         await ethers.getContractAt('DexManagerFacet', diamond.address)
       )
-      ;[alice] = await ethers.getSigners()
-
       await dexMgr.addDex(UNISWAP_ADDRESS)
 
+      // test data
       lifiData = {
         transactionId: utils.randomBytes(32),
         integrator: 'ACME Devs',
