@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import "./Swapper.sol";

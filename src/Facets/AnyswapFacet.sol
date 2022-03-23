@@ -5,7 +5,6 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IAnyswapRouter } from "../Interfaces/IAnyswapRouter.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { LibSwap } from "../Libraries/LibSwap.sol";
 import { IAnyswapToken } from "../Interfaces/IAnyswapToken.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import "./Swapper.sol";

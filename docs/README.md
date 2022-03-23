@@ -4,6 +4,8 @@
 - [Hop Facet](./HopFacet.md)
 - [AnySwap Facet](./AnyswapFacet.md)
 - [CBridge Facet](./CBridgeFacet.md)
+- [Generic Swap Facet](./GenericSwapFacet.md)
+- [DEX Manager Facet](/DexManagerFacet.md)
 
 # Libraries
 
