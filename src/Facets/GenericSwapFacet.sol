@@ -7,7 +7,7 @@ import "./Swapper.sol";
 
 /**
  * @title Generic Swap Facet
- * @author Li.Finance (https://li.finance)
+ * @author LI.FI (https://li.fi)
  * @notice Provides functionality for swapping through ANY DEX
  * @dev Uses calldata to execute arbitrary methods on DEXs
  */
@@ -19,15 +19,16 @@ contract GenericSwapFacet is ILiFi, Swapper {
      * @param _lifiData data used purely for tracking and analytics
      * @param _swapData an array of swap related data for performing swaps before bridging
      */
-    function swapTokensGeneric(LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData) public payable {
+    function swapTokensGeneric(LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData) external payable {
         uint256 receivingAssetIdBalance = LibAsset.getOwnBalance(_lifiData.receivingAssetId);
 
         // Swap
         _executeSwaps(_lifiData, _swapData);
 
         uint256 postSwapBalance = LibAsset.getOwnBalance(_lifiData.receivingAssetId) - receivingAssetIdBalance;
+        require(postSwapBalance > 0, "Swap resulted in zero balance");
 
-        LibAsset.transferAsset(_lifiData.receivingAssetId, payable(msg.sender), postSwapBalance);
+        LibAsset.transferAsset(_swapData[_swapData.length - 1].receivingAssetId, payable(msg.sender), postSwapBalance);
 
         emit LiFiTransferStarted(
             _lifiData.transactionId,

@@ -6,10 +6,9 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 
 contract WithdrawFacet {
-    using SafeERC20 for IERC20;
-    address private constant NATIVE_ASSET = address(0);
+    address private constant NATIVE_ASSET = 0x0000000000000000000000000000000000000000; // address(0)
 
-    event LogWithdraw(address indexed _assetAddress, address _from, uint256 amount);
+    event LogWithdraw(address indexed _assetAddress, address _to, uint256 amount);
 
     /**
      * @dev Withdraw asset.
@@ -21,19 +20,20 @@ contract WithdrawFacet {
         address _assetAddress,
         address _to,
         uint256 _amount
-    ) public {
+    ) external {
         LibDiamond.enforceIsContractOwner();
         address sendTo = (_to == address(0)) ? msg.sender : _to;
         uint256 assetBalance;
         if (_assetAddress == NATIVE_ASSET) {
             address self = address(this); // workaround for a possible solidity bug
-            assert(_amount <= self.balance);
-            payable(sendTo).transfer(_amount);
+            require(_amount <= self.balance, "Requested amount less than balance.");
+            (bool success, ) = payable(sendTo).call{ value: _amount }("");
+            require(success, "Transfer failed.");
         } else {
             assetBalance = IERC20(_assetAddress).balanceOf(address(this));
-            assert(_amount <= assetBalance);
-            IERC20(_assetAddress).safeTransfer(sendTo, _amount);
+            require(_amount <= assetBalance, "Requested amount less than balance.");
+            SafeERC20.safeTransfer(IERC20(_assetAddress), sendTo, _amount);
         }
-        emit LogWithdraw(sendTo, _assetAddress, _amount);
+        emit LogWithdraw(_assetAddress, sendTo, _amount);
     }
 }

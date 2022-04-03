@@ -55,6 +55,10 @@ const config: cBridgeConfig = {
     cBridge: '0x841ce48F9446C8E281D3F1444cB859b4A6D0738C',
     chainId: 1285,
   },
+  celo: {
+    cBridge: '0xBB7684Cc5408F4DD0921E5c2Cadd547b8f1AD573',
+    chainId: 42220,
+  },
 }
 
 export default config

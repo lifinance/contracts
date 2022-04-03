@@ -2,6 +2,6 @@
 pragma solidity ^0.8.7;
 
 struct LibStorage {
-    mapping(address => bool) dexWhitelist;
+    mapping(address => bool) dexAllowlist;
     address[] dexs;
 }

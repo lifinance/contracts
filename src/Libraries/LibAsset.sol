@@ -18,7 +18,7 @@ library LibAsset {
      * @dev All native assets use the empty address for their asset id
      *      by convention
      */
-    address internal constant NATIVE_ASSETID = address(0);
+    address internal constant NATIVE_ASSETID = 0x0000000000000000000000000000000000000000; //address(0)
 
     /**
      * @notice Determines whether the given assetId is the native asset
@@ -57,6 +57,23 @@ library LibAsset {
      * @param amount Amount to approve for spending
      */
     function approveERC20(
+        IERC20 assetId,
+        address spender,
+        uint256 amount
+    ) internal {
+        if (isNativeAsset(address(assetId))) return;
+        uint256 allowance = assetId.allowance(address(this), spender);
+        if (allowance > 0) SafeERC20.safeApprove(IERC20(assetId), spender, 0);
+        SafeERC20.safeIncreaseAllowance(IERC20(assetId), spender, amount);
+    }
+
+    /**
+     * @notice Gives MAX approval for another address to spend tokens
+     * @param assetId Token address to transfer
+     * @param spender Address to give spend approval to
+     * @param amount Amount to approve for spending
+     */
+    function maxApproveERC20(
         IERC20 assetId,
         address spender,
         uint256 amount

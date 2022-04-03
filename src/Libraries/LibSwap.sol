@@ -5,8 +5,6 @@ import { LibAsset, IERC20 } from "./LibAsset.sol";
 import { LibUtil } from "./LibUtil.sol";
 
 library LibSwap {
-    uint256 private constant MAX_INT = 2**256 - 1;
-
     struct SwapData {
         address callTo;
         address approveTo;
@@ -28,18 +26,22 @@ library LibSwap {
 
     function swap(bytes32 transactionId, SwapData calldata _swapData) internal {
         uint256 fromAmount = _swapData.fromAmount;
+        require(fromAmount > 0, "Cannot swap from 0 balance.");
+        uint256 nativeValue = 0;
         uint256 toAmount = LibAsset.getOwnBalance(_swapData.receivingAssetId);
         address fromAssetId = _swapData.sendingAssetId;
-        if (!LibAsset.isNativeAsset(fromAssetId) && LibAsset.getOwnBalance(fromAssetId) < fromAmount) {
-            LibAsset.transferFromERC20(fromAssetId, msg.sender, address(this), fromAmount);
-        }
 
         if (!LibAsset.isNativeAsset(fromAssetId)) {
-            LibAsset.approveERC20(IERC20(fromAssetId), _swapData.approveTo, fromAmount);
+            LibAsset.maxApproveERC20(IERC20(fromAssetId), _swapData.approveTo, fromAmount);
+            if (LibAsset.getOwnBalance(fromAssetId) < fromAmount) {
+                LibAsset.transferFromERC20(fromAssetId, msg.sender, address(this), fromAmount);
+            }
+        } else {
+            nativeValue = fromAmount;
         }
 
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory res) = _swapData.callTo.call{ value: msg.value }(_swapData.callData);
+        (bool success, bytes memory res) = _swapData.callTo.call{ value: nativeValue }(_swapData.callData);
         if (!success) {
             string memory reason = LibUtil.getRevertMsg(res);
             revert(reason);

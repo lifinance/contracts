@@ -56,6 +56,9 @@ const config: NXTPConfig = {
   optimism: {
     txManagerAddress: '0x31eFc4AeAA7c39e54A33FDc3C46ee2Bd70ae0A09',
   },
+  boba: {
+    txManagerAddress: '0x31eFc4AeAA7c39e54A33FDc3C46ee2Bd70ae0A09',
+  },
 }
 
 export default config

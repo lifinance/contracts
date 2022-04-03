@@ -1,48 +1,9 @@
-## Contest scope
-
-All solidity files in the `src` folder except `src/Interfaces/*` and `src/Libraries/LibBytes.sol`.
-
-| File                                                             | Docs                                 | SLOC | External contracts called | Libraries used |
-|------------------------------------------------------------------|--------------------------------------|------|---------------------------|----------------|
-| [LiFiDiamond.sol](./src/LiFiDiamond.sol)                         |                                      |   39 |                         0 |              1 |
-|                                                                  |                                      |      |                           |                |
-| **Facets - Logic**                                               |                                      |      |                           |                |
-| [Swapper.sol](./src/Facets/Swapper.sol)                          | ([docs](./docs/Swapper.md))          |   15 |                         0 |              2 |
-| [AnyswapFacet.sol](./src/Facets/AnyswapFacet.sol)                | ([docs](./docs/AnyswapFacet.md))     |   97 |                         2 |              4 |
-| [CBridgeFacet.sol](./src/Facets/CBridgeFacet.sol)                | ([docs](./docs/CBridgeFacet.md))     |  117 |                         1 |              3 |
-| [HopFacet.sol](./src/Facets/HopFacet.sol)                        | ([docs](./docs/HopFacet.md))         |  129 |                         1 |              3 |
-| [NXTPFacet.sol](./src/Facets/NXTPFacet.sol)                      | ([docs](./docs/NXTPFacet.sol))       |  122 |                         1 |              3 |
-| [GenericSwapFacet.sol](./src/Facets/GenericSwapFacet.sol)        | ([docs](./docs/GenericSwapFacet.md)) |   23 |                         0 |              1 |
-|                                                                  |                                      |      |                           |                |
-| **Facets - Management**                                          |                                      |      |                           |                |
-| [OwnershipFacet.sol](./src/Facets/OwnershipFacet.sol)            |                                      |   12 |                         0 |              1 |
-| [DiamondCutFacet.sol](./src/Facets/DiamondCutFacet.sol)          |                                      |   13 |                         0 |              1 |
-| [DiamondLoupeFacet.sol](./src/Facets/DiamondLoupeFacet.sol)      |                                      |   37 |                         0 |              1 |
-| [WithdrawFacet.sol](./src/Facets/WithdrawFacet.sol)              |                                      |   28 |                         1 |              1 |
-| [DexManagerFacet.sol](./src/Facets/DexManagerFacet.sol)          |                                      |   59 |                         0 |              2 |
-|                                                                  |                                      |      |                           |                |
-| **Libraries**                                                    |                                      |      |                           |                |
-| [LibAsset.sol](./src/Libraries/LibAsset.sol)                     | ([docs](./docs/LibAsset.md))         |   67 |                         1 |              0 |
-| [LibBytes.sol](./src/Libraries/LibBytes.sol) (Not part of audit) | ([docs](./docs/LibBytes.md))         |  291 |                         0 |              0 |
-| [LibDiamond.sol](./src/Libraries/LibDiamond.sol)                 | ([docs](./docs/LibDiamond.md))       |  171 |                         0 |              0 |
-| [LibStorage.sol](./src/Libraries/LibStorage.sol)                 | ([docs](./docs/LibStorage.md))       |    5 |                         0 |              0 |
-| [LibSwap.sol](./src/Libraries/LibSwap.sol)                       | ([docs](./docs/LibSwap.md))          |   50 |                         1 |              2 |
-| [LibUtil.sol](./src/Libraries/LibUtil.sol)                       | ([docs](./docs/LibUtil.md))          |   10 |                         0 |              1 |
-
-The following risks should be given special consideration during the audit:
-- Malicious calls (in [LibSwap.sol](./src/Libraries/LibSwap.sol))
-- Access to other users funds
-- Compromise access control
-
-## Planned improvements
-
-We are planning to to improve the LibSwap libraries to not only check the exchange calls using a contract address whitelist, but also use a function signature whitelist to ensure that only known functions are called in those contracts.
-
 [![CI](https://github.com/lifinance/lifi-contracts/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/lifinance/lifi-contracts/actions/workflows/main.yml)
 
 # LI.FI Smart Contracts
 
 ## Table of contents
+
 1. [General](#general)
 2. [Why LI.FI?](#why)
    1. [Our Thesis](#thesis)
@@ -57,6 +18,7 @@ We are planning to to improve the LibSwap libraries to not only check the exchan
 6. [Getting Started](#getting-started)
    1. [INSTALL](#install)
    2. [TEST](#test)
+   3. [TEST With Foundry/Forge](#foundry-forge)
 7. [Contract Docs](#contract-docs)
 8. [More Information](#more-information)
 
@@ -71,13 +33,15 @@ Then, we use the thresholds and preferences of our integration partners and end-
 ## Why LI.FI?<a name="why"></a>
 
 ### Our Thesis<a name="thesis"></a>
-* The future is multi-chain
-* Cross-chain bridging solutions will play a major role on infrastructure level
-* Aggregation will pave the way for mass adoption
+
+- The future is multi-chain
+- Cross-chain bridging solutions will play a major role on infrastructure level
+- Aggregation will pave the way for mass adoption
 
 ---
 
 ### Ecosystem Problems<a name="ecosystem-problems"></a>
+
 **dApps**: Many users come across a new interesting dApp on a chain they don't have funds in and struggle to get their funds there. This is significant friction in user onboarding as they have to research and find bridges to that chain to start using the dApp.
 
 **Yield Aggregators**: There are definitely protocols with better yield on new L2/side-chains but there isn't a secure, reliable way to transfer your funds.
@@ -89,32 +53,35 @@ Then, we use the thresholds and preferences of our integration partners and end-
 ---
 
 ### Developer Problems<a name="developer-problems"></a>
+
 **Too many bridges** to educate yourself about.
 It'd be good to have access to all of them and getting good guidance from people and algorithms that are specialized.
 
-➔ Li.Fi does that.
+➔ LI.FI does that.
 
 **Bridges are still immature** so it's good to have not only one bridge but fallback solutions in place.
 Immaturity comes with security risks, insufficient liquidity and a lot of maintenance overhead.
 
-➔ Li.Fi maintains all bridge connections, gives you access to multiple ones and handles fallbacks and decision-making programmatically.
+➔ LI.FI maintains all bridge connections, gives you access to multiple ones and handles fallbacks and decision-making programmatically.
 
 **Bridges are most often not enough**.
 You also need DEXes/DEX aggregators as bridges are limited to stable-coins and native currencies.
 
-➔ Li.Fi not only aggregates bridges, but also connects to sorts of DEX aggregators and if not available, the DEXs directly in order to find the best swap possible to arrive at the desired token and to allow to start the whole process with any asset.
+➔ LI.FI not only aggregates bridges, but also connects to sorts of DEX aggregators and if not available, the DEXs directly in order to find the best swap possible to arrive at the desired token and to allow to start the whole process with any asset.
 
 ---
 
 ### Solution<a name="solution"></a>
+
 A data mesh of cross-chain liquidity sources: cross-chain liquidity networks, bridges, DEXes, bridges, and lending protocols.
 
-As a bridge and DEX aggregator, Li.Fi can route any asset on any chain to the desired asset on the desired chain, thus providing a remarkable UX to their users.
+As a bridge and DEX aggregator, LI.FI can route any asset on any chain to the desired asset on the desired chain, thus providing a remarkable UX to their users.
 
 All of this will be made available on an API/Contract level which comes as SDK, iFrame solution, and as a widget for other developers to plug directly into their products.
 No need for users to leave your dApps anymore.
 
 ## How It Works<a name="how-it-works"></a>
+
 Our [API](https://apidocs.li.finance/) and [SDK](https://docs.li.finance/official-documentation/integrate-li.fi-natively/li.fi-sdk) allow dApps and dApp developers to request the best routes for a desired cross-chain swap.
 Our backend will calculate the best possible routes based on the transaction fees, gas costs and execution duration.
 
@@ -144,6 +111,7 @@ graph TD;
     D{LiFiDiamond}-- DELEGATECALL -->HopFacet;
     D{LiFiDiamond}-- DELEGATECALL -->AnyswapFacet;
     D{LiFiDiamond}-- DELEGATECALL -->CBridgeFacet;
+    D{LiFiDiamond}-- DELEGATECALL -->HyphenFacet;
 ```
 
 ---
@@ -211,9 +179,42 @@ yarn
 yarn test
 ```
 
+### TEST With Foundry/Forge<a name="foundry-forge"></a>
+
+Make sure to install the latest version of Foundry by downloading the installer.
+
+```
+curl -L https://foundry.paradigm.xyz | bash
+```
+
+Then, in a new terminal session or after reloading your PATH, run it to get the latest forge and cast binaries:
+
+```
+foundryup
+```
+
+Install dependencies
+
+```
+forge install
+```
+
+Run tests
+
+```
+forge test
+```
+
+OR
+
+```
+yarn test:forge
+```
+
 ## More Information<a name="more-information"></a>
-* [Website](https://li.fi/)
-* [General Documentation](https://docs.li.finance/)
-* [API Documentation](https://apidocs.li.finance/)
-* [SDK Documentation](https://docs.li.finance/official-documentation/integrate-li.fi-natively/li.fi-sdk)
-* [Transfer UI](https://transferto.xyz/)
+
+- [Website](https://li.fi/)
+- [General Documentation](https://docs.li.finance/)
+- [API Documentation](https://apidocs.li.finance/)
+- [SDK Documentation](https://docs.li.finance/official-documentation/integrate-li.fi-natively/li.fi-sdk)
+- [Transfer UI](https://transferto.xyz/)

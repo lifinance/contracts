@@ -3,7 +3,7 @@ import { constants, Contract, utils } from 'ethers'
 import { deployments, network } from 'hardhat'
 import {
   DexManagerFacet,
-  ERC20__factory,
+  IERC20__factory as ERC20__factory,
   GenericSwapFacet,
 } from '../../typechain'
 import { node_url } from '../../utils/network'

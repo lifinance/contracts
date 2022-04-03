@@ -1,4 +1,4 @@
-import { ERC20__factory, HopFacet } from '../../typechain'
+import { IERC20__factory as ERC20__factory, HopFacet } from '../../typechain'
 import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { constants, utils } from 'ethers'

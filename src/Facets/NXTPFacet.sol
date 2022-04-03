@@ -9,13 +9,13 @@ import "./Swapper.sol";
 
 /**
  * @title NXTP (Connext) Facet
- * @author Li.Finance (https://li.finance)
+ * @author LI.FI (https://li.fi)
  * @notice Provides functionality for bridging through NXTP (Connext)
  */
 contract NXTPFacet is ILiFi, Swapper {
     /* ========== Storage ========== */
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.nxtp");
+    bytes32 internal constant NAMESPACE = hex"cb4800033539e504944b70f0275e98829f191b99c5226e9a5a072ab49d2a753e"; //keccak256("com.lifi.facets.nxtp");
     struct Storage {
         ITransactionManager nxtpTxManager;
     }
@@ -28,11 +28,18 @@ contract NXTPFacet is ILiFi, Swapper {
         ITransactionManager.TransactionData txData
     );
 
+    /* ========== Errors ========== */
+
+    error InvalidConfig();
+
     /* ========== Init ========== */
 
     function initNXTP(ITransactionManager _txMgrAddr) external {
-        Storage storage s = getStorage();
+        if (address(_txMgrAddr) == address(0)) {
+            revert InvalidConfig();
+        }
         LibDiamond.enforceIsContractOwner();
+        Storage storage s = getStorage();
         s.nxtpTxManager = _txMgrAddr;
     }
 
@@ -44,7 +51,7 @@ contract NXTPFacet is ILiFi, Swapper {
      * @param _nxtpData data needed to complete an NXTP cross-chain transaction
      */
     function startBridgeTokensViaNXTP(LiFiData memory _lifiData, ITransactionManager.PrepareArgs memory _nxtpData)
-        public
+        external
         payable
     {
         // Ensure sender has enough to complete the bridge transaction
@@ -83,22 +90,13 @@ contract NXTPFacet is ILiFi, Swapper {
      * @param _nxtpData data needed to complete an NXTP cross-chain transaction
      */
     function swapAndStartBridgeTokensViaNXTP(
-        LiFiData memory _lifiData,
+        LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
         ITransactionManager.PrepareArgs memory _nxtpData
-    ) public payable {
-        address sendingAssetId = _nxtpData.invariantData.sendingAssetId;
-        uint256 _sendingAssetIdBalance = LibAsset.getOwnBalance(sendingAssetId);
+    ) external payable {
+        require(_swapData.length > 0, "ERR_NO_SWAPS");
 
-        // Swap
-        _executeSwaps(_lifiData, _swapData);
-
-        uint256 _postSwapBalance = LibAsset.getOwnBalance(sendingAssetId) - _sendingAssetIdBalance;
-
-        require(_postSwapBalance > 0, "ERR_INVALID_AMOUNT");
-
-        _nxtpData.amount = _postSwapBalance;
-
+        _nxtpData.amount = _executeAndCheckSwaps(_lifiData, _swapData);
         _startBridge(_lifiData.transactionId, _nxtpData);
 
         emit LiFiTransferStarted(
@@ -126,7 +124,7 @@ contract NXTPFacet is ILiFi, Swapper {
         address assetId,
         address receiver,
         uint256 amount
-    ) public payable {
+    ) external payable {
         if (LibAsset.isNativeAsset(assetId)) {
             require(msg.value == amount, "INVALID_ETH_AMOUNT");
         } else {
@@ -152,7 +150,8 @@ contract NXTPFacet is ILiFi, Swapper {
         LibSwap.SwapData[] calldata _swapData,
         address finalAssetId,
         address receiver
-    ) public payable {
+    ) external payable {
+        require(_swapData.length > 0, "ERR_NO_SWAPS");
         uint256 startingBalance = LibAsset.getOwnBalance(finalAssetId);
 
         // Swap
@@ -160,7 +159,7 @@ contract NXTPFacet is ILiFi, Swapper {
 
         uint256 postSwapBalance = LibAsset.getOwnBalance(finalAssetId);
 
-        uint256 finalBalance;
+        uint256 finalBalance = 0;
 
         if (postSwapBalance > startingBalance) {
             finalBalance = postSwapBalance - startingBalance;
@@ -177,7 +176,7 @@ contract NXTPFacet is ILiFi, Swapper {
         IERC20 sendingAssetId = IERC20(_nxtpData.invariantData.sendingAssetId);
 
         // Give Connext approval to bridge tokens
-        LibAsset.approveERC20(IERC20(sendingAssetId), address(s.nxtpTxManager), _nxtpData.amount);
+        LibAsset.maxApproveERC20(IERC20(sendingAssetId), address(s.nxtpTxManager), _nxtpData.amount);
 
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId)) ? _nxtpData.amount : 0;
 

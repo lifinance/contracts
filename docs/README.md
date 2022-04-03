@@ -6,6 +6,7 @@
 - [NXTP Facet](./NXTPFacet.md)
 - [Hop Facet](./HopFacet.md)
 - [AnySwap Facet](./AnyswapFacet.md)
+- [Hyphen Facet](./HyphenFacet.md)
 - [CBridge Facet](./CBridgeFacet.md)
 
 

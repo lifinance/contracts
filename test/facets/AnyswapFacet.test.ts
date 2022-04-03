@@ -2,8 +2,8 @@
 import {
   AnyswapFacet,
   DexManagerFacet,
-  ERC20,
-  ERC20__factory,
+  IERC20 as ERC20,
+  IERC20__factory as ERC20__factory,
 } from '../../typechain'
 import { deployments, network } from 'hardhat'
 import { constants, utils } from 'ethers'

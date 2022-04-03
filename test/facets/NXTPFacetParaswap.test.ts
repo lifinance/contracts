@@ -1,4 +1,8 @@
-import { DexManagerFacet, ERC20__factory, NXTPFacet } from '../../typechain'
+import {
+  DexManagerFacet,
+  IERC20__factory as ERC20__factory,
+  NXTPFacet,
+} from '../../typechain'
 import { expect } from '../chai-setup'
 import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'

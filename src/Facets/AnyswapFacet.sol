@@ -11,7 +11,7 @@ import "./Swapper.sol";
 
 /**
  * @title Anyswap Facet
- * @author Li.Finance (https://li.finance)
+ * @author LI.FI (https://li.fi)
  * @notice Provides functionality for bridging through Multichain (Prev. AnySwap)
  */
 contract AnyswapFacet is ILiFi, Swapper {
@@ -32,9 +32,13 @@ contract AnyswapFacet is ILiFi, Swapper {
      * @param _lifiData data used purely for tracking and analytics
      * @param _anyswapData data specific to Anyswap
      */
-    function startBridgeTokensViaAnyswap(LiFiData memory _lifiData, AnyswapData calldata _anyswapData) public payable {
+    function startBridgeTokensViaAnyswap(LiFiData memory _lifiData, AnyswapData calldata _anyswapData)
+        external
+        payable
+    {
+        require(_anyswapData.token != address(0), "AnySwap token address cannot be 0");
         address underlyingToken = IAnyswapToken(_anyswapData.token).underlying();
-        if (_anyswapData.token != address(0) && underlyingToken != IAnyswapRouter(_anyswapData.router).wNATIVE()) {
+        if (underlyingToken != IAnyswapRouter(_anyswapData.router).wNATIVE()) {
             if (underlyingToken == address(0)) {
                 underlyingToken = _anyswapData.token;
             }
@@ -72,40 +76,17 @@ contract AnyswapFacet is ILiFi, Swapper {
      * @param _anyswapData data specific to Anyswap
      */
     function swapAndStartBridgeTokensViaAnyswap(
-        LiFiData memory _lifiData,
+        LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
         AnyswapData memory _anyswapData
-    ) public payable {
+    ) external payable {
+        require(_anyswapData.token != address(0), "AnySwap token address cannot be 0");
         address underlyingToken = IAnyswapToken(_anyswapData.token).underlying();
-        if (_anyswapData.token != address(0) && underlyingToken != IAnyswapRouter(_anyswapData.router).wNATIVE()) {
-            if (underlyingToken == address(0)) {
-                underlyingToken = _anyswapData.token;
-            }
 
-            uint256 _fromTokenBalance = LibAsset.getOwnBalance(underlyingToken);
-
-            // Swap
-            _executeSwaps(_lifiData, _swapData);
-
-            uint256 _postSwapBalance = LibAsset.getOwnBalance(underlyingToken) - _fromTokenBalance;
-
-            require(_postSwapBalance > 0, "ERR_INVALID_AMOUNT");
-
-            _anyswapData.amount = _postSwapBalance;
-        } else {
-            uint256 _fromBalance = address(this).balance;
-
-            // Swap
-            _executeSwaps(_lifiData, _swapData);
-
-            require(address(this).balance - _fromBalance >= _anyswapData.amount, "ERR_INVALID_AMOUNT");
-
-            uint256 _postSwapBalance = address(this).balance - _fromBalance;
-
-            require(_postSwapBalance > 0, "ERR_INVALID_AMOUNT");
-
-            _anyswapData.amount = _postSwapBalance;
+        if (underlyingToken == address(0)) {
+            underlyingToken = _anyswapData.token;
         }
+        _anyswapData.amount = _executeAndCheckSwaps(_lifiData, _swapData);
 
         _startBridge(_anyswapData);
 
@@ -129,8 +110,9 @@ contract AnyswapFacet is ILiFi, Swapper {
      * @param _anyswapData data specific to Anyswap
      */
     function _startBridge(AnyswapData memory _anyswapData) internal {
+        require(_anyswapData.token != address(0), "AnySwap token address cannot be 0");
         // Check chain id
-        require(block.chainid != _anyswapData.toChainId, "Cannot bridge to the same network.");
+        require(block.chainid != _anyswapData.toChainId, "Cannot bridge to same network.");
         address underlyingToken = IAnyswapToken(_anyswapData.token).underlying();
 
         if (underlyingToken == IAnyswapRouter(_anyswapData.router).wNATIVE()) {
@@ -146,7 +128,7 @@ contract AnyswapFacet is ILiFi, Swapper {
             // Has underlying token?
             if (underlyingToken != address(0)) {
                 // Give Anyswap approval to bridge tokens
-                LibAsset.approveERC20(IERC20(underlyingToken), _anyswapData.router, _anyswapData.amount);
+                LibAsset.maxApproveERC20(IERC20(underlyingToken), _anyswapData.router, _anyswapData.amount);
 
                 IAnyswapRouter(_anyswapData.router).anySwapOutUnderlying(
                     _anyswapData.token,
@@ -156,7 +138,7 @@ contract AnyswapFacet is ILiFi, Swapper {
                 );
             } else {
                 // Give Anyswap approval to bridge tokens
-                LibAsset.approveERC20(IERC20(_anyswapData.token), _anyswapData.router, _anyswapData.amount);
+                LibAsset.maxApproveERC20(IERC20(_anyswapData.token), _anyswapData.router, _anyswapData.amount);
 
                 IAnyswapRouter(_anyswapData.router).anySwapOut(
                     _anyswapData.token,

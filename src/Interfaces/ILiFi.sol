@@ -59,5 +59,5 @@ interface ILiFi {
         uint256 destinationChainId,
         uint256 timestamp
     );
-    event Inited(address indexed bridge, uint64 chainId);
+    event Inited(address indexed bridge, uint256 chainId);
 }

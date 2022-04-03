@@ -9,13 +9,13 @@ import "./Swapper.sol";
 
 /**
  * @title Hop Facet
- * @author Li.Finance (https://li.finance)
+ * @author LI.FI (https://li.fi)
  * @notice Provides functionality for bridging through Hop
  */
 contract HopFacet is ILiFi, Swapper {
     /* ========== Storage ========== */
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.hop");
+    bytes32 internal constant NAMESPACE = hex"6d21be7f069eba22e6227bbf0972cf4a3ee2f0ce81ad8bd8004228e83b4830b8"; //keccak256("com.lifi.facets.hop");
     struct Storage {
         mapping(string => IHopBridge.BridgeConfig) hopBridges;
         uint256 hopChainId;
@@ -35,17 +35,28 @@ contract HopFacet is ILiFi, Swapper {
         uint256 destinationDeadline;
     }
 
+    /* ========== Errors ========== */
+
+    error InvalidConfig();
+
     /* ========== Init ========== */
 
     function initHop(
-        string[] memory _tokens,
-        IHopBridge.BridgeConfig[] memory _bridgeConfigs,
+        string[] calldata _tokens,
+        IHopBridge.BridgeConfig[] calldata _bridgeConfigs,
         uint256 _chainId
     ) external {
         Storage storage s = getStorage();
         LibDiamond.enforceIsContractOwner();
 
-        for (uint8 i; i < _tokens.length; i++) {
+        uint256 length = _tokens.length;
+        require(_bridgeConfigs.length == length, "Invalid length of bridge configs");
+
+        for (uint256 i = 0; i < length; i++) {
+            if (_bridgeConfigs[i].bridge == address(0)) {
+                revert InvalidConfig();
+            }
+
             s.hopBridges[_tokens[i]] = _bridgeConfigs[i];
         }
         s.hopChainId = _chainId;
@@ -58,7 +69,8 @@ contract HopFacet is ILiFi, Swapper {
      * @param _lifiData data used purely for tracking and analytics
      * @param _hopData data specific to Hop Protocol
      */
-    function startBridgeTokensViaHop(LiFiData memory _lifiData, HopData calldata _hopData) public payable {
+    function startBridgeTokensViaHop(LiFiData memory _lifiData, HopData calldata _hopData) external payable {
+        require(_hopData.amount != 0, "ERR_NO_AMOUNT");
         address sendingAssetId = _bridge(_hopData.asset).token;
 
         if (sendingAssetId == address(0)) require(msg.value == _hopData.amount, "ERR_INVALID_AMOUNT");
@@ -93,23 +105,11 @@ contract HopFacet is ILiFi, Swapper {
      * @param _hopData data specific to Hop Protocol
      */
     function swapAndStartBridgeTokensViaHop(
-        LiFiData memory _lifiData,
+        LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
         HopData memory _hopData
-    ) public payable {
-        address sendingAssetId = _bridge(_hopData.asset).token;
-
-        uint256 _sendingAssetIdBalance = LibAsset.getOwnBalance(sendingAssetId);
-
-        // Swap
-        _executeSwaps(_lifiData, _swapData);
-
-        uint256 _postSwapBalance = LibAsset.getOwnBalance(sendingAssetId) - _sendingAssetIdBalance;
-
-        require(_postSwapBalance > 0, "ERR_INVALID_AMOUNT");
-
-        _hopData.amount = _postSwapBalance;
-
+    ) external payable {
+        _hopData.amount = _executeAndCheckSwaps(_lifiData, _swapData);
         _startBridge(_hopData);
 
         emit LiFiTransferStarted(
@@ -133,20 +133,22 @@ contract HopFacet is ILiFi, Swapper {
      */
     function _startBridge(HopData memory _hopData) internal {
         Storage storage s = getStorage();
-        address sendingAssetId = _bridge(_hopData.asset).token;
+        IHopBridge.BridgeConfig storage hopBridgeConfig = s.hopBridges[_hopData.asset];
+
+        address sendingAssetId = hopBridgeConfig.token;
 
         address bridge;
         if (s.hopChainId == 1) {
-            bridge = _bridge(_hopData.asset).bridge;
+            bridge = hopBridgeConfig.bridge;
         } else {
-            bridge = _bridge(_hopData.asset).ammWrapper;
+            bridge = hopBridgeConfig.ammWrapper;
         }
 
         // Do HOP stuff
-        require(s.hopChainId != _hopData.chainId, "Cannot bridge to the same network.");
+        require(s.hopChainId != _hopData.chainId, "Cannot bridge to same network.");
 
         // Give Hop approval to bridge tokens
-        LibAsset.approveERC20(IERC20(sendingAssetId), bridge, _hopData.amount);
+        LibAsset.maxApproveERC20(IERC20(sendingAssetId), bridge, _hopData.amount);
 
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId)) ? _hopData.amount : 0;
 

@@ -1,6 +1,10 @@
-import { ERC20__factory, CBridgeFacet, DexManagerFacet } from '../../typechain'
+import {
+  IERC20__factory as ERC20__factory,
+  CBridgeFacet,
+  DexManagerFacet,
+} from '../../typechain'
 // import { expect } from '../chai-setup'
-import { deployments, network } from 'hardhat'
+import { deployments, ethers, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { constants, Contract, utils } from 'ethers'
 import { node_url } from '../../utils/network'
@@ -9,7 +13,7 @@ import { expect } from '../chai-setup'
 const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const DAI_ADDRESS = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
 const UNISWAP_ADDRESS = '0xE592427A0AEce92De3Edee1F18E0157C05861564'
-const CBRIDGE_ADDRESS = '0xc578cbaf5a411dfa9f0d227f97dadaa4074ad062'
+const CBRIDGE_ADDRESS = '0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820'
 
 describe('CBridgeFacet', function () {
   let alice: SignerWithAddress
@@ -96,6 +100,7 @@ describe('CBridgeFacet', function () {
       })
     ).to.emit(lifi, 'Inited')
   })
+
   it('starts a bridge transaction on the sending chain', async function () {
     // Approve ERC20 for swapping
     const token = await ERC20__factory.connect(DAI_ADDRESS, alice)
@@ -105,6 +110,62 @@ describe('CBridgeFacet', function () {
       lifi.connect(alice).startBridgeTokensViaCBridge(lifiData, CBridgeData, {
         gasLimit: 500000,
       })
+    ).to.emit(lifi, 'LiFiTransferStarted')
+  })
+
+  it('fails to start a native token bridge transaction without msg.value', async function () {
+    const CBridgeDataNative = {
+      receiver: alice.address,
+      token: ethers.constants.AddressZero,
+      amount: utils.parseUnits('1', 18),
+      dstChainId: 137,
+      nonce: 1,
+      maxSlippage: 5000,
+    }
+    await expect(
+      lifi
+        .connect(alice)
+        .startBridgeTokensViaCBridge(lifiData, CBridgeDataNative, {
+          gasLimit: 500000,
+        })
+    ).to.be.revertedWith('ERR_INVALID_AMOUNT')
+  })
+
+  it('fails to start a native token bridge transaction with too much msg.value', async function () {
+    const CBridgeDataNative = {
+      receiver: alice.address,
+      token: ethers.constants.AddressZero,
+      amount: utils.parseUnits('0.0001', 18),
+      dstChainId: 137,
+      nonce: 1,
+      maxSlippage: 5000,
+    }
+    await expect(
+      lifi
+        .connect(alice)
+        .startBridgeTokensViaCBridge(lifiData, CBridgeDataNative, {
+          gasLimit: 500000,
+          value: utils.parseUnits('0.01', 18),
+        })
+    ).to.be.revertedWith('ERR_INVALID_AMOUNT')
+  })
+
+  it('starts a native token bridge transaction on the sending chain', async function () {
+    const CBridgeDataNative = {
+      receiver: alice.address,
+      token: ethers.constants.AddressZero,
+      amount: utils.parseUnits('0.01', 18),
+      dstChainId: 137,
+      nonce: 1,
+      maxSlippage: 5000,
+    }
+    await expect(
+      lifi
+        .connect(alice)
+        .startBridgeTokensViaCBridge(lifiData, CBridgeDataNative, {
+          gasLimit: 500000,
+          value: CBridgeDataNative.amount,
+        })
     ).to.emit(lifi, 'LiFiTransferStarted')
   })
 

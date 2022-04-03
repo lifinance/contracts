@@ -17,7 +17,7 @@ interface ICBridge {
         uint64 _dstChinId,
         uint64 _nonce,
         uint32 _maxSlippage
-    ) external;
+    ) external payable;
 
     function relay(
         bytes calldata _relayRequest,

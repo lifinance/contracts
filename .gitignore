@@ -1,13 +1,16 @@
 cache/
 artifacts/
+out/
 
 coverage*
 typechain/
 
+# IDE settings
 .vscode/*
 !.vscode/settings.json.default
 !.vscode/launch.json.default
 !.vscode/extensions.json.default
+.idea
 
 node_modules/
 .env
@@ -17,3 +20,5 @@ yalc.lock
 
 contractsInfo.json
 deployments/
+
+yarn-error.log

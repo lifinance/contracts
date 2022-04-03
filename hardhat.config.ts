@@ -139,6 +139,7 @@ const config: HardhatUserConfig = {
       accounts: PKEY ? [PKEY] : accounts('fuse'),
     },
     boba: {
+      chainId: 288,
       url: node_url('boba'),
       accounts: PKEY ? [PKEY] : accounts('boba'),
     },
