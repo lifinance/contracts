@@ -1,6 +1,4 @@
-[![CI](https://github.com/lifinance/lifi-contracts/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/lifinance/lifi-contracts/actions/workflows/main.yml)
-
-# LI.FI Smart Contracts
+# LI.FI Smart Contracts [![CI](https://github.com/lifinance/contracts/actions/workflows/forge.yml/badge.svg)](https://github.com/lifinance/contracts/actions/workflows/forge.yml)
 
 ## Table of contents
 
