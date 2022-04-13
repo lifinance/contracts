@@ -9,6 +9,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { constants, Contract, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { expect } from '../chai-setup'
+import approvedFunctionSelectors from '../../utils/approvedFunctions'
 
 const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const DAI_ADDRESS = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
@@ -39,6 +40,10 @@ describe('CBridgeFacet', function () {
         await ethers.getContractAt('DexManagerFacet', diamond.address)
       )
       await dexMgr.addDex(UNISWAP_ADDRESS)
+      await dexMgr.batchSetFunctionApprovalBySignature(
+        approvedFunctionSelectors,
+        true
+      )
 
       await network.provider.request({
         method: 'hardhat_impersonateAccount',
@@ -128,7 +133,7 @@ describe('CBridgeFacet', function () {
         .startBridgeTokensViaCBridge(lifiData, CBridgeDataNative, {
           gasLimit: 500000,
         })
-    ).to.be.revertedWith('ERR_INVALID_AMOUNT')
+    ).to.be.revertedWith('InvalidAmount()')
   })
 
   it('fails to start a native token bridge transaction with too much msg.value', async function () {
@@ -147,7 +152,7 @@ describe('CBridgeFacet', function () {
           gasLimit: 500000,
           value: utils.parseUnits('0.01', 18),
         })
-    ).to.be.revertedWith('ERR_INVALID_AMOUNT')
+    ).to.be.revertedWith('InvalidAmount()')
   })
 
   it('starts a native token bridge transaction on the sending chain', async function () {
@@ -288,6 +293,6 @@ describe('CBridgeFacet', function () {
         CBridgeData,
         { gasLimit: 500000 }
       )
-    ).to.be.revertedWith('Contract call not allowed')
+    ).to.be.revertedWith('ContractCallNotAllowed()')
   })
 })

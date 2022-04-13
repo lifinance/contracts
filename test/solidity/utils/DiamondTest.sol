@@ -36,9 +36,12 @@ contract DiamondTest {
 
         // Ownership Facet
 
-        functionSelectors = new bytes4[](2);
+        functionSelectors = new bytes4[](4);
         functionSelectors[0] = OwnershipFacet.transferOwnership.selector;
-        functionSelectors[1] = OwnershipFacet.owner.selector;
+        functionSelectors[1] = OwnershipFacet.cancelOnwershipTransfer.selector;
+        functionSelectors[2] = OwnershipFacet.confirmOwnershipTransfer.selector;
+        functionSelectors[3] = OwnershipFacet.owner.selector;
+
         cut.push(
             IDiamondCut.FacetCut({
                 facetAddress: address(ownership),

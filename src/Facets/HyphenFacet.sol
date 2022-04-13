@@ -5,14 +5,16 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IHyphenRouter } from "../Interfaces/IHyphenRouter.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import "./Swapper.sol";
+import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
+import { InvalidAmount, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
+import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
 
 /**
  * @title Hyphen Facet
  * @author LI.FI (https://li.fi)
  * @notice Provides functionality for bridging through Hyphen
  */
-contract HyphenFacet is ILiFi, Swapper {
+contract HyphenFacet is ILiFi, Swapper, ReentrancyGuard {
     /* ========== Storage ========== */
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.hyphen");
@@ -46,12 +48,9 @@ contract HyphenFacet is ILiFi, Swapper {
      * @param _hyphenRouter address of the canonical Hyphen router contract
      */
     function initHyphen(address _hyphenRouter) external {
-        if (_hyphenRouter == address(0)) {
-            revert InvalidConfig();
-        }
-
-        Storage storage s = getStorage();
         LibDiamond.enforceIsContractOwner();
+        if (_hyphenRouter == address(0)) revert InvalidConfig();
+        Storage storage s = getStorage();
         s.hyphenRouter = _hyphenRouter;
     }
 
@@ -62,31 +61,23 @@ contract HyphenFacet is ILiFi, Swapper {
      * @param _lifiData data used purely for tracking and analytics
      * @param _hyphenData data specific to Hyphen
      */
-    function startBridgeTokensViaHyphen(LiFiData memory _lifiData, HyphenData calldata _hyphenData) external payable {
-        if (_hyphenData.token != address(0)) {
-            uint256 _fromTokenBalance = LibAsset.getOwnBalance(_hyphenData.token);
-
-            LibAsset.transferFromERC20(_hyphenData.token, msg.sender, address(this), _hyphenData.amount);
-
-            require(
-                LibAsset.getOwnBalance(_hyphenData.token) - _fromTokenBalance == _hyphenData.amount,
-                "ERR_INVALID_AMOUNT"
-            );
-        } else {
-            require(msg.value == _hyphenData.amount, "ERR_INVALID_AMOUNT");
-        }
-
+    function startBridgeTokensViaHyphen(LiFiData calldata _lifiData, HyphenData calldata _hyphenData)
+        external
+        payable
+        nonReentrant
+    {
+        LibAsset.depositAsset(_hyphenData.token, _hyphenData.amount);
         _startBridge(_hyphenData);
 
         emit LiFiTransferStarted(
             _lifiData.transactionId,
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
+            _hyphenData.token,
             _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
-            _lifiData.destinationChainId,
+            _hyphenData.recipient,
+            _hyphenData.amount,
+            _hyphenData.toChainId,
             block.timestamp
         );
     }
@@ -98,34 +89,22 @@ contract HyphenFacet is ILiFi, Swapper {
      * @param _hyphenData data specific to Hyphen
      */
     function swapAndStartBridgeTokensViaHyphen(
-        LiFiData memory _lifiData,
+        LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
         HyphenData memory _hyphenData
-    ) external payable {
-        address sendingAssetId = _hyphenData.token;
-
-        uint256 _sendingAssetIdBalance = LibAsset.getOwnBalance(sendingAssetId);
-
-        // Swap
-        _executeSwaps(_lifiData, _swapData);
-
-        uint256 _postSwapBalance = LibAsset.getOwnBalance(sendingAssetId) - _sendingAssetIdBalance;
-
-        require(_postSwapBalance != 0, "ERR_INVALID_AMOUNT");
-
-        _hyphenData.amount = _postSwapBalance;
-
+    ) external payable nonReentrant {
+        _hyphenData.amount = _executeAndCheckSwaps(_lifiData, _swapData);
         _startBridge(_hyphenData);
 
         emit LiFiTransferStarted(
             _lifiData.transactionId,
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
+            _swapData[0].sendingAssetId,
             _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
-            _lifiData.destinationChainId,
+            _hyphenData.recipient,
+            _swapData[0].fromAmount,
+            _hyphenData.toChainId,
             block.timestamp
         );
     }
@@ -140,7 +119,7 @@ contract HyphenFacet is ILiFi, Swapper {
         Storage storage s = getStorage();
 
         // Check chain id
-        require(block.chainid != _hyphenData.toChainId, "Cannot bridge to same network.");
+        if (block.chainid == _hyphenData.toChainId) revert CannotBridgeToSameNetwork();
 
         if (_hyphenData.token != address(0)) {
             // Give Anyswap approval to bridge tokens

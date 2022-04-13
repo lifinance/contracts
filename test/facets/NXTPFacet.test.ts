@@ -11,6 +11,7 @@ import { constants, Contract, utils } from 'ethers'
 import { simpleNXTPData } from '../fixtures/nxtp'
 import { ChainId, Token } from '@uniswap/sdk'
 import { node_url } from '../../utils/network'
+import approvedFunctionSelectors from '../../utils/approvedFunctions'
 
 describe('NXTPFacet', function () {
   const RINKEBY_DAI_ADDRESS = '0xc7AD46e0b8a400Bb3C915120d284AafbA8fc4735'
@@ -44,6 +45,10 @@ describe('NXTPFacet', function () {
         await ethers.getContractAt('DexManagerFacet', diamond.address)
       )
       await dexMgr.addDex(UNISWAP_ADDRESS)
+      await dexMgr.batchSetFunctionApprovalBySignature(
+        approvedFunctionSelectors,
+        true
+      )
 
       // test data
       lifiData = {
@@ -219,7 +224,7 @@ describe('NXTPFacet', function () {
         nxtpData,
         { gasLimit: 500000 }
       )
-    ).to.be.revertedWith('Contract call not allowed!')
+    ).to.be.revertedWith('ContractCallNotAllowed()')
   })
 
   it('performs a swap with positive slippage then starts bridge transaction on the sending chain', async function () {

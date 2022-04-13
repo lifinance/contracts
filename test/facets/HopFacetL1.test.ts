@@ -10,6 +10,7 @@ import { constants, Contract, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { expect } from '../chai-setup'
 import { parseEther, parseUnits } from 'ethers/lib/utils'
+import approvedFunctionSelectors from '../../utils/approvedFunctions'
 
 const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const DAI_ADDRESS = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
@@ -32,6 +33,10 @@ describe('HopFacet L1', function () {
         await ethers.getContractAt('DexManagerFacet', diamond.address)
       )
       await dexMgr.addDex(UNISWAP_ADDRESS)
+      await dexMgr.batchSetFunctionApprovalBySignature(
+        approvedFunctionSelectors,
+        true
+      )
 
       await network.provider.request({
         method: 'hardhat_impersonateAccount',
@@ -251,6 +256,6 @@ describe('HopFacet L1', function () {
         HopData,
         { gasLimit: 500000 }
       )
-    ).to.be.revertedWith('Contract call not allowed!')
+    ).to.be.revertedWith('ContractCallNotAllowed()')
   })
 })

@@ -8,6 +8,9 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 contract WithdrawFacet {
     address private constant NATIVE_ASSET = 0x0000000000000000000000000000000000000000; // address(0)
 
+    error NotEnoughBalance(uint256 requested, uint256 available);
+    error WithdrawFailed();
+
     event LogWithdraw(address indexed _assetAddress, address _to, uint256 amount);
 
     /**
@@ -26,12 +29,14 @@ contract WithdrawFacet {
         uint256 assetBalance;
         if (_assetAddress == NATIVE_ASSET) {
             address self = address(this); // workaround for a possible solidity bug
-            require(_amount <= self.balance, "Requested amount less than balance.");
+
+            if (_amount > self.balance) revert NotEnoughBalance(_amount, self.balance);
+            // solhint-disable-next-line avoid-low-level-calls
             (bool success, ) = payable(sendTo).call{ value: _amount }("");
-            require(success, "Transfer failed.");
+            if (!success) revert WithdrawFailed();
         } else {
             assetBalance = IERC20(_assetAddress).balanceOf(address(this));
-            require(_amount <= assetBalance, "Requested amount less than balance.");
+            if (_amount > assetBalance) revert NotEnoughBalance(_amount, assetBalance);
             SafeERC20.safeTransfer(IERC20(_assetAddress), sendTo, _amount);
         }
         emit LogWithdraw(_assetAddress, sendTo, _amount);

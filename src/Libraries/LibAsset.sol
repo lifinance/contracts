@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.7;
-
+import { NullAddrIsNotAnERC20Token, NullAddrIsNotAValidSpender, NoTransferToNullAddress, InvalidAmount, NativeValueWithERC, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -12,22 +12,14 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *         conventions and any noncompliant ERC20 transfers
  */
 library LibAsset {
-    uint256 private constant MAX_INT = 2**256 - 1;
+    uint256 private constant MAX_INT = type(uint256).max;
 
+    address internal constant NULL_ADDRESS = 0x0000000000000000000000000000000000000000; //address(0)
     /**
      * @dev All native assets use the empty address for their asset id
      *      by convention
      */
-    address internal constant NATIVE_ASSETID = 0x0000000000000000000000000000000000000000; //address(0)
-
-    /**
-     * @notice Determines whether the given assetId is the native asset
-     * @param assetId The asset identifier to evaluate
-     * @return Boolean indicating if the asset is the native asset
-     */
-    function isNativeAsset(address assetId) internal pure returns (bool) {
-        return assetId == NATIVE_ASSETID;
-    }
+    address internal constant NATIVE_ASSETID = NULL_ADDRESS; //address(0)
 
     /**
      * @notice Gets the balance of the inheriting contract for the given asset
@@ -35,7 +27,7 @@ library LibAsset {
      * @return Balance held by contracts using this library
      */
     function getOwnBalance(address assetId) internal view returns (uint256) {
-        return isNativeAsset(assetId) ? address(this).balance : IERC20(assetId).balanceOf(address(this));
+        return assetId == NATIVE_ASSETID ? address(this).balance : IERC20(assetId).balanceOf(address(this));
     }
 
     /**
@@ -44,27 +36,11 @@ library LibAsset {
      * @param recipient Address to send ether to
      * @param amount Amount to send to given recipient
      */
-    function transferNativeAsset(address payable recipient, uint256 amount) internal {
+    function transferNativeAsset(address payable recipient, uint256 amount) private {
+        if (recipient == NULL_ADDRESS) revert NoTransferToNullAddress();
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, ) = recipient.call{ value: amount }("");
-        require(success, "#TNA:028");
-    }
-
-    /**
-     * @notice Gives approval for another address to spend tokens
-     * @param assetId Token address to transfer
-     * @param spender Address to give spend approval to
-     * @param amount Amount to approve for spending
-     */
-    function approveERC20(
-        IERC20 assetId,
-        address spender,
-        uint256 amount
-    ) internal {
-        if (isNativeAsset(address(assetId))) return;
-        uint256 allowance = assetId.allowance(address(this), spender);
-        if (allowance > 0) SafeERC20.safeApprove(IERC20(assetId), spender, 0);
-        SafeERC20.safeIncreaseAllowance(IERC20(assetId), spender, amount);
+        if (!success) revert NativeAssetTransferFailed();
     }
 
     /**
@@ -78,26 +54,25 @@ library LibAsset {
         address spender,
         uint256 amount
     ) internal {
-        if (isNativeAsset(address(assetId))) return;
+        if (address(assetId) == NATIVE_ASSETID) return;
+        if (spender == NULL_ADDRESS) revert NullAddrIsNotAValidSpender();
         uint256 allowance = assetId.allowance(address(this), spender);
-        if (allowance < amount) {
-            if (allowance > 0) SafeERC20.safeApprove(IERC20(assetId), spender, 0);
-            SafeERC20.safeApprove(IERC20(assetId), spender, MAX_INT);
-        }
+        if (allowance < amount) SafeERC20.safeApprove(IERC20(assetId), spender, MAX_INT);
     }
 
     /**
      * @notice Transfers tokens from the inheriting contract to a given
      *         recipient
      * @param assetId Token address to transfer
-     * @param recipient Address to send ether to
+     * @param recipient Address to send token to
      * @param amount Amount to send to given recipient
      */
     function transferERC20(
         address assetId,
         address recipient,
         uint256 amount
-    ) internal {
+    ) private {
+        if (isNativeAsset(assetId)) revert NullAddrIsNotAnERC20Token();
         SafeERC20.safeTransfer(IERC20(assetId), recipient, amount);
     }
 
@@ -114,37 +89,49 @@ library LibAsset {
         address to,
         uint256 amount
     ) internal {
+        if (assetId == NATIVE_ASSETID) revert NullAddrIsNotAnERC20Token();
+        if (to == NULL_ADDRESS) revert NoTransferToNullAddress();
         SafeERC20.safeTransferFrom(IERC20(assetId), from, to, amount);
     }
 
     /**
-     * @notice Increases the allowance of a token to a spender
-     * @param assetId Token address of asset to increase allowance of
-     * @param spender Account whos allowance is increased
-     * @param amount Amount to increase allowance by
+     * @notice Deposits an asset into the contract and performs checks to avoid NativeValueWithERC
+     * @param tokenId Token to deposit
+     * @param amount Amount to deposit
+     * @param isNative Wether the token is native or ERC20
      */
-    function increaseERC20Allowance(
-        address assetId,
-        address spender,
-        uint256 amount
+    function depositAsset(
+        address tokenId,
+        uint256 amount,
+        bool isNative
     ) internal {
-        require(!isNativeAsset(assetId), "#IA:034");
-        SafeERC20.safeIncreaseAllowance(IERC20(assetId), spender, amount);
+        if (amount == 0) revert InvalidAmount();
+        if (isNative) {
+            if (msg.value != amount) revert InvalidAmount();
+        } else {
+            if (msg.value != 0) revert NativeValueWithERC();
+            uint256 _fromTokenBalance = LibAsset.getOwnBalance(tokenId);
+            LibAsset.transferFromERC20(tokenId, msg.sender, address(this), amount);
+            if (LibAsset.getOwnBalance(tokenId) - _fromTokenBalance != amount) revert InvalidAmount();
+        }
     }
 
     /**
-     * @notice Decreases the allowance of a token to a spender
-     * @param assetId Token address of asset to decrease allowance of
-     * @param spender Account whos allowance is decreased
-     * @param amount Amount to decrease allowance by
+     * @notice Overload for depositAsset(address tokenId, uint256 amount, bool isNative)
+     * @param tokenId Token to deposit
+     * @param amount Amount to deposit
      */
-    function decreaseERC20Allowance(
-        address assetId,
-        address spender,
-        uint256 amount
-    ) internal {
-        require(!isNativeAsset(assetId), "#DA:034");
-        SafeERC20.safeDecreaseAllowance(IERC20(assetId), spender, amount);
+    function depositAsset(address tokenId, uint256 amount) internal {
+        return depositAsset(tokenId, amount, tokenId == NATIVE_ASSETID);
+    }
+
+    /**
+     * @notice Determines whether the given assetId is the native asset
+     * @param assetId The asset identifier to evaluate
+     * @return Boolean indicating if the asset is the native asset
+     */
+    function isNativeAsset(address assetId) internal pure returns (bool) {
+        return assetId == NATIVE_ASSETID;
     }
 
     /**
@@ -161,6 +148,18 @@ library LibAsset {
         address payable recipient,
         uint256 amount
     ) internal {
-        isNativeAsset(assetId) ? transferNativeAsset(recipient, amount) : transferERC20(assetId, recipient, amount);
+        (assetId == NATIVE_ASSETID)
+            ? transferNativeAsset(recipient, amount)
+            : transferERC20(assetId, recipient, amount);
+    }
+
+    /// @dev Checks whether the given address is a contract and contains code
+    function isContract(address _contractAddr) internal view returns (bool) {
+        uint256 size;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            size := extcodesize(_contractAddr)
+        }
+        return size > 0;
     }
 }

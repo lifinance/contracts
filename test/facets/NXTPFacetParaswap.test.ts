@@ -11,6 +11,7 @@ import { paraswapNXTPData } from '../fixtures/nxtp'
 import { node_url } from '../../utils/network'
 import config from '../../config/nxtp'
 import { addOrReplaceFacets } from '../../utils/diamond'
+import approvedFunctionSelectors from '../../utils/approvedFunctions'
 
 describe('NXTPFacet (Paraswap)', function () {
   const USDC_ADDRESS = '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'
@@ -57,6 +58,11 @@ describe('NXTPFacet (Paraswap)', function () {
         '0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57',
         '0x216b4b4ba9f3e719726886d34a177484278bfcae',
       ])
+      await dexMgr.batchSetFunctionApprovalBySignature(
+        approvedFunctionSelectors,
+        true
+      )
+
       const ABI = ['function initNXTP(address)']
       const iface = new utils.Interface(ABI)
 

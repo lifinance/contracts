@@ -5,14 +5,16 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import "./Swapper.sol";
+import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
+import { InvalidAmount, CannotBridgeToSameNetwork, NativeValueWithERC } from "../Errors/GenericErrors.sol";
+import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
 
 /**
  * @title CBridge Facet
  * @author LI.FI (https://li.fi)
  * @notice Provides functionality for bridging through CBridge
  */
-contract CBridgeFacet is ILiFi, Swapper {
+contract CBridgeFacet is ILiFi, Swapper, ReentrancyGuard {
     /* ========== Storage ========== */
 
     bytes32 internal constant NAMESPACE = hex"86b79a219228d788dd4fea892f48eec79167ea6d19d7f61e274652b2797c5b12"; //keccak256("com.lifi.facets.cbridge2");
@@ -24,12 +26,12 @@ contract CBridgeFacet is ILiFi, Swapper {
     /* ========== Types ========== */
 
     struct CBridgeData {
+        uint32 maxSlippage;
+        uint64 dstChainId;
+        uint64 nonce;
         uint256 amount;
         address receiver;
-        uint64 dstChainId;
-        uint32 maxSlippage;
         address token;
-        uint64 nonce;
     }
 
     /* ========== Errors ========== */
@@ -44,11 +46,8 @@ contract CBridgeFacet is ILiFi, Swapper {
      * @param _chainId chainId of this deployed contract
      */
     function initCbridge(address _cBridge, uint64 _chainId) external {
-        if (_cBridge == address(0)) {
-            revert InvalidConfig();
-        }
-
         LibDiamond.enforceIsContractOwner();
+        if (_cBridge == address(0)) revert InvalidConfig();
         Storage storage s = getStorage();
         s.cBridge = _cBridge;
         s.cBridgeChainId = _chainId;
@@ -62,34 +61,23 @@ contract CBridgeFacet is ILiFi, Swapper {
      * @param _lifiData data used purely for tracking and analytics
      * @param _cBridgeData data specific to CBridge
      */
-    function startBridgeTokensViaCBridge(LiFiData memory _lifiData, CBridgeData calldata _cBridgeData)
+    function startBridgeTokensViaCBridge(LiFiData calldata _lifiData, CBridgeData calldata _cBridgeData)
         external
         payable
+        nonReentrant
     {
-        if (!LibAsset.isNativeAsset(_cBridgeData.token)) {
-            uint256 _fromTokenBalance = LibAsset.getOwnBalance(_cBridgeData.token);
-
-            LibAsset.transferFromERC20(_cBridgeData.token, msg.sender, address(this), _cBridgeData.amount);
-
-            require(
-                LibAsset.getOwnBalance(_cBridgeData.token) - _fromTokenBalance == _cBridgeData.amount,
-                "ERR_INVALID_AMOUNT"
-            );
-        } else {
-            require(msg.value == _cBridgeData.amount, "ERR_INVALID_AMOUNT");
-        }
-
+        LibAsset.depositAsset(_cBridgeData.token, _cBridgeData.amount);
         _startBridge(_cBridgeData);
 
         emit LiFiTransferStarted(
             _lifiData.transactionId,
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
+            _cBridgeData.token,
             _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
-            _lifiData.destinationChainId,
+            _cBridgeData.receiver,
+            _cBridgeData.amount,
+            _cBridgeData.dstChainId,
             block.timestamp
         );
     }
@@ -104,36 +92,35 @@ contract CBridgeFacet is ILiFi, Swapper {
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
         CBridgeData memory _cBridgeData
-    ) external payable {
+    ) external payable nonReentrant {
         _cBridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData);
-
         _startBridge(_cBridgeData);
 
         emit LiFiTransferStarted(
             _lifiData.transactionId,
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
+            _swapData[0].sendingAssetId,
             _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
-            _lifiData.destinationChainId,
+            _cBridgeData.receiver,
+            _swapData[0].fromAmount,
+            _cBridgeData.dstChainId,
             block.timestamp
         );
     }
 
-    /* ========== Internal Functions ========== */
+    /* ========== Private Functions ========== */
 
     /*
      * @dev Conatains the business logic for the bridge via CBridge
      * @param _cBridgeData data specific to CBridge
      */
-    function _startBridge(CBridgeData memory _cBridgeData) internal {
+    function _startBridge(CBridgeData memory _cBridgeData) private {
         Storage storage s = getStorage();
         address bridge = s.cBridge;
 
         // Do CBridge stuff
-        require(s.cBridgeChainId != _cBridgeData.dstChainId, "Cannot bridge to same network.");
+        if (s.cBridgeChainId == _cBridgeData.dstChainId) revert CannotBridgeToSameNetwork();
 
         if (LibAsset.isNativeAsset(_cBridgeData.token)) {
             ICBridge(bridge).sendNative{ value: _cBridgeData.amount }(
@@ -159,10 +146,10 @@ contract CBridgeFacet is ILiFi, Swapper {
     }
 
     /*
-     * @dev Public view function for the CBridge router address
+     * @dev Private view function for the CBridge router address
      * @returns the router address
      */
-    function _bridge() internal view returns (address) {
+    function _bridge() private view returns (address) {
         Storage storage s = getStorage();
         return s.cBridge;
     }
@@ -170,7 +157,7 @@ contract CBridgeFacet is ILiFi, Swapper {
     /**
      * @dev fetch local storage
      */
-    function getStorage() internal pure returns (Storage storage s) {
+    function getStorage() private pure returns (Storage storage s) {
         bytes32 namespace = NAMESPACE;
         // solhint-disable-next-line no-inline-assembly
         assembly {

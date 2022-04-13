@@ -5,7 +5,7 @@ import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { Swapper, LibSwap } from "lifi/Facets/Swapper.sol";
+import { Swapper, LibSwap } from "lifi/Helpers/Swapper.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { TestAMM } from "../utils/TestAMM.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
@@ -30,6 +30,12 @@ contract TestSwapper is ILiFi, Swapper {
         dexAllowlist[_dex] = true;
         ls.dexs.push(_dex);
     }
+
+    function setFunctionApprovalBySignature(bytes32 signature) external {
+        mapping(bytes32 => bool) storage dexFuncSignatureAllowList = ls.dexFuncSignatureAllowList;
+        if (dexFuncSignatureAllowList[signature]) return;
+        dexFuncSignatureAllowList[signature] = true;
+    }
 }
 
 contract SwapperTest is DSTest, DiamondTest {
@@ -43,14 +49,16 @@ contract SwapperTest is DSTest, DiamondTest {
         amm = new TestAMM();
         swapper = new TestSwapper();
 
-        bytes4[] memory functionSelectors = new bytes4[](2);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = TestSwapper.doSwaps.selector;
         functionSelectors[1] = TestSwapper.addDex.selector;
+        functionSelectors[2] = TestSwapper.setFunctionApprovalBySignature.selector;
 
         addFacet(diamond, address(swapper), functionSelectors);
 
         swapper = TestSwapper(address(diamond));
         swapper.addDex(address(amm));
+        swapper.setFunctionApprovalBySignature(hex"8a0ccd5600000000000000000000000000000000000000000000000000000000");
     }
 
     function testSwapCleanup() public {

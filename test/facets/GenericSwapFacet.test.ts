@@ -8,6 +8,7 @@ import {
 } from '../../typechain'
 import { node_url } from '../../utils/network'
 import { expect } from '../chai-setup'
+import approvedFunctionSelectors from '../../utils/approvedFunctions'
 
 const USDC_ADDRESS = '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'
 const hUSDC_ADDRESS = '0x9ec9551d4A1a1593b0ee8124D98590CC71b3B09D'
@@ -34,6 +35,10 @@ describe('Generic Swap Facet', async () => {
         await ethers.getContractAt('DexManagerFacet', diamond.address)
       )
       await dexMgr.addDex(SADDLESWAP_ADDRESS)
+      await dexMgr.batchSetFunctionApprovalBySignature(
+        approvedFunctionSelectors,
+        true
+      )
 
       await network.provider.request({
         method: 'hardhat_impersonateAccount',
@@ -185,6 +190,6 @@ describe('Generic Swap Facet', async () => {
           gasLimit: 500000,
         }
       )
-    ).to.be.revertedWith('Contract call not allowed!')
+    ).to.be.revertedWith('ContractCallNotAllowed()')
   })
 })

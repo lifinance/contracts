@@ -3,8 +3,11 @@ pragma solidity ^0.8.7;
 
 import { LibAsset, IERC20 } from "./LibAsset.sol";
 import { LibUtil } from "./LibUtil.sol";
+import { InvalidContract } from "../Errors/GenericErrors.sol";
 
 library LibSwap {
+    error NoSwapFromZeroBalance();
+
     struct SwapData {
         address callTo;
         address approveTo;
@@ -25,16 +28,20 @@ library LibSwap {
     );
 
     function swap(bytes32 transactionId, SwapData calldata _swapData) internal {
+        if (!LibAsset.isContract(_swapData.callTo)) revert InvalidContract();
         uint256 fromAmount = _swapData.fromAmount;
-        require(fromAmount > 0, "Cannot swap from 0 balance.");
+        if (fromAmount == 0) revert NoSwapFromZeroBalance();
         uint256 nativeValue = 0;
-        uint256 toAmount = LibAsset.getOwnBalance(_swapData.receivingAssetId);
         address fromAssetId = _swapData.sendingAssetId;
+        address toAssetId = _swapData.receivingAssetId;
+        uint256 initialSendingAssetBalance = LibAsset.getOwnBalance(fromAssetId);
+        uint256 initialReceivingAssetBalance = LibAsset.getOwnBalance(toAssetId);
+        uint256 toDeposit = initialSendingAssetBalance < fromAmount ? fromAmount - initialSendingAssetBalance : 0;
 
         if (!LibAsset.isNativeAsset(fromAssetId)) {
             LibAsset.maxApproveERC20(IERC20(fromAssetId), _swapData.approveTo, fromAmount);
-            if (LibAsset.getOwnBalance(fromAssetId) < fromAmount) {
-                LibAsset.transferFromERC20(fromAssetId, msg.sender, address(this), fromAmount);
+            if (toDeposit != 0) {
+                LibAsset.transferFromERC20(fromAssetId, msg.sender, address(this), toDeposit);
             }
         } else {
             nativeValue = fromAmount;
@@ -47,14 +54,13 @@ library LibSwap {
             revert(reason);
         }
 
-        toAmount = LibAsset.getOwnBalance(_swapData.receivingAssetId) - toAmount;
         emit AssetSwapped(
             transactionId,
             _swapData.callTo,
             _swapData.sendingAssetId,
-            _swapData.receivingAssetId,
+            toAssetId,
             fromAmount,
-            toAmount,
+            LibAsset.getOwnBalance(toAssetId) - initialReceivingAssetBalance,
             block.timestamp
         );
     }

@@ -9,6 +9,7 @@ import { deployments, ethers, network } from 'hardhat'
 import { constants, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
+import approvedFunctionSelectors from '../../utils/approvedFunctions'
 
 const USDC_ADDRESS = '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'
 const WMATIC_ADDRESS = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'
@@ -34,6 +35,10 @@ describe('HyphenFacet', function () {
         await ethers.getContractAt('DexManagerFacet', diamond.address)
       )
       await dexMgr.addDex(UNISWAP_ADDRESS)
+      await dexMgr.batchSetFunctionApprovalBySignature(
+        approvedFunctionSelectors,
+        true
+      )
 
       // setup user
       const wealthyAccount = '0xf977814e90da44bfa03b6295a0616a897441acec'

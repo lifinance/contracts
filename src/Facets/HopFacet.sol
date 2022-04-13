@@ -5,14 +5,16 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import "./Swapper.sol";
+import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
+import { InvalidAmount, InvalidBridgeConfigLength, CannotBridgeToSameNetwork, NativeValueWithERC } from "../Errors/GenericErrors.sol";
+import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
 
 /**
  * @title Hop Facet
  * @author LI.FI (https://li.fi)
  * @notice Provides functionality for bridging through Hop
  */
-contract HopFacet is ILiFi, Swapper {
+contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
     /* ========== Storage ========== */
 
     bytes32 internal constant NAMESPACE = hex"6d21be7f069eba22e6227bbf0972cf4a3ee2f0ce81ad8bd8004228e83b4830b8"; //keccak256("com.lifi.facets.hop");
@@ -46,17 +48,14 @@ contract HopFacet is ILiFi, Swapper {
         IHopBridge.BridgeConfig[] calldata _bridgeConfigs,
         uint256 _chainId
     ) external {
-        Storage storage s = getStorage();
         LibDiamond.enforceIsContractOwner();
-
+        Storage storage s = getStorage();
         uint256 length = _tokens.length;
-        require(_bridgeConfigs.length == length, "Invalid length of bridge configs");
+
+        if (_bridgeConfigs.length != length) revert InvalidBridgeConfigLength();
 
         for (uint256 i = 0; i < length; i++) {
-            if (_bridgeConfigs[i].bridge == address(0)) {
-                revert InvalidConfig();
-            }
-
+            if (_bridgeConfigs[i].bridge == address(0)) revert InvalidConfig();
             s.hopBridges[_tokens[i]] = _bridgeConfigs[i];
         }
         s.hopChainId = _chainId;
@@ -69,31 +68,24 @@ contract HopFacet is ILiFi, Swapper {
      * @param _lifiData data used purely for tracking and analytics
      * @param _hopData data specific to Hop Protocol
      */
-    function startBridgeTokensViaHop(LiFiData memory _lifiData, HopData calldata _hopData) external payable {
-        require(_hopData.amount != 0, "ERR_NO_AMOUNT");
+    function startBridgeTokensViaHop(LiFiData calldata _lifiData, HopData calldata _hopData)
+        external
+        payable
+        nonReentrant
+    {
         address sendingAssetId = _bridge(_hopData.asset).token;
-
-        if (sendingAssetId == address(0)) require(msg.value == _hopData.amount, "ERR_INVALID_AMOUNT");
-        else {
-            uint256 _sendingAssetIdBalance = LibAsset.getOwnBalance(sendingAssetId);
-            LibAsset.transferFromERC20(sendingAssetId, msg.sender, address(this), _hopData.amount);
-            require(
-                LibAsset.getOwnBalance(sendingAssetId) - _sendingAssetIdBalance == _hopData.amount,
-                "ERR_INVALID_AMOUNT"
-            );
-        }
-
+        LibAsset.depositAsset(sendingAssetId, _hopData.amount);
         _startBridge(_hopData);
 
         emit LiFiTransferStarted(
             _lifiData.transactionId,
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
+            sendingAssetId,
             _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
-            _lifiData.destinationChainId,
+            _hopData.recipient,
+            _hopData.amount,
+            _hopData.chainId,
             block.timestamp
         );
     }
@@ -108,7 +100,8 @@ contract HopFacet is ILiFi, Swapper {
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
         HopData memory _hopData
-    ) external payable {
+    ) external payable nonReentrant {
+        if (!LibAsset.isNativeAsset(address(_lifiData.sendingAssetId)) && msg.value != 0) revert NativeValueWithERC();
         _hopData.amount = _executeAndCheckSwaps(_lifiData, _swapData);
         _startBridge(_hopData);
 
@@ -116,22 +109,22 @@ contract HopFacet is ILiFi, Swapper {
             _lifiData.transactionId,
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
+            _swapData[0].sendingAssetId,
             _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
-            _lifiData.destinationChainId,
+            _hopData.recipient,
+            _swapData[0].fromAmount,
+            _hopData.chainId,
             block.timestamp
         );
     }
 
-    /* ========== Internal Functions ========== */
+    /* ========== private Functions ========== */
 
     /**
      * @dev Conatains the business logic for the bridge via Hop Protocol
      * @param _hopData data specific to Hop Protocol
      */
-    function _startBridge(HopData memory _hopData) internal {
+    function _startBridge(HopData memory _hopData) private {
         Storage storage s = getStorage();
         IHopBridge.BridgeConfig storage hopBridgeConfig = s.hopBridges[_hopData.asset];
 
@@ -145,7 +138,7 @@ contract HopFacet is ILiFi, Swapper {
         }
 
         // Do HOP stuff
-        require(s.hopChainId != _hopData.chainId, "Cannot bridge to same network.");
+        if (s.hopChainId == _hopData.chainId) revert CannotBridgeToSameNetwork();
 
         // Give Hop approval to bridge tokens
         LibAsset.maxApproveERC20(IERC20(sendingAssetId), bridge, _hopData.amount);
@@ -179,12 +172,12 @@ contract HopFacet is ILiFi, Swapper {
         }
     }
 
-    function _bridge(string memory _asset) internal view returns (IHopBridge.BridgeConfig memory) {
+    function _bridge(string memory _asset) private view returns (IHopBridge.BridgeConfig memory) {
         Storage storage s = getStorage();
         return s.hopBridges[_asset];
     }
 
-    function getStorage() internal pure returns (Storage storage s) {
+    function getStorage() private pure returns (Storage storage s) {
         bytes32 namespace = NAMESPACE;
         // solhint-disable-next-line no-inline-assembly
         assembly {

@@ -16,12 +16,15 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         diamond = createDiamond();
         dexMgr = new DexManagerFacet();
 
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](8);
         functionSelectors[0] = DexManagerFacet.addDex.selector;
         functionSelectors[1] = DexManagerFacet.removeDex.selector;
         functionSelectors[2] = DexManagerFacet.batchAddDex.selector;
         functionSelectors[3] = DexManagerFacet.batchRemoveDex.selector;
         functionSelectors[4] = DexManagerFacet.approvedDexs.selector;
+        functionSelectors[5] = DexManagerFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[6] = DexManagerFacet.batchSetFunctionApprovalBySignature.selector;
+        functionSelectors[7] = DexManagerFacet.isFunctionApproved.selector;
 
         addFacet(diamond, address(dexMgr), functionSelectors);
 
@@ -68,6 +71,25 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         address[] memory approved = dexMgr.approvedDexs();
         assertEq(approved.length, 1);
         assertEq(approved[0], dexs[2]);
+    }
+
+    function testCanApproveFunctionSignature() public {
+        bytes4 signature = hex"faceface";
+        dexMgr.setFunctionApprovalBySignature(signature, true);
+        assertTrue(dexMgr.isFunctionApproved(signature));
+    }
+
+    function testCanApproveBatchFunctionSignature() public {
+        bytes32[] memory signatures = new bytes32[](5);
+        signatures[0] = bytes32(hex"faceface");
+        signatures[1] = bytes32(hex"deadbeef");
+        signatures[2] = bytes32(hex"deaddead");
+        signatures[3] = bytes32(hex"deadface");
+        signatures[4] = bytes32(hex"beefbeef");
+        dexMgr.batchSetFunctionApprovalBySignature(signatures, true);
+        for (uint256 i = 0; i < 5; i++) {
+            assertTrue(dexMgr.isFunctionApproved(signatures[i]));
+        }
     }
 
     function testFailAddZeroAddress() public {

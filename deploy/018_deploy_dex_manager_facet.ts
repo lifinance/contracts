@@ -3,6 +3,7 @@ import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { addOrReplaceFacets } from '../utils/diamond'
 import config from '../config/dexs'
+import allowedFuncSignatures from '../config/dexfuncs'
 import { DexManagerFacet } from '../typechain'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
@@ -23,7 +24,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   await addOrReplaceFacets([dexManagerFacet], diamond.address)
 
-  const dexs = config[network.name].map((d) => d.toLowerCase())
+  const dexs = config[network.name].map((d: string) => d.toLowerCase())
   if (dexs && dexs.length) {
     console.log('Adding DEXs to whitelist...')
     const dexMgr = <DexManagerFacet>(
@@ -38,6 +39,13 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     } else {
       await dexMgr.batchAddDex(dexs)
     }
+
+    // Approve function signatures
+    await dexMgr.batchSetFunctionApprovalBySignature(
+      allowedFuncSignatures,
+      true
+    )
+
     console.log('Done!')
   }
 }

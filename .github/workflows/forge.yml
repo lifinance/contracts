@@ -1,0 +1,22 @@
+name: Forge
+on:
+  push:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v2
+      - name: Install dev dependencies
+        run: npm install
+
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Run forge tests
+        run: forge test -f ${{ secrets.ETH_NODE_URI_MAINNET }} --fork-block-number 14518542

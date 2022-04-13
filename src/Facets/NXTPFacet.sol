@@ -5,14 +5,16 @@ import { ITransactionManager } from "../Interfaces/ITransactionManager.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import "./Swapper.sol";
+import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
+import { InvalidAmount, NativeValueWithERC, NoSwapDataProvided } from "../Errors/GenericErrors.sol";
+import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
 
 /**
  * @title NXTP (Connext) Facet
  * @author LI.FI (https://li.fi)
  * @notice Provides functionality for bridging through NXTP (Connext)
  */
-contract NXTPFacet is ILiFi, Swapper {
+contract NXTPFacet is ILiFi, Swapper, ReentrancyGuard {
     /* ========== Storage ========== */
 
     bytes32 internal constant NAMESPACE = hex"cb4800033539e504944b70f0275e98829f191b99c5226e9a5a072ab49d2a753e"; //keccak256("com.lifi.facets.nxtp");
@@ -35,10 +37,8 @@ contract NXTPFacet is ILiFi, Swapper {
     /* ========== Init ========== */
 
     function initNXTP(ITransactionManager _txMgrAddr) external {
-        if (address(_txMgrAddr) == address(0)) {
-            revert InvalidConfig();
-        }
         LibDiamond.enforceIsContractOwner();
+        if (address(_txMgrAddr) == address(0)) revert InvalidConfig();
         Storage storage s = getStorage();
         s.nxtpTxManager = _txMgrAddr;
     }
@@ -50,34 +50,23 @@ contract NXTPFacet is ILiFi, Swapper {
      * @param _lifiData data used purely for tracking and analytics
      * @param _nxtpData data needed to complete an NXTP cross-chain transaction
      */
-    function startBridgeTokensViaNXTP(LiFiData memory _lifiData, ITransactionManager.PrepareArgs memory _nxtpData)
+    function startBridgeTokensViaNXTP(LiFiData calldata _lifiData, ITransactionManager.PrepareArgs calldata _nxtpData)
         external
         payable
+        nonReentrant
     {
-        // Ensure sender has enough to complete the bridge transaction
-        address sendingAssetId = _nxtpData.invariantData.sendingAssetId;
-        if (sendingAssetId == address(0)) require(msg.value == _nxtpData.amount, "ERR_INVALID_AMOUNT");
-        else {
-            uint256 _sendingAssetIdBalance = LibAsset.getOwnBalance(sendingAssetId);
-            LibAsset.transferFromERC20(sendingAssetId, msg.sender, address(this), _nxtpData.amount);
-            require(
-                LibAsset.getOwnBalance(sendingAssetId) - _sendingAssetIdBalance == _nxtpData.amount,
-                "ERR_INVALID_AMOUNT"
-            );
-        }
-
-        // Start the bridge process
+        LibAsset.depositAsset(_nxtpData.invariantData.sendingAssetId, _nxtpData.amount);
         _startBridge(_lifiData.transactionId, _nxtpData);
 
         emit LiFiTransferStarted(
             _lifiData.transactionId,
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
+            _nxtpData.invariantData.sendingAssetId,
             _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
-            _lifiData.destinationChainId,
+            _nxtpData.invariantData.receivingAddress,
+            _nxtpData.amount,
+            _nxtpData.invariantData.receivingChainId,
             block.timestamp
         );
     }
@@ -93,9 +82,7 @@ contract NXTPFacet is ILiFi, Swapper {
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
         ITransactionManager.PrepareArgs memory _nxtpData
-    ) external payable {
-        require(_swapData.length > 0, "ERR_NO_SWAPS");
-
+    ) external payable nonReentrant {
         _nxtpData.amount = _executeAndCheckSwaps(_lifiData, _swapData);
         _startBridge(_lifiData.transactionId, _nxtpData);
 
@@ -103,11 +90,11 @@ contract NXTPFacet is ILiFi, Swapper {
             _lifiData.transactionId,
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
+            _swapData[0].sendingAssetId,
             _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
-            _lifiData.destinationChainId,
+            _nxtpData.invariantData.receivingAddress,
+            _swapData[0].fromAmount,
+            _nxtpData.invariantData.receivingChainId,
             block.timestamp
         );
     }
@@ -120,20 +107,13 @@ contract NXTPFacet is ILiFi, Swapper {
      * @param amount number of tokens received
      */
     function completeBridgeTokensViaNXTP(
-        LiFiData memory _lifiData,
+        LiFiData calldata _lifiData,
         address assetId,
         address receiver,
         uint256 amount
-    ) external payable {
-        if (LibAsset.isNativeAsset(assetId)) {
-            require(msg.value == amount, "INVALID_ETH_AMOUNT");
-        } else {
-            require(msg.value == 0, "ETH_WITH_ERC");
-            LibAsset.transferFromERC20(assetId, msg.sender, address(this), amount);
-        }
-
+    ) external payable nonReentrant {
+        LibAsset.depositAsset(assetId, amount);
         LibAsset.transferAsset(assetId, payable(receiver), amount);
-
         emit LiFiTransferCompleted(_lifiData.transactionId, assetId, receiver, amount, block.timestamp);
     }
 
@@ -146,35 +126,21 @@ contract NXTPFacet is ILiFi, Swapper {
      * @param receiver address that will receive the tokens
      */
     function swapAndCompleteBridgeTokensViaNXTP(
-        LiFiData memory _lifiData,
+        LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
         address finalAssetId,
         address receiver
-    ) external payable {
-        require(_swapData.length > 0, "ERR_NO_SWAPS");
-        uint256 startingBalance = LibAsset.getOwnBalance(finalAssetId);
-
-        // Swap
-        _executeSwaps(_lifiData, _swapData);
-
-        uint256 postSwapBalance = LibAsset.getOwnBalance(finalAssetId);
-
-        uint256 finalBalance = 0;
-
-        if (postSwapBalance > startingBalance) {
-            finalBalance = postSwapBalance - startingBalance;
-            LibAsset.transferAsset(finalAssetId, payable(receiver), finalBalance);
-        }
-
-        emit LiFiTransferCompleted(_lifiData.transactionId, finalAssetId, receiver, finalBalance, block.timestamp);
+    ) external payable nonReentrant {
+        uint256 swapBalance = _executeAndCheckSwaps(_lifiData, _swapData);
+        LibAsset.transferAsset(finalAssetId, payable(receiver), swapBalance);
+        emit LiFiTransferCompleted(_lifiData.transactionId, finalAssetId, receiver, swapBalance, block.timestamp);
     }
 
-    /* ========== Internal Functions ========== */
+    /* ========== Private Functions ========== */
 
-    function _startBridge(bytes32 _transactionId, ITransactionManager.PrepareArgs memory _nxtpData) internal {
+    function _startBridge(bytes32 _transactionId, ITransactionManager.PrepareArgs memory _nxtpData) private {
         Storage storage s = getStorage();
         IERC20 sendingAssetId = IERC20(_nxtpData.invariantData.sendingAssetId);
-
         // Give Connext approval to bridge tokens
         LibAsset.maxApproveERC20(IERC20(sendingAssetId), address(s.nxtpTxManager), _nxtpData.amount);
 
@@ -186,7 +152,7 @@ contract NXTPFacet is ILiFi, Swapper {
         emit NXTPBridgeStarted(_transactionId, result.transactionId, result);
     }
 
-    function getStorage() internal pure returns (Storage storage s) {
+    function getStorage() private pure returns (Storage storage s) {
         bytes32 namespace = NAMESPACE;
         // solhint-disable-next-line no-inline-assembly
         assembly {

@@ -3,3 +3,5 @@ ds-test/=lib/ds-test/src/
 solmate/=lib/solmate/src/
 forge-std/=lib/forge-std/src/
 @openzeppelin/=node_modules/@openzeppelin/
+uniswap/=lib/v2-periphery/contracts/
+hardhat/=node_modules/hardhat

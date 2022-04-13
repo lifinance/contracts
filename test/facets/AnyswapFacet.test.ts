@@ -10,6 +10,7 @@ import { constants, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { expect } from '../chai-setup'
+import approvedFunctionSelectors from '../../utils/approvedFunctions'
 
 const ANYSWAP_ROUTER = '0x4f3aff3a747fcade12598081e80c6605a8be192f'
 const USDT_ADDRESS = '0xc2132D05D31c914a87C6611C10748AEb04B58e8F'
@@ -42,6 +43,10 @@ describe('AnyswapFacet', function () {
         await ethers.getContractAt('DexManagerFacet', diamond.address)
       )
       await dexMgr.addDex(UNISWAP_ADDRESS)
+      await dexMgr.batchSetFunctionApprovalBySignature(
+        approvedFunctionSelectors,
+        true
+      )
 
       await network.provider.request({
         method: 'hardhat_impersonateAccount',
@@ -236,6 +241,6 @@ describe('AnyswapFacet', function () {
           gasLimit: 500000,
           value: utils.parseEther('700'),
         })
-    ).to.be.revertedWith('Contract call not allowed!')
+    ).to.be.revertedWith('ContractCallNotAllowed()')
   })
 })
