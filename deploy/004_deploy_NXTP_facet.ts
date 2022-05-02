@@ -38,9 +38,4 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func
 func.id = 'deploy_NXTP_facet'
 func.tags = ['DeployNXTPFacet']
-func.dependencies = [
-  'InitialFacets',
-  'LiFiDiamond',
-  'InitFacets',
-  'DeployDexManagerFacet',
-]
+func.dependencies = ['InitFacets', 'DeployDexManagerFacet']

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.7;
+pragma solidity 0.8.13;
 
 import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
@@ -13,7 +13,7 @@ import { TestToken as ERC20 } from "../utils/TestToken.sol";
 // Stub Swapper Contract
 contract TestSwapper is ILiFi, Swapper {
     function doSwaps(LibSwap.SwapData[] calldata _swapData) public {
-        _executeSwaps(LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0), _swapData);
+        _executeAndCheckSwaps(LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0), _swapData);
 
         // Fake send to bridge
         ERC20 finalAsset = ERC20(_swapData[_swapData.length - 1].receivingAssetId);
@@ -21,18 +21,18 @@ contract TestSwapper is ILiFi, Swapper {
     }
 
     function addDex(address _dex) external {
-        mapping(address => bool) storage dexAllowlist = ls.dexAllowlist;
+        mapping(address => bool) storage dexAllowlist = appStorage.dexAllowlist;
 
         if (dexAllowlist[_dex]) {
             return;
         }
 
         dexAllowlist[_dex] = true;
-        ls.dexs.push(_dex);
+        appStorage.dexs.push(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes32 signature) external {
-        mapping(bytes32 => bool) storage dexFuncSignatureAllowList = ls.dexFuncSignatureAllowList;
+        mapping(bytes32 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
         if (dexFuncSignatureAllowList[signature]) return;
         dexFuncSignatureAllowList[signature] = true;
     }

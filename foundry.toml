@@ -1,2 +1,5 @@
 [default]
 test = 'test/solidity'
+solc_version = '0.8.13'
+optimizer = true
+optimizer_runs = 10000

@@ -1,24 +1,33 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.13;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 
+/// @title Withdraw Facet
+/// @author LI.FI (https://li.fi)
+/// @notice Allows admin to withdraw funds that are kept in the contract by accident
 contract WithdrawFacet {
+    /// Storage ///
+
     address private constant NATIVE_ASSET = 0x0000000000000000000000000000000000000000; // address(0)
+
+    /// Errors ///
 
     error NotEnoughBalance(uint256 requested, uint256 available);
     error WithdrawFailed();
 
+    /// Events ///
+
     event LogWithdraw(address indexed _assetAddress, address _to, uint256 amount);
 
-    /**
-     * @dev Withdraw asset.
-     * @param _assetAddress Asset to be withdrawn.
-     * @param _to address to withdraw to.
-     * @param _amount amount of asset to withdraw.
-     */
+    /// External Methods ///
+
+    /// @notice Withdraw asset.
+    /// @param _assetAddress Asset to be withdrawn.
+    /// @param _to address to withdraw to.
+    /// @param _amount amount of asset to withdraw.
     function withdraw(
         address _assetAddress,
         address _to,

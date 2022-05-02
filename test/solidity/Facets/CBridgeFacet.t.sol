@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.7;
+pragma solidity 0.8.13;
 
 import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
@@ -14,18 +14,18 @@ import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
     function addDex(address _dex) external {
-        mapping(address => bool) storage dexAllowlist = ls.dexAllowlist;
+        mapping(address => bool) storage dexAllowlist = appStorage.dexAllowlist;
 
         if (dexAllowlist[_dex]) {
             return;
         }
 
         dexAllowlist[_dex] = true;
-        ls.dexs.push(_dex);
+        appStorage.dexs.push(_dex);
     }
 
     function setFunctionApprovalBySignature(bytes32 signature) external {
-        mapping(bytes32 => bool) storage dexFuncSignatureAllowList = ls.dexFuncSignatureAllowList;
+        mapping(bytes32 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
         if (dexFuncSignatureAllowList[signature]) return;
         dexFuncSignatureAllowList[signature] = true;
     }

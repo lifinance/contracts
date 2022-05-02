@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.13;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, InvalidBridgeConfigLength, CannotBridgeToSameNetwork, NativeValueWithERC } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidBridgeConfigLength, CannotBridgeToSameNetwork, NativeValueWithERC, InvalidConfig } from "../Errors/GenericErrors.sol";
 import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
 
-/**
- * @title Hop Facet
- * @author LI.FI (https://li.fi)
- * @notice Provides functionality for bridging through Hop
- */
+/// @title Hop Facet
+/// @author LI.FI (https://li.fi)
+/// @notice Provides functionality for bridging through Hop
 contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
-    /* ========== Storage ========== */
+    /// Storage ///
 
     bytes32 internal constant NAMESPACE = hex"6d21be7f069eba22e6227bbf0972cf4a3ee2f0ce81ad8bd8004228e83b4830b8"; //keccak256("com.lifi.facets.hop");
     struct Storage {
@@ -23,7 +21,7 @@ contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
         uint256 hopChainId;
     }
 
-    /* ========== Types ========== */
+    /// Types ///
 
     struct HopData {
         string asset;
@@ -37,12 +35,16 @@ contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
         uint256 destinationDeadline;
     }
 
-    /* ========== Errors ========== */
+    /// Events ///
 
-    error InvalidConfig();
+    event HopInitialized(string[] tokens, IHopBridge.BridgeConfig[] bridgeConfigs, uint256 chainId);
 
-    /* ========== Init ========== */
+    /// Init ///
 
+    /// @notice Initialize local variables for the Hop Facet
+    /// @param _tokens tokens allowed for bridging
+    /// @param _bridgeConfigs configured bridge contracts for specific tokens
+    /// @param _chainId the chainId
     function initHop(
         string[] calldata _tokens,
         IHopBridge.BridgeConfig[] calldata _bridgeConfigs,
@@ -59,15 +61,14 @@ contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
             s.hopBridges[_tokens[i]] = _bridgeConfigs[i];
         }
         s.hopChainId = _chainId;
+        emit HopInitialized(_tokens, _bridgeConfigs, _chainId);
     }
 
-    /* ========== Public Bridge Functions ========== */
+    /// External Methods ///
 
-    /**
-     * @notice Bridges tokens via Hop Protocol
-     * @param _lifiData data used purely for tracking and analytics
-     * @param _hopData data specific to Hop Protocol
-     */
+    /// @notice Bridges tokens via Hop Protocol
+    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _hopData data specific to Hop Protocol
     function startBridgeTokensViaHop(LiFiData calldata _lifiData, HopData calldata _hopData)
         external
         payable
@@ -79,6 +80,8 @@ contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
 
         emit LiFiTransferStarted(
             _lifiData.transactionId,
+            "hop",
+            "",
             _lifiData.integrator,
             _lifiData.referrer,
             sendingAssetId,
@@ -86,16 +89,15 @@ contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
             _hopData.recipient,
             _hopData.amount,
             _hopData.chainId,
-            block.timestamp
+            false,
+            false
         );
     }
 
-    /**
-     * @notice Performs a swap before bridging via Hop Protocol
-     * @param _lifiData data used purely for tracking and analytics
-     * @param _swapData an array of swap related data for performing swaps before bridging
-     * @param _hopData data specific to Hop Protocol
-     */
+    /// @notice Performs a swap before bridging via Hop Protocol
+    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _swapData an array of swap related data for performing swaps before bridging
+    /// @param _hopData data specific to Hop Protocol
     function swapAndStartBridgeTokensViaHop(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
@@ -107,6 +109,8 @@ contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
 
         emit LiFiTransferStarted(
             _lifiData.transactionId,
+            "hop",
+            "",
             _lifiData.integrator,
             _lifiData.referrer,
             _swapData[0].sendingAssetId,
@@ -114,16 +118,15 @@ contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
             _hopData.recipient,
             _swapData[0].fromAmount,
             _hopData.chainId,
-            block.timestamp
+            true,
+            false
         );
     }
 
-    /* ========== private Functions ========== */
+    /// private Methods ///
 
-    /**
-     * @dev Conatains the business logic for the bridge via Hop Protocol
-     * @param _hopData data specific to Hop Protocol
-     */
+    /// @dev Conatains the business logic for the bridge via Hop Protocol
+    /// @param _hopData data specific to Hop Protocol
     function _startBridge(HopData memory _hopData) private {
         Storage storage s = getStorage();
         IHopBridge.BridgeConfig storage hopBridgeConfig = s.hopBridges[_hopData.asset];
@@ -172,11 +175,14 @@ contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
         }
     }
 
+    /// @dev fetch bridge config
+    /// @param _asset Asset for which to return a specific config
     function _bridge(string memory _asset) private view returns (IHopBridge.BridgeConfig memory) {
         Storage storage s = getStorage();
         return s.hopBridges[_asset];
     }
 
+    /// @dev fetch local storage
     function getStorage() private pure returns (Storage storage s) {
         bytes32 namespace = NAMESPACE;
         // solhint-disable-next-line no-inline-assembly

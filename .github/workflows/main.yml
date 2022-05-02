@@ -42,3 +42,4 @@ jobs:
           ETH_NODE_URI: ${{ secrets.ETH_NODE_URI }}
           ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
           ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
+          ETH_NODE_URI_KOVAN_OPTIMISM: ${{ secrets.ETH_NODE_URI_KOVAN_OPTIMISM }}

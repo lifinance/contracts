@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.13;
 
 interface ILiFi {
-    /* ========== Structs ========== */
+    /// Structs ///
 
     struct LiFiData {
         bytes32 transactionId;
@@ -15,10 +15,12 @@ interface ILiFi {
         uint256 amount;
     }
 
-    /* ========== Events ========== */
+    /// Events ///
 
     event LiFiTransferStarted(
         bytes32 indexed transactionId,
+        string bridge,
+        string bridgeData,
         string integrator,
         address referrer,
         address sendingAssetId,
@@ -26,7 +28,8 @@ interface ILiFi {
         address receiver,
         uint256 amount,
         uint256 destinationChainId,
-        uint256 timestamp
+        bool hasSourceSwap,
+        bool hasDestinationCall
     );
 
     event LiFiTransferCompleted(
@@ -36,28 +39,4 @@ interface ILiFi {
         uint256 amount,
         uint256 timestamp
     );
-
-    event LiFiTransferConfirmed(
-        bytes32 indexed transactionId,
-        string integrator,
-        address referrer,
-        address sendingAssetId,
-        address receivingAssetId,
-        address receiver,
-        uint256 amount,
-        uint256 destinationChainId,
-        uint256 timestamp
-    );
-    event LiFiTransferRefunded(
-        bytes32 indexed transactionId,
-        string integrator,
-        address referrer,
-        address sendingAssetId,
-        address receivingAssetId,
-        address receiver,
-        uint256 amount,
-        uint256 destinationChainId,
-        uint256 timestamp
-    );
-    event Inited(address indexed bridge, uint256 chainId);
 }

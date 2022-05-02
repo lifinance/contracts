@@ -139,7 +139,7 @@ describe('Generic Swap Facet', async () => {
       )
     )
       .to.emit(lifi, 'AssetSwapped')
-      .and.to.emit(lifi, 'LiFiTransferStarted')
+      .and.to.emit(lifi, 'LiFiSwappedGeneric')
     const postBalance = await postToken.balanceOf(bob.address)
 
     expect(postBalance.gt(preBalance)).to.eq(true)

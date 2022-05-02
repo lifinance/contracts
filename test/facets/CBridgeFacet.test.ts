@@ -103,7 +103,7 @@ describe('CBridgeFacet', function () {
       lifi.connect(owner).initCbridge(CBRIDGE_ADDRESS, 1, {
         gasLimit: 500000,
       })
-    ).to.emit(lifi, 'Inited')
+    ).to.emit(lifi, 'CBridgeInitialized')
   })
 
   it('starts a bridge transaction on the sending chain', async function () {

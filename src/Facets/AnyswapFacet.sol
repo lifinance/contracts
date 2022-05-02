@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.13;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IAnyswapRouter } from "../Interfaces/IAnyswapRouter.sol";
@@ -10,13 +10,11 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { TokenAddressIsZero, InvalidAmount, CannotBridgeToSameNetwork, NativeValueWithERC } from "../Errors/GenericErrors.sol";
 import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
 
-/**
- * @title Anyswap Facet
- * @author LI.FI (https://li.fi)
- * @notice Provides functionality for bridging through Multichain (Prev. AnySwap)
- */
+/// @title Anyswap Facet
+/// @author LI.FI (https://li.fi)
+/// @notice Provides functionality for bridging through Multichain (Prev. AnySwap)
 contract AnyswapFacet is ILiFi, Swapper, ReentrancyGuard {
-    /* ========== Types ========== */
+    /// Types ///
 
     struct AnyswapData {
         address token;
@@ -26,13 +24,11 @@ contract AnyswapFacet is ILiFi, Swapper, ReentrancyGuard {
         uint256 toChainId;
     }
 
-    /* ========== Public Bridge Functions ========== */
+    /// External Methods ///
 
-    /**
-     * @notice Bridges tokens via Anyswap
-     * @param _lifiData data used purely for tracking and analytics
-     * @param _anyswapData data specific to Anyswap
-     */
+    /// @notice Bridges tokens via Anyswap
+    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _anyswapData data specific to Anyswap
     function startBridgeTokensViaAnyswap(LiFiData calldata _lifiData, AnyswapData calldata _anyswapData)
         external
         payable
@@ -45,6 +41,8 @@ contract AnyswapFacet is ILiFi, Swapper, ReentrancyGuard {
 
         emit LiFiTransferStarted(
             _lifiData.transactionId,
+            "anyswap",
+            "",
             _lifiData.integrator,
             _lifiData.referrer,
             underlyingToken,
@@ -52,16 +50,15 @@ contract AnyswapFacet is ILiFi, Swapper, ReentrancyGuard {
             _anyswapData.recipient,
             _anyswapData.amount,
             _anyswapData.toChainId,
-            block.timestamp
+            false,
+            false
         );
     }
 
-    /**
-     * @notice Performs a swap before bridging via Anyswap
-     * @param _lifiData data used purely for tracking and analytics
-     * @param _swapData an array of swap related data for performing swaps before bridging
-     * @param _anyswapData data specific to Anyswap
-     */
+    /// @notice Performs a swap before bridging via Anyswap
+    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _swapData an array of swap related data for performing swaps before bridging
+    /// @param _anyswapData data specific to Anyswap
     function swapAndStartBridgeTokensViaAnyswap(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
@@ -74,6 +71,8 @@ contract AnyswapFacet is ILiFi, Swapper, ReentrancyGuard {
 
         emit LiFiTransferStarted(
             _lifiData.transactionId,
+            "anyswap",
+            "",
             _lifiData.integrator,
             _lifiData.referrer,
             _swapData[0].sendingAssetId,
@@ -81,17 +80,16 @@ contract AnyswapFacet is ILiFi, Swapper, ReentrancyGuard {
             _anyswapData.recipient,
             _swapData[0].fromAmount,
             _anyswapData.toChainId,
-            block.timestamp
+            true,
+            false
         );
     }
 
-    /* ========== Private Functions ========== */
+    /// Private Methods ///
 
-    /**
-     * @notice Unwraps the underlying token from the Anyswap token if necessary
-     * @param token The (maybe) wrapped token
-     * @param router The Anyswap router
-     */
+    /// @dev Unwraps the underlying token from the Anyswap token if necessary
+    /// @param token The (maybe) wrapped token
+    /// @param router The Anyswap router
     function _getUnderlyingToken(address token, address router)
         private
         returns (address underlyingToken, bool isNative)
@@ -107,10 +105,10 @@ contract AnyswapFacet is ILiFi, Swapper, ReentrancyGuard {
         }
     }
 
-    /**
-     * @dev Conatains the business logic for the bridge via Anyswap
-     * @param _anyswapData data specific to Anyswap
-     */
+    /// @dev Conatains the business logic for the bridge via Anyswap
+    /// @param _anyswapData data specific to Anyswap
+    /// @param underlyingToken the underlying token to swap
+    /// @param isNative denotes whether the token is a native token vs ERC20
     function _startBridge(
         AnyswapData memory _anyswapData,
         address underlyingToken,

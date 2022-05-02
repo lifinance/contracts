@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.13;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
@@ -8,10 +8,15 @@ import { LibStorage } from "../Libraries/LibStorage.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { InvalidAmount, ContractCallNotAllowed, NoSwapDataProvided } from "../Errors/GenericErrors.sol";
 
+/// @title Swapper
+/// @author LI.FI (https://li.fi)
+/// @notice Abstract contract to provide swap functionality
 contract Swapper is ILiFi {
     /// Storage ///
 
-    LibStorage internal ls;
+    LibStorage internal appStorage;
+
+    /// Modifiers ///
 
     /// @dev Sends any leftover balances back to the user
     modifier noLeftovers(LibSwap.SwapData[] calldata _swapData) {
@@ -32,7 +37,12 @@ contract Swapper is ILiFi {
         } else _;
     }
 
-    function _executeAndCheckSwaps(LiFiData calldata _lifiData, LibSwap.SwapData[] calldata _swapData)
+    /// Internal Methods ///
+
+    /// @dev Validates input before executing swaps
+    /// @param _lifiData LiFi tracking data
+    /// @param _swapData Array of data used to execute swaps
+    function _executeAndCheckSwaps(LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData)
         internal
         returns (uint256)
     {
@@ -52,15 +62,15 @@ contract Swapper is ILiFi {
     /// @param _lifiData LiFi tracking data
     /// @param _swapData Array of data used to execute swaps
     function _executeSwaps(LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData)
-        internal
+        private
         noLeftovers(_swapData)
     {
         for (uint256 i = 0; i < _swapData.length; i++) {
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
             if (
-                !(ls.dexAllowlist[currentSwapData.approveTo] &&
-                    ls.dexAllowlist[currentSwapData.callTo] &&
-                    ls.dexFuncSignatureAllowList[bytes32(currentSwapData.callData[:8])])
+                !(appStorage.dexAllowlist[currentSwapData.approveTo] &&
+                    appStorage.dexAllowlist[currentSwapData.callTo] &&
+                    appStorage.dexFuncSignatureAllowList[bytes32(currentSwapData.callData[:8])])
             ) revert ContractCallNotAllowed();
             LibSwap.swap(_lifiData.transactionId, currentSwapData);
         }

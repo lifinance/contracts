@@ -38,9 +38,4 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func
 func.id = 'deploy_hyphen_facet'
 func.tags = ['DeployHyphenFacet']
-func.dependencies = [
-  'InitialFacets',
-  'LiFiDiamond',
-  'InitFacets',
-  'DeployDexManagerFacet',
-]
+func.dependencies = ['InitFacets', 'DeployDexManagerFacet']

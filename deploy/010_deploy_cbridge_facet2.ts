@@ -45,9 +45,4 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func
 func.id = 'deploy_c_bridge_facet'
 func.tags = ['DeployCBridgeFacet']
-func.dependencies = [
-  'InitialFacets',
-  'LiFiDiamond',
-  'InitFacets',
-  'DeployDexManagerFacet',
-]
+func.dependencies = ['InitFacets', 'DeployDexManagerFacet']

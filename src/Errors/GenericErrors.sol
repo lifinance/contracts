@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.13;
 
 error InvalidAmount();
 error TokenAddressIsZero();
@@ -14,3 +14,4 @@ error NullAddrIsNotAnERC20Token();
 error NoTransferToNullAddress();
 error NativeAssetTransferFailed();
 error InvalidContract();
+error InvalidConfig();

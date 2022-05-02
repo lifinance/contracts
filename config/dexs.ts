@@ -133,6 +133,9 @@ const config: DEXConfig = {
     '0xdef1c0ded9bec7f1a1670819833240f027b25eff', // 0x - ExchangeProxy v4
     '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', // uniswap
   ],
+  kovan: [
+    '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', // uniswap
+  ],
 }
 
 export default config

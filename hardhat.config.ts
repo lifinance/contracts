@@ -8,7 +8,6 @@ import 'solidity-coverage'
 import { node_url, accounts } from './utils/network'
 import '@nomiclabs/hardhat-etherscan'
 import '@tenderly/hardhat-tenderly'
-
 require('./tasks/generateDiamondABI.ts')
 
 // While waiting for hardhat PR: https://github.com/nomiclabs/hardhat/pull/1542
@@ -22,11 +21,11 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [
       {
-        version: '0.8.7',
+        version: '0.8.13',
         settings: {
           optimizer: {
             enabled: true,
-            runs: 200,
+            runs: 10000,
           },
         },
       },

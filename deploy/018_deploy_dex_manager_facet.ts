@@ -52,4 +52,4 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func
 func.id = 'deploy_dex_manager_facet'
 func.tags = ['DeployDexManagerFacet']
-func.dependencies = ['InitialFacets', 'LiFiDiamond', 'InitFacets']
+func.dependencies = ['InitFacets']

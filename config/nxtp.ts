@@ -4,6 +4,7 @@ interface NXTPConfig {
   }
 }
 
+// based on https://github.com/connext/nxtp/tree/main/packages/contracts/deployments
 const config: NXTPConfig = {
   hardhat: {
     txManagerAddress: '0x9492224B81aCf442da114ea1313C0284A584f858',
@@ -19,6 +20,9 @@ const config: NXTPConfig = {
   },
   goerli: {
     txManagerAddress: '0xb6cb4893F7e27aDF1bdda1d283A6b344A1F57D58',
+  },
+  kovan: {
+    txManagerAddress: '0xA7639e9B3e22997CD61e302DF4b25994fE2a8bD6',
   },
   polygon: {
     txManagerAddress: '0x6090De2EC76eb1Dc3B5d632734415c93c44Fd113',

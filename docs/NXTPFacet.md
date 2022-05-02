@@ -36,29 +36,27 @@ graph LR;
 Some of the methods listed above take a variable labeled `_nxtpData`. This data is specific to NXTP and is represented as the following struct type:
 
 ```solidity
-/**
- * Arguments for calling prepare()
- * @param invariantData The data for a crosschain transaction that will
- *     not change between sending and receiving chains.
- *     The hash of this data is used as the key to store
- *     the inforamtion that does change between chains
- *     (amount,expiry,preparedBlock) for verification
- * @param amount The amount of the transaction on this chain
- * @param expiry The block.timestamp when the transaction will no longer be
- *     fulfillable and is freely cancellable on this chain
- * @param encryptedCallData The calldata to be executed when the tx is
- *     fulfilled. Used in the function to allow the user
- *     to reconstruct the tx from events. Hash is stored
- *     onchain to prevent shenanigans.
- * @param encodedBid The encoded bid that was accepted by the user for this
- *     crosschain transfer. It is supplied as a param to the
- *     function but is only used in event emission
- * @param bidSignature The signature of the bidder on the encoded bid for
- *     this transaction. Only used within the function for
- *     event emission. The validity of the bid and
- *     bidSignature are enforced offchain
- * @param encodedMeta The meta for the function
- */
+/// Arguments for calling prepare()
+/// @param invariantData The data for a crosschain transaction that will
+///        not change between sending and receiving chains.
+///        The hash of this data is used as the key to store
+///        the inforamtion that does change between chains
+///        (amount,expiry,preparedBlock) for verification
+/// @param amount The amount of the transaction on this chain
+/// @param expiry The block.timestamp when the transaction will no longer be
+///        fulfillable and is freely cancellable on this chain
+/// @param encryptedCallData The calldata to be executed when the tx is
+///        fulfilled. Used in the function to allow the user
+///        to reconstruct the tx from events. Hash is stored
+///        onchain to prevent shenanigans.
+/// @param encodedBid The encoded bid that was accepted by the user for this
+///        crosschain transfer. It is supplied as a param to the
+///        function but is only used in event emission
+/// @param bidSignature The signature of the bidder on the encoded bid for
+///        this transaction. Only used within the function for
+///        event emission. The validity of the bid and
+///        bidSignature are enforced offchain
+/// @param encodedMeta The meta for the function
 struct PrepareArgs {
   InvariantTransactionData invariantData;
   uint256 amount;
@@ -95,21 +93,22 @@ The quote result looks like the following:
 
 ```javascript
 const quoteResult = {
-    "id": "0x...",           // quote id
-    "type": "lifi",          // the type of the quote (all lifi contract calls have the type "lifi")
-    "tool": "hop",           // the bridge tool used for the transaction
-    "action": {},            // information about what is going to happen
-    "estimate": {},          // information about the estimated outcome of the call
-    "includedSteps": [],     // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step
-    "transactionRequest": {  // the transaction that can be sent using a wallet
-        "data": "0x...",
-        "to": "0x...",
-        "value": "0x00",
-        "from": "{YOUR_WALLET_ADDRESS}",
-        "chainId": 100,
-        "gasLimit": "0x...",
-        "gasPrice": "0x..."
-    }
+  id: '0x...', // quote id
+  type: 'lifi', // the type of the quote (all lifi contract calls have the type "lifi")
+  tool: 'hop', // the bridge tool used for the transaction
+  action: {}, // information about what is going to happen
+  estimate: {}, // information about the estimated outcome of the call
+  includedSteps: [], // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step
+  transactionRequest: {
+    // the transaction that can be sent using a wallet
+    data: '0x...',
+    to: '0x...',
+    value: '0x00',
+    from: '{YOUR_WALLET_ADDRESS}',
+    chainId: 100,
+    gasLimit: '0x...',
+    gasPrice: '0x...',
+  },
 }
 ```
 
@@ -118,19 +117,25 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 
 ### Cross Only
+
 To get a transaction for a transfer from 1 MIVA on Gnosis to MIVA on Polygon you can execute the following request:
+
 ```shell
 curl 'https://li.quest/v1/quote?fromChain=DAI&fromAmount=1000000000000000000&fromToken=MIVA&toChain=POL&toToken=MIVA&slippage=0.03&allowBridges=connext&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross
+
 To get a transaction for a transfer from 1 DAI on Gnosis to MIVA on Polygon you can execute the following request:
+
 ```sh
 curl 'https://li.quest/v1/quote?fromChain=DAI&fromAmount=1000000000000000000&fromToken=DAI&toChain=POL&toToken=MIVA&slippage=0.03&allowBridges=connext&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross & Swap
+
 To get a transaction for a transfer from 1 DAI on Gnosis to MATIC on Polygon you can execute the following request:
+
 ```sh
 curl 'https://li.quest/v1/quote?fromChain=DAI&fromAmount=1000000000000000000&fromToken=DAI&toChain=POL&toToken=MATIC&slippage=0.03&allowBridges=connext&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
