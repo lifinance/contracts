@@ -8,6 +8,7 @@
 - [AnySwap Facet](./AnyswapFacet.md)
 - [Hyphen Facet](./HyphenFacet.md)
 - [CBridge Facet](./CBridgeFacet.md)
+- [Stargate Facet](./StargateFacet.md)
 - [Withdraw Facet](./WithdrawFacet.md)
 - [DiamondCut Facet](./DiamondCutFacet.md)
 - [DiamondLoupe Facet](./DiamondLoupeFacet.md)

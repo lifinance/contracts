@@ -21,6 +21,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const tokens: string[] = []
   const configs: BridgeConfig[] = []
 
+  if (config[network.name] === undefined) {
+    console.info('Not deploying HopFacet because hopBridge is not set')
+    return
+  }
+
   const bridgeConfig = config[network.name]
 
   Object.keys(bridgeConfig).map((k) => {
@@ -64,4 +69,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func
 func.id = 'deploy_hop_facet'
 func.tags = ['DeployHopFacet']
-func.dependencies = ['InitFacets', 'DeployDexManagerFacet']
+func.dependencies = [
+  'InitialFacets',
+  'LiFiDiamond',
+  'InitFacets',
+  'DeployDexManagerFacet',
+]

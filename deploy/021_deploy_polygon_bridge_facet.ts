@@ -2,47 +2,46 @@ import { utils } from 'ethers'
 import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
-import config from '../config/nxtp'
 import { addOrReplaceFacets } from '../utils/diamond'
+import config from '../config/polygon'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts, network } = hre
   const { deploy } = deployments
-
   const { deployer } = await getNamedAccounts()
 
-  if (config[network.name] === undefined) {
-    console.info('Not deploying NXTPFacet because txManagerAddress is not set')
-    return
-  }
+  const ROOT_CHAIN_MANAGER_ADDRESS = config[network.name].rootChainManager
+  const ERC20_PREDICATE_ADDRESS = config[network.name].erc20Predicate
 
-  const TX_MGR_ADDR = config[network.name].txManagerAddress
-
-  await deploy('NXTPFacet', {
+  await deploy('PolygonBridgeFacet', {
     from: deployer,
     log: true,
     deterministicDeployment: true,
   })
 
-  const nxtpFacet = await ethers.getContract('NXTPFacet')
+  const polygonBridgeFacet = await ethers.getContract('PolygonBridgeFacet')
 
   const diamond = await ethers.getContract('LiFiDiamond')
 
-  const ABI = ['function initNXTP(address)']
+  const ABI = ['function initPolygonBridge(address,address)']
   const iface = new utils.Interface(ABI)
 
-  const initData = iface.encodeFunctionData('initNXTP', [TX_MGR_ADDR])
+  const initData = iface.encodeFunctionData('initPolygonBridge', [
+    ROOT_CHAIN_MANAGER_ADDRESS,
+    ERC20_PREDICATE_ADDRESS,
+  ])
 
   await addOrReplaceFacets(
-    [nxtpFacet],
+    [polygonBridgeFacet],
     diamond.address,
-    nxtpFacet.address,
+    polygonBridgeFacet.address,
     initData
   )
 }
+
 export default func
-func.id = 'deploy_NXTP_facet'
-func.tags = ['DeployNXTPFacet']
+func.id = 'deploy_starget_facet'
+func.tags = ['DeployPolygonBridgeFacet']
 func.dependencies = [
   'InitialFacets',
   'LiFiDiamond',

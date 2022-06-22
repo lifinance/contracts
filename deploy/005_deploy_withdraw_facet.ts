@@ -24,3 +24,4 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func
 func.id = 'deploy_withdraw_facet'
 func.tags = ['DeployWithdrawFacet']
+func.dependencies = ['InitialFacets', 'LiFiDiamond', 'InitFacets']

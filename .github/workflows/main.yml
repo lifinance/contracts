@@ -41,5 +41,5 @@ jobs:
           MNEMONIC: ${{ secrets.MNEMONIC }}
           ETH_NODE_URI: ${{ secrets.ETH_NODE_URI }}
           ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
-          ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
-          ETH_NODE_URI_KOVAN_OPTIMISM: ${{ secrets.ETH_NODE_URI_KOVAN_OPTIMISM }}
+          ETH_NODE_URI_ARBITRUMONE: ${{ secrets.ETH_NODE_URI_ARBITRUMONE }}
+          ETH_NODE_URI_OPTIMISTICKOVAN: ${{ secrets.ETH_NODE_URI_OPTIMISTICKOVAN }}

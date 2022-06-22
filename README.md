@@ -112,6 +112,7 @@ graph TD;
     D{LiFiDiamond}-- DELEGATECALL -->AnyswapFacet;
     D{LiFiDiamond}-- DELEGATECALL -->CBridgeFacet;
     D{LiFiDiamond}-- DELEGATECALL -->HyphenFacet;
+    D{LiFiDiamond}-- DELEGATECALL -->StargateFacet;
 ```
 
 ---

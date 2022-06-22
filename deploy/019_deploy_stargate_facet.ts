@@ -2,47 +2,42 @@ import { utils } from 'ethers'
 import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
-import config from '../config/nxtp'
 import { addOrReplaceFacets } from '../utils/diamond'
+import config from '../config/stargate'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts, network } = hre
   const { deploy } = deployments
-
   const { deployer } = await getNamedAccounts()
 
-  if (config[network.name] === undefined) {
-    console.info('Not deploying NXTPFacet because txManagerAddress is not set')
-    return
-  }
+  const ROUTER_ADDR = config[network.name].stargateRouter
 
-  const TX_MGR_ADDR = config[network.name].txManagerAddress
-
-  await deploy('NXTPFacet', {
+  await deploy('StargateFacet', {
     from: deployer,
     log: true,
     deterministicDeployment: true,
   })
 
-  const nxtpFacet = await ethers.getContract('NXTPFacet')
+  const stargetFacet = await ethers.getContract('StargateFacet')
 
   const diamond = await ethers.getContract('LiFiDiamond')
 
-  const ABI = ['function initNXTP(address)']
+  const ABI = ['function initStargate(address)']
   const iface = new utils.Interface(ABI)
 
-  const initData = iface.encodeFunctionData('initNXTP', [TX_MGR_ADDR])
+  const initData = iface.encodeFunctionData('initStargate', [ROUTER_ADDR])
 
   await addOrReplaceFacets(
-    [nxtpFacet],
+    [stargetFacet],
     diamond.address,
-    nxtpFacet.address,
+    stargetFacet.address,
     initData
   )
 }
+
 export default func
-func.id = 'deploy_NXTP_facet'
-func.tags = ['DeployNXTPFacet']
+func.id = 'deploy_starget_facet'
+func.tags = ['DeployStargateFacet']
 func.dependencies = [
   'InitialFacets',
   'LiFiDiamond',

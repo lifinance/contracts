@@ -30,21 +30,24 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const dexMgr = <DexManagerFacet>(
       await ethers.getContractAt('DexManagerFacet', diamond.address)
     )
-    const approvedDEXs = (await dexMgr.approvedDexs()).map((d) =>
+    const approvedDEXs = (await dexMgr.approvedDexs()).map((d: string) =>
       d.toLowerCase()
     )
 
+    let tx
     if (JSON.stringify(approvedDEXs) === JSON.stringify(dexs)) {
       console.log('DEXs already whitelisted.')
     } else {
-      await dexMgr.batchAddDex(dexs)
+      tx = await dexMgr.batchAddDex(dexs)
+      await tx.wait()
     }
 
     // Approve function signatures
-    await dexMgr.batchSetFunctionApprovalBySignature(
+    tx = await dexMgr.batchSetFunctionApprovalBySignature(
       allowedFuncSignatures,
       true
     )
+    await tx.wait()
 
     console.log('Done!')
   }
@@ -52,4 +55,4 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func
 func.id = 'deploy_dex_manager_facet'
 func.tags = ['DeployDexManagerFacet']
-func.dependencies = ['InitFacets']
+func.dependencies = ['InitialFacets', 'LiFiDiamond', 'InitFacets']
