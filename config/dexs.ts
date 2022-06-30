@@ -145,7 +145,9 @@ const config: DEXConfig = {
     '0xd9deC7c3C06e62a4c1BeEB07CadF568f496b14c2', // dodo - V2Proxy02
     '0x0125Cd41312F72a0774112Ca639D65A2C02e3627', // dodo - RouteProxy
   ],
-  cronos: [],
+  cronos: [
+    '0xcd7d16fb918511bf7269ec4f48d61d79fb26f918', // CronaSwap - RouterV2
+  ],
 
   // testnets
   rinkeby: [
@@ -153,7 +155,7 @@ const config: DEXConfig = {
     '0xba001E96AF87bF9d8D0BDA667067A9921FE6d294', // dodo - V2Proxy02
     '0xe2b538a781eB5a115a1359B8f363B9703Fd19dE6', // dodo - RouteProxy
     '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', // uniswap
-    '0x8082e58681350876aFe8f52d3Bf8672034A03Db0', // Superfluid - Upgrader
+    '0xd4fce2a08fd2fa7495bed900f2fb6c6dedbf8632', // Superfluid - Upgrader
   ],
   ropsten: [
     '0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57', // paraswap - AugustusSwapper
@@ -164,10 +166,11 @@ const config: DEXConfig = {
   ],
   kovan: [
     '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', // uniswap
-    '0x51FBAbD31A615E14b1bC12E9d887f60997264a4E', // Superfluid - Upgrader
+    '0xf01825eafae5cd1dab5593efaf218efc8968d272', // Superfluid - Upgrader
   ],
   goerli: [
     '0x7a250d5630b4cf539739df2c5dacb4c659f2488d', // uniswap
+    '0x30ae282cf477e2ef28b14d0125acead57fe1d7a1', // Superfluid - Upgrader
   ],
   polygonMumbai: [],
   optimisticKovan: [],

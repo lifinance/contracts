@@ -26,7 +26,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const dexs = config[network.name].map((d: string) => d.toLowerCase())
   if (dexs && dexs.length) {
-    console.log('Adding DEXs to whitelist...')
+    console.log('Checking DEXs whitelist...')
     const dexMgr = <DexManagerFacet>(
       await ethers.getContractAt('DexManagerFacet', diamond.address)
     )
@@ -38,16 +38,32 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     if (JSON.stringify(approvedDEXs) === JSON.stringify(dexs)) {
       console.log('DEXs already whitelisted.')
     } else {
+      console.log('Updating DEX whitelist...')
       tx = await dexMgr.batchAddDex(dexs)
       await tx.wait()
     }
 
     // Approve function signatures
-    tx = await dexMgr.batchSetFunctionApprovalBySignature(
-      allowedFuncSignatures,
+    console.log('Checking DEXs signatures whitelist...')
+    const functionsApproved = await Promise.all(
+      allowedFuncSignatures.map((signature) => {
+        return dexMgr.isFunctionApproved(signature)
+      })
+    )
+    const allApproved = functionsApproved.reduce(
+      (prev, curr) => prev && curr,
       true
     )
-    await tx.wait()
+    if (allApproved) {
+      console.log('DEX signatures already whitelisted.')
+    } else {
+      console.log('Updating DEX signatures...')
+      tx = await dexMgr.batchSetFunctionApprovalBySignature(
+        allowedFuncSignatures,
+        true
+      )
+      await tx.wait()
+    }
 
     console.log('Done!')
   }

@@ -105,16 +105,16 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 
 ### Cross Only
 
-To get a transaction for a transfer from 20 DAI on Polygon to DAI on Fantom you can execute the following request:
+To get a transaction for a transfer from 20 USDC on Polygon to USDC on Fantom you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=20000000000000000000&fromToken=DAI&toChain=FTM&toToken=DAI&slippage=0.03&allowBridges=multichain&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=20000000000000000000&fromToken=USDC&toChain=FTM&toToken=USDC&slippage=0.03&allowBridges=stargate&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross
 
-To get a transaction for a transfer from 10 MATIC on Polygon to DAI on Fantom you can execute the following request:
+To get a transaction for a transfer from 10 USDT on Polygon to USDC on Fantom you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=10000000000000000000&fromToken=MATIC&toChain=FTM&toToken=DAI&slippage=0.03&allowBridges=multichain&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=10000000000000000000&fromToken=USDT&toChain=FTM&toToken=USDC&slippage=0.03&allowBridges=stargate&fromAddress={YOUR_WALLET_ADDRESS}'
 ```

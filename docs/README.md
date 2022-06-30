@@ -21,3 +21,7 @@
 - [LibStorage](./LibStorage.md)
 - [LibSwap](./LibSwap.md)
 - [LibUtil](./LibUtil.md)
+
+# Periphery
+
+- [FeeCollector](./FeeCollector.md)

@@ -20,7 +20,8 @@
    2. [TEST](#test)
    3. [TEST With Foundry/Forge](#foundry-forge)
 7. [Contract Docs](#contract-docs)
-8. [More Information](#more-information)
+8. [DEPLOY](#deploy)
+9. [More Information](#more-information)
 
 ## General<a name="general"></a>
 
@@ -211,6 +212,20 @@ OR
 ```
 yarn test:forge
 ```
+
+### DEPLOY<a name="deploy"></a>
+
+You can deploy the entire project by running:
+
+`yarn deploy <network> --tags DeployAllFacets`
+
+You can deploy individual facets by running:
+
+`yarn deploy <network> --tags Deploy<facet> // e.g. DeployNXTPFacet`
+
+DEX Manager is a special facet that manages allowed DEXs and allowed function calls. You can update these allowed DEXs/functions by updating `/config/dex.ts` and then running:
+
+`yarn deploy <network> --tags DeployDexManagerFacet`
 
 ## More Information<a name="more-information"></a>
 

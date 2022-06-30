@@ -40,7 +40,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 }
 
 export default func
-func.id = 'deploy_starget_facet'
+func.id = 'deploy_polygon_bridge_facet'
 func.tags = ['DeployPolygonBridgeFacet']
 func.dependencies = [
   'InitialFacets',
