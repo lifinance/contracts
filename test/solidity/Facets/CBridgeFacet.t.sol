@@ -93,7 +93,8 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
     }
 
     function testCanSwapAndBridgeTokens() public {
-        vm.startPrank(WHALE);
+        address DAI_WHALE = 0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
+        vm.startPrank(DAI_WHALE);
 
         // Swap DAI -> USDC
         address[] memory path = new address[](2);
@@ -106,7 +107,14 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
         uint256 amountIn = amounts[0];
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 100, 1, amountOut, WHALE, USDC_ADDRESS);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            5000,
+            100,
+            1,
+            amountOut,
+            DAI_WHALE,
+            USDC_ADDRESS
+        );
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(

@@ -51,7 +51,8 @@ contract Swapper is ILiFi {
         address finalTokenId = _swapData[_swapData.length - 1].receivingAssetId;
         uint256 swapBalance = LibAsset.getOwnBalance(finalTokenId);
         _executeSwaps(_lifiData, _swapData);
-        swapBalance = LibAsset.getOwnBalance(finalTokenId) - swapBalance;
+        uint256 newBalance = LibAsset.getOwnBalance(finalTokenId);
+        swapBalance = newBalance > swapBalance ? newBalance - swapBalance : newBalance;
         if (swapBalance == 0) revert InvalidAmount();
         return swapBalance;
     }
@@ -82,7 +83,15 @@ contract Swapper is ILiFi {
     function _fetchBalances(LibSwap.SwapData[] calldata _swapData) private view returns (uint256[] memory) {
         uint256 length = _swapData.length;
         uint256[] memory balances = new uint256[](length);
-        for (uint256 i = 0; i < length; i++) balances[i] = LibAsset.getOwnBalance(_swapData[i].receivingAssetId);
+        for (uint256 i = 0; i < length; i++) {
+            address asset = _swapData[i].receivingAssetId;
+            uint256 balance = LibAsset.getOwnBalance(asset);
+            if (LibAsset.isNativeAsset(asset)) {
+                balances[i] = balance - msg.value;
+            } else {
+                balances[i] = balance;
+            }
+        }
         return balances;
     }
 }

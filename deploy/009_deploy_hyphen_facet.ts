@@ -10,6 +10,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
+  if (config[network.name] === undefined) {
+    console.error('Not deploying HyphenFacet because hyphenRouter is not set')
+    return
+  }
+
   const hyphenRouter = config[network.name].hyphenRouter
 
   await deploy('HyphenFacet', {
@@ -38,4 +43,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func
 func.id = 'deploy_hyphen_facet'
 func.tags = ['DeployHyphenFacet']
-func.dependencies = ['InitFacets', 'DeployDexManagerFacet']
+func.dependencies = [
+  'InitialFacets',
+  'LiFiDiamond',
+  'InitFacets',
+  'DeployDexManagerFacet',
+]

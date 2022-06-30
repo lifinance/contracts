@@ -14,9 +14,11 @@ jobs:
         run: npm install
 
       - name: Install Foundry
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
 
       - name: Run forge tests forking mainnet
-        run: forge test -f ${{ secrets.ETH_NODE_URI_MAINNET }} --fork-block-number 14518542
+        run: forge test -f ${{ secrets.ETH_NODE_URI_MAINNET }} --fork-block-number ${{ secrets.FORK_NUMBER }} --no-match-contract ".*(Polygon)"
+      - name: Run forge tests forking polygon
+        run: forge test -f ${{ secrets.ETH_NODE_URI_POLYGON }} --fork-block-number ${{ secrets.POLYGON_FORK_NUMBER }} --match-contract ".*(Polygon)"

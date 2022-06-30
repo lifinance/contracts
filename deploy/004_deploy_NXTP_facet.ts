@@ -11,6 +11,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const { deployer } = await getNamedAccounts()
 
+  if (config[network.name] === undefined) {
+    console.info('Not deploying NXTPFacet because txManagerAddress is not set')
+    return
+  }
+
   const TX_MGR_ADDR = config[network.name].txManagerAddress
 
   await deploy('NXTPFacet', {
@@ -38,4 +43,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func
 func.id = 'deploy_NXTP_facet'
 func.tags = ['DeployNXTPFacet']
-func.dependencies = ['InitFacets', 'DeployDexManagerFacet']
+func.dependencies = [
+  'InitialFacets',
+  'LiFiDiamond',
+  'InitFacets',
+  'DeployDexManagerFacet',
+]

@@ -92,7 +92,7 @@
     "@hop-protocol/sdk": "0.0.1-beta.310",
     "@uma/sdk": "^0.22.1",
     "@uniswap/sdk": "^3.0.3",
-    "chalk": "^5.0.1",
+    "chalk": "4.1.2",
     "hardhat-ethers": "^1.0.1",
     "inquirer": "^8.2.1",
     "light-spinner": "^1.0.4",

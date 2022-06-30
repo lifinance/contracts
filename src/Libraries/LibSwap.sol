@@ -54,13 +54,15 @@ library LibSwap {
             revert(reason);
         }
 
+        uint256 newBalance = LibAsset.getOwnBalance(toAssetId);
+
         emit AssetSwapped(
             transactionId,
             _swapData.callTo,
             _swapData.sendingAssetId,
             toAssetId,
             fromAmount,
-            LibAsset.getOwnBalance(toAssetId) - initialReceivingAssetBalance,
+            newBalance > initialReceivingAssetBalance ? newBalance - initialReceivingAssetBalance : newBalance,
             block.timestamp
         );
     }

@@ -24,4 +24,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func
 func.id = 'deploy_generic_swap_facet'
 func.tags = ['DeployGenericSwapFacet']
-func.dependencies = ['InitFacets', 'DeployDexManagerFacet']
+func.dependencies = [
+  'InitialFacets',
+  'LiFiDiamond',
+  'InitFacets',
+  'DeployDexManagerFacet',
+]

@@ -4,7 +4,10 @@ interface cBridgeConfig {
     chainId: number
   }
 }
-//0x552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0
+
+// based on https://cbridge-docs.celer.network/reference/contract-addresses
+// Mainnets: https://cbridge-prod2.celer.network/v2/getTransferConfigsForAll
+// Testnets: https://cbridge-v2-test.celer.network/v2/getTransferConfigsForAll
 const config: cBridgeConfig = {
   // leave cBridgeConfig as '' if you want to deploy a router with deployments
   hardhat: {
@@ -19,7 +22,7 @@ const config: cBridgeConfig = {
     cBridge: '0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820',
     chainId: 1,
   },
-  optimism: {
+  optimisticEthereum: {
     cBridge: '0x9D39Fc627A6d9d9F8C831c16995b209548cc3401',
     chainId: 10,
   },
@@ -31,7 +34,7 @@ const config: cBridgeConfig = {
     cBridge: '0x88DCDC47D2f83a99CF0000FDF667A468bB958a78',
     chainId: 137,
   },
-  fantom: {
+  opera: {
     cBridge: '0x374B8a9f3eC5eB2D97ECA84Ea27aCa45aa1C57EF',
     chainId: 250,
   },
@@ -43,15 +46,15 @@ const config: cBridgeConfig = {
     cBridge: '0x841ce48F9446C8E281D3F1444cB859b4A6D0738C',
     chainId: 288,
   },
-  arbitrum: {
+  arbitrumOne: {
     cBridge: '0x1619DE6B6B20eD217a58d00f37B9d47C7663feca',
     chainId: 42161,
   },
-  avax: {
+  avalanche: {
     cBridge: '0xef3c714c9425a8F3697A9C969Dc1af30ba82e5d4',
     chainId: 43114,
   },
-  moon_river: {
+  moonriver: {
     cBridge: '0x841ce48F9446C8E281D3F1444cB859b4A6D0738C',
     chainId: 1285,
   },
@@ -59,6 +62,35 @@ const config: cBridgeConfig = {
     cBridge: '0xBB7684Cc5408F4DD0921E5c2Cadd547b8f1AD573',
     chainId: 42220,
   },
+
+  // Testnets
+  goerli: {
+    cBridge: '0x358234B325EF9eA8115291A8b81b7d33A2Fa762D',
+    chainId: 5,
+  },
+  optimisticKovan: {
+    cBridge: '0x265B25e22bcd7f10a5bD6E6410F10537Cc7567e8',
+    chainId: 69,
+  },
+  bscTestnet: {
+    cBridge: '0xf89354F314faF344Abd754924438bA798E306DF2',
+    chainId: 97,
+  },
+  // Fantom Testnet
+  // _: {
+  //   cBridge: '0xFA78cBa4ebbf8fE28B4fC1468948F16Fda2752b3',
+  //   chainId: 4002,
+  // },
+  // Moonriver Alpha
+  // _: {
+  //   cBridge: '0x841ce48f9446c8e281d3f1444cb859b4a6d0738c',
+  //   chainId: 1287,
+  // },
+  // OASIS Testnet
+  // _: {
+  //   cBridge: '0xe47ec50d886a383eb8522f9a8850050b7c9f6f9f',
+  //   chainId: 42261,
+  // },
 }
 
 export default config
