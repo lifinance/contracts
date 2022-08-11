@@ -59,7 +59,7 @@ This parameter is strictly for analytics purposes. It's used to emit events that
 
 In the following some sample calls are shown that allow you to retrieve a populated transaction that can be sent to our contract via your wallet.
 
-All examples use our [/quote endpoint](https://apidocs.li.finance/reference/get_quote-1) to retrieve a quote which contains a `transactionRequest`. This request can directly be sent to your wallet to trigger the transaction.
+All examples use our [/quote endpoint](https://apidocs.li.fi/reference/get_quote) to retrieve a quote which contains a `transactionRequest`. This request can directly be sent to your wallet to trigger the transaction.
 
 The quote result looks like the following:
 
@@ -84,7 +84,7 @@ const quoteResult = {
 }
 ```
 
-A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://apidocs.li.finance/reference/how-to-transfer-tokens).
+A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/products/more-integration-options/li.fi-api/transferring-tokens-example).
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 
