@@ -3,7 +3,7 @@ import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { addOrReplaceFacets } from '../utils/diamond'
 import { utils } from 'ethers'
-import config from '../config/gnosisBridge'
+import { verifyContract } from './9999_verify_all_facets'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts } = hre
@@ -11,14 +11,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const { deployer } = await getNamedAccounts()
 
-  if (!config[network.name]) {
+  if (network.name !== 'mainnet' && network.name !== 'hardhat') {
     console.log(`${network.name} is not supported for GnosisBridge`)
     return
   }
-
-  const xDaiBridge = config[network.name].xDaiBridge
-  const token = config[network.name].token
-  const dstChainId = config[network.name].dstChainId
 
   await deploy('GnosisBridgeFacet', {
     from: deployer,
@@ -30,21 +26,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const diamond = await ethers.getContract('LiFiDiamond')
 
-  const ABI = ['function initGnosisBridge(address,address,uint64)']
-  const iface = new utils.Interface(ABI)
+  await addOrReplaceFacets([gnosisBridgeFacet], diamond.address)
 
-  const initData = iface.encodeFunctionData('initGnosisBridge', [
-    xDaiBridge,
-    token,
-    dstChainId,
-  ])
-
-  await addOrReplaceFacets(
-    [gnosisBridgeFacet],
-    diamond.address,
-    gnosisBridgeFacet.address,
-    initData
-  )
+  await verifyContract(hre, 'GnosisBridgeFacet', {
+    address: gnosisBridgeFacet.address,
+  })
 }
 
 export default func

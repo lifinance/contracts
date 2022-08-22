@@ -99,17 +99,13 @@ describe('AcrossFacet', function () {
     await setupTest()
   })
 
-  it('should init bridge address and chain Id', async function () {
-    await expect(
-      lifi.connect(owner).initAcross(WETH_ADDRESS, ETH_SPOKE_POOL)
-    ).to.emit(lifi, 'AcrossInitialized')
-  })
-
   it('starts a bridge transaction on the sending chain for native token', async () => {
     const currentBlock = await ethers.provider.getBlockNumber()
     const now = (await ethers.provider.getBlock(currentBlock)).timestamp
 
     const AcrossData = {
+      weth: WETH_ADDRESS,
+      spokePool: ETH_SPOKE_POOL,
       recipient: eth_whale.address,
       token: '0x0000000000000000000000000000000000000000',
       amount: utils.parseUnits('1000', 6),
@@ -130,6 +126,8 @@ describe('AcrossFacet', function () {
     const now = (await ethers.provider.getBlock(currentBLock)).timestamp
 
     const AcrossData = {
+      weth: WETH_ADDRESS,
+      spokePool: ETH_SPOKE_POOL,
       recipient: weth_whale.address,
       token: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
       amount: 1,

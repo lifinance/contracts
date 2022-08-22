@@ -3,6 +3,7 @@ import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { addOrReplaceFacets } from '../utils/diamond'
 import { utils } from 'ethers'
+import { verifyContract } from './9999_verify_all_facets'
 import config from '../config/across'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
@@ -28,16 +29,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const diamond = await ethers.getContract('LiFiDiamond')
 
-  const ABI = ['function initAcross(address,address)']
-  const iface = new utils.Interface(ABI)
-  const initData = iface.encodeFunctionData('initAcross', [weth, spokePool])
+  await addOrReplaceFacets([acrossFacet], diamond.address)
 
-  await addOrReplaceFacets(
-    [acrossFacet],
-    diamond.address,
-    acrossFacet.address,
-    initData
-  )
+  await verifyContract(hre, 'AcrossFacet', { address: acrossFacet.address })
 }
 
 export default func

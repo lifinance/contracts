@@ -7,12 +7,12 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
-import "../Helpers/Swapper.sol";
+import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Stargate Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate
-contract StargateFacet is ILiFi, Swapper, ReentrancyGuard {
+contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.stargate");
@@ -97,7 +97,7 @@ contract StargateFacet is ILiFi, Swapper, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         StargateData memory _stargateData
     ) external payable nonReentrant {
-        _stargateData.amountLD = _executeAndCheckSwaps(_lifiData, _swapData);
+        _stargateData.amountLD = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
 
         if (_stargateData.amountLD == 0) {
             revert InvalidAmount();
@@ -181,7 +181,7 @@ contract StargateFacet is ILiFi, Swapper, ReentrancyGuard {
             revert InvalidCaller();
         }
 
-        uint256 swapBalance = _executeAndCheckSwaps(_lifiData, _swapData);
+        uint256 swapBalance = _executeAndCheckSwaps(_lifiData, _swapData, payable(_receiver));
         LibAsset.transferAsset(_finalAssetId, payable(_receiver), swapBalance);
         emit LiFiTransferCompleted(_lifiData.transactionId, _finalAssetId, _receiver, swapBalance, block.timestamp);
     }

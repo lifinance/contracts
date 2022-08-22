@@ -18,6 +18,15 @@ const config: HyphenConfig = {
   avalanche: {
     hyphenRouter: '0x2A5c2568b10A0E826BfA892Cf21BA7218310180b',
   },
+  bsc: {
+    hyphenRouter: '0x94D3E62151B12A12A4976F60EdC18459538FaF08',
+  },
+  optimisticEthereum: {
+    hyphenRouter: '0x856cb5c3cbbe9e2e21293a644aa1f9363cee11e8',
+  },
+  arbitrumOne: {
+    hyphenRouter: '0x856cb5c3cBBe9e2E21293A644aA1f9363CEE11E8',
+  },
 
   // Testnets
   goerli: {
@@ -31,6 +40,12 @@ const config: HyphenConfig = {
   },
   bscTestnet: {
     hyphenRouter: '0xDbF976e42bC51D801E0DB572ED279EA2F46c3BbD',
+  },
+  optimisticKovan: {
+    hyphenRouter: '0x5b330816329E2d52Dda90e30D70dC9ea51d4503B',
+  },
+  arbitrumTestnet: {
+    hyphenRouter: '0xa948d26475d1f8a40a1085ec93a46d5934887599',
   },
 }
 

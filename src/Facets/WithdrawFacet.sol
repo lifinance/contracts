@@ -5,6 +5,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
+import { LibAccess } from "../Libraries/LibAccess.sol";
 
 /// @title Withdraw Facet
 /// @author LI.FI (https://li.fi)
@@ -38,7 +39,9 @@ contract WithdrawFacet {
         address _to,
         uint256 _amount
     ) external {
-        LibDiamond.enforceIsContractOwner();
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
 
         // Check if the _callTo is a contract
         bool success;

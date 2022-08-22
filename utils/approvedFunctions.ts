@@ -38,4 +38,8 @@ export default [
   '0x49228978', // deposit(address,address,uint256,uint256,uint64,uint32)
   '0x2a197298', // Superfluid upgrade(address superToken, address account, uint256 amount)
   '0x2bf6e9ec', // Superfluid downgrade(address superToken, address account, uint256 amount)
+  '0xcf81464b', // Superfluid upgradeByETH()
+  '0x160e8be3', // Superfluid downagradeToETH(uint256 wad)
+  '0xeedd56e1', // FeeCollector collectTokenFees(address,uint256,uint256,address)
+  '0xe0cbc5f2', // FeeCollector collectNativeFees(uint256,uint256,address)
 ].map((hex) => `${hex}${TRAILING_56_NIBBLES}`)

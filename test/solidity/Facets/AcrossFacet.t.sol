@@ -52,19 +52,19 @@ contract AcrossFacetTest is DSTest, DiamondTest {
         across = new TestAcrossFacet();
         usdc = ERC20(USDC_ADDRESS);
         weth = ERC20(WETH_ADDRESS);
-        bytes4[] memory functionSelectors = new bytes4[](2);
-        functionSelectors[0] = across.initAcross.selector;
-        functionSelectors[1] = across.startBridgeTokensViaAcross.selector;
+        bytes4[] memory functionSelectors = new bytes4[](1);
+        functionSelectors[0] = across.startBridgeTokensViaAcross.selector;
 
         addFacet(diamond, address(across), functionSelectors);
 
         across = TestAcrossFacet(address(diamond));
-        across.initAcross(WETH_ADDRESS, SPOKE_POOL);
     }
 
     function testCanBridgeNativeTokens() public {
         vm.startPrank(ETH_HOLDER);
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
+            WETH_ADDRESS,
+            SPOKE_POOL,
             ETH_HOLDER,
             0x0000000000000000000000000000000000000000, // token
             1000000000000000000, // amt
@@ -80,6 +80,8 @@ contract AcrossFacetTest is DSTest, DiamondTest {
         vm.startPrank(WETH_HOLDER);
         weth.approve(address(across), 10_000 * 10**weth.decimals());
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
+            WETH_ADDRESS,
+            SPOKE_POOL,
             WETH_HOLDER,
             WETH_ADDRESS, // token
             100000, // amt

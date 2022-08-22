@@ -5,6 +5,7 @@ import { addOrReplaceFacets } from '../utils/diamond'
 import config from '../config/dexs'
 import allowedFuncSignatures from '../config/dexfuncs'
 import { DexManagerFacet } from '../typechain'
+import { verifyContract } from './9999_verify_all_facets'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts } = hre
@@ -67,6 +68,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     console.log('Done!')
   }
+
+  await verifyContract(hre, 'DexManagerFacet', {
+    address: dexManagerFacet.address,
+  })
 }
 export default func
 func.id = 'deploy_dex_manager_facet'

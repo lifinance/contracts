@@ -4,18 +4,12 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { addOrReplaceFacets } from '../utils/diamond'
 import { utils } from 'ethers'
 import config from '../config/hyphen'
+import { verifyContract } from './9999_verify_all_facets'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts } = hre
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
-
-  if (config[network.name] === undefined) {
-    console.error('Not deploying HyphenFacet because hyphenRouter is not set')
-    return
-  }
-
-  const hyphenRouter = config[network.name].hyphenRouter
 
   await deploy('HyphenFacet', {
     from: deployer,
@@ -24,20 +18,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   })
 
   const hyphenFacet = await ethers.getContract('HyphenFacet')
-
   const diamond = await ethers.getContract('LiFiDiamond')
 
-  const ABI = ['function initHyphen(address)']
-  const iface = new utils.Interface(ABI)
+  await addOrReplaceFacets([hyphenFacet], diamond.address)
 
-  const initData = iface.encodeFunctionData('initHyphen', [hyphenRouter])
-
-  await addOrReplaceFacets(
-    [hyphenFacet],
-    diamond.address,
-    hyphenFacet.address,
-    initData
-  )
+  await verifyContract(hre, 'HyphenFacet', { address: hyphenFacet.address })
 }
 
 export default func

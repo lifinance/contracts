@@ -15,6 +15,7 @@ import approvedFunctionSelectors from '../../utils/approvedFunctions'
 
 describe('NXTPFacet (Paraswap)', function () {
   const USDC_ADDRESS = '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'
+  const TX_MGR_ADDR = '0x6090De2EC76eb1Dc3B5d632734415c93c44Fd113'
 
   let alice: SignerWithAddress
   let lifi: NXTPFacet
@@ -63,17 +64,7 @@ describe('NXTPFacet (Paraswap)', function () {
         true
       )
 
-      const ABI = ['function initNXTP(address)']
-      const iface = new utils.Interface(ABI)
-
-      const initData = iface.encodeFunctionData('initNXTP', [TX_MGR_ADDR])
-
-      await addOrReplaceFacets(
-        [nxtpFacet],
-        diamond.address,
-        nxtpFacet.address,
-        initData
-      )
+      await addOrReplaceFacets([nxtpFacet], diamond.address)
 
       lifi = (<NXTPFacet>(
         await ethers.getContractAt('NXTPFacet', diamond.address)
@@ -116,6 +107,7 @@ describe('NXTPFacet (Paraswap)', function () {
 
   it('performs a swap then starts bridge transaction on the sending chain', async function () {
     const nxtpData = {
+      nxtpTxManager: TX_MGR_ADDR,
       ...paraswapNXTPData,
     }
 

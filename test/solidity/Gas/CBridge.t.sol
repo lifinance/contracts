@@ -28,14 +28,12 @@ contract CBridgeGasTest is DSTest, DiamondTest {
         cBridge = new CBridgeFacet();
         usdc = ERC20(USDC_ADDRESS);
 
-        bytes4[] memory functionSelectors = new bytes4[](2);
-        functionSelectors[0] = cBridge.initCbridge.selector;
-        functionSelectors[1] = cBridge.startBridgeTokensViaCBridge.selector;
+        bytes4[] memory functionSelectors = new bytes4[](1);
+        functionSelectors[0] = cBridge.startBridgeTokensViaCBridge.selector;
 
         addFacet(diamond, address(cBridge), functionSelectors);
 
         cBridge = CBridgeFacet(address(diamond));
-        cBridge.initCbridge(CBRIDGE_ROUTER, 1);
     }
 
     function testDirectBridge() public {
@@ -52,7 +50,15 @@ contract CBridgeGasTest is DSTest, DiamondTest {
 
         vm.startPrank(WHALE);
         usdc.approve(address(cBridge), amount);
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 137, 1, amount, WHALE, USDC_ADDRESS);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            CBRIDGE_ROUTER,
+            5000,
+            137,
+            1,
+            amount,
+            WHALE,
+            USDC_ADDRESS
+        );
         cBridge.startBridgeTokensViaCBridge(lifiData, data);
         vm.stopPrank();
     }

@@ -4,6 +4,7 @@ import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { addOrReplaceFacets } from '../utils/diamond'
 import config from '../config/cbridge2'
+import { verifyContract } from './9999_verify_all_facets'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts } = hre
@@ -27,25 +28,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const cBridgeFacet = await ethers.getContract('CBridgeFacet')
   const diamond = await ethers.getContract('LiFiDiamond')
 
-  const ABI = ['function initCbridge(address, uint64)']
-  const iface = new utils.Interface(ABI)
+  await addOrReplaceFacets([cBridgeFacet], diamond.address)
 
-  if (config[network.name].cBridge != '') {
-    bridgeAddr = config[network.name].cBridge
-    chainId = config[network.name].chainId
-  }
-
-  const initData = iface.encodeFunctionData('initCbridge', [
-    bridgeAddr,
-    chainId,
-  ])
-
-  await addOrReplaceFacets(
-    [cBridgeFacet],
-    diamond.address,
-    cBridgeFacet.address,
-    initData
-  )
+  await verifyContract(hre, 'CBridgeFacet', { address: cBridgeFacet.address })
 }
 export default func
 func.id = 'deploy_c_bridge_facet'

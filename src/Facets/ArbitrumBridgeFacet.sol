@@ -4,16 +4,14 @@ pragma solidity 0.8.13;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IGatewayRouter } from "../Interfaces/IGatewayRouter.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount } from "../Errors/GenericErrors.sol";
-import "../Helpers/Swapper.sol";
-import "hardhat/console.sol";
+import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Arbitrum Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Arbitrum Bridge
-contract ArbitrumBridgeFacet is ILiFi, Swapper, ReentrancyGuard {
+contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Types ///
 
     struct BridgeData {
@@ -73,7 +71,7 @@ contract ArbitrumBridgeFacet is ILiFi, Swapper, ReentrancyGuard {
             revert InvalidReceiver();
         }
 
-        uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData);
+        uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
 
         if (amount == 0) {
             revert InvalidAmount();

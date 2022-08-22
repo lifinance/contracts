@@ -8,12 +8,10 @@ import 'solidity-coverage'
 import { node_url, accounts } from './utils/network'
 import '@nomiclabs/hardhat-etherscan'
 import '@tenderly/hardhat-tenderly'
-require('./tasks/generateDiamondABI.ts')
+import './plugins/relay'
+import { ethers } from 'hardhat'
 
-// While waiting for hardhat PR: https://github.com/nomiclabs/hardhat/pull/1542
-// if (process.env.HARDHAT_FORK) {
-//   process.env['HARDHAT_DEPLOY_FORK'] = process.env.HARDHAT_FORK
-// }
+require('./tasks/generateDiamondABI.ts')
 
 const PKEY = process.env.PRIVATE_KEY || null
 
@@ -166,6 +164,18 @@ const config: HardhatUserConfig = {
       url: node_url('optimisticKovan'),
       accounts: PKEY ? [PKEY] : accounts('optimisticKovan'),
     },
+    evmos: {
+      url: node_url('evmos'),
+      accounts: PKEY ? [PKEY] : accounts('evmos'),
+    },
+    aurora: {
+      url: node_url('aurora'),
+      accounts: PKEY ? [PKEY] : accounts('aurora'),
+    },
+    metis: {
+      url: node_url('metis'),
+      accounts: PKEY ? [PKEY] : accounts('metis'),
+    },
   },
   paths: {
     sources: 'src',
@@ -210,6 +220,8 @@ const config: HardhatUserConfig = {
       arbitrumTestnet: process.env.ARBITRUM_TESTNET_ETHERSCAN_API_KEY,
       optimisticEthereum: process.env.OPTIMISTICETHEREUM_ETHERSCAN_API_KEY,
       optimisticKovan: process.env.OPTIMISTICKOVAN_ETHERSCAN_API_KEY,
+      heco: process.env.HECO_ETHERSCAN_API_KEY,
+      aurora: process.env.AURORA_ETHERSCAN_API_KEY,
     },
   },
   deterministicDeployment: process.env.STAGING
@@ -236,6 +248,8 @@ const config: HardhatUserConfig = {
           1284: '0xf8a78085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3820a2ca09ae56c29db91b123c0368681381e401fdc35e4a4d0c177d4b3ba5580816b00caa065f117e1fefb65492ae1589d051bb9dcfaa5da97851cd56ba6059c3ad78e564e',
           1285: '0xf8a78085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3820a2da03092f146b7329600757704e4633aaf6e6ee149111ca0b57cff6ea2bf5e80b96aa0193957662dfd092c83315ea7b5406e5ca4bef82d4cb6588505fe4a2054f0c3a6',
           1337: '0xf8a78085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3820a95a00db349575a2d83fcd1b6173175bb1831fe36ec37d578dd830800f379ed3690c2a031fcf67ffb9cd9a159ea2f28f18f1485d93486fceef4c6ccbb4d2e13d2931152',
+          9001: '0xf8a78085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3824675a05612ec4b543814d42f248173ab580f00da27e13a00e53d04167672f75986de6aa0182d7083be2056b74e953f23f08d43b3b41273c55232dc6787da85852fa9cd95',
+          1088: '0xf8a78085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf38208a4a0287d7e05f4362618e0b7329b0e551deb014462903b42f1d048324914a1315538a07afe5011f3c36bc360a5f49642026e62e9228d736dfc1eb1b56aa0ed9ec2b038',
           42161:
             '0xf8a88085012a05f200830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf383014986a004ed3a4bf51398c176780944363c55122b2b9f9ed4afb53e3793eda60a4c82e1a04d3647daba62155047f8a6742c763da905731c59b90391c219f8c84a6127b002',
           42220:
@@ -248,6 +262,8 @@ const config: HardhatUserConfig = {
             '0xf8a88085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf383027126a08c75a0cab1f812db61d884222732aa464b8d31e90a5e49d43365919f7e4e8981a0275ce1b9fad3fe0b839df45300311a1244bd66da8af0ebac121103f0665e81e3',
           421611:
             '0xf8a80285174876e800830f42408080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3830cddf9a0da6b07091d5f325877f2ab9de0633e8e665f993136b3dfb3a1e292c11f8eac8aa07bb8277b2e8de5772fca3a5b9bb7df2883f02f9e376e3f1128f8cf4ef6de5a18',
+          1313161554:
+            '0xf8a98085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3849c8a82c7a0557ccbe8dc42ae191ed536ec73d415abcd87bc7f0c5316037e4f34ada9ea463fa02a0e797838cd257ab6d72fbbc8967637ff1babdb1af9efcb91f3943fe2eecda4',
           1666600000:
             '0xf8a98085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf384c6ac98a3a0cf443b6067cad98ae05eeb49f7b22ca2d55b671d7e78aa74d96c42d8a1ac908fa075f13ff3d5de50018cf167eb9ae3299f963140cbbf0843241bdb8d36d994065c',
         }

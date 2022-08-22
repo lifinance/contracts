@@ -25,13 +25,14 @@ contract SwapperV2 is ILiFi {
             uint256[] memory initialBalances = _fetchBalances(_swapData);
             address finalAsset = _swapData[nSwaps - 1].receivingAssetId;
             uint256 curBalance = 0;
-
+            uint256 newBalance = 0;
             _;
 
             for (uint256 i = 0; i < nSwaps - 1; i++) {
                 address curAsset = _swapData[i].receivingAssetId;
                 if (curAsset == finalAsset) continue; // Handle multi-to-one swaps
-                curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
+                newBalance = LibAsset.getOwnBalance(curAsset);
+                curBalance = newBalance > initialBalances[i] ? newBalance - initialBalances[i] : newBalance;
                 if (curBalance > 0) LibAsset.transferAsset(curAsset, _receiver, curBalance);
             }
         } else _;
@@ -52,7 +53,8 @@ contract SwapperV2 is ILiFi {
         address finalTokenId = _swapData[_swapData.length - 1].receivingAssetId;
         uint256 swapBalance = LibAsset.getOwnBalance(finalTokenId);
         _executeSwaps(_lifiData, _swapData, _receiver);
-        swapBalance = LibAsset.getOwnBalance(finalTokenId) - swapBalance;
+        uint256 newBalance = LibAsset.getOwnBalance(finalTokenId);
+        swapBalance = newBalance > swapBalance ? newBalance - swapBalance : newBalance;
         if (swapBalance == 0) revert InvalidAmount();
         return swapBalance;
     }

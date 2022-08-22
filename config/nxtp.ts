@@ -48,6 +48,22 @@ const config: NXTPConfig = {
   harmony: {
     txManagerAddress: '0x31eFc4AeAA7c39e54A33FDc3C46ee2Bd70ae0A09',
   },
+  // 25 - cronos - CRO
+  cronos: {
+    txManagerAddress: '0x31eFc4AeAA7c39e54A33FDc3C46ee2Bd70ae0A09',
+  },
+  // 9001 - evmos - EVM
+  evmos: {
+    txManagerAddress: '0x31eFc4AeAA7c39e54A33FDc3C46ee2Bd70ae0A09',
+  },
+  // 2001 - Milkomeda C1 Mainnet
+  // milkomeda: {
+  //   txManagerAddress: '0x31eFc4AeAA7c39e54A33FDc3C46ee2Bd70ae0A09',
+  // },
+  // 192837465 - Gather Mainnet Network
+  // gather: {
+  //   txManagerAddress: '0x31eFc4AeAA7c39e54A33FDc3C46ee2Bd70ae0A09',
+  // },
 
   // Testnets
   rinkeby: {
@@ -71,8 +87,10 @@ const config: NXTPConfig = {
   optimisticKovan: {
     txManagerAddress: '0x1C2fdf1f8Da5FA4eb31a9F131827439e8292d7B9',
   },
-  // Moonriver Alpha
+  // Moonriver Alpha 1287
   // 0xBA3171e092705A09ef68DEaeC86F184B92026236
+  // Avlanache Testnet Fuji 43113
+  // 0xcE5E0D6870594F4923322D1771CF9606C2f1dB7e
   bscTestnet: {
     txManagerAddress: '0xBCdFdEd0F6CfAbaECdDb6Bd3866BeA42DdE7D31c',
   },

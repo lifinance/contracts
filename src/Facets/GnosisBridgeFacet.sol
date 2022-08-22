@@ -7,24 +7,21 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidConfig } from "../Errors/GenericErrors.sol";
-import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
+import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
-/// @title GnosisBridgeFacet Facet
+/// @title Gnosis Bridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through XDaiBridge
-contract GnosisBridgeFacet is ILiFi, Swapper, ReentrancyGuard {
+contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.gnosis");
-    struct Storage {
-        address xDaiBridge;
-        address token;
-        uint64 dstChainId;
-    }
+    address internal constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    uint64 internal constant GNOSIS_CHAIN_ID = 100;
 
     /// Types ///
 
     struct GnosisBridgeData {
+        address xDaiBridge;
         address receiver;
         uint256 amount;
     }
@@ -33,39 +30,6 @@ contract GnosisBridgeFacet is ILiFi, Swapper, ReentrancyGuard {
 
     error InvalidDstChainId();
     error InvalidSendingToken();
-
-    /// Events ///
-
-    /// @notice Emitted when facet is initialized
-    /// @param xDaiBridge address of the canonical XDaiBridge contract
-    /// @param token address of the token on source network
-    /// @param dstChainId chainId of destination network
-    event GnosisBridgeInitialized(address xDaiBridge, address token, uint256 dstChainId);
-
-    /// Init ///
-
-    /// @notice Initializes local variables for the XDaiBridge facet
-    /// @param xDaiBridge address of the XDaiBridge contract
-    /// @param token address of the token on source network
-    /// @param dstChainId chainId of destination network
-    function initGnosisBridge(
-        address xDaiBridge,
-        address token,
-        uint64 dstChainId
-    ) external {
-        LibDiamond.enforceIsContractOwner();
-
-        if (xDaiBridge == address(0)) {
-            revert InvalidConfig();
-        }
-
-        Storage storage s = getStorage();
-        s.xDaiBridge = xDaiBridge;
-        s.token = token;
-        s.dstChainId = dstChainId;
-
-        emit GnosisBridgeInitialized(xDaiBridge, token, dstChainId);
-    }
 
     /// External Methods ///
 
@@ -77,19 +41,17 @@ contract GnosisBridgeFacet is ILiFi, Swapper, ReentrancyGuard {
         payable
         nonReentrant
     {
-        Storage storage s = getStorage();
-
-        if (lifiData.destinationChainId != s.dstChainId) {
+        if (lifiData.destinationChainId != GNOSIS_CHAIN_ID) {
             revert InvalidDstChainId();
         }
-        if (lifiData.sendingAssetId != s.token) {
+        if (lifiData.sendingAssetId != DAI) {
             revert InvalidSendingToken();
         }
         if (gnosisBridgeData.amount == 0) {
             revert InvalidAmount();
         }
 
-        LibAsset.depositAsset(s.token, gnosisBridgeData.amount);
+        LibAsset.depositAsset(DAI, gnosisBridgeData.amount);
 
         _startBridge(gnosisBridgeData);
 
@@ -118,16 +80,14 @@ contract GnosisBridgeFacet is ILiFi, Swapper, ReentrancyGuard {
         LibSwap.SwapData[] calldata swapData,
         GnosisBridgeData memory gnosisBridgeData
     ) external payable nonReentrant {
-        Storage storage s = getStorage();
-
-        if (lifiData.destinationChainId != s.dstChainId) {
+        if (lifiData.destinationChainId != GNOSIS_CHAIN_ID) {
             revert InvalidDstChainId();
         }
-        if (lifiData.sendingAssetId != s.token) {
+        if (lifiData.sendingAssetId != DAI) {
             revert InvalidSendingToken();
         }
 
-        gnosisBridgeData.amount = _executeAndCheckSwaps(lifiData, swapData);
+        gnosisBridgeData.amount = _executeAndCheckSwaps(lifiData, swapData, payable(msg.sender));
 
         if (gnosisBridgeData.amount == 0) {
             revert InvalidAmount();
@@ -156,18 +116,7 @@ contract GnosisBridgeFacet is ILiFi, Swapper, ReentrancyGuard {
     /// @dev Conatains the business logic for the bridge via XDaiBridge
     /// @param gnosisBridgeData data specific to bridge
     function _startBridge(GnosisBridgeData memory gnosisBridgeData) private {
-        Storage storage s = getStorage();
-
-        LibAsset.maxApproveERC20(IERC20(s.token), s.xDaiBridge, gnosisBridgeData.amount);
-        IXDaiBridge(s.xDaiBridge).relayTokens(gnosisBridgeData.receiver, gnosisBridgeData.amount);
-    }
-
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            s.slot := namespace
-        }
+        LibAsset.maxApproveERC20(IERC20(DAI), gnosisBridgeData.xDaiBridge, gnosisBridgeData.amount);
+        IXDaiBridge(gnosisBridgeData.xDaiBridge).relayTokens(gnosisBridgeData.receiver, gnosisBridgeData.amount);
     }
 }

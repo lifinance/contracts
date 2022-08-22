@@ -57,17 +57,15 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
         feeCollector = new FeeCollector(address(this));
 
-        bytes4[] memory functionSelectors = new bytes4[](5);
-        functionSelectors[0] = cBridge.initCbridge.selector;
-        functionSelectors[1] = cBridge.startBridgeTokensViaCBridge.selector;
-        functionSelectors[2] = cBridge.swapAndStartBridgeTokensViaCBridge.selector;
-        functionSelectors[3] = cBridge.addDex.selector;
-        functionSelectors[4] = cBridge.setFunctionApprovalBySignature.selector;
+        bytes4[] memory functionSelectors = new bytes4[](4);
+        functionSelectors[0] = cBridge.startBridgeTokensViaCBridge.selector;
+        functionSelectors[1] = cBridge.swapAndStartBridgeTokensViaCBridge.selector;
+        functionSelectors[2] = cBridge.addDex.selector;
+        functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
 
         addFacet(diamond, address(cBridge), functionSelectors);
 
         cBridge = TestCBridgeFacet(address(diamond));
-        cBridge.initCbridge(CBRIDGE_ROUTER, 1);
         cBridge.addDex(address(uniswap));
         cBridge.addDex(address(feeCollector));
         cBridge.setFunctionApprovalBySignature(bytes32(feeCollector.collectTokenFees.selector));
@@ -77,6 +75,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
     }
 
     // struct CBridgeData {
+    //     address cBridge;
     //     uint32 maxSlippage;
     //     uint64 dstChainId;
     //     uint64 nonce;
@@ -92,7 +91,15 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 fee = 10 * 10**usdc.decimals();
         uint256 lifiFee = 5 * 10**usdc.decimals();
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 100, 1, amount, WHALE, USDC_ADDRESS);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            CBRIDGE_ROUTER,
+            5000,
+            100,
+            1,
+            amount,
+            WHALE,
+            USDC_ADDRESS
+        );
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(
@@ -121,7 +128,15 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 fee = 0.001 ether;
         uint256 lifiFee = 0.00015 ether;
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 100, 1, amount, WHALE, address(0));
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            CBRIDGE_ROUTER,
+            5000,
+            100,
+            1,
+            amount,
+            WHALE,
+            address(0)
+        );
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(
@@ -148,6 +163,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 lifiFee = 5 * 10**usdc.decimals();
 
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            CBRIDGE_ROUTER,
             5000,
             100,
             1,
@@ -208,6 +224,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 lifiFee = 0.0015 ether;
 
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            CBRIDGE_ROUTER,
             5000,
             100,
             1,
@@ -265,6 +282,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 lifiFee = 5 * 10**dai.decimals();
 
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            CBRIDGE_ROUTER,
             5000,
             100,
             1,
@@ -326,6 +344,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 lifiFee = 5 * 10**usdc.decimals();
 
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            CBRIDGE_ROUTER,
             5000,
             100,
             1,

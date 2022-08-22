@@ -27,9 +27,8 @@ contract HopGasTest is DSTest, DiamondTest {
         hopFacet = new HopFacet();
         hop = IHopBridge(HOP_USDC_BRIDGE);
 
-        bytes4[] memory functionSelectors = new bytes4[](2);
-        functionSelectors[0] = hopFacet.initHop.selector;
-        functionSelectors[1] = hopFacet.startBridgeTokensViaHop.selector;
+        bytes4[] memory functionSelectors = new bytes4[](1);
+        functionSelectors[0] = hopFacet.startBridgeTokensViaHop.selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
         hopFacet = HopFacet(address(diamond));
@@ -38,7 +37,6 @@ contract HopGasTest is DSTest, DiamondTest {
         config[0] = IHopBridge.BridgeConfig(USDC_ADDRESS, HOP_USDC_BRIDGE, address(0));
         string[] memory tokens = new string[](1);
         tokens[0] = "USDC";
-        hopFacet.initHop(tokens, config, 1);
     }
 
     function testDirectBridge() public {
@@ -59,7 +57,10 @@ contract HopGasTest is DSTest, DiamondTest {
 
         HopFacet.HopData memory hopData = HopFacet.HopData(
             "USDC",
+            USDC_ADDRESS,
+            HOP_USDC_BRIDGE,
             WHALE,
+            1,
             137,
             amount,
             0, // not needed

@@ -71,5 +71,7 @@ contract DiamondTest {
         );
 
         DiamondCutFacet(address(_diamond)).diamondCut(cut, address(0), "");
+
+        delete cut;
     }
 }
