@@ -84,7 +84,7 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// Private Methods ///
 
-    /// @dev Conatains the business logic for the bridge via CBridge
+    /// @dev Contains the business logic for the bridge via CBridge
     /// @param _cBridgeData data specific to CBridge
     function _startBridge(CBridgeData memory _cBridgeData) private {
         // Do CBridge stuff

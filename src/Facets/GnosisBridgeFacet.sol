@@ -113,7 +113,7 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// Private Methods ///
 
-    /// @dev Conatains the business logic for the bridge via XDaiBridge
+    /// @dev Contains the business logic for the bridge via XDaiBridge
     /// @param gnosisBridgeData data specific to bridge
     function _startBridge(GnosisBridgeData memory gnosisBridgeData) private {
         LibAsset.maxApproveERC20(IERC20(DAI), gnosisBridgeData.xDaiBridge, gnosisBridgeData.amount);

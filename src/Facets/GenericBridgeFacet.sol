@@ -105,7 +105,7 @@ contract GenericBridgeFacet is ILiFi, ReentrancyGuard {
 
     /// Internal Methods ///
 
-    /// @dev Conatains the business logic for the bridge
+    /// @dev Contains the business logic for the bridge
     /// @param _bridgeData data used for bridging via various contracts
     function _startBridge(BridgeData memory _bridgeData) internal {
         LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.callTo, _bridgeData.amount);

@@ -87,7 +87,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
 
     /// Private Methods ///
 
-    /// @dev Conatains the business logic for the bridge via Wormhole
+    /// @dev Contains the business logic for the bridge via Wormhole
     /// @param _wormholeData data specific to Wormhole
     function _startBridge(WormholeData memory _wormholeData) private {
         if (block.chainid == _wormholeData.toChainId) revert CannotBridgeToSameNetwork();
