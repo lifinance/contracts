@@ -80,12 +80,12 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
     }
 
     function testCanApproveBatchFunctionSignature() public {
-        bytes32[] memory signatures = new bytes32[](5);
-        signatures[0] = bytes32(hex"faceface");
-        signatures[1] = bytes32(hex"deadbeef");
-        signatures[2] = bytes32(hex"deaddead");
-        signatures[3] = bytes32(hex"deadface");
-        signatures[4] = bytes32(hex"beefbeef");
+        bytes4[] memory signatures = new bytes4[](5);
+        signatures[0] = bytes4(hex"faceface");
+        signatures[1] = bytes4(hex"deadbeef");
+        signatures[2] = bytes4(hex"deaddead");
+        signatures[3] = bytes4(hex"deadface");
+        signatures[4] = bytes4(hex"beefbeef");
         dexMgr.batchSetFunctionApprovalBySignature(signatures, true);
         for (uint256 i = 0; i < 5; i++) {
             assertTrue(dexMgr.isFunctionApproved(signatures[i]));

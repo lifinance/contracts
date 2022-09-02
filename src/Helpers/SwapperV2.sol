@@ -74,7 +74,7 @@ contract SwapperV2 is ILiFi {
             if (
                 !(appStorage.dexAllowlist[currentSwapData.approveTo] &&
                     appStorage.dexAllowlist[currentSwapData.callTo] &&
-                    appStorage.dexFuncSignatureAllowList[bytes32(currentSwapData.callData[:8])])
+                    appStorage.dexFuncSignatureAllowList[bytes4(currentSwapData.callData[:4])])
             ) revert ContractCallNotAllowed();
             LibSwap.swap(_lifiData.transactionId, currentSwapData);
         }
