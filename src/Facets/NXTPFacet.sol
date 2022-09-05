@@ -118,7 +118,7 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// Private Methods ///
 
-    /// @dev Conatains the business logic for the bridge via NXTP
+    /// @dev Contains the business logic for the bridge via NXTP
     /// @param _nxtpData data specific to NXTP
     function _startBridge(NXTPData memory _nxtpData) private returns (bytes32) {
         ITransactionManager txManager = ITransactionManager(_nxtpData.nxtpTxManager);

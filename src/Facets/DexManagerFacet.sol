@@ -38,7 +38,7 @@ contract DexManagerFacet {
         emit DexAdded(_dex);
     }
 
-    /// @notice Batch register the addresss of DEX contracts to be approved for swapping.
+    /// @notice Batch register the address of DEX contracts to be approved for swapping.
     /// @param _dexs The addresses of the DEX contracts to be approved.
     function batchAddDex(address[] calldata _dexs) external {
         if (msg.sender != LibDiamond.contractOwner()) {

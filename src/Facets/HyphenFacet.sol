@@ -90,7 +90,7 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// Private Methods ///
 
-    /// @dev Conatains the business logic for the bridge via Hyphen
+    /// @dev Contains the business logic for the bridge via Hyphen
     /// @param _hyphenData data specific to Hyphen
     function _startBridge(HyphenData memory _hyphenData) private {
         // Check chain id
