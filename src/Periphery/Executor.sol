@@ -28,6 +28,7 @@ contract Executor is IAxelarExecutable, Ownable, ReentrancyGuard, ILiFi {
     error InvalidStargateRouter();
     error InvalidCaller();
     error UnAuthorized();
+    error NotAContract();
 
     /// Events ///
     event AxelarGatewaySet(address indexed gateway);
@@ -277,6 +278,7 @@ contract Executor is IAxelarExecutable, Ownable, ReentrancyGuard, ILiFi {
         // The first 20 bytes of the payload are the callee address
         address callTo = payload.toAddress(0);
 
+        if (!_isContract(callTo)) revert NotAContract();
         if (callTo == address(erc20Proxy)) revert UnAuthorized();
 
         // The remaining bytes should be calldata
@@ -300,6 +302,7 @@ contract Executor is IAxelarExecutable, Ownable, ReentrancyGuard, ILiFi {
         // The first 20 bytes of the payload are the callee address
         address callTo = payload.toAddress(0);
 
+        if (!_isContract(callTo)) revert NotAContract();
         if (callTo == address(erc20Proxy)) revert UnAuthorized();
 
         // The remaining bytes should be calldata
@@ -342,5 +345,16 @@ contract Executor is IAxelarExecutable, Ownable, ReentrancyGuard, ILiFi {
             balances[i] = LibAsset.getOwnBalance(_swapData[i].receivingAssetId);
         }
         return balances;
+    }
+
+    /// @dev Checks if address is a contract address
+    /// @param addr the address to check
+    /// @return bool whether or not address is a contract
+    function _isContract(address addr) private view returns (bool) {
+        uint256 size;
+        assembly {
+            size := extcodesize(addr)
+        }
+        return size > 0;
     }
 }
