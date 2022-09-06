@@ -33,16 +33,7 @@ contract GenericBridgeFacet is ILiFi, ReentrancyGuard {
         payable
         nonReentrant
     {
-        address sendingAssetId = _bridgeData.assetId;
-
-        if (sendingAssetId == address(0)) {
-            if (msg.value != _bridgeData.amount) revert InvalidAmount();
-        } else {
-            uint256 _sendingAssetIdBalance = LibAsset.getOwnBalance(sendingAssetId);
-            LibAsset.transferFromERC20(sendingAssetId, msg.sender, address(this), _bridgeData.amount);
-            if (LibAsset.getOwnBalance(sendingAssetId) - _sendingAssetIdBalance != _bridgeData.amount)
-                revert InvalidAmount();
-        }
+        LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
 
         _startBridge(_bridgeData);
 
@@ -105,7 +96,7 @@ contract GenericBridgeFacet is ILiFi, ReentrancyGuard {
 
     /// Internal Methods ///
 
-    /// @dev Contains the business logic for the bridge
+    /// @dev Conatains the business logic for the bridge
     /// @param _bridgeData data used for bridging via various contracts
     function _startBridge(BridgeData memory _bridgeData) internal {
         LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.callTo, _bridgeData.amount);
