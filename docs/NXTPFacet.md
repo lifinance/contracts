@@ -37,6 +37,7 @@ Some of the methods listed above take a variable labeled `_nxtpData`. This data 
 
 ```solidity
 /// Arguments for calling prepare()
+/// @param nxtpTxManager The NXTP bridge contract address
 /// @param invariantData The data for a crosschain transaction that will
 ///        not change between sending and receiving chains.
 ///        The hash of this data is used as the key to store
@@ -57,8 +58,9 @@ Some of the methods listed above take a variable labeled `_nxtpData`. This data 
 ///        event emission. The validity of the bid and
 ///        bidSignature are enforced offchain
 /// @param encodedMeta The meta for the function
-struct PrepareArgs {
-  InvariantTransactionData invariantData;
+struct NXTPData {
+  address nxtpTxManager;
+  ITransactionManager.InvariantTransactionData invariantData;
   uint256 amount;
   uint256 expiry;
   bytes encryptedCallData;
@@ -112,7 +114,7 @@ const quoteResult = {
 }
 ```
 
-A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/more-integration-options/li.fi-api/transferring-tokens-example).
+A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/products/more-integration-options/li.fi-api/transferring-tokens-example).
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 

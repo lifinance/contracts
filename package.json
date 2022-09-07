@@ -86,13 +86,16 @@
     "fork:test": "node ./_scripts.js fork:test"
   },
   "dependencies": {
+    "@axelar-network/axelar-cgp-solidity": "git+https://github.com/axelarnetwork/axelar-cgp-solidity.git",
+    "@axelar-network/axelarjs-sdk": "^0.6.11-alpha.8",
     "@connext/nxtp-contracts": "^0.1.31",
     "@connext/nxtp-sdk": "^0.1.31",
     "@connext/nxtp-utils": "^0.1.31",
     "@hop-protocol/sdk": "0.0.1-beta.310",
     "@uma/sdk": "^0.22.1",
     "@uniswap/sdk": "^3.0.3",
-    "chalk": "^5.0.1",
+    "chalk": "4.1.2",
+    "defender-relay-client": "^1.26.0",
     "hardhat-ethers": "^1.0.1",
     "inquirer": "^8.2.1",
     "light-spinner": "^1.0.4",

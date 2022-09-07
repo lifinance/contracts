@@ -4,6 +4,7 @@ pragma solidity 0.8.13;
 import "../Libraries/LibStorage.sol";
 import "../Libraries/LibDiamond.sol";
 import { InvalidConfig } from "../Errors/GenericErrors.sol";
+import { LibAccess } from "../Libraries/LibAccess.sol";
 
 /// @title Dex Manager Facet
 /// @author LI.FI (https://li.fi)
@@ -13,7 +14,7 @@ contract DexManagerFacet {
 
     event DexAdded(address indexed dexAddress);
     event DexRemoved(address indexed dexAddress);
-    event FunctionSignatureApprovalChanged(bytes32 indexed functionSignature, bool indexed approved);
+    event FunctionSignatureApprovalChanged(bytes4 indexed functionSignature, bool indexed approved);
 
     /// Storage ///
 
@@ -24,7 +25,9 @@ contract DexManagerFacet {
     /// @notice Register the address of a DEX contract to be approved for swapping.
     /// @param _dex The address of the DEX contract to be approved.
     function addDex(address _dex) external {
-        LibDiamond.enforceIsContractOwner();
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
         _checkAddress(_dex);
 
         mapping(address => bool) storage dexAllowlist = appStorage.dexAllowlist;
@@ -35,10 +38,12 @@ contract DexManagerFacet {
         emit DexAdded(_dex);
     }
 
-    /// @notice Batch register the addresss of DEX contracts to be approved for swapping.
+    /// @notice Batch register the address of DEX contracts to be approved for swapping.
     /// @param _dexs The addresses of the DEX contracts to be approved.
     function batchAddDex(address[] calldata _dexs) external {
-        LibDiamond.enforceIsContractOwner();
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
         mapping(address => bool) storage dexAllowlist = appStorage.dexAllowlist;
         uint256 length = _dexs.length;
 
@@ -54,7 +59,9 @@ contract DexManagerFacet {
     /// @notice Unregister the address of a DEX contract approved for swapping.
     /// @param _dex The address of the DEX contract to be unregistered.
     function removeDex(address _dex) external {
-        LibDiamond.enforceIsContractOwner();
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
         _checkAddress(_dex);
 
         mapping(address => bool) storage dexAllowlist = appStorage.dexAllowlist;
@@ -77,7 +84,9 @@ contract DexManagerFacet {
     /// @notice Batch unregister the addresses of DEX contracts approved for swapping.
     /// @param _dexs The addresses of the DEX contracts to be unregistered.
     function batchRemoveDex(address[] calldata _dexs) external {
-        LibDiamond.enforceIsContractOwner();
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
         mapping(address => bool) storage dexAllowlist = appStorage.dexAllowlist;
         address[] storage storageDexes = appStorage.dexs;
 
@@ -102,8 +111,10 @@ contract DexManagerFacet {
     /// @notice Adds/removes a specific function signature to/from the allowlist
     /// @param _signature the function signature to allow/disallow
     /// @param _approval whether the function signature should be allowed
-    function setFunctionApprovalBySignature(bytes32 _signature, bool _approval) external {
-        LibDiamond.enforceIsContractOwner();
+    function setFunctionApprovalBySignature(bytes4 _signature, bool _approval) external {
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
         appStorage.dexFuncSignatureAllowList[_signature] = _approval;
         emit FunctionSignatureApprovalChanged(_signature, _approval);
     }
@@ -111,12 +122,14 @@ contract DexManagerFacet {
     /// @notice Batch Adds/removes a specific function signature to/from the allowlist
     /// @param _signatures the function signatures to allow/disallow
     /// @param _approval whether the function signatures should be allowed
-    function batchSetFunctionApprovalBySignature(bytes32[] calldata _signatures, bool _approval) external {
-        LibDiamond.enforceIsContractOwner();
-        mapping(bytes32 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
+    function batchSetFunctionApprovalBySignature(bytes4[] calldata _signatures, bool _approval) external {
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
+        mapping(bytes4 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
         uint256 length = _signatures.length;
         for (uint256 i = 0; i < length; i++) {
-            bytes32 _signature = _signatures[i];
+            bytes4 _signature = _signatures[i];
             dexFuncSignatureAllowList[_signature] = _approval;
             emit FunctionSignatureApprovalChanged(_signature, _approval);
         }
@@ -125,7 +138,7 @@ contract DexManagerFacet {
     /// @notice Returns whether a function signature is approved
     /// @param _signature the function signature to query
     /// @return approved Approved or not
-    function isFunctionApproved(bytes32 _signature) public view returns (bool approved) {
+    function isFunctionApproved(bytes4 _signature) public view returns (bool approved) {
         return appStorage.dexFuncSignatureAllowList[_signature];
     }
 

@@ -5,13 +5,13 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { ZeroPostSwapBalance } from "../Errors/GenericErrors.sol";
-import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
+import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Generic Swap Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for swapping through ANY APPROVED DEX
 /// @dev Uses calldata to execute APPROVED arbitrary methods on DEXs
-contract GenericSwapFacet is ILiFi, Swapper, ReentrancyGuard {
+contract GenericSwapFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Events ///
 
     event LiFiSwappedGeneric(
@@ -34,7 +34,7 @@ contract GenericSwapFacet is ILiFi, Swapper, ReentrancyGuard {
         payable
         nonReentrant
     {
-        uint256 postSwapBalance = _executeAndCheckSwaps(_lifiData, _swapData);
+        uint256 postSwapBalance = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         address receivingAssetId = _swapData[_swapData.length - 1].receivingAssetId;
         LibAsset.transferAsset(receivingAssetId, payable(msg.sender), postSwapBalance);
 
