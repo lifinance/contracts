@@ -65,6 +65,7 @@ describe('CBridgeFacet', function () {
         amount: utils.parseUnits('100000', 10),
       }
       CBridgeData = {
+        cBridge: CBRIDGE_ADDRESS,
         receiver: alice.address,
         token: DAI_ADDRESS,
         amount: utils.parseUnits('100000', 10),
@@ -72,9 +73,6 @@ describe('CBridgeFacet', function () {
         nonce: 1,
         maxSlippage: 5000,
       }
-      lifi.connect(owner).initCbridge(CBRIDGE_ADDRESS, 1, {
-        gasLimit: 500000,
-      })
     }
   )
 
@@ -98,14 +96,6 @@ describe('CBridgeFacet', function () {
     await setupTest()
   })
 
-  it('should init bridge address and chain Id', async function () {
-    await expect(
-      lifi.connect(owner).initCbridge(CBRIDGE_ADDRESS, 1, {
-        gasLimit: 500000,
-      })
-    ).to.emit(lifi, 'CBridgeInitialized')
-  })
-
   it('starts a bridge transaction on the sending chain', async function () {
     // Approve ERC20 for swapping
     const token = await ERC20__factory.connect(DAI_ADDRESS, alice)
@@ -120,6 +110,7 @@ describe('CBridgeFacet', function () {
 
   it('fails to start a native token bridge transaction without msg.value', async function () {
     const CBridgeDataNative = {
+      cBridge: CBRIDGE_ADDRESS,
       receiver: alice.address,
       token: ethers.constants.AddressZero,
       amount: utils.parseUnits('1', 18),
@@ -138,6 +129,7 @@ describe('CBridgeFacet', function () {
 
   it('fails to start a native token bridge transaction with too much msg.value', async function () {
     const CBridgeDataNative = {
+      cBridge: CBRIDGE_ADDRESS,
       receiver: alice.address,
       token: ethers.constants.AddressZero,
       amount: utils.parseUnits('0.0001', 18),
@@ -157,6 +149,7 @@ describe('CBridgeFacet', function () {
 
   it('starts a native token bridge transaction on the sending chain', async function () {
     const CBridgeDataNative = {
+      cBridge: CBRIDGE_ADDRESS,
       receiver: alice.address,
       token: ethers.constants.AddressZero,
       amount: utils.parseUnits('0.01', 18),
@@ -202,6 +195,7 @@ describe('CBridgeFacet', function () {
     ])
 
     CBridgeData = {
+      cBridge: CBRIDGE_ADDRESS,
       receiver: alice.address,
       token: DAI_ADDRESS,
       amount: utils.parseUnits('1000', 6),
@@ -265,6 +259,7 @@ describe('CBridgeFacet', function () {
     ])
 
     CBridgeData = {
+      cBridge: CBRIDGE_ADDRESS,
       receiver: alice.address,
       token: DAI_ADDRESS,
       amount: utils.parseUnits('1000', 6),

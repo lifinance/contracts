@@ -146,7 +146,7 @@ const config: HopConfig = {
       ammWrapper: '0x03D7f750777eC48d39D080b020D83Eb2CB4e3547',
     },
   },
-  arbitrum: {
+  arbitrumOne: {
     chainId: 42161,
     USDC: {
       bridge: '0x0e0E3d2C5c292161999474247956EF542caBF8dd',
@@ -170,7 +170,7 @@ const config: HopConfig = {
       ammWrapper: '0x33ceb27b39d2Bb7D2e61F7564d3Df29344020417',
     },
   },
-  optimism: {
+  optimisticEthereum: {
     chainId: 10,
     USDC: {
       bridge: '0xa81D244A1814468C734E5b4101F7b9c0c577a8fC',
@@ -194,6 +194,71 @@ const config: HopConfig = {
       ammWrapper: '0x86cA30bEF97fB651b8d866D45503684b90cb3312',
     },
   },
+
+  // Testnets
+  // https://github.com/hop-protocol/hop/blob/develop/packages/core/src/addresses/goerli.ts
+  goerli: {
+    chainId: 5,
+    USDC: {
+      bridge: '0x39B052820F808534d5eD7C2b26f070169Fa6A686', // l1Bridge
+      token: '0x98339D8C260052B7ad81c28c16C0b98420f2B46a', // l1CanonicalToken
+      ammWrapper: constants.AddressZero,
+    },
+    DAI: {
+      bridge: '0x9CD998D84CE695646c3C874e8793eF4A80C2cAB8', // l1Bridge
+      token: '0xC61bA16e864eFbd06a9fe30Aab39D18B8F63710a', // l1CanonicalToken
+      ammWrapper: constants.AddressZero,
+    },
+  },
+  bscTestnet: {
+    chainId: 80001,
+    USDC: {
+      bridge: '0x361926fc41109ECAA5c173c31f09dbE4ddBe1946', // l2Bridge
+      token: '0x6D4dd09982853F08d9966aC3cA4Eb5885F16f2b2', // l2CanonicalToken
+      ammWrapper: '0xa228A81FA5d3525b7637ADF66FA35794451bBa7c', // l2AmmWrapper
+    },
+    DAI: {
+      bridge: '0xF20d8390568835b36462E9931c6Bf1F243e6D30F', // l2Bridge
+      token: '0xb224913CE3851b0a0d7C0FB461eEF40f2e31ddb8', // l2CanonicalToken
+      ammWrapper: '0x6329d42Cc5517ba1d913303E019a556d84B5a05d', // l2AmmWrapper
+    },
+  },
+
+  // https://github.com/hop-protocol/hop/blob/develop/packages/core/src/addresses/kovan.ts
+  kovan: {
+    chainId: 42,
+    USDC: {
+      bridge: '0xf89E134Ce2e83B535D3Cfa63a902375f993Fc0D2', // l1Bridge
+      token: '0xA46d09fd4B7961aE16D33122660f43726cB1Ff36', // l1CanonicalToken
+      ammWrapper: constants.AddressZero,
+    },
+    ETH: {
+      bridge: '0x016214b4E61B67C774AFF9700359Fe5667A3EE49', // l1Bridge
+      token: '0x0000000000000000000000000000000000000000', // l1CanonicalToken
+      ammWrapper: constants.AddressZero,
+    },
+  },
+  optimisticKovan: {
+    chainId: 69,
+    USDC: {
+      bridge: '0x3444A15413923b6DB5Fd5AcCBa5731e21aeCAf10', // l2Bridge
+      token: '0x3b8e53B3aB8E01Fb57D0c9E893bC4d655AA67d84', // l2CanonicalToken
+      ammWrapper: '0x6ad8573880560CF3E88B9d943927136F376559af', // l2AmmWrapper
+    },
+    ETH: {
+      bridge: '0x1261CaA21f059d8D386D76e0C1349d4E1B541C5A', // l2Bridge
+      token: '0x4200000000000000000000000000000000000006', // l2CanonicalToken
+      ammWrapper: '0xc9E6628791cdD4ad568550fcc6f378cEF27e98fd', // l2AmmWrapper
+    },
+  },
+  // DAIT: {
+  //   chainId: ??,
+  //   USDC: {
+  //     bridge: '0xbe5DC176D31f0838Fe4A2f81f0DDb7ce22A8DdAb', // l2Bridge
+  //     token: '0x3b0977b9e563F63F219019616BBD12cB1cdFF527', // l2CanonicalToken
+  //     ammWrapper: '0xEe028139BD4C11C1FDdAfB69D24114624E0aAdab', // l2AmmWrapper
+  //   },
+  // },
 }
 
 export default config

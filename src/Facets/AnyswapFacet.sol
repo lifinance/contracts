@@ -8,12 +8,12 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { IAnyswapToken } from "../Interfaces/IAnyswapToken.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { TokenAddressIsZero, InvalidAmount, CannotBridgeToSameNetwork, NativeValueWithERC } from "../Errors/GenericErrors.sol";
-import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
+import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Anyswap Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Multichain (Prev. AnySwap)
-contract AnyswapFacet is ILiFi, Swapper, ReentrancyGuard {
+contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Types ///
 
     struct AnyswapData {
@@ -65,7 +65,7 @@ contract AnyswapFacet is ILiFi, Swapper, ReentrancyGuard {
         AnyswapData memory _anyswapData
     ) external payable nonReentrant {
         if (_anyswapData.token == address(0)) revert TokenAddressIsZero();
-        _anyswapData.amount = _executeAndCheckSwaps(_lifiData, _swapData);
+        _anyswapData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         (address underlyingToken, bool isNative) = _getUnderlyingToken(_anyswapData.token, _anyswapData.router);
         _startBridge(_anyswapData, underlyingToken, isNative);
 
@@ -105,7 +105,7 @@ contract AnyswapFacet is ILiFi, Swapper, ReentrancyGuard {
         }
     }
 
-    /// @dev Conatains the business logic for the bridge via Anyswap
+    /// @dev Contains the business logic for the bridge via Anyswap
     /// @param _anyswapData data specific to Anyswap
     /// @param underlyingToken the underlying token to swap
     /// @param isNative denotes whether the token is a native token vs ERC20

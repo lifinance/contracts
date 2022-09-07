@@ -1,0 +1,49 @@
+interface AxelarConfig {
+  [key: string]: {
+    gateway: string // Gateway contract address,
+    gasService: string // Gas Service contract address,
+  }
+}
+
+const config: AxelarConfig = {
+  mainnet: {
+    gateway: '0x4F4495243837681061C4743b74B3eEdf548D56A5',
+    gasService: '0x4154CF6eea0633DD9c4933E76a077fD7E9260738',
+  },
+  polygon: {
+    gateway: '0x6f015F16De9fC8791b234eF68D486d2bF203FBA8',
+    gasService: '0xc8E0b617c388c7E800a7643adDD01218E14a727a',
+  },
+  opera: {
+    gateway: '0x304acf330bbE08d1e512eefaa92F6a57871fD895',
+    gasService: '0x2879da536D9d107D6b92D95D7c4CFaA5De7088f4',
+  },
+  moonbeam: {
+    gateway: '0x4F4495243837681061C4743b74B3eEdf548D56A5',
+    gasService: '0x27927CD55db998b720214205e598aA9AD614AEE3',
+  },
+  avalanche: {
+    gateway: '0x5029C0EFf6C34351a0CEc334542cDb22c7928f78',
+    gasService: '0xB53C693544363912D2A034f70D9d98808D5E192a',
+  },
+  bsc: {
+    gateway: '0x304acf330bbE08d1e512eefaa92F6a57871fD895',
+    gasService: '',
+  },
+
+  // Testnets
+  ropsten: {
+    gateway: '0xBC6fcce7c5487d43830a219CA6E7B83238B41e71',
+    gasService: '0xbE406F0189A0B4cf3A05C286473D23791Dd44Cc6',
+  },
+  bscTestnet: {
+    gateway: '0x4D147dCb984e6affEEC47e44293DA442580A3Ec0',
+    gasService: '0xbE406F0189A0B4cf3A05C286473D23791Dd44Cc6',
+  },
+  polygonMumbai: {
+    gateway: '0xBF62ef1486468a6bd26Dd669C06db43dEd5B849B',
+    gasService: '0xbE406F0189A0B4cf3A05C286473D23791Dd44Cc6',
+  },
+}
+
+export default config

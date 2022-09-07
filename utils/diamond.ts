@@ -76,19 +76,9 @@ export async function addOrReplaceFacets(
     return
   }
 
-  const cutter = <IDiamondCut>(
-    await ethers.getContractAt('IDiamondCut', diamondAddress)
-  )
+  console.log('Adding/Replacing facet(s)...')
+  await doCut(diamondAddress, cut, initContract, initData)
 
-  console.log('Adding/Replacing facets...')
-  const tx = await cutter.diamondCut(cut, initContract, initData, {
-    // gasLimit: 800000,
-  })
-  console.log('Diamond cut tx: ', tx.hash)
-  const receipt = await tx.wait()
-  if (!receipt.status) {
-    throw Error(`Diamond upgrade failed: ${tx.hash}`)
-  }
   console.log('Done.')
 }
 
@@ -114,19 +104,9 @@ export async function addFacets(
     return
   }
 
-  const cutter = <IDiamondCut>(
-    await ethers.getContractAt('IDiamondCut', diamondAddress)
-  )
+  console.log('Adding facet(s)...')
+  await doCut(diamondAddress, cut, initContract, initData)
 
-  console.log('Adding facets...')
-  const tx = await cutter.diamondCut(cut, initContract, initData, {
-    // gasLimit: 800000,
-  })
-  console.log('Diamond cut tx: ', tx.hash)
-  const receipt = await tx.wait()
-  if (!receipt.status) {
-    throw Error(`Diamond upgrade failed: ${tx.hash}`)
-  }
   console.log('Done.')
 }
 
@@ -142,19 +122,9 @@ export async function removeFacet(
     },
   ]
 
-  const cutter = <IDiamondCut>(
-    await ethers.getContractAt('IDiamondCut', diamondAddress)
-  )
-
   console.log('Removing facet...')
-  const tx = await cutter.diamondCut(cut, constants.AddressZero, '0x', {
-    // gasLimit: 800000,
-  })
-  console.log('Diamond cut tx: ', tx.hash)
-  const receipt = await tx.wait()
-  if (!receipt.status) {
-    throw Error(`Diamond upgrade failed: ${tx.hash}`)
-  }
+  await doCut(diamondAddress, cut, constants.AddressZero, '0x')
+
   console.log('Done.')
 }
 
@@ -174,18 +144,26 @@ export async function replaceFacet(
     },
   ]
 
+  console.log('Replacing facet...')
+  await doCut(diamondAddress, cut, initContract, initData)
+
+  console.log('Done.')
+}
+
+async function doCut(
+  diamondAddress: string,
+  cut: any[],
+  initContract: string,
+  initData: string
+): Promise<void> {
   const cutter = <IDiamondCut>(
     await ethers.getContractAt('IDiamondCut', diamondAddress)
   )
 
-  console.log('Replacing facet...')
-  const tx = await cutter.diamondCut(cut, initContract, initData, {
-    // gasLimit: 800000,
-  })
+  const tx = await cutter.diamondCut(cut, initContract, initData)
   console.log('Diamond cut tx: ', tx.hash)
   const receipt = await tx.wait()
   if (!receipt.status) {
     throw Error(`Diamond upgrade failed: ${tx.hash}`)
   }
-  console.log('Done.')
 }

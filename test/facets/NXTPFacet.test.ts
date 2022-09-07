@@ -18,6 +18,7 @@ describe('NXTPFacet', function () {
   const RINKEBY_TOKEN_ADDRESS = '0x9aC2c46d7AcC21c881154D57c0Dc1c55a3139198'
   const GOERLI_TOKEN_ADDRESS = '0x8a1Cad3703E0beAe0e0237369B4fcD04228d1682'
   const UNISWAP_ADDRESS = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
+  const TX_MGR_ADDRESS = '0x9492224B81aCf442da114ea1313C0284A584f858'
 
   let alice: SignerWithAddress
   let lifi: NXTPFacet
@@ -90,6 +91,7 @@ describe('NXTPFacet', function () {
     await token.approve(lifi.address, simpleNXTPData.amount)
 
     const nxtpData = {
+      nxtpTxManager: TX_MGR_ADDRESS,
       ...simpleNXTPData,
     }
 
@@ -113,6 +115,7 @@ describe('NXTPFacet', function () {
     const amountOut = utils.parseEther('10') // 1 TestToken
 
     const nxtpData = {
+      nxtpTxManager: TX_MGR_ADDRESS,
       ...simpleNXTPData,
     }
 
@@ -177,6 +180,7 @@ describe('NXTPFacet', function () {
     const amountOut = utils.parseEther('10') // 1 TestToken
 
     const nxtpData = {
+      nxtpTxManager: TX_MGR_ADDRESS,
       ...simpleNXTPData,
     }
 
@@ -236,6 +240,7 @@ describe('NXTPFacet', function () {
     const amountOut = utils.parseEther('10.5') // 1 TestToken
 
     const nxtpData = {
+      nxtpTxManager: TX_MGR_ADDRESS,
       ...simpleNXTPData,
     }
 
@@ -298,6 +303,7 @@ describe('NXTPFacet', function () {
     const amountOut = utils.parseEther('10') // 1 TestToken
 
     const nxtpData = {
+      nxtpTxManager: TX_MGR_ADDRESS,
       ...simpleNXTPData,
     }
 

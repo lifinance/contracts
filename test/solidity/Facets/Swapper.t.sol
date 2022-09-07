@@ -31,8 +31,8 @@ contract TestSwapper is ILiFi, Swapper {
         appStorage.dexs.push(_dex);
     }
 
-    function setFunctionApprovalBySignature(bytes32 signature) external {
-        mapping(bytes32 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
+    function setFunctionApprovalBySignature(bytes4 signature) external {
+        mapping(bytes4 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
         if (dexFuncSignatureAllowList[signature]) return;
         dexFuncSignatureAllowList[signature] = true;
     }
@@ -58,7 +58,7 @@ contract SwapperTest is DSTest, DiamondTest {
 
         swapper = TestSwapper(address(diamond));
         swapper.addDex(address(amm));
-        swapper.setFunctionApprovalBySignature(hex"8a0ccd5600000000000000000000000000000000000000000000000000000000");
+        swapper.setFunctionApprovalBySignature(amm.swap.selector);
     }
 
     function testSwapCleanup() public {

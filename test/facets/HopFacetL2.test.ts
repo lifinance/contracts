@@ -27,22 +27,6 @@ describe('HopFacet L2', function () {
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers, getUnnamedAccounts }) => {
       const [deployer] = await getUnnamedAccounts()
-
-      const tokens: string[] = []
-      const configs: BridgeConfig[] = []
-
-      const bridgeConfig = config['polygon']
-
-      Object.keys(bridgeConfig).map((k) => {
-        if (k === 'chainId') return
-        tokens.push(<Token>k)
-        configs.push({
-          token: bridgeConfig[<Token>k]?.token,
-          bridge: bridgeConfig[<Token>k]?.bridge,
-          ammWrapper: bridgeConfig[<Token>k]?.ammWrapper,
-        })
-      })
-
       await deployments.fixture('InitFacets')
 
       await deployments.deploy('HopFacet', {
@@ -55,23 +39,7 @@ describe('HopFacet L2', function () {
       const diamond = await ethers.getContract('LiFiDiamond')
       lifi = <HopFacet>await ethers.getContractAt('HopFacet', diamond.address)
 
-      const ABI = [
-        'function initHop(string[],tuple(address token,address bridge,address ammWrapper)[],uint256)',
-      ]
-      const iface = new utils.Interface(ABI)
-
-      const initData = iface.encodeFunctionData('initHop', [
-        tokens,
-        configs,
-        bridgeConfig.chainId,
-      ])
-
-      await addOrReplaceFacets(
-        [hopFacet],
-        diamond.address,
-        hopFacet.address,
-        initData
-      )
+      await addOrReplaceFacets([hopFacet], diamond.address)
 
       await network.provider.request({
         method: 'hardhat_impersonateAccount',
@@ -131,7 +99,10 @@ describe('HopFacet L2', function () {
 
     const HopData = {
       asset: 'USDC',
-      chainId: 100,
+      fromChainId: 137,
+      toChainId: 100,
+      sendingAssetAddress: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+      bridge: '0x76b22b8C1079A44F1211D867D68b1eda76a635A7',
       recipient: bob.address,
       amount: amountIn,
       bonderFee: fee,
@@ -158,7 +129,10 @@ describe('HopFacet L2', function () {
 
     const HopData = {
       asset: 'MATIC',
-      chainId: 100,
+      fromChainId: 137,
+      toChainId: 100,
+      sendingAssetAddress: '0x0000000000000000000000000000000000000000',
+      bridge: '0x884d1Aa15F9957E1aEAA86a82a72e49Bc2bfCbe3',
       recipient: bob.address,
       amount: amountIn,
       bonderFee: fee,
