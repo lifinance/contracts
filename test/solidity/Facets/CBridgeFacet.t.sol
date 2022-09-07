@@ -24,8 +24,8 @@ contract TestCBridgeFacet is CBridgeFacet {
         appStorage.dexs.push(_dex);
     }
 
-    function setFunctionApprovalBySignature(bytes32 signature) external {
-        mapping(bytes32 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
+    function setFunctionApprovalBySignature(bytes4 signature) external {
+        mapping(bytes4 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
         if (dexFuncSignatureAllowList[signature]) return;
         dexFuncSignatureAllowList[signature] = true;
     }
@@ -63,7 +63,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
 
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addDex(address(uniswap));
-        cBridge.setFunctionApprovalBySignature(hex"38ed173900000000000000000000000000000000000000000000000000000000");
+        cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
     }
 
     // struct CBridgeData {

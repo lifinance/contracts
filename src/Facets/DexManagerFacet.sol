@@ -14,7 +14,7 @@ contract DexManagerFacet {
 
     event DexAdded(address indexed dexAddress);
     event DexRemoved(address indexed dexAddress);
-    event FunctionSignatureApprovalChanged(bytes32 indexed functionSignature, bool indexed approved);
+    event FunctionSignatureApprovalChanged(bytes4 indexed functionSignature, bool indexed approved);
 
     /// Storage ///
 
@@ -111,7 +111,7 @@ contract DexManagerFacet {
     /// @notice Adds/removes a specific function signature to/from the allowlist
     /// @param _signature the function signature to allow/disallow
     /// @param _approval whether the function signature should be allowed
-    function setFunctionApprovalBySignature(bytes32 _signature, bool _approval) external {
+    function setFunctionApprovalBySignature(bytes4 _signature, bool _approval) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
@@ -122,14 +122,14 @@ contract DexManagerFacet {
     /// @notice Batch Adds/removes a specific function signature to/from the allowlist
     /// @param _signatures the function signatures to allow/disallow
     /// @param _approval whether the function signatures should be allowed
-    function batchSetFunctionApprovalBySignature(bytes32[] calldata _signatures, bool _approval) external {
+    function batchSetFunctionApprovalBySignature(bytes4[] calldata _signatures, bool _approval) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-        mapping(bytes32 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
+        mapping(bytes4 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
         uint256 length = _signatures.length;
         for (uint256 i = 0; i < length; i++) {
-            bytes32 _signature = _signatures[i];
+            bytes4 _signature = _signatures[i];
             dexFuncSignatureAllowList[_signature] = _approval;
             emit FunctionSignatureApprovalChanged(_signature, _approval);
         }
@@ -138,7 +138,7 @@ contract DexManagerFacet {
     /// @notice Returns whether a function signature is approved
     /// @param _signature the function signature to query
     /// @return approved Approved or not
-    function isFunctionApproved(bytes32 _signature) public view returns (bool approved) {
+    function isFunctionApproved(bytes4 _signature) public view returns (bool approved) {
         return appStorage.dexFuncSignatureAllowList[_signature];
     }
 
