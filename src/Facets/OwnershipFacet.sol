@@ -53,11 +53,11 @@ contract OwnershipFacet is IERC173 {
 
     /// @notice Confirms transfer of ownership to the calling address (msg.sender)
     function confirmOwnershipTransfer() external {
-        Storage storage s = getStorage();
-        if (msg.sender != s.newOwner) revert NotPendingOwner();
-        LibDiamond.setContractOwner(s.newOwner);
-        s.newOwner = address(0);
-        emit OwnershipTransferred(LibDiamond.contractOwner(), s.newOwner);
+        address _pendingOwner = pendingOwner;
+        if (msg.sender != _pendingOwner) revert NotPendingOwner();
+        emit OwnershipTransferred(owner, _pendingOwner);
+        owner = _pendingOwner;
+        pendingOwner = LibAsset.NULL_ADDRESS;
     }
 
     /// @notice Return the current owner address
