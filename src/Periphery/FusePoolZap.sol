@@ -107,12 +107,10 @@ contract FusePoolZap {
             (bool success, bytes memory res) = address(fToken).call{ value: msg.value }(
                 abi.encodeWithSignature("mint()")
             );
-            uint256 mintAmount = IERC20(address(fToken)).balanceOf(address(this));
+            uint256 mintAmount = IERC20(address(fToken)).balanceOf(address(this)) - preMintBalance;
             if (!success && mintAmount == 0) {
                 revert MintingError(res);
             }
-
-            mintAmount = mintAmount - preMintBalance;
 
             IERC20(address(fToken)).transfer(msg.sender, mintAmount);
 
