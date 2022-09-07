@@ -290,6 +290,8 @@ contract Executor is IAxelarExecutable, Ownable, ReentrancyGuard, ILiFi {
     /// @dev override of IAxelarExecutable _executeWithToken()
     /// @notice handles the parsing and execution of the payload
     /// @param payload the abi.encodePacked payload [callTo:callData]
+    /// @param tokenSymbol symbol of the token being bridged
+    /// @param amount of tokens being bridged
     function _executeWithToken(
         string memory,
         string memory,

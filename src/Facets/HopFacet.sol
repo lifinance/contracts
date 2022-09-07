@@ -95,7 +95,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// private Methods ///
 
-    /// @dev Conatains the business logic for the bridge via Hop Protocol
+    /// @dev Contains the business logic for the bridge via Hop Protocol
     /// @param _hopData data specific to Hop Protocol
     function _startBridge(HopData memory _hopData) private {
         // Do HOP stuff
