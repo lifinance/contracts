@@ -13,6 +13,7 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// Errors ///
+    error UnAuthorized();
     error ExecutionFailed();
 
     /// Events ///
@@ -47,6 +48,8 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
         // The first 20 bytes of the payload are the callee address
         address callTo = payload.toAddress(0);
 
+        if (callTo == address(gateway)) revert UnAuthorized();
+
         // The remaining bytes should be calldata
         bytes memory callData = payload.slice(20, payload.length - 20);
 
@@ -69,6 +72,8 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     ) internal override nonReentrant {
         // The first 20 bytes of the payload are the callee address
         address callTo = payload.toAddress(0);
+
+        if (callTo == address(gateway)) revert UnAuthorized();
 
         // The remaining bytes should be calldata
         bytes memory callData = payload.slice(20, payload.length - 20);
