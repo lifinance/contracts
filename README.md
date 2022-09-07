@@ -83,11 +83,7 @@ No need for users to leave your dApps anymore.
 
 ## How It Works<a name="how-it-works"></a>
 
-<<<<<<< HEAD
-Our [API](https://apidocs.li.fi/) and [SDK](https://docs.li.fi/integrate-li.fi-js-sdk/install-li.fi-sdk) allow dApps and dApp developers to request the best routes for a desired cross-chain swap.
-=======
 Our [API](https://apidocs.li.fi/) and [SDK](https://docs.li.fi/products/integrate-li.fi-js-sdk/install-li.fi-sdk) allow dApps and dApp developers to request the best routes for a desired cross-chain swap.
->>>>>>> bb78b35c67f253c8778a1175291a112c5b4a5302
 Our backend will calculate the best possible routes based on the transaction fees, gas costs and execution duration.
 
 The then returned routes contain already populated transactions which can directly be sent via the user's wallet to our contracts.
@@ -236,9 +232,5 @@ DEX Manager is a special facet that manages allowed DEXs and allowed function ca
 - [Website](https://li.fi/)
 - [General Documentation](https://docs.li.fi/)
 - [API Documentation](https://apidocs.li.fi/)
-<<<<<<< HEAD
-- [SDK Documentation](https://docs.li.fi/integrate-li.fi-js-sdk/install-li.fi-sdk)
-=======
 - [SDK Documentation](https://docs.li.fi/products/integrate-li.fi-js-sdk/install-li.fi-sdk)
->>>>>>> bb78b35c67f253c8778a1175291a112c5b4a5302
 - [Transfer UI](https://transferto.xyz/)

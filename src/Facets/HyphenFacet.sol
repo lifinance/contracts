@@ -7,13 +7,8 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, CannotBridgeToSameNetwork, InvalidConfig } from "../Errors/GenericErrors.sol";
-<<<<<<< HEAD
-import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
-import { LibUtil } from "../Libraries/LibUtil.sol";
-=======
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
->>>>>>> bb78b35c67f253c8778a1175291a112c5b4a5302
 /// @title Hyphen Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hyphen
