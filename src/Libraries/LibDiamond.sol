@@ -2,6 +2,7 @@
 pragma solidity 0.8.13;
 
 import { IDiamondCut } from "../Interfaces/IDiamondCut.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 
 library LibDiamond {
     bytes32 internal constant DIAMOND_STORAGE_POSITION = keccak256("diamond.standard.diamond.storage");

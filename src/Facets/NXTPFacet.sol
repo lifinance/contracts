@@ -8,7 +8,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, NativeValueWithERC, NoSwapDataProvided, InvalidConfig } from "../Errors/GenericErrors.sol";
 import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
-
+import { LibUtil } from "../Libraries/LibUtil.sol";
 /// @title NXTP (Connext) Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through NXTP (Connext)
@@ -30,7 +30,7 @@ contract NXTPFacet is ILiFi, Swapper, ReentrancyGuard {
     /// @param _txMgrAddr address of the NXTP Transaction Manager contract
     function initNXTP(ITransactionManager _txMgrAddr) external {
         LibDiamond.enforceIsContractOwner();
-        if (LibUtil.isZeroAdress(address(_txMgrAddr))) revert InvalidConfig();
+        if (LibUtil.isZeroAddress(address(_txMgrAddr))) revert InvalidConfig();
         Storage storage s = getStorage();
         s.nxtpTxManager = _txMgrAddr;
 

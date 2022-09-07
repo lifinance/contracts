@@ -8,6 +8,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, CannotBridgeToSameNetwork, NativeValueWithERC, InvalidConfig } from "../Errors/GenericErrors.sol";
 import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 
 /// @title CBridge Facet
 /// @author LI.FI (https://li.fi)
