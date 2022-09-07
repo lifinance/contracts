@@ -6,17 +6,23 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16'
       - name: Install dev dependencies
         run: npm install
 
       - name: Install Foundry
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
 
+      - name: Install Deps
+        run: forge install
       - name: Run forge tests forking mainnet
-        run: forge test -f ${{ secrets.ETH_NODE_URI_MAINNET }} --fork-block-number 14518542
+        run: forge test -f ${{ secrets.ETH_NODE_URI_MAINNET }} --fork-block-number ${{ secrets.FORK_NUMBER }} --no-match-contract ".*(Polygon)"
+      - name: Run forge tests forking polygon
+        run: forge test -f ${{ secrets.ETH_NODE_URI_POLYGON }} --fork-block-number ${{ secrets.POLYGON_FORK_NUMBER }} --match-contract ".*(Polygon)"

@@ -28,11 +28,13 @@ Some of the methods listed above take a variable labeled `_hyphenData`. This dat
 /// @param amount The amount of tokens to bridge.
 /// @param recipient The address of the token recipient after bridging.
 /// @param toChainId The chainId of the chain to bridge to.
+/// @param router The address of the hyphen router.
 struct HyphenData {
   address token;
   uint256 amount;
   address recipient;
   uint256 toChainId;
+  address router;
 }
 
 ```
@@ -80,7 +82,7 @@ const quoteResult = {
 }
 ```
 
-A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/more-integration-options/li.fi-api/transferring-tokens-example).
+A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/products/more-integration-options/li.fi-api/transferring-tokens-example).
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 

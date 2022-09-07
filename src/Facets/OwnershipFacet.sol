@@ -28,7 +28,7 @@ contract OwnershipFacet is IERC173 {
 
     /// External Methods ///
 
-    /// @notice Intitiates transfer of ownership to a new address
+    /// @notice Initiates transfer of ownership to a new address
     /// @param _newOwner the address to transfer ownership to
     function transferOwnership(address _newOwner) external override {
         LibDiamond.enforceIsContractOwner();
@@ -43,7 +43,7 @@ contract OwnershipFacet is IERC173 {
     }
 
     /// @notice Cancel transfer of ownership
-    function cancelOnwershipTransfer() external {
+    function cancelOwnershipTransfer() external {
         LibDiamond.enforceIsContractOwner();
         Storage storage s = getStorage();
 

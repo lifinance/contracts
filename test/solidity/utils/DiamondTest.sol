@@ -38,7 +38,7 @@ contract DiamondTest {
 
         functionSelectors = new bytes4[](4);
         functionSelectors[0] = OwnershipFacet.transferOwnership.selector;
-        functionSelectors[1] = OwnershipFacet.cancelOnwershipTransfer.selector;
+        functionSelectors[1] = OwnershipFacet.cancelOwnershipTransfer.selector;
         functionSelectors[2] = OwnershipFacet.confirmOwnershipTransfer.selector;
         functionSelectors[3] = OwnershipFacet.owner.selector;
 
@@ -71,5 +71,7 @@ contract DiamondTest {
         );
 
         DiamondCutFacet(address(_diamond)).diamondCut(cut, address(0), "");
+
+        delete cut;
     }
 }

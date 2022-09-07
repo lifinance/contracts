@@ -91,6 +91,7 @@ describe('HyphenFacet', function () {
       amount: amount,
       recipient: alice.address,
       toChainId: 43114,
+      router: '0x2A5c2568b10A0E826BfA892Cf21BA7218310180b',
     }
     await usdc.approve(lifi.address, amount)
     await lifi.connect(alice).startBridgeTokensViaHyphen(lifiData, hyphenData, {
@@ -133,6 +134,7 @@ describe('HyphenFacet', function () {
       amount: amountUSDC,
       recipient: alice.address,
       toChainId: 43114,
+      router: '0x2A5c2568b10A0E826BfA892Cf21BA7218310180b',
     }
 
     await lifi

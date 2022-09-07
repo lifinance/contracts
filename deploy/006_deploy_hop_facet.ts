@@ -2,8 +2,7 @@ import { ethers, network } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { addOrReplaceFacets } from '../utils/diamond'
-import config from '../config/hop'
-import { utils } from 'ethers'
+import { verifyContract } from './9999_verify_all_facets'
 
 type Token = 'USDC' | 'USDT' | 'MATIC' | 'DAI'
 interface BridgeConfig {
@@ -15,23 +14,7 @@ interface BridgeConfig {
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts } = hre
   const { deploy } = deployments
-
   const { deployer } = await getNamedAccounts()
-
-  const tokens: string[] = []
-  const configs: BridgeConfig[] = []
-
-  const bridgeConfig = config[network.name]
-
-  Object.keys(bridgeConfig).map((k) => {
-    if (k === 'chainId') return
-    tokens.push(<Token>k)
-    configs.push({
-      token: bridgeConfig[<Token>k]?.token,
-      bridge: bridgeConfig[<Token>k]?.bridge,
-      ammWrapper: bridgeConfig[<Token>k]?.ammWrapper,
-    })
-  })
 
   await deploy('HopFacet', {
     from: deployer,
@@ -40,28 +23,17 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   })
 
   const hopFacet = await ethers.getContract('HopFacet')
-
   const diamond = await ethers.getContract('LiFiDiamond')
 
-  const ABI = [
-    'function initHop(string[],tuple(address token,address bridge,address ammWrapper)[],uint256)',
-  ]
-  const iface = new utils.Interface(ABI)
-
-  const initData = iface.encodeFunctionData('initHop', [
-    tokens,
-    configs,
-    bridgeConfig.chainId,
-  ])
-
-  await addOrReplaceFacets(
-    [hopFacet],
-    diamond.address,
-    hopFacet.address,
-    initData
-  )
+  await addOrReplaceFacets([hopFacet], diamond.address)
+  await verifyContract(hre, 'HopFacet', { address: hopFacet.address })
 }
 export default func
 func.id = 'deploy_hop_facet'
 func.tags = ['DeployHopFacet']
-func.dependencies = ['InitFacets', 'DeployDexManagerFacet']
+func.dependencies = [
+  'InitialFacets',
+  'LiFiDiamond',
+  'InitFacets',
+  'DeployDexManagerFacet',
+]

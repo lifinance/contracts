@@ -7,19 +7,17 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, CannotBridgeToSameNetwork, InvalidConfig } from "../Errors/GenericErrors.sol";
+<<<<<<< HEAD
 import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
+=======
+import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+
+>>>>>>> bb78b35c67f253c8778a1175291a112c5b4a5302
 /// @title Hyphen Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hyphen
-contract HyphenFacet is ILiFi, Swapper, ReentrancyGuard {
-    /// Storage ///
-
-    bytes32 internal constant NAMESPACE = hex"b4dba59cea9741f069693c5cc9e154fe2190cf9db6275fa7f1075a6a6c6668cc"; // keccak256("com.lifi.facets.hyphen")
-    struct Storage {
-        address hyphenRouter;
-    }
-
+contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Types ///
 
     /// @param token The contract address of the token being bridged.
@@ -31,26 +29,8 @@ contract HyphenFacet is ILiFi, Swapper, ReentrancyGuard {
         uint256 amount;
         address recipient;
         uint256 toChainId;
+        address router;
     }
-
-    /// Events ///
-
-    event HyphenInitialized(address hyphenRouter);
-
-    /// Init ///
-
-    /// @notice Initializes local variables for the Hyphen facet
-    /// @param _hyphenRouter address of the canonical Hyphen router contract
-    function initHyphen(address _hyphenRouter) external {
-        LibDiamond.enforceIsContractOwner();
-        if (LibUtil.isZeroAddress(_hyphenRouter)) revert InvalidConfig();
-        Storage storage s = getStorage();
-        s.hyphenRouter = _hyphenRouter;
-
-        emit HyphenInitialized(_hyphenRouter);
-    }
-
-    /// External Methods ///
 
     /// @notice Bridges tokens via Hyphen
     /// @param _lifiData data used purely for tracking and analytics
@@ -88,7 +68,7 @@ contract HyphenFacet is ILiFi, Swapper, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         HyphenData memory _hyphenData
     ) external payable nonReentrant {
-        _hyphenData.amount = _executeAndCheckSwaps(_lifiData, _swapData);
+        _hyphenData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_hyphenData);
 
         emit LiFiTransferStarted(
@@ -109,19 +89,17 @@ contract HyphenFacet is ILiFi, Swapper, ReentrancyGuard {
 
     /// Private Methods ///
 
-    /// @dev Conatains the business logic for the bridge via Hyphen
+    /// @dev Contains the business logic for the bridge via Hyphen
     /// @param _hyphenData data specific to Hyphen
     function _startBridge(HyphenData memory _hyphenData) private {
-        Storage storage s = getStorage();
-
         // Check chain id
         if (block.chainid == _hyphenData.toChainId) revert CannotBridgeToSameNetwork();
 
         if (!LibAsset.isNativeAsset(_hyphenData.token)) {
             // Give Anyswap approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(_hyphenData.token), s.hyphenRouter, _hyphenData.amount);
+            LibAsset.maxApproveERC20(IERC20(_hyphenData.token), _hyphenData.router, _hyphenData.amount);
 
-            IHyphenRouter(s.hyphenRouter).depositErc20(
+            IHyphenRouter(_hyphenData.router).depositErc20(
                 _hyphenData.toChainId,
                 _hyphenData.token,
                 _hyphenData.recipient,
@@ -129,20 +107,11 @@ contract HyphenFacet is ILiFi, Swapper, ReentrancyGuard {
                 "LIFI"
             );
         } else {
-            IHyphenRouter(s.hyphenRouter).depositNative{ value: _hyphenData.amount }(
+            IHyphenRouter(_hyphenData.router).depositNative{ value: _hyphenData.amount }(
                 _hyphenData.recipient,
                 _hyphenData.toChainId,
                 "LIFI"
             );
-        }
-    }
-
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            s.slot := namespace
         }
     }
 }

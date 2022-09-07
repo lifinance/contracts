@@ -8,9 +8,13 @@
 - [AnySwap Facet](./AnyswapFacet.md)
 - [Hyphen Facet](./HyphenFacet.md)
 - [CBridge Facet](./CBridgeFacet.md)
+- [Stargate Facet](./StargateFacet.md)
 - [Withdraw Facet](./WithdrawFacet.md)
 - [DiamondCut Facet](./DiamondCutFacet.md)
 - [DiamondLoupe Facet](./DiamondLoupeFacet.md)
+- [Axelar Facet](./AxelarFacet.md)
+- [Periphery Registry Facet](./PeripheryRegistryFacet.md)
+- [Access Manager Facet](./AccessManagerFacet.md)
 
 # Libraries
 
@@ -20,3 +24,10 @@
 - [LibStorage](./LibStorage.md)
 - [LibSwap](./LibSwap.md)
 - [LibUtil](./LibUtil.md)
+- [LibAccess](./LibAccess.md)
+
+# Periphery
+
+- [FeeCollector](./FeeCollector.md)
+- [Executor](./Executor.md)
+- [ERC20Proxy](./ERC20Proxy.md)

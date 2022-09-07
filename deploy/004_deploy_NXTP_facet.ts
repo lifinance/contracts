@@ -2,14 +2,20 @@ import { utils } from 'ethers'
 import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
-import config from '../config/nxtp'
 import { addOrReplaceFacets } from '../utils/diamond'
+import { verifyContract } from './9999_verify_all_facets'
+import config from '../config/nxtp'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts, network } = hre
   const { deploy } = deployments
 
   const { deployer } = await getNamedAccounts()
+
+  if (config[network.name] === undefined) {
+    console.info('Not deploying NXTPFacet because txManagerAddress is not set')
+    return
+  }
 
   const TX_MGR_ADDR = config[network.name].txManagerAddress
 
@@ -23,19 +29,16 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const diamond = await ethers.getContract('LiFiDiamond')
 
-  const ABI = ['function initNXTP(address)']
-  const iface = new utils.Interface(ABI)
+  await addOrReplaceFacets([nxtpFacet], diamond.address)
 
-  const initData = iface.encodeFunctionData('initNXTP', [TX_MGR_ADDR])
-
-  await addOrReplaceFacets(
-    [nxtpFacet],
-    diamond.address,
-    nxtpFacet.address,
-    initData
-  )
+  await verifyContract(hre, 'NXTPFacet', { address: nxtpFacet.address })
 }
 export default func
 func.id = 'deploy_NXTP_facet'
 func.tags = ['DeployNXTPFacet']
-func.dependencies = ['InitFacets', 'DeployDexManagerFacet']
+func.dependencies = [
+  'InitialFacets',
+  'LiFiDiamond',
+  'InitFacets',
+  'DeployDexManagerFacet',
+]

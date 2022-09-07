@@ -9,32 +9,22 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, NativeValueWithERC, NoSwapDataProvided, InvalidConfig } from "../Errors/GenericErrors.sol";
 import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
+import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+
 /// @title NXTP (Connext) Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through NXTP (Connext)
-contract NXTPFacet is ILiFi, Swapper, ReentrancyGuard {
-    /// Storage ///
-
-    bytes32 internal constant NAMESPACE = hex"cb4800033539e504944b70f0275e98829f191b99c5226e9a5a072ab49d2a753e"; //keccak256("com.lifi.facets.nxtp");
-    struct Storage {
-        ITransactionManager nxtpTxManager;
-    }
-
-    /// Events ///
-
-    event NXTPInitialized(ITransactionManager txMgrAddr);
-
-    /// Init ///
-
-    // @notice Initializes local variables for the NXTP facet
-    /// @param _txMgrAddr address of the NXTP Transaction Manager contract
-    function initNXTP(ITransactionManager _txMgrAddr) external {
-        LibDiamond.enforceIsContractOwner();
-        if (LibUtil.isZeroAddress(address(_txMgrAddr))) revert InvalidConfig();
-        Storage storage s = getStorage();
-        s.nxtpTxManager = _txMgrAddr;
-
-        emit NXTPInitialized(_txMgrAddr);
+contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
+    /// Types ///
+    struct NXTPData {
+        address nxtpTxManager;
+        ITransactionManager.InvariantTransactionData invariantData;
+        uint256 amount;
+        uint256 expiry;
+        bytes encryptedCallData;
+        bytes encodedBid;
+        bytes bidSignature;
+        bytes encodedMeta;
     }
 
     /// External Methods ///
@@ -42,7 +32,7 @@ contract NXTPFacet is ILiFi, Swapper, ReentrancyGuard {
     /// @notice This function starts a cross-chain transaction using the NXTP protocol
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _nxtpData data needed to complete an NXTP cross-chain transaction
-    function startBridgeTokensViaNXTP(LiFiData calldata _lifiData, ITransactionManager.PrepareArgs calldata _nxtpData)
+    function startBridgeTokensViaNXTP(LiFiData calldata _lifiData, NXTPData calldata _nxtpData)
         external
         payable
         nonReentrant
@@ -74,9 +64,9 @@ contract NXTPFacet is ILiFi, Swapper, ReentrancyGuard {
     function swapAndStartBridgeTokensViaNXTP(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        ITransactionManager.PrepareArgs memory _nxtpData
+        NXTPData memory _nxtpData
     ) external payable nonReentrant {
-        _nxtpData.amount = _executeAndCheckSwaps(_lifiData, _swapData);
+        _nxtpData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_nxtpData);
 
         emit LiFiTransferStarted(
@@ -123,40 +113,35 @@ contract NXTPFacet is ILiFi, Swapper, ReentrancyGuard {
         address finalAssetId,
         address receiver
     ) external payable nonReentrant {
-        uint256 swapBalance = _executeAndCheckSwaps(_lifiData, _swapData);
+        uint256 swapBalance = _executeAndCheckSwaps(_lifiData, _swapData, payable(receiver));
         LibAsset.transferAsset(finalAssetId, payable(receiver), swapBalance);
         emit LiFiTransferCompleted(_lifiData.transactionId, finalAssetId, receiver, swapBalance, block.timestamp);
     }
 
-    /// @notice show the NXTP transaction manager contract address
-    function getNXTPTransactionManager() external view returns (address) {
-        Storage storage s = getStorage();
-        return address(s.nxtpTxManager);
-    }
-
     /// Private Methods ///
 
-    /// @dev Conatains the business logic for the bridge via NXTP
+    /// @dev Contains the business logic for the bridge via NXTP
     /// @param _nxtpData data specific to NXTP
-    function _startBridge(ITransactionManager.PrepareArgs memory _nxtpData) private returns (bytes32) {
-        Storage storage s = getStorage();
+    function _startBridge(NXTPData memory _nxtpData) private returns (bytes32) {
+        ITransactionManager txManager = ITransactionManager(_nxtpData.nxtpTxManager);
         IERC20 sendingAssetId = IERC20(_nxtpData.invariantData.sendingAssetId);
         // Give Connext approval to bridge tokens
-        LibAsset.maxApproveERC20(IERC20(sendingAssetId), address(s.nxtpTxManager), _nxtpData.amount);
+        LibAsset.maxApproveERC20(IERC20(sendingAssetId), _nxtpData.nxtpTxManager, _nxtpData.amount);
 
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId)) ? _nxtpData.amount : 0;
 
         // Initiate bridge transaction on sending chain
-        ITransactionManager.TransactionData memory result = s.nxtpTxManager.prepare{ value: value }(_nxtpData);
+        ITransactionManager.TransactionData memory result = txManager.prepare{ value: value }(
+            ITransactionManager.PrepareArgs(
+                _nxtpData.invariantData,
+                _nxtpData.amount,
+                _nxtpData.expiry,
+                _nxtpData.encryptedCallData,
+                _nxtpData.encodedBid,
+                _nxtpData.bidSignature,
+                _nxtpData.encodedMeta
+            )
+        );
         return result.transactionId;
-    }
-
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            s.slot := namespace
-        }
     }
 }
