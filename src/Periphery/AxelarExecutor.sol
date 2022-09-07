@@ -86,6 +86,7 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
         address tokenAddress = gateway.tokenAddresses(tokenSymbol);
 
         // transfer received tokens to the recipient
+        IERC20(tokenAddress).safeApprove(callTo, 0);
         IERC20(tokenAddress).safeApprove(callTo, amount);
 
         (bool success, ) = callTo.call(callData);
