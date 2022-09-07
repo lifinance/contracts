@@ -7,6 +7,7 @@ import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/Saf
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
 
 contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     using LibBytes for bytes;
@@ -15,6 +16,7 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     /// Errors ///
     error UnAuthorized();
     error ExecutionFailed();
+    error NotAContract();
 
     /// Events ///
     event AxelarGatewaySet(address indexed gateway);
@@ -49,6 +51,7 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
         address callTo = payload.toAddress(0);
 
         if (callTo == address(gateway)) revert UnAuthorized();
+        if (!LibAsset.isContract(callTo)) revert NotAContract();
 
         // The remaining bytes should be calldata
         bytes memory callData = payload.slice(20, payload.length - 20);
@@ -74,6 +77,7 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
         address callTo = payload.toAddress(0);
 
         if (callTo == address(gateway)) revert UnAuthorized();
+        if (!LibAsset.isContract(callTo)) revert NotAContract();
 
         // The remaining bytes should be calldata
         bytes memory callData = payload.slice(20, payload.length - 20);
