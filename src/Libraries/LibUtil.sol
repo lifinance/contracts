@@ -15,7 +15,7 @@ library LibUtil {
 
     /// @notice Determines whether the given address is the zero address
     /// @param addr The address to verify
-    /// @return Boolean indicating if the asset is the zero address
+    /// @return Boolean indicating if the address is the zero address
     function isZeroAddress(address addr) internal pure returns (bool) {
         return addr == address(0);
     }

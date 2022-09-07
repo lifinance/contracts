@@ -100,7 +100,7 @@ contract AnyswapFacet is ILiFi, Swapper, ReentrancyGuard {
         // The native token does not use the standard null address ID
         isNative = IAnyswapRouter(router).wNATIVE() == underlyingToken;
         // Some Multichain complying tokens may wrap nothing
-        if (!isNative && LibAsset(underlyingToken).isNativeAsset()) {
+        if (!isNative && LibAsset().isNativeAsset(underlyingToken)) {
             underlyingToken = token;
         }
     }
