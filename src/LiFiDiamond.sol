@@ -35,7 +35,7 @@ contract LiFiDiamond {
 
         // get facet from function selector
         address facet = ds.selectorToFacetAndPosition[msg.sig].facetAddress;
-        require(facet != address(0), "Diamond: Function does not exist");
+        require(!LibUtil.isZeroAddress(facet), "Diamond: Function does not exist");
 
         // Execute external function from facet using delegatecall and return any value.
         // solhint-disable-next-line no-inline-assembly

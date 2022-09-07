@@ -34,7 +34,7 @@ contract OwnershipFacet is IERC173 {
         LibDiamond.enforceIsContractOwner();
         Storage storage s = getStorage();
 
-        if (_newOwner == address(0)) revert NoNullOwner();
+        if (LibUtil.isZeroAddress(_newOwner)) revert NoNullOwner();
 
         if (_newOwner == LibDiamond.contractOwner()) revert NewOwnerMustNotBeSelf();
 
@@ -47,7 +47,7 @@ contract OwnershipFacet is IERC173 {
         LibDiamond.enforceIsContractOwner();
         Storage storage s = getStorage();
 
-        if (s.newOwner == address(0)) revert NoPendingOwnershipTransfer();
+        if (LibUtil.isZeroAddress(s.newOwner)) revert NoPendingOwnershipTransfer();
         s.newOwner = address(0);
     }
 

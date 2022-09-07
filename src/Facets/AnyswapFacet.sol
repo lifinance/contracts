@@ -64,7 +64,7 @@ contract AnyswapFacet is ILiFi, Swapper, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         AnyswapData memory _anyswapData
     ) external payable nonReentrant {
-        if (_anyswapData.token == address(0)) revert TokenAddressIsZero();
+        if (LibAsset.isNativeAsset(_anyswapData.token)) revert TokenAddressIsZero();
         _anyswapData.amount = _executeAndCheckSwaps(_lifiData, _swapData);
         (address underlyingToken, bool isNative) = _getUnderlyingToken(_anyswapData.token, _anyswapData.router);
         _startBridge(_anyswapData, underlyingToken, isNative);
@@ -95,12 +95,12 @@ contract AnyswapFacet is ILiFi, Swapper, ReentrancyGuard {
         returns (address underlyingToken, bool isNative)
     {
         // Token must implement IAnyswapToken interface
-        if (token == address(0)) revert TokenAddressIsZero();
+        if (LibAsset.isNativeAsset(token)) revert TokenAddressIsZero();
         underlyingToken = IAnyswapToken(token).underlying();
         // The native token does not use the standard null address ID
         isNative = IAnyswapRouter(router).wNATIVE() == underlyingToken;
         // Some Multichain complying tokens may wrap nothing
-        if (!isNative && underlyingToken == address(0)) {
+        if (!isNative && LibAsset(underlyingToken).isNativeAsset()) {
             underlyingToken = token;
         }
     }

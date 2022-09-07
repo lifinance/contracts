@@ -34,7 +34,7 @@ contract WithdrawFacet {
         uint256 _amount
     ) external {
         LibDiamond.enforceIsContractOwner();
-        address sendTo = (_to == address(0)) ? msg.sender : _to;
+        address sendTo = (LibUtil.isZeroAddress(_to)) ? msg.sender : _to;
         uint256 assetBalance;
         if (_assetAddress == NATIVE_ASSET) {
             address self = address(this); // workaround for a possible solidity bug

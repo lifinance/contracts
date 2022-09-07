@@ -43,7 +43,7 @@ contract HyphenFacet is ILiFi, Swapper, ReentrancyGuard {
     /// @param _hyphenRouter address of the canonical Hyphen router contract
     function initHyphen(address _hyphenRouter) external {
         LibDiamond.enforceIsContractOwner();
-        if (_hyphenRouter == address(0)) revert InvalidConfig();
+        if (LibUtil.isZeroAddress(_hyphenRouter)) revert InvalidConfig();
         Storage storage s = getStorage();
         s.hyphenRouter = _hyphenRouter;
 
@@ -117,7 +117,7 @@ contract HyphenFacet is ILiFi, Swapper, ReentrancyGuard {
         // Check chain id
         if (block.chainid == _hyphenData.toChainId) revert CannotBridgeToSameNetwork();
 
-        if (_hyphenData.token != address(0)) {
+        if (!LibAsset.isNativeAsset(_hyphenData.token)) {
             // Give Anyswap approval to bridge tokens
             LibAsset.maxApproveERC20(IERC20(_hyphenData.token), s.hyphenRouter, _hyphenData.amount);
 

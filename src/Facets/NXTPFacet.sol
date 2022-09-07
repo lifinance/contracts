@@ -30,7 +30,7 @@ contract NXTPFacet is ILiFi, Swapper, ReentrancyGuard {
     /// @param _txMgrAddr address of the NXTP Transaction Manager contract
     function initNXTP(ITransactionManager _txMgrAddr) external {
         LibDiamond.enforceIsContractOwner();
-        if (address(_txMgrAddr) == address(0)) revert InvalidConfig();
+        if (LibUtil.isZeroAdress(address(_txMgrAddr))) revert InvalidConfig();
         Storage storage s = getStorage();
         s.nxtpTxManager = _txMgrAddr;
 
@@ -62,7 +62,7 @@ contract NXTPFacet is ILiFi, Swapper, ReentrancyGuard {
             _nxtpData.amount,
             _nxtpData.invariantData.receivingChainId,
             false,
-            _nxtpData.invariantData.callTo != address(0)
+            !LibUtil.isZeroAddress(_nxtpData.invariantData.callTo)
         );
     }
 
@@ -91,7 +91,7 @@ contract NXTPFacet is ILiFi, Swapper, ReentrancyGuard {
             _swapData[0].fromAmount,
             _nxtpData.invariantData.receivingChainId,
             true,
-            _nxtpData.invariantData.callTo != address(0)
+            !LibUtil.isZeroAddress(_nxtpData.invariantData.callTo)
         );
     }
 

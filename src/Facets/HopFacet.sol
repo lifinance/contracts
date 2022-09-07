@@ -57,7 +57,7 @@ contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
         if (_bridgeConfigs.length != length) revert InvalidBridgeConfigLength();
 
         for (uint256 i = 0; i < length; i++) {
-            if (_bridgeConfigs[i].bridge == address(0)) revert InvalidConfig();
+            if (LibUtil.isZeroAddress(_bridgeConfigs[i].bridge)) revert InvalidConfig();
             s.hopBridges[_tokens[i]] = _bridgeConfigs[i];
         }
         s.hopChainId = _chainId;

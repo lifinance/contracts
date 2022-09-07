@@ -43,7 +43,7 @@ contract CBridgeFacet is ILiFi, Swapper, ReentrancyGuard {
     /// @param _chainId chainId of this deployed contract
     function initCbridge(address _cBridge, uint64 _chainId) external {
         LibDiamond.enforceIsContractOwner();
-        if (_cBridge == address(0)) revert InvalidConfig();
+        if (LibUtil.isZeroAddress(_cBridge)) revert InvalidConfig();
         Storage storage s = getStorage();
         s.cBridge = _cBridge;
         s.cBridgeChainId = _chainId;
