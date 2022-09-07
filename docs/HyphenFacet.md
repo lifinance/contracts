@@ -82,11 +82,7 @@ const quoteResult = {
 }
 ```
 
-<<<<<<< HEAD
-A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/more-integration-options/li.fi-api/transferring-tokens-example).
-=======
 A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/products/more-integration-options/li.fi-api/transferring-tokens-example).
->>>>>>> bb78b35c67f253c8778a1175291a112c5b4a5302
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 
