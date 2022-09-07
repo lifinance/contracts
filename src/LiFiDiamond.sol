@@ -27,6 +27,10 @@ contract LiFiDiamond {
         LibDiamond.DiamondStorage storage ds;
         bytes32 position = LibDiamond.DIAMOND_STORAGE_POSITION;
 
+        // LiFiDiamond specific errors
+        error FunctionDoesNotExist();
+        // ---------------------------
+
         // get diamond storage
         // solhint-disable-next-line no-inline-assembly
         assembly {
@@ -35,7 +39,7 @@ contract LiFiDiamond {
 
         // get facet from function selector
         address facet = ds.selectorToFacetAndPosition[msg.sig].facetAddress;
-        require(facet != address(0), "Diamond: Function does not exist");
+        if(facet == address(0)) { revert FunctionDoesNotExist(); }
 
         // Execute external function from facet using delegatecall and return any value.
         // solhint-disable-next-line no-inline-assembly
