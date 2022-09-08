@@ -5,6 +5,11 @@ import { LibDiamond } from "./Libraries/LibDiamond.sol";
 import { IDiamondCut } from "./Interfaces/IDiamondCut.sol";
 
 contract LiFiDiamond {
+
+    // LiFiDiamond specific errors
+    error FunctionDoesNotExist();
+    // ---------------------------
+    
     constructor(address _contractOwner, address _diamondCutFacet) payable {
         LibDiamond.setContractOwner(_contractOwner);
 
@@ -26,10 +31,6 @@ contract LiFiDiamond {
     fallback() external payable {
         LibDiamond.DiamondStorage storage ds;
         bytes32 position = LibDiamond.DIAMOND_STORAGE_POSITION;
-
-        // LiFiDiamond specific errors
-        error FunctionDoesNotExist();
-        // ---------------------------
 
         // get diamond storage
         // solhint-disable-next-line no-inline-assembly
