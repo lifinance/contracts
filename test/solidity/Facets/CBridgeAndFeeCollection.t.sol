@@ -25,8 +25,8 @@ contract TestCBridgeFacet is CBridgeFacet {
         appStorage.dexs.push(_dex);
     }
 
-    function setFunctionApprovalBySignature(bytes32 signature) external {
-        mapping(bytes32 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
+    function setFunctionApprovalBySignature(bytes4 signature) external {
+        mapping(bytes4 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
         if (dexFuncSignatureAllowList[signature]) return;
         dexFuncSignatureAllowList[signature] = true;
     }
@@ -68,10 +68,10 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addDex(address(uniswap));
         cBridge.addDex(address(feeCollector));
-        cBridge.setFunctionApprovalBySignature(bytes32(feeCollector.collectTokenFees.selector));
-        cBridge.setFunctionApprovalBySignature(bytes32(feeCollector.collectNativeFees.selector));
-        cBridge.setFunctionApprovalBySignature(bytes32(uniswap.swapExactTokensForTokens.selector));
-        cBridge.setFunctionApprovalBySignature(bytes32(uniswap.swapETHForExactTokens.selector));
+        cBridge.setFunctionApprovalBySignature(bytes4(feeCollector.collectTokenFees.selector));
+        cBridge.setFunctionApprovalBySignature(bytes4(feeCollector.collectNativeFees.selector));
+        cBridge.setFunctionApprovalBySignature(bytes4(uniswap.swapExactTokensForTokens.selector));
+        cBridge.setFunctionApprovalBySignature(bytes4(uniswap.swapETHForExactTokens.selector));
     }
 
     // struct CBridgeData {

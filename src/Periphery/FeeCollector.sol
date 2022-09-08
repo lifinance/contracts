@@ -151,7 +151,7 @@ contract FeeCollector {
         return _lifiBalances[tokenAddress];
     }
 
-    /// @notice Intitiates transfer of ownership to a new address
+    /// @notice Initiates transfer of ownership to a new address
     /// @param _newOwner the address to transfer ownership to
     function transferOwnership(address _newOwner) external {
         _enforceIsContractOwner();
@@ -165,7 +165,7 @@ contract FeeCollector {
     }
 
     /// @notice Cancel transfer of ownership
-    function cancelOnwershipTransfer() external {
+    function cancelOwnershipTransfer() external {
         _enforceIsContractOwner();
 
         if (pendingOwner == LibAsset.NULL_ADDRESS) revert NoPendingOwnershipTransfer();

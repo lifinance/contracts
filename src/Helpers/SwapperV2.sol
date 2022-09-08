@@ -43,6 +43,7 @@ contract SwapperV2 is ILiFi {
     /// @dev Validates input before executing swaps
     /// @param _lifiData LiFi tracking data
     /// @param _swapData Array of data used to execute swaps
+    /// @param _receiver The address to send leftover funds to
     function _executeAndCheckSwaps(
         LiFiData memory _lifiData,
         LibSwap.SwapData[] calldata _swapData,
@@ -74,7 +75,7 @@ contract SwapperV2 is ILiFi {
             if (
                 !(appStorage.dexAllowlist[currentSwapData.approveTo] &&
                     appStorage.dexAllowlist[currentSwapData.callTo] &&
-                    appStorage.dexFuncSignatureAllowList[bytes32(currentSwapData.callData[:8])])
+                    appStorage.dexFuncSignatureAllowList[bytes4(currentSwapData.callData[:4])])
             ) revert ContractCallNotAllowed();
             LibSwap.swap(_lifiData.transactionId, currentSwapData);
         }

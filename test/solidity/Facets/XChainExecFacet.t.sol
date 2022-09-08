@@ -24,8 +24,8 @@ contract TestXChainExecFacet is XChainExecFacet {
         appStorage.dexs.push(_dex);
     }
 
-    function setFunctionApprovalBySignature(bytes32 signature) external {
-        mapping(bytes32 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
+    function setFunctionApprovalBySignature(bytes4 signature) external {
+        mapping(bytes4 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
         if (dexFuncSignatureAllowList[signature]) return;
         dexFuncSignatureAllowList[signature] = true;
     }
@@ -63,8 +63,8 @@ contract XChainExecFacetTest is DSTest, DiamondTest {
         xChain = TestXChainExecFacet(address(diamond));
         xChain.addDex(address(amm));
         xChain.addDex(address(vault));
-        xChain.setFunctionApprovalBySignature(bytes32(amm.swap.selector));
-        xChain.setFunctionApprovalBySignature(bytes32(vault.deposit.selector));
+        xChain.setFunctionApprovalBySignature(bytes4(amm.swap.selector));
+        xChain.setFunctionApprovalBySignature(bytes4(vault.deposit.selector));
     }
 
     function testCanPerformComplexSwap() public {
