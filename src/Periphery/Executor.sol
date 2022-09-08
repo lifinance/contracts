@@ -8,11 +8,12 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IERC20Proxy } from "../Interfaces/IERC20Proxy.sol";
+import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-contract Executor is Ownable, ReentrancyGuard, ILiFi {
+contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     /// Storage ///
     address public sgRouter;
     IERC20Proxy public erc20Proxy;
@@ -21,7 +22,6 @@ contract Executor is Ownable, ReentrancyGuard, ILiFi {
     error ExecutionFailed();
     error InvalidStargateRouter();
     error InvalidCaller();
-    error UnAuthorized();
 
     /// Events ///
     event StargateRouterSet(address indexed router);
@@ -53,8 +53,8 @@ contract Executor is Ownable, ReentrancyGuard, ILiFi {
         address _owner,
         address _sgRouter,
         address _erc20Proxy
-    ) {
-        transferOwnership(_owner);
+    ) TransferrableOwnership(_owner) {
+        owner = _owner;
         sgRouter = _sgRouter;
         erc20Proxy = IERC20Proxy(_erc20Proxy);
         emit StargateRouterSet(_sgRouter);
