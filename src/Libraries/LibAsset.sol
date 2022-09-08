@@ -37,7 +37,8 @@ library LibAsset {
         if (!success) revert NativeAssetTransferFailed();
     }
 
-    /// @notice Gives MAX approval for another address to spend tokens
+    /// @notice If the current allowance is insufficient, the allowance for a given spender
+    /// is set to MAX_INT.
     /// @param assetId Token address to transfer
     /// @param spender Address to give spend approval to
     /// @param amount Amount to approve for spending
