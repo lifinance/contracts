@@ -278,10 +278,7 @@ describe('AmarokFacet', function () {
             .swapAndStartBridgeTokensViaAmarok(
               validLiFiData,
               swapData,
-              bridgeData,
-              {
-                value: utils.parseEther('5'),
-              }
+              bridgeData
             )
         ).to.be.revertedWith('TokenAddressIsZero()')
       })
