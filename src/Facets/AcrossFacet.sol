@@ -5,11 +5,9 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IAcrossSpokePool } from "../Interfaces/IAcrossSpokePool.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, NativeValueWithERC, InvalidConfig } from "../Errors/GenericErrors.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 
 /// @title Across Facet
