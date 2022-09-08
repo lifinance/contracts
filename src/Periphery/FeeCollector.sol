@@ -174,10 +174,11 @@ contract FeeCollector {
 
     /// @notice Confirms transfer of ownership to the calling address (msg.sender)
     function confirmOwnershipTransfer() external {
-        if (msg.sender != pendingOwner) revert NotPendingOwner();
-        owner = pendingOwner;
+        address _pendingOwner = pendingOwner;
+        if (msg.sender != _pendingOwner) revert NotPendingOwner();
+        emit OwnershipTransferred(owner, _pendingOwner);
+        owner = _pendingOwner;
         pendingOwner = LibAsset.NULL_ADDRESS;
-        emit OwnershipTransferred(owner, pendingOwner);
     }
 
     /// Private Methods ///
