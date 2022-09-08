@@ -22,7 +22,7 @@ interface IFusePoolDirectory {
 /// @notice Allows anyone to quickly zap into a Rari Fuse Pool
 contract FusePoolZap {
     /// Constants ///
-    address private constant NULL_ADDRESS = 0x0000000000000000000000000000000000000000;
+    address private constant NULL_ADDRESS = address(0);
     IFusePoolDirectory private immutable fusePoolDirectory;
 
     /// Errors ///
