@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import { IAxelarExecutable } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarExecutable.sol";
-import { IAxelarGateway } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGateway.sol";
 import { IERC20 } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IERC20.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
@@ -10,14 +8,11 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IERC20Proxy } from "../Interfaces/IERC20Proxy.sol";
-import "../Libraries/LibBytes.sol";
 
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-contract Executor is IAxelarExecutable, Ownable, ReentrancyGuard, ILiFi {
-    using LibBytes for bytes;
-
+contract Executor is Ownable, ReentrancyGuard, ILiFi {
     /// Storage ///
     address public sgRouter;
     IERC20Proxy public erc20Proxy;
@@ -29,10 +24,8 @@ contract Executor is IAxelarExecutable, Ownable, ReentrancyGuard, ILiFi {
     error UnAuthorized();
 
     /// Events ///
-    event AxelarGatewaySet(address indexed gateway);
     event StargateRouterSet(address indexed router);
     event ERC20ProxySet(address indexed proxy);
-    event AxelarExecutionComplete(address indexed callTo, bytes4 selector);
 
     /// Modifiers ///
 
@@ -58,26 +51,17 @@ contract Executor is IAxelarExecutable, Ownable, ReentrancyGuard, ILiFi {
     /// Constructor
     constructor(
         address _owner,
-        address _gateway,
         address _sgRouter,
         address _erc20Proxy
-    ) IAxelarExecutable(_gateway) {
+    ) {
         transferOwnership(_owner);
         sgRouter = _sgRouter;
         erc20Proxy = IERC20Proxy(_erc20Proxy);
-        emit AxelarGatewaySet(_gateway);
         emit StargateRouterSet(_sgRouter);
         emit ERC20ProxySet(_erc20Proxy);
     }
 
     /// External Methods ///
-
-    /// @notice set the Axelar gateway
-    /// @param _gateway the Axelar gateway address
-    function setAxelarGateway(address _gateway) external onlyOwner {
-        gateway = IAxelarGateway(_gateway);
-        emit AxelarGatewaySet(_gateway);
-    }
 
     /// @notice set Stargate Router
     /// @param _router the Stargate router address
@@ -261,59 +245,6 @@ contract Executor is IAxelarExecutable, Ownable, ReentrancyGuard, ILiFi {
         }
 
         emit LiFiTransferCompleted(_lifiData.transactionId, transferredAssetId, receiver, amount, block.timestamp);
-    }
-
-    /// Internal Methods ///
-
-    /// @dev override of IAxelarExecutable _execute()
-    /// @notice handles the parsing and execution of the payload
-    /// @param payload the abi.encodePacked payload [callTo:callData]
-    function _execute(
-        string memory,
-        string memory,
-        bytes calldata payload
-    ) internal override nonReentrant {
-        // The first 20 bytes of the payload are the callee address
-        address callTo = payload.toAddress(0);
-
-        if (callTo == address(erc20Proxy)) revert UnAuthorized();
-
-        // The remaining bytes should be calldata
-        bytes memory callData = payload.slice(20, payload.length - 20);
-
-        (bool success, ) = callTo.call(callData);
-        if (!success) revert ExecutionFailed();
-        emit AxelarExecutionComplete(callTo, bytes4(callData));
-    }
-
-    /// @dev override of IAxelarExecutable _executeWithToken()
-    /// @notice handles the parsing and execution of the payload
-    /// @param payload the abi.encodePacked payload [callTo:callData]
-    /// @param tokenSymbol symbol of the token being bridged
-    /// @param amount of tokens being bridged
-    function _executeWithToken(
-        string memory,
-        string memory,
-        bytes calldata payload,
-        string memory tokenSymbol,
-        uint256 amount
-    ) internal override nonReentrant {
-        // The first 20 bytes of the payload are the callee address
-        address callTo = payload.toAddress(0);
-
-        if (callTo == address(erc20Proxy)) revert UnAuthorized();
-
-        // The remaining bytes should be calldata
-        bytes memory callData = payload.slice(20, payload.length - 20);
-
-        // get ERC-20 address from gateway
-        address tokenAddress = gateway.tokenAddresses(tokenSymbol);
-
-        // transfer received tokens to the recipient
-        IERC20(tokenAddress).approve(callTo, amount);
-
-        (bool success, ) = callTo.call(callData);
-        if (!success) revert ExecutionFailed();
     }
 
     /// Private Methods ///

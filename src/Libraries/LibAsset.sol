@@ -12,7 +12,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 library LibAsset {
     uint256 private constant MAX_INT = type(uint256).max;
 
-    address internal constant NULL_ADDRESS = 0x0000000000000000000000000000000000000000; //address(0)
+    address internal constant NULL_ADDRESS = address(0);
 
     /// @dev All native assets use the empty address for their asset id
     ///      by convention

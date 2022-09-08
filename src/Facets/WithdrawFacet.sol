@@ -14,7 +14,7 @@ import { LibAccess } from "../Libraries/LibAccess.sol";
 contract WithdrawFacet {
     /// Storage ///
 
-    address private constant NATIVE_ASSET = 0x0000000000000000000000000000000000000000; // address(0)
+    address private constant NATIVE_ASSET = address(0);
 
     /// Errors ///
 
