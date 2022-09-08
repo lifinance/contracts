@@ -42,4 +42,4 @@ export default [
   '0x160e8be3', // Superfluid downagradeToETH(uint256 wad)
   '0xeedd56e1', // FeeCollector collectTokenFees(address,uint256,uint256,address)
   '0xe0cbc5f2', // FeeCollector collectNativeFees(uint256,uint256,address)
-].map((hex) => `${hex}${TRAILING_56_NIBBLES}`)
+]

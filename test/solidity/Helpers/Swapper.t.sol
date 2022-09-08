@@ -31,8 +31,8 @@ contract TestSwapper is Swapper {
         appStorage.dexs.push(_dex);
     }
 
-    function setFunctionApprovalBySignature(bytes32 signature) external {
-        mapping(bytes32 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
+    function setFunctionApprovalBySignature(bytes4 signature) external {
+        mapping(bytes4 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
         if (dexFuncSignatureAllowList[signature]) return;
         dexFuncSignatureAllowList[signature] = true;
     }
@@ -58,7 +58,7 @@ contract SwapperTest is DSTest, DiamondTest {
 
         swapper = TestSwapper(address(diamond));
         swapper.addDex(address(amm));
-        swapper.setFunctionApprovalBySignature(bytes32(amm.swap.selector));
+        swapper.setFunctionApprovalBySignature(bytes4(amm.swap.selector));
     }
 
     function testSwapCleanup() public {

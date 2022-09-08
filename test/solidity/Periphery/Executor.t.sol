@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: Unlicensed
 pragma solidity 0.8.13;
 
 import { DSTest } from "ds-test/test.sol";
@@ -68,7 +68,7 @@ contract ExecutorTest is DSTest {
     function setUp() public {
         gw = new MockGateway();
         erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(this), address(gw), address(0), address(erc20Proxy));
+        executor = new Executor(address(this), address(0), address(erc20Proxy));
         erc20Proxy.setAuthorizedCaller(address(executor), true);
         amm = new TestAMM();
         vault = new Vault();
@@ -267,35 +267,6 @@ contract ExecutorTest is DSTest {
         executor.swapAndCompleteBridgeTokens(lifiData, swapData, address(tokenA), payable(address(0xb33f)));
         assertEq(tokenB.balanceOf(address(0xb33f)), 0.2 ether);
         assertEq(tokenA.balanceOf(address(0xb33f)), 0.8 ether);
-    }
-
-    function testCanExecuteAxelarPayload() public {
-        executor.execute(
-            bytes32("abcde"),
-            "polygon",
-            "0x1234",
-            abi.encodePacked(address(setter), abi.encodeWithSignature("setMessage(string)", "lifi"))
-        );
-
-        assertEq(setter.message(), "lifi");
-    }
-
-    function testCanExecuteAxelarPayloadWithToken() public {
-        ERC20 aUSDC = new ERC20("Axelar USDC", "aUSDC", 18);
-        aUSDC.mint(address(this), 100 ether);
-        gw.setTokenAddress("aUSDC", address(aUSDC));
-        aUSDC.transfer(address(executor), 0.01 ether);
-        executor.executeWithToken(
-            bytes32("abcde"),
-            "polygon",
-            "0x1234",
-            abi.encodePacked(
-                address(vault),
-                abi.encodeWithSignature("deposit(address,uint256)", address(aUSDC), 0.01 ether)
-            ),
-            "aUSDC",
-            0.01 ether
-        );
     }
 
     function testCanPerformSameChainComplexSwap() public {

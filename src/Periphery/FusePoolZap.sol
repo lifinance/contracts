@@ -4,7 +4,7 @@ pragma solidity 0.8.13;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IFusePool {
-    function cTokensByUnderlying(address) external returns (address);
+    function cTokensByUnderlying(address) external view returns (address);
 }
 
 interface IFToken {
@@ -13,12 +13,17 @@ interface IFToken {
     function mint(uint256) external returns (uint256);
 }
 
+interface IFusePoolDirectory {
+    function poolExists(address) external view returns (bool);
+}
+
 /// @title Fuse Pool Zap
 /// @author LI.FI (https://li.fi)
 /// @notice Allows anyone to quickly zap into a Rari Fuse Pool
 contract FusePoolZap {
     /// Constants ///
     address private constant NULL_ADDRESS = 0x0000000000000000000000000000000000000000;
+    IFusePoolDirectory private immutable fusePoolDirectory;
 
     /// Errors ///
 
@@ -32,6 +37,12 @@ contract FusePoolZap {
 
     event ZappedIn(address pool, address fToken, uint256 amount);
 
+    /// Constructor ///
+
+    constructor(address _fusePoolDirectory) {
+        fusePoolDirectory = IFusePoolDirectory(_fusePoolDirectory);
+    }
+
     /// Public Methods ///
 
     /// @notice Given a supply token receive an fToken from a given Fuse pool
@@ -44,7 +55,7 @@ contract FusePoolZap {
         uint256 _amount
     ) external {
         unchecked {
-            if (_pool == NULL_ADDRESS) {
+            if (_pool == NULL_ADDRESS || !fusePoolDirectory.poolExists(_pool)) {
                 revert InvalidPoolAddress(_pool);
             }
 
@@ -76,7 +87,7 @@ contract FusePoolZap {
     /// @param _pool Rari Fuse Pool contract address
     function zapIn(address _pool) external payable {
         unchecked {
-            if (_pool == NULL_ADDRESS) {
+            if (_pool == NULL_ADDRESS || !fusePoolDirectory.poolExists(_pool)) {
                 revert InvalidPoolAddress(_pool);
             }
 
@@ -96,12 +107,10 @@ contract FusePoolZap {
             (bool success, bytes memory res) = address(fToken).call{ value: msg.value }(
                 abi.encodeWithSignature("mint()")
             );
-            uint256 mintAmount = IERC20(address(fToken)).balanceOf(address(this));
+            uint256 mintAmount = IERC20(address(fToken)).balanceOf(address(this)) - preMintBalance;
             if (!success && mintAmount == 0) {
                 revert MintingError(res);
             }
-
-            mintAmount = mintAmount - preMintBalance;
 
             IERC20(address(fToken)).transfer(msg.sender, mintAmount);
 
