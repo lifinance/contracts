@@ -7,7 +7,6 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, NativeValueWithERC, NoSwapDataProvided, InvalidConfig } from "../Errors/GenericErrors.sol";
-import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 

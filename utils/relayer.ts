@@ -1,6 +1,5 @@
 import { providers } from 'ethers'
 import { DefenderRelayProvider } from 'defender-relay-client/lib/ethers'
-import { Relayer } from 'defender-relay-client'
 
 export const getRelayProvider = (network = '') => {
   let provider: providers.JsonRpcProvider | undefined = undefined
