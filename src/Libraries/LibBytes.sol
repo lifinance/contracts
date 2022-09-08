@@ -9,6 +9,7 @@ library LibBytes {
     error SliceOutOfBounds();
     error AddressOutOfBounds();
     error UintOutOfBounds();
+
     // -------------------------
 
     function concat(bytes memory _preBytes, bytes memory _postBytes) internal pure returns (bytes memory) {
@@ -284,7 +285,9 @@ library LibBytes {
     }
 
     function toAddress(bytes memory _bytes, uint256 _start) internal pure returns (address) {
-        if (_bytes.length < _start + 20) { revert AddressOutOfBounds(); }
+        if (_bytes.length < _start + 20) {
+            revert AddressOutOfBounds();
+        }
         address tempAddress;
 
         assembly {
@@ -295,7 +298,9 @@ library LibBytes {
     }
 
     function toUint8(bytes memory _bytes, uint256 _start) internal pure returns (uint8) {
-        if (_bytes.length < _start + 1) { revert UintOutOfBounds(); }
+        if (_bytes.length < _start + 1) {
+            revert UintOutOfBounds();
+        }
         uint8 tempUint;
 
         assembly {
@@ -306,7 +311,9 @@ library LibBytes {
     }
 
     function toUint16(bytes memory _bytes, uint256 _start) internal pure returns (uint16) {
-        if (_bytes.length < _start + 2) { revert UintOutOfBounds(); }
+        if (_bytes.length < _start + 2) {
+            revert UintOutOfBounds();
+        }
         uint16 tempUint;
 
         assembly {
@@ -317,7 +324,9 @@ library LibBytes {
     }
 
     function toUint32(bytes memory _bytes, uint256 _start) internal pure returns (uint32) {
-        if (_bytes.length < _start + 4) { revert UintOutOfBounds(); }
+        if (_bytes.length < _start + 4) {
+            revert UintOutOfBounds();
+        }
         uint32 tempUint;
 
         assembly {
@@ -328,7 +337,9 @@ library LibBytes {
     }
 
     function toUint64(bytes memory _bytes, uint256 _start) internal pure returns (uint64) {
-        if (_bytes.length < _start + 8) { revert UintOutOfBounds(); }
+        if (_bytes.length < _start + 8) {
+            revert UintOutOfBounds();
+        }
         uint64 tempUint;
 
         assembly {
@@ -339,7 +350,9 @@ library LibBytes {
     }
 
     function toUint96(bytes memory _bytes, uint256 _start) internal pure returns (uint96) {
-        if (_bytes.length < _start + 12) { revert UintOutOfBounds(); }
+        if (_bytes.length < _start + 12) {
+            revert UintOutOfBounds();
+        }
         uint96 tempUint;
 
         assembly {
@@ -350,7 +363,9 @@ library LibBytes {
     }
 
     function toUint128(bytes memory _bytes, uint256 _start) internal pure returns (uint128) {
-        if (_bytes.length < _start + 16){  revert UintOutOfBounds(); }
+        if (_bytes.length < _start + 16) {
+            revert UintOutOfBounds();
+        }
         uint128 tempUint;
 
         assembly {
@@ -361,7 +376,9 @@ library LibBytes {
     }
 
     function toUint256(bytes memory _bytes, uint256 _start) internal pure returns (uint256) {
-        if (_bytes.length < _start + 32) { revert UintOutOfBounds(); }
+        if (_bytes.length < _start + 32) {
+            revert UintOutOfBounds();
+        }
         uint256 tempUint;
 
         assembly {
@@ -372,7 +389,9 @@ library LibBytes {
     }
 
     function toBytes32(bytes memory _bytes, uint256 _start) internal pure returns (bytes32) {
-        if (_bytes.length < _start + 32) { revert UintOutOfBounds(); }
+        if (_bytes.length < _start + 32) {
+            revert UintOutOfBounds();
+        }
         bytes32 tempBytes32;
 
         assembly {
