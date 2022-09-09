@@ -59,7 +59,7 @@ contract OwnershipFacet is IERC173 {
         if (msg.sender != _pendingOwner) revert NotPendingOwner();
         emit OwnershipTransferred(LibDiamond.contractOwner(), _pendingOwner);
         LibDiamond.setContractOwner(_pendingOwner);
-        _pendingOwner = LibAsset.NULL_ADDRESS;
+        s.newOwner = LibAsset.NULL_ADDRESS;
     }
 
     /// @notice Return the current owner address
