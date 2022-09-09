@@ -7,7 +7,7 @@ Periphery contract used for aribitrary cross-chain and same chain execution, swa
 ## How To Use
 
 The contract has a number of methods that can be called depending on the context of the transaction
-and which third-party integration is being used (Stargate, Axelar, etc).
+and which third-party integration is being used.
 
 The following methods are available:
 
@@ -69,10 +69,6 @@ function swapAndExecute(
 The contract also has a number of utility methods that are self-explanatory
 
 ```solidity
-/// @notice set the Axelar gateway
-/// @param _gateway the Axelar gateway address
-function setAxelarGateway(address _gateway)
-
 /// @notice set Stargate Router
 /// @param _router the Stargate router address
 function setStargateRouter(address _router)

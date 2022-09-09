@@ -1,7 +1,6 @@
 import { ethers, network } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
-import config from '../config/axelar'
 import sgConfig from '../config/stargate'
 import { Executor, ERC20Proxy, PeripheryRegistryFacet } from '../typechain'
 
@@ -11,11 +10,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const { deployer } = await getNamedAccounts()
 
-  let gateway = ethers.constants.AddressZero
   let sgRouter = ethers.constants.AddressZero
-  if (config[network.name]) {
-    gateway = config[network.name].gateway
-  }
   if (sgConfig[network.name]) {
     sgRouter = sgConfig[network.name].stargateRouter
   }
@@ -49,7 +44,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   await deploy('Executor', {
     from: deployer,
     log: true,
-    args: [deployer, gateway, sgRouter, erc20Proxy.address],
+    args: [deployer, sgRouter, erc20Proxy.address],
     deterministicDeployment: true,
   })
 
@@ -68,7 +63,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   try {
     await hre.run('verify:verify', {
       address: executor.address,
-      constructorArguments: [deployer, gateway, sgRouter, erc20Proxy.address],
+      constructorArguments: [deployer, sgRouter, erc20Proxy.address],
     })
   } catch (e) {
     console.log(`Failed to verify contract: ${e}`)

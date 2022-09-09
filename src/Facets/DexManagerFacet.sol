@@ -165,7 +165,7 @@ contract DexManagerFacet {
     /// @dev Contains business logic for validating a DEX address.
     /// @param _dex address of the dex to check
     function _checkAddress(address _dex) private pure {
-        if (_dex == 0x0000000000000000000000000000000000000000) {
+        if (_dex == address(0)) {
             revert InvalidConfig();
         }
     }
