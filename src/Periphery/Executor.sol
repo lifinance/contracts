@@ -111,11 +111,7 @@ contract Executor is Ownable, ReentrancyGuard, ILiFi {
         LibSwap.SwapData[] calldata _swapData,
         address transferredAssetId,
         address payable receiver
-    ) external payable nonReentrant {
-        if (msg.sender != address(this)) {
-            revert InvalidCaller();
-        }
-
+    ) internal payable nonReentrant {
         uint256 startingBalance;
         uint256 finalAssetStartingBalance;
         address finalAssetId = _swapData[_swapData.length - 1].receivingAssetId;

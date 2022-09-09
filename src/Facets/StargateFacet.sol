@@ -156,11 +156,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
         address _assetId,
         address _receiver,
         uint256 _amount
-    ) external {
-        if (msg.sender != address(this)) {
-            revert InvalidCaller();
-        }
-
+    ) internal {
         LibAsset.transferAsset(_assetId, payable(_receiver), _amount);
         emit LiFiTransferCompleted(_lifiData.transactionId, _assetId, _receiver, _amount, block.timestamp);
     }
@@ -176,11 +172,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         address _finalAssetId,
         address _receiver
-    ) external {
-        if (msg.sender != address(this)) {
-            revert InvalidCaller();
-        }
-
+    ) internal {
         uint256 swapBalance = _executeAndCheckSwaps(_lifiData, _swapData, payable(_receiver));
         LibAsset.transferAsset(_finalAssetId, payable(_receiver), swapBalance);
         emit LiFiTransferCompleted(_lifiData.transactionId, _finalAssetId, _receiver, swapBalance, block.timestamp);
