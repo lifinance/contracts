@@ -15,3 +15,4 @@ error NoTransferToNullAddress();
 error NativeAssetTransferFailed();
 error InvalidContract();
 error InvalidConfig();
+error UnsupportedChainId(uint256 chainId);

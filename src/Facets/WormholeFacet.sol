@@ -9,24 +9,30 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, CannotBridgeToSameNetwork, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, CannotBridgeToSameNetwork, InvalidConfig, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 import { Swapper } from "../Helpers/Swapper.sol";
 
 /// @title Wormhole Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Wormhole
 contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
-    /// Types ///
 
+    /// Events ///
+    event WormholeChainIdMapped(uint256 indexed lifiChainId, uint256 indexed wormholeChainId);
+
+    /// Types ///
     struct WormholeData {
         address wormholeRouter;
         address token;
         uint256 amount;
-        address recipient;
+        bytes32 recipient;
         uint16 toChainId;
         uint256 arbiterFee;
         uint32 nonce;
     }
+
+    // Mapping between lifi chain id and wormhole chain id
+    mapping (uint256 => uint256) public wormholeChainId;
 
     /// External Methods ///
 
@@ -85,18 +91,34 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
         );
     }
 
+    /// @notice Creates a mapping between a lifi chain id and a wormhole chain id
+    /// @param _lifiChainId lifi chain id
+    /// @param _wormholeChainId wormhole chain id
+    function setWormholeChainId(uint256 _lifiChainId, uint256 _wormholeChainId) external {
+        LibDiamond.enforceIsContractOwner();
+        wormholeChainId[_lifiChainId] = _wormholeChainId;
+        emit WormholeChainIdMapped(_lifiChainId, _wormholeChainId);
+    }
+
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Wormhole
     /// @param _wormholeData data specific to Wormhole
     function _startBridge(WormholeData memory _wormholeData) private {
-        if (block.chainid == _wormholeData.toChainId) revert CannotBridgeToSameNetwork();
+
+        uint256 fromChainId = block.chainid;
+        uint256 toWormholeChainId = wormholeChainId[_wormholeData.toChainId];
+        if (toWormholeChainId == 0) revert UnsupportedChainId(_wormholeData.toChainId);
+        uint256 fromWormholeChainId = wormholeChainId[fromChainId];
+        if (fromWormholeChainId == 0) revert UnsupportedChainId(fromChainId);
+        if (fromWormholeChainId == toWormholeChainId) revert CannotBridgeToSameNetwork();
+
         LibAsset.maxApproveERC20(IERC20(_wormholeData.token), _wormholeData.wormholeRouter, _wormholeData.amount);
         IWormholeRouter(_wormholeData.wormholeRouter).transferTokens(
             _wormholeData.token,
             _wormholeData.amount,
             _wormholeData.toChainId,
-            bytes32(uint256(uint160(_wormholeData.recipient))),
+            _wormholeData.recipient,
             _wormholeData.arbiterFee,
             _wormholeData.nonce
         );
