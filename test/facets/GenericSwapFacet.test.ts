@@ -145,7 +145,7 @@ describe('Generic Swap Facet', async () => {
     expect(postBalance.gt(preBalance)).to.eq(true)
   })
 
-  it('fails tp perform a swap if using a DEX that is not approved', async () => {
+  it('fails to perform a swap if using a DEX that is not approved', async () => {
     await dexMgr.removeDex(SADDLESWAP_ADDRESS)
     const amountIn = utils.parseUnits('1010', 6)
     const amountOut = utils.parseUnits('1000', 6)

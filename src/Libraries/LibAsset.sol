@@ -94,9 +94,8 @@ library LibAsset {
     ) internal {
         if (amount == 0) revert InvalidAmount();
         if (isNative) {
-            if (msg.value != amount) revert InvalidAmount();
+            if (msg.value < amount) revert InvalidAmount();
         } else {
-            if (msg.value != 0) revert NativeValueWithERC();
             uint256 _fromTokenBalance = LibAsset.getOwnBalance(tokenId);
             LibAsset.transferFromERC20(tokenId, msg.sender, address(this), amount);
             if (LibAsset.getOwnBalance(tokenId) - _fromTokenBalance != amount) revert InvalidAmount();

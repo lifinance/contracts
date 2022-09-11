@@ -225,9 +225,7 @@ describe('ArbitrumBridgeFacet', function () {
             .startBridgeTokensViaArbitrumBridge(validLiFiData, bridgeData, {
               value: utils.parseEther('9'),
             })
-        ).to.be.revertedWith(
-          'Transaction reverted: function call failed to execute'
-        )
+        ).to.be.revertedWith('InvalidAmount()')
       })
     })
 
