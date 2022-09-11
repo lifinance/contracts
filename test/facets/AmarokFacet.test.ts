@@ -93,6 +93,8 @@ describe('AmarokFacet', function () {
         callData: '0x',
         slippageTol: 9995, // 9995 to tolerate .05% slippage,
         tokenFallback: alice.address,
+        callbackFee: 0,
+        relayerFee: 0,
       }
 
       const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
