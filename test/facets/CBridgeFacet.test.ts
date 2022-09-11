@@ -127,7 +127,7 @@ describe('CBridgeFacet', function () {
     ).to.be.revertedWith('InvalidAmount()')
   })
 
-  it('fails to start a native token bridge transaction with too much msg.value', async function () {
+  it('fails to start a native token bridge transaction with no enough msg.value', async function () {
     const CBridgeDataNative = {
       cBridge: CBRIDGE_ADDRESS,
       receiver: alice.address,
@@ -142,7 +142,7 @@ describe('CBridgeFacet', function () {
         .connect(alice)
         .startBridgeTokensViaCBridge(lifiData, CBridgeDataNative, {
           gasLimit: 500000,
-          value: utils.parseUnits('0.01', 18),
+          value: utils.parseUnits('0.00001', 18),
         })
     ).to.be.revertedWith('InvalidAmount()')
   })

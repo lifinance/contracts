@@ -5,6 +5,7 @@ import "../Libraries/LibStorage.sol";
 import "../Libraries/LibDiamond.sol";
 import { InvalidConfig } from "../Errors/GenericErrors.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
+import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 
 /// @title Dex Manager Facet
 /// @author LI.FI (https://li.fi)
@@ -28,6 +29,11 @@ contract DexManagerFacet {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
+
+        if (_dex == address(this)) {
+            revert CannotAuthoriseSelf();
+        }
+
         _checkAddress(_dex);
 
         mapping(address => bool) storage dexAllowlist = appStorage.dexAllowlist;
@@ -48,11 +54,15 @@ contract DexManagerFacet {
         uint256 length = _dexs.length;
 
         for (uint256 i = 0; i < length; i++) {
-            _checkAddress(_dexs[i]);
-            if (dexAllowlist[_dexs[i]]) continue;
-            dexAllowlist[_dexs[i]] = true;
-            appStorage.dexs.push(_dexs[i]);
-            emit DexAdded(_dexs[i]);
+            address dex = _dexs[i];
+            _checkAddress(dex);
+            if (dex == address(this)) {
+                revert CannotAuthoriseSelf();
+            }
+            if (dexAllowlist[dex]) continue;
+            dexAllowlist[dex] = true;
+            appStorage.dexs.push(dex);
+            emit DexAdded(dex);
         }
     }
 
@@ -165,7 +175,7 @@ contract DexManagerFacet {
     /// @dev Contains business logic for validating a DEX address.
     /// @param _dex address of the dex to check
     function _checkAddress(address _dex) private pure {
-        if (_dex == 0x0000000000000000000000000000000000000000) {
+        if (_dex == address(0)) {
             revert InvalidConfig();
         }
     }

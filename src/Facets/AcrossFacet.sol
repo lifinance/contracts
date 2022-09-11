@@ -17,7 +17,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 /// @notice Provides functionality for bridging through Across Protocol
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Storage ///
-    address internal constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
+    address internal constant ZERO_ADDRESS = address(0);
 
     /// Types ///
 

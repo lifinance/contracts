@@ -13,7 +13,7 @@ import { LibAccess } from "../Libraries/LibAccess.sol";
 contract WithdrawFacet {
     /// Storage ///
 
-    address private constant NATIVE_ASSET = 0x0000000000000000000000000000000000000000; // address(0)
+    address private constant NATIVE_ASSET = address(0);
 
     /// Errors ///
 
@@ -85,9 +85,7 @@ contract WithdrawFacet {
         address sendTo = (_to == address(0)) ? msg.sender : _to;
         uint256 assetBalance;
         if (_assetAddress == NATIVE_ASSET) {
-            address self = address(this); // workaround for a possible solidity bug
-
-            if (_amount > self.balance) revert NotEnoughBalance(_amount, self.balance);
+            if (_amount > address(this).balance) revert NotEnoughBalance(_amount, address(this).balance);
             // solhint-disable-next-line avoid-low-level-calls
             (bool success, ) = payable(sendTo).call{ value: _amount }("");
             if (!success) revert WithdrawFailed();

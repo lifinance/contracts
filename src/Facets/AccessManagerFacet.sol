@@ -3,6 +3,7 @@ pragma solidity 0.8.13;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
+import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 
 /// @title Access Manager Facet
 /// @author LI.FI (https://li.fi)
@@ -17,6 +18,9 @@ contract AccessManagerFacet {
         address _executor,
         bool _canExecute
     ) external {
+        if (_executor == address(this)) {
+            revert CannotAuthoriseSelf();
+        }
         LibDiamond.enforceIsContractOwner();
         _canExecute ? LibAccess.addAccess(_selector, _executor) : LibAccess.removeAccess(_selector, _executor);
     }

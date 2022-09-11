@@ -196,7 +196,7 @@ describe('PolygonBridgeFacet', function () {
               gasLimit: 500000,
               value: utils.parseEther('9'),
             })
-        ).to.be.reverted
+        ).to.be.revertedWith('InvalidAmount()')
       })
     })
 
