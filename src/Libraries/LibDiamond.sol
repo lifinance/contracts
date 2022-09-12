@@ -3,6 +3,7 @@ pragma solidity 0.8.13;
 
 import { IDiamondCut } from "../Interfaces/IDiamondCut.sol";
 import { OnlyContractOwner } from "../Errors/GenericErrors.sol";
+import { FunctionDoesNotExist } from "./Errors/GenericErrors.sol";
 
 library LibDiamond {
     bytes32 internal constant DIAMOND_STORAGE_POSITION = keccak256("diamond.standard.diamond.storage");
@@ -14,7 +15,6 @@ library LibDiamond {
     error FacetAddressIsZero();
     error FacetAddressIsNotZero();
     error FacetContainsNoCode();
-    error FunctionDoesNotExist();
     error FunctionIsImmutable();
     error InitZeroButCalldataNotEmpty();
     error CalldataEmptyButInitNotZero();

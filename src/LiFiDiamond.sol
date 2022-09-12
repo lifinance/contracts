@@ -3,13 +3,9 @@ pragma solidity 0.8.13;
 
 import { LibDiamond } from "./Libraries/LibDiamond.sol";
 import { IDiamondCut } from "./Interfaces/IDiamondCut.sol";
+import { FunctionDoesNotExist } from "./Errors/GenericErrors.sol";
 
 contract LiFiDiamond {
-    // LiFiDiamond specific errors
-    error FunctionDoesNotExist();
-
-    // ---------------------------
-
     constructor(address _contractOwner, address _diamondCutFacet) payable {
         LibDiamond.setContractOwner(_contractOwner);
 
