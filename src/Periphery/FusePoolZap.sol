@@ -35,7 +35,7 @@ contract FusePoolZap {
 
     /// Events ///
 
-    event ZappedIn(address pool, address fToken, uint256 amount);
+    event ZappedIn(address indexed pool, address indexed fToken, uint256 amount);
 
     /// Constructor ///
 
