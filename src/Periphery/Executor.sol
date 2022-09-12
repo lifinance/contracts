@@ -30,7 +30,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     /// Modifiers ///
 
     /// @dev Sends any leftover balances back to the user
-    modifier noLeftovers(LibSwap.SwapData[] calldata _swapData, address payable _receiver) {
+    modifier noLeftovers(LibSwap.SwapData[] calldata _swapData, address payable _leftoverReceiver) {
         uint256 nSwaps = _swapData.length;
         if (nSwaps != 1) {
             uint256[] memory initialBalances = _fetchBalances(_swapData);
@@ -43,7 +43,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
                 address curAsset = _swapData[i].receivingAssetId;
                 if (curAsset == finalAsset) continue; // Handle multi-to-one swaps
                 curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
-                if (curBalance > 0) LibAsset.transferAsset(curAsset, _receiver, curBalance);
+                if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
             }
         } else _;
     }
@@ -255,8 +255,8 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     function _executeSwaps(
         LiFiData memory _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        address payable _receiver
-    ) private noLeftovers(_swapData, _receiver) {
+        address payable _leftoverReceiver
+    ) private noLeftovers(_swapData, _leftoverReceiver) {
         for (uint256 i = 0; i < _swapData.length; i++) {
             if (_swapData[i].callTo == address(erc20Proxy)) revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
             LibSwap.SwapData calldata currentSwapData = _swapData[i];

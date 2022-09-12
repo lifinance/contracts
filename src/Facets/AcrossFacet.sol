@@ -14,9 +14,6 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
-    /// Storage ///
-    address internal constant ZERO_ADDRESS = address(0);
-
     /// Types ///
 
     struct AcrossData {
@@ -96,7 +93,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// @dev Contains the business logic for the bridge via Across
     /// @param _acrossData data specific to Across
     function _startBridge(AcrossData memory _acrossData) internal {
-        bool isNative = _acrossData.token == ZERO_ADDRESS;
+        bool isNative = _acrossData.token == LibAsset.NATIVE_ASSETID;
         if (isNative) _acrossData.token = _acrossData.weth;
         else LibAsset.maxApproveERC20(IERC20(_acrossData.token), _acrossData.spokePool, _acrossData.amount);
         IAcrossSpokePool pool = IAcrossSpokePool(_acrossData.spokePool);
