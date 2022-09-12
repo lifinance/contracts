@@ -2,6 +2,7 @@
 pragma solidity 0.8.13;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
 
 interface IFusePool {
     function cTokensByUnderlying(address) external view returns (address);
@@ -37,7 +38,7 @@ contract FusePoolZap {
 
     /// Events ///
 
-    event ZappedIn(address pool, address fToken, uint256 amount);
+    event ZappedIn(address indexed pool, address indexed fToken, uint256 amount);
 
     /// Constructor ///
 
@@ -73,9 +74,10 @@ contract FusePoolZap {
 
             uint256 preMintBalance = IERC20(address(fToken)).balanceOf(address(this));
 
-            IERC20(_supplyToken).transferFrom(msg.sender, address(this), _amount);
+            LibAsset.transferFromERC20(_supplyToken, msg.sender, address(this), _amount);
             IERC20(_supplyToken).safeApprove(address(fToken), 0);
             IERC20(_supplyToken).safeApprove(address(fToken), _amount);
+
             fToken.mint(_amount);
 
             uint256 mintAmount = IERC20(address(fToken)).balanceOf(address(this)) - preMintBalance;

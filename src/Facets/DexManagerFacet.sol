@@ -5,6 +5,7 @@ import "../Libraries/LibStorage.sol";
 import "../Libraries/LibDiamond.sol";
 import { InvalidConfig } from "../Errors/GenericErrors.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
 import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 
 /// @title Dex Manager Facet
@@ -175,7 +176,7 @@ contract DexManagerFacet {
     /// @dev Contains business logic for validating a DEX address.
     /// @param _dex address of the dex to check
     function _checkAddress(address _dex) private pure {
-        if (_dex == address(0)) {
+        if (_dex == LibAsset.NATIVE_ASSETID) {
             revert InvalidConfig();
         }
     }
