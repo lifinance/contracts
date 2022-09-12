@@ -80,7 +80,11 @@ library LibAsset {
     ) internal {
         if (assetId == NATIVE_ASSETID) revert NullAddrIsNotAnERC20Token();
         if (to == NULL_ADDRESS) revert NoTransferToNullAddress();
-        SafeERC20.safeTransferFrom(IERC20(assetId), from, to, amount);
+
+        IERC20 asset = IERC20(assetId);
+        uint256 prevBalance = asset.balanceOf(to);
+        SafeERC20.safeTransferFrom(asset, from, to, amount);
+        if (asset.balanceOf(to) - prevBalance != amount) revert InvalidAmount();
     }
 
     /// @notice Deposits an asset into the contract and performs checks to avoid NativeValueWithERC
@@ -96,9 +100,8 @@ library LibAsset {
         if (isNative) {
             if (msg.value < amount) revert InvalidAmount();
         } else {
-            uint256 _fromTokenBalance = LibAsset.getOwnBalance(tokenId);
-            LibAsset.transferFromERC20(tokenId, msg.sender, address(this), amount);
-            if (LibAsset.getOwnBalance(tokenId) - _fromTokenBalance != amount) revert InvalidAmount();
+            if (msg.value != 0) revert NativeValueWithERC();
+            transferFromERC20(tokenId, msg.sender, address(this), amount);
         }
     }
 
