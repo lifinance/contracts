@@ -5,6 +5,7 @@ import { IAxelarGasService } from "@axelar-network/axelar-cgp-solidity/contracts
 import { IAxelarGateway } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGateway.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { IERC20 } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IERC20.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
 
 contract AxelarFacet {
     /// Storage
@@ -67,7 +68,7 @@ contract AxelarFacet {
         Storage storage s = getStorage();
 
         address tokenAddress = s.gateway.tokenAddresses(symbol);
-        IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
+        LibAsset.transferFromERC20(tokenAddress, msg.sender, address(this), amount);
         IERC20(tokenAddress).approve(address(s.gateway), amount);
 
         bytes memory payload = abi.encodePacked(callTo, callData);
