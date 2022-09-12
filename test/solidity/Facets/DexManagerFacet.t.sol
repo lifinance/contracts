@@ -54,6 +54,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         assertEq(approved[0], dexs[0]);
         assertEq(approved[1], dexs[1]);
         assertEq(approved[2], dexs[2]);
+        assertEq(approved.length, 3);
     }
 
     function testCanBatchRemoveDEXs() public {

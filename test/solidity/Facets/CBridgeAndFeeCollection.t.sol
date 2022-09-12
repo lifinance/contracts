@@ -8,6 +8,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
@@ -15,20 +16,11 @@ import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
     function addDex(address _dex) external {
-        mapping(address => bool) storage dexAllowlist = appStorage.dexAllowlist;
-
-        if (dexAllowlist[_dex]) {
-            return;
-        }
-
-        dexAllowlist[_dex] = true;
-        appStorage.dexs.push(_dex);
+        LibAllowList.addAllowedContract(_dex);
     }
 
-    function setFunctionApprovalBySignature(bytes4 signature) external {
-        mapping(bytes4 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
-        if (dexFuncSignatureAllowList[signature]) return;
-        dexFuncSignatureAllowList[signature] = true;
+    function setFunctionApprovalBySignature(bytes4 _signature) external {
+        LibAllowList.addAllowedSelector(_signature);
     }
 }
 
