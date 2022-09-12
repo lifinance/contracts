@@ -151,7 +151,7 @@ library LibDiamond {
         }
         DiamondStorage storage ds = diamondStorage();
         // if function does not exist then do nothing and return
-        if (LibUtil.isZeroAddress(_facetAddress)) {
+        if (!LibUtil.isZeroAddress(_facetAddress)) {
             revert FacetAddressIsNotZero();
         }
         for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; selectorIndex++) {
@@ -219,8 +219,10 @@ library LibDiamond {
     }
 
     function initializeDiamondCut(address _init, bytes memory _calldata) internal {
-        if (LibUtil.isZeroAddress(_init) && _calldata.length != 0) {
-            revert InitZeroButCalldataNotEmpty();
+        if (LibUtil.isZeroAddress(_init)) {
+            if (_calldata.length != 0) {
+                revert InitZeroButCalldataNotEmpty();
+            }
         } else {
             if (_calldata.length == 0) {
                 revert CalldataEmptyButInitNotZero();
