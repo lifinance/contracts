@@ -21,6 +21,7 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     /// Events ///
     event AxelarGatewaySet(address indexed gateway);
     event AxelarExecutionComplete(address indexed callTo, bytes4 selector);
+    event AxelarExecutionFailed(address indexed callTo, bytes4 selector, address recoveryAddress);
 
     /// Constructor ///
     constructor(address _owner, address _gateway) IAxelarExecutable(_gateway) {
@@ -75,12 +76,13 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     ) internal override nonReentrant {
         // The first 20 bytes of the payload are the callee address
         address callTo = payload.toAddress(0);
+        address recoveryAddress = payload.toAddress(20);
 
         if (callTo == address(gateway)) revert UnAuthorized();
         if (!LibAsset.isContract(callTo)) revert NotAContract();
 
         // The remaining bytes should be calldata
-        bytes memory callData = payload.slice(20, payload.length - 20);
+        bytes memory callData = payload.slice(40, payload.length - 40);
 
         // get ERC-20 address from gateway
         address tokenAddress = gateway.tokenAddresses(tokenSymbol);
@@ -90,6 +92,9 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
         IERC20(tokenAddress).safeApprove(callTo, amount);
 
         (bool success, ) = callTo.call(callData);
-        if (!success) revert ExecutionFailed();
+        if (!success) {
+            emit AxelarExecutionFailed(callTo, bytes4(callData), recoveryAddress);
+            LibAsset.transferFromERC20(tokenAddress, address(this), recoveryAddress, amount);
+        }
     }
 }

@@ -5,6 +5,7 @@ import { IAxelarGasService } from "@axelar-network/axelar-cgp-solidity/contracts
 import { IAxelarGateway } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGateway.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { IERC20 } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IERC20.sol";
+import { RecoveryAddressCannotBeZero } from "../Errors/GenericErrors.sol";
 
 contract AxelarFacet {
     /// Storage
@@ -62,15 +63,20 @@ contract AxelarFacet {
         string memory symbol,
         uint256 amount,
         address callTo,
+        address recoveryAddress,
         bytes calldata callData
     ) external payable {
+        if (recoveryAddress == address(0)) {
+            revert RecoveryAddressCannotBeZero();
+        }
+
         Storage storage s = getStorage();
 
         address tokenAddress = s.gateway.tokenAddresses(symbol);
         IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
         IERC20(tokenAddress).approve(address(s.gateway), amount);
 
-        bytes memory payload = abi.encodePacked(callTo, callData);
+        bytes memory payload = abi.encodePacked(callTo, recoveryAddress, callData);
 
         // Pay gas up front
         if (msg.value > 0) {
