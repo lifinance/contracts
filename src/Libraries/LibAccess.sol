@@ -8,7 +8,7 @@ import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 /// @notice Provides functionality for managing method level access control
 library LibAccess {
     /// Types ///
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.library.access.management")
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.library.access.management");
 
     /// Storage ///
     struct AccessStorage {
