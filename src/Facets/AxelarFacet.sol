@@ -9,7 +9,7 @@ import { IERC20 } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces
 
 contract AxelarFacet {
     /// Storage
-    bytes32 internal constant NAMESPACE = hex"c7ba6016a551f7f07fd4821271b8773baf38cf0831912878e266bac50e0e4a9c"; // keccak256("com.lifi.facets.axelar")
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.axelar");
     struct Storage {
         IAxelarGateway gateway;
         IAxelarGasService gasReceiver;
