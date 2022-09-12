@@ -15,20 +15,12 @@ const config: AmarokConfig = {
     domain: 0,
   },
   goerli: {
-    connextHandler: '0x6c9a905Ab3f4495E2b47f5cA131ab71281E0546e',
-    domain: 3331,
+    connextHandler: '0xB4C1340434920d70aD774309C75f9a4B679d801e',
+    domain: 1735353714,
   },
-  rinkeby: {
-    connextHandler: '0x4cAA6358a3d9d1906B5DABDE60A626AAfD80186F',
-    domain: 1111,
-  },
-  mumbai: {
-    connextHandler: '0x765cbd312ad84A791908000DF58d879e4eaf768b',
-    domain: 9991,
-  },
-  evmosTestnet: {
-    connextHandler: '0xd14d61FE8E1369957711C99a427d38A0d8Cc141C',
-    domain: 4441,
+  optimism_goerli: {
+    connextHandler: '0xe37f1f55eab648dA87047A03CB03DeE3d3fe7eC7',
+    domain: 1735356532,
   },
 }
 
