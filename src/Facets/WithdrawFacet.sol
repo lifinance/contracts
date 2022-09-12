@@ -11,10 +11,6 @@ import { LibAccess } from "../Libraries/LibAccess.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Allows admin to withdraw funds that are kept in the contract by accident
 contract WithdrawFacet {
-    /// Storage ///
-
-    address private constant NATIVE_ASSET = address(0);
-
     /// Errors ///
 
     error NotEnoughBalance(uint256 requested, uint256 available);
@@ -84,7 +80,7 @@ contract WithdrawFacet {
     ) internal {
         address sendTo = (_to == address(0)) ? msg.sender : _to;
         uint256 assetBalance;
-        if (_assetAddress == NATIVE_ASSET) {
+        if (_assetAddress == LibAsset.NATIVE_ASSETID) {
             if (_amount > address(this).balance) revert NotEnoughBalance(_amount, address(this).balance);
             // solhint-disable-next-line avoid-low-level-calls
             (bool success, ) = payable(sendTo).call{ value: _amount }("");

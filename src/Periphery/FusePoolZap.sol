@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.13;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { CannotDepositNativeToken, ZeroAmount } from "../Errors/GenericErrors.sol";
+import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
 
 interface IFusePool {
     function cTokensByUnderlying(address) external view returns (address);
@@ -21,6 +23,8 @@ interface IFusePoolDirectory {
 /// @author LI.FI (https://li.fi)
 /// @notice Allows anyone to quickly zap into a Rari Fuse Pool
 contract FusePoolZap {
+    using SafeERC20 for IERC20;
+
     /// Constants ///
     address private constant NULL_ADDRESS = address(0);
     IFusePoolDirectory private immutable fusePoolDirectory;
@@ -29,13 +33,11 @@ contract FusePoolZap {
 
     error InvalidPoolAddress(address);
     error InvalidSupplyToken(address);
-    error InvalidAmount(uint256);
-    error CannotDepositNativeToken();
     error MintingError(bytes);
 
     /// Events ///
 
-    event ZappedIn(address pool, address fToken, uint256 amount);
+    event ZappedIn(address indexed pool, address indexed fToken, uint256 amount);
 
     /// Constructor ///
 
@@ -59,8 +61,8 @@ contract FusePoolZap {
                 revert InvalidPoolAddress(_pool);
             }
 
-            if (_amount <= 0) {
-                revert InvalidAmount(_amount);
+            if (_amount == 0) {
+                revert ZeroAmount();
             }
 
             IFToken fToken = IFToken(IFusePool(_pool).cTokensByUnderlying(_supplyToken));
@@ -71,8 +73,10 @@ contract FusePoolZap {
 
             uint256 preMintBalance = IERC20(address(fToken)).balanceOf(address(this));
 
-            IERC20(_supplyToken).transferFrom(msg.sender, address(this), _amount);
-            IERC20(_supplyToken).approve(address(fToken), _amount);
+            LibAsset.transferFromERC20(_supplyToken, msg.sender, address(this), _amount);
+            IERC20(_supplyToken).safeApprove(address(fToken), 0);
+            IERC20(_supplyToken).safeApprove(address(fToken), _amount);
+
             fToken.mint(_amount);
 
             uint256 mintAmount = IERC20(address(fToken)).balanceOf(address(this)) - preMintBalance;
@@ -91,8 +95,8 @@ contract FusePoolZap {
                 revert InvalidPoolAddress(_pool);
             }
 
-            if (msg.value <= 0) {
-                revert InvalidAmount(msg.value);
+            if (msg.value == 0) {
+                revert ZeroAmount();
             }
 
             IFToken fToken = IFToken(IFusePool(_pool).cTokensByUnderlying(NULL_ADDRESS));
