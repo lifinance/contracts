@@ -66,12 +66,11 @@ contract ExecutorTest is DSTest {
     }
 
     function testCanExecuteAxelarPayload() public {
-        address recoveryAddress = address(this);
         executor.execute(
             bytes32("abcde"),
             "polygon",
             "0x1234",
-            abi.encodePacked(address(setter), recoveryAddress, abi.encodeWithSignature("setMessage(string)", "lifi"))
+            abi.encodePacked(address(setter), abi.encodeWithSignature("setMessage(string)", "lifi"))
         );
 
         assertEq(setter.message(), "lifi");
