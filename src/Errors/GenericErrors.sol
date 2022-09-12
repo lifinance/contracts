@@ -15,3 +15,5 @@ error NoTransferToNullAddress();
 error NativeAssetTransferFailed();
 error InvalidContract();
 error InvalidConfig();
+error OnlyContractOwner();
+error CannotAuthoriseSelf();

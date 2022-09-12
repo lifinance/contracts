@@ -12,7 +12,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 library LibAsset {
     uint256 private constant MAX_INT = type(uint256).max;
 
-    address internal constant NULL_ADDRESS = 0x0000000000000000000000000000000000000000; //address(0)
+    address internal constant NULL_ADDRESS = address(0);
 
     /// @dev All native assets use the empty address for their asset id
     ///      by convention
@@ -37,7 +37,8 @@ library LibAsset {
         if (!success) revert NativeAssetTransferFailed();
     }
 
-    /// @notice Gives MAX approval for another address to spend tokens
+    /// @notice If the current allowance is insufficient, the allowance for a given spender
+    /// is set to MAX_INT.
     /// @param assetId Token address to transfer
     /// @param spender Address to give spend approval to
     /// @param amount Amount to approve for spending
@@ -97,7 +98,7 @@ library LibAsset {
     ) internal {
         if (amount == 0) revert InvalidAmount();
         if (isNative) {
-            if (msg.value != amount) revert InvalidAmount();
+            if (msg.value < amount) revert InvalidAmount();
         } else {
             if (msg.value != 0) revert NativeValueWithERC();
             transferFromERC20(tokenId, msg.sender, address(this), amount);

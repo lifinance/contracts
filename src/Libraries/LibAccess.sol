@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
+
 /// @title Access Library
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for managing method level access control
@@ -30,6 +32,9 @@ library LibAccess {
     /// @param selector The method selector to execute
     /// @param executor The address to grant permission to
     function addAccess(bytes4 selector, address executor) internal {
+        if (executor == address(this)) {
+            revert CannotAuthoriseSelf();
+        }
         AccessStorage storage accStor = accessStorage();
         accStor.execAccess[selector][executor] = true;
     }
