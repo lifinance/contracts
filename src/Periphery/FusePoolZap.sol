@@ -2,6 +2,7 @@
 pragma solidity 0.8.13;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { CannotDepositNativeToken, ZeroAmount } from "../Errors/GenericErrors.sol";
 
 interface IFusePool {
     function cTokensByUnderlying(address) external view returns (address);
@@ -30,7 +31,6 @@ contract FusePoolZap {
     error InvalidPoolAddress(address);
     error InvalidSupplyToken(address);
     error InvalidAmount(uint256);
-    error CannotDepositNativeToken();
     error MintingError(bytes);
 
     /// Events ///
@@ -59,8 +59,8 @@ contract FusePoolZap {
                 revert InvalidPoolAddress(_pool);
             }
 
-            if (_amount <= 0) {
-                revert InvalidAmount(_amount);
+            if (_amount == 0) {
+                revert ZeroAmount();
             }
 
             IFToken fToken = IFToken(IFusePool(_pool).cTokensByUnderlying(_supplyToken));
@@ -91,8 +91,8 @@ contract FusePoolZap {
                 revert InvalidPoolAddress(_pool);
             }
 
-            if (msg.value <= 0) {
-                revert InvalidAmount(msg.value);
+            if (msg.value == 0) {
+                revert ZeroAmount();
             }
 
             IFToken fToken = IFToken(IFusePool(_pool).cTokensByUnderlying(NULL_ADDRESS));
