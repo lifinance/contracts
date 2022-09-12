@@ -77,7 +77,13 @@ async function main() {
     receiver: walletAddress,
     amount: amountOut,
     callData: '0x',
+    forceSlow: false,
+    receiveLocal: false,
+    callback: constants.AddressZero,
+    callbackFee: 0,
+    relayerFee: 0,
     slippageTol: 9995, // 9995 to tolerate .05% slippage
+    originMinOut: 0,
   }
 
   // Approve ERC20 for swapping -- USDC -> TestToken

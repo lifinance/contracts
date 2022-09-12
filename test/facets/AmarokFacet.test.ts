@@ -84,7 +84,13 @@ describe('AmarokFacet', function () {
         receiver: alice.address,
         amount: SEND_AMOUNT,
         callData: '0x',
+        forceSlow: false,
+        receiveLocal: false,
+        callback: ZERO_ADDRESS,
+        callbackFee: 0,
+        relayerFee: 0,
         slippageTol: 9995, // 9995 to tolerate .05% slippage
+        originMinOut: 0,
       }
 
       const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time

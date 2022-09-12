@@ -23,7 +23,13 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
         address receiver;
         uint256 amount;
         bytes callData;
+        bool forceSlow;
+        bool receiveLocal;
+        address callback;
+        uint256 callbackFee;
+        uint256 relayerFee;
         uint256 slippageTol;
+        uint256 originMinOut;
     }
 
     /// External Methods ///
@@ -127,16 +133,16 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
                 destinationDomain: _bridgeData.dstChainDomain,
                 agent: _bridgeData.receiver,
                 recovery: msg.sender,
-                forceSlow: false,
-                receiveLocal: false,
-                callback: address(0),
-                callbackFee: 0,
-                relayerFee: 0,
+                forceSlow: _bridgeData.forceSlow,
+                receiveLocal: _bridgeData.receiveLocal,
+                callback: _bridgeData.callback,
+                callbackFee: _bridgeData.callbackFee,
+                relayerFee: _bridgeData.relayerFee,
                 slippageTol: _bridgeData.slippageTol
             }),
             transactingAsset: _bridgeData.assetId,
             transactingAmount: _amount,
-            originMinOut: 0
+            originMinOut: _bridgeData.originMinOut
         });
 
         LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.connextHandler, _amount);
