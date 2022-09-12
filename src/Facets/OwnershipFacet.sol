@@ -4,6 +4,7 @@ pragma solidity 0.8.13;
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { IERC173 } from "../Interfaces/IERC173.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
 
 /// @title Ownership Facet
 /// @author LI.FI (https://li.fi)
@@ -55,10 +56,11 @@ contract OwnershipFacet is IERC173 {
     /// @notice Confirms transfer of ownership to the calling address (msg.sender)
     function confirmOwnershipTransfer() external {
         Storage storage s = getStorage();
-        if (msg.sender != s.newOwner) revert NotPendingOwner();
-        LibDiamond.setContractOwner(s.newOwner);
-        s.newOwner = address(0);
-        emit OwnershipTransferred(LibDiamond.contractOwner(), s.newOwner);
+        address _pendingOwner = s.newOwner;
+        if (msg.sender != _pendingOwner) revert NotPendingOwner();
+        emit OwnershipTransferred(LibDiamond.contractOwner(), _pendingOwner);
+        LibDiamond.setContractOwner(_pendingOwner);
+        s.newOwner = LibAsset.NULL_ADDRESS;
     }
 
     /// @notice Return the current owner address

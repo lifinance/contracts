@@ -4,6 +4,7 @@ pragma solidity 0.8.13;
 import { IAxelarGasService } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGasService.sol";
 import { IAxelarGateway } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGateway.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
 import { IERC20 } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IERC20.sol";
 
 contract AxelarFacet {
@@ -67,7 +68,7 @@ contract AxelarFacet {
         Storage storage s = getStorage();
 
         address tokenAddress = s.gateway.tokenAddresses(symbol);
-        IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
+        LibAsset.transferFromERC20(tokenAddress, msg.sender, address(this), amount);
         IERC20(tokenAddress).approve(address(s.gateway), amount);
 
         bytes memory payload = abi.encodePacked(callTo, callData);

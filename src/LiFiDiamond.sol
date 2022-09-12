@@ -6,6 +6,11 @@ import { IDiamondCut } from "./Interfaces/IDiamondCut.sol";
 import { LibUtil } from "./Libraries/LibUtil.sol";
 
 contract LiFiDiamond {
+    // LiFiDiamond specific errors
+    error FunctionDoesNotExist();
+
+    // ---------------------------
+
     constructor(address _contractOwner, address _diamondCutFacet) payable {
         LibDiamond.setContractOwner(_contractOwner);
 
@@ -36,7 +41,9 @@ contract LiFiDiamond {
 
         // get facet from function selector
         address facet = ds.selectorToFacetAndPosition[msg.sig].facetAddress;
-        require(!LibUtil.isZeroAddress(facet), "Diamond: Function does not exist");
+        if (LibUtil.isZeroAddress(facet)) {
+            revert FunctionDoesNotExist();
+        }
 
         // Execute external function from facet using delegatecall and return any value.
         // solhint-disable-next-line no-inline-assembly

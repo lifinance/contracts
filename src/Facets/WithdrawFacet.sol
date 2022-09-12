@@ -86,9 +86,7 @@ contract WithdrawFacet {
         address sendTo = (LibUtil.isZeroAddress(_to)) ? msg.sender : _to;
         uint256 assetBalance;
         if (_assetAddress == NATIVE_ASSET) {
-            address self = address(this); // workaround for a possible solidity bug
-
-            if (_amount > self.balance) revert NotEnoughBalance(_amount, self.balance);
+            if (_amount > address(this).balance) revert NotEnoughBalance(_amount, address(this).balance);
             // solhint-disable-next-line avoid-low-level-calls
             (bool success, ) = payable(sendTo).call{ value: _amount }("");
             if (!success) revert WithdrawFailed();

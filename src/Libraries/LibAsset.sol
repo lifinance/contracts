@@ -37,7 +37,8 @@ library LibAsset {
         if (!success) revert NativeAssetTransferFailed();
     }
 
-    /// @notice Gives MAX approval for another address to spend tokens
+    /// @notice If the current allowance is insufficient, the allowance for a given spender
+    /// is set to MAX_INT.
     /// @param assetId Token address to transfer
     /// @param spender Address to give spend approval to
     /// @param amount Amount to approve for spending
@@ -79,7 +80,11 @@ library LibAsset {
     ) internal {
         if (assetId == NATIVE_ASSETID) revert NullAddrIsNotAnERC20Token();
         if (to == NULL_ADDRESS) revert NoTransferToNullAddress();
-        SafeERC20.safeTransferFrom(IERC20(assetId), from, to, amount);
+
+        IERC20 asset = IERC20(assetId);
+        uint256 prevBalance = asset.balanceOf(to);
+        SafeERC20.safeTransferFrom(asset, from, to, amount);
+        if (asset.balanceOf(to) - prevBalance != amount) revert InvalidAmount();
     }
 
     /// @notice Deposits an asset into the contract and performs checks to avoid NativeValueWithERC
@@ -93,12 +98,10 @@ library LibAsset {
     ) internal {
         if (amount == 0) revert InvalidAmount();
         if (isNative) {
-            if (msg.value != amount) revert InvalidAmount();
+            if (msg.value < amount) revert InvalidAmount();
         } else {
             if (msg.value != 0) revert NativeValueWithERC();
-            uint256 _fromTokenBalance = LibAsset.getOwnBalance(tokenId);
-            LibAsset.transferFromERC20(tokenId, msg.sender, address(this), amount);
-            if (LibAsset.getOwnBalance(tokenId) - _fromTokenBalance != amount) revert InvalidAmount();
+            transferFromERC20(tokenId, msg.sender, address(this), amount);
         }
     }
 

@@ -23,6 +23,9 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 amount;
         bytes callData;
         uint256 slippageTol;
+        address tokenFallback;
+        uint256 callbackFee;
+        uint256 relayerFee;
     }
 
     /// Errors ///
@@ -129,12 +132,12 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
                 originDomain: _bridgeData.srcChainDomain,
                 destinationDomain: _bridgeData.dstChainDomain,
                 agent: _bridgeData.receiver,
-                recovery: msg.sender,
+                recovery: _bridgeData.tokenFallback,
                 forceSlow: false,
                 receiveLocal: false,
                 callback: address(0),
-                callbackFee: 0,
-                relayerFee: 0,
+                callbackFee: _bridgeData.callbackFee,
+                relayerFee: _bridgeData.relayerFee,
                 slippageTol: _bridgeData.slippageTol
             }),
             transactingAssetId: _bridgeData.assetId,
