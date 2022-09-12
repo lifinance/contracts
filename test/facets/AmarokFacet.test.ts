@@ -56,11 +56,11 @@ describe('AmarokFacet', function () {
 
       await network.provider.request({
         method: 'hardhat_impersonateAccount',
-        params: ['0x741f38aA8d1dF67c719F4473641BE85EB8A63DEE'],
+        params: ['0x9Dc99fAf98d363Ec0909D1f5C3627dDdEA2a85D4'],
       })
 
       alice = await ethers.getSigner(
-        '0x741f38aA8d1dF67c719F4473641BE85EB8A63DEE'
+        '0x9Dc99fAf98d363Ec0909D1f5C3627dDdEA2a85D4'
       )
 
       testToken = ERC20__factory.connect(GOERLI_TOKEN_ADDRESS, alice)
@@ -132,7 +132,7 @@ describe('AmarokFacet', function () {
         {
           forking: {
             jsonRpcUrl: node_url('goerli'),
-            blockNumber: 7486814,
+            blockNumber: 7487011,
           },
         },
       ],
@@ -187,14 +187,14 @@ describe('AmarokFacet', function () {
         const bridgeData = {
           ...validBridgeData,
           assetId: ZERO_ADDRESS,
-          amount: utils.parseEther('0.3'),
+          amount: utils.parseEther('3'),
         }
 
         await expect(
           lifi
             .connect(alice)
             .startBridgeTokensViaAmarok(validLiFiData, bridgeData, {
-              value: utils.parseEther('0.3'),
+              value: utils.parseEther('3'),
             })
         ).to.be.revertedWith('TokenAddressIsZero()')
       })
@@ -262,7 +262,7 @@ describe('AmarokFacet', function () {
         const bridgeData = {
           ...validBridgeData,
           assetId: ZERO_ADDRESS,
-          amount: utils.parseEther('0.3'),
+          amount: utils.parseEther('3'),
         }
 
         await expect(
@@ -273,7 +273,7 @@ describe('AmarokFacet', function () {
               swapData,
               bridgeData,
               {
-                value: utils.parseEther('0.3'),
+                value: utils.parseEther('3'),
               }
             )
         ).to.be.revertedWith('TokenAddressIsZero()')
