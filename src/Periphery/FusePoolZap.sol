@@ -30,7 +30,6 @@ contract FusePoolZap {
     error InvalidPoolAddress(address);
     error InvalidSupplyToken(address);
     error InvalidAmount(uint256);
-    error CannotDepositNativeToken();
     error MintingError(bytes);
 
     /// Events ///

@@ -25,7 +25,6 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// Errors ///
 
-    error InvalidConfig();
     error InvalidReceiver();
 
     /// External Methods ///
