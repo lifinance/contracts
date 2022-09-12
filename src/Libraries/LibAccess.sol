@@ -18,6 +18,10 @@ library LibAccess {
     /// Errors ///
     error UnAuthorized();
 
+    /// Events ///
+    event AccessGranted(address indexed account, bytes4 indexed method);
+    event AccessRevoked(address indexed account, bytes4 indexed method);
+
     /// @dev Fetch local storage
     function accessStorage() internal pure returns (AccessStorage storage accStor) {
         bytes32 position = NAMESPACE;
@@ -36,6 +40,7 @@ library LibAccess {
         }
         AccessStorage storage accStor = accessStorage();
         accStor.execAccess[selector][executor] = true;
+        emit AccessGranted(executor, selector);
     }
 
     /// @notice Revokes permission to execute a method
@@ -44,6 +49,7 @@ library LibAccess {
     function removeAccess(bytes4 selector, address executor) internal {
         AccessStorage storage accStor = accessStorage();
         accStor.execAccess[selector][executor] = false;
+        emit AccessRevoked(executor, selector);
     }
 
     /// @notice Enforces access control by reverting if `msg.sender`
