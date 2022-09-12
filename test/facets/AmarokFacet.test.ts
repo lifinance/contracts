@@ -86,7 +86,6 @@ describe('AmarokFacet', function () {
       validBridgeData = {
         connextHandler: config['rinkeby'].connextHandler,
         assetId: RINKEBY_TOKEN_ADDRESS,
-        srcChainDomain: config['rinkeby'].domain,
         dstChainDomain: config['goerli'].domain,
         receiver: alice.address,
         amount: SEND_AMOUNT,

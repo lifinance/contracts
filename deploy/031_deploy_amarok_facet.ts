@@ -1,6 +1,7 @@
-import { ethers } from 'hardhat'
+import { ethers, network } from 'hardhat';
 import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
+import config from '../config/amarok'
 import { addOrReplaceFacets } from '../utils/diamond'
 import { verifyContract } from './9999_verify_all_facets'
 
@@ -9,10 +10,17 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
+  const domain = config[network.name].domain
+  if (!domain) {
+    console.log(`No config for ${network.name}. Skipping...`)
+    return
+  }
+  
   await deploy('AmarokFacet', {
     from: deployer,
     log: true,
     deterministicDeployment: true,
+    args: [domain]
   })
 
   const amarokFacet = await ethers.getContract('AmarokFacet')

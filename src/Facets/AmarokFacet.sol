@@ -13,12 +13,17 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Connext Amarok
 contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
+    uint32 immutable srcChainDomain;
+
+    constructor(uint32 _srcChainDomain) {
+        srcChainDomain = _srcChainDomain;
+    }
+    
     /// Types ///
 
     struct BridgeData {
         address connextHandler;
         address assetId;
-        uint32 srcChainDomain;
         uint32 dstChainDomain;
         address receiver;
         uint256 amount;
@@ -130,7 +135,7 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
             params: IConnextHandler.CallParams({
                 to: _bridgeData.receiver,
                 callData: _bridgeData.callData,
-                originDomain: _bridgeData.srcChainDomain,
+                originDomain: srcChainDomain,
                 destinationDomain: _bridgeData.dstChainDomain,
                 agent: _bridgeData.receiver,
                 recovery: _bridgeData.tokenFallback,
