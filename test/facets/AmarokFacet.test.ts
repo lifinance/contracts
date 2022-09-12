@@ -91,7 +91,10 @@ describe('AmarokFacet', function () {
         receiver: alice.address,
         amount: SEND_AMOUNT,
         callData: '0x',
-        slippageTol: 9995, // 9995 to tolerate .05% slippage
+        slippageTol: 9995, // 9995 to tolerate .05% slippage,
+        tokenFallback: alice.address,
+        callbackFee: 0,
+        relayerFee: 0,
       }
 
       const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
@@ -278,10 +281,7 @@ describe('AmarokFacet', function () {
             .swapAndStartBridgeTokensViaAmarok(
               validLiFiData,
               swapData,
-              bridgeData,
-              {
-                value: utils.parseEther('5'),
-              }
+              bridgeData
             )
         ).to.be.revertedWith('TokenAddressIsZero()')
       })

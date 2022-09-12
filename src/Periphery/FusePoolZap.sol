@@ -24,7 +24,7 @@ contract FusePoolZap {
     using SafeERC20 for IERC20;
 
     /// Constants ///
-    address private constant NULL_ADDRESS = 0x0000000000000000000000000000000000000000;
+    address private constant NULL_ADDRESS = address(0);
     IFusePoolDirectory private immutable fusePoolDirectory;
 
     /// Errors ///
@@ -110,12 +110,10 @@ contract FusePoolZap {
             (bool success, bytes memory res) = address(fToken).call{ value: msg.value }(
                 abi.encodeWithSignature("mint()")
             );
-            uint256 mintAmount = IERC20(address(fToken)).balanceOf(address(this));
+            uint256 mintAmount = IERC20(address(fToken)).balanceOf(address(this)) - preMintBalance;
             if (!success && mintAmount == 0) {
                 revert MintingError(res);
             }
-
-            mintAmount = mintAmount - preMintBalance;
 
             IERC20(address(fToken)).transfer(msg.sender, mintAmount);
 

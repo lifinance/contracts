@@ -83,7 +83,7 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (lifiData.destinationChainId != GNOSIS_CHAIN_ID) {
             revert InvalidDstChainId();
         }
-        if (lifiData.sendingAssetId != DAI) {
+        if (lifiData.sendingAssetId != DAI || swapData[swapData.length - 1].receivingAssetId != DAI) {
             revert InvalidSendingToken();
         }
 

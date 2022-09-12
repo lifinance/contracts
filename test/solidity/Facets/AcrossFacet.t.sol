@@ -66,7 +66,7 @@ contract AcrossFacetTest is DSTest, DiamondTest {
             WETH_ADDRESS,
             SPOKE_POOL,
             ETH_HOLDER,
-            0x0000000000000000000000000000000000000000, // token
+            address(0), // token
             1000000000000000000, // amt
             137, // Polygon chain id
             0, // Relayer fee

@@ -8,4 +8,4 @@ Facets that use swapping inherit from the `Swapper.sol` contract which checks th
 
 ## Caution
 
-The DEX Manager manages which contracts and functions can be executed through the LiFi main contract. This can be updated by a single admin key which if compromised could lead to malicious code being added to the allow list.
+The DEX Manager manages which contracts and functions can be executed through the LI.FI main contract. This can be updated by a single admin key which if compromised could lead to malicious code being added to the allow list.
