@@ -8,8 +8,7 @@ import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 /// @notice Provides functionality for managing method level access control
 library LibAccess {
     /// Types ///
-    bytes32 internal constant ACCESS_MANAGEMENT_POSITION =
-        hex"df05114fe8fad5d7cd2d71c5651effc2a4c21f13ee8b4a462e2a3bd4e140c73e"; // keccak256("com.lifi.library.access.management")
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.library.access.management");
 
     /// Storage ///
     struct AccessStorage {
@@ -25,8 +24,7 @@ library LibAccess {
 
     /// @dev Fetch local storage
     function accessStorage() internal pure returns (AccessStorage storage accStor) {
-        bytes32 position = ACCESS_MANAGEMENT_POSITION;
-
+        bytes32 position = NAMESPACE;
         // solhint-disable-next-line no-inline-assembly
         assembly {
             accStor.slot := position
