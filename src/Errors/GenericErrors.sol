@@ -15,6 +15,7 @@ error NoTransferToNullAddress();
 error NativeAssetTransferFailed();
 error InvalidContract();
 error InvalidConfig();
+error InvalidReceiver();
 error OnlyContractOwner();
 error CannotAuthoriseSelf();
 error CannotDepositNativeToken();
