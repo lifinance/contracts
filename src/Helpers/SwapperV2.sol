@@ -19,7 +19,7 @@ contract SwapperV2 is ILiFi {
     /// Modifiers ///
 
     /// @dev Sends any leftover balances back to the user
-    modifier noLeftovers(LibSwap.SwapData[] calldata _swapData, address payable _receiver) {
+    modifier noLeftovers(LibSwap.SwapData[] calldata _swapData, address payable _leftoverReceiver) {
         uint256 nSwaps = _swapData.length;
         if (nSwaps != 1) {
             uint256[] memory initialBalances = _fetchBalances(_swapData);
@@ -33,7 +33,7 @@ contract SwapperV2 is ILiFi {
                 if (curAsset == finalAsset) continue; // Handle multi-to-one swaps
                 newBalance = LibAsset.getOwnBalance(curAsset);
                 curBalance = newBalance > initialBalances[i] ? newBalance - initialBalances[i] : newBalance;
-                if (curBalance > 0) LibAsset.transferAsset(curAsset, _receiver, curBalance);
+                if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
             }
         } else _;
     }
@@ -43,17 +43,17 @@ contract SwapperV2 is ILiFi {
     /// @dev Validates input before executing swaps
     /// @param _lifiData LiFi tracking data
     /// @param _swapData Array of data used to execute swaps
-    /// @param _receiver The address to send leftover funds to
+    /// @param _leftoverReceiver The address to send leftover funds to
     function _executeAndCheckSwaps(
         LiFiData memory _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        address payable _receiver
+        address payable _leftoverReceiver
     ) internal returns (uint256) {
         uint256 nSwaps = _swapData.length;
         if (nSwaps == 0) revert NoSwapDataProvided();
         address finalTokenId = _swapData[_swapData.length - 1].receivingAssetId;
         uint256 swapBalance = LibAsset.getOwnBalance(finalTokenId);
-        _executeSwaps(_lifiData, _swapData, _receiver);
+        _executeSwaps(_lifiData, _swapData, _leftoverReceiver);
         uint256 newBalance = LibAsset.getOwnBalance(finalTokenId);
         swapBalance = newBalance > swapBalance ? newBalance - swapBalance : newBalance;
         if (swapBalance == 0) revert InvalidAmount();
@@ -68,8 +68,8 @@ contract SwapperV2 is ILiFi {
     function _executeSwaps(
         LiFiData memory _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        address payable _receiver
-    ) internal noLeftovers(_swapData, _receiver) {
+        address payable _leftoverReceiver
+    ) internal noLeftovers(_swapData, _leftoverReceiver) {
         for (uint256 i = 0; i < _swapData.length; i++) {
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
             if (
