@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.13;
 
+import { CannotDepositNativeToken, ZeroAmount } from "../Errors/GenericErrors.sol";
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 
@@ -32,8 +33,6 @@ contract FusePoolZap {
 
     error InvalidPoolAddress(address);
     error InvalidSupplyToken(address);
-    error InvalidAmount(uint256);
-    error CannotDepositNativeToken();
     error MintingError(bytes);
 
     /// Events ///
@@ -62,8 +61,8 @@ contract FusePoolZap {
                 revert InvalidPoolAddress(_pool);
             }
 
-            if (_amount <= 0) {
-                revert InvalidAmount(_amount);
+            if (_amount == 0) {
+                revert ZeroAmount();
             }
 
             IFToken fToken = IFToken(IFusePool(_pool).cTokensByUnderlying(_supplyToken));
@@ -96,8 +95,8 @@ contract FusePoolZap {
                 revert InvalidPoolAddress(_pool);
             }
 
-            if (msg.value <= 0) {
-                revert InvalidAmount(msg.value);
+            if (msg.value == 0) {
+                revert ZeroAmount();
             }
 
             IFToken fToken = IFToken(IFusePool(_pool).cTokensByUnderlying(NULL_ADDRESS));
