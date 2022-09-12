@@ -8,11 +8,7 @@ interface AmarokConfig {
 const config: AmarokConfig = {
   hardhat: {
     connextHandler: '',
-    domain: 0,
-  },
-  mainnet: {
-    connextHandler: '',
-    domain: 0,
+    domain: 1735353714
   },
   goerli: {
     connextHandler: '0xB4C1340434920d70aD774309C75f9a4B679d801e',

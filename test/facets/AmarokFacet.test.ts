@@ -79,7 +79,6 @@ describe('AmarokFacet', function () {
       validBridgeData = {
         connextHandler: config['goerli'].connextHandler,
         assetId: GOERLI_TOKEN_ADDRESS,
-        srcChainDomain: config['goerli'].domain,
         dstChainDomain: config['optimism_goerli'].domain,
         receiver: alice.address,
         amount: SEND_AMOUNT,
