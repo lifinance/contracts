@@ -3,6 +3,7 @@ pragma solidity 0.8.13;
 
 import { LibDiamond } from "./Libraries/LibDiamond.sol";
 import { IDiamondCut } from "./Interfaces/IDiamondCut.sol";
+import { LibUtil } from "./Libraries/LibUtil.sol";
 
 contract LiFiDiamond {
     // LiFiDiamond specific errors
@@ -40,7 +41,7 @@ contract LiFiDiamond {
 
         // get facet from function selector
         address facet = ds.selectorToFacetAndPosition[msg.sig].facetAddress;
-        if (facet == address(0)) {
+        if (LibUtil.isZeroAddress(facet)) {
             revert FunctionDoesNotExist();
         }
 

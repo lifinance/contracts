@@ -4,6 +4,7 @@ pragma solidity 0.8.13;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
 
@@ -78,7 +79,7 @@ contract WithdrawFacet {
         address _to,
         uint256 _amount
     ) internal {
-        address sendTo = (_to == address(0)) ? msg.sender : _to;
+        address sendTo = (LibUtil.isZeroAddress(_to)) ? msg.sender : _to;
         uint256 assetBalance;
         if (_assetAddress == LibAsset.NATIVE_ASSETID) {
             if (_amount > address(this).balance) revert NotEnoughBalance(_amount, address(this).balance);

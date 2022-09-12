@@ -3,11 +3,10 @@ pragma solidity 0.8.13;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IAnyswapRouter } from "../Interfaces/IAnyswapRouter.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { IAnyswapToken } from "../Interfaces/IAnyswapToken.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { TokenAddressIsZero, InvalidAmount, CannotBridgeToSameNetwork, NativeValueWithERC } from "../Errors/GenericErrors.sol";
+import { TokenAddressIsZero, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Anyswap Facet
@@ -64,7 +63,7 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         AnyswapData memory _anyswapData
     ) external payable nonReentrant {
-        if (_anyswapData.token == address(0)) revert TokenAddressIsZero();
+        if (LibAsset.isNativeAsset(_anyswapData.token)) revert TokenAddressIsZero();
         _anyswapData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         (address underlyingToken, bool isNative) = _getUnderlyingToken(_anyswapData.token, _anyswapData.router);
         _startBridge(_anyswapData, underlyingToken, isNative);
@@ -95,12 +94,12 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
         returns (address underlyingToken, bool isNative)
     {
         // Token must implement IAnyswapToken interface
-        if (token == address(0)) revert TokenAddressIsZero();
+        if (LibAsset.isNativeAsset(token)) revert TokenAddressIsZero();
         underlyingToken = IAnyswapToken(token).underlying();
         // The native token does not use the standard null address ID
         isNative = IAnyswapRouter(router).wNATIVE() == underlyingToken;
         // Some Multichain complying tokens may wrap nothing
-        if (!isNative && underlyingToken == address(0)) {
+        if (!isNative && LibAsset.isNativeAsset(underlyingToken)) {
             underlyingToken = token;
         }
     }

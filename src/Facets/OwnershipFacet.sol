@@ -3,6 +3,7 @@ pragma solidity 0.8.13;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { IERC173 } from "../Interfaces/IERC173.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 
 /// @title Ownership Facet
@@ -35,7 +36,7 @@ contract OwnershipFacet is IERC173 {
         LibDiamond.enforceIsContractOwner();
         Storage storage s = getStorage();
 
-        if (_newOwner == address(0)) revert NoNullOwner();
+        if (LibUtil.isZeroAddress(_newOwner)) revert NoNullOwner();
 
         if (_newOwner == LibDiamond.contractOwner()) revert NewOwnerMustNotBeSelf();
 
@@ -48,7 +49,7 @@ contract OwnershipFacet is IERC173 {
         LibDiamond.enforceIsContractOwner();
         Storage storage s = getStorage();
 
-        if (s.newOwner == address(0)) revert NoPendingOwnershipTransfer();
+        if (LibUtil.isZeroAddress(s.newOwner)) revert NoPendingOwnershipTransfer();
         s.newOwner = address(0);
     }
 

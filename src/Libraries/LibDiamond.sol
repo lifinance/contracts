@@ -2,6 +2,7 @@
 pragma solidity 0.8.13;
 
 import { IDiamondCut } from "../Interfaces/IDiamondCut.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { OnlyContractOwner } from "../Errors/GenericErrors.sol";
 
 library LibDiamond {
@@ -100,7 +101,7 @@ library LibDiamond {
             revert NoSelectorsInFace();
         }
         DiamondStorage storage ds = diamondStorage();
-        if (_facetAddress == address(0)) {
+        if (LibUtil.isZeroAddress(_facetAddress)) {
             revert FacetAddressIsZero();
         }
         uint96 selectorPosition = uint96(ds.facetFunctionSelectors[_facetAddress].functionSelectors.length);
@@ -111,7 +112,7 @@ library LibDiamond {
         for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; selectorIndex++) {
             bytes4 selector = _functionSelectors[selectorIndex];
             address oldFacetAddress = ds.selectorToFacetAndPosition[selector].facetAddress;
-            if (oldFacetAddress != address(0)) {
+            if (!LibUtil.isZeroAddress(oldFacetAddress)) {
                 revert FunctionAlreadyExists();
             }
             addFunction(ds, selector, selectorPosition, _facetAddress);
@@ -124,7 +125,7 @@ library LibDiamond {
             revert NoSelectorsInFace();
         }
         DiamondStorage storage ds = diamondStorage();
-        if (_facetAddress == address(0)) {
+        if (LibUtil.isZeroAddress(_facetAddress)) {
             revert FacetAddressIsZero();
         }
         uint96 selectorPosition = uint96(ds.facetFunctionSelectors[_facetAddress].functionSelectors.length);
@@ -150,7 +151,7 @@ library LibDiamond {
         }
         DiamondStorage storage ds = diamondStorage();
         // if function does not exist then do nothing and return
-        if (_facetAddress != address(0)) {
+        if (!LibUtil.isZeroAddress(_facetAddress)) {
             revert FacetAddressIsNotZero();
         }
         for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; selectorIndex++) {
@@ -182,7 +183,7 @@ library LibDiamond {
         address _facetAddress,
         bytes4 _selector
     ) internal {
-        if (_facetAddress == address(0)) {
+        if (LibUtil.isZeroAddress(_facetAddress)) {
             revert FunctionDoesNotExist();
         }
         // an immutable function is a function defined directly in a diamond
@@ -218,7 +219,7 @@ library LibDiamond {
     }
 
     function initializeDiamondCut(address _init, bytes memory _calldata) internal {
-        if (_init == address(0)) {
+        if (LibUtil.isZeroAddress(_init)) {
             if (_calldata.length != 0) {
                 revert InitZeroButCalldataNotEmpty();
             }
