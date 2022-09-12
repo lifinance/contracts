@@ -13,6 +13,9 @@ contract PeripheryRegistryFacet {
         mapping(string => address) contracts;
     }
 
+    /// Events ///
+    event PeripheryContractRegistered(string name, address contractAddress);
+
     /// @notice Registers a periphery contract address with a specified name
     /// @param _name the name to register the contract address under
     /// @param _contractAddress the address of the contract to register
@@ -20,6 +23,7 @@ contract PeripheryRegistryFacet {
         LibDiamond.enforceIsContractOwner();
         Storage storage s = getStorage();
         s.contracts[_name] = _contractAddress;
+        emit PeripheryContractRegistered(_name, _contractAddress);
     }
 
     /// @notice Returns the registered contract address by its name
