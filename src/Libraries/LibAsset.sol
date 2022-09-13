@@ -90,7 +90,7 @@ library LibAsset {
     /// @notice Deposits an asset into the contract and performs checks to avoid NativeValueWithERC
     /// @param tokenId Token to deposit
     /// @param amount Amount to deposit
-    /// @param isNative Wether the token is native or ERC20
+    /// @param isNative Whether the token is native or ERC20
     function depositAsset(
         address tokenId,
         uint256 amount,
@@ -98,9 +98,30 @@ library LibAsset {
     ) internal {
         if (amount == 0) revert InvalidAmount();
         if (isNative) {
-            if (msg.value < amount) revert InvalidAmount();
+            if (msg.value != amount) revert InvalidAmount();
         } else {
             if (msg.value != 0) revert NativeValueWithERC();
+            transferFromERC20(tokenId, msg.sender, address(this), amount);
+        }
+    }
+
+    /// @notice Deposits an asset into the contract and performs checks to avoid NativeValueWithERC
+    /// @dev It checks with the additional fee provided via msg.value
+    /// @param tokenId Token to deposit
+    /// @param amount Amount to deposit
+    /// @param isNative Whether the token is native or ERC20
+    /// @param fee Additional fee should be provided via msg.value
+    function depositAssetWithFee(
+        address tokenId,
+        uint256 amount,
+        bool isNative,
+        uint256 fee
+    ) internal {
+        if (amount == 0) revert InvalidAmount();
+        if (isNative) {
+            if (msg.value != amount + fee) revert InvalidAmount();
+        } else {
+            if (msg.value != fee) revert NativeValueWithERC();
             transferFromERC20(tokenId, msg.sender, address(this), amount);
         }
     }
@@ -110,6 +131,18 @@ library LibAsset {
     /// @param amount Amount to deposit
     function depositAsset(address tokenId, uint256 amount) internal {
         return depositAsset(tokenId, amount, tokenId == NATIVE_ASSETID);
+    }
+
+    /// @notice Overload for depositAssetWithFee(address tokenId, uint256 amount, bool isNative, uint256 fee)
+    /// @param tokenId Token to deposit
+    /// @param amount Amount to deposit
+    /// @param fee Additional fee should be provided via msg.value
+    function depositAssetWithFee(
+        address tokenId,
+        uint256 amount,
+        uint256 fee
+    ) internal {
+        return depositAssetWithFee(tokenId, amount, tokenId == NATIVE_ASSETID, fee);
     }
 
     /// @notice Determines whether the given assetId is the native asset
