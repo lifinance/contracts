@@ -119,7 +119,7 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// @dev Contains the business logic for the bridge via NXTP
     /// @param _nxtpData data specific to NXTP
-    function _startBridge(NXTPData memory _nxtpData) private returns (bytes32) {
+    function _startBridge(NXTPData memory _nxtpData) private {
         ITransactionManager txManager = ITransactionManager(_nxtpData.nxtpTxManager);
         IERC20 sendingAssetId = IERC20(_nxtpData.invariantData.sendingAssetId);
         // Give Connext approval to bridge tokens
@@ -128,7 +128,7 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId)) ? _nxtpData.amount : 0;
 
         // Initiate bridge transaction on sending chain
-        ITransactionManager.TransactionData memory result = txManager.prepare{ value: value }(
+        txManager.prepare{ value: value }(
             ITransactionManager.PrepareArgs(
                 _nxtpData.invariantData,
                 _nxtpData.amount,
@@ -139,6 +139,5 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
                 _nxtpData.encodedMeta
             )
         );
-        return result.transactionId;
     }
 }
