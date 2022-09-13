@@ -28,13 +28,12 @@ contract AxelarFacet {
     /// @param callTo the address of the contract to call
     /// @param callData the encoded calldata for the contract call
     function executeCallViaAxelar(
-        string memory destinationChain,
-        string memory destinationAddress,
+        string calldata destinationChain,
+        string calldata destinationAddress,
         address callTo,
         bytes calldata callData
     ) external payable {
         Storage storage s = getStorage();
-
         bytes memory payload = abi.encodePacked(callTo, callData);
 
         // Pay gas up front
@@ -57,9 +56,9 @@ contract AxelarFacet {
     /// @param callTo the address of the contract to call
     /// @param callData the encoded calldata for the contract call
     function executeCallWithTokenViaAxelar(
-        string memory destinationChain,
-        string memory destinationAddress,
-        string memory symbol,
+        string calldata destinationChain,
+        string calldata destinationAddress,
+        string calldata symbol,
         uint256 amount,
         address callTo,
         bytes calldata callData
@@ -67,7 +66,6 @@ contract AxelarFacet {
         Storage storage s = getStorage();
 
         address tokenAddress = s.gateway.tokenAddresses(symbol);
-
         LibAsset.transferFromERC20(tokenAddress, msg.sender, address(this), amount);
         LibAsset.maxApproveERC20(IERC20(tokenAddress), address(s.gateway), amount);
 
@@ -75,18 +73,29 @@ contract AxelarFacet {
 
         // Pay gas up front
         if (msg.value > 0) {
-            s.gasReceiver.payNativeGasForContractCallWithToken{ value: msg.value }(
-                address(this),
-                destinationChain,
-                destinationAddress,
-                payload,
-                symbol,
-                amount,
-                msg.sender
-            );
+            _payGasWithToken(s, destinationChain, destinationAddress, symbol, amount, payload);
         }
 
         s.gateway.callContractWithToken(destinationChain, destinationAddress, payload, symbol, amount);
+    }
+
+    function _payGasWithToken(
+        Storage storage s,
+        string calldata destinationChain,
+        string calldata destinationAddress,
+        string calldata symbol,
+        uint256 amount,
+        bytes memory payload
+    ) private {
+        s.gasReceiver.payNativeGasForContractCallWithToken{ value: msg.value }(
+            address(this),
+            destinationChain,
+            destinationAddress,
+            payload,
+            symbol,
+            amount,
+            msg.sender
+        );
     }
 
     /// @dev fetch local storage
