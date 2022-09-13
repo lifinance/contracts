@@ -3,6 +3,7 @@ pragma solidity 0.8.13;
 
 import { LibDiamond } from "./Libraries/LibDiamond.sol";
 import { IDiamondCut } from "./Interfaces/IDiamondCut.sol";
+import { LibUtil } from "./Libraries/LibUtil.sol";
 
 contract LiFiDiamond {
     constructor(address _contractOwner, address _diamondCutFacet) payable {
@@ -35,6 +36,7 @@ contract LiFiDiamond {
 
         // get facet from function selector
         address facet = ds.selectorToFacetAndPosition[msg.sig].facetAddress;
+
         if (facet == address(0)) {
             revert LibDiamond.FunctionDoesNotExist();
         }

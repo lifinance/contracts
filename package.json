@@ -41,6 +41,7 @@
     "hardhat": "^2.9.0",
     "hardhat-deploy": "^0.11.0",
     "hardhat-gas-reporter": "^1.0.8",
+    "husky": "^8.0.1",
     "mocha": "^9.2.2",
     "patch-package": "^6.4.7",
     "postinstall-postinstall": "^2.1.0",
@@ -60,6 +61,7 @@
   "scripts": {
     "postinstall": "patch-package",
     "prepare": "node ./.setup.js && hardhat typechain",
+    "prepare:husky": "husky install",
     "lint": "eslint \"**/*.{js,ts}\" && solhint src/**/*.sol",
     "lint:fix": "eslint --fix \"**/*.{js,ts}\" && solhint --fix src/**/*.sol",
     "format": "prettier --check \"**/*.{ts,js,sol}\"",

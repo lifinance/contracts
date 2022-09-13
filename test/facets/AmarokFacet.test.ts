@@ -12,18 +12,18 @@ import { expect } from '../chai-setup'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
 import config from '../../config/amarok'
 
-const RINKEBY_DAI_ADDRESS = '0xc7AD46e0b8a400Bb3C915120d284AafbA8fc4735'
-const RINKEBY_TOKEN_ADDRESS = '0x3FFc03F05D1869f493c7dbf913E636C6280e0ff9'
-const GOERLI_TOKEN_ADDRESS = '0x26FE8a8f86511d678d031a022E48FfF41c6a3e3b'
+const GOERLI_USDC_ADDRESS = '0x98339D8C260052B7ad81c28c16C0b98420f2B46a'
+const GOERLI_TOKEN_ADDRESS = '0x7ea6eA49B0b0Ae9c5db7907d139D9Cd3439862a1'
+const OPTIMISM_GOERLI_TOKEN_ADDRESS =
+  '0x68Db1c8d85C09d546097C65ec7DCBFF4D6497CbF'
 const UNISWAP_ADDRESS = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
 const ZERO_ADDRESS = constants.AddressZero
 const SEND_AMOUNT = utils.parseEther('1000')
-const SWAP_AMOUNT_IN = utils.parseEther('5')
-const SWAP_AMOUNT_OUT = utils.parseEther('4')
+const SWAP_AMOUNT_IN = utils.parseUnits('1020', 6)
+const SWAP_AMOUNT_OUT = utils.parseEther('1000')
 
 describe('AmarokFacet', function () {
   let alice: SignerWithAddress
-  let bob: SignerWithAddress
   let lifi: AmarokFacet
   let dexMgr: DexManagerFacet
   let owner: SignerWithAddress
@@ -56,45 +56,41 @@ describe('AmarokFacet', function () {
 
       await network.provider.request({
         method: 'hardhat_impersonateAccount',
-        params: ['0x54BAA998771639628ffC0206c3b916c466b79c89'],
+        params: ['0x9Dc99fAf98d363Ec0909D1f5C3627dDdEA2a85D4'],
       })
 
       alice = await ethers.getSigner(
-        '0x54BAA998771639628ffC0206c3b916c466b79c89'
+        '0x9Dc99fAf98d363Ec0909D1f5C3627dDdEA2a85D4'
       )
 
-      await network.provider.request({
-        method: 'hardhat_impersonateAccount',
-        params: ['0xE27A94268f5aa5b70748a38e58293Cd993579a91'],
-      })
-
-      bob = await ethers.getSigner('0xE27A94268f5aa5b70748a38e58293Cd993579a91')
-
-      testToken = ERC20__factory.connect(RINKEBY_TOKEN_ADDRESS, alice)
-      dai = ERC20__factory.connect(RINKEBY_DAI_ADDRESS, alice)
+      testToken = ERC20__factory.connect(GOERLI_TOKEN_ADDRESS, alice)
+      dai = ERC20__factory.connect(GOERLI_USDC_ADDRESS, alice)
 
       validLiFiData = {
         transactionId: utils.randomBytes(32),
         integrator: 'ACME Devs',
         referrer: ZERO_ADDRESS,
-        sendingAssetId: RINKEBY_TOKEN_ADDRESS,
-        receivingAssetId: GOERLI_TOKEN_ADDRESS,
+        sendingAssetId: GOERLI_TOKEN_ADDRESS,
+        receivingAssetId: OPTIMISM_GOERLI_TOKEN_ADDRESS,
         receiver: alice.address,
         destinationChainId: 5,
         amount: SEND_AMOUNT,
       }
       validBridgeData = {
-        connextHandler: config['rinkeby'].connextHandler,
-        assetId: RINKEBY_TOKEN_ADDRESS,
-        srcChainDomain: config['rinkeby'].domain,
-        dstChainDomain: config['goerli'].domain,
+        connextHandler: config['goerli'].connextHandler,
+        assetId: GOERLI_TOKEN_ADDRESS,
+        srcChainDomain: config['goerli'].domain,
+        dstChainDomain: config['optimism_goerli'].domain,
         receiver: alice.address,
         amount: SEND_AMOUNT,
         callData: '0x',
-        slippageTol: 9995, // 9995 to tolerate .05% slippage,
-        tokenFallback: alice.address,
+        forceSlow: false,
+        receiveLocal: false,
+        callback: ZERO_ADDRESS,
         callbackFee: 0,
         relayerFee: 0,
+        slippageTol: 9995, // 9995 to tolerate .05% slippage
+        originMinOut: 0,
       }
 
       const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
@@ -112,7 +108,7 @@ describe('AmarokFacet', function () {
         await uniswap.populateTransaction.swapTokensForExactTokens(
           SWAP_AMOUNT_OUT,
           SWAP_AMOUNT_IN,
-          [RINKEBY_DAI_ADDRESS, RINKEBY_TOKEN_ADDRESS],
+          [GOERLI_USDC_ADDRESS, GOERLI_TOKEN_ADDRESS],
           lifi.address,
           deadline
         )
@@ -121,15 +117,15 @@ describe('AmarokFacet', function () {
         {
           callTo: <string>swapCallData.to,
           approveTo: <string>swapCallData.to,
-          sendingAssetId: RINKEBY_DAI_ADDRESS,
-          receivingAssetId: RINKEBY_TOKEN_ADDRESS,
+          sendingAssetId: GOERLI_USDC_ADDRESS,
+          receivingAssetId: GOERLI_TOKEN_ADDRESS,
           callData: <string>swapCallData?.data,
           fromAmount: SWAP_AMOUNT_IN,
         },
       ]
 
       // Approve ERC20 for swapping
-      await dai.connect(bob).approve(lifi.address, SWAP_AMOUNT_IN)
+      await dai.connect(alice).approve(lifi.address, SWAP_AMOUNT_IN)
       await testToken.approve(lifi.address, SEND_AMOUNT)
     }
   )
@@ -141,8 +137,8 @@ describe('AmarokFacet', function () {
       params: [
         {
           forking: {
-            jsonRpcUrl: node_url('rinkeby'),
-            blockNumber: 11218000,
+            jsonRpcUrl: node_url('goerli'),
+            blockNumber: 7487011,
           },
         },
       ],
@@ -197,14 +193,14 @@ describe('AmarokFacet', function () {
         const bridgeData = {
           ...validBridgeData,
           assetId: ZERO_ADDRESS,
-          amount: utils.parseEther('5'),
+          amount: utils.parseEther('3'),
         }
 
         await expect(
           lifi
             .connect(alice)
             .startBridgeTokensViaAmarok(validLiFiData, bridgeData, {
-              value: utils.parseEther('5'),
+              value: utils.parseEther('3'),
             })
         ).to.be.revertedWith('TokenAddressIsZero()')
       })
@@ -224,7 +220,7 @@ describe('AmarokFacet', function () {
           validLiFiData.integrator,
           validLiFiData.referrer,
           validLiFiData.sendingAssetId,
-          GOERLI_TOKEN_ADDRESS,
+          OPTIMISM_GOERLI_TOKEN_ADDRESS,
           validLiFiData.receiver,
           validLiFiData.amount,
           validLiFiData.destinationChainId,
@@ -254,25 +250,25 @@ describe('AmarokFacet', function () {
       })
 
       it('when the user does not have enough amount', async () => {
-        const daiBalance = await dai.connect(bob).balanceOf(bob.address)
-        await dai.connect(bob).transfer(testToken.address, daiBalance)
+        const daiBalance = await dai.connect(alice).balanceOf(alice.address)
+        await dai.connect(alice).transfer(testToken.address, daiBalance)
 
         await expect(
           lifi
-            .connect(bob)
+            .connect(alice)
             .swapAndStartBridgeTokensViaAmarok(
               validLiFiData,
               swapData,
               validBridgeData
             )
-        ).to.be.revertedWith('Dai/insufficient-balance')
+        ).to.be.revertedWith('ERC20: transfer amount exceeds balance')
       })
 
       it('when sending native asset', async () => {
         const bridgeData = {
           ...validBridgeData,
           assetId: ZERO_ADDRESS,
-          amount: utils.parseEther('5'),
+          amount: utils.parseEther('3'),
         }
 
         await expect(
@@ -281,7 +277,10 @@ describe('AmarokFacet', function () {
             .swapAndStartBridgeTokensViaAmarok(
               validLiFiData,
               swapData,
-              bridgeData
+              bridgeData,
+              {
+                value: utils.parseEther('3'),
+              }
             )
         ).to.be.revertedWith('TokenAddressIsZero()')
       })
@@ -304,13 +303,13 @@ describe('AmarokFacet', function () {
     it('should be possible to perform a swap then starts a bridge transaction', async function () {
       const lifiData = {
         ...validLiFiData,
-        sendingAssetId: RINKEBY_DAI_ADDRESS,
+        sendingAssetId: GOERLI_USDC_ADDRESS,
         amount: SWAP_AMOUNT_OUT,
       }
 
       await expect(
         lifi
-          .connect(bob)
+          .connect(alice)
           .swapAndStartBridgeTokensViaAmarok(
             lifiData,
             swapData,
