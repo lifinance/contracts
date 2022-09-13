@@ -5,8 +5,9 @@ import { IAxelarGasService } from "@axelar-network/axelar-cgp-solidity/contracts
 import { IAxelarGateway } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGateway.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 
-contract AxelarFacet {
+contract AxelarFacet is ReentrancyGuard {
     /// Storage
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.axelar");
     struct Storage {
@@ -32,7 +33,7 @@ contract AxelarFacet {
         string memory destinationAddress,
         address callTo,
         bytes calldata callData
-    ) external payable {
+    ) external payable nonReentrant {
         Storage storage s = getStorage();
 
         bytes memory payload = abi.encodePacked(callTo, callData);
@@ -63,7 +64,7 @@ contract AxelarFacet {
         uint256 amount,
         address callTo,
         bytes calldata callData
-    ) external payable {
+    ) external payable nonReentrant {
         Storage storage s = getStorage();
 
         address tokenAddress = s.gateway.tokenAddresses(symbol);
