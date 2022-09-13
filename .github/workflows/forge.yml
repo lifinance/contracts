@@ -22,7 +22,7 @@ jobs:
 
       - name: Install Deps
         run: forge install
-      - name: Run forge tests forking mainnet
-        run: forge test -f ${{ secrets.ETH_NODE_URI_MAINNET }} --fork-block-number ${{ secrets.FORK_NUMBER }} --no-match-contract ".*(Polygon)"
-      - name: Run forge tests forking polygon
-        run: forge test -f ${{ secrets.ETH_NODE_URI_POLYGON }} --fork-block-number ${{ secrets.POLYGON_FORK_NUMBER }} --match-contract ".*(Polygon)"
+      - name: Run forge tests
+        run: forge test
+      - name: Get forge test coverage
+        run: forge coverage

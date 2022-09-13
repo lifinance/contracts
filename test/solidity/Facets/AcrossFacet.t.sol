@@ -47,7 +47,15 @@ contract AcrossFacetTest is DSTest, DiamondTest {
     ERC20 internal usdc;
     ERC20 internal weth;
 
+    function fork() internal {
+        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
+        uint256 blockNumber = vm.envUint("FORK_NUMBER");
+        vm.createSelectFork(rpcUrl, blockNumber);
+    }
+
     function setUp() public {
+        fork();
+
         diamond = createDiamond();
         across = new TestAcrossFacet();
         usdc = ERC20(USDC_ADDRESS);
