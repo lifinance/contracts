@@ -74,7 +74,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
             revert TokenAddressIsZero();
         }
 
-        LibAsset.depositAsset(token, _stargateData.amountLD);
+        LibAsset.depositAssetWithFee(token, _stargateData.amountLD, msg.value);
 
         _startBridge(_stargateData, _lifiData, msg.value, false);
     }
