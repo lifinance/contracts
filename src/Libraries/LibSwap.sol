@@ -3,11 +3,9 @@ pragma solidity 0.8.13;
 
 import { LibAsset, IERC20 } from "./LibAsset.sol";
 import { LibUtil } from "./LibUtil.sol";
-import { InvalidContract } from "../Errors/GenericErrors.sol";
+import { InvalidContract, NoSwapFromZeroBalance } from "../Errors/GenericErrors.sol";
 
 library LibSwap {
-    error NoSwapFromZeroBalance();
-
     struct SwapData {
         address callTo;
         address approveTo;

@@ -27,10 +27,6 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         uint32 quoteTimestamp;
     }
 
-    /// Errors ///
-
-    error UseWethInstead();
-
     /// External Methods ///
 
     /// @notice Bridges tokens via Across
