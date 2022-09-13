@@ -56,6 +56,7 @@ library LibAllowList {
                 als.contracts.pop();
                 // Update the length
                 length = als.contracts.length;
+                break;
             }
         }
     }
@@ -97,12 +98,6 @@ library LibAllowList {
     function _checkAddress(address _contract) private view {
         if (_contract == address(0)) revert InvalidContract();
 
-        uint256 size;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            size := extcodesize(_contract)
-        }
-
-        if (size < 0) revert InvalidContract();
+        if (_contract.code.length == 0) revert InvalidContract();
     }
 }
