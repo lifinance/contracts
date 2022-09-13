@@ -16,6 +16,8 @@ import { Swapper } from "../Helpers/Swapper.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Wormhole
 contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.wormhole");
+
     /// Events ///
     event WormholeChainIdMapped(uint256 indexed lifiChainId, uint256 indexed wormholeChainId);
 
@@ -30,8 +32,10 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
         uint32 nonce;
     }
 
-    // Mapping between lifi chain id and wormhole chain id
-    mapping(uint256 => uint16) public wormholeChainId;
+    struct Storage {
+        // Mapping between lifi chain id and wormhole chain id
+        mapping(uint256 => uint16) wormholeChainId;
+    }
 
     /// External Methods ///
 
@@ -95,7 +99,8 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
     /// @param _wormholeChainId wormhole chain id
     function setWormholeChainId(uint256 _lifiChainId, uint16 _wormholeChainId) external {
         LibDiamond.enforceIsContractOwner();
-        wormholeChainId[_lifiChainId] = _wormholeChainId;
+        Storage storage s = getStorage();
+        s.wormholeChainId[_lifiChainId] = _wormholeChainId;
         emit WormholeChainIdMapped(_lifiChainId, _wormholeChainId);
     }
 
@@ -105,9 +110,10 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
     /// @param _wormholeData data specific to Wormhole
     function _startBridge(WormholeData memory _wormholeData) private {
         uint256 fromChainId = block.chainid;
-        uint16 toWormholeChainId = wormholeChainId[_wormholeData.toChainId];
+        Storage storage s = getStorage();
+        uint16 toWormholeChainId = s.wormholeChainId[_wormholeData.toChainId];
         if (toWormholeChainId == 0) revert UnsupportedChainId(_wormholeData.toChainId);
-        uint16 fromWormholeChainId = wormholeChainId[fromChainId];
+        uint16 fromWormholeChainId = s.wormholeChainId[fromChainId];
         if (fromWormholeChainId == 0) revert UnsupportedChainId(fromChainId);
         if (fromWormholeChainId == toWormholeChainId) revert CannotBridgeToSameNetwork();
 
@@ -120,5 +126,14 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
             _wormholeData.arbiterFee,
             _wormholeData.nonce
         );
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }
