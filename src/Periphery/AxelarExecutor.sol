@@ -77,15 +77,14 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
         // The first 20 bytes of the payload are the callee address
         address callTo = payload.toAddress(0);
         address recoveryAddress = payload.toAddress(20);
-
-        if (callTo == address(gateway)) revert UnAuthorized();
-        if (!LibAsset.isContract(callTo)) revert NotAContract();
-
         // The remaining bytes should be calldata
         bytes memory callData = payload.slice(40, payload.length - 40);
-
         // get ERC-20 address from gateway
         address tokenAddress = gateway.tokenAddresses(tokenSymbol);
+
+        if (callTo == address(gateway) || !LibAsset.isContract(callTo)) {
+            return handleFailedExecution(callTo, callData, tokenAddress, recoveryAddress, amount);
+        }
 
         // transfer received tokens to the recipient
         IERC20(tokenAddress).safeApprove(callTo, 0);
@@ -93,8 +92,20 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
 
         (bool success, ) = callTo.call(callData);
         if (!success) {
-            emit AxelarExecutionFailed(callTo, bytes4(callData), recoveryAddress);
-            LibAsset.transferFromERC20(tokenAddress, address(this), recoveryAddress, amount);
+            handleFailedExecution(callTo, callData, tokenAddress, recoveryAddress, amount);
         }
+    }
+
+    /// Internal Methods ///
+    function handleFailedExecution(
+        address callTo,
+        bytes memory callData,
+        address tokenAddress,
+        address recoveryAddress,
+        uint256 amount
+    ) internal {
+        IERC20(tokenAddress).safeApprove(callTo, 0);
+        emit AxelarExecutionFailed(callTo, bytes4(callData), recoveryAddress);
+        LibAsset.transferFromERC20(tokenAddress, address(this), recoveryAddress, amount);
     }
 }
