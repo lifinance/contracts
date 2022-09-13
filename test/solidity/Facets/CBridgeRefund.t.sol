@@ -22,9 +22,9 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
     address internal constant REFUND_ADDRESS = 0x3db00D1334B5faDd2A897D8A702cDCbb6F159D87;
     uint256 internal constant REFUND_AMOUNT = 92734538876076486098;
 
-    bytes CALLDATA;
+    bytes internal CALLDATA;
 
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
+    Vm internal constant vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
     WithdrawFacet internal withdrawFacet;
 
@@ -63,10 +63,18 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         CALLDATA = abi.encodeWithSignature("withdraw(bytes,bytes[],address[],uint256[])", MSG, SIGS, SIGNERS, POWERS);
     }
 
-    ///@notice Setup contracts for test.
-    ///@dev It adds selector of new function(executeCallAndWithdraw).
-    ///     And initialize calldata for extra call.
+    function fork() internal {
+        string memory rpcUrl = vm.envString("ETH_NODE_URI_POLYGON");
+        uint256 blockNumber = vm.envUint("POLYGON_FORK_NUMBER");
+        vm.createSelectFork(rpcUrl, blockNumber);
+    }
+
+    /// @notice Setup contracts for test.
+    /// @dev It adds selector of new function(executeCallAndWithdraw).
+    /// And initialize calldata for extra call.
     function setUp() public {
+        fork();
+
         diamond = LiFiDiamond(payable(LIFI_ADDRESS));
         withdrawFacet = new WithdrawFacet();
 
@@ -82,8 +90,8 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         initCallData();
     }
 
-    ///@notice Execute extra call and withdraw refunded assets to receiver.
-    ///@dev It executes extra call at CBRIDGE_ADDRESS to transfer asset from
+    /// @notice Execute extra call and withdraw refunded assets to receiver.
+    /// @dev It executes extra call at CBRIDGE_ADDRESS to transfer asset from
     ///     CBridge to WithdrawFacet.
     ///     Then it withdraws the asset to REFUND_ADDRESS
     function testCanExecuteCallAndWithdraw() public {
@@ -91,6 +99,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         uint256 assetBalance = asset.balanceOf(REFUND_ADDRESS);
 
         vm.startPrank(OWNER_ADDRESS);
+        vm.chainId(137); // Only needed because of bug in forge forking...
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),
             CALLDATA,
@@ -103,8 +112,8 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         assert(asset.balanceOf(REFUND_ADDRESS) == assetBalance + REFUND_AMOUNT);
     }
 
-    ///@notice Fails to execute extra call and withdraw from non-owner.
-    ///@dev It calls executeCallAndWithdraw from address that is not OWNER_ADDRESS.
+    /// @notice Fails to execute extra call and withdraw from non-owner.
+    /// @dev It calls executeCallAndWithdraw from address that is not OWNER_ADDRESS.
     function testFailExecuteCallAndWithdrawFromNonOwner() public {
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),
@@ -115,8 +124,8 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         );
     }
 
-    ///@notice Fails to execute extra call and withdraw when callTo is invalid.
-    ///@dev It tries to execute extra call at REFUND_ADDRESS instead of CBRIDGE_ADDRESS.
+    /// @notice Fails to execute extra call and withdraw when callTo is invalid.
+    /// @dev It tries to execute extra call at REFUND_ADDRESS instead of CBRIDGE_ADDRESS.
     function testFailExecuteCallAndWithdraw() public {
         withdrawFacet.executeCallAndWithdraw(
             payable(REFUND_ADDRESS),
@@ -127,14 +136,15 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         );
     }
 
-    ///@notice Fails to execute extra call and withdraw when refund is already processed.
-    ///@dev It tries to withdraw multiple times.
+    /// @notice Fails to execute extra call and withdraw when refund is already processed.
+    /// @dev It tries to withdraw multiple times.
     ///     First withdraw should be success but second withdraw should be failed.
     function testFailExecuteCallAndWithdrawMultiple() public {
         ERC20 asset = ERC20(REFUND_ASSET);
         uint256 assetBalance = asset.balanceOf(REFUND_ADDRESS);
 
         vm.startPrank(OWNER_ADDRESS);
+        vm.chainId(137); // Only needed because of bug in forge forking...
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),
             CALLDATA,
