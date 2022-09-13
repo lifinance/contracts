@@ -54,16 +54,20 @@ contract DexManagerFacet {
         mapping(address => bool) storage dexAllowlist = appStorage.dexAllowlist;
         uint256 length = _dexs.length;
 
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length; ) {
             address dex = _dexs[i];
             _checkAddress(dex);
             if (dex == address(this)) {
                 revert CannotAuthoriseSelf();
             }
-            if (dexAllowlist[dex]) continue;
-            dexAllowlist[dex] = true;
-            appStorage.dexs.push(dex);
-            emit DexAdded(dex);
+            if (!dexAllowlist[dex]) {
+                dexAllowlist[dex] = true;
+                appStorage.dexs.push(dex);
+                emit DexAdded(dex);
+            }
+            unchecked {
+                i++;
+            }
         }
     }
 
@@ -84,10 +88,13 @@ contract DexManagerFacet {
         dexAllowlist[_dex] = false;
 
         uint256 length = storageDexes.length;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length; ) {
             if (storageDexes[i] == _dex) {
                 _removeDex(i);
                 return;
+            }
+            unchecked {
+                i++;
             }
         }
     }
@@ -103,18 +110,23 @@ contract DexManagerFacet {
 
         uint256 ilength = _dexs.length;
         uint256 jlength = storageDexes.length;
-        for (uint256 i = 0; i < ilength; i++) {
+        for (uint256 i = 0; i < ilength; ) {
             _checkAddress(_dexs[i]);
-            if (!dexAllowlist[_dexs[i]]) {
-                continue;
-            }
-            dexAllowlist[_dexs[i]] = false;
-            for (uint256 j = 0; j < jlength; j++) {
-                if (storageDexes[j] == _dexs[i]) {
-                    _removeDex(j);
-                    jlength = storageDexes.length;
-                    break;
+            if (dexAllowlist[_dexs[i]]) {
+                dexAllowlist[_dexs[i]] = false;
+                for (uint256 j = 0; j < jlength; ) {
+                    if (storageDexes[j] == _dexs[i]) {
+                        _removeDex(j);
+                        jlength = storageDexes.length;
+                        break;
+                    }
+                    unchecked {
+                        j++;
+                    }
                 }
+            }
+            unchecked {
+                i++;
             }
         }
     }
@@ -139,10 +151,13 @@ contract DexManagerFacet {
         }
         mapping(bytes4 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
         uint256 length = _signatures.length;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length; ) {
             bytes4 _signature = _signatures[i];
             dexFuncSignatureAllowList[_signature] = _approval;
             emit FunctionSignatureApprovalChanged(_signature, _approval);
+            unchecked {
+                i++;
+            }
         }
     }
 

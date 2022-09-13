@@ -87,14 +87,16 @@ contract FeeCollector is TransferrableOwnership {
     function batchWithdrawIntegratorFees(address[] memory tokenAddresses) external {
         uint256 length = tokenAddresses.length;
         uint256 balance;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length; ) {
             balance = _balances[msg.sender][tokenAddresses[i]];
-            if (balance == 0) {
-                continue;
+            if (balance != 0) {
+                _balances[msg.sender][tokenAddresses[i]] = 0;
+                LibAsset.transferAsset(tokenAddresses[i], payable(msg.sender), balance);
+                emit FeesWithdrawn(tokenAddresses[i], msg.sender, balance);
             }
-            _balances[msg.sender][tokenAddresses[i]] = 0;
-            LibAsset.transferAsset(tokenAddresses[i], payable(msg.sender), balance);
-            emit FeesWithdrawn(tokenAddresses[i], msg.sender, balance);
+            unchecked {
+                i++;
+            }
         }
     }
 
@@ -115,14 +117,16 @@ contract FeeCollector is TransferrableOwnership {
     function batchWithdrawLifiFees(address[] memory tokenAddresses) external onlyOwner {
         uint256 length = tokenAddresses.length;
         uint256 balance;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length; ) {
             balance = _lifiBalances[tokenAddresses[i]];
-            if (balance == 0) {
-                continue;
+            if (balance != 0) {
+                _lifiBalances[tokenAddresses[i]] = 0;
+                LibAsset.transferAsset(tokenAddresses[i], payable(owner), balance);
+                emit LiFiFeesWithdrawn(tokenAddresses[i], msg.sender, balance);
             }
-            _lifiBalances[tokenAddresses[i]] = 0;
-            LibAsset.transferAsset(tokenAddresses[i], payable(owner), balance);
-            emit LiFiFeesWithdrawn(tokenAddresses[i], msg.sender, balance);
+            unchecked {
+                i++;
+            }
         }
     }
 

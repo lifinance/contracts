@@ -80,7 +80,7 @@ library LibDiamond {
         address _init,
         bytes memory _calldata
     ) internal {
-        for (uint256 facetIndex; facetIndex < _diamondCut.length; facetIndex++) {
+        for (uint256 facetIndex; facetIndex < _diamondCut.length; ) {
             IDiamondCut.FacetCutAction action = _diamondCut[facetIndex].action;
             if (action == IDiamondCut.FacetCutAction.Add) {
                 addFunctions(_diamondCut[facetIndex].facetAddress, _diamondCut[facetIndex].functionSelectors);
@@ -90,6 +90,9 @@ library LibDiamond {
                 removeFunctions(_diamondCut[facetIndex].facetAddress, _diamondCut[facetIndex].functionSelectors);
             } else {
                 revert IncorrectFacetCutAction();
+            }
+            unchecked {
+                facetIndex++;
             }
         }
         emit DiamondCut(_diamondCut, _init, _calldata);
@@ -109,7 +112,7 @@ library LibDiamond {
         if (selectorPosition == 0) {
             addFacet(ds, _facetAddress);
         }
-        for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; selectorIndex++) {
+        for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; ) {
             bytes4 selector = _functionSelectors[selectorIndex];
             address oldFacetAddress = ds.selectorToFacetAndPosition[selector].facetAddress;
             if (!LibUtil.isZeroAddress(oldFacetAddress)) {
@@ -117,6 +120,9 @@ library LibDiamond {
             }
             addFunction(ds, selector, selectorPosition, _facetAddress);
             selectorPosition++;
+            unchecked {
+                selectorIndex++;
+            }
         }
     }
 
@@ -133,7 +139,7 @@ library LibDiamond {
         if (selectorPosition == 0) {
             addFacet(ds, _facetAddress);
         }
-        for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; selectorIndex++) {
+        for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; ) {
             bytes4 selector = _functionSelectors[selectorIndex];
             address oldFacetAddress = ds.selectorToFacetAndPosition[selector].facetAddress;
             if (oldFacetAddress == _facetAddress) {
@@ -142,6 +148,9 @@ library LibDiamond {
             removeFunction(ds, oldFacetAddress, selector);
             addFunction(ds, selector, selectorPosition, _facetAddress);
             selectorPosition++;
+            unchecked {
+                selectorIndex++;
+            }
         }
     }
 
@@ -154,10 +163,13 @@ library LibDiamond {
         if (!LibUtil.isZeroAddress(_facetAddress)) {
             revert FacetAddressIsNotZero();
         }
-        for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; selectorIndex++) {
+        for (uint256 selectorIndex; selectorIndex < _functionSelectors.length; ) {
             bytes4 selector = _functionSelectors[selectorIndex];
             address oldFacetAddress = ds.selectorToFacetAndPosition[selector].facetAddress;
             removeFunction(ds, oldFacetAddress, selector);
+            unchecked {
+                selectorIndex++;
+            }
         }
     }
 
