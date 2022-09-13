@@ -5,7 +5,6 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IHyphenRouter } from "../Interfaces/IHyphenRouter.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Hyphen Facet
@@ -86,9 +85,6 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @dev Contains the business logic for the bridge via Hyphen
     /// @param _hyphenData data specific to Hyphen
     function _startBridge(HyphenData memory _hyphenData) private {
-        // Check chain id
-        if (block.chainid == _hyphenData.toChainId) revert CannotBridgeToSameNetwork();
-
         if (!LibAsset.isNativeAsset(_hyphenData.token)) {
             // Give Anyswap approval to bridge tokens
             LibAsset.maxApproveERC20(IERC20(_hyphenData.token), _hyphenData.router, _hyphenData.amount);
