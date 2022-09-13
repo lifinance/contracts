@@ -5,12 +5,11 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title LibAsset
-/// @author Connext <support@connext.network>
 /// @notice This library contains helpers for dealing with onchain transfers
 ///         of assets, including accounting for the native asset `assetId`
 ///         conventions and any noncompliant ERC20 transfers
 library LibAsset {
-    uint256 private constant MAX_INT = type(uint256).max;
+    uint256 private constant MAX_UINT = type(uint256).max;
 
     address internal constant NULL_ADDRESS = address(0);
 
@@ -38,7 +37,7 @@ library LibAsset {
     }
 
     /// @notice If the current allowance is insufficient, the allowance for a given spender
-    /// is set to MAX_INT.
+    /// is set to MAX_UINT.
     /// @param assetId Token address to transfer
     /// @param spender Address to give spend approval to
     /// @param amount Amount to approve for spending
@@ -50,7 +49,8 @@ library LibAsset {
         if (address(assetId) == NATIVE_ASSETID) return;
         if (spender == NULL_ADDRESS) revert NullAddrIsNotAValidSpender();
         uint256 allowance = assetId.allowance(address(this), spender);
-        if (allowance < amount) SafeERC20.safeApprove(IERC20(assetId), spender, MAX_INT);
+
+        if (allowance < amount) SafeERC20.safeIncreaseAllowance(IERC20(assetId), spender, MAX_UINT - allowance);
     }
 
     /// @notice Transfers tokens from the inheriting contract to a given
@@ -80,7 +80,11 @@ library LibAsset {
     ) internal {
         if (assetId == NATIVE_ASSETID) revert NullAddrIsNotAnERC20Token();
         if (to == NULL_ADDRESS) revert NoTransferToNullAddress();
-        SafeERC20.safeTransferFrom(IERC20(assetId), from, to, amount);
+
+        IERC20 asset = IERC20(assetId);
+        uint256 prevBalance = asset.balanceOf(to);
+        SafeERC20.safeTransferFrom(asset, from, to, amount);
+        if (asset.balanceOf(to) - prevBalance != amount) revert InvalidAmount();
     }
 
     /// @notice Deposits an asset into the contract and performs checks to avoid NativeValueWithERC
@@ -96,9 +100,8 @@ library LibAsset {
         if (isNative) {
             if (msg.value < amount) revert InvalidAmount();
         } else {
-            uint256 _fromTokenBalance = LibAsset.getOwnBalance(tokenId);
-            LibAsset.transferFromERC20(tokenId, msg.sender, address(this), amount);
-            if (LibAsset.getOwnBalance(tokenId) - _fromTokenBalance != amount) revert InvalidAmount();
+            if (msg.value != 0) revert NativeValueWithERC();
+            transferFromERC20(tokenId, msg.sender, address(this), amount);
         }
     }
 

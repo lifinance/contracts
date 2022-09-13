@@ -2,29 +2,37 @@ pragma solidity 0.8.13;
 
 import "ds-test/test.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { console } from "../utils/Console.sol";
 
-contract HopGasTest is DSTest, DiamondTest {
+contract HopGasTest is Test, DiamondTest {
     address internal constant HOP_USDC_BRIDGE = 0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a;
     address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
 
     ILiFi.LiFiData internal lifiData = ILiFi.LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0);
 
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
     IHopBridge internal hop;
-    ERC20 internal immutable usdc = ERC20(USDC_ADDRESS);
+    ERC20 internal usdc;
     LiFiDiamond internal diamond;
     HopFacet internal hopFacet;
 
+    function fork() internal {
+        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
+        uint256 blockNumber = vm.envUint("FORK_NUMBER");
+        vm.createSelectFork(rpcUrl, blockNumber);
+    }
+
     function setUp() public {
+        fork();
+
         diamond = createDiamond();
         hopFacet = new HopFacet();
+        usdc = ERC20(USDC_ADDRESS);
         hop = IHopBridge(HOP_USDC_BRIDGE);
 
         bytes4[] memory functionSelectors = new bytes4[](1);
@@ -60,7 +68,6 @@ contract HopGasTest is DSTest, DiamondTest {
             USDC_ADDRESS,
             HOP_USDC_BRIDGE,
             WHALE,
-            1,
             137,
             amount,
             0, // not needed
@@ -71,6 +78,7 @@ contract HopGasTest is DSTest, DiamondTest {
         );
 
         vm.startPrank(WHALE);
+        vm.chainId(1); // Only needed because of bug in forge forking...
         usdc.approve(address(hopFacet), amount);
         hopFacet.startBridgeTokensViaHop(lifiData, hopData);
         vm.stopPrank();
