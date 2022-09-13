@@ -44,8 +44,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
 
         LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
-
-        _startBridge(_lifiData, _bridgeData, _bridgeData.amount, false);
+        _startBridge(_lifiData, _bridgeData, _bridgeData.amount, false, msg.value);
     }
 
     /// @notice Performs a swap before bridging via Arbitrum Bridge
@@ -62,12 +61,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
 
         uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-
-        if (amount == 0) {
-            revert InvalidAmount();
-        }
-
-        _startBridge(_lifiData, _bridgeData, amount, true);
+        _startBridge(_lifiData, _bridgeData, amount, true, amount);
     }
 
     /// Private Methods ///
@@ -81,33 +75,23 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LiFiData calldata _lifiData,
         BridgeData calldata _bridgeData,
         uint256 _amount,
-        bool _hasSourceSwap
+        bool _hasSourceSwap,
+        uint256 receivedEther
     ) private {
-        IGatewayRouter gatewayRouter = IGatewayRouter(_bridgeData.gatewayRouter);
         uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
+        bool isNativeTransfer = LibAsset.isNativeAsset(_bridgeData.assetId);
 
-        if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            gatewayRouter.createRetryableTicketNoRefundAliasRewrite{ value: _amount + cost }(
-                _bridgeData.receiver,
-                _amount, // l2CallValue
-                _bridgeData.maxSubmissionCost,
-                _bridgeData.receiver, // excessFeeRefundAddress
-                _bridgeData.receiver, // callValueRefundAddress
-                _bridgeData.maxGas,
-                _bridgeData.maxGasPrice,
-                ""
-            );
+        {
+            uint256 requiredEther = isNativeTransfer ? cost + _amount : cost;
+            if (receivedEther < requiredEther) {
+                revert InvalidAmount();
+            }
+        }
+
+        if (isNativeTransfer) {
+            _startNativeBridge(_bridgeData, _amount, cost);
         } else {
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.tokenRouter, _amount);
-
-            gatewayRouter.outboundTransfer{ value: cost }(
-                _bridgeData.assetId,
-                _bridgeData.receiver,
-                _amount,
-                _bridgeData.maxGas,
-                _bridgeData.maxGasPrice,
-                abi.encode(_bridgeData.maxSubmissionCost, "")
-            );
+            _startTokenBridge(_bridgeData, _amount, cost);
         }
 
         emit LiFiTransferStarted(
@@ -123,6 +107,41 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             _lifiData.destinationChainId,
             _hasSourceSwap,
             false
+        );
+    }
+
+    function _startTokenBridge(
+        BridgeData calldata _bridgeData,
+        uint256 amount,
+        uint256 cost
+    ) private {
+        IGatewayRouter gatewayRouter = IGatewayRouter(_bridgeData.gatewayRouter);
+        LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.tokenRouter, amount);
+        gatewayRouter.outboundTransfer{ value: cost }(
+            _bridgeData.assetId,
+            _bridgeData.receiver,
+            amount,
+            _bridgeData.maxGas,
+            _bridgeData.maxGasPrice,
+            abi.encode(_bridgeData.maxSubmissionCost, "")
+        );
+    }
+
+    function _startNativeBridge(
+        BridgeData calldata _bridgeData,
+        uint256 amount,
+        uint256 cost
+    ) private {
+        IGatewayRouter gatewayRouter = IGatewayRouter(_bridgeData.gatewayRouter);
+        gatewayRouter.createRetryableTicketNoRefundAliasRewrite{ value: cost + amount }(
+            _bridgeData.receiver,
+            amount, // l2CallValue
+            _bridgeData.maxSubmissionCost,
+            _bridgeData.receiver, // excessFeeRefundAddress
+            _bridgeData.receiver, // callValueRefundAddress
+            _bridgeData.maxGas,
+            _bridgeData.maxGasPrice,
+            ""
         );
     }
 }
