@@ -5,6 +5,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
+      ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
+      FORK_NUMBER: ${{ secrets.FORK_NUMBER }}
+      POLYGON_FORK_NUMBER: ${{ secrets.POLYGON_FORK_NUMBER }}
     steps:
       - uses: actions/checkout@v3
         with:
