@@ -18,5 +18,6 @@ error InvalidConfig();
 error InvalidReceiver();
 error OnlyContractOwner();
 error CannotAuthoriseSelf();
+error RecoveryAddressCannotBeZero();
 error CannotDepositNativeToken();
 error ZeroAmount();

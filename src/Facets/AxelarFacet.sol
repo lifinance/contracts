@@ -4,6 +4,7 @@ pragma solidity 0.8.13;
 import { IAxelarGasService } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGasService.sol";
 import { IAxelarGateway } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGateway.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { RecoveryAddressCannotBeZero } from "../Errors/GenericErrors.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 
 contract AxelarFacet {
@@ -62,8 +63,13 @@ contract AxelarFacet {
         string memory symbol,
         uint256 amount,
         address callTo,
+        address recoveryAddress,
         bytes calldata callData
     ) external payable {
+        if (recoveryAddress == address(0)) {
+            revert RecoveryAddressCannotBeZero();
+        }
+
         Storage storage s = getStorage();
 
         address tokenAddress = s.gateway.tokenAddresses(symbol);
@@ -71,7 +77,7 @@ contract AxelarFacet {
         LibAsset.transferFromERC20(tokenAddress, msg.sender, address(this), amount);
         LibAsset.maxApproveERC20(IERC20(tokenAddress), address(s.gateway), amount);
 
-        bytes memory payload = abi.encodePacked(callTo, callData);
+        bytes memory payload = abi.encodePacked(callTo, recoveryAddress, callData);
 
         // Pay gas up front
         if (msg.value > 0) {
