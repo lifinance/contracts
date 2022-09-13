@@ -16,7 +16,6 @@ import { Swapper } from "../Helpers/Swapper.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Wormhole
 contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
-
     /// Events ///
     event WormholeChainIdMapped(uint256 indexed lifiChainId, uint256 indexed wormholeChainId);
 
@@ -25,14 +24,14 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
         address wormholeRouter;
         address token;
         uint256 amount;
-        bytes32 recipient;
-        uint16 toChainId;
+        address recipient;
+        uint256 toChainId;
         uint256 arbiterFee;
         uint32 nonce;
     }
 
     // Mapping between lifi chain id and wormhole chain id
-    mapping (uint256 => uint256) public wormholeChainId;
+    mapping(uint256 => uint16) public wormholeChainId;
 
     /// External Methods ///
 
@@ -94,7 +93,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
     /// @notice Creates a mapping between a lifi chain id and a wormhole chain id
     /// @param _lifiChainId lifi chain id
     /// @param _wormholeChainId wormhole chain id
-    function setWormholeChainId(uint256 _lifiChainId, uint256 _wormholeChainId) external {
+    function setWormholeChainId(uint256 _lifiChainId, uint16 _wormholeChainId) external {
         LibDiamond.enforceIsContractOwner();
         wormholeChainId[_lifiChainId] = _wormholeChainId;
         emit WormholeChainIdMapped(_lifiChainId, _wormholeChainId);
@@ -105,11 +104,10 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
     /// @dev Contains the business logic for the bridge via Wormhole
     /// @param _wormholeData data specific to Wormhole
     function _startBridge(WormholeData memory _wormholeData) private {
-
         uint256 fromChainId = block.chainid;
-        uint256 toWormholeChainId = wormholeChainId[_wormholeData.toChainId];
+        uint16 toWormholeChainId = wormholeChainId[_wormholeData.toChainId];
         if (toWormholeChainId == 0) revert UnsupportedChainId(_wormholeData.toChainId);
-        uint256 fromWormholeChainId = wormholeChainId[fromChainId];
+        uint16 fromWormholeChainId = wormholeChainId[fromChainId];
         if (fromWormholeChainId == 0) revert UnsupportedChainId(fromChainId);
         if (fromWormholeChainId == toWormholeChainId) revert CannotBridgeToSameNetwork();
 
@@ -117,8 +115,8 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
         IWormholeRouter(_wormholeData.wormholeRouter).transferTokens(
             _wormholeData.token,
             _wormholeData.amount,
-            _wormholeData.toChainId,
-            _wormholeData.recipient,
+            toWormholeChainId,
+            bytes32(uint256(uint160(_wormholeData.recipient))),
             _wormholeData.arbiterFee,
             _wormholeData.nonce
         );
