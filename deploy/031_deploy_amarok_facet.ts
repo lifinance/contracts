@@ -1,4 +1,4 @@
-import { ethers, network } from 'hardhat';
+import { ethers, network } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import config from '../config/amarok'
@@ -15,12 +15,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     console.log('No domain for network', network.name)
     return
   }
-  
+
   await deploy('AmarokFacet', {
     from: deployer,
     log: true,
     deterministicDeployment: true,
-    args: [domain]
+    args: [domain],
   })
 
   const amarokFacet = await ethers.getContract('AmarokFacet')
