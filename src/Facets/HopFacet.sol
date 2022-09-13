@@ -20,7 +20,6 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         address sendingAssetAddress;
         address bridge;
         address recipient;
-        uint256 fromChainId;
         uint256 toChainId;
         uint256 amount;
         uint256 bonderFee;
@@ -94,7 +93,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _hopData data specific to Hop Protocol
     function _startBridge(HopData memory _hopData) private {
         // Do HOP stuff
-        if (_hopData.fromChainId == _hopData.toChainId) revert CannotBridgeToSameNetwork();
+        if (block.chainid == _hopData.toChainId) revert CannotBridgeToSameNetwork();
 
         address sendingAssetId = _hopData.sendingAssetAddress;
         // Give Hop approval to bridge tokens
@@ -102,7 +101,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId)) ? _hopData.amount : 0;
 
-        if (_hopData.fromChainId == 1) {
+        if (block.chainid == 1) {
             // Ethereum L1
             IHopBridge(_hopData.bridge).sendToL2{ value: value }(
                 _hopData.toChainId,

@@ -60,7 +60,6 @@ contract HopGasTest is DSTest, DiamondTest {
             USDC_ADDRESS,
             HOP_USDC_BRIDGE,
             WHALE,
-            1,
             137,
             amount,
             0, // not needed
