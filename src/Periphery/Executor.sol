@@ -5,6 +5,7 @@ import { IERC20 } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IERC20Proxy } from "../Interfaces/IERC20Proxy.sol";
@@ -13,7 +14,7 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
+contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership, SwapperV2 {
     /// Storage ///
     address public sgRouter;
     IERC20Proxy public erc20Proxy;
@@ -26,27 +27,6 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     /// Events ///
     event StargateRouterSet(address indexed router);
     event ERC20ProxySet(address indexed proxy);
-
-    /// Modifiers ///
-
-    /// @dev Sends any leftover balances back to the user
-    modifier noLeftovers(LibSwap.SwapData[] calldata _swapData, address payable _leftoverReceiver) {
-        uint256 nSwaps = _swapData.length;
-        if (nSwaps != 1) {
-            uint256[] memory initialBalances = _fetchBalances(_swapData);
-            address finalAsset = _swapData[nSwaps - 1].receivingAssetId;
-            uint256 curBalance = 0;
-
-            _;
-
-            for (uint256 i = 0; i < nSwaps - 1; i++) {
-                address curAsset = _swapData[i].receivingAssetId;
-                if (curAsset == finalAsset) continue; // Handle multi-to-one swaps
-                curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
-                if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
-            }
-        } else _;
-    }
 
     /// Constructor
     constructor(
@@ -256,23 +236,11 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
         LiFiData memory _lifiData,
         LibSwap.SwapData[] calldata _swapData,
         address payable _leftoverReceiver
-    ) private noLeftovers(_swapData, _leftoverReceiver) {
+    ) internal override noLeftovers(_swapData, _leftoverReceiver) {
         for (uint256 i = 0; i < _swapData.length; i++) {
             if (_swapData[i].callTo == address(erc20Proxy)) revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
             LibSwap.swap(_lifiData.transactionId, currentSwapData);
         }
-    }
-
-    /// @dev Fetches balances of tokens to be swapped before swapping.
-    /// @param _swapData Array of data used to execute swaps
-    /// @return uint256[] Array of token balances.
-    function _fetchBalances(LibSwap.SwapData[] calldata _swapData) private view returns (uint256[] memory) {
-        uint256 length = _swapData.length;
-        uint256[] memory balances = new uint256[](length);
-        for (uint256 i = 0; i < length; i++) {
-            balances[i] = LibAsset.getOwnBalance(_swapData[i].receivingAssetId);
-        }
-        return balances;
     }
 }

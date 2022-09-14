@@ -66,7 +66,7 @@ contract SwapperV2 is ILiFi {
         LiFiData memory _lifiData,
         LibSwap.SwapData[] calldata _swapData,
         address payable _leftoverReceiver
-    ) internal noLeftovers(_swapData, _leftoverReceiver) {
+    ) internal virtual noLeftovers(_swapData, _leftoverReceiver) {
         for (uint256 i = 0; i < _swapData.length; i++) {
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
             if (
