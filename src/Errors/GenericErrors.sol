@@ -21,3 +21,4 @@ error CannotAuthoriseSelf();
 error RecoveryAddressCannotBeZero();
 error CannotDepositNativeToken();
 error ZeroAmount();
+error InvalidFallbackAddress();
