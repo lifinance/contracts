@@ -42,20 +42,11 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
-        if (_bridgeData.amount == 0) {
-            revert InvalidAmount();
-        }
 
-        if (!LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            uint256 _fromTokenBalance = LibAsset.getOwnBalance(_bridgeData.assetId);
-            LibAsset.transferFromERC20(_bridgeData.assetId, msg.sender, address(this), _bridgeData.amount);
+        uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
+        LibAsset.depositAssetWithFee(_bridgeData.assetId, _bridgeData.amount, cost);
 
-            if (LibAsset.getOwnBalance(_bridgeData.assetId) - _fromTokenBalance != _bridgeData.amount) {
-                revert InvalidAmount();
-            }
-        }
-
-        _startBridge(_lifiData, _bridgeData, _bridgeData.amount, false);
+        _startBridge(_lifiData, _bridgeData, _bridgeData.amount, cost, false);
     }
 
     /// @notice Performs a swap before bridging via Arbitrum Bridge
@@ -77,7 +68,9 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             revert InvalidAmount();
         }
 
-        _startBridge(_lifiData, _bridgeData, amount, true);
+        uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
+
+        _startBridge(_lifiData, _bridgeData, amount, cost, true);
     }
 
     /// Private Methods ///
@@ -86,18 +79,19 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _lifiData Data used purely for tracking and analytics
     /// @param _bridgeData Data for gateway router address, asset id and amount
     /// @param _amount Amount to bridge
+    /// @param _cost Additional amount of native asset for the fee
     /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
         LiFiData calldata _lifiData,
         BridgeData calldata _bridgeData,
         uint256 _amount,
+        uint256 _cost,
         bool _hasSourceSwap
     ) private {
         IGatewayRouter gatewayRouter = IGatewayRouter(_bridgeData.gatewayRouter);
-        uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
 
         if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            gatewayRouter.createRetryableTicketNoRefundAliasRewrite{ value: _amount + cost }(
+            gatewayRouter.createRetryableTicketNoRefundAliasRewrite{ value: _amount + _cost }(
                 _bridgeData.receiver,
                 _amount, // l2CallValue
                 _bridgeData.maxSubmissionCost,
@@ -110,7 +104,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         } else {
             LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.tokenRouter, _amount);
 
-            gatewayRouter.outboundTransfer{ value: cost }(
+            gatewayRouter.outboundTransfer{ value: _cost }(
                 _bridgeData.assetId,
                 _bridgeData.receiver,
                 _amount,

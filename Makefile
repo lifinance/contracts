@@ -9,11 +9,9 @@ update:; forge update
 
 # Build & test
 build         		:; forge build
-test          		:; forge test --fork-url ${ETH_NODE_URI_MAINNET} --fork-block-number ${FORK_NUMBER} -vv --no-match-contract ".*(Polygon)"
-coverage      		:; forge coverage --fork-url ${ETH_NODE_URI_MAINNET} --fork-block-number ${FORK_NUMBER} -vv --no-match-contract ".*(Polygon)"
-test-polygon  		:; forge test --fork-url ${ETH_NODE_URI_POLYGON} --fork-block-number ${POLYGON_FORK_NUMBER} -vv --match-contract ".*(Polygon)"
-coverage-polygon  :; forge coverage --fork-url ${ETH_NODE_URI_POLYGON} --fork-block-number ${POLYGON_FORK_NUMBER} -vv --match-contract ".*(Polygon)"
-trace         		:; forge test --fork-url ${ETH_NODE_URI_MAINNET} --fork-block-number ${FORK_NUMBER} -vvv
-watch         		:; forge test --watch src test --fork-url ${ETH_NODE_URI_MAINNET} --fork-block-number ${FORK_NUMBER} -vvvv
+test          		:; forge test -vvv
+coverage      		:; forge coverage
+trace         		:; forge test -vvvv
+watch         		:; forge test --watch src test -vvv
 clean         		:; forge clean
-snapshot      		:; forge snapshot --fork-url ${ETH_NODE_URI_MAINNET} --fork-block-number ${FORK_NUMBER} --match-path "test/solidity/Gas/**/*"
+snapshot      		:; forge snapshot --match-path "test/solidity/Gas/**/*"

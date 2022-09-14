@@ -4,11 +4,12 @@ pragma solidity 0.8.13;
 import { IAxelarGasService } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGasService.sol";
 import { IAxelarGateway } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGateway.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import { IERC20 } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IERC20.sol";
+import { RecoveryAddressCannotBeZero } from "../Errors/GenericErrors.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 
 contract AxelarFacet {
     /// Storage
-    bytes32 internal constant NAMESPACE = hex"c7ba6016a551f7f07fd4821271b8773baf38cf0831912878e266bac50e0e4a9c"; // keccak256("com.lifi.facets.axelar")
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.axelar");
     struct Storage {
         IAxelarGateway gateway;
         IAxelarGasService gasReceiver;
@@ -28,13 +29,12 @@ contract AxelarFacet {
     /// @param callTo the address of the contract to call
     /// @param callData the encoded calldata for the contract call
     function executeCallViaAxelar(
-        string memory destinationChain,
-        string memory destinationAddress,
+        string calldata destinationChain,
+        string calldata destinationAddress,
         address callTo,
         bytes calldata callData
     ) external payable {
         Storage storage s = getStorage();
-
         bytes memory payload = abi.encodePacked(callTo, callData);
 
         // Pay gas up front
@@ -57,35 +57,51 @@ contract AxelarFacet {
     /// @param callTo the address of the contract to call
     /// @param callData the encoded calldata for the contract call
     function executeCallWithTokenViaAxelar(
-        string memory destinationChain,
-        string memory destinationAddress,
-        string memory symbol,
+        string calldata destinationChain,
+        string calldata destinationAddress,
+        string calldata symbol,
         uint256 amount,
         address callTo,
+        address recoveryAddress,
         bytes calldata callData
     ) external payable {
+        if (recoveryAddress == address(0)) {
+            revert RecoveryAddressCannotBeZero();
+        }
+
         Storage storage s = getStorage();
 
         address tokenAddress = s.gateway.tokenAddresses(symbol);
-        IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
-        IERC20(tokenAddress).approve(address(s.gateway), amount);
+        LibAsset.transferFromERC20(tokenAddress, msg.sender, address(this), amount);
+        LibAsset.maxApproveERC20(IERC20(tokenAddress), address(s.gateway), amount);
 
-        bytes memory payload = abi.encodePacked(callTo, callData);
+        bytes memory payload = abi.encodePacked(callTo, recoveryAddress, callData);
 
         // Pay gas up front
         if (msg.value > 0) {
-            s.gasReceiver.payNativeGasForContractCallWithToken{ value: msg.value }(
-                address(this),
-                destinationChain,
-                destinationAddress,
-                payload,
-                symbol,
-                amount,
-                msg.sender
-            );
+            _payGasWithToken(s, destinationChain, destinationAddress, symbol, amount, payload);
         }
 
         s.gateway.callContractWithToken(destinationChain, destinationAddress, payload, symbol, amount);
+    }
+
+    function _payGasWithToken(
+        Storage storage s,
+        string calldata destinationChain,
+        string calldata destinationAddress,
+        string calldata symbol,
+        uint256 amount,
+        bytes memory payload
+    ) private {
+        s.gasReceiver.payNativeGasForContractCallWithToken{ value: msg.value }(
+            address(this),
+            destinationChain,
+            destinationAddress,
+            payload,
+            symbol,
+            amount,
+            msg.sender
+        );
     }
 
     /// @dev fetch local storage

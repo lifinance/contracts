@@ -68,22 +68,13 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
         payable
         nonReentrant
     {
-        if (_stargateData.amountLD == 0) {
-            revert InvalidAmount();
-        }
-
         address token = getTokenFromPoolId(_stargateData.router, _stargateData.srcPoolId);
 
         if (token == address(0)) {
             revert TokenAddressIsZero();
         }
 
-        uint256 _fromTokenBalance = LibAsset.getOwnBalance(token);
-        LibAsset.transferFromERC20(token, msg.sender, address(this), _stargateData.amountLD);
-
-        if (LibAsset.getOwnBalance(token) - _fromTokenBalance != _stargateData.amountLD) {
-            revert InvalidAmount();
-        }
+        LibAsset.depositAssetWithFee(token, _stargateData.amountLD, msg.value);
 
         _startBridge(_stargateData, _lifiData, msg.value, false);
     }

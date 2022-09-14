@@ -4,31 +4,37 @@ pragma solidity 0.8.13;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IConnextHandler } from "../Interfaces/IConnextHandler.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
+import { InvalidReceiver, InvalidAmount, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Amarok Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Connext Amarok
 contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
+    uint32 immutable srcChainDomain;
+
     /// Types ///
 
     struct BridgeData {
         address connextHandler;
         address assetId;
-        uint32 srcChainDomain;
         uint32 dstChainDomain;
         address receiver;
         uint256 amount;
         bytes callData;
+        bool forceSlow;
+        bool receiveLocal;
+        address callback;
+        uint256 callbackFee;
+        uint256 relayerFee;
         uint256 slippageTol;
+        uint256 originMinOut;
     }
 
-    /// Errors ///
-
-    error InvalidReceiver();
+    constructor(uint32 _srcChainDomain) {
+        srcChainDomain = _srcChainDomain;
+    }
 
     /// External Methods ///
 
@@ -60,7 +66,7 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
         BridgeData calldata _bridgeData
-    ) external nonReentrant {
+    ) external payable nonReentrant {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
@@ -127,19 +133,20 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
             params: IConnextHandler.CallParams({
                 to: _bridgeData.receiver,
                 callData: _bridgeData.callData,
-                originDomain: _bridgeData.srcChainDomain,
+                originDomain: srcChainDomain,
                 destinationDomain: _bridgeData.dstChainDomain,
                 agent: _bridgeData.receiver,
                 recovery: msg.sender,
-                forceSlow: false,
-                receiveLocal: false,
-                callback: address(0),
-                callbackFee: 0,
-                relayerFee: 0,
+                forceSlow: _bridgeData.forceSlow,
+                receiveLocal: _bridgeData.receiveLocal,
+                callback: _bridgeData.callback,
+                callbackFee: _bridgeData.callbackFee,
+                relayerFee: _bridgeData.relayerFee,
                 slippageTol: _bridgeData.slippageTol
             }),
-            transactingAssetId: _bridgeData.assetId,
-            amount: _amount
+            transactingAsset: _bridgeData.assetId,
+            transactingAmount: _amount,
+            originMinOut: _bridgeData.originMinOut
         });
 
         LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.connextHandler, _amount);

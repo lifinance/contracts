@@ -4,7 +4,6 @@ pragma solidity 0.8.13;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IRootChainManager } from "../Interfaces/IRootChainManager.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
@@ -41,18 +40,8 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
-        if (_bridgeData.amount == 0) {
-            revert InvalidAmount();
-        }
 
-        if (!LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            uint256 _fromTokenBalance = LibAsset.getOwnBalance(_bridgeData.assetId);
-            LibAsset.transferFromERC20(_bridgeData.assetId, msg.sender, address(this), _bridgeData.amount);
-
-            if (LibAsset.getOwnBalance(_bridgeData.assetId) - _fromTokenBalance != _bridgeData.amount) {
-                revert InvalidAmount();
-            }
-        }
+        LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
 
         _startBridge(_lifiData, _bridgeData, false);
     }

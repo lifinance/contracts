@@ -5,17 +5,17 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IWormholeRouter } from "../Interfaces/IWormholeRouter.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, CannotBridgeToSameNetwork, InvalidConfig, UnsupportedChainId } from "../Errors/GenericErrors.sol";
-import { Swapper } from "../Helpers/Swapper.sol";
+import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 
 /// @title Wormhole Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Wormhole
-contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
+
+contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.wormhole");
 
     /// Events ///
@@ -75,7 +75,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, Swapper {
         LibSwap.SwapData[] calldata _swapData,
         WormholeData memory _wormholeData
     ) external payable nonReentrant {
-        _wormholeData.amount = _executeAndCheckSwaps(_lifiData, _swapData);
+        _wormholeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_wormholeData);
 
         emit LiFiTransferStarted(

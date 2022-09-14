@@ -4,9 +4,8 @@ pragma solidity 0.8.13;
 import { ITransactionManager } from "../Interfaces/ITransactionManager.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, NativeValueWithERC, NoSwapDataProvided, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title NXTP (Connext) Facet
@@ -50,7 +49,7 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
             _nxtpData.amount,
             _nxtpData.invariantData.receivingChainId,
             false,
-            _nxtpData.invariantData.callTo != address(0)
+            !LibUtil.isZeroAddress(_nxtpData.invariantData.callTo)
         );
     }
 
@@ -79,7 +78,7 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
             _swapData[0].fromAmount,
             _nxtpData.invariantData.receivingChainId,
             true,
-            _nxtpData.invariantData.callTo != address(0)
+            !LibUtil.isZeroAddress(_nxtpData.invariantData.callTo)
         );
     }
 
@@ -120,7 +119,7 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// @dev Contains the business logic for the bridge via NXTP
     /// @param _nxtpData data specific to NXTP
-    function _startBridge(NXTPData memory _nxtpData) private returns (bytes32) {
+    function _startBridge(NXTPData memory _nxtpData) private {
         ITransactionManager txManager = ITransactionManager(_nxtpData.nxtpTxManager);
         IERC20 sendingAssetId = IERC20(_nxtpData.invariantData.sendingAssetId);
         // Give Connext approval to bridge tokens
@@ -129,7 +128,7 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId)) ? _nxtpData.amount : 0;
 
         // Initiate bridge transaction on sending chain
-        ITransactionManager.TransactionData memory result = txManager.prepare{ value: value }(
+        txManager.prepare{ value: value }(
             ITransactionManager.PrepareArgs(
                 _nxtpData.invariantData,
                 _nxtpData.amount,
@@ -140,6 +139,5 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
                 _nxtpData.encodedMeta
             )
         );
-        return result.transactionId;
     }
 }

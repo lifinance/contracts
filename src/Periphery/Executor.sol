@@ -8,11 +8,12 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IERC20Proxy } from "../Interfaces/IERC20Proxy.sol";
+import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-contract Executor is Ownable, ReentrancyGuard, ILiFi {
+contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     /// Storage ///
     address public sgRouter;
     IERC20Proxy public erc20Proxy;
@@ -21,7 +22,6 @@ contract Executor is Ownable, ReentrancyGuard, ILiFi {
     error ExecutionFailed();
     error InvalidStargateRouter();
     error InvalidCaller();
-    error UnAuthorized();
 
     /// Events ///
     event StargateRouterSet(address indexed router);
@@ -30,7 +30,7 @@ contract Executor is Ownable, ReentrancyGuard, ILiFi {
     /// Modifiers ///
 
     /// @dev Sends any leftover balances back to the user
-    modifier noLeftovers(LibSwap.SwapData[] calldata _swapData, address payable _receiver) {
+    modifier noLeftovers(LibSwap.SwapData[] calldata _swapData, address payable _leftoverReceiver) {
         uint256 nSwaps = _swapData.length;
         if (nSwaps != 1) {
             uint256[] memory initialBalances = _fetchBalances(_swapData);
@@ -43,7 +43,7 @@ contract Executor is Ownable, ReentrancyGuard, ILiFi {
                 address curAsset = _swapData[i].receivingAssetId;
                 if (curAsset == finalAsset) continue; // Handle multi-to-one swaps
                 curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
-                if (curBalance > 0) LibAsset.transferAsset(curAsset, _receiver, curBalance);
+                if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
             }
         } else _;
     }
@@ -53,8 +53,8 @@ contract Executor is Ownable, ReentrancyGuard, ILiFi {
         address _owner,
         address _sgRouter,
         address _erc20Proxy
-    ) {
-        transferOwnership(_owner);
+    ) TransferrableOwnership(_owner) {
+        owner = _owner;
         sgRouter = _sgRouter;
         erc20Proxy = IERC20Proxy(_erc20Proxy);
         emit StargateRouterSet(_sgRouter);
@@ -255,8 +255,8 @@ contract Executor is Ownable, ReentrancyGuard, ILiFi {
     function _executeSwaps(
         LiFiData memory _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        address payable _receiver
-    ) private noLeftovers(_swapData, _receiver) {
+        address payable _leftoverReceiver
+    ) private noLeftovers(_swapData, _leftoverReceiver) {
         for (uint256 i = 0; i < _swapData.length; i++) {
             if (_swapData[i].callTo == address(erc20Proxy)) revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
