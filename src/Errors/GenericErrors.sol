@@ -3,6 +3,7 @@ pragma solidity 0.8.13;
 
 error InvalidAmount();
 error TokenAddressIsZero();
+error TokenNotSupported();
 error CannotBridgeToSameNetwork();
 error ZeroPostSwapBalance();
 error InvalidBridgeConfigLength();
@@ -20,4 +21,5 @@ error OnlyContractOwner();
 error CannotAuthoriseSelf();
 error RecoveryAddressCannotBeZero();
 error CannotDepositNativeToken();
+error NativeAssetNotSupported();
 error ZeroAmount();
