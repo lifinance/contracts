@@ -35,22 +35,7 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         nonReentrant
     {
         LibAsset.depositAsset(_cBridgeData.token, _cBridgeData.amount);
-        _startBridge(_cBridgeData);
-
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "cbridge",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _cBridgeData.token,
-            _lifiData.receivingAssetId,
-            _cBridgeData.receiver,
-            _cBridgeData.amount,
-            _cBridgeData.dstChainId,
-            false,
-            false
-        );
+        _startBridge(_lifiData, _cBridgeData, false);
     }
 
     /// @notice Performs a swap before bridging via CBridge
@@ -63,29 +48,20 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         CBridgeData memory _cBridgeData
     ) external payable nonReentrant {
         _cBridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        _startBridge(_cBridgeData);
-
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "cbridge",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _swapData[0].sendingAssetId,
-            _lifiData.receivingAssetId,
-            _cBridgeData.receiver,
-            _swapData[0].fromAmount,
-            _cBridgeData.dstChainId,
-            true,
-            false
-        );
+        _startBridge(_lifiData, _cBridgeData, true);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via CBridge
+    /// @param _lifiData data used purely for tracking and analytics
     /// @param _cBridgeData data specific to CBridge
-    function _startBridge(CBridgeData memory _cBridgeData) private {
+    /// @param _hasSourceSwaps whether or not the bridge has source swaps
+    function _startBridge(
+        LiFiData calldata _lifiData,
+        CBridgeData memory _cBridgeData,
+        bool _hasSourceSwaps
+    ) private {
         // Do CBridge stuff
         if (uint64(block.chainid) == _cBridgeData.dstChainId) revert CannotBridgeToSameNetwork();
 
@@ -110,5 +86,20 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
                 _cBridgeData.maxSlippage
             );
         }
+
+        emit LiFiTransferStarted(
+            _lifiData.transactionId,
+            "cbridge",
+            "",
+            _lifiData.integrator,
+            _lifiData.referrer,
+            _cBridgeData.token,
+            _lifiData.receivingAssetId,
+            _cBridgeData.receiver,
+            _cBridgeData.amount,
+            _cBridgeData.dstChainId,
+            _hasSourceSwaps,
+            false
+        );
     }
 }

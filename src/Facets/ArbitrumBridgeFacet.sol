@@ -45,7 +45,6 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
         uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
         LibAsset.depositAssetWithFee(_bridgeData.assetId, _bridgeData.amount, cost);
-
         _startBridge(_lifiData, _bridgeData, _bridgeData.amount, cost, false);
     }
 
@@ -63,13 +62,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
 
         uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-
-        if (amount == 0) {
-            revert InvalidAmount();
-        }
-
         uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
-
         _startBridge(_lifiData, _bridgeData, amount, cost, true);
     }
 
@@ -120,10 +113,10 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             "",
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
+            _bridgeData.assetId,
             _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
+            _bridgeData.receiver,
+            _bridgeData.amount,
             _lifiData.destinationChainId,
             _hasSourceSwap,
             false

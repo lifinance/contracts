@@ -34,22 +34,7 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
         nonReentrant
     {
         LibAsset.depositAsset(_hyphenData.token, _hyphenData.amount);
-        _startBridge(_hyphenData);
-
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "hyphen",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _hyphenData.token,
-            _lifiData.receivingAssetId,
-            _hyphenData.recipient,
-            _hyphenData.amount,
-            _hyphenData.toChainId,
-            false,
-            false
-        );
+        _startBridge(_lifiData, _hyphenData, false);
     }
 
     /// @notice Performs a swap before bridging via Hyphen
@@ -62,29 +47,20 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
         HyphenData memory _hyphenData
     ) external payable nonReentrant {
         _hyphenData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        _startBridge(_hyphenData);
-
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "hyphen",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _swapData[0].sendingAssetId,
-            _lifiData.receivingAssetId,
-            _hyphenData.recipient,
-            _swapData[0].fromAmount,
-            _hyphenData.toChainId,
-            true,
-            false
-        );
+        _startBridge(_lifiData, _hyphenData, true);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Hyphen
+    /// @param _lifiData data used purely for tracking and analytics
     /// @param _hyphenData data specific to Hyphen
-    function _startBridge(HyphenData memory _hyphenData) private {
+    /// @param _hasSourceSwaps whether or not the bridge has source swaps
+    function _startBridge(
+        LiFiData calldata _lifiData,
+        HyphenData memory _hyphenData,
+        bool _hasSourceSwaps
+    ) private {
         if (!LibAsset.isNativeAsset(_hyphenData.token)) {
             // Give the Hyphen router approval to bridge tokens
             LibAsset.maxApproveERC20(IERC20(_hyphenData.token), _hyphenData.router, _hyphenData.amount);
@@ -103,5 +79,20 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
                 "LIFI"
             );
         }
+
+        emit LiFiTransferStarted(
+            _lifiData.transactionId,
+            "hyphen",
+            "",
+            _lifiData.integrator,
+            _lifiData.referrer,
+            _hyphenData.token,
+            _lifiData.receivingAssetId,
+            _hyphenData.recipient,
+            _hyphenData.amount,
+            _hyphenData.toChainId,
+            _hasSourceSwaps,
+            false
+        );
     }
 }

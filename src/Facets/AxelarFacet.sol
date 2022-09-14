@@ -75,7 +75,7 @@ contract AxelarFacet {
             LibAsset.transferFromERC20(tokenAddress, msg.sender, address(this), amount);
             LibAsset.maxApproveERC20(IERC20(tokenAddress), address(s.gateway), amount);
         }
-        
+
         bytes memory payload = abi.encodePacked(callTo, recoveryAddress, callData);
 
         // Pay gas up front
