@@ -53,18 +53,12 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     function swapAndStartBridgeTokensViaPolygonBridge(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        BridgeData calldata _bridgeData
+        BridgeData memory _bridgeData
     ) external payable nonReentrant {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
-
-        uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-
-        if (amount == 0) {
-            revert InvalidAmount();
-        }
-
+        _bridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_lifiData, _bridgeData, true);
     }
 
@@ -75,8 +69,8 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _bridgeData Parameters used for bridging
     /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
-        LiFiData memory _lifiData,
-        BridgeData calldata _bridgeData,
+        LiFiData calldata _lifiData,
+        BridgeData memory _bridgeData,
         bool _hasSourceSwap
     ) private {
         IRootChainManager rootChainManager = IRootChainManager(_bridgeData.rootChainManager);
