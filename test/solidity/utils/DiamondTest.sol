@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import "lifi/LiFiDiamond.sol";
 import "lifi/Facets/DiamondCutFacet.sol";
