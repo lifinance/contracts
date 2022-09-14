@@ -17,3 +17,5 @@ The contract has one utility method for updating the Axelar gateway
 /// @param _gateway the Axelar gateway address
 function setAxelarGateway(address _gateway)
 ```
+
+Upon failed destination call or partial token usage by the called contract, leftover tokens will be transferred to the specified recoveryAddress. 
