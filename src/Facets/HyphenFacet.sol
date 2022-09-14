@@ -6,6 +6,8 @@ import { IHyphenRouter } from "../Interfaces/IHyphenRouter.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
+import { InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
 
 /// @title Hyphen Facet
 /// @author LI.FI (https://li.fi)
@@ -33,6 +35,13 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
         payable
         nonReentrant
     {
+        if (LibUtil.isZeroAddress(_hyphenData.recipient)) {
+            revert InvalidReceiver();
+        }
+        if (_hyphenData.amount == 0) {
+            revert InvalidAmount();
+        }
+
         LibAsset.depositAsset(_hyphenData.token, _hyphenData.amount);
         _startBridge(_hyphenData);
 
@@ -61,7 +70,15 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         HyphenData memory _hyphenData
     ) external payable nonReentrant {
+        if (LibUtil.isZeroAddress(_hyphenData.recipient)) {
+            revert InvalidReceiver();
+        }
+
         _hyphenData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
+        if (_hyphenData.amount == 0) {
+            revert InvalidAmount();
+        }
+
         _startBridge(_hyphenData);
 
         emit LiFiTransferStarted(
