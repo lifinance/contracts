@@ -104,8 +104,8 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
         address recoveryAddress,
         uint256 amount
     ) internal {
-        IERC20(tokenAddress).safeApprove(callTo, 0);
         emit AxelarExecutionFailed(callTo, bytes4(callData), recoveryAddress);
-        LibAsset.transferFromERC20(tokenAddress, address(this), recoveryAddress, amount);
+        IERC20(tokenAddress).safeApprove(callTo, 0);
+        IERC20(tokenAddress).safeTransfer(recoveryAddress, amount);
     }
 }
