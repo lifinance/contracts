@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
 
 /// @title ERC20 Proxy
 /// @author LI.FI (https://li.fi)
@@ -43,6 +43,6 @@ contract ERC20Proxy is Ownable {
     ) external {
         if (!authorizedCallers[msg.sender]) revert UnAuthorized();
 
-        IERC20(tokenAddress).transferFrom(from, to, amount);
+        LibAsset.transferFromERC20(tokenAddress, from, to, amount);
     }
 }

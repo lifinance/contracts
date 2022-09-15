@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { CannotBridgeToSameNetwork, NativeValueWithERC } from "../Errors/GenericErrors.sol";
+import { CannotBridgeToSameNetwork, NativeValueWithERC, InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 
 /// @title Hop Facet
 /// @author LI.FI (https://li.fi)
@@ -21,7 +21,6 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         address sendingAssetAddress;
         address bridge;
         address recipient;
-        uint256 fromChainId;
         uint256 toChainId;
         uint256 amount;
         uint256 bonderFee;
@@ -30,10 +29,6 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 destinationAmountOutMin;
         uint256 destinationDeadline;
     }
-
-    /// Events ///
-
-    event HopInitialized(string[] tokens, IHopBridge.BridgeConfig[] bridgeConfigs, uint256 chainId);
 
     /// External Methods ///
 
@@ -45,6 +40,13 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         payable
         nonReentrant
     {
+        if (LibUtil.isZeroAddress(_hopData.recipient)) {
+            revert InvalidReceiver();
+        }
+        if (_hopData.amount == 0) {
+            revert InvalidAmount();
+        }
+
         LibAsset.depositAsset(_hopData.sendingAssetAddress, _hopData.amount);
         _startBridge(_hopData);
 
@@ -73,8 +75,14 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         HopData memory _hopData
     ) external payable nonReentrant {
+        if (LibUtil.isZeroAddress(_hopData.recipient)) {
+            revert InvalidReceiver();
+        }
         if (!LibAsset.isNativeAsset(address(_lifiData.sendingAssetId)) && msg.value != 0) revert NativeValueWithERC();
         _hopData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
+        if (_hopData.amount == 0) {
+            revert InvalidAmount();
+        }
         _startBridge(_hopData);
 
         emit LiFiTransferStarted(
@@ -99,7 +107,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _hopData data specific to Hop Protocol
     function _startBridge(HopData memory _hopData) private {
         // Do HOP stuff
-        if (_hopData.fromChainId == _hopData.toChainId) revert CannotBridgeToSameNetwork();
+        if (block.chainid == _hopData.toChainId) revert CannotBridgeToSameNetwork();
 
         address sendingAssetId = _hopData.sendingAssetAddress;
         // Give Hop approval to bridge tokens
@@ -107,7 +115,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId)) ? _hopData.amount : 0;
 
-        if (_hopData.fromChainId == 1) {
+        if (block.chainid == 1) {
             // Ethereum L1
             IHopBridge(_hopData.bridge).sendToL2{ value: value }(
                 _hopData.toChainId,

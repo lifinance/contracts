@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicensed
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
@@ -78,6 +78,7 @@ contract ExecutorTest is DSTest {
 
     function testCanExecuteAxelarPayloadWithToken() public {
         ERC20 aUSDC = new ERC20("Axelar USDC", "aUSDC", 18);
+        address recoveryAddress = address(this);
         aUSDC.mint(address(this), 100 ether);
         gw.setTokenAddress("aUSDC", address(aUSDC));
         aUSDC.transfer(address(executor), 0.01 ether);
@@ -87,6 +88,7 @@ contract ExecutorTest is DSTest {
             "0x1234",
             abi.encodePacked(
                 address(vault),
+                recoveryAddress,
                 abi.encodeWithSignature("deposit(address,uint256)", address(aUSDC), 0.01 ether)
             ),
             "aUSDC",

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
@@ -17,6 +17,7 @@ contract FeeCollector is TransferrableOwnership {
 
     /// Errors ///
     error TransferFailure();
+    error NotEnoughNativeForFees();
 
     /// Events ///
     event FeesCollected(address indexed _token, address indexed _integrator, uint256 _integratorFee, uint256 _lifiFee);
@@ -55,6 +56,7 @@ contract FeeCollector is TransferrableOwnership {
         uint256 lifiFee,
         address integratorAddress
     ) external payable {
+        if (msg.value < integratorFee + lifiFee) revert NotEnoughNativeForFees();
         _balances[integratorAddress][LibAsset.NULL_ADDRESS] += integratorFee;
         _lifiBalances[LibAsset.NULL_ADDRESS] += lifiFee;
         uint256 remaining = msg.value - (integratorFee + lifiFee);

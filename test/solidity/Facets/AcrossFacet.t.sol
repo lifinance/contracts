@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
@@ -8,26 +8,18 @@ import { Vm } from "forge-std/Vm.sol";
 import { AcrossFacet } from "lifi/Facets/AcrossFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 
 // Stub CBridgeFacet Contract
 contract TestAcrossFacet is AcrossFacet {
     function addDex(address _dex) external {
-        mapping(address => bool) storage dexAllowlist = appStorage.dexAllowlist;
-
-        if (dexAllowlist[_dex]) {
-            return;
-        }
-
-        dexAllowlist[_dex] = true;
-        appStorage.dexs.push(_dex);
+        LibAllowList.addAllowedContract(_dex);
     }
 
-    function setFunctionApprovalBySignature(bytes4 signature) external {
-        mapping(bytes4 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
-        if (dexFuncSignatureAllowList[signature]) return;
-        dexFuncSignatureAllowList[signature] = true;
+    function setFunctionApprovalBySignature(bytes4 _signature) external {
+        LibAllowList.addAllowedSelector(_signature);
     }
 }
 
@@ -47,7 +39,15 @@ contract AcrossFacetTest is DSTest, DiamondTest {
     ERC20 internal usdc;
     ERC20 internal weth;
 
+    function fork() internal {
+        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
+        uint256 blockNumber = vm.envUint("FORK_NUMBER");
+        vm.createSelectFork(rpcUrl, blockNumber);
+    }
+
     function setUp() public {
+        fork();
+
         diamond = createDiamond();
         across = new TestAcrossFacet();
         usdc = ERC20(USDC_ADDRESS);

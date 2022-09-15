@@ -18,7 +18,15 @@ contract FusePoolZapTest is DSTest {
     address internal constant DEPOSITOR = 0x47Bc10781E8f71c0e7cf97B0a5a88F4CFfF21309;
     address internal constant FUSE_POOL_DIRECTORY = 0x835482FE0532f169024d5E9410199369aAD5C77E;
 
+    function fork() internal {
+        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
+        uint256 blockNumber = vm.envUint("FORK_NUMBER");
+        vm.createSelectFork(rpcUrl, blockNumber);
+    }
+
     function setUp() public {
+        fork();
+
         vm.rollFork(14533013);
         zap = new FusePoolZap(FUSE_POOL_DIRECTORY);
     }
