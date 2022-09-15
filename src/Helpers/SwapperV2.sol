@@ -70,7 +70,8 @@ contract SwapperV2 is ILiFi {
         for (uint256 i = 0; i < _swapData.length; i++) {
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
             if (
-                !(LibAllowList.contractIsAllowed(currentSwapData.approveTo) &&
+                !((LibAsset.isNativeAsset(currentSwapData.sendingAssetId) ||
+                    LibAllowList.contractIsAllowed(currentSwapData.approveTo)) &&
                     LibAllowList.contractIsAllowed(currentSwapData.callTo) &&
                     LibAllowList.selectorIsAllowed(bytes4(currentSwapData.callData[:4])))
             ) revert ContractCallNotAllowed();

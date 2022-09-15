@@ -73,7 +73,7 @@ contract AxelarFacet {
         }
 
         Storage storage s = getStorage();
-        
+
         {
             address tokenAddress = s.gateway.tokenAddresses(symbol);
             if (LibAsset.isNativeAsset(tokenAddress)) {
