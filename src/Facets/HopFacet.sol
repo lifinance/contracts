@@ -5,8 +5,9 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { CannotBridgeToSameNetwork, NativeValueWithERC } from "../Errors/GenericErrors.sol";
+import { CannotBridgeToSameNetwork, NativeValueWithERC, InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 
 /// @title Hop Facet
 /// @author LI.FI (https://li.fi)
@@ -39,6 +40,13 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         payable
         nonReentrant
     {
+        if (LibUtil.isZeroAddress(_hopData.recipient)) {
+            revert InvalidReceiver();
+        }
+        if (_hopData.amount == 0) {
+            revert InvalidAmount();
+        }
+
         LibAsset.depositAsset(_hopData.sendingAssetAddress, _hopData.amount);
         _startBridge(_hopData);
 
@@ -67,8 +75,14 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         HopData memory _hopData
     ) external payable nonReentrant {
+        if (LibUtil.isZeroAddress(_hopData.recipient)) {
+            revert InvalidReceiver();
+        }
         if (!LibAsset.isNativeAsset(address(_lifiData.sendingAssetId)) && msg.value != 0) revert NativeValueWithERC();
         _hopData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
+        if (_hopData.amount == 0) {
+            revert InvalidAmount();
+        }
         _startBridge(_hopData);
 
         emit LiFiTransferStarted(

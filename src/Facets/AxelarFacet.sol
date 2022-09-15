@@ -15,6 +15,9 @@ contract AxelarFacet {
         IAxelarGasService gasReceiver;
     }
 
+    /// Errors
+    error SymbolDoesNotExist();
+
     /// Init
     function initAxelar(address _gateway, address _gasReceiver) external {
         LibDiamond.enforceIsContractOwner();
@@ -70,8 +73,12 @@ contract AxelarFacet {
         }
 
         Storage storage s = getStorage();
+        
         {
             address tokenAddress = s.gateway.tokenAddresses(symbol);
+            if (LibAsset.isNativeAsset(tokenAddress)) {
+                revert SymbolDoesNotExist();
+            }
             LibAsset.transferFromERC20(tokenAddress, msg.sender, address(this), amount);
             LibAsset.maxApproveERC20(IERC20(tokenAddress), address(s.gateway), amount);
         }

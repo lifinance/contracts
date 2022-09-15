@@ -5,8 +5,10 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IXDaiBridge } from "../Interfaces/IXDaiBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, InvalidSendingToken, InvalidDestinationChain } from "../Errors/GenericErrors.sol";
+import { InvalidAmount,  } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidSendingToken, InvalidDestinationChain, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 
 /// @title Gnosis Bridge Facet
 /// @author LI.FI (https://li.fi)
@@ -44,6 +46,9 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (gnosisBridgeData.amount == 0) {
             revert InvalidAmount();
         }
+        if (LibUtil.isZeroAddress(gnosisBridgeData.receiver)) {
+            revert InvalidReceiver();
+        }
 
         LibAsset.depositAsset(DAI, gnosisBridgeData.amount);
 
@@ -79,6 +84,9 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
         if (lifiData.sendingAssetId != DAI || swapData[swapData.length - 1].receivingAssetId != DAI) {
             revert InvalidSendingToken();
+        }
+        if (LibUtil.isZeroAddress(gnosisBridgeData.receiver)) {
+            revert InvalidReceiver();
         }
 
         gnosisBridgeData.amount = _executeAndCheckSwaps(lifiData, swapData, payable(msg.sender));
