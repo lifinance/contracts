@@ -68,7 +68,7 @@
     "format:fix": "prettier --write \"**/*.{ts,js,sol}\"",
     "compile": "hardhat compile && hardhat diamondABI",
     "void:deploy": "hardhat deploy",
-    "test": "npm run compile && cross-env TS_NODE_TRANSPILE_ONLY=1 mocha --bail --recursive test",
+    "test": "npm run compile && cross-env TS_NODE_TRANSPILE_ONLY=1 REPORT_GAS=true mocha --bail --recursive test",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
     "test:forge": "make test",
     "test:forge:fix": "npm run lint:fix; npm run format:fix; forge test",

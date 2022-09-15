@@ -26,40 +26,38 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @notice Bridges tokens via OmniBridge
     /// @param _lifiData Data used purely for tracking and analytics
     /// @param _bridgeData Data specific to bridge
-    function startBridgeTokensViaOmniBridge(LiFiData calldata _lifiData, BridgeData calldata _bridgeData)
-        external
-        payable
-        nonReentrant
-    {
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function startBridgeTokensViaOmniBridge(
+        LiFiData calldata _lifiData,
+        BridgeData calldata _bridgeData,
+        LibAsset.Deposit[] calldata _depositData
+    ) external payable nonReentrant {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
 
-        LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
-
-        _startBridge(_lifiData, _bridgeData, _bridgeData.amount, false);
+        LibAsset.depositAssets(_depositData);
+        _startBridge(_lifiData, _bridgeData, false);
     }
 
     /// @notice Performs a swap before bridging via OmniBridge
     /// @param _lifiData Data used purely for tracking and analytics
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _bridgeData Data specific to bridge
+    /// @param _depositData a list of deposits to make to the lifi diamond
     function swapAndStartBridgeTokensViaOmniBridge(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        BridgeData calldata _bridgeData
+        BridgeData memory _bridgeData,
+        LibAsset.Deposit[] calldata _depositData
     ) external payable nonReentrant {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
 
-        uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-
-        if (amount == 0) {
-            revert InvalidAmount();
-        }
-
-        _startBridge(_lifiData, _bridgeData, amount, true);
+        LibAsset.depositAssets(_depositData);
+        _bridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
+        _startBridge(_lifiData, _bridgeData, true);
     }
 
     /// Private Methods ///
@@ -67,22 +65,20 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @dev Contains the business logic for the bridge via OmniBridge
     /// @param _lifiData Data used purely for tracking and analytics
     /// @param _bridgeData Data specific to OmniBridge
-    /// @param _amount Amount to bridge
     /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
         LiFiData calldata _lifiData,
-        BridgeData calldata _bridgeData,
-        uint256 _amount,
+        BridgeData memory _bridgeData,
         bool _hasSourceSwap
     ) private {
         IOmniBridge bridge = IOmniBridge(_bridgeData.bridge);
 
         if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            bridge.wrapAndRelayTokens{ value: _amount }(_bridgeData.receiver);
+            bridge.wrapAndRelayTokens{ value: _bridgeData.amount }(_bridgeData.receiver);
         } else {
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.bridge, _amount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.bridge, _bridgeData.amount);
 
-            bridge.relayTokens(_bridgeData.assetId, _bridgeData.receiver, _amount);
+            bridge.relayTokens(_bridgeData.assetId, _bridgeData.receiver, _bridgeData.amount);
         }
 
         emit LiFiTransferStarted(

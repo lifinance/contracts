@@ -28,14 +28,15 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @notice Bridges tokens via Anyswap
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _anyswapData data specific to Anyswap
-    function startBridgeTokensViaAnyswap(LiFiData calldata _lifiData, AnyswapData calldata _anyswapData)
-        external
-        payable
-        nonReentrant
-    {
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function startBridgeTokensViaAnyswap(
+        LiFiData calldata _lifiData,
+        AnyswapData calldata _anyswapData,
+        LibAsset.Deposit[] calldata _depositData
+    ) external payable nonReentrant {
         // Multichain (formerly Anyswap) tokens can wrap other tokens
         (address underlyingToken, bool isNative) = _getUnderlyingToken(_anyswapData.token, _anyswapData.router);
-        if (!isNative) LibAsset.depositAsset(underlyingToken, _anyswapData.amount);
+        LibAsset.depositAssets(_depositData);
         _startBridge(_anyswapData, underlyingToken, isNative);
 
         emit LiFiTransferStarted(
@@ -58,12 +59,14 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _anyswapData data specific to Anyswap
+    /// @param _depositData a list of deposits to make to the lifi diamond
     function swapAndStartBridgeTokensViaAnyswap(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        AnyswapData memory _anyswapData
+        AnyswapData memory _anyswapData,
+        LibAsset.Deposit[] calldata _depositData
     ) external payable nonReentrant {
-        if (LibAsset.isNativeAsset(_anyswapData.token)) revert TokenAddressIsZero();
+        LibAsset.depositAssets(_depositData);
         _anyswapData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         (address underlyingToken, bool isNative) = _getUnderlyingToken(_anyswapData.token, _anyswapData.router);
         _startBridge(_anyswapData, underlyingToken, isNative);

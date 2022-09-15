@@ -30,12 +30,13 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @notice This function starts a cross-chain transaction using the NXTP protocol
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _nxtpData data needed to complete an NXTP cross-chain transaction
-    function startBridgeTokensViaNXTP(LiFiData calldata _lifiData, NXTPData calldata _nxtpData)
-        external
-        payable
-        nonReentrant
-    {
-        LibAsset.depositAsset(_nxtpData.invariantData.sendingAssetId, _nxtpData.amount);
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function startBridgeTokensViaNXTP(
+        LiFiData calldata _lifiData,
+        NXTPData calldata _nxtpData,
+        LibAsset.Deposit[] calldata _depositData
+    ) external payable nonReentrant {
+        LibAsset.depositAssets(_depositData);
         _startBridge(_nxtpData);
 
         emit LiFiTransferStarted(
@@ -59,11 +60,14 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _swapData array of data needed for swaps
     /// @param _nxtpData data needed to complete an NXTP cross-chain transaction
+    /// @param _depositData a list of deposits to make to the lifi diamond
     function swapAndStartBridgeTokensViaNXTP(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        NXTPData memory _nxtpData
+        NXTPData memory _nxtpData,
+        LibAsset.Deposit[] calldata _depositData
     ) external payable nonReentrant {
+        LibAsset.depositAssets(_depositData);
         _nxtpData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_nxtpData);
 

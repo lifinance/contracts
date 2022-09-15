@@ -35,11 +35,12 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @notice Bridges tokens via Hop Protocol
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _hopData data specific to Hop Protocol
-    function startBridgeTokensViaHop(LiFiData calldata _lifiData, HopData calldata _hopData)
-        external
-        payable
-        nonReentrant
-    {
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function startBridgeTokensViaHop(
+        LiFiData calldata _lifiData,
+        HopData calldata _hopData,
+        LibAsset.Deposit[] calldata _depositData
+    ) external payable nonReentrant {
         if (LibUtil.isZeroAddress(_hopData.recipient)) {
             revert InvalidReceiver();
         }
@@ -47,7 +48,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
             revert InvalidAmount();
         }
 
-        LibAsset.depositAsset(_hopData.sendingAssetAddress, _hopData.amount);
+        LibAsset.depositAssets(_depositData);
         _startBridge(_hopData);
 
         emit LiFiTransferStarted(
@@ -70,19 +71,20 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _hopData data specific to Hop Protocol
+    /// @param _depositData a list of deposits to make to the lifi diamond
     function swapAndStartBridgeTokensViaHop(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        HopData memory _hopData
+        HopData memory _hopData,
+        LibAsset.Deposit[] calldata _depositData
     ) external payable nonReentrant {
         if (LibUtil.isZeroAddress(_hopData.recipient)) {
             revert InvalidReceiver();
         }
+
         if (!LibAsset.isNativeAsset(address(_lifiData.sendingAssetId)) && msg.value != 0) revert NativeValueWithERC();
+        LibAsset.depositAssets(_depositData);
         _hopData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        if (_hopData.amount == 0) {
-            revert InvalidAmount();
-        }
         _startBridge(_hopData);
 
         emit LiFiTransferStarted(

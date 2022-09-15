@@ -30,43 +30,40 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @notice Bridges tokens via Arbitrum Bridge
     /// @param _lifiData Data used purely for tracking and analytics
     /// @param _bridgeData Data for gateway router address, asset id and amount
-    function startBridgeTokensViaArbitrumBridge(LiFiData calldata _lifiData, BridgeData calldata _bridgeData)
-        external
-        payable
-        nonReentrant
-    {
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function startBridgeTokensViaArbitrumBridge(
+        LiFiData calldata _lifiData,
+        BridgeData calldata _bridgeData,
+        LibAsset.Deposit[] calldata _depositData
+    ) external payable nonReentrant {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
 
+        LibAsset.depositAssets(_depositData);
         uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
-        LibAsset.depositAssetWithFee(_bridgeData.assetId, _bridgeData.amount, cost);
-
-        _startBridge(_lifiData, _bridgeData, _bridgeData.amount, cost, false);
+        _startBridge(_lifiData, _bridgeData, cost, false);
     }
 
     /// @notice Performs a swap before bridging via Arbitrum Bridge
     /// @param _lifiData Data used purely for tracking and analytics
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _bridgeData Data for gateway router address, asset id and amount
+    /// @param _depositData a list of deposits to make to the lifi diamond
     function swapAndStartBridgeTokensViaArbitrumBridge(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        BridgeData calldata _bridgeData
+        BridgeData memory _bridgeData,
+        LibAsset.Deposit[] calldata _depositData
     ) external payable nonReentrant {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
 
-        uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-
-        if (amount == 0) {
-            revert InvalidAmount();
-        }
-
+        LibAsset.depositAssets(_depositData);
+        _bridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
-
-        _startBridge(_lifiData, _bridgeData, amount, cost, true);
+        _startBridge(_lifiData, _bridgeData, cost, true);
     }
 
     /// Private Methods ///
@@ -74,22 +71,20 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @dev Contains the business logic for the bridge via Arbitrum Bridge
     /// @param _lifiData Data used purely for tracking and analytics
     /// @param _bridgeData Data for gateway router address, asset id and amount
-    /// @param _amount Amount to bridge
     /// @param _cost Additional amount of native asset for the fee
     /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
         LiFiData calldata _lifiData,
-        BridgeData calldata _bridgeData,
-        uint256 _amount,
+        BridgeData memory _bridgeData,
         uint256 _cost,
         bool _hasSourceSwap
     ) private {
         IGatewayRouter gatewayRouter = IGatewayRouter(_bridgeData.gatewayRouter);
 
         if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            gatewayRouter.createRetryableTicketNoRefundAliasRewrite{ value: _amount + _cost }(
+            gatewayRouter.createRetryableTicketNoRefundAliasRewrite{ value: _bridgeData.amount + _cost }(
                 _bridgeData.receiver,
-                _amount, // l2CallValue
+                _bridgeData.amount, // l2CallValue
                 _bridgeData.maxSubmissionCost,
                 _bridgeData.receiver, // excessFeeRefundAddress
                 _bridgeData.receiver, // callValueRefundAddress
@@ -98,12 +93,12 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
                 ""
             );
         } else {
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.tokenRouter, _amount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.tokenRouter, _bridgeData.amount);
 
             gatewayRouter.outboundTransfer{ value: _cost }(
                 _bridgeData.assetId,
                 _bridgeData.receiver,
-                _amount,
+                _bridgeData.amount,
                 _bridgeData.maxGas,
                 _bridgeData.maxGasPrice,
                 abi.encode(_bridgeData.maxSubmissionCost, "")

@@ -32,11 +32,12 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @notice Bridges tokens via XDaiBridge
     /// @param lifiData data used purely for tracking and analytics
     /// @param gnosisBridgeData data specific to bridge
-    function startBridgeTokensViaXDaiBridge(LiFiData calldata lifiData, GnosisBridgeData calldata gnosisBridgeData)
-        external
-        payable
-        nonReentrant
-    {
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function startBridgeTokensViaXDaiBridge(
+        LiFiData calldata lifiData,
+        GnosisBridgeData calldata gnosisBridgeData,
+        LibAsset.Deposit[] calldata _depositData
+    ) external payable nonReentrant {
         if (lifiData.destinationChainId != GNOSIS_CHAIN_ID) {
             revert InvalidDestinationChain();
         }
@@ -50,8 +51,7 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             revert InvalidReceiver();
         }
 
-        LibAsset.depositAsset(DAI, gnosisBridgeData.amount);
-
+        LibAsset.depositAssets(_depositData);
         _startBridge(gnosisBridgeData);
 
         emit LiFiTransferStarted(
@@ -74,10 +74,12 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param lifiData data used purely for tracking and analytics
     /// @param swapData an array of swap related data for performing swaps before bridging
     /// @param gnosisBridgeData data specific to bridge
+    /// @param _depositData a list of deposits to make to the lifi diamond
     function swapAndStartBridgeTokensViaXDaiBridge(
         LiFiData calldata lifiData,
         LibSwap.SwapData[] calldata swapData,
-        GnosisBridgeData memory gnosisBridgeData
+        GnosisBridgeData memory gnosisBridgeData,
+        LibAsset.Deposit[] calldata _depositData
     ) external payable nonReentrant {
         if (lifiData.destinationChainId != GNOSIS_CHAIN_ID) {
             revert InvalidDestinationChain();
@@ -89,12 +91,8 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             revert InvalidReceiver();
         }
 
+        LibAsset.depositAssets(_depositData);
         gnosisBridgeData.amount = _executeAndCheckSwaps(lifiData, swapData, payable(msg.sender));
-
-        if (gnosisBridgeData.amount == 0) {
-            revert InvalidAmount();
-        }
-
         _startBridge(gnosisBridgeData);
 
         emit LiFiTransferStarted(

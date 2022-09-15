@@ -31,11 +31,12 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @notice Bridges tokens via CBridge
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _cBridgeData data specific to CBridge
-    function startBridgeTokensViaCBridge(LiFiData calldata _lifiData, CBridgeData calldata _cBridgeData)
-        external
-        payable
-        nonReentrant
-    {
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function startBridgeTokensViaCBridge(
+        LiFiData calldata _lifiData,
+        CBridgeData calldata _cBridgeData,
+        LibAsset.Deposit[] calldata _depositData
+    ) external payable nonReentrant {
         if (LibUtil.isZeroAddress(_cBridgeData.receiver)) {
             revert InvalidReceiver();
         }
@@ -43,7 +44,7 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             revert InvalidAmount();
         }
 
-        LibAsset.depositAsset(_cBridgeData.token, _cBridgeData.amount);
+        LibAsset.depositAssets(_depositData);
         _startBridge(_cBridgeData);
 
         emit LiFiTransferStarted(
@@ -66,20 +67,19 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _cBridgeData data specific to CBridge
+    /// @param _depositData a list of deposits to make to the lifi diamond
     function swapAndStartBridgeTokensViaCBridge(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        CBridgeData memory _cBridgeData
+        CBridgeData memory _cBridgeData,
+        LibAsset.Deposit[] calldata _depositData
     ) external payable nonReentrant {
         if (LibUtil.isZeroAddress(_cBridgeData.receiver)) {
             revert InvalidReceiver();
         }
 
+        LibAsset.depositAssets(_depositData);
         _cBridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        if (_cBridgeData.amount == 0) {
-            revert InvalidAmount();
-        }
-
         _startBridge(_cBridgeData);
 
         emit LiFiTransferStarted(

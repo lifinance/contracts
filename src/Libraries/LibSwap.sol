@@ -33,6 +33,10 @@ library LibSwap {
         uint256 initialSendingAssetBalance = LibAsset.getOwnBalance(_swapData.sendingAssetId);
         uint256 initialReceivingAssetBalance = LibAsset.getOwnBalance(_swapData.receivingAssetId);
 
+        if (nativeValue == 0) {
+            LibAsset.maxApproveERC20(IERC20(_swapData.sendingAssetId), _swapData.approveTo, _swapData.fromAmount);
+        }
+
         if (initialSendingAssetBalance < _swapData.fromAmount) {
             revert InsufficientBalance(_swapData.fromAmount, initialSendingAssetBalance);
         }

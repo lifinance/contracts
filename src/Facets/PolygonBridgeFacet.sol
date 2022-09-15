@@ -27,17 +27,17 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @notice Bridges tokens via Polygon Bridge
     /// @param _lifiData Data used purely for tracking and analytics
     /// @param _bridgeData Data for asset id and amount
-    function startBridgeTokensViaPolygonBridge(LiFiData calldata _lifiData, BridgeData calldata _bridgeData)
-        external
-        payable
-        nonReentrant
-    {
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function startBridgeTokensViaPolygonBridge(
+        LiFiData calldata _lifiData,
+        BridgeData calldata _bridgeData,
+        LibAsset.Deposit[] calldata _depositData
+    ) external payable nonReentrant {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
 
-        LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
-
+        LibAsset.depositAssets(_depositData);
         _startBridge(_lifiData, _bridgeData, false);
     }
 
@@ -45,21 +45,18 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _lifiData Data used purely for tracking and analytics
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _bridgeData Data for asset id and amount
+    /// @param _depositData a list of deposits to make to the lifi diamond
     function swapAndStartBridgeTokensViaPolygonBridge(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        BridgeData calldata _bridgeData
+        BridgeData memory _bridgeData,
+        LibAsset.Deposit[] calldata _depositData
     ) external payable nonReentrant {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
-
-        uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-
-        if (amount == 0) {
-            revert InvalidAmount();
-        }
-
+        LibAsset.depositAssets(_depositData);
+        _bridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_lifiData, _bridgeData, true);
     }
 
@@ -70,8 +67,8 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _bridgeData Parameters used for bridging
     /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
-        LiFiData memory _lifiData,
-        BridgeData calldata _bridgeData,
+        LiFiData calldata _lifiData,
+        BridgeData memory _bridgeData,
         bool _hasSourceSwap
     ) private {
         IRootChainManager rootChainManager = IRootChainManager(_bridgeData.rootChainManager);

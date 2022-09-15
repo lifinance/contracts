@@ -39,12 +39,13 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// @notice Bridges tokens via Wormhole
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _wormholeData data specific to Wormhole
-    function startBridgeTokensViaWormhole(LiFiData calldata _lifiData, WormholeData calldata _wormholeData)
-        external
-        payable
-        nonReentrant
-    {
-        LibAsset.depositAsset(_wormholeData.token, _wormholeData.amount);
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function startBridgeTokensViaWormhole(
+        LiFiData calldata _lifiData,
+        WormholeData calldata _wormholeData,
+        LibAsset.Deposit[] calldata _depositData
+    ) external payable nonReentrant {
+        LibAsset.depositAssets(_depositData);
         _startBridge(_wormholeData);
 
         emit LiFiTransferStarted(
@@ -67,11 +68,14 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _wormholeData data specific to Wormhole
+    /// @param _depositData a list of deposits to make to the lifi diamond
     function swapAndStartBridgeTokensViaWormhole(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        WormholeData memory _wormholeData
+        WormholeData memory _wormholeData,
+        LibAsset.Deposit[] calldata _depositData
     ) external payable nonReentrant {
+        LibAsset.depositAssets(_depositData);
         _wormholeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_wormholeData);
 

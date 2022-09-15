@@ -152,11 +152,10 @@ describe('OptimismBridgeFacet', function () {
           ...validBridgeData,
           amount: '0',
         }
-
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaOptimismBridge(validLiFiData, bridgeData)
+            .startBridgeTokensViaOptimismBridge(validLiFiData, bridgeData, [])
         ).to.be.revertedWith('InvalidAmount()')
       })
 
@@ -165,22 +164,40 @@ describe('OptimismBridgeFacet', function () {
           ...validBridgeData,
           receiver: ZERO_ADDRESS,
         }
-
+        const deposits = [
+          {
+            assetId: bridgeData.assetId,
+            amount: bridgeData.amount,
+          },
+        ]
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaOptimismBridge(validLiFiData, bridgeData)
+            .startBridgeTokensViaOptimismBridge(
+              validLiFiData,
+              bridgeData,
+              deposits
+            )
         ).to.be.revertedWith('InvalidReceiver()')
       })
 
       it('when the user does not have enough amount', async () => {
         const daiBalance = await dai.balanceOf(alice.address)
         await dai.transfer(lifi.address, daiBalance)
-
+        const deposits = [
+          {
+            assetId: validBridgeData.assetId,
+            amount: validBridgeData.amount,
+          },
+        ]
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaOptimismBridge(validLiFiData, validBridgeData)
+            .startBridgeTokensViaOptimismBridge(
+              validLiFiData,
+              validBridgeData,
+              deposits
+            )
         ).to.be.revertedWith('Dai/insufficient-balance')
       })
 
@@ -190,11 +207,10 @@ describe('OptimismBridgeFacet', function () {
           assetId: ZERO_ADDRESS,
           amount: utils.parseEther('10'),
         }
-
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaOptimismBridge(validLiFiData, bridgeData, {
+            .startBridgeTokensViaOptimismBridge(validLiFiData, bridgeData, [], {
               value: utils.parseEther('9'),
             })
         ).to.be.revertedWith('InvalidAmount()')
@@ -206,11 +222,20 @@ describe('OptimismBridgeFacet', function () {
         const receivingAssetId = utils.getAddress(
           (config['mainnet'].tokens || {})[DAI_L1_ADDRESS.toLowerCase()]
         )
-
+        const deposits = [
+          {
+            assetId: validBridgeData.assetId,
+            amount: validBridgeData.amount,
+          },
+        ]
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaOptimismBridge(validLiFiData, validBridgeData)
+            .startBridgeTokensViaOptimismBridge(
+              validLiFiData,
+              validBridgeData,
+              deposits
+            )
         )
           .to.emit(lifi, 'LiFiTransferStarted')
           .withArgs(
@@ -240,11 +265,10 @@ describe('OptimismBridgeFacet', function () {
           ...validLiFiData,
           receivingAssetId: ZERO_ADDRESS,
         }
-
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaOptimismBridge(lifiData, bridgeData, {
+            .startBridgeTokensViaOptimismBridge(lifiData, bridgeData, [], {
               value: utils.parseEther('10'),
             })
         )
@@ -274,14 +298,20 @@ describe('OptimismBridgeFacet', function () {
           ...validBridgeData,
           receiver: ZERO_ADDRESS,
         }
-
+        const deposits = [
+          {
+            assetId: swapData[0].sendingAssetId,
+            amount: swapData[0].fromAmount,
+          },
+        ]
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaOptimismBridge(
               validLiFiData,
               swapData,
-              bridgeData
+              bridgeData,
+              deposits
             )
         ).to.be.revertedWith('InvalidReceiver()')
       })
@@ -289,41 +319,60 @@ describe('OptimismBridgeFacet', function () {
       it('when the user does not have enough amount', async () => {
         const usdcBalance = await usdc.balanceOf(alice.address)
         await usdc.transfer(dai.address, usdcBalance)
-
+        const deposits = [
+          {
+            assetId: swapData[0].sendingAssetId,
+            amount: swapData[0].fromAmount,
+          },
+        ]
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaOptimismBridge(
               validLiFiData,
               swapData,
-              validBridgeData
+              validBridgeData,
+              deposits
             )
         ).to.be.revertedWith('ERC20: transfer amount exceeds balance')
       })
 
       it('when the dex is not approved', async function () {
         await dexMgr.removeDex(UNISWAP_ADDRESS)
-
+        const deposits = [
+          {
+            assetId: swapData[0].sendingAssetId,
+            amount: swapData[0].fromAmount,
+          },
+        ]
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaOptimismBridge(
               validLiFiData,
               swapData,
-              validBridgeData
+              validBridgeData,
+              deposits
             )
         ).to.be.revertedWith('ContractCallNotAllowed()')
       })
     })
 
     it('should be possible to perform a swap then starts a bridge transaction', async function () {
+      const deposits = [
+        {
+          assetId: swapData[0].sendingAssetId,
+          amount: swapData[0].fromAmount,
+        },
+      ]
       await expect(
         lifi
           .connect(alice)
           .swapAndStartBridgeTokensViaOptimismBridge(
             validLiFiData,
             swapData,
-            validBridgeData
+            validBridgeData,
+            deposits
           )
       )
         .to.emit(lifi, 'AssetSwapped')

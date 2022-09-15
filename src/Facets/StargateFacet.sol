@@ -61,19 +61,19 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @notice Bridges tokens via Stargate Bridge
     /// @param _lifiData Data used purely for tracking and analytics
     /// @param _stargateData Data specific to Stargate Bridge
-    function startBridgeTokensViaStargate(LiFiData calldata _lifiData, StargateData calldata _stargateData)
-        external
-        payable
-        nonReentrant
-    {
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function startBridgeTokensViaStargate(
+        LiFiData calldata _lifiData,
+        StargateData calldata _stargateData,
+        LibAsset.Deposit[] calldata _depositData
+    ) external payable nonReentrant {
         address token = getTokenFromPoolId(_stargateData.router, _stargateData.srcPoolId);
 
         if (token == address(0)) {
             revert TokenAddressIsZero();
         }
 
-        LibAsset.depositAssetWithFee(token, _stargateData.amountLD, msg.value);
-
+        LibAsset.depositAssets(_depositData);
         _startBridge(_stargateData, _lifiData, msg.value, false);
     }
 
@@ -81,11 +81,14 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _lifiData Data used purely for tracking and analytics
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _stargateData Data specific to Stargate Bridge
+    /// @param _depositData a list of deposits to make to the lifi diamond
     function swapAndStartBridgeTokensViaStargate(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        StargateData memory _stargateData
+        StargateData memory _stargateData,
+        LibAsset.Deposit[] calldata _depositData
     ) external payable nonReentrant {
+        LibAsset.depositAssets(_depositData);
         _stargateData.amountLD = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
 
         if (_stargateData.amountLD == 0) {

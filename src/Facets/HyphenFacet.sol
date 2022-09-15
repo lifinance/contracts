@@ -30,11 +30,12 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @notice Bridges tokens via Hyphen
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _hyphenData data specific to Hyphen
-    function startBridgeTokensViaHyphen(LiFiData calldata _lifiData, HyphenData calldata _hyphenData)
-        external
-        payable
-        nonReentrant
-    {
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function startBridgeTokensViaHyphen(
+        LiFiData calldata _lifiData,
+        HyphenData calldata _hyphenData,
+        LibAsset.Deposit[] calldata _depositData
+    ) external payable nonReentrant {
         if (LibUtil.isZeroAddress(_hyphenData.recipient)) {
             revert InvalidReceiver();
         }
@@ -42,7 +43,7 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
             revert InvalidAmount();
         }
 
-        LibAsset.depositAsset(_hyphenData.token, _hyphenData.amount);
+        LibAsset.depositAssets(_depositData);
         _startBridge(_hyphenData);
 
         emit LiFiTransferStarted(
@@ -65,20 +66,19 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _hyphenData data specific to Hyphen
+    /// @param _depositData a list of deposits to make to the lifi diamond
     function swapAndStartBridgeTokensViaHyphen(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        HyphenData memory _hyphenData
+        HyphenData memory _hyphenData,
+        LibAsset.Deposit[] calldata _depositData
     ) external payable nonReentrant {
         if (LibUtil.isZeroAddress(_hyphenData.recipient)) {
             revert InvalidReceiver();
         }
 
+        LibAsset.depositAssets(_depositData);
         _hyphenData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        if (_hyphenData.amount == 0) {
-            revert InvalidAmount();
-        }
-
         _startBridge(_hyphenData);
 
         emit LiFiTransferStarted(

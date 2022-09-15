@@ -41,31 +41,11 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @notice Bridges tokens via Amarok
     /// @param _lifiData Data used purely for tracking and analytics
     /// @param _bridgeData Data specific to bridge
-    function startBridgeTokensViaAmarok(LiFiData calldata _lifiData, BridgeData calldata _bridgeData)
-        external
-        payable
-        nonReentrant
-    {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
-        if (_bridgeData.assetId == address(0)) {
-            revert TokenAddressIsZero();
-        }
-
-        LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
-
-        _startBridge(_lifiData, _bridgeData, _bridgeData.amount, false);
-    }
-
-    /// @notice Performs a swap before bridging via Amarok
-    /// @param _lifiData Data used purely for tracking and analytics
-    /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _bridgeData Data specific to bridge
-    function swapAndStartBridgeTokensViaAmarok(
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function startBridgeTokensViaAmarok(
         LiFiData calldata _lifiData,
-        LibSwap.SwapData[] calldata _swapData,
-        BridgeData calldata _bridgeData
+        BridgeData calldata _bridgeData,
+        LibAsset.Deposit[] calldata _depositData
     ) external payable nonReentrant {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
@@ -74,13 +54,31 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
             revert TokenAddressIsZero();
         }
 
-        uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
+        LibAsset.depositAssets(_depositData);
+        _startBridge(_lifiData, _bridgeData, false);
+    }
 
-        if (amount == 0) {
-            revert InvalidAmount();
+    /// @notice Performs a swap before bridging via Amarok
+    /// @param _lifiData Data used purely for tracking and analytics
+    /// @param _swapData An array of swap related data for performing swaps before bridging
+    /// @param _bridgeData Data specific to bridge
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function swapAndStartBridgeTokensViaAmarok(
+        LiFiData calldata _lifiData,
+        LibSwap.SwapData[] calldata _swapData,
+        BridgeData memory _bridgeData,
+        LibAsset.Deposit[] calldata _depositData
+    ) external payable nonReentrant {
+        if (_bridgeData.receiver == address(0)) {
+            revert InvalidReceiver();
+        }
+        if (_bridgeData.assetId == address(0)) {
+            revert TokenAddressIsZero();
         }
 
-        _startBridge(_lifiData, _bridgeData, amount, true);
+        LibAsset.depositAssets(_depositData);
+        _bridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
+        _startBridge(_lifiData, _bridgeData, true);
     }
 
     /// @notice Completes a cross-chain transaction on the receiving chain using the Amarok.
@@ -94,7 +92,9 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
         address receiver,
         uint256 amount
     ) external payable nonReentrant {
-        LibAsset.depositAsset(assetId, amount);
+        if (!LibAsset.isNativeAsset(assetId)) {
+            LibAsset.depositAsset(assetId, amount);
+        }
         LibAsset.transferAsset(assetId, payable(receiver), amount);
         emit LiFiTransferCompleted(_lifiData.transactionId, assetId, receiver, amount, block.timestamp);
     }
@@ -121,12 +121,10 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @dev Contains the business logic for the bridge via Amarok
     /// @param _lifiData Data used purely for tracking and analytics
     /// @param _bridgeData Data specific to Amarok
-    /// @param _amount Amount to bridge
     /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
         LiFiData calldata _lifiData,
-        BridgeData calldata _bridgeData,
-        uint256 _amount,
+        BridgeData memory _bridgeData,
         bool _hasSourceSwap
     ) private {
         IConnextHandler.XCallArgs memory xcallArgs = IConnextHandler.XCallArgs({
@@ -145,11 +143,11 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
                 slippageTol: _bridgeData.slippageTol
             }),
             transactingAsset: _bridgeData.assetId,
-            transactingAmount: _amount,
+            transactingAmount: _bridgeData.amount,
             originMinOut: _bridgeData.originMinOut
         });
 
-        LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.connextHandler, _amount);
+        LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.connextHandler, _bridgeData.amount);
         IConnextHandler(_bridgeData.connextHandler).xcall(xcallArgs);
 
         emit LiFiTransferStarted(

@@ -40,12 +40,13 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// @notice Bridges tokens via Across
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _acrossData data specific to Across
-    function startBridgeTokensViaAcross(LiFiData memory _lifiData, AcrossData calldata _acrossData)
-        external
-        payable
-        nonReentrant
-    {
-        LibAsset.depositAsset(_acrossData.token, _acrossData.amount);
+    /// @param _depositData a list of deposits to make to the lifi diamond
+    function startBridgeTokensViaAcross(
+        LiFiData memory _lifiData,
+        AcrossData calldata _acrossData,
+        LibAsset.Deposit[] calldata _depositData
+    ) external payable {
+        LibAsset.depositAssets(_depositData);
         _startBridge(_acrossData);
 
         emit LiFiTransferStarted(
@@ -68,11 +69,14 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _acrossData data specific to Across
+    /// @param _depositData a list of deposits to make to the lifi diamond
     function swapAndStartBridgeTokensViaAcross(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        AcrossData memory _acrossData
+        AcrossData memory _acrossData,
+        LibAsset.Deposit[] calldata _depositData
     ) external payable nonReentrant {
+        LibAsset.depositAssets(_depositData);
         _acrossData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_acrossData);
 
