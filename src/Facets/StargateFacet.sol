@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IStargateRouter, IFactory, IPool } from "../Interfaces/IStargateRouter.sol";
@@ -72,7 +72,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
             revert TokenAddressIsZero();
         }
 
-        LibAsset.depositAsset(token, _stargateData.amountLD);
+        LibAsset.depositAssetWithFee(token, _stargateData.amountLD, msg.value);
 
         _startBridge(_stargateData, _lifiData, msg.value, false);
     }

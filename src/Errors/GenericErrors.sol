@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 error TokenAddressIsZero();
 error CannotBridgeToSameNetwork();
@@ -26,3 +26,4 @@ error CannotDepositNativeToken();
 error ZeroAmount();
 error UnAuthorized();
 error NoSwapFromZeroBalance();
+error InvalidFallbackAddress();

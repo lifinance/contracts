@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IHyphenRouter } from "../Interfaces/IHyphenRouter.sol";
@@ -86,7 +86,7 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _hyphenData data specific to Hyphen
     function _startBridge(HyphenData memory _hyphenData) private {
         if (!LibAsset.isNativeAsset(_hyphenData.token)) {
-            // Give Anyswap approval to bridge tokens
+            // Give the Hyphen router approval to bridge tokens
             LibAsset.maxApproveERC20(IERC20(_hyphenData.token), _hyphenData.router, _hyphenData.amount);
 
             IHyphenRouter(_hyphenData.router).depositErc20(
