@@ -13,6 +13,7 @@ error NoTransferToNullAddress();
 error NativeAssetTransferFailed();
 error InvalidBridgeConfigLength();
 error InvalidAmount();
+error InsufficientBalance(uint256 required, uint256 available);
 error InvalidContract();
 error InvalidConfig();
 error InvalidReceiver();

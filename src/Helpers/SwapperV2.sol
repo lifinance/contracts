@@ -6,6 +6,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { InvalidAmount, ContractCallNotAllowed, NoSwapDataProvided } from "../Errors/GenericErrors.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title Swapper
 /// @author LI.FI (https://li.fi)
@@ -50,6 +51,7 @@ contract SwapperV2 is ILiFi {
         if (nSwaps == 0) revert NoSwapDataProvided();
         address finalTokenId = _swapData[_swapData.length - 1].receivingAssetId;
         uint256 swapBalance = LibAsset.getOwnBalance(finalTokenId);
+        _depositValue(_swapData[0]);
         _executeSwaps(_lifiData, _swapData, _leftoverReceiver);
         uint256 newBalance = LibAsset.getOwnBalance(finalTokenId);
         swapBalance = newBalance > swapBalance ? newBalance - swapBalance : newBalance;
@@ -58,6 +60,20 @@ contract SwapperV2 is ILiFi {
     }
 
     /// Private Methods ///
+
+    /// @dev Deposits the token specified in the swap data. If a native token is specified, nothing is done.
+    /// @param _firstSwap The swap data that specifies the token to deposit
+    function _depositValue(LibSwap.SwapData calldata _firstSwap) private {
+        if (LibAsset.isNativeAsset(_firstSwap.sendingAssetId)) return;
+        uint256 initialSendingAssetBalance = LibAsset.getOwnBalance(_firstSwap.sendingAssetId);
+        uint256 toDeposit = initialSendingAssetBalance < _firstSwap.fromAmount
+            ? _firstSwap.fromAmount - initialSendingAssetBalance
+            : 0;
+        LibAsset.maxApproveERC20(IERC20(_firstSwap.sendingAssetId), _firstSwap.approveTo, _firstSwap.fromAmount);
+        if (toDeposit != 0) {
+            LibAsset.transferFromERC20(_firstSwap.sendingAssetId, msg.sender, address(this), toDeposit);
+        }
+    }
 
     /// @dev Executes swaps and checks that DEXs used are in the allowList
     /// @param _lifiData LiFi tracking data
