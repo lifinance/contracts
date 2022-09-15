@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IStargateRouter, IFactory, IPool } from "../Interfaces/IStargateRouter.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidConfig, InvalidCaller, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Stargate Facet
@@ -36,9 +36,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// Errors ///
 
-    error InvalidConfig();
     error InvalidStargateRouter();
-    error InvalidCaller();
 
     /// Events ///
 

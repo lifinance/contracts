@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { ITransactionManager } from "../Interfaces/ITransactionManager.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -7,6 +7,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { InvalidReceiver, InvalidFallbackAddress } from "../Errors/GenericErrors.sol";
 
 /// @title NXTP (Connext) Facet
 /// @author LI.FI (https://li.fi)
@@ -100,6 +101,18 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
         IERC20 sendingAssetId = IERC20(_nxtpData.invariantData.sendingAssetId);
         // Give Connext approval to bridge tokens
         LibAsset.maxApproveERC20(IERC20(sendingAssetId), _nxtpData.nxtpTxManager, _nxtpData.amount);
+
+        {
+            address sendingChainFallback = _nxtpData.invariantData.sendingChainFallback;
+            address receivingAddress = _nxtpData.invariantData.receivingAddress;
+
+            if (LibUtil.isZeroAddress(sendingChainFallback)) {
+                revert InvalidFallbackAddress();
+            }
+            if (LibUtil.isZeroAddress(receivingAddress)) {
+                revert InvalidReceiver();
+            }
+        }
 
         // Initiate bridge transaction on sending chain
         txManager.prepare{ value: LibAsset.isNativeAsset(address(sendingAssetId)) ? _nxtpData.amount : 0 }(

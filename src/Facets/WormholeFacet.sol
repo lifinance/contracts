@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -17,6 +17,13 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Types ///
 
+    /// @param wormholeRouter The contract address of the Wormhole router.
+    /// @param token The contract address of the token being bridged.
+    /// @param amount The amount of tokens to bridge.
+    /// @param recipient The address of the token recipient after bridging.
+    /// @param toChainId The chainId of the chain to bridge to.
+    /// @param arbiterFee The amount of token to pay a relayer (can be zero if no relayer is used).
+    /// @param nonce A random nonce to associate with the tx.
     struct WormholeData {
         address wormholeRouter;
         address token;
