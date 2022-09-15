@@ -15,21 +15,6 @@ import { Cleanable } from "../Helpers/Cleanable.sol";
 contract SwapperV2 is ILiFi, Cleanable {
     /// Internal Methods ///
 
-    /// @dev Deposits the requested assets, validates the swap data, and executes the swaps
-    /// @param _lifiData Data used purely for tracking and analytics
-    /// @param _deposits An array of deposit related data for depositing assets before swapping
-    /// @param _swapData An array of swap related data for performing swaps
-    /// @param _leftoverReceiver The address to send any leftover assets to
-    function depositAndExecuteSwaps(
-        LiFiData memory _lifiData,
-        LibSwap.SwapData[] calldata _swapData,
-        LibAsset.Deposit[] calldata _deposits,
-        address payable _leftoverReceiver
-    ) internal returns (uint256) {
-        LibAsset.depositAssets(_deposits);
-        return _executeAndCheckSwaps(_lifiData, _swapData, _leftoverReceiver);
-    }
-
     /// @dev Validates input before executing swaps
     /// @param _lifiData LiFi tracking data
     /// @param _swapData Array of data used to execute swaps
