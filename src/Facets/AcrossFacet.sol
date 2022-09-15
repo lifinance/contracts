@@ -16,6 +16,14 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Types ///
 
+    /// @param weth The contract address of the WETH token on the current chain.
+    /// @param spokePool The contract address of the spoke pool on the source chain.
+    /// @param recipient The address of the token recipient after bridging.
+    /// @param token The contract address of the token being bridged.
+    /// @param amount The amount of tokens to bridge.
+    /// @param destinationChainId The chainId of the chain to bridge to.
+    /// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
+    /// @param quoteTimestamp The timestamp associated with the suggested fee.
     struct AcrossData {
         address weth;
         address spokePool;
