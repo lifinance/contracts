@@ -60,7 +60,7 @@ contract FeeCollector is TransferrableOwnership {
         uint256 remaining = msg.value - (integratorFee + lifiFee);
         // Prevent extra native token from being locked in the contract
         if (remaining > 0) {
-            (bool success, ) = msg.sender.call{ value: remaining }("");
+            (bool success, ) = payable(msg.sender).call{ value: remaining }("");
             if (!success) {
                 revert TransferFailure();
             }
