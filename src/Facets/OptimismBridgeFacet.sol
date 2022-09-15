@@ -5,7 +5,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IL1StandardBridge } from "../Interfaces/IL1StandardBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Optimism Bridge Facet
@@ -23,10 +23,6 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint32 l2Gas;
         bool isSynthetix;
     }
-
-    /// Errors ///
-
-    error InvalidReceiver();
 
     /// External Methods ///
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.16;
 
-import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
+import { CannotAuthoriseSelf, UnAuthorized } from "../Errors/GenericErrors.sol";
 
 /// @title Access Library
 /// @author LI.FI (https://li.fi)
@@ -14,9 +14,6 @@ library LibAccess {
     struct AccessStorage {
         mapping(bytes4 => mapping(address => bool)) execAccess;
     }
-
-    /// Errors ///
-    error UnAuthorized();
 
     /// Events ///
     event AccessGranted(address indexed account, bytes4 indexed method);

@@ -5,7 +5,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IXDaiBridge } from "../Interfaces/IXDaiBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidSendingToken, InvalidDestinationChain } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Gnosis Bridge Facet
@@ -25,11 +25,6 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 amount;
     }
 
-    /// Errors ///
-
-    error InvalidDstChainId();
-    error InvalidSendingToken();
-
     /// External Methods ///
 
     /// @notice Bridges tokens via XDaiBridge
@@ -41,7 +36,7 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         nonReentrant
     {
         if (lifiData.destinationChainId != GNOSIS_CHAIN_ID) {
-            revert InvalidDstChainId();
+            revert InvalidDestinationChain();
         }
         if (lifiData.sendingAssetId != DAI) {
             revert InvalidSendingToken();
@@ -80,7 +75,7 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         GnosisBridgeData memory gnosisBridgeData
     ) external payable nonReentrant {
         if (lifiData.destinationChainId != GNOSIS_CHAIN_ID) {
-            revert InvalidDstChainId();
+            revert InvalidDestinationChain();
         }
         if (lifiData.sendingAssetId != DAI || swapData[swapData.length - 1].receivingAssetId != DAI) {
             revert InvalidSendingToken();
