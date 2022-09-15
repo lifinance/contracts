@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -16,6 +16,14 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Types ///
 
+    /// @param weth The contract address of the WETH token on the current chain.
+    /// @param spokePool The contract address of the spoke pool on the source chain.
+    /// @param recipient The address of the token recipient after bridging.
+    /// @param token The contract address of the token being bridged.
+    /// @param amount The amount of tokens to bridge.
+    /// @param destinationChainId The chainId of the chain to bridge to.
+    /// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
+    /// @param quoteTimestamp The timestamp associated with the suggested fee.
     struct AcrossData {
         address weth;
         address spokePool;
@@ -26,10 +34,6 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         uint64 relayerFeePct;
         uint32 quoteTimestamp;
     }
-
-    /// Errors ///
-
-    error UseWethInstead();
 
     /// External Methods ///
 
