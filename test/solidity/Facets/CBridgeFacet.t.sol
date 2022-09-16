@@ -117,8 +117,8 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             USDC_ADDRESS
         );
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
-        swapData[0] = LibSwap.SwapData(
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](1);
+        swapData[0] = LibSwap.Swap(
             address(uniswap),
             address(uniswap),
             DAI_ADDRESS,

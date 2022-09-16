@@ -74,7 +74,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
         LibAsset.depositAssetWithFee(token, _stargateData.amountLD, msg.value);
 
-        _startBridge(_stargateData, _lifiData, msg.value, false);
+        _startBridge(_lifiData, _stargateData, msg.value, false);
     }
 
     /// @notice Performs a swap before bridging via Stargate Bridge
@@ -83,23 +83,19 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _stargateData Data specific to Stargate Bridge
     function swapAndStartBridgeTokensViaStargate(
         LiFiData calldata _lifiData,
-        LibSwap.SwapData[] calldata _swapData,
+        LibSwap.SwapData calldata _swapData,
         StargateData memory _stargateData
     ) external payable nonReentrant {
         _stargateData.amountLD = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-
-        if (_stargateData.amountLD == 0) {
-            revert InvalidAmount();
-        }
-
+        LibSwap.Swap[] memory swaps = _swapData.swaps;
         uint256 nativeFee = msg.value;
-        for (uint8 i = 0; i < _swapData.length; i++) {
-            if (LibAsset.isNativeAsset(_swapData[i].sendingAssetId)) {
-                nativeFee -= _swapData[i].fromAmount;
+        for (uint8 i = 0; i < swaps.length; i++) {
+            if (LibAsset.isNativeAsset(swaps[i].sendingAssetId)) {
+                nativeFee -= swaps[i].fromAmount;
             }
         }
 
-        _startBridge(_stargateData, _lifiData, nativeFee, true);
+        _startBridge(_lifiData, _stargateData, nativeFee, true);
     }
 
     /// @notice Completes a cross-chain transaction on the receiving chain.
@@ -123,12 +119,12 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
             revert InvalidStargateRouter();
         }
 
-        (LiFiData memory lifiData, LibSwap.SwapData[] memory swapData, address assetId, address receiver) = abi.decode(
+        (LiFiData memory lifiData, LibSwap.SwapData memory swapData, address assetId, address receiver) = abi.decode(
             _payload,
-            (LiFiData, LibSwap.SwapData[], address, address)
+            (LiFiData, LibSwap.SwapData, address, address)
         );
 
-        if (swapData.length == 0) {
+        if (swapData.swaps.length == 0) {
             this.completeBridgeTokensViaStargate(lifiData, assetId, receiver, _amountLD);
         } else {
             this.swapAndCompleteBridgeTokensViaStargate(lifiData, swapData, assetId, receiver);
@@ -162,7 +158,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _receiver address that will receive the tokens
     function swapAndCompleteBridgeTokensViaStargate(
         LiFiData calldata _lifiData,
-        LibSwap.SwapData[] calldata _swapData,
+        LibSwap.SwapData calldata _swapData,
         address _finalAssetId,
         address _receiver
     ) external {
@@ -199,13 +195,13 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     }
 
     /// @dev Contains the business logic for the bridge via Stargate Bridge
-    /// @param _stargateData Data specific to Stargate Bridge
     /// @param _lifiData Data used purely for tracking and analytics
+    /// @param _stargateData Data specific to Stargate Bridge
     /// @param _nativeFee Native gas fee for the cross chain message
     /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
-        StargateData memory _stargateData,
         LiFiData memory _lifiData,
+        StargateData memory _stargateData,
         uint256 _nativeFee,
         bool _hasSourceSwap
     ) private {
@@ -238,7 +234,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
             _lifiData.sendingAssetId,
             _lifiData.receivingAssetId,
             _lifiData.receiver,
-            _lifiData.amount,
+            _stargateData.amountLD,
             _lifiData.destinationChainId,
             _hasSourceSwap,
             _stargateData.callData.length > 0

@@ -13,7 +13,7 @@ import { TestToken as ERC20 } from "../utils/TestToken.sol";
 
 // Stub SwapperV2 Contract
 contract TestSwapperV2 is SwapperV2 {
-    function doSwaps(LibSwap.SwapData[] calldata _swapData) public {
+    function doSwaps(LibSwap.Swap[] calldata _swapData) public {
         _executeAndCheckSwaps(
             LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0),
             _swapData,
@@ -62,9 +62,9 @@ contract SwapperV2Test is DSTest, DiamondTest {
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
         ERC20 token3 = new ERC20("Token 3", "T3", 18);
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](2);
 
-        swapData[0] = LibSwap.SwapData(
+        swapData[0] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(token1),
@@ -73,7 +73,7 @@ contract SwapperV2Test is DSTest, DiamondTest {
             abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token2, 10_100 ether)
         );
 
-        swapData[1] = LibSwap.SwapData(
+        swapData[1] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(token2),
@@ -99,9 +99,9 @@ contract SwapperV2Test is DSTest, DiamondTest {
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
         ERC20 token3 = new ERC20("Token 3", "T3", 18);
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](2);
 
-        swapData[0] = LibSwap.SwapData(
+        swapData[0] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(token1),
@@ -110,7 +110,7 @@ contract SwapperV2Test is DSTest, DiamondTest {
             abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token3, 10_100 ether)
         );
 
-        swapData[1] = LibSwap.SwapData(
+        swapData[1] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(token2),
@@ -137,9 +137,9 @@ contract SwapperV2Test is DSTest, DiamondTest {
         ERC20 token1 = new ERC20("Token 1", "T1", 18);
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](1);
 
-        swapData[0] = LibSwap.SwapData(
+        swapData[0] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(token1),

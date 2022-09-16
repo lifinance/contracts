@@ -27,3 +27,4 @@ error ZeroAmount();
 error UnAuthorized();
 error NoSwapFromZeroBalance();
 error InvalidFallbackAddress();
+error CumulativeSlippageTooHigh();

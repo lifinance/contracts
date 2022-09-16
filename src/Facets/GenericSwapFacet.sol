@@ -27,23 +27,24 @@ contract GenericSwapFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// @notice Performs multiple swaps in one transaction
     /// @param _lifiData data used purely for tracking and analytics
-    /// @param _swapData an array of swap related data for performing swaps before bridging
-    function swapTokensGeneric(LiFiData calldata _lifiData, LibSwap.SwapData[] calldata _swapData)
+    /// @param _swapData an object containing swap related data to perform swaps before bridging
+    function swapTokensGeneric(LiFiData calldata _lifiData, LibSwap.SwapData calldata _swapData)
         external
         payable
         nonReentrant
     {
         uint256 postSwapBalance = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        address receivingAssetId = _swapData[_swapData.length - 1].receivingAssetId;
+        LibSwap.Swap[] calldata swaps = _swapData.swaps;
+        address receivingAssetId = swaps[swaps.length - 1].receivingAssetId;
         LibAsset.transferAsset(receivingAssetId, payable(msg.sender), postSwapBalance);
 
         emit LiFiSwappedGeneric(
             _lifiData.transactionId,
             _lifiData.integrator,
             _lifiData.referrer,
-            _swapData[0].sendingAssetId,
+            swaps[0].sendingAssetId,
             receivingAssetId,
-            _swapData[0].fromAmount,
+            swaps[0].fromAmount,
             postSwapBalance
         );
     }

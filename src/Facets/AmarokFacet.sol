@@ -54,7 +54,6 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
 
         LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
-
         _startBridge(_lifiData, _bridgeData, _bridgeData.amount, false);
     }
 
@@ -64,7 +63,7 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _bridgeData Data specific to bridge
     function swapAndStartBridgeTokensViaAmarok(
         LiFiData calldata _lifiData,
-        LibSwap.SwapData[] calldata _swapData,
+        LibSwap.SwapData calldata _swapData,
         BridgeData calldata _bridgeData
     ) external payable nonReentrant {
         if (_bridgeData.receiver == address(0)) {
@@ -75,11 +74,6 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
 
         uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-
-        if (amount == 0) {
-            revert InvalidAmount();
-        }
-
         _startBridge(_lifiData, _bridgeData, amount, true);
     }
 
@@ -107,7 +101,7 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param receiver address that will receive the tokens
     function swapAndCompleteBridgeTokensViaAmarok(
         LiFiData calldata _lifiData,
-        LibSwap.SwapData[] calldata _swapData,
+        LibSwap.SwapData calldata _swapData,
         address finalAssetId,
         address receiver
     ) external payable nonReentrant {
@@ -158,10 +152,10 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
             "",
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
+            _bridgeData.assetId,
             _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
+            _bridgeData.receiver,
+            _bridgeData.amount,
             _lifiData.destinationChainId,
             _hasSourceSwap,
             _bridgeData.callData.length > 0

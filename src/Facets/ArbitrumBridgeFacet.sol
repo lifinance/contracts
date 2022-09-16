@@ -13,6 +13,7 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @notice Provides functionality for bridging through Arbitrum Bridge
 contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Types ///
+    uint64 internal constant ARB_CHAIN_ID = 42161;
 
     struct BridgeData {
         address assetId;
@@ -41,7 +42,6 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
         uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
         LibAsset.depositAssetWithFee(_bridgeData.assetId, _bridgeData.amount, cost);
-
         _startBridge(_lifiData, _bridgeData, _bridgeData.amount, cost, false);
     }
 
@@ -51,7 +51,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _bridgeData Data for gateway router address, asset id and amount
     function swapAndStartBridgeTokensViaArbitrumBridge(
         LiFiData calldata _lifiData,
-        LibSwap.SwapData[] calldata _swapData,
+        LibSwap.SwapData calldata _swapData,
         BridgeData calldata _bridgeData
     ) external payable nonReentrant {
         if (_bridgeData.receiver == address(0)) {
@@ -59,13 +59,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
 
         uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-
-        if (amount == 0) {
-            revert InvalidAmount();
-        }
-
         uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
-
         _startBridge(_lifiData, _bridgeData, amount, cost, true);
     }
 
@@ -116,11 +110,11 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             "",
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
+            _bridgeData.assetId,
             _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
-            _lifiData.destinationChainId,
+            _bridgeData.receiver,
+            _bridgeData.amount,
+            ARB_CHAIN_ID,
             _hasSourceSwap,
             false
         );

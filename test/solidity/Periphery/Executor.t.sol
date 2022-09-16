@@ -81,10 +81,10 @@ contract ExecutorTest is DSTest {
         ERC20 tokenC = new ERC20("Token C", "TOKC", 18);
         ERC20 tokenD = new ERC20("Token D", "TOKD", 18);
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](6);
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](6);
 
         // Get some Token B
-        swapData[0] = LibSwap.SwapData(
+        swapData[0] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(tokenA),
@@ -94,7 +94,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Get some Token C
-        swapData[1] = LibSwap.SwapData(
+        swapData[1] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(tokenA),
@@ -104,7 +104,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Get some Token D
-        swapData[2] = LibSwap.SwapData(
+        swapData[2] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(tokenA),
@@ -114,7 +114,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Deposit Token B
-        swapData[3] = LibSwap.SwapData(
+        swapData[3] = LibSwap.Swap(
             address(vault),
             address(vault),
             address(tokenB),
@@ -124,7 +124,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Deposit Token C
-        swapData[4] = LibSwap.SwapData(
+        swapData[4] = LibSwap.Swap(
             address(vault),
             address(vault),
             address(tokenC),
@@ -134,7 +134,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Deposit Token D
-        swapData[5] = LibSwap.SwapData(
+        swapData[5] = LibSwap.Swap(
             address(vault),
             address(vault),
             address(tokenD),
@@ -164,10 +164,10 @@ contract ExecutorTest is DSTest {
         ERC20 tokenC = new ERC20("Token C", "TOKC", 18);
         ERC20 tokenD = new ERC20("Token D", "TOKD", 18);
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](6);
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](6);
 
         // Get some Token B
-        swapData[0] = LibSwap.SwapData(
+        swapData[0] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(0),
@@ -177,7 +177,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Get some Token C
-        swapData[1] = LibSwap.SwapData(
+        swapData[1] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(0),
@@ -187,7 +187,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Get some Token D
-        swapData[2] = LibSwap.SwapData(
+        swapData[2] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(0),
@@ -197,7 +197,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Deposit Token B
-        swapData[3] = LibSwap.SwapData(
+        swapData[3] = LibSwap.Swap(
             address(vault),
             address(vault),
             address(tokenB),
@@ -207,7 +207,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Deposit Token C
-        swapData[4] = LibSwap.SwapData(
+        swapData[4] = LibSwap.Swap(
             address(vault),
             address(vault),
             address(tokenC),
@@ -217,7 +217,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Deposit Token D
-        swapData[5] = LibSwap.SwapData(
+        swapData[5] = LibSwap.Swap(
             address(vault),
             address(vault),
             address(tokenD),
@@ -249,10 +249,10 @@ contract ExecutorTest is DSTest {
         ERC20 tokenA = new ERC20("Token A", "TOKA", 18);
         ERC20 tokenB = new ERC20("Token B", "TOKB", 18);
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](1);
 
         // Get some Token B
-        swapData[0] = LibSwap.SwapData(
+        swapData[0] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(tokenA),
@@ -275,10 +275,10 @@ contract ExecutorTest is DSTest {
         ERC20 tokenC = new ERC20("Token C", "TOKC", 18);
         ERC20 tokenD = new ERC20("Token D", "TOKD", 18);
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](6);
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](6);
 
         // Get some Token B
-        swapData[0] = LibSwap.SwapData(
+        swapData[0] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(tokenA),
@@ -288,7 +288,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Get some Token C
-        swapData[1] = LibSwap.SwapData(
+        swapData[1] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(tokenA),
@@ -298,7 +298,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Get some Token D
-        swapData[2] = LibSwap.SwapData(
+        swapData[2] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(tokenA),
@@ -308,7 +308,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Deposit Token B
-        swapData[3] = LibSwap.SwapData(
+        swapData[3] = LibSwap.Swap(
             address(vault),
             address(vault),
             address(tokenB),
@@ -318,7 +318,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Deposit Token C
-        swapData[4] = LibSwap.SwapData(
+        swapData[4] = LibSwap.Swap(
             address(vault),
             address(vault),
             address(tokenC),
@@ -328,7 +328,7 @@ contract ExecutorTest is DSTest {
         );
 
         // Deposit Token D
-        swapData[5] = LibSwap.SwapData(
+        swapData[5] = LibSwap.Swap(
             address(vault),
             address(vault),
             address(tokenD),
@@ -357,10 +357,10 @@ contract ExecutorTest is DSTest {
         ERC20 tokenA = new ERC20("Token A", "TOKA", 18);
         ERC20 tokenB = new ERC20("Token B", "TOKB", 18);
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](1);
 
         // Get some Token B
-        swapData[0] = LibSwap.SwapData(
+        swapData[0] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(tokenA),

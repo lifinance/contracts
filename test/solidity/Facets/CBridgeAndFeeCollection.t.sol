@@ -101,8 +101,8 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             USDC_ADDRESS
         );
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
-        swapData[0] = LibSwap.SwapData(
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](1);
+        swapData[0] = LibSwap.Swap(
             address(feeCollector),
             address(feeCollector),
             USDC_ADDRESS,
@@ -138,8 +138,8 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             address(0)
         );
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
-        swapData[0] = LibSwap.SwapData(
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](1);
+        swapData[0] = LibSwap.Swap(
             address(feeCollector),
             address(feeCollector),
             address(0),
@@ -179,8 +179,8 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256[] memory amounts = uniswap.getAmountsIn(amountToBridge, path);
         uint256 amountIn = amounts[0];
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
-        swapData[0] = LibSwap.SwapData(
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](2);
+        swapData[0] = LibSwap.Swap(
             address(feeCollector),
             address(feeCollector),
             USDC_ADDRESS,
@@ -189,7 +189,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, address(0xb33f))
         );
 
-        swapData[1] = LibSwap.SwapData(
+        swapData[1] = LibSwap.Swap(
             address(uniswap),
             address(uniswap),
             USDC_ADDRESS,
@@ -240,8 +240,8 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256[] memory amounts = uniswap.getAmountsIn(amountToBridge, path);
         uint256 amountIn = amounts[0];
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
-        swapData[0] = LibSwap.SwapData(
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](2);
+        swapData[0] = LibSwap.Swap(
             address(feeCollector),
             address(feeCollector),
             address(0),
@@ -250,7 +250,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             abi.encodeWithSelector(feeCollector.collectNativeFees.selector, fee, lifiFee, address(0xb33f))
         );
 
-        swapData[1] = LibSwap.SwapData(
+        swapData[1] = LibSwap.Swap(
             address(uniswap),
             address(uniswap),
             address(0),
@@ -298,9 +298,9 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256[] memory amounts = uniswap.getAmountsIn(amountToBridge + fee + lifiFee, path);
         uint256 amountIn = amounts[0];
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](2);
 
-        swapData[0] = LibSwap.SwapData(
+        swapData[0] = LibSwap.Swap(
             address(uniswap),
             address(uniswap),
             USDC_ADDRESS,
@@ -316,7 +316,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             )
         );
 
-        swapData[1] = LibSwap.SwapData(
+        swapData[1] = LibSwap.Swap(
             address(feeCollector),
             address(feeCollector),
             DAI_ADDRESS,
@@ -360,9 +360,9 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256[] memory amounts = uniswap.getAmountsIn(amountToBridge + fee + lifiFee, path);
         uint256 amountIn = amounts[0];
 
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
+        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](2);
 
-        swapData[0] = LibSwap.SwapData(
+        swapData[0] = LibSwap.Swap(
             address(uniswap),
             address(uniswap),
             address(0),
@@ -377,7 +377,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             )
         );
 
-        swapData[1] = LibSwap.SwapData(
+        swapData[1] = LibSwap.Swap(
             address(feeCollector),
             address(feeCollector),
             USDC_ADDRESS,

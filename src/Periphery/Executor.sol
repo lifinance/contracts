@@ -30,17 +30,17 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     /// Modifiers ///
 
     /// @dev Sends any leftover balances back to the user
-    modifier noLeftovers(LibSwap.SwapData[] calldata _swapData, address payable _leftoverReceiver) {
-        uint256 nSwaps = _swapData.length;
+    modifier noLeftovers(LibSwap.Swap[] calldata _swaps, address payable _leftoverReceiver) {
+        uint256 nSwaps = _swaps.length;
         if (nSwaps != 1) {
-            uint256[] memory initialBalances = _fetchBalances(_swapData);
-            address finalAsset = _swapData[nSwaps - 1].receivingAssetId;
+            uint256[] memory initialBalances = _fetchBalances(_swaps);
+            address finalAsset = _swaps[nSwaps - 1].receivingAssetId;
             uint256 curBalance = 0;
 
             _;
 
             for (uint256 i = 0; i < nSwaps - 1; i++) {
-                address curAsset = _swapData[i].receivingAssetId;
+                address curAsset = _swaps[i].receivingAssetId;
                 if (curAsset == finalAsset) continue; // Handle multi-to-one swaps
                 curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
                 if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
@@ -97,9 +97,9 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
             revert InvalidStargateRouter();
         }
 
-        (LiFiData memory lifiData, LibSwap.SwapData[] memory swapData, address assetId, address receiver) = abi.decode(
+        (LiFiData memory lifiData, LibSwap.SwapData memory swapData, address assetId, address receiver) = abi.decode(
             _payload,
-            (LiFiData, LibSwap.SwapData[], address, address)
+            (LiFiData, LibSwap.SwapData, address, address)
         );
 
         this.swapAndCompleteBridgeTokensViaStargate(lifiData, swapData, assetId, payable(receiver));
@@ -108,7 +108,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     /// @dev used to execute calls received by Stargate specifically
     function swapAndCompleteBridgeTokensViaStargate(
         LiFiData calldata _lifiData,
-        LibSwap.SwapData[] calldata _swapData,
+        LibSwap.SwapData calldata _swapData,
         address transferredAssetId,
         address payable receiver
     ) external payable nonReentrant {
@@ -116,9 +116,10 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
             revert InvalidCaller();
         }
 
+        LibSwap.Swap[] memory swaps = _swapData.swaps;
         uint256 startingBalance;
         uint256 finalAssetStartingBalance;
-        address finalAssetId = _swapData[_swapData.length - 1].receivingAssetId;
+        address finalAssetId = swaps[swaps.length - 1].receivingAssetId;
 
         if (!LibAsset.isNativeAsset(finalAssetId)) {
             finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId);
@@ -148,7 +149,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
             _lifiData.transactionId,
             transferredAssetId,
             receiver,
-            _swapData[0].fromAmount,
+            swaps[0].fromAmount,
             block.timestamp
         );
     }
@@ -160,13 +161,14 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     /// @param receiver address that will receive tokens in the end
     function swapAndCompleteBridgeTokens(
         LiFiData calldata _lifiData,
-        LibSwap.SwapData[] calldata _swapData,
+        LibSwap.SwapData calldata _swapData,
         address transferredAssetId,
         address payable receiver
     ) external payable nonReentrant {
         uint256 startingBalance;
         uint256 finalAssetStartingBalance;
-        address finalAssetId = _swapData[_swapData.length - 1].receivingAssetId;
+        LibSwap.Swap[] memory swaps = _swapData.swaps;
+        address finalAssetId = swaps[swaps.length - 1].receivingAssetId;
 
         if (!LibAsset.isNativeAsset(finalAssetId)) {
             finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId);
@@ -198,7 +200,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
             _lifiData.transactionId,
             transferredAssetId,
             receiver,
-            _swapData[0].fromAmount,
+            swaps[0].fromAmount,
             block.timestamp
         );
     }
@@ -210,14 +212,15 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     /// @param receiver address that will receive tokens in the end
     function swapAndExecute(
         LiFiData calldata _lifiData,
-        LibSwap.SwapData[] calldata _swapData,
+        LibSwap.SwapData calldata _swapData,
         address transferredAssetId,
         address payable receiver,
         uint256 amount
     ) external payable nonReentrant {
         uint256 startingBalance;
         uint256 finalAssetStartingBalance;
-        address finalAssetId = _swapData[_swapData.length - 1].receivingAssetId;
+        LibSwap.Swap[] memory swaps = _swapData.swaps;
+        address finalAssetId = swaps[swaps.length - 1].receivingAssetId;
 
         if (!LibAsset.isNativeAsset(finalAssetId)) {
             finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId);
@@ -254,12 +257,13 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     /// @param _swapData Array of data used to execute swaps
     function _executeSwaps(
         LiFiData memory _lifiData,
-        LibSwap.SwapData[] calldata _swapData,
+        LibSwap.SwapData calldata _swapData,
         address payable _leftoverReceiver
-    ) private noLeftovers(_swapData, _leftoverReceiver) {
-        for (uint256 i = 0; i < _swapData.length; i++) {
-            if (_swapData[i].callTo == address(erc20Proxy)) revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
-            LibSwap.SwapData calldata currentSwapData = _swapData[i];
+    ) private noLeftovers(_swapData.swaps, _leftoverReceiver) {
+        LibSwap.Swap[] calldata swaps = _swapData.swaps;
+        for (uint256 i = 0; i < swaps.length; i++) {
+            if (swaps[i].callTo == address(erc20Proxy)) revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
+            LibSwap.Swap calldata currentSwapData = swaps[i];
             LibSwap.swap(_lifiData.transactionId, currentSwapData);
         }
     }
@@ -267,7 +271,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     /// @dev Fetches balances of tokens to be swapped before swapping.
     /// @param _swapData Array of data used to execute swaps
     /// @return uint256[] Array of token balances.
-    function _fetchBalances(LibSwap.SwapData[] calldata _swapData) private view returns (uint256[] memory) {
+    function _fetchBalances(LibSwap.Swap[] calldata _swapData) private view returns (uint256[] memory) {
         uint256 length = _swapData.length;
         uint256[] memory balances = new uint256[](length);
         for (uint256 i = 0; i < length; i++) {
