@@ -48,22 +48,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
 
         LibAsset.depositAsset(_hopData.sendingAssetAddress, _hopData.amount);
-        _startBridge(_hopData);
-
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "hop",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _hopData.sendingAssetAddress,
-            _lifiData.receivingAssetId,
-            _hopData.recipient,
-            _hopData.amount,
-            _hopData.toChainId,
-            false,
-            false
-        );
+        _startBridge(_lifiData, _hopData, false);
     }
 
     /// @notice Performs a swap before bridging via Hop Protocol
@@ -80,32 +65,20 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
         if (!LibAsset.isNativeAsset(address(_lifiData.sendingAssetId)) && msg.value != 0) revert NativeValueWithERC();
         _hopData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        if (_hopData.amount == 0) {
-            revert InvalidAmount();
-        }
-        _startBridge(_hopData);
-
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "hop",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _swapData[0].sendingAssetId,
-            _lifiData.receivingAssetId,
-            _hopData.recipient,
-            _swapData[0].fromAmount,
-            _hopData.toChainId,
-            true,
-            false
-        );
+        _startBridge(_lifiData, _hopData, true);
     }
 
     /// private Methods ///
 
     /// @dev Contains the business logic for the bridge via Hop Protocol
+    /// @param _lifiData data used purely for tracking and analytics
     /// @param _hopData data specific to Hop Protocol
-    function _startBridge(HopData memory _hopData) private {
+    /// @param _hasSourceSwaps whether or not the bridge has source swaps
+    function _startBridge(
+        LiFiData calldata _lifiData,
+        HopData memory _hopData,
+        bool _hasSourceSwaps
+    ) private {
         // Do HOP stuff
         if (block.chainid == _hopData.toChainId) revert CannotBridgeToSameNetwork();
 
@@ -140,5 +113,20 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
                 _hopData.destinationDeadline
             );
         }
+
+        emit LiFiTransferStarted(
+            _lifiData.transactionId,
+            "hop",
+            "",
+            _lifiData.integrator,
+            _lifiData.referrer,
+            _hopData.sendingAssetAddress,
+            _lifiData.receivingAssetId,
+            _hopData.recipient,
+            _hopData.amount,
+            _hopData.toChainId,
+            _hasSourceSwaps,
+            false
+        );
     }
 }

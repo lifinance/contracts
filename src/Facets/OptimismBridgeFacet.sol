@@ -39,7 +39,6 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
 
         LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
-
         _startBridge(_lifiData, _bridgeData, _bridgeData.amount, false);
     }
 
@@ -57,11 +56,6 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
 
         uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-
-        if (amount == 0) {
-            revert InvalidAmount();
-        }
-
         _startBridge(_lifiData, _bridgeData, amount, true);
     }
 
@@ -105,11 +99,11 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             "",
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
-            _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
-            _lifiData.destinationChainId,
+            _bridgeData.assetId,
+            _bridgeData.assetIdOnL2,
+            _bridgeData.receiver,
+            _bridgeData.amount,
+            10,
             _hasSourceSwap,
             false
         );

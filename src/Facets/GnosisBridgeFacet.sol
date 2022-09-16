@@ -51,23 +51,7 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
 
         LibAsset.depositAsset(DAI, gnosisBridgeData.amount);
-
-        _startBridge(gnosisBridgeData);
-
-        emit LiFiTransferStarted(
-            lifiData.transactionId,
-            "gnosis",
-            "",
-            lifiData.integrator,
-            lifiData.referrer,
-            lifiData.sendingAssetId,
-            lifiData.receivingAssetId,
-            gnosisBridgeData.receiver,
-            gnosisBridgeData.amount,
-            lifiData.destinationChainId,
-            false,
-            false
-        );
+        _startBridge(lifiData, gnosisBridgeData, false);
     }
 
     /// @notice Performs a swap before bridging via XDaiBridge
@@ -90,35 +74,35 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
 
         gnosisBridgeData.amount = _executeAndCheckSwaps(lifiData, swapData, payable(msg.sender));
+        _startBridge(lifiData, gnosisBridgeData, true);
+    }
 
-        if (gnosisBridgeData.amount == 0) {
-            revert InvalidAmount();
-        }
+    /// Private Methods ///
 
-        _startBridge(gnosisBridgeData);
-
+    /// @dev Contains the business logic for the bridge via XDaiBridge
+    /// @param lifiData data used purely for tracking and analytics
+    /// @param gnosisBridgeData data specific to bridge
+    /// @param hasSourceSwaps whether or not the bridge has source swaps
+    function _startBridge(
+        LiFiData calldata lifiData,
+        GnosisBridgeData memory gnosisBridgeData,
+        bool hasSourceSwaps
+    ) private {
+        LibAsset.maxApproveERC20(IERC20(DAI), gnosisBridgeData.xDaiBridge, gnosisBridgeData.amount);
+        IXDaiBridge(gnosisBridgeData.xDaiBridge).relayTokens(gnosisBridgeData.receiver, gnosisBridgeData.amount);
         emit LiFiTransferStarted(
             lifiData.transactionId,
             "gnosis",
             "",
             lifiData.integrator,
             lifiData.referrer,
-            swapData[0].sendingAssetId,
+            lifiData.sendingAssetId,
             lifiData.receivingAssetId,
             gnosisBridgeData.receiver,
-            swapData[0].fromAmount,
-            lifiData.destinationChainId,
-            true,
+            gnosisBridgeData.amount,
+            GNOSIS_CHAIN_ID,
+            hasSourceSwaps,
             false
         );
-    }
-
-    /// Private Methods ///
-
-    /// @dev Contains the business logic for the bridge via XDaiBridge
-    /// @param gnosisBridgeData data specific to bridge
-    function _startBridge(GnosisBridgeData memory gnosisBridgeData) private {
-        LibAsset.maxApproveERC20(IERC20(DAI), gnosisBridgeData.xDaiBridge, gnosisBridgeData.amount);
-        IXDaiBridge(gnosisBridgeData.xDaiBridge).relayTokens(gnosisBridgeData.receiver, gnosisBridgeData.amount);
     }
 }

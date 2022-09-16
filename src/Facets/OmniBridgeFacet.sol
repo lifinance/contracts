@@ -14,6 +14,8 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Types ///
 
+    uint64 internal constant GNOSIS_CHAIN_ID = 100;
+
     struct BridgeData {
         address bridge;
         address assetId;
@@ -34,9 +36,7 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
-
         LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
-
         _startBridge(_lifiData, _bridgeData, _bridgeData.amount, false);
     }
 
@@ -52,13 +52,7 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
-
         uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-
-        if (amount == 0) {
-            revert InvalidAmount();
-        }
-
         _startBridge(_lifiData, _bridgeData, amount, true);
     }
 
@@ -76,7 +70,6 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         bool _hasSourceSwap
     ) private {
         IOmniBridge bridge = IOmniBridge(_bridgeData.bridge);
-
         if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
             bridge.wrapAndRelayTokens{ value: _amount }(_bridgeData.receiver);
         } else {
@@ -91,11 +84,11 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             "",
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
+            _bridgeData.assetId,
             _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
-            _lifiData.destinationChainId,
+            _bridgeData.receiver,
+            _bridgeData.amount,
+            GNOSIS_CHAIN_ID,
             _hasSourceSwap,
             false
         );

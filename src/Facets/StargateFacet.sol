@@ -74,7 +74,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
         LibAsset.depositAssetWithFee(token, _stargateData.amountLD, msg.value);
 
-        _startBridge(_stargateData, _lifiData, msg.value, false);
+        _startBridge(_lifiData, _stargateData, msg.value, false);
     }
 
     /// @notice Performs a swap before bridging via Stargate Bridge
@@ -88,10 +88,6 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     ) external payable nonReentrant {
         _stargateData.amountLD = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
 
-        if (_stargateData.amountLD == 0) {
-            revert InvalidAmount();
-        }
-
         uint256 nativeFee = msg.value;
         for (uint8 i = 0; i < _swapData.length; i++) {
             if (LibAsset.isNativeAsset(_swapData[i].sendingAssetId)) {
@@ -99,7 +95,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
             }
         }
 
-        _startBridge(_stargateData, _lifiData, nativeFee, true);
+        _startBridge(_lifiData, _stargateData, nativeFee, true);
     }
 
     /// @notice Completes a cross-chain transaction on the receiving chain.
@@ -199,13 +195,13 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     }
 
     /// @dev Contains the business logic for the bridge via Stargate Bridge
-    /// @param _stargateData Data specific to Stargate Bridge
     /// @param _lifiData Data used purely for tracking and analytics
+    /// @param _stargateData Data specific to Stargate Bridge
     /// @param _nativeFee Native gas fee for the cross chain message
     /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
-        StargateData memory _stargateData,
         LiFiData memory _lifiData,
+        StargateData memory _stargateData,
         uint256 _nativeFee,
         bool _hasSourceSwap
     ) private {
@@ -238,7 +234,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
             _lifiData.sendingAssetId,
             _lifiData.receivingAssetId,
             _lifiData.receiver,
-            _lifiData.amount,
+            _stargateData.amountLD,
             _lifiData.destinationChainId,
             _hasSourceSwap,
             _stargateData.callData.length > 0
