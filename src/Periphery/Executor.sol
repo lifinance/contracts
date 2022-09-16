@@ -97,15 +97,17 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
         }
 
         uint256 finalAssetPostSwapBalance = LibAsset.getOwnBalance(finalAssetId);
-        if (finalAssetPostSwapBalance > finalAssetStartingBalance) {
-            LibAsset.transferAsset(finalAssetId, receiver, finalAssetPostSwapBalance - finalAssetStartingBalance);
+        uint256 finalAssetSendAmount = finalAssetPostSwapBalance - finalAssetStartingBalance;
+
+        if (finalAssetSendAmount > 0) {
+            LibAsset.transferAsset(finalAssetId, receiver, finalAssetSendAmount);
         }
 
         emit LiFiTransferCompleted(
             _lifiData.transactionId,
             transferredAssetId,
             receiver,
-            _swapData[0].fromAmount,
+            finalAssetSendAmount,
             block.timestamp
         );
     }
@@ -147,11 +149,19 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
         }
 
         uint256 finalAssetPostSwapBalance = LibAsset.getOwnBalance(finalAssetId);
-        if (finalAssetPostSwapBalance > finalAssetStartingBalance) {
-            LibAsset.transferAsset(finalAssetId, receiver, finalAssetPostSwapBalance - finalAssetStartingBalance);
+        uint256 finalAssetSendAmount = finalAssetPostSwapBalance - finalAssetStartingBalance;
+
+        if (finalAssetSendAmount > 0) {
+            LibAsset.transferAsset(finalAssetId, receiver, finalAssetSendAmount);
         }
 
-        emit LiFiTransferCompleted(_lifiData.transactionId, transferredAssetId, receiver, amount, block.timestamp);
+        emit LiFiTransferCompleted(
+            _lifiData.transactionId,
+            transferredAssetId,
+            receiver,
+            finalAssetSendAmount,
+            block.timestamp
+        );
     }
 
     /// Private Methods ///

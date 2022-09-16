@@ -665,26 +665,54 @@ describe('StargateFacet', function () {
       })
     })
 
-    it('should be possible to process swapAndCompleteBridgeTokens', async () => {
-      const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-        Object.values(lifiData),
-        payloadSwapData.map((data: any) => Object.values(data)),
-        usdt.address,
-        alice.address,
-      ])
-      await usdt.transfer(receiver.address, utils.parseUnits('1000', 6))
-      await expect(
-        receiver
-          .connect(sgRouter)
-          .sgReceive(
-            1,
-            config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
-            0,
-            POOLS[SRC_ASSET][TEST_CHAINS[SRC_CHAIN]],
-            utils.parseUnits('1000', 6),
-            payload
-          )
-      ).to.emit(executor, 'LiFiTransferCompleted')
+    describe('should be possible to process sgReceive', () => {
+      it('should process swapAndCompleteBridgeTokens', async () => {
+        const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
+          Object.values(lifiData),
+          payloadSwapData.map((data: any) => Object.values(data)),
+          usdt.address,
+          alice.address,
+        ])
+        await usdt.transfer(receiver.address, utils.parseUnits('1000', 6))
+        await expect(
+          receiver
+            .connect(sgRouter)
+            .sgReceive(
+              1,
+              config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
+              0,
+              POOLS[SRC_ASSET][TEST_CHAINS[SRC_CHAIN]],
+              utils.parseUnits('1000', 6),
+              payload
+            )
+        ).to.emit(executor, 'LiFiTransferCompleted')
+      })
+
+      it('should send to receiver when fails to call swapAndCompleteBridgeTokens', async () => {
+        const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
+          Object.values(lifiData),
+          payloadSwapData.map((data: any) => Object.values(data)),
+          usdt.address,
+          alice.address,
+        ])
+        await usdt.transfer(receiver.address, utils.parseUnits('100', 6))
+        const usdtBalance = await usdt.balanceOf(alice.address)
+        await expect(
+          receiver
+            .connect(sgRouter)
+            .sgReceive(
+              1,
+              config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
+              0,
+              POOLS[SRC_ASSET][TEST_CHAINS[SRC_CHAIN]],
+              utils.parseUnits('100', 6),
+              payload
+            )
+        ).to.emit(receiver, 'LiFiTransferCompleted')
+        expect(await usdt.balanceOf(alice.address)).to.equal(
+          usdtBalance.add(utils.parseUnits('100', 6))
+        )
+      })
     })
   })
 })
