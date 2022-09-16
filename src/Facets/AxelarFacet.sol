@@ -4,7 +4,7 @@ pragma solidity 0.8.16;
 import { IAxelarGasService } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGasService.sol";
 import { IAxelarGateway } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGateway.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import { RecoveryAddressCannotBeZero, NativeAssetNotSupported, TokenNotSupported, InvalidAmount } from "../Errors/GenericErrors.sol";
+import { RecoveryAddressCannotBeZero, NativeAssetNotSupported, TokenNotSupported, InvalidAmount, InvalidDestinationChain } from "../Errors/GenericErrors.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -16,10 +16,12 @@ contract AxelarFacet {
 
     /// Events ///
     event LifiXChainTXStarted(uint256 indexed destinationChain, address indexed callTo, bytes callData);
+    event ChainNameRegistered(uint256 indexed chainID, string chainName);
 
     struct Storage {
         IAxelarGateway gateway;
         IAxelarGasService gasReceiver;
+        mapping(uint256 => string) chainIdToName;
     }
 
     /// Errors
@@ -31,6 +33,13 @@ contract AxelarFacet {
         Storage storage s = getStorage();
         s.gateway = IAxelarGateway(_gateway);
         s.gasReceiver = IAxelarGasService(_gasReceiver);
+    }
+
+    function setChainName(uint256 _chainId, string calldata _name) external {
+        LibDiamond.enforceIsContractOwner();
+        Storage storage s = getStorage();
+        s.chainIdToName[_chainId] = _name;
+        emit ChainNameRegistered(_chainId, _name);
     }
 
     /// @notice Initiates a cross-chain contract call via Axelar Network
@@ -47,7 +56,10 @@ contract AxelarFacet {
         Storage storage s = getStorage();
         bytes memory payload = abi.encodePacked(callTo, callData);
 
-        string memory _destinationChain = Strings.toHexString(destinationChain);
+        string memory _destinationChain = s.chainIdToName[destinationChain];
+        if (bytes(_destinationChain).length == 0) {
+            revert InvalidDestinationChain();
+        }
         string memory _destinationAddress = Strings.toHexString(destinationAddress);
 
         // Pay gas up front
@@ -102,7 +114,10 @@ contract AxelarFacet {
         }
 
         bytes memory payload = abi.encodePacked(callTo, recoveryAddress, callData);
-        string memory _destinationChain = Strings.toHexString(destinationChain);
+        string memory _destinationChain = s.chainIdToName[destinationChain];
+        if (bytes(_destinationChain).length == 0) {
+            revert InvalidDestinationChain();
+        }
         string memory _destinationAddress = Strings.toHexString(destinationAddress);
 
         // Pay gas up front
