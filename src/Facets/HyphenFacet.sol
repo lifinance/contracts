@@ -58,7 +58,7 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (LibUtil.isZeroAddress(_hyphenData.recipient)) {
             revert InvalidReceiver();
         }
-
+        LibAsset.depositAssets(_swapData.swaps);
         _hyphenData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_lifiData, _hyphenData, true);
     }

@@ -28,3 +28,4 @@ error UnAuthorized();
 error NoSwapFromZeroBalance();
 error InvalidFallbackAddress();
 error CumulativeSlippageTooHigh();
+error InsufficientBalance(uint256 required, uint256 balance);

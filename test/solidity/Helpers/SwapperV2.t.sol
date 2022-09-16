@@ -13,7 +13,7 @@ import { TestToken as ERC20 } from "../utils/TestToken.sol";
 
 // Stub SwapperV2 Contract
 contract TestSwapperV2 is SwapperV2 {
-    function doSwaps(LibSwap.Swap[] calldata _swapData) public {
+    function doSwaps(LibSwap.SwapData calldata _swapData) public {
         _executeAndCheckSwaps(
             LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0),
             _swapData,
@@ -21,7 +21,7 @@ contract TestSwapperV2 is SwapperV2 {
         );
 
         // Fake send to bridge
-        ERC20 finalAsset = ERC20(_swapData[_swapData.length - 1].receivingAssetId);
+        ERC20 finalAsset = ERC20(_swapData.swaps[_swapData.swaps.length - 1].receivingAssetId);
         finalAsset.transfer(address(1337), finalAsset.balanceOf(address(this)));
     }
 
@@ -62,26 +62,30 @@ contract SwapperV2Test is DSTest, DiamondTest {
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
         ERC20 token3 = new ERC20("Token 3", "T3", 18);
 
-        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](2);
+        LibSwap.Swap[] memory swaps = new LibSwap.Swap[](2);
 
-        swapData[0] = LibSwap.Swap(
+        swaps[0] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(token1),
             address(token2),
             10_000 ether,
-            abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token2, 10_100 ether)
+            abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token2, 10_100 ether),
+            true
         );
 
-        swapData[1] = LibSwap.Swap(
+        swaps[1] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(token2),
             address(token3),
             10_000 ether,
-            abi.encodeWithSelector(amm.swap.selector, token2, 10_000 ether, token3, 10_200 ether)
+            abi.encodeWithSelector(amm.swap.selector, token2, 10_000 ether, token3, 10_200 ether),
+            false
         );
-
+        
+        // 95%
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, 10_000 ether * 95 / 100);
         token1.mint(address(this), 10_000 ether);
         token1.approve(address(swapper), 10_000 ether);
 
@@ -99,25 +103,28 @@ contract SwapperV2Test is DSTest, DiamondTest {
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
         ERC20 token3 = new ERC20("Token 3", "T3", 18);
 
-        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](2);
+        LibSwap.Swap[] memory swaps = new LibSwap.Swap[](2);
 
-        swapData[0] = LibSwap.Swap(
+        swaps[0] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(token1),
             address(token3),
             10_000 ether,
-            abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token3, 10_100 ether)
+            abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token3, 10_100 ether),
+            true
         );
 
-        swapData[1] = LibSwap.Swap(
+        swaps[1] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(token2),
             address(token3),
             10_000 ether,
-            abi.encodeWithSelector(amm.swap.selector, token2, 10_000 ether, token3, 10_200 ether)
+            abi.encodeWithSelector(amm.swap.selector, token2, 10_000 ether, token3, 10_200 ether),
+            false
         );
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, 10_000 ether * 95 / 100);
 
         token1.mint(address(this), 10_000 ether);
         token1.approve(address(swapper), 10_000 ether);
@@ -137,20 +144,21 @@ contract SwapperV2Test is DSTest, DiamondTest {
         ERC20 token1 = new ERC20("Token 1", "T1", 18);
         ERC20 token2 = new ERC20("Token 2", "T2", 18);
 
-        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](1);
+        LibSwap.Swap[] memory swaps = new LibSwap.Swap[](1);
 
-        swapData[0] = LibSwap.Swap(
+        swaps[0] = LibSwap.Swap(
             address(amm),
             address(amm),
             address(token1),
             address(token2),
             10_000 ether,
-            abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token2, 10_100 ether)
+            abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token2, 10_100 ether),
+            true
         );
-
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, 10_000 ether * 95 / 100);
         token1.mint(address(this), 10_000 ether);
         token1.approve(address(swapper), 10_000 ether);
-
+        
         swapper.doSwaps(swapData);
 
         assertEq(token1.balanceOf(address(this)), 0);

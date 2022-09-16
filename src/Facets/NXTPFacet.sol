@@ -49,6 +49,7 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData calldata _swapData,
         NXTPData memory _nxtpData
     ) external payable nonReentrant {
+        LibAsset.depositAssets(_swapData.swaps);
         _nxtpData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_lifiData, _nxtpData, true);
     }

@@ -59,7 +59,7 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (LibUtil.isZeroAddress(_cBridgeData.receiver)) {
             revert InvalidReceiver();
         }
-
+        LibAsset.depositAssets(_swapData.swaps);
         _cBridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_lifiData, _cBridgeData, true);
     }

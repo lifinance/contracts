@@ -73,7 +73,7 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (LibUtil.isZeroAddress(gnosisBridgeData.receiver)) {
             revert InvalidReceiver();
         }
-
+        LibAsset.depositAssets(swapData.swaps);
         gnosisBridgeData.amount = _executeAndCheckSwaps(lifiData, swapData, payable(msg.sender));
         _startBridge(lifiData, gnosisBridgeData, true);
     }

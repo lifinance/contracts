@@ -57,6 +57,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         LibSwap.SwapData calldata _swapData,
         WormholeData memory _wormholeData
     ) external payable nonReentrant {
+        LibAsset.depositAssets(_swapData.swaps);
         _wormholeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_lifiData, _wormholeData, true);
     }

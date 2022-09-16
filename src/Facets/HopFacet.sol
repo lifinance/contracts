@@ -63,6 +63,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (LibUtil.isZeroAddress(_hopData.recipient)) {
             revert InvalidReceiver();
         }
+        LibAsset.depositAssets(_swapData.swaps);
         if (!LibAsset.isNativeAsset(address(_lifiData.sendingAssetId)) && msg.value != 0) revert NativeValueWithERC();
         _hopData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_lifiData, _hopData, true);

@@ -117,8 +117,8 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             USDC_ADDRESS
         );
 
-        LibSwap.Swap[] memory swapData = new LibSwap.Swap[](1);
-        swapData[0] = LibSwap.Swap(
+        LibSwap.Swap[] memory swaps = new LibSwap.Swap[](1);
+        swaps[0] = LibSwap.Swap(
             address(uniswap),
             address(uniswap),
             DAI_ADDRESS,
@@ -131,9 +131,10 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
                 path,
                 address(cBridge),
                 block.timestamp + 20 minutes
-            )
+            ),
+            true
         );
-
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, amountIn * 100 / 95);
         // Approve DAI
         dai.approve(address(cBridge), amountIn);
         cBridge.swapAndStartBridgeTokensViaCBridge(lifiData, swapData, data);

@@ -58,6 +58,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         LibSwap.SwapData calldata _swapData,
         AcrossData memory _acrossData
     ) external payable nonReentrant {
+        LibAsset.depositAssets(_swapData.swaps);
         _acrossData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_lifiData, _acrossData, true);
     }

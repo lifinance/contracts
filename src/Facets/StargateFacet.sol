@@ -72,7 +72,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
             revert TokenAddressIsZero();
         }
 
-        LibAsset.depositAssetWithFee(token, _stargateData.amountLD, msg.value);
+        LibAsset.depositAsset(token, _stargateData.amountLD);
 
         _startBridge(_lifiData, _stargateData, msg.value, false);
     }
@@ -86,6 +86,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData calldata _swapData,
         StargateData memory _stargateData
     ) external payable nonReentrant {
+        LibAsset.depositAssets(_swapData.swaps);
         _stargateData.amountLD = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         LibSwap.Swap[] memory swaps = _swapData.swaps;
         uint256 nativeFee = msg.value;

@@ -49,6 +49,7 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
         AnyswapData memory _anyswapData
     ) external payable nonReentrant {
         if (LibAsset.isNativeAsset(_anyswapData.token)) revert TokenAddressIsZero();
+        LibAsset.depositAssets(_swapData.swaps);
         _anyswapData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         (address underlyingToken, bool isNative) = _getUnderlyingToken(_anyswapData.token, _anyswapData.router);
         _startBridge(_lifiData, _anyswapData, underlyingToken, isNative, true);

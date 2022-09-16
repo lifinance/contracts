@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.16;
 
-import { LibAsset, IERC20 } from "./LibAsset.sol";
+import { LibAsset } from "./LibAsset.sol";
 import { LibUtil } from "./LibUtil.sol";
-import { InvalidContract, NoSwapFromZeroBalance } from "../Errors/GenericErrors.sol";
+import { InvalidContract, NoSwapFromZeroBalance, InsufficientBalance } from "../Errors/GenericErrors.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 library LibSwap {
     struct Swap {
@@ -35,20 +36,16 @@ library LibSwap {
         if (!LibAsset.isContract(_swap.callTo)) revert InvalidContract();
         uint256 fromAmount = _swap.fromAmount;
         if (fromAmount == 0) revert NoSwapFromZeroBalance();
-        uint256 nativeValue = 0;
-        address fromAssetId = _swap.sendingAssetId;
-        address toAssetId = _swap.receivingAssetId;
-        uint256 initialSendingAssetBalance = LibAsset.getOwnBalance(fromAssetId);
-        uint256 initialReceivingAssetBalance = LibAsset.getOwnBalance(toAssetId);
-        uint256 toDeposit = initialSendingAssetBalance < fromAmount ? fromAmount - initialSendingAssetBalance : 0;
+        uint256 nativeValue = LibAsset.isNativeAsset(_swap.sendingAssetId) ? _swap.fromAmount : 0;
+        uint256 initialSendingAssetBalance = LibAsset.getOwnBalance(_swap.sendingAssetId);
+        uint256 initialReceivingAssetBalance = LibAsset.getOwnBalance(_swap.receivingAssetId);
 
-        if (!LibAsset.isNativeAsset(fromAssetId)) {
-            LibAsset.maxApproveERC20(IERC20(fromAssetId), _swap.approveTo, fromAmount);
-            if (toDeposit != 0) {
-                LibAsset.transferFromERC20(fromAssetId, msg.sender, address(this), toDeposit);
-            }
-        } else {
-            nativeValue = fromAmount;
+        if (nativeValue == 0) {
+            LibAsset.maxApproveERC20(IERC20(_swap.sendingAssetId), _swap.approveTo, _swap.fromAmount);
+        }
+
+        if (initialSendingAssetBalance < _swap.fromAmount) {
+            revert InsufficientBalance(_swap.fromAmount, initialSendingAssetBalance);
         }
 
         // solhint-disable-next-line avoid-low-level-calls
@@ -58,14 +55,14 @@ library LibSwap {
             revert(reason);
         }
 
-        uint256 newBalance = LibAsset.getOwnBalance(toAssetId);
+        uint256 newBalance = LibAsset.getOwnBalance(_swap.receivingAssetId);
 
         emit AssetSwapped(
             transactionId,
             _swap.callTo,
             _swap.sendingAssetId,
-            toAssetId,
-            fromAmount,
+            _swap.receivingAssetId,
+            _swap.fromAmount,
             newBalance > initialReceivingAssetBalance ? newBalance - initialReceivingAssetBalance : newBalance,
             block.timestamp
         );

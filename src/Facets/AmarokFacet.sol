@@ -72,7 +72,7 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (_bridgeData.assetId == address(0)) {
             revert TokenAddressIsZero();
         }
-
+        LibAsset.depositAssets(_swapData.swaps);
         uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_lifiData, _bridgeData, amount, true);
     }

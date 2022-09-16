@@ -54,7 +54,7 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
-
+        LibAsset.depositAssets(_swapData.swaps);
         uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_lifiData, _bridgeData, amount, true);
     }

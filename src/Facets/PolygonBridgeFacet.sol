@@ -54,6 +54,7 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
+        LibAsset.depositAssets(_swapData.swaps);
         _bridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_lifiData, _bridgeData, true);
     }
