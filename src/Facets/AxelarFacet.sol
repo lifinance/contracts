@@ -91,14 +91,14 @@ contract AxelarFacet {
 
         string memory tokenSymbol = ERC20(token).symbol();
         Storage storage s = getStorage();
-
+        IAxelarGateway gateway = s.gateway;
         {
-            address tokenAddress = s.gateway.tokenAddresses(tokenSymbol);
+            address tokenAddress = gateway.tokenAddresses(tokenSymbol);
             if (LibAsset.isNativeAsset(tokenAddress)) {
                 revert TokenNotSupported();
             }
             LibAsset.transferFromERC20(tokenAddress, msg.sender, address(this), amount);
-            LibAsset.maxApproveERC20(IERC20(tokenAddress), address(s.gateway), amount);
+            LibAsset.maxApproveERC20(IERC20(tokenAddress), address(gateway), amount);
         }
 
         bytes memory payload = abi.encodePacked(callTo, recoveryAddress, callData);
@@ -110,7 +110,7 @@ contract AxelarFacet {
             _payGasWithToken(s, _destinationChain, _destinationAddress, tokenSymbol, amount, payload);
         }
 
-        s.gateway.callContractWithToken(_destinationChain, _destinationAddress, payload, tokenSymbol, amount);
+        gateway.callContractWithToken(_destinationChain, _destinationAddress, payload, tokenSymbol, amount);
         emit LifiXChainTXStarted(destinationChain, callTo, callData);
     }
 
