@@ -31,7 +31,7 @@ contract TransferrableOwnership is IERC173 {
     /// @param _newOwner the address to transfer ownership to
     function transferOwnership(address _newOwner) external onlyOwner {
         if (_newOwner == LibAsset.NULL_ADDRESS) revert NoNullOwner();
-        if (_newOwner == owner) revert NewOwnerMustNotBeSelf();
+        if (_newOwner == msg.sender) revert NewOwnerMustNotBeSelf();
         pendingOwner = _newOwner;
         emit OwnershipTransferRequested(msg.sender, pendingOwner);
     }
