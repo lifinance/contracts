@@ -87,16 +87,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         IGatewayRouter gatewayRouter = IGatewayRouter(_bridgeData.gatewayRouter);
 
         if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            gatewayRouter.createRetryableTicketNoRefundAliasRewrite{ value: _amount + _cost }(
-                _bridgeData.receiver,
-                _amount, // l2CallValue
-                _bridgeData.maxSubmissionCost,
-                _bridgeData.receiver, // excessFeeRefundAddress
-                _bridgeData.receiver, // callValueRefundAddress
-                _bridgeData.maxGas,
-                _bridgeData.maxGasPrice,
-                ""
-            );
+            gatewayRouter.depositEth{ value: _amount }();
         } else {
             LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.tokenRouter, _amount);
 
