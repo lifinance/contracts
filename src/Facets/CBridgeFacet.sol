@@ -7,6 +7,8 @@ import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 
 /// @title CBridge Facet
 /// @author LI.FI (https://li.fi)
@@ -34,6 +36,13 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         payable
         nonReentrant
     {
+        if (LibUtil.isZeroAddress(_cBridgeData.receiver)) {
+            revert InvalidReceiver();
+        }
+        if (_cBridgeData.amount == 0) {
+            revert InvalidAmount();
+        }
+
         LibAsset.depositAsset(_cBridgeData.token, _cBridgeData.amount);
         _startBridge(_lifiData, _cBridgeData, false);
     }
@@ -47,6 +56,10 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         CBridgeData memory _cBridgeData
     ) external payable nonReentrant {
+        if (LibUtil.isZeroAddress(_cBridgeData.receiver)) {
+            revert InvalidReceiver();
+        }
+
         _cBridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         _startBridge(_lifiData, _cBridgeData, true);
     }
