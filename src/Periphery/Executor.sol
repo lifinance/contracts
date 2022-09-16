@@ -2,7 +2,6 @@
 pragma solidity 0.8.13;
 
 import { IERC20 } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IERC20.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
@@ -15,16 +14,13 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
 contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     /// Storage ///
-    address public sgRouter;
     IERC20Proxy public erc20Proxy;
 
     /// Errors ///
     error ExecutionFailed();
-    error InvalidStargateRouter();
     error InvalidCaller();
 
     /// Events ///
-    event StargateRouterSet(address indexed router);
     event ERC20ProxySet(address indexed proxy);
 
     /// Modifiers ///
@@ -49,108 +45,19 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     }
 
     /// Constructor
-    constructor(
-        address _owner,
-        address _sgRouter,
-        address _erc20Proxy
-    ) TransferrableOwnership(_owner) {
+    constructor(address _owner, address _erc20Proxy) TransferrableOwnership(_owner) {
         owner = _owner;
-        sgRouter = _sgRouter;
         erc20Proxy = IERC20Proxy(_erc20Proxy);
-        emit StargateRouterSet(_sgRouter);
         emit ERC20ProxySet(_erc20Proxy);
     }
 
     /// External Methods ///
-
-    /// @notice set Stargate Router
-    /// @param _router the Stargate router address
-    function setStargateRouter(address _router) external onlyOwner {
-        sgRouter = _router;
-        emit StargateRouterSet(_router);
-    }
 
     /// @notice set ERC20 Proxy
     /// @param _erc20Proxy the address of the ERC20Proxy contract
     function setERC20Proxy(address _erc20Proxy) external onlyOwner {
         erc20Proxy = IERC20Proxy(_erc20Proxy);
         emit ERC20ProxySet(_erc20Proxy);
-    }
-
-    /// @notice Completes a cross-chain transaction on the receiving chain.
-    /// @dev This function is called from Stargate Router.
-    /// @param * (unused) The remote chainId sending the tokens
-    /// @param * (unused) The remote Bridge address
-    /// @param * (unused) Nonce
-    /// @param * (unused) The token contract on the local chain
-    /// @param * (unused) The amount of local _token contract tokens
-    /// @param _payload The data to execute
-    function sgReceive(
-        uint16, // _srcChainId unused
-        bytes memory, // _srcAddress unused
-        uint256, // _nonce unused
-        address, // _token unused
-        uint256, // _amountLD unused
-        bytes memory _payload
-    ) external {
-        if (msg.sender != address(sgRouter)) {
-            revert InvalidStargateRouter();
-        }
-
-        (LiFiData memory lifiData, LibSwap.SwapData[] memory swapData, address assetId, address receiver) = abi.decode(
-            _payload,
-            (LiFiData, LibSwap.SwapData[], address, address)
-        );
-
-        this.swapAndCompleteBridgeTokensViaStargate(lifiData, swapData, assetId, payable(receiver));
-    }
-
-    /// @dev used to execute calls received by Stargate specifically
-    function swapAndCompleteBridgeTokensViaStargate(
-        LiFiData calldata _lifiData,
-        LibSwap.SwapData[] calldata _swapData,
-        address transferredAssetId,
-        address payable receiver
-    ) external payable nonReentrant {
-        if (msg.sender != address(this)) {
-            revert InvalidCaller();
-        }
-
-        uint256 startingBalance;
-        uint256 finalAssetStartingBalance;
-        address finalAssetId = _swapData[_swapData.length - 1].receivingAssetId;
-
-        if (!LibAsset.isNativeAsset(finalAssetId)) {
-            finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId);
-        } else {
-            finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId) - msg.value;
-        }
-
-        if (!LibAsset.isNativeAsset(transferredAssetId)) {
-            startingBalance = LibAsset.getOwnBalance(transferredAssetId);
-        } else {
-            startingBalance = LibAsset.getOwnBalance(transferredAssetId) - msg.value;
-        }
-
-        _executeSwaps(_lifiData, _swapData, receiver);
-
-        uint256 postSwapBalance = LibAsset.getOwnBalance(transferredAssetId);
-        if (postSwapBalance > startingBalance) {
-            LibAsset.transferAsset(transferredAssetId, receiver, postSwapBalance - startingBalance);
-        }
-
-        uint256 finalAssetPostSwapBalance = LibAsset.getOwnBalance(finalAssetId);
-        if (finalAssetPostSwapBalance > finalAssetStartingBalance) {
-            LibAsset.transferAsset(finalAssetId, receiver, finalAssetPostSwapBalance - finalAssetStartingBalance);
-        }
-
-        emit LiFiTransferCompleted(
-            _lifiData.transactionId,
-            transferredAssetId,
-            receiver,
-            _swapData[0].fromAmount,
-            block.timestamp
-        );
     }
 
     /// @notice Performs a swap before completing a cross-chain transaction
