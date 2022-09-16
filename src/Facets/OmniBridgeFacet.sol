@@ -14,6 +14,8 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Types ///
 
+    uint64 internal constant GNOSIS_CHAIN_ID = 100;
+
     struct BridgeData {
         address bridge;
         address assetId;
@@ -68,7 +70,6 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         bool _hasSourceSwap
     ) private {
         IOmniBridge bridge = IOmniBridge(_bridgeData.bridge);
-
         if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
             bridge.wrapAndRelayTokens{ value: _amount }(_bridgeData.receiver);
         } else {
@@ -87,7 +88,7 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             _lifiData.receivingAssetId,
             _bridgeData.receiver,
             _bridgeData.amount,
-            _lifiData.destinationChainId,
+            GNOSIS_CHAIN_ID,
             _hasSourceSwap,
             false
         );

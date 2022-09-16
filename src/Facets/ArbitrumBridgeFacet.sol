@@ -13,6 +13,7 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @notice Provides functionality for bridging through Arbitrum Bridge
 contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Types ///
+    uint64 internal constant ARB_CHAIN_ID = 42161;
 
     struct BridgeData {
         address assetId;
@@ -113,7 +114,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             _lifiData.receivingAssetId,
             _bridgeData.receiver,
             _bridgeData.amount,
-            _lifiData.destinationChainId,
+            ARB_CHAIN_ID,
             _hasSourceSwap,
             false
         );

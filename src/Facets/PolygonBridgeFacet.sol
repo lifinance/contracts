@@ -12,6 +12,8 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Polygon Bridge
 contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+    uint64 internal constant POLYGON_CHAIN_ID = 137;
+
     /// Types ///
 
     struct BridgeData {
@@ -91,7 +93,7 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             childToken,
             _bridgeData.receiver,
             _bridgeData.amount,
-            _lifiData.destinationChainId,
+            POLYGON_CHAIN_ID,
             _hasSourceSwap,
             false
         );

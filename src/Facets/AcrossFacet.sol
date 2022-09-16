@@ -97,7 +97,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
             _lifiData.receivingAssetId,
             _acrossData.recipient,
             _acrossData.amount,
-            _lifiData.destinationChainId,
+            _acrossData.destinationChainId,
             _hasSourceSwaps,
             false
         );
