@@ -191,7 +191,7 @@ describe('ArbitrumBridgeFacet', function () {
           lifi
             .connect(alice)
             .startBridgeTokensViaArbitrumBridge(validLiFiData, validBridgeData)
-        ).to.be.revertedWith('Dai/insufficient-balance')
+        ).to.be.revertedWith('NativeValueWithERC()')
       })
 
       it('when the user sent no enough gas', async () => {
@@ -207,9 +207,7 @@ describe('ArbitrumBridgeFacet', function () {
                 value: cost.sub(1),
               }
             )
-        ).to.be.revertedWith(
-          'Transaction reverted: function call failed to execute'
-        )
+        ).to.be.revertedWith('NativeValueWithERC()')
       })
 
       it('when the sending native asset amount is not enough', async () => {

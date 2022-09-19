@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { IAxelarGasService } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGasService.sol";
 import { IAxelarGateway } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGateway.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { RecoveryAddressCannotBeZero } from "../Errors/GenericErrors.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 
@@ -14,6 +15,9 @@ contract AxelarFacet is ReentrancyGuard {
         IAxelarGateway gateway;
         IAxelarGasService gasReceiver;
     }
+
+    /// Errors
+    error SymbolDoesNotExist();
 
     /// Init
     function initAxelar(address _gateway, address _gasReceiver) external {
@@ -29,13 +33,12 @@ contract AxelarFacet is ReentrancyGuard {
     /// @param callTo the address of the contract to call
     /// @param callData the encoded calldata for the contract call
     function executeCallViaAxelar(
-        string memory destinationChain,
-        string memory destinationAddress,
+        string calldata destinationChain,
+        string calldata destinationAddress,
         address callTo,
         bytes calldata callData
     ) external payable nonReentrant {
         Storage storage s = getStorage();
-
         bytes memory payload = abi.encodePacked(callTo, callData);
 
         // Pay gas up front
@@ -58,36 +61,55 @@ contract AxelarFacet is ReentrancyGuard {
     /// @param callTo the address of the contract to call
     /// @param callData the encoded calldata for the contract call
     function executeCallWithTokenViaAxelar(
-        string memory destinationChain,
-        string memory destinationAddress,
-        string memory symbol,
+        string calldata destinationChain,
+        string calldata destinationAddress,
+        string calldata symbol,
         uint256 amount,
         address callTo,
+        address recoveryAddress,
         bytes calldata callData
     ) external payable nonReentrant {
         Storage storage s = getStorage();
+        if (recoveryAddress == address(0)) {
+            revert RecoveryAddressCannotBeZero();
+        }
 
-        address tokenAddress = s.gateway.tokenAddresses(symbol);
+        {
+            address tokenAddress = s.gateway.tokenAddresses(symbol);
+            if (LibAsset.isNativeAsset(tokenAddress)) {
+                revert SymbolDoesNotExist();
+            }
+            LibAsset.transferFromERC20(tokenAddress, msg.sender, address(this), amount);
+            LibAsset.maxApproveERC20(IERC20(tokenAddress), address(s.gateway), amount);
+        }
 
-        LibAsset.transferFromERC20(tokenAddress, msg.sender, address(this), amount);
-        LibAsset.maxApproveERC20(IERC20(tokenAddress), address(s.gateway), amount);
-
-        bytes memory payload = abi.encodePacked(callTo, callData);
+        bytes memory payload = abi.encodePacked(callTo, recoveryAddress, callData);
 
         // Pay gas up front
         if (msg.value > 0) {
-            s.gasReceiver.payNativeGasForContractCallWithToken{ value: msg.value }(
-                address(this),
-                destinationChain,
-                destinationAddress,
-                payload,
-                symbol,
-                amount,
-                msg.sender
-            );
+            _payGasWithToken(s, destinationChain, destinationAddress, symbol, amount, payload);
         }
 
         s.gateway.callContractWithToken(destinationChain, destinationAddress, payload, symbol, amount);
+    }
+
+    function _payGasWithToken(
+        Storage storage s,
+        string calldata destinationChain,
+        string calldata destinationAddress,
+        string calldata symbol,
+        uint256 amount,
+        bytes memory payload
+    ) private {
+        s.gasReceiver.payNativeGasForContractCallWithToken{ value: msg.value }(
+            address(this),
+            destinationChain,
+            destinationAddress,
+            payload,
+            symbol,
+            amount,
+            msg.sender
+        );
     }
 
     /// @dev fetch local storage

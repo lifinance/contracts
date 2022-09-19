@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicensed
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { IAxelarExecutable } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarExecutable.sol";
 import { IAxelarGateway } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGateway.sol";
@@ -21,6 +21,7 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     /// Events ///
     event AxelarGatewaySet(address indexed gateway);
     event AxelarExecutionComplete(address indexed callTo, bytes4 selector);
+    event AxelarExecutionFailed(address indexed callTo, bytes4 selector, address recoveryAddress);
 
     /// Constructor ///
     constructor(address _owner, address _gateway) IAxelarExecutable(_gateway) {
@@ -75,21 +76,36 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     ) internal override nonReentrant {
         // The first 20 bytes of the payload are the callee address
         address callTo = payload.toAddress(0);
-
-        if (callTo == address(gateway)) revert UnAuthorized();
-        if (!LibAsset.isContract(callTo)) revert NotAContract();
-
+        address recoveryAddress = payload.toAddress(20);
         // The remaining bytes should be calldata
-        bytes memory callData = payload.slice(20, payload.length - 20);
-
+        bytes memory callData = payload.slice(40, payload.length - 40);
         // get ERC-20 address from gateway
         address tokenAddress = gateway.tokenAddresses(tokenSymbol);
+
+        if (callTo == address(gateway) || !LibAsset.isContract(callTo)) {
+            return handleFailedExecution(callTo, callData, tokenAddress, recoveryAddress, amount);
+        }
 
         // transfer received tokens to the recipient
         IERC20(tokenAddress).safeApprove(callTo, 0);
         IERC20(tokenAddress).safeApprove(callTo, amount);
 
         (bool success, ) = callTo.call(callData);
-        if (!success) revert ExecutionFailed();
+        if (!success) {
+            handleFailedExecution(callTo, callData, tokenAddress, recoveryAddress, amount);
+        }
+    }
+
+    /// Internal Methods ///
+    function handleFailedExecution(
+        address callTo,
+        bytes memory callData,
+        address tokenAddress,
+        address recoveryAddress,
+        uint256 amount
+    ) internal {
+        IERC20(tokenAddress).safeApprove(callTo, 0);
+        emit AxelarExecutionFailed(callTo, bytes4(callData), recoveryAddress);
+        LibAsset.transferFromERC20(tokenAddress, address(this), recoveryAddress, amount);
     }
 }
