@@ -27,10 +27,6 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
         address router;
     }
 
-    /// Events ///
-
-    event HyphenInitialized(address hyphenRouter);
-
     /// External Methods ///
 
     /// @notice Bridges tokens via Hyphen

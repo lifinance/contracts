@@ -13,7 +13,6 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
 contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
-    /// Storage ///
 
     /// Types ///
     struct HopData {
@@ -30,11 +29,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 destinationAmountOutMin;
         uint256 destinationDeadline;
     }
-
-    /// Events ///
-
-    event HopInitialized(string[] tokens, IHopBridge.BridgeConfig[] bridgeConfigs, uint256 chainId);
-
+    
     /// External Methods ///
 
     /// @notice Bridges tokens via Hop Protocol
