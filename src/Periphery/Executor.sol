@@ -47,7 +47,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
                     if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
                 }
                 unchecked {
-                    i++;
+                    ++i;
                 }
             }
         } else _;
@@ -267,7 +267,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
             LibSwap.swap(_lifiData.transactionId, currentSwapData);
             unchecked {
-                i++;
+                ++i;
             }
         }
     }
@@ -281,7 +281,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
         for (uint256 i = 0; i < length; ) {
             balances[i] = LibAsset.getOwnBalance(_swapData[i].receivingAssetId);
             unchecked {
-                i++;
+                ++i;
             }
         }
         return balances;

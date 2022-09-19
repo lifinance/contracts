@@ -95,7 +95,7 @@ contract FeeCollector is TransferrableOwnership {
                 emit FeesWithdrawn(tokenAddresses[i], msg.sender, balance);
             }
             unchecked {
-                i++;
+                ++i;
             }
         }
     }
@@ -125,7 +125,7 @@ contract FeeCollector is TransferrableOwnership {
                 emit LiFiFeesWithdrawn(tokenAddresses[i], msg.sender, balance);
             }
             unchecked {
-                i++;
+                ++i;
             }
         }
     }

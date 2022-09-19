@@ -83,7 +83,7 @@ contract SwapperV2 is ILiFi {
             ) revert ContractCallNotAllowed();
             LibSwap.swap(_lifiData.transactionId, currentSwapData);
             unchecked {
-                i++;
+                ++i;
             }
         }
     }
@@ -97,7 +97,7 @@ contract SwapperV2 is ILiFi {
         for (uint256 i = 0; i < length; ) {
             balances[i] = LibAsset.getOwnBalance(_swapData[i].receivingAssetId);
             unchecked {
-                i++;
+                ++i;
             }
         }
         return balances;

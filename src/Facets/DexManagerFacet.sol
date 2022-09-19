@@ -66,7 +66,7 @@ contract DexManagerFacet {
                 emit DexAdded(dex);
             }
             unchecked {
-                i++;
+                ++i;
             }
         }
     }
@@ -94,7 +94,7 @@ contract DexManagerFacet {
                 return;
             }
             unchecked {
-                i++;
+                ++i;
             }
         }
     }
@@ -126,7 +126,7 @@ contract DexManagerFacet {
                 }
             }
             unchecked {
-                i++;
+                ++i;
             }
         }
     }
@@ -156,7 +156,7 @@ contract DexManagerFacet {
             dexFuncSignatureAllowList[_signature] = _approval;
             emit FunctionSignatureApprovalChanged(_signature, _approval);
             unchecked {
-                i++;
+                ++i;
             }
         }
     }

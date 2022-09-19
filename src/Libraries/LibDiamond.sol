@@ -92,7 +92,7 @@ library LibDiamond {
                 revert IncorrectFacetCutAction();
             }
             unchecked {
-                facetIndex++;
+                ++facetIndex;
             }
         }
         emit DiamondCut(_diamondCut, _init, _calldata);
@@ -119,9 +119,9 @@ library LibDiamond {
                 revert FunctionAlreadyExists();
             }
             addFunction(ds, selector, selectorPosition, _facetAddress);
-            selectorPosition++;
+            ++selectorPosition;
             unchecked {
-                selectorIndex++;
+                ++selectorIndex;
             }
         }
     }
@@ -149,7 +149,7 @@ library LibDiamond {
             addFunction(ds, selector, selectorPosition, _facetAddress);
             selectorPosition++;
             unchecked {
-                selectorIndex++;
+                ++selectorIndex;
             }
         }
     }
@@ -168,7 +168,7 @@ library LibDiamond {
             address oldFacetAddress = ds.selectorToFacetAndPosition[selector].facetAddress;
             removeFunction(ds, oldFacetAddress, selector);
             unchecked {
-                selectorIndex++;
+                ++selectorIndex;
             }
         }
     }

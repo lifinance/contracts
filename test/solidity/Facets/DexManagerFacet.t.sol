@@ -90,7 +90,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         for (uint256 i = 0; i < 5; ) {
             assertTrue(dexMgr.isFunctionApproved(signatures[i]));
             unchecked {
-                i++;
+                ++i;
             }
         }
     }
