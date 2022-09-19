@@ -58,7 +58,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint16, // _srcChainId unused
         bytes memory, // _srcAddress unused
         uint256, // _nonce unused
-        address, // _token unused
+        address _token,
         uint256 _amountLD,
         bytes memory _payload
     ) external nonReentrant {
@@ -66,12 +66,12 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             revert InvalidStargateRouter();
         }
 
-        (LiFiData memory lifiData, LibSwap.SwapData[] memory swapData, address assetId, address receiver) = abi.decode(
+        (LiFiData memory lifiData, LibSwap.SwapData[] memory swapData, , address receiver) = abi.decode(
             _payload,
             (LiFiData, LibSwap.SwapData[], address, address)
         );
 
-        _swapAndCompleteBridgeTokens(lifiData, swapData, assetId, payable(receiver), _amountLD);
+        _swapAndCompleteBridgeTokens(lifiData, swapData, _token, payable(receiver), _amountLD);
     }
 
     /// @notice Performs a swap before completing a cross-chain transaction

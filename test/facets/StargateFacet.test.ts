@@ -623,7 +623,7 @@ describe('StargateFacet', function () {
             1,
             config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
             0,
-            POOLS[SRC_ASSET][TEST_CHAINS[SRC_CHAIN]],
+            usdt.address,
             utils.parseUnits('1000', 6),
             payload
           )
@@ -657,7 +657,7 @@ describe('StargateFacet', function () {
               1,
               config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
               0,
-              ethers.constants.AddressZero,
+              usdt.address,
               utils.parseUnits('1000', 6),
               payload
             )
@@ -681,7 +681,7 @@ describe('StargateFacet', function () {
               1,
               config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
               0,
-              POOLS[SRC_ASSET][TEST_CHAINS[SRC_CHAIN]],
+              usdt.address,
               utils.parseUnits('1000', 6),
               payload
             )
@@ -704,7 +704,7 @@ describe('StargateFacet', function () {
               1,
               config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
               0,
-              POOLS[SRC_ASSET][TEST_CHAINS[SRC_CHAIN]],
+              usdt.address,
               utils.parseUnits('100', 6),
               payload
             )
