@@ -8,10 +8,12 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
+import { ExcessivelySafeCall } from "../Helpers/ExcessivelySafeCall.sol";
 
 contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     using LibBytes for bytes;
     using SafeERC20 for IERC20;
+    using ExcessivelySafeCall for address;
 
     /// Errors ///
     error UnAuthorized();
@@ -57,7 +59,7 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
         // The remaining bytes should be calldata
         bytes memory callData = payload.slice(20, payload.length - 20);
 
-        (bool success, ) = callTo.call(callData);
+        (bool success, ) = callTo.excessivelySafeCall(gasleft(), 0, 0, callData);
         if (!success) revert ExecutionFailed();
         emit AxelarExecutionComplete(callTo, bytes4(callData));
     }
@@ -90,7 +92,7 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
         IERC20(tokenAddress).safeApprove(callTo, 0);
         IERC20(tokenAddress).safeApprove(callTo, amount);
 
-        (bool success, ) = callTo.call(callData);
+        (bool success, ) = callTo.excessivelySafeCall(gasleft(), 0, 0, callData);
         if (!success) {
             return _handleFailedExecution(callTo, bytes4(callData), tokenAddress, recoveryAddress, amount);
         }
