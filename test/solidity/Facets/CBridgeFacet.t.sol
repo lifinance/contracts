@@ -134,7 +134,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             ),
             true
         );
-        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, amountIn * 100 / 95);
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, amountOut * 95 / 100);
         // Approve DAI
         dai.approve(address(cBridge), amountIn);
         cBridge.swapAndStartBridgeTokensViaCBridge(lifiData, swapData, data);

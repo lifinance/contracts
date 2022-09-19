@@ -111,7 +111,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, address(0xb33f)),
             true
         );
-        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, (amount + fee + lifiFee) * 100 / 95);
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, (amount * 95 / 100));
         // Approve USDC
         usdc.approve(address(cBridge), amount + fee + lifiFee);
         cBridge.swapAndStartBridgeTokensViaCBridge(lifiData, swapData, data);
@@ -271,7 +271,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             ),
             false
         );
-        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, (amountIn) * 100 / 95);
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, (amountToBridge * 95 / 100));
         cBridge.swapAndStartBridgeTokensViaCBridge{ value: amountIn + fee + lifiFee }(lifiData, swapData, data);
         vm.stopPrank();
 
@@ -396,7 +396,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, address(0xb33f)),
             false
         );
-        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, (amountIn) * 100 / 95);
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, (amountToBridge) * 95 / 100);
         cBridge.swapAndStartBridgeTokensViaCBridge{ value: amountIn }(lifiData, swapData, data);
         vm.stopPrank();
 

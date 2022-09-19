@@ -10,10 +10,13 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { TestAMM } from "../utils/TestAMM.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 
 // Stub SwapperV2 Contract
 contract TestSwapperV2 is SwapperV2 {
     function doSwaps(LibSwap.SwapData calldata _swapData) public {
+
+        LibAsset.depositAssets(_swapData.swaps);
         _executeAndCheckSwaps(
             LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0),
             _swapData,
@@ -122,7 +125,7 @@ contract SwapperV2Test is DSTest, DiamondTest {
             address(token3),
             10_000 ether,
             abi.encodeWithSelector(amm.swap.selector, token2, 10_000 ether, token3, 10_200 ether),
-            false
+            true
         );
         LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, 10_000 ether * 95 / 100);
 
