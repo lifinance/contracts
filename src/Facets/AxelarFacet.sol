@@ -24,6 +24,17 @@ contract AxelarFacet {
         mapping(uint256 => string) chainIdToName;
     }
 
+    /// @param destinationChain the chain to execute on
+    /// @param destinationAddress the address of the LiFi contract on the destinationChain
+    /// @param callTo the address of the contract to call
+    /// @param callData the encoded calldata for the contract call
+    struct AxelarCallParameters {
+        uint256 destinationChain;
+        address destinationAddress;
+        address callTo;
+        bytes callData;
+    }
+
     /// Errors
     error SymbolDoesNotExist();
 
@@ -43,24 +54,16 @@ contract AxelarFacet {
     }
 
     /// @notice Initiates a cross-chain contract call via Axelar Network
-    /// @param destinationChain the chain to execute on
-    /// @param destinationAddress the address of the LiFi contract on the destinationChain
-    /// @param callTo the address of the contract to call
-    /// @param callData the encoded calldata for the contract call
-    function executeCallViaAxelar(
-        uint256 destinationChain,
-        address destinationAddress,
-        address callTo,
-        bytes calldata callData
-    ) external payable {
+    /// @param params the parameters for the cross-chain call
+    function executeCallViaAxelar(AxelarCallParameters calldata params) external payable {
         Storage storage s = getStorage();
-        bytes memory payload = abi.encodePacked(callTo, callData);
+        bytes memory payload = abi.encodePacked(params.callTo, params.callData);
 
-        string memory _destinationChain = s.chainIdToName[destinationChain];
+        string memory _destinationChain = s.chainIdToName[params.destinationChain];
         if (bytes(_destinationChain).length == 0) {
             revert InvalidDestinationChain();
         }
-        string memory _destinationAddress = Strings.toHexString(destinationAddress);
+        string memory _destinationAddress = Strings.toHexString(params.destinationAddress);
 
         // Pay gas up front
         s.gasReceiver.payNativeGasForContractCall{ value: msg.value }(
@@ -72,24 +75,19 @@ contract AxelarFacet {
         );
 
         s.gateway.callContract(_destinationChain, _destinationAddress, payload);
-        emit LifiXChainTXStarted(destinationChain, callTo, callData);
+        emit LifiXChainTXStarted(params.destinationChain, params.callTo, params.callData);
     }
 
     /// @notice Initiates a cross-chain contract call while sending a token via Axelar Network
-    /// @param destinationChain the chain to execute on
-    /// @param destinationAddress the address of the LiFi contract on the destinationChain
+    /// @param params the parameters for the cross-chain call
     /// @param token the address of token to send with the transaction
     /// @param amount the amount of tokens to send
-    /// @param callTo the address of the contract to call
-    /// @param callData the encoded calldata for the contract call
+    /// @param recoveryAddress the address to send the tokens to if the transaction fails on the destination chain
     function executeCallWithTokenViaAxelar(
-        uint256 destinationChain,
-        address destinationAddress,
+        AxelarCallParameters calldata params,
         address token,
         uint256 amount,
-        address callTo,
-        address recoveryAddress,
-        bytes calldata callData
+        address recoveryAddress
     ) external payable {
         if (recoveryAddress == address(0)) {
             revert RecoveryAddressCannotBeZero();
@@ -113,12 +111,12 @@ contract AxelarFacet {
             LibAsset.maxApproveERC20(IERC20(tokenAddress), address(gateway), amount);
         }
 
-        bytes memory payload = abi.encodePacked(callTo, recoveryAddress, callData);
-        string memory _destinationChain = s.chainIdToName[destinationChain];
+        bytes memory payload = abi.encodePacked(params.callTo, recoveryAddress, params.callData);
+        string memory _destinationChain = s.chainIdToName[params.destinationChain];
         if (bytes(_destinationChain).length == 0) {
             revert InvalidDestinationChain();
         }
-        string memory _destinationAddress = Strings.toHexString(destinationAddress);
+        string memory _destinationAddress = Strings.toHexString(params.destinationAddress);
 
         // Pay gas up front
         if (msg.value > 0) {
@@ -126,7 +124,7 @@ contract AxelarFacet {
         }
 
         gateway.callContractWithToken(_destinationChain, _destinationAddress, payload, tokenSymbol, amount);
-        emit LifiXChainTXStarted(destinationChain, callTo, callData);
+        emit LifiXChainTXStarted(params.destinationChain, params.callTo, params.callData);
     }
 
     function _payGasWithToken(
