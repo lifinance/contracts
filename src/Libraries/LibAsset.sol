@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 import { NullAddrIsNotAnERC20Token, NullAddrIsNotAValidSpender, NoTransferToNullAddress, InvalidAmount, NativeValueWithERC, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title LibAsset
-/// @author Connext <support@connext.network>
 /// @notice This library contains helpers for dealing with onchain transfers
 ///         of assets, including accounting for the native asset `assetId`
 ///         conventions and any noncompliant ERC20 transfers
 library LibAsset {
-    uint256 private constant MAX_INT = type(uint256).max;
+    uint256 private constant MAX_UINT = type(uint256).max;
 
     address internal constant NULL_ADDRESS = address(0);
 
@@ -38,7 +37,7 @@ library LibAsset {
     }
 
     /// @notice If the current allowance is insufficient, the allowance for a given spender
-    /// is set to MAX_INT.
+    /// is set to MAX_UINT.
     /// @param assetId Token address to transfer
     /// @param spender Address to give spend approval to
     /// @param amount Amount to approve for spending
@@ -50,7 +49,8 @@ library LibAsset {
         if (address(assetId) == NATIVE_ASSETID) return;
         if (spender == NULL_ADDRESS) revert NullAddrIsNotAValidSpender();
         uint256 allowance = assetId.allowance(address(this), spender);
-        if (allowance < amount) SafeERC20.safeApprove(IERC20(assetId), spender, MAX_INT);
+
+        if (allowance < amount) SafeERC20.safeIncreaseAllowance(IERC20(assetId), spender, MAX_UINT - allowance);
     }
 
     /// @notice Transfers tokens from the inheriting contract to a given
@@ -80,13 +80,17 @@ library LibAsset {
     ) internal {
         if (assetId == NATIVE_ASSETID) revert NullAddrIsNotAnERC20Token();
         if (to == NULL_ADDRESS) revert NoTransferToNullAddress();
-        SafeERC20.safeTransferFrom(IERC20(assetId), from, to, amount);
+
+        IERC20 asset = IERC20(assetId);
+        uint256 prevBalance = asset.balanceOf(to);
+        SafeERC20.safeTransferFrom(asset, from, to, amount);
+        if (asset.balanceOf(to) - prevBalance != amount) revert InvalidAmount();
     }
 
     /// @notice Deposits an asset into the contract and performs checks to avoid NativeValueWithERC
     /// @param tokenId Token to deposit
     /// @param amount Amount to deposit
-    /// @param isNative Wether the token is native or ERC20
+    /// @param isNative Whether the token is native or ERC20
     function depositAsset(
         address tokenId,
         uint256 amount,
@@ -94,11 +98,31 @@ library LibAsset {
     ) internal {
         if (amount == 0) revert InvalidAmount();
         if (isNative) {
-            if (msg.value < amount) revert InvalidAmount();
+            if (msg.value != amount) revert InvalidAmount();
         } else {
-            uint256 _fromTokenBalance = LibAsset.getOwnBalance(tokenId);
-            LibAsset.transferFromERC20(tokenId, msg.sender, address(this), amount);
-            if (LibAsset.getOwnBalance(tokenId) - _fromTokenBalance != amount) revert InvalidAmount();
+            if (msg.value != 0) revert NativeValueWithERC();
+            transferFromERC20(tokenId, msg.sender, address(this), amount);
+        }
+    }
+
+    /// @notice Deposits an asset into the contract and performs checks to avoid NativeValueWithERC
+    /// @dev It checks with the additional fee provided via msg.value
+    /// @param tokenId Token to deposit
+    /// @param amount Amount to deposit
+    /// @param isNative Whether the token is native or ERC20
+    /// @param fee Additional fee should be provided via msg.value
+    function depositAssetWithFee(
+        address tokenId,
+        uint256 amount,
+        bool isNative,
+        uint256 fee
+    ) internal {
+        if (amount == 0) revert InvalidAmount();
+        if (isNative) {
+            if (msg.value != amount + fee) revert InvalidAmount();
+        } else {
+            if (msg.value != fee) revert NativeValueWithERC();
+            transferFromERC20(tokenId, msg.sender, address(this), amount);
         }
     }
 
@@ -107,6 +131,18 @@ library LibAsset {
     /// @param amount Amount to deposit
     function depositAsset(address tokenId, uint256 amount) internal {
         return depositAsset(tokenId, amount, tokenId == NATIVE_ASSETID);
+    }
+
+    /// @notice Overload for depositAssetWithFee(address tokenId, uint256 amount, bool isNative, uint256 fee)
+    /// @param tokenId Token to deposit
+    /// @param amount Amount to deposit
+    /// @param fee Additional fee should be provided via msg.value
+    function depositAssetWithFee(
+        address tokenId,
+        uint256 amount,
+        uint256 fee
+    ) internal {
+        return depositAssetWithFee(tokenId, amount, tokenId == NATIVE_ASSETID, fee);
     }
 
     /// @notice Determines whether the given assetId is the native asset

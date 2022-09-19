@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
@@ -7,6 +7,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { LibAccess } from "lifi/Libraries/LibAccess.sol";
+import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract RestrictedContract {
     function restrictedMethod() external view returns (bool) {
@@ -38,7 +39,7 @@ contract AccessManagerFacetTest is DSTest, DiamondTest {
     }
 
     function testAccessIsRestricted() public {
-        vm.expectRevert(LibAccess.UnAuthorized.selector);
+        vm.expectRevert(UnAuthorized.selector);
         vm.prank(address(0xb33f));
         restricted.restrictedMethod();
     }
@@ -52,7 +53,7 @@ contract AccessManagerFacetTest is DSTest, DiamondTest {
     function testCanRemoveAccess() public {
         accessMgr.setCanExecute(RestrictedContract.restrictedMethod.selector, address(0xb33f), true);
         accessMgr.setCanExecute(RestrictedContract.restrictedMethod.selector, address(0xb33f), false);
-        vm.expectRevert(LibAccess.UnAuthorized.selector);
+        vm.expectRevert(UnAuthorized.selector);
         vm.prank(address(0xb33f));
         restricted.restrictedMethod();
     }

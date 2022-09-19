@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IOmniBridge } from "../Interfaces/IOmniBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title OmniBridge Facet
@@ -21,10 +20,6 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         address receiver;
         uint256 amount;
     }
-
-    /// Errors ///
-
-    error InvalidReceiver();
 
     /// External Methods ///
 

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IHyphenRouter } from "../Interfaces/IHyphenRouter.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
+import { InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 
 /// @title Hyphen Facet
 /// @author LI.FI (https://li.fi)
@@ -37,6 +37,13 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
         payable
         nonReentrant
     {
+        if (LibUtil.isZeroAddress(_hyphenData.recipient)) {
+            revert InvalidReceiver();
+        }
+        if (_hyphenData.amount == 0) {
+            revert InvalidAmount();
+        }
+
         LibAsset.depositAsset(_hyphenData.token, _hyphenData.amount);
         _startBridge(_hyphenData);
 
@@ -65,7 +72,15 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         HyphenData memory _hyphenData
     ) external payable nonReentrant {
+        if (LibUtil.isZeroAddress(_hyphenData.recipient)) {
+            revert InvalidReceiver();
+        }
+
         _hyphenData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
+        if (_hyphenData.amount == 0) {
+            revert InvalidAmount();
+        }
+
         _startBridge(_hyphenData);
 
         emit LiFiTransferStarted(
@@ -89,11 +104,8 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @dev Contains the business logic for the bridge via Hyphen
     /// @param _hyphenData data specific to Hyphen
     function _startBridge(HyphenData memory _hyphenData) private {
-        // Check chain id
-        if (block.chainid == _hyphenData.toChainId) revert CannotBridgeToSameNetwork();
-
-        if (_hyphenData.token != address(0)) {
-            // Give Anyswap approval to bridge tokens
+        if (!LibAsset.isNativeAsset(_hyphenData.token)) {
+            // Give the Hyphen router approval to bridge tokens
             LibAsset.maxApproveERC20(IERC20(_hyphenData.token), _hyphenData.router, _hyphenData.amount);
 
             IHyphenRouter(_hyphenData.router).depositErc20(
