@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
-import { LibStorage } from "../Libraries/LibStorage.sol";
+import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { InvalidAmount, ContractCallNotAllowed, NoSwapDataProvided } from "../Errors/GenericErrors.sol";
 
 /// @title Swapper
@@ -12,8 +12,6 @@ import { InvalidAmount, ContractCallNotAllowed, NoSwapDataProvided } from "../Er
 /// @notice Abstract contract to provide swap functionality
 contract SwapperV2 is ILiFi {
     /// Storage ///
-
-    LibStorage internal appStorage;
 
     /// Modifiers ///
 
@@ -72,9 +70,10 @@ contract SwapperV2 is ILiFi {
         for (uint256 i = 0; i < _swapData.length; i++) {
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
             if (
-                !(appStorage.dexAllowlist[currentSwapData.approveTo] &&
-                    appStorage.dexAllowlist[currentSwapData.callTo] &&
-                    appStorage.dexFuncSignatureAllowList[bytes4(currentSwapData.callData[:4])])
+                !((LibAsset.isNativeAsset(currentSwapData.sendingAssetId) ||
+                    LibAllowList.contractIsAllowed(currentSwapData.approveTo)) &&
+                    LibAllowList.contractIsAllowed(currentSwapData.callTo) &&
+                    LibAllowList.selectorIsAllowed(bytes4(currentSwapData.callData[:4])))
             ) revert ContractCallNotAllowed();
             LibSwap.swap(_lifiData.transactionId, currentSwapData);
         }

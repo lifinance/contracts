@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
@@ -7,6 +7,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { SwapperV2, LibSwap } from "lifi/Helpers/SwapperV2.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { TestAMM } from "../utils/TestAMM.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 
@@ -25,20 +26,11 @@ contract TestSwapperV2 is SwapperV2 {
     }
 
     function addDex(address _dex) external {
-        mapping(address => bool) storage dexAllowlist = appStorage.dexAllowlist;
-
-        if (dexAllowlist[_dex]) {
-            return;
-        }
-
-        dexAllowlist[_dex] = true;
-        appStorage.dexs.push(_dex);
+        LibAllowList.addAllowedContract(_dex);
     }
 
-    function setFunctionApprovalBySignature(bytes4 signature) external {
-        mapping(bytes4 => bool) storage dexFuncSignatureAllowList = appStorage.dexFuncSignatureAllowList;
-        if (dexFuncSignatureAllowList[signature]) return;
-        dexFuncSignatureAllowList[signature] = true;
+    function setFunctionApprovalBySignature(bytes4 _signature) external {
+        LibAllowList.addAllowedSelector(_signature);
     }
 }
 
