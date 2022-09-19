@@ -36,7 +36,7 @@ contract SwapperV2 is ILiFi {
                     if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
                 }
                 unchecked {
-                    i++;
+                    ++i;
                 }
             }
         } else _;

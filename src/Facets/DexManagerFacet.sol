@@ -121,7 +121,7 @@ contract DexManagerFacet {
                         break;
                     }
                     unchecked {
-                        j++;
+                        ++j;
                     }
                 }
             }

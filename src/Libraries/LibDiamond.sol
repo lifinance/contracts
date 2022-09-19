@@ -147,7 +147,7 @@ library LibDiamond {
             }
             removeFunction(ds, oldFacetAddress, selector);
             addFunction(ds, selector, selectorPosition, _facetAddress);
-            selectorPosition++;
+            ++selectorPosition;
             unchecked {
                 ++selectorIndex;
             }
