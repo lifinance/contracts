@@ -9,22 +9,27 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 
 contract AxelarFacet {
     /// Storage
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.axelar");
-    struct Storage {
-        IAxelarGateway gateway;
-        IAxelarGasService gasReceiver;
-    }
+
+    /// @notice The contract address of the gateway on the source chain.
+    IAxelarGateway private immutable gateway;
+
+    /// @notice The contract address of the gas service on the source chain.
+    IAxelarGasService private immutable gasService;
 
     /// Errors
     error SymbolDoesNotExist();
 
-    /// Init
-    function initAxelar(address _gateway, address _gasReceiver) external {
-        LibDiamond.enforceIsContractOwner();
-        Storage storage s = getStorage();
-        s.gateway = IAxelarGateway(_gateway);
-        s.gasReceiver = IAxelarGasService(_gasReceiver);
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _gateway The contract address of the gateway on the source chain.
+    /// @param _gasService The contract address of the gas service on the source chain.
+    constructor(IAxelarGateway _gateway, IAxelarGasService _gasService) {
+        gateway = _gateway;
+        gasService = _gasService;
     }
+
+    /// External Methods ///
 
     /// @notice Initiates a cross-chain contract call via Axelar Network
     /// @param destinationChain the chain to execute on
@@ -37,11 +42,10 @@ contract AxelarFacet {
         address callTo,
         bytes calldata callData
     ) external payable {
-        Storage storage s = getStorage();
         bytes memory payload = abi.encodePacked(callTo, callData);
 
         // Pay gas up front
-        s.gasReceiver.payNativeGasForContractCall{ value: msg.value }(
+        gasService.payNativeGasForContractCall{ value: msg.value }(
             address(this),
             destinationChain,
             destinationAddress,
@@ -49,7 +53,7 @@ contract AxelarFacet {
             msg.sender
         );
 
-        s.gateway.callContract(destinationChain, destinationAddress, payload);
+        gateway.callContract(destinationChain, destinationAddress, payload);
     }
 
     /// @notice Initiates a cross-chain contract call while sending a token via Axelar Network
@@ -72,36 +76,33 @@ contract AxelarFacet {
             revert RecoveryAddressCannotBeZero();
         }
 
-        Storage storage s = getStorage();
-
         {
-            address tokenAddress = s.gateway.tokenAddresses(symbol);
+            address tokenAddress = gateway.tokenAddresses(symbol);
             if (LibAsset.isNativeAsset(tokenAddress)) {
                 revert SymbolDoesNotExist();
             }
             LibAsset.transferFromERC20(tokenAddress, msg.sender, address(this), amount);
-            LibAsset.maxApproveERC20(IERC20(tokenAddress), address(s.gateway), amount);
+            LibAsset.maxApproveERC20(IERC20(tokenAddress), address(gateway), amount);
         }
 
         bytes memory payload = abi.encodePacked(callTo, recoveryAddress, callData);
 
         // Pay gas up front
         if (msg.value > 0) {
-            _payGasWithToken(s, destinationChain, destinationAddress, symbol, amount, payload);
+            _payGasWithToken(destinationChain, destinationAddress, symbol, amount, payload);
         }
 
-        s.gateway.callContractWithToken(destinationChain, destinationAddress, payload, symbol, amount);
+        gateway.callContractWithToken(destinationChain, destinationAddress, payload, symbol, amount);
     }
 
     function _payGasWithToken(
-        Storage storage s,
         string calldata destinationChain,
         string calldata destinationAddress,
         string calldata symbol,
         uint256 amount,
         bytes memory payload
     ) private {
-        s.gasReceiver.payNativeGasForContractCallWithToken{ value: msg.value }(
+        gasService.payNativeGasForContractCallWithToken{ value: msg.value }(
             address(this),
             destinationChain,
             destinationAddress,
@@ -110,14 +111,5 @@ contract AxelarFacet {
             amount,
             msg.sender
         );
-    }
-
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            s.slot := namespace
-        }
     }
 }

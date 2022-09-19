@@ -12,18 +12,44 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Arbitrum Bridge
 contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
-    /// Types ///
-    uint64 internal constant ARB_CHAIN_ID = 42161;
+    /// Storage ///
 
+    /// @notice Chain id of Arbitrum.
+    uint64 private constant ARB_CHAIN_ID = 42161;
+
+    /// @notice The contract address of the gateway router on the source chain.
+    IGatewayRouter private immutable gatewayRouter;
+
+    /// @notice The contract address of the inbox on the source chain.
+    IGatewayRouter private immutable inbox;
+
+    /// Types ///
+
+    /// @param assetId The contract address of the token being bridged on sending chain.
+    /// @param amount The amount of tokens to bridge.
+    /// @param receiver The address you are sending funds (and potentially data) to.
+    /// @param tokenRouter Token router address for sending token.
+    /// @param maxSubmissionCost Max gas deducted from user's L2 balance to cover base submission fee.
+    /// @param maxGas Max gas deducted from user's L2 balance to cover L2 execution.
+    /// @param maxGasPrice price bid for L2 execution.
     struct BridgeData {
         address assetId;
         uint256 amount;
         address receiver;
-        address gatewayRouter;
         address tokenRouter;
         uint256 maxSubmissionCost;
         uint256 maxGas;
         uint256 maxGasPrice;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _gatewayRouter The contract address of the gateway router on the source chain.
+    /// @param _inbox The contract address of the inbox on the source chain.
+    constructor(IGatewayRouter _gatewayRouter, IGatewayRouter _inbox) {
+        gatewayRouter = _gatewayRouter;
+        inbox = _inbox;
     }
 
     /// External Methods ///
@@ -78,10 +104,8 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 _cost,
         bool _hasSourceSwap
     ) private {
-        IGatewayRouter gatewayRouter = IGatewayRouter(_bridgeData.gatewayRouter);
-
         if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            gatewayRouter.createRetryableTicketNoRefundAliasRewrite{ value: _amount + _cost }(
+            inbox.createRetryableTicketNoRefundAliasRewrite{ value: _amount + _cost }(
                 _bridgeData.receiver,
                 _amount, // l2CallValue
                 _bridgeData.maxSubmissionCost,

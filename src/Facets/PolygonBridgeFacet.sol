@@ -12,16 +12,36 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Polygon Bridge
 contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+    /// Storage ///
+
+    /// @notice The chain id of Polygon.
     uint64 internal constant POLYGON_CHAIN_ID = 137;
+
+    /// @notice The contract address of the RootChainManager on the source chain.
+    IRootChainManager private immutable rootChainManager;
+
+    /// @notice The contract address of the ERC20Predicate on the source chain.
+    address private immutable erc20Predicate;
 
     /// Types ///
 
+    /// @param assetId The contract address of the token being bridged.
+    /// @param amount The amount of tokens to bridge.
+    /// @param receiver The address of the token receiver after bridging.
     struct BridgeData {
-        address rootChainManager;
-        address erc20Predicate;
         address assetId;
-        address receiver;
         uint256 amount;
+        address receiver;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _rootChainManager The contract address of the RootChainManager on the source chain.
+    /// @param _erc20Predicate The contract address of the ERC20Predicate on the source chain.
+    constructor(IRootChainManager _rootChainManager, address _erc20Predicate) {
+        rootChainManager = _rootChainManager;
+        erc20Predicate = _erc20Predicate;
     }
 
     /// External Methods ///
@@ -69,7 +89,6 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         BridgeData memory _bridgeData,
         bool _hasSourceSwap
     ) private {
-        IRootChainManager rootChainManager = IRootChainManager(_bridgeData.rootChainManager);
         address childToken;
 
         if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
@@ -77,7 +96,7 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         } else {
             childToken = rootChainManager.rootToChildToken(_lifiData.sendingAssetId);
 
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.erc20Predicate, _bridgeData.amount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), erc20Predicate, _bridgeData.amount);
 
             bytes memory depositData = abi.encode(_bridgeData.amount);
             rootChainManager.depositFor(_bridgeData.receiver, _bridgeData.assetId, depositData);

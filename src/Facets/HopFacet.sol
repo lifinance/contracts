@@ -15,11 +15,13 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Storage ///
 
+    /// @notice The contract address of the bridge on the source chain.
+    IHopBridge private immutable bridge;
+
     /// Types ///
+
     struct HopData {
-        string asset;
-        address sendingAssetAddress;
-        address bridge;
+        address assetId;
         address recipient;
         uint256 toChainId;
         uint256 amount;
@@ -28,6 +30,14 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 deadline;
         uint256 destinationAmountOutMin;
         uint256 destinationDeadline;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _bridge The contract address of the bridge on the source chain.
+    constructor(IHopBridge _bridge) {
+        bridge = _bridge;
     }
 
     /// External Methods ///
@@ -47,7 +57,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
             revert InvalidAmount();
         }
 
-        LibAsset.depositAsset(_hopData.sendingAssetAddress, _hopData.amount);
+        LibAsset.depositAsset(_hopData.assetId, _hopData.amount);
         _startBridge(_lifiData, _hopData, false);
     }
 
@@ -82,15 +92,15 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         // Do HOP stuff
         if (block.chainid == _hopData.toChainId) revert CannotBridgeToSameNetwork();
 
-        address sendingAssetId = _hopData.sendingAssetAddress;
+        address sendingAssetId = _hopData.assetId;
         // Give Hop approval to bridge tokens
-        LibAsset.maxApproveERC20(IERC20(sendingAssetId), _hopData.bridge, _hopData.amount);
+        LibAsset.maxApproveERC20(IERC20(sendingAssetId), address(bridge), _hopData.amount);
 
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId)) ? _hopData.amount : 0;
 
         if (block.chainid == 1) {
             // Ethereum L1
-            IHopBridge(_hopData.bridge).sendToL2{ value: value }(
+            bridge.sendToL2{ value: value }(
                 _hopData.toChainId,
                 _hopData.recipient,
                 _hopData.amount,
@@ -102,7 +112,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         } else {
             // L2
             // solhint-disable-next-line check-send-result
-            IHopBridge(_hopData.bridge).swapAndSend{ value: value }(
+            bridge.swapAndSend{ value: value }(
                 _hopData.toChainId,
                 _hopData.recipient,
                 _hopData.amount,
@@ -120,7 +130,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
             "",
             _lifiData.integrator,
             _lifiData.referrer,
-            _hopData.sendingAssetAddress,
+            _hopData.assetId,
             _lifiData.receivingAssetId,
             _hopData.recipient,
             _hopData.amount,

@@ -13,19 +13,33 @@ import { InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hyphen
 contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
+    /// Storage ///
+
+    /// @notice The contract address of the router on the source chain.
+    IHyphenRouter private immutable router;
+
     /// Types ///
 
-    /// @param token The contract address of the token being bridged.
+    /// @param assetId The contract address of the token being bridged.
     /// @param amount The amount of tokens to bridge.
-    /// @param recipient The address of the token recipient after bridging.
+    /// @param receiver The address of the token receiver after bridging.
     /// @param toChainId The chainId of the chain to bridge to.
     struct HyphenData {
-        address token;
+        address assetId;
         uint256 amount;
-        address recipient;
+        address receiver;
         uint256 toChainId;
-        address router;
     }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _router The contract address of the router on the source chain.
+    constructor(IHyphenRouter _router) {
+        router = _router;
+    }
+
+    /// External Methods ///
 
     /// @notice Bridges tokens via Hyphen
     /// @param _lifiData data used purely for tracking and analytics
@@ -35,14 +49,14 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
         payable
         nonReentrant
     {
-        if (LibUtil.isZeroAddress(_hyphenData.recipient)) {
+        if (LibUtil.isZeroAddress(_hyphenData.receiver)) {
             revert InvalidReceiver();
         }
         if (_hyphenData.amount == 0) {
             revert InvalidAmount();
         }
 
-        LibAsset.depositAsset(_hyphenData.token, _hyphenData.amount);
+        LibAsset.depositAsset(_hyphenData.assetId, _hyphenData.amount);
         _startBridge(_lifiData, _hyphenData, false);
     }
 
@@ -55,7 +69,7 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         HyphenData memory _hyphenData
     ) external payable nonReentrant {
-        if (LibUtil.isZeroAddress(_hyphenData.recipient)) {
+        if (LibUtil.isZeroAddress(_hyphenData.receiver)) {
             revert InvalidReceiver();
         }
 
@@ -74,23 +88,19 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
         HyphenData memory _hyphenData,
         bool _hasSourceSwaps
     ) private {
-        if (!LibAsset.isNativeAsset(_hyphenData.token)) {
+        if (!LibAsset.isNativeAsset(_hyphenData.assetId)) {
             // Give the Hyphen router approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(_hyphenData.token), _hyphenData.router, _hyphenData.amount);
+            LibAsset.maxApproveERC20(IERC20(_hyphenData.assetId), address(router), _hyphenData.amount);
 
-            IHyphenRouter(_hyphenData.router).depositErc20(
+            router.depositErc20(
                 _hyphenData.toChainId,
-                _hyphenData.token,
-                _hyphenData.recipient,
+                _hyphenData.assetId,
+                _hyphenData.receiver,
                 _hyphenData.amount,
                 "LIFI"
             );
         } else {
-            IHyphenRouter(_hyphenData.router).depositNative{ value: _hyphenData.amount }(
-                _hyphenData.recipient,
-                _hyphenData.toChainId,
-                "LIFI"
-            );
+            router.depositNative{ value: _hyphenData.amount }(_hyphenData.receiver, _hyphenData.toChainId, "LIFI");
         }
 
         emit LiFiTransferStarted(
@@ -99,9 +109,9 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
             "",
             _lifiData.integrator,
             _lifiData.referrer,
-            _hyphenData.token,
+            _hyphenData.assetId,
             _lifiData.receivingAssetId,
-            _hyphenData.recipient,
+            _hyphenData.receiver,
             _hyphenData.amount,
             _hyphenData.toChainId,
             _hasSourceSwaps,

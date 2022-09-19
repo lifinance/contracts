@@ -12,15 +12,31 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through OmniBridge
 contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+    /// Storage ///
+
+    /// @notice The chain id of Gnosis.
+    uint64 private constant GNOSIS_CHAIN_ID = 100;
+
+    /// @notice The contract address of the omni bridge on the source chain.
+    IOmniBridge private immutable bridge;
+
     /// Types ///
 
-    uint64 internal constant GNOSIS_CHAIN_ID = 100;
-
+    /// @param assetId The contract address of the token being bridged.
+    /// @param amount The amount of tokens to bridge.
+    /// @param receiver The address of the token receiver after bridging.
     struct BridgeData {
-        address bridge;
         address assetId;
-        address receiver;
         uint256 amount;
+        address receiver;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _bridge The contract address of the omni bridge on the source chain.
+    constructor(IOmniBridge _bridge) {
+        bridge = _bridge;
     }
 
     /// External Methods ///
@@ -69,11 +85,10 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 _amount,
         bool _hasSourceSwap
     ) private {
-        IOmniBridge bridge = IOmniBridge(_bridgeData.bridge);
         if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
             bridge.wrapAndRelayTokens{ value: _amount }(_bridgeData.receiver);
         } else {
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.bridge, _amount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), address(bridge), _amount);
 
             bridge.relayTokens(_bridgeData.assetId, _bridgeData.receiver, _amount);
         }

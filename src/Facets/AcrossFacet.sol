@@ -14,10 +14,14 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
+    /// Storage ///
+
+    /// @notice The contract address of the spoke pool on the source chain.
+    IAcrossSpokePool private immutable spokePool;
+
     /// Types ///
 
     /// @param weth The contract address of the WETH token on the current chain.
-    /// @param spokePool The contract address of the spoke pool on the source chain.
     /// @param recipient The address of the token recipient after bridging.
     /// @param token The contract address of the token being bridged.
     /// @param amount The amount of tokens to bridge.
@@ -26,13 +30,20 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// @param quoteTimestamp The timestamp associated with the suggested fee.
     struct AcrossData {
         address weth;
-        address spokePool;
         address recipient;
         address token;
         uint256 amount;
         uint256 destinationChainId;
         uint64 relayerFeePct;
         uint32 quoteTimestamp;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _spokePool The contract address of the spoke pool on the source chain.
+    constructor(IAcrossSpokePool _spokePool) {
+        spokePool = _spokePool;
     }
 
     /// External Methods ///
@@ -75,10 +86,9 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     ) internal {
         bool isNative = _acrossData.token == LibAsset.NATIVE_ASSETID;
         if (isNative) _acrossData.token = _acrossData.weth;
-        else LibAsset.maxApproveERC20(IERC20(_acrossData.token), _acrossData.spokePool, _acrossData.amount);
+        else LibAsset.maxApproveERC20(IERC20(_acrossData.token), address(spokePool), _acrossData.amount);
 
-        IAcrossSpokePool pool = IAcrossSpokePool(_acrossData.spokePool);
-        pool.deposit{ value: isNative ? _acrossData.amount : 0 }(
+        spokePool.deposit{ value: isNative ? _acrossData.amount : 0 }(
             _acrossData.recipient,
             _acrossData.token,
             _acrossData.amount,

@@ -12,12 +12,29 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Connext Amarok
 contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
-    uint32 immutable srcChainDomain;
+    /// Storage ///
+
+    /// @notice The contract address of the connext handler on the source chain.
+    IConnextHandler private immutable connextHandler;
+
+    /// @notice The domain of source chain.
+    uint32 private immutable srcChainDomain;
 
     /// Types ///
 
+    /// @param assetId The contract address of the token being bridged on sending chain.
+    /// @param destinationDomain The final domain (i.e. where `execute` / `reconcile` are called). Must match nomad domain schema
+    /// @param receiver The address you are sending funds (and potentially data) to
+    /// @param amount The amount of transferring asset supplied by the user in the `xcall`
+    /// @param callData The data to execute on the receiving chain. If no crosschain call is needed, then leave empty.
+    /// @param forceSlow If true, will take slow liquidity path even if it is not a permissioned call
+    /// @param receiveLocal If true, will use the local nomad asset on the destination instead of adopted.
+    /// @param callback The address on the origin domain of the callback contract
+    /// @param callbackFee The relayer fee to execute the callback
+    /// @param relayerFee The amount of relayer fee the tx called xcall with
+    /// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
+    /// @param originMinOut Minimum amount received on swaps for adopted <> local on origin chain
     struct BridgeData {
-        address connextHandler;
         address assetId;
         uint32 dstChainDomain;
         address receiver;
@@ -32,7 +49,13 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 originMinOut;
     }
 
-    constructor(uint32 _srcChainDomain) {
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _connextHandler The contract address of the connext handler on the source chain.
+    /// @param _srcChainDomain The domain of source chain.
+    constructor(IConnextHandler _connextHandler, uint32 _srcChainDomain) {
+        connextHandler = _connextHandler;
         srcChainDomain = _srcChainDomain;
     }
 
@@ -143,8 +166,8 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
             originMinOut: _bridgeData.originMinOut
         });
 
-        LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.connextHandler, _amount);
-        IConnextHandler(_bridgeData.connextHandler).xcall(xcallArgs);
+        LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), address(connextHandler), _amount);
+        connextHandler.xcall(xcallArgs);
 
         emit LiFiTransferStarted(
             _lifiData.transactionId,

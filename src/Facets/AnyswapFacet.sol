@@ -13,14 +13,26 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Multichain (Prev. AnySwap)
 contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
+    /// Storage ///
+
+    /// @notice The contract address of the router on the source chain.
+    IAnyswapRouter private immutable router;
+
     /// Types ///
 
     struct AnyswapData {
         address token;
-        address router;
         uint256 amount;
         address recipient;
         uint256 toChainId;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _router The contract address of the router on the source chain.
+    constructor(IAnyswapRouter _router) {
+        router = _router;
     }
 
     /// External Methods ///
@@ -34,7 +46,7 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
         nonReentrant
     {
         // Multichain (formerly Anyswap) tokens can wrap other tokens
-        (address underlyingToken, bool isNative) = _getUnderlyingToken(_anyswapData.token, _anyswapData.router);
+        (address underlyingToken, bool isNative) = _getUnderlyingToken(_anyswapData.token);
         if (!isNative) LibAsset.depositAsset(underlyingToken, _anyswapData.amount);
         _startBridge(_lifiData, _anyswapData, underlyingToken, isNative, false);
     }
@@ -50,7 +62,7 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
     ) external payable nonReentrant {
         if (LibAsset.isNativeAsset(_anyswapData.token)) revert TokenAddressIsZero();
         _anyswapData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        (address underlyingToken, bool isNative) = _getUnderlyingToken(_anyswapData.token, _anyswapData.router);
+        (address underlyingToken, bool isNative) = _getUnderlyingToken(_anyswapData.token);
         _startBridge(_lifiData, _anyswapData, underlyingToken, isNative, true);
     }
 
@@ -58,16 +70,12 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// @dev Unwraps the underlying token from the Anyswap token if necessary
     /// @param token The (maybe) wrapped token
-    /// @param router The Anyswap router
-    function _getUnderlyingToken(address token, address router)
-        private
-        returns (address underlyingToken, bool isNative)
-    {
+    function _getUnderlyingToken(address token) private returns (address underlyingToken, bool isNative) {
         // Token must implement IAnyswapToken interface
         if (LibAsset.isNativeAsset(token)) revert TokenAddressIsZero();
         underlyingToken = IAnyswapToken(token).underlying();
         // The native token does not use the standard null address ID
-        isNative = IAnyswapRouter(router).wNATIVE() == underlyingToken;
+        isNative = router.wNATIVE() == underlyingToken;
         // Some Multichain complying tokens may wrap nothing
         if (!isNative && LibAsset.isNativeAsset(underlyingToken)) {
             underlyingToken = token;
@@ -90,24 +98,24 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (block.chainid == _anyswapData.toChainId) revert CannotBridgeToSameNetwork();
 
         if (isNative) {
-            IAnyswapRouter(_anyswapData.router).anySwapOutNative{ value: _anyswapData.amount }(
+            router.anySwapOutNative{ value: _anyswapData.amount }(
                 _anyswapData.token,
                 _anyswapData.recipient,
                 _anyswapData.toChainId
             );
         } else {
             // Give Anyswap approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(underlyingToken), _anyswapData.router, _anyswapData.amount);
+            LibAsset.maxApproveERC20(IERC20(underlyingToken), address(router), _anyswapData.amount);
             // Was the token wrapping another token?
             if (_anyswapData.token != underlyingToken) {
-                IAnyswapRouter(_anyswapData.router).anySwapOutUnderlying(
+                router.anySwapOutUnderlying(
                     _anyswapData.token,
                     _anyswapData.recipient,
                     _anyswapData.amount,
                     _anyswapData.toChainId
                 );
             } else {
-                IAnyswapRouter(_anyswapData.router).anySwapOut(
+                router.anySwapOut(
                     _anyswapData.token,
                     _anyswapData.recipient,
                     _anyswapData.amount,
