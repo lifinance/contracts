@@ -77,22 +77,6 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
         _startBridge(_lifiData, _bridgeData, amount, true);
     }
 
-    /// @notice Completes a cross-chain transaction on the receiving chain using the Amarok.
-    /// @param _lifiData data used purely for tracking and analytics
-    /// @param assetId token received on the receiving chain
-    /// @param receiver address that will receive the tokens
-    /// @param amount number of tokens received
-    function completeBridgeTokensViaAmarok(
-        LiFiData calldata _lifiData,
-        address assetId,
-        address receiver,
-        uint256 amount
-    ) external payable nonReentrant {
-        LibAsset.depositAsset(assetId, amount);
-        LibAsset.transferAsset(assetId, payable(receiver), amount);
-        emit LiFiTransferCompleted(_lifiData.transactionId, assetId, receiver, amount, block.timestamp);
-    }
-
     /// @notice Performs a swap before completing a cross-chain transaction
     ///         on the receiving chain using the Amarok protocol.
     /// @param _lifiData data used purely for tracking and analytics
