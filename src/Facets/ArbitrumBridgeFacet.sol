@@ -87,6 +87,9 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         bool _hasSourceSwap
     ) private {
         if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
+            if (msg.sender != _bridgeData.receiver) {
+                revert InvalidReceiver();
+            }
             IArbitrumInbox(_bridgeData.inbox).depositEth{ value: _amount }();
         } else {
             LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.tokenRouter, _amount);
