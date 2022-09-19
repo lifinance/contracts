@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { IAxelarGasService } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGasService.sol";
 import { IAxelarGateway } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IAxelarGateway.sol";
@@ -14,6 +14,9 @@ contract AxelarFacet {
         IAxelarGateway gateway;
         IAxelarGasService gasReceiver;
     }
+
+    /// Errors
+    error SymbolDoesNotExist();
 
     /// Init
     function initAxelar(address _gateway, address _gasReceiver) external {
@@ -73,6 +76,9 @@ contract AxelarFacet {
 
         {
             address tokenAddress = s.gateway.tokenAddresses(symbol);
+            if (LibAsset.isNativeAsset(tokenAddress)) {
+                revert SymbolDoesNotExist();
+            }
             LibAsset.transferFromERC20(tokenAddress, msg.sender, address(this), amount);
             LibAsset.maxApproveERC20(IERC20(tokenAddress), address(s.gateway), amount);
         }

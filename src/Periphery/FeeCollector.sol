@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
@@ -106,7 +106,7 @@ contract FeeCollector is TransferrableOwnership {
             return;
         }
         _lifiBalances[tokenAddress] = 0;
-        LibAsset.transferAsset(tokenAddress, payable(owner), balance);
+        LibAsset.transferAsset(tokenAddress, payable(msg.sender), balance);
         emit LiFiFeesWithdrawn(tokenAddress, msg.sender, balance);
     }
 
@@ -121,7 +121,7 @@ contract FeeCollector is TransferrableOwnership {
                 continue;
             }
             _lifiBalances[tokenAddresses[i]] = 0;
-            LibAsset.transferAsset(tokenAddresses[i], payable(owner), balance);
+            LibAsset.transferAsset(tokenAddresses[i], payable(msg.sender), balance);
             emit LiFiFeesWithdrawn(tokenAddresses[i], msg.sender, balance);
         }
     }

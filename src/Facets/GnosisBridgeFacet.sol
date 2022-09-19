@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IXDaiBridge } from "../Interfaces/IXDaiBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidSendingToken, InvalidDestinationChain, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 
 /// @title Gnosis Bridge Facet
 /// @author LI.FI (https://li.fi)
@@ -25,11 +27,6 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 amount;
     }
 
-    /// Errors ///
-
-    error InvalidDstChainId();
-    error InvalidSendingToken();
-
     /// External Methods ///
 
     /// @notice Bridges tokens via XDaiBridge
@@ -41,7 +38,7 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         nonReentrant
     {
         if (lifiData.destinationChainId != GNOSIS_CHAIN_ID) {
-            revert InvalidDstChainId();
+            revert InvalidDestinationChain();
         }
         if (lifiData.sendingAssetId != DAI) {
             revert InvalidSendingToken();
@@ -49,25 +46,12 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (gnosisBridgeData.amount == 0) {
             revert InvalidAmount();
         }
+        if (LibUtil.isZeroAddress(gnosisBridgeData.receiver)) {
+            revert InvalidReceiver();
+        }
 
         LibAsset.depositAsset(DAI, gnosisBridgeData.amount);
-
-        _startBridge(gnosisBridgeData);
-
-        emit LiFiTransferStarted(
-            lifiData.transactionId,
-            "gnosis",
-            "",
-            lifiData.integrator,
-            lifiData.referrer,
-            lifiData.sendingAssetId,
-            lifiData.receivingAssetId,
-            gnosisBridgeData.receiver,
-            gnosisBridgeData.amount,
-            lifiData.destinationChainId,
-            false,
-            false
-        );
+        _startBridge(lifiData, gnosisBridgeData, false);
     }
 
     /// @notice Performs a swap before bridging via XDaiBridge
@@ -80,42 +64,45 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         GnosisBridgeData memory gnosisBridgeData
     ) external payable nonReentrant {
         if (lifiData.destinationChainId != GNOSIS_CHAIN_ID) {
-            revert InvalidDstChainId();
+            revert InvalidDestinationChain();
         }
         if (lifiData.sendingAssetId != DAI || swapData[swapData.length - 1].receivingAssetId != DAI) {
             revert InvalidSendingToken();
         }
-
-        gnosisBridgeData.amount = _executeAndCheckSwaps(lifiData, swapData, payable(msg.sender));
-
-        if (gnosisBridgeData.amount == 0) {
-            revert InvalidAmount();
+        if (LibUtil.isZeroAddress(gnosisBridgeData.receiver)) {
+            revert InvalidReceiver();
         }
 
-        _startBridge(gnosisBridgeData);
+        gnosisBridgeData.amount = _executeAndCheckSwaps(lifiData, swapData, payable(msg.sender));
+        _startBridge(lifiData, gnosisBridgeData, true);
+    }
 
+    /// Private Methods ///
+
+    /// @dev Contains the business logic for the bridge via XDaiBridge
+    /// @param lifiData data used purely for tracking and analytics
+    /// @param gnosisBridgeData data specific to bridge
+    /// @param hasSourceSwaps whether or not the bridge has source swaps
+    function _startBridge(
+        LiFiData calldata lifiData,
+        GnosisBridgeData memory gnosisBridgeData,
+        bool hasSourceSwaps
+    ) private {
+        LibAsset.maxApproveERC20(IERC20(DAI), gnosisBridgeData.xDaiBridge, gnosisBridgeData.amount);
+        IXDaiBridge(gnosisBridgeData.xDaiBridge).relayTokens(gnosisBridgeData.receiver, gnosisBridgeData.amount);
         emit LiFiTransferStarted(
             lifiData.transactionId,
             "gnosis",
             "",
             lifiData.integrator,
             lifiData.referrer,
-            swapData[0].sendingAssetId,
+            lifiData.sendingAssetId,
             lifiData.receivingAssetId,
             gnosisBridgeData.receiver,
-            swapData[0].fromAmount,
-            lifiData.destinationChainId,
-            true,
+            gnosisBridgeData.amount,
+            GNOSIS_CHAIN_ID,
+            hasSourceSwaps,
             false
         );
-    }
-
-    /// Private Methods ///
-
-    /// @dev Contains the business logic for the bridge via XDaiBridge
-    /// @param gnosisBridgeData data specific to bridge
-    function _startBridge(GnosisBridgeData memory gnosisBridgeData) private {
-        LibAsset.maxApproveERC20(IERC20(DAI), gnosisBridgeData.xDaiBridge, gnosisBridgeData.amount);
-        IXDaiBridge(gnosisBridgeData.xDaiBridge).relayTokens(gnosisBridgeData.receiver, gnosisBridgeData.amount);
     }
 }
