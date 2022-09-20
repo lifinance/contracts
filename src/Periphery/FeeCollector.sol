@@ -119,17 +119,12 @@ contract FeeCollector is TransferrableOwnership {
         uint256 balance;
         for (uint256 i = 0; i < length; ) {
             balance = _lifiBalances[tokenAddresses[i]];
-            if (balance != 0) {
-                _lifiBalances[tokenAddresses[i]] = 0;
-                LibAsset.transferAsset(tokenAddresses[i], payable(owner), balance);
-                emit LiFiFeesWithdrawn(tokenAddresses[i], msg.sender, balance);
-            }
-            unchecked {
-                ++i;
-            }
             _lifiBalances[tokenAddresses[i]] = 0;
             LibAsset.transferAsset(tokenAddresses[i], payable(msg.sender), balance);
             emit LiFiFeesWithdrawn(tokenAddresses[i], msg.sender, balance);
+            unchecked {
+                ++i;
+            }
         }
     }
 
