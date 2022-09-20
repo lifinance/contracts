@@ -1,4 +1,4 @@
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
@@ -23,7 +23,15 @@ contract CBridgeGasTest is DSTest, DiamondTest {
     ERC20 internal usdc;
     ERC20 internal dai;
 
+    function fork() internal {
+        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
+        uint256 blockNumber = vm.envUint("FORK_NUMBER");
+        vm.createSelectFork(rpcUrl, blockNumber);
+    }
+
     function setUp() public {
+        fork();
+
         diamond = createDiamond();
         cBridge = new CBridgeFacet();
         usdc = ERC20(USDC_ADDRESS);

@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IAnyswapRouter } from "../Interfaces/IAnyswapRouter.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { IAnyswapToken } from "../Interfaces/IAnyswapToken.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { TokenAddressIsZero, InvalidAmount, CannotBridgeToSameNetwork, NativeValueWithERC } from "../Errors/GenericErrors.sol";
+import { TokenAddressIsZero, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Anyswap Facet
@@ -37,22 +36,7 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
         // Multichain (formerly Anyswap) tokens can wrap other tokens
         (address underlyingToken, bool isNative) = _getUnderlyingToken(_anyswapData.token, _anyswapData.router);
         if (!isNative) LibAsset.depositAsset(underlyingToken, _anyswapData.amount);
-        _startBridge(_anyswapData, underlyingToken, isNative);
-
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "anyswap",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            underlyingToken,
-            _lifiData.receivingAssetId,
-            _anyswapData.recipient,
-            _anyswapData.amount,
-            _anyswapData.toChainId,
-            false,
-            false
-        );
+        _startBridge(_lifiData, _anyswapData, underlyingToken, isNative, false);
     }
 
     /// @notice Performs a swap before bridging via Anyswap
@@ -64,25 +48,10 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         AnyswapData memory _anyswapData
     ) external payable nonReentrant {
-        if (_anyswapData.token == address(0)) revert TokenAddressIsZero();
+        if (LibAsset.isNativeAsset(_anyswapData.token)) revert TokenAddressIsZero();
         _anyswapData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         (address underlyingToken, bool isNative) = _getUnderlyingToken(_anyswapData.token, _anyswapData.router);
-        _startBridge(_anyswapData, underlyingToken, isNative);
-
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "anyswap",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _swapData[0].sendingAssetId,
-            _lifiData.receivingAssetId,
-            _anyswapData.recipient,
-            _swapData[0].fromAmount,
-            _anyswapData.toChainId,
-            true,
-            false
-        );
+        _startBridge(_lifiData, _anyswapData, underlyingToken, isNative, true);
     }
 
     /// Private Methods ///
@@ -95,24 +64,28 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
         returns (address underlyingToken, bool isNative)
     {
         // Token must implement IAnyswapToken interface
-        if (token == address(0)) revert TokenAddressIsZero();
+        if (LibAsset.isNativeAsset(token)) revert TokenAddressIsZero();
         underlyingToken = IAnyswapToken(token).underlying();
         // The native token does not use the standard null address ID
         isNative = IAnyswapRouter(router).wNATIVE() == underlyingToken;
         // Some Multichain complying tokens may wrap nothing
-        if (!isNative && underlyingToken == address(0)) {
+        if (!isNative && LibAsset.isNativeAsset(underlyingToken)) {
             underlyingToken = token;
         }
     }
 
     /// @dev Contains the business logic for the bridge via Anyswap
+    /// @param _lifiData data used purely for tracking and analytics
     /// @param _anyswapData data specific to Anyswap
     /// @param underlyingToken the underlying token to swap
     /// @param isNative denotes whether the token is a native token vs ERC20
+    /// @param hasSourceSwaps denotes whether the swap was performed before the bridge
     function _startBridge(
+        LiFiData calldata _lifiData,
         AnyswapData memory _anyswapData,
         address underlyingToken,
-        bool isNative
+        bool isNative,
+        bool hasSourceSwaps
     ) private {
         if (block.chainid == _anyswapData.toChainId) revert CannotBridgeToSameNetwork();
 
@@ -142,5 +115,20 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
                 );
             }
         }
+
+        emit LiFiTransferStarted(
+            _lifiData.transactionId,
+            "anyswap",
+            "",
+            _lifiData.integrator,
+            _lifiData.referrer,
+            underlyingToken,
+            _lifiData.receivingAssetId,
+            _anyswapData.recipient,
+            _anyswapData.amount,
+            _anyswapData.toChainId,
+            hasSourceSwaps,
+            false
+        );
     }
 }

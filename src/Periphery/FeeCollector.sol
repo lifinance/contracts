@@ -1,41 +1,32 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
+import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 
 /// @title Fee Collector
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for collecting integrator fees
-contract FeeCollector {
+contract FeeCollector is TransferrableOwnership {
     /// State ///
 
     // Integrator -> TokenAddress -> Balance
     mapping(address => mapping(address => uint256)) private _balances;
     // TokenAddress -> Balance
     mapping(address => uint256) private _lifiBalances;
-    address public owner;
-    address public pendingOwner;
 
     /// Errors ///
-    error Unauthorized(address);
-    error NoNullOwner();
-    error NewOwnerMustNotBeSelf();
-    error NoPendingOwnershipTransfer();
-    error NotPendingOwner();
     error TransferFailure();
+    error NotEnoughNativeForFees();
 
     /// Events ///
     event FeesCollected(address indexed _token, address indexed _integrator, uint256 _integratorFee, uint256 _lifiFee);
     event FeesWithdrawn(address indexed _token, address indexed _to, uint256 _amount);
     event LiFiFeesWithdrawn(address indexed _token, address indexed _to, uint256 _amount);
-    event OwnershipTransferRequested(address indexed _from, address indexed _to);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /// Constructor ///
 
-    constructor(address _owner) {
-        owner = _owner;
-    }
+    constructor(address _owner) TransferrableOwnership(_owner) {}
 
     /// External Methods ///
 
@@ -65,12 +56,13 @@ contract FeeCollector {
         uint256 lifiFee,
         address integratorAddress
     ) external payable {
+        if (msg.value < integratorFee + lifiFee) revert NotEnoughNativeForFees();
         _balances[integratorAddress][LibAsset.NULL_ADDRESS] += integratorFee;
         _lifiBalances[LibAsset.NULL_ADDRESS] += lifiFee;
         uint256 remaining = msg.value - (integratorFee + lifiFee);
         // Prevent extra native token from being locked in the contract
         if (remaining > 0) {
-            (bool success, ) = msg.sender.call{ value: remaining }("");
+            (bool success, ) = payable(msg.sender).call{ value: remaining }("");
             if (!success) {
                 revert TransferFailure();
             }
@@ -108,23 +100,19 @@ contract FeeCollector {
 
     /// @notice Withdraws fees and sends to lifi
     /// @param tokenAddress address of the token to withdraw fees for
-    function withdrawLifiFees(address tokenAddress) external {
-        _enforceIsContractOwner();
-
+    function withdrawLifiFees(address tokenAddress) external onlyOwner {
         uint256 balance = _lifiBalances[tokenAddress];
         if (balance == 0) {
             return;
         }
         _lifiBalances[tokenAddress] = 0;
-        LibAsset.transferAsset(tokenAddress, payable(owner), balance);
+        LibAsset.transferAsset(tokenAddress, payable(msg.sender), balance);
         emit LiFiFeesWithdrawn(tokenAddress, msg.sender, balance);
     }
 
     /// @notice Batch withdraws fees and sends to lifi
     /// @param tokenAddresses addresses of the tokens to withdraw fees for
-    function batchWithdrawLifiFees(address[] memory tokenAddresses) external {
-        _enforceIsContractOwner();
-
+    function batchWithdrawLifiFees(address[] memory tokenAddresses) external onlyOwner {
         uint256 length = tokenAddresses.length;
         uint256 balance;
         for (uint256 i = 0; i < length; i++) {
@@ -133,7 +121,7 @@ contract FeeCollector {
                 continue;
             }
             _lifiBalances[tokenAddresses[i]] = 0;
-            LibAsset.transferAsset(tokenAddresses[i], payable(owner), balance);
+            LibAsset.transferAsset(tokenAddresses[i], payable(msg.sender), balance);
             emit LiFiFeesWithdrawn(tokenAddresses[i], msg.sender, balance);
         }
     }
@@ -149,43 +137,5 @@ contract FeeCollector {
     /// @param tokenAddress address of the token to get the balance of
     function getLifiTokenBalance(address tokenAddress) external view returns (uint256) {
         return _lifiBalances[tokenAddress];
-    }
-
-    /// @notice Initiates transfer of ownership to a new address
-    /// @param _newOwner the address to transfer ownership to
-    function transferOwnership(address _newOwner) external {
-        _enforceIsContractOwner();
-
-        if (_newOwner == LibAsset.NULL_ADDRESS) revert NoNullOwner();
-
-        if (_newOwner == owner) revert NewOwnerMustNotBeSelf();
-
-        pendingOwner = _newOwner;
-        emit OwnershipTransferRequested(msg.sender, pendingOwner);
-    }
-
-    /// @notice Cancel transfer of ownership
-    function cancelOwnershipTransfer() external {
-        _enforceIsContractOwner();
-
-        if (pendingOwner == LibAsset.NULL_ADDRESS) revert NoPendingOwnershipTransfer();
-        pendingOwner = LibAsset.NULL_ADDRESS;
-    }
-
-    /// @notice Confirms transfer of ownership to the calling address (msg.sender)
-    function confirmOwnershipTransfer() external {
-        if (msg.sender != pendingOwner) revert NotPendingOwner();
-        owner = pendingOwner;
-        pendingOwner = LibAsset.NULL_ADDRESS;
-        emit OwnershipTransferred(owner, pendingOwner);
-    }
-
-    /// Private Methods ///
-
-    /// @notice Ensures that the calling address is the owner of the contract
-    function _enforceIsContractOwner() private view {
-        if (msg.sender != owner) {
-            revert Unauthorized(msg.sender);
-        }
     }
 }

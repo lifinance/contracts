@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicensed
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
@@ -379,5 +379,38 @@ contract ExecutorTest is DSTest {
         tokenA.approve(address(erc20Proxy), 1 ether);
 
         executor.swapAndExecute(lifiData, swapData, address(tokenA), payable(address(0xb33f)), 0.2 ether);
+    }
+
+    function testOwnerCanTransferOwnership() public {
+        address newOwner = address(0x1234567890123456789012345678901234567890);
+        executor.transferOwnership(newOwner);
+        assert(executor.owner() != newOwner);
+        vm.startPrank(newOwner);
+        executor.confirmOwnershipTransfer();
+        assert(executor.owner() == newOwner);
+        vm.stopPrank();
+    }
+
+    function testFailNonOwnerCanTransferOwnership() public {
+        address newOwner = address(0x1234567890123456789012345678901234567890);
+        assert(executor.owner() != newOwner);
+        vm.prank(newOwner);
+        executor.transferOwnership(newOwner);
+    }
+
+    function testFailOnwershipTransferToNullAddr() public {
+        address newOwner = address(0x0);
+        executor.transferOwnership(newOwner);
+    }
+
+    function testFailOwnerCanConfirmPendingOwnershipTransfer() public {
+        address newOwner = address(0x1234567890123456789012345678901234567890);
+        executor.transferOwnership(newOwner);
+        executor.confirmOwnershipTransfer();
+    }
+
+    function testFailOwnershipTransferToSelf() public {
+        address newOwner = address(this);
+        executor.transferOwnership(newOwner);
     }
 }

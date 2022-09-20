@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ICBridge } from "../Interfaces/ICBridge.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, CannotBridgeToSameNetwork, NativeValueWithERC, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 
 /// @title CBridge Facet
 /// @author LI.FI (https://li.fi)
@@ -35,23 +36,15 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         payable
         nonReentrant
     {
-        LibAsset.depositAsset(_cBridgeData.token, _cBridgeData.amount);
-        _startBridge(_cBridgeData);
+        if (LibUtil.isZeroAddress(_cBridgeData.receiver)) {
+            revert InvalidReceiver();
+        }
+        if (_cBridgeData.amount == 0) {
+            revert InvalidAmount();
+        }
 
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "cbridge",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _cBridgeData.token,
-            _lifiData.receivingAssetId,
-            _cBridgeData.receiver,
-            _cBridgeData.amount,
-            _cBridgeData.dstChainId,
-            false,
-            false
-        );
+        LibAsset.depositAsset(_cBridgeData.token, _cBridgeData.amount);
+        _startBridge(_lifiData, _cBridgeData, false);
     }
 
     /// @notice Performs a swap before bridging via CBridge
@@ -63,30 +56,25 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         CBridgeData memory _cBridgeData
     ) external payable nonReentrant {
-        _cBridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        _startBridge(_cBridgeData);
+        if (LibUtil.isZeroAddress(_cBridgeData.receiver)) {
+            revert InvalidReceiver();
+        }
 
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "cbridge",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _swapData[0].sendingAssetId,
-            _lifiData.receivingAssetId,
-            _cBridgeData.receiver,
-            _swapData[0].fromAmount,
-            _cBridgeData.dstChainId,
-            true,
-            false
-        );
+        _cBridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
+        _startBridge(_lifiData, _cBridgeData, true);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via CBridge
+    /// @param _lifiData data used purely for tracking and analytics
     /// @param _cBridgeData data specific to CBridge
-    function _startBridge(CBridgeData memory _cBridgeData) private {
+    /// @param _hasSourceSwaps whether or not the bridge has source swaps
+    function _startBridge(
+        LiFiData calldata _lifiData,
+        CBridgeData memory _cBridgeData,
+        bool _hasSourceSwaps
+    ) private {
         // Do CBridge stuff
         if (uint64(block.chainid) == _cBridgeData.dstChainId) revert CannotBridgeToSameNetwork();
 
@@ -111,5 +99,20 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
                 _cBridgeData.maxSlippage
             );
         }
+
+        emit LiFiTransferStarted(
+            _lifiData.transactionId,
+            "cbridge",
+            "",
+            _lifiData.integrator,
+            _lifiData.referrer,
+            _cBridgeData.token,
+            _lifiData.receivingAssetId,
+            _cBridgeData.receiver,
+            _cBridgeData.amount,
+            _cBridgeData.dstChainId,
+            _hasSourceSwaps,
+            false
+        );
     }
 }

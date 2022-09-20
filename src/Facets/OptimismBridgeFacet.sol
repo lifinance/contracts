@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IL1StandardBridge } from "../Interfaces/IL1StandardBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Optimism Bridge Facet
@@ -24,10 +24,6 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         bool isSynthetix;
     }
 
-    /// Errors ///
-
-    error InvalidReceiver();
-
     /// External Methods ///
 
     /// @notice Bridges tokens via Optimism Bridge
@@ -41,19 +37,8 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
-        if (_bridgeData.amount == 0) {
-            revert InvalidAmount();
-        }
 
-        if (!LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            uint256 _fromTokenBalance = LibAsset.getOwnBalance(_bridgeData.assetId);
-            LibAsset.transferFromERC20(_bridgeData.assetId, msg.sender, address(this), _bridgeData.amount);
-
-            if (LibAsset.getOwnBalance(_bridgeData.assetId) - _fromTokenBalance != _bridgeData.amount) {
-                revert InvalidAmount();
-            }
-        }
-
+        LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
         _startBridge(_lifiData, _bridgeData, _bridgeData.amount, false);
     }
 
@@ -71,11 +56,6 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
 
         uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-
-        if (amount == 0) {
-            revert InvalidAmount();
-        }
-
         _startBridge(_lifiData, _bridgeData, amount, true);
     }
 
@@ -119,11 +99,11 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             "",
             _lifiData.integrator,
             _lifiData.referrer,
-            _lifiData.sendingAssetId,
-            _lifiData.receivingAssetId,
-            _lifiData.receiver,
-            _lifiData.amount,
-            _lifiData.destinationChainId,
+            _bridgeData.assetId,
+            _bridgeData.assetIdOnL2,
+            _bridgeData.receiver,
+            _bridgeData.amount,
+            10,
             _hasSourceSwap,
             false
         );

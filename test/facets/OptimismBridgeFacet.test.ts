@@ -197,9 +197,7 @@ describe('OptimismBridgeFacet', function () {
             .startBridgeTokensViaOptimismBridge(validLiFiData, bridgeData, {
               value: utils.parseEther('9'),
             })
-        ).to.be.revertedWith(
-          'Transaction reverted: function call failed to execute'
-        )
+        ).to.be.revertedWith('InvalidAmount()')
       })
     })
 

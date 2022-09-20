@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IStargateRouter, IFactory, IPool } from "../Interfaces/IStargateRouter.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidConfig, InvalidCaller, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Stargate Facet
@@ -36,9 +36,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// Errors ///
 
-    error InvalidConfig();
     error InvalidStargateRouter();
-    error InvalidCaller();
 
     /// Events ///
 
@@ -68,24 +66,15 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
         payable
         nonReentrant
     {
-        if (_stargateData.amountLD == 0) {
-            revert InvalidAmount();
-        }
-
         address token = getTokenFromPoolId(_stargateData.router, _stargateData.srcPoolId);
 
         if (token == address(0)) {
             revert TokenAddressIsZero();
         }
 
-        uint256 _fromTokenBalance = LibAsset.getOwnBalance(token);
-        LibAsset.transferFromERC20(token, msg.sender, address(this), _stargateData.amountLD);
+        LibAsset.depositAssetWithFee(token, _stargateData.amountLD, msg.value);
 
-        if (LibAsset.getOwnBalance(token) - _fromTokenBalance != _stargateData.amountLD) {
-            revert InvalidAmount();
-        }
-
-        _startBridge(_stargateData, _lifiData, msg.value, false);
+        _startBridge(_lifiData, _stargateData, msg.value, false);
     }
 
     /// @notice Performs a swap before bridging via Stargate Bridge
@@ -99,10 +88,6 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     ) external payable nonReentrant {
         _stargateData.amountLD = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
 
-        if (_stargateData.amountLD == 0) {
-            revert InvalidAmount();
-        }
-
         uint256 nativeFee = msg.value;
         for (uint8 i = 0; i < _swapData.length; i++) {
             if (LibAsset.isNativeAsset(_swapData[i].sendingAssetId)) {
@@ -110,7 +95,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
             }
         }
 
-        _startBridge(_stargateData, _lifiData, nativeFee, true);
+        _startBridge(_lifiData, _stargateData, nativeFee, true);
     }
 
     /// @notice Completes a cross-chain transaction on the receiving chain.
@@ -210,13 +195,13 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     }
 
     /// @dev Contains the business logic for the bridge via Stargate Bridge
-    /// @param _stargateData Data specific to Stargate Bridge
     /// @param _lifiData Data used purely for tracking and analytics
+    /// @param _stargateData Data specific to Stargate Bridge
     /// @param _nativeFee Native gas fee for the cross chain message
     /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
-        StargateData memory _stargateData,
         LiFiData memory _lifiData,
+        StargateData memory _stargateData,
         uint256 _nativeFee,
         bool _hasSourceSwap
     ) private {
@@ -249,7 +234,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
             _lifiData.sendingAssetId,
             _lifiData.receivingAssetId,
             _lifiData.receiver,
-            _lifiData.amount,
+            _stargateData.amountLD,
             _lifiData.destinationChainId,
             _hasSourceSwap,
             _stargateData.callData.length > 0
