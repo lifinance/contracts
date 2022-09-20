@@ -1,27 +1,26 @@
-import { utils } from 'ethers'
-import { ethers, network } from 'hardhat'
+import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { addOrReplaceFacets } from '../utils/diamond'
-import config from '../config/cbridge2'
 import { verifyContract } from './9999_verify_all_facets'
+import config from '../config/cbridge2'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
-  const { deployments, getNamedAccounts } = hre
+  const { deployments, getNamedAccounts, network } = hre
   const { deploy } = deployments
-
   const { deployer } = await getNamedAccounts()
-  let bridgeAddr
-  let chainId
 
-  if (config[network.name] === undefined) {
-    console.info('Not deploying CBridgeFacet because cBridgeAddr is not set')
+  if (!config[network.name]) {
+    console.log(`No CBridgeFacet config set for ${network.name}. Skipping...`)
     return
   }
+
+  const CBRIDGE_ADDR = config[network.name].cBridge
 
   await deploy('CBridgeFacet', {
     from: deployer,
     log: true,
+    args: [CBRIDGE_ADDR],
     deterministicDeployment: true,
   })
 
@@ -30,7 +29,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   await addOrReplaceFacets([cBridgeFacet], diamond.address)
 
-  await verifyContract(hre, 'CBridgeFacet', { address: cBridgeFacet.address })
+  await verifyContract(hre, 'CBridgeFacet', {
+    address: cBridgeFacet.address,
+    args: [CBRIDGE_ADDR],
+  })
 }
 export default func
 func.id = 'deploy_c_bridge_facet'

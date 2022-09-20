@@ -1,58 +1,39 @@
-import { ethers, network } from 'hardhat'
+import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { addOrReplaceFacets } from '../utils/diamond'
-import { utils } from 'ethers'
+import { verifyContract } from './9999_verify_all_facets'
 import config from '../config/axelar'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
-  const { deployments, getNamedAccounts } = hre
+  const { deployments, getNamedAccounts, network } = hre
   const { deploy } = deployments
-
   const { deployer } = await getNamedAccounts()
 
   if (!config[network.name]) {
-    console.log(`${network.name} is not supported for Axelar`)
+    console.log(`No AxelarFacet config set for ${network.name}. Skipping...`)
     return
   }
 
-  const gateway = config[network.name].gateway
-  const gasService = config[network.name].gasService
-
-  if (!gateway || !gasService) {
-    console.log(`No config for ${network.name}. Skipping...`)
-    return
-  }
+  const GATEWAY_ADDR = config[network.name].gateway
+  const GAS_SERVICE_ADDR = config[network.name].gasService
 
   await deploy('AxelarFacet', {
     from: deployer,
     log: true,
+    args: [GATEWAY_ADDR, GAS_SERVICE_ADDR],
     deterministicDeployment: true,
   })
 
   const axelarFacet = await ethers.getContract('AxelarFacet')
-
   const diamond = await ethers.getContract('LiFiDiamond')
 
-  const ABI = ['function initAxelar(address,address)']
-  const iface = new utils.Interface(ABI)
+  await addOrReplaceFacets([axelarFacet], diamond.address)
 
-  const initData = iface.encodeFunctionData('initAxelar', [gateway, gasService])
-
-  await addOrReplaceFacets(
-    [axelarFacet],
-    diamond.address,
-    axelarFacet.address,
-    initData
-  )
-
-  try {
-    await hre.run('verify:verify', {
-      address: axelarFacet.address,
-    })
-  } catch (e) {
-    console.log(`Failed to verify contract: ${e}`)
-  }
+  await verifyContract(hre, 'AxelarFacet', {
+    address: axelarFacet.address,
+    args: [GATEWAY_ADDR, GAS_SERVICE_ADDR],
+  })
 }
 
 export default func

@@ -1,15 +1,8 @@
-import { ethers, network } from 'hardhat'
+import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { addOrReplaceFacets } from '../utils/diamond'
 import { verifyContract } from './9999_verify_all_facets'
-
-type Token = 'USDC' | 'USDT' | 'MATIC' | 'DAI'
-interface BridgeConfig {
-  token: string | undefined
-  ammWrapper: string | undefined
-  bridge: string | undefined
-}
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts } = hre
