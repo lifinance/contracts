@@ -3,5 +3,6 @@ test = 'test/solidity'
 solc_version = '0.8.16'
 optimizer = true
 optimizer_runs = 10000
+via_ir = true
 sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
 tx_origin = '0x00a329c0648769a73afac7f9381e08fb43dbea73'

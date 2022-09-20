@@ -2,6 +2,7 @@
 pragma solidity 0.8.16;
 
 error TokenAddressIsZero();
+error TokenNotSupported();
 error CannotBridgeToSameNetwork();
 error ZeroPostSwapBalance();
 error NoSwapDataProvided();
@@ -15,6 +16,7 @@ error InvalidBridgeConfigLength();
 error InvalidAmount();
 error InvalidContract();
 error InvalidConfig();
+error UnsupportedChainId(uint256 chainId);
 error InvalidReceiver();
 error InvalidDestinationChain();
 error InvalidSendingToken();
@@ -23,7 +25,8 @@ error OnlyContractOwner();
 error CannotAuthoriseSelf();
 error RecoveryAddressCannotBeZero();
 error CannotDepositNativeToken();
-error ZeroAmount();
+error NativeAssetNotSupported();
 error UnAuthorized();
 error NoSwapFromZeroBalance();
 error InvalidFallbackAddress();
+error ZeroAmount();
