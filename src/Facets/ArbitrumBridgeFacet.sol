@@ -61,8 +61,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 ethBalance = address(this).balance - msg.value;
         uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
         uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
-        ethBalance = address(this).balance - ethBalance;
-        _startBridge(_lifiData, _bridgeData, amount, true, cost, ethBalance);
+        _startBridge(_lifiData, _bridgeData, amount, true, cost, address(this).balance - ethBalance);
     }
 
     /// Private Methods ///
