@@ -41,8 +41,9 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
-        LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
-        _startBridge(_lifiData, _bridgeData, _bridgeData.amount, false, msg.value);
+        uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
+        LibAsset.depositAssetWithFee(_bridgeData.assetId, _bridgeData.amount, cost);
+        _startBridge(_lifiData, _bridgeData, _bridgeData.amount, false, cost, msg.value);
     }
 
     /// @notice Performs a swap before bridging via Arbitrum Bridge
@@ -59,8 +60,9 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         }
         uint256 ethBalance = address(this).balance - msg.value;
         uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
+        uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
         ethBalance = address(this).balance - ethBalance;
-        _startBridge(_lifiData, _bridgeData, amount, true, ethBalance);
+        _startBridge(_lifiData, _bridgeData, amount, true, cost, ethBalance);
     }
 
     /// Private Methods ///
@@ -70,28 +72,29 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _bridgeData Data for gateway router address, asset id and amount
     /// @param _amount Amount to bridge
     /// @param _hasSourceSwap Did swap on sending chain
+    /// @param _cost Fees paid for the bridge
     /// @param _receivedEther Amount of ether received from
     function _startBridge(
         LiFiData calldata _lifiData,
         BridgeData calldata _bridgeData,
         uint256 _amount,
         bool _hasSourceSwap,
+        uint256 _cost,
         uint256 _receivedEther
     ) private {
-        uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
         bool isNativeTransfer = LibAsset.isNativeAsset(_bridgeData.assetId);
 
         {
-            uint256 requiredEther = isNativeTransfer ? cost + _amount : cost;
+            uint256 requiredEther = isNativeTransfer ? _cost + _amount : _cost;
             if (_receivedEther < requiredEther) {
                 revert InvalidAmount();
             }
         }
 
         if (isNativeTransfer) {
-            _startNativeBridge(_bridgeData, _amount, cost);
+            _startNativeBridge(_bridgeData, _amount, _cost);
         } else {
-            _startTokenBridge(_bridgeData, _amount, cost);
+            _startTokenBridge(_bridgeData, _amount, _cost);
         }
 
         emit LiFiTransferStarted(

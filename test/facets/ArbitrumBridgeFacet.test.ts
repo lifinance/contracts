@@ -152,7 +152,7 @@ describe('ArbitrumBridgeFacet', function () {
         {
           forking: {
             jsonRpcUrl: node_url('mainnet'),
-            blockNumber: 14954000,
+            blockNumber: 15573750,
           },
         },
       ],
@@ -277,10 +277,10 @@ describe('ArbitrumBridgeFacet', function () {
           ...validBridgeData,
           assetId: ZERO_ADDRESS,
           amount: utils.parseEther('10'),
-          gatewayRouter: config['mainnet'].inbox,
         }
         const lifiData = {
           ...validLiFiData,
+          sendingAssetId: ZERO_ADDRESS,
           receivingAssetId: ZERO_ADDRESS,
         }
 
@@ -301,7 +301,7 @@ describe('ArbitrumBridgeFacet', function () {
             lifiData.sendingAssetId,
             ZERO_ADDRESS,
             lifiData.receiver,
-            lifiData.amount,
+            utils.parseEther('10'),
             lifiData.destinationChainId,
             false,
             false
