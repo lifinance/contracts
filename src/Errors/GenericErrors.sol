@@ -26,7 +26,7 @@ error CannotAuthoriseSelf();
 error RecoveryAddressCannotBeZero();
 error CannotDepositNativeToken();
 error NativeAssetNotSupported();
-error ZeroAmount();
 error UnAuthorized();
 error NoSwapFromZeroBalance();
 error InvalidFallbackAddress();
+error ZeroAmount();
