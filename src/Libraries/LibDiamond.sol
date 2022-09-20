@@ -119,8 +119,8 @@ library LibDiamond {
                 revert FunctionAlreadyExists();
             }
             addFunction(ds, selector, selectorPosition, _facetAddress);
-            ++selectorPosition;
             unchecked {
+                ++selectorPosition;
                 ++selectorIndex;
             }
         }
