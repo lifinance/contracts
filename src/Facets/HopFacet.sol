@@ -15,14 +15,11 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Storage ///
 
-    /// @notice The contract address of the bridge on the source chain.
-    IHopBridge private immutable bridge;
-
     /// Types ///
-
     struct HopData {
         address assetId;
-        address recipient;
+        address bridge;
+        address receiver;
         uint256 toChainId;
         uint256 amount;
         uint256 bonderFee;
@@ -30,14 +27,6 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 deadline;
         uint256 destinationAmountOutMin;
         uint256 destinationDeadline;
-    }
-
-    /// Constructor ///
-
-    /// @notice Initialize the contract.
-    /// @param _bridge The contract address of the bridge on the source chain.
-    constructor(IHopBridge _bridge) {
-        bridge = _bridge;
     }
 
     /// External Methods ///
@@ -50,7 +39,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         payable
         nonReentrant
     {
-        if (LibUtil.isZeroAddress(_hopData.recipient)) {
+        if (LibUtil.isZeroAddress(_hopData.receiver)) {
             revert InvalidReceiver();
         }
         if (_hopData.amount == 0) {
@@ -70,7 +59,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         HopData memory _hopData
     ) external payable nonReentrant {
-        if (LibUtil.isZeroAddress(_hopData.recipient)) {
+        if (LibUtil.isZeroAddress(_hopData.receiver)) {
             revert InvalidReceiver();
         }
         if (!LibAsset.isNativeAsset(address(_lifiData.sendingAssetId)) && msg.value != 0) revert NativeValueWithERC();
@@ -94,15 +83,15 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
         address sendingAssetId = _hopData.assetId;
         // Give Hop approval to bridge tokens
-        LibAsset.maxApproveERC20(IERC20(sendingAssetId), address(bridge), _hopData.amount);
+        LibAsset.maxApproveERC20(IERC20(sendingAssetId), _hopData.bridge, _hopData.amount);
 
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId)) ? _hopData.amount : 0;
 
         if (block.chainid == 1) {
             // Ethereum L1
-            bridge.sendToL2{ value: value }(
+            IHopBridge(_hopData.bridge).sendToL2{ value: value }(
                 _hopData.toChainId,
-                _hopData.recipient,
+                _hopData.receiver,
                 _hopData.amount,
                 _hopData.destinationAmountOutMin,
                 _hopData.destinationDeadline,
@@ -112,9 +101,9 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         } else {
             // L2
             // solhint-disable-next-line check-send-result
-            bridge.swapAndSend{ value: value }(
+            IHopBridge(_hopData.bridge).swapAndSend{ value: value }(
                 _hopData.toChainId,
-                _hopData.recipient,
+                _hopData.receiver,
                 _hopData.amount,
                 _hopData.bonderFee,
                 _hopData.amountOutMin,
@@ -132,7 +121,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
             _lifiData.referrer,
             _hopData.assetId,
             _lifiData.receivingAssetId,
-            _hopData.recipient,
+            _hopData.receiver,
             _hopData.amount,
             _hopData.toChainId,
             _hasSourceSwaps,

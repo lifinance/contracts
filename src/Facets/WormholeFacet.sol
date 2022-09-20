@@ -24,14 +24,14 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
 
     /// @param assetId The contract address of the token being bridged.
     /// @param amount The amount of tokens to bridge.
-    /// @param recipient The address of the token recipient after bridging.
+    /// @param receiver The address of the token receiver after bridging.
     /// @param toChainId The chainId of the chain to bridge to.
     /// @param arbiterFee The amount of token to pay a relayer (can be zero if no relayer is used).
     /// @param nonce A random nonce to associate with the tx.
     struct WormholeData {
         address assetId;
         uint256 amount;
-        address recipient;
+        address receiver;
         uint16 toChainId;
         uint256 arbiterFee;
         uint32 nonce;
@@ -89,7 +89,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
             _wormholeData.assetId,
             _wormholeData.amount,
             _wormholeData.toChainId,
-            bytes32(uint256(uint160(_wormholeData.recipient))),
+            bytes32(uint256(uint160(_wormholeData.receiver))),
             _wormholeData.arbiterFee,
             _wormholeData.nonce
         );
@@ -101,7 +101,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
             _lifiData.referrer,
             _wormholeData.assetId,
             _lifiData.receivingAssetId,
-            _wormholeData.recipient,
+            _wormholeData.receiver,
             _wormholeData.amount,
             _wormholeData.toChainId,
             _hasSourceSwaps,

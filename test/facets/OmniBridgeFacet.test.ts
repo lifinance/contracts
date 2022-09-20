@@ -80,7 +80,6 @@ describe('OmniBridgeFacet', function () {
         receiver: alice.address,
         assetId: DAI_L1_ADDRESS,
         amount: SEND_AMOUNT,
-        bridge: config['mainnet'].foreignOmniBridge,
       }
 
       const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
@@ -227,11 +226,12 @@ describe('OmniBridgeFacet', function () {
           ...validBridgeData,
           assetId: ZERO_ADDRESS,
           amount: utils.parseEther('10'),
-          bridge: config['mainnet'].wethOmniBridge,
         }
         const lifiData = {
           ...validLiFiData,
+          sendingAssetId: ZERO_ADDRESS,
           receivingAssetId: WETH_L2_ADDRESS,
+          amount: utils.parseEther('10'),
         }
 
         await expect(

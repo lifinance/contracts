@@ -114,7 +114,7 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             lifiData.sendingAssetId,
             lifiData.receivingAssetId,
             gnosisBridgeData.receiver,
-            gnosisBridgeData.amount,
+            lifiData.amount,
             GNOSIS_CHAIN_ID,
             hasSourceSwaps,
             false

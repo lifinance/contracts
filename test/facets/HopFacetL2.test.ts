@@ -4,19 +4,11 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { constants, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { addOrReplaceFacets } from '../../utils/diamond'
-import config from '../../config/hop'
 import { Hop, Chain } from '@hop-protocol/sdk'
 import { expect } from '../chai-setup'
 import { parseEther } from 'ethers/lib/utils'
 
 const USDC_ADDRESS = '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'
-
-type Token = 'USDC' | 'USDT' | 'MATIC' | 'DAI'
-interface BridgeConfig {
-  token: string | undefined
-  ammWrapper: string | undefined
-  bridge: string | undefined
-}
 
 describe('HopFacet L2', function () {
   let bob: SignerWithAddress
@@ -98,12 +90,11 @@ describe('HopFacet L2', function () {
     await token.approve(lifi.address, amountIn)
 
     const HopData = {
-      asset: 'USDC',
       fromChainId: 137,
       toChainId: 100,
-      sendingAssetAddress: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+      assetId: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
       bridge: '0x76b22b8C1079A44F1211D867D68b1eda76a635A7',
-      recipient: bob.address,
+      receiver: bob.address,
       amount: amountIn,
       bonderFee: fee,
       amountOutMin: utils.parseUnits('10000', 6),
@@ -128,12 +119,11 @@ describe('HopFacet L2', function () {
     const fee = await bridge.getTotalFee(amountIn, Chain.Polygon, Chain.Gnosis)
 
     const HopData = {
-      asset: 'MATIC',
       fromChainId: 137,
       toChainId: 100,
-      sendingAssetAddress: '0x0000000000000000000000000000000000000000',
+      assetId: '0x0000000000000000000000000000000000000000',
       bridge: '0x884d1Aa15F9957E1aEAA86a82a72e49Bc2bfCbe3',
-      recipient: bob.address,
+      receiver: bob.address,
       amount: amountIn,
       bonderFee: fee,
       amountOutMin: utils.parseEther('0.9'),
@@ -165,9 +155,8 @@ describe('HopFacet L2', function () {
   //   )
 
   //   const HopData = {
-  //     asset: 'USDC',
   //     chainId: 100,
-  //     recipient: bob.address,
+  //     receiver: bob.address,
   //     amount: amountOut,
   //     bonderFee: fee,
   //     amountOutMin: utils.parseUnits('95000', 6),

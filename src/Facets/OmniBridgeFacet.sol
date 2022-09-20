@@ -17,8 +17,11 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @notice The chain id of Gnosis.
     uint64 private constant GNOSIS_CHAIN_ID = 100;
 
-    /// @notice The contract address of the omni bridge on the source chain.
-    IOmniBridge private immutable bridge;
+    /// @notice The contract address of the foreign omni bridge on the source chain.
+    IOmniBridge private immutable foreignOmniBridge;
+
+    /// @notice The contract address of the weth omni bridge on the source chain.
+    IOmniBridge private immutable wethOmniBridge;
 
     /// Types ///
 
@@ -34,9 +37,11 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Constructor ///
 
     /// @notice Initialize the contract.
-    /// @param _bridge The contract address of the omni bridge on the source chain.
-    constructor(IOmniBridge _bridge) {
-        bridge = _bridge;
+    /// @param _foreignOmniBridge The contract address of the foreign omni bridge on the source chain.
+    /// @param _wethOmniBridge The contract address of the weth omni bridge on the source chain.
+    constructor(IOmniBridge _foreignOmniBridge, IOmniBridge _wethOmniBridge) {
+        foreignOmniBridge = _foreignOmniBridge;
+        wethOmniBridge = _wethOmniBridge;
     }
 
     /// External Methods ///
@@ -86,11 +91,11 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         bool _hasSourceSwap
     ) private {
         if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            bridge.wrapAndRelayTokens{ value: _amount }(_bridgeData.receiver);
+            wethOmniBridge.wrapAndRelayTokens{ value: _amount }(_bridgeData.receiver);
         } else {
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), address(bridge), _amount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), address(foreignOmniBridge), _amount);
 
-            bridge.relayTokens(_bridgeData.assetId, _bridgeData.receiver, _amount);
+            foreignOmniBridge.relayTokens(_bridgeData.assetId, _bridgeData.receiver, _amount);
         }
 
         emit LiFiTransferStarted(

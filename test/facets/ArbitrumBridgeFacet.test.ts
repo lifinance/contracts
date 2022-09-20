@@ -89,7 +89,6 @@ describe('ArbitrumBridgeFacet', function () {
         receiver: alice.address,
         assetId: DAI_L1_ADDRESS,
         amount: SEND_AMOUNT,
-        gatewayRouter: gatewayRouter.address,
         tokenRouter: await gatewayRouter.getGateway(DAI_L1_ADDRESS),
         maxSubmissionCost: MAX_SUBMISSION_COST,
         maxGas: MAX_GAS,
@@ -268,11 +267,12 @@ describe('ArbitrumBridgeFacet', function () {
           ...validBridgeData,
           assetId: ZERO_ADDRESS,
           amount: utils.parseEther('10'),
-          gatewayRouter: config['mainnet'].inbox,
         }
         const lifiData = {
           ...validLiFiData,
+          sendingAssetId: ZERO_ADDRESS,
           receivingAssetId: ZERO_ADDRESS,
+          amount: utils.parseEther('10'),
         }
 
         await expect(

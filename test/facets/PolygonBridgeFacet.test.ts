@@ -77,8 +77,6 @@ describe('PolygonBridgeFacet', function () {
         amount: SEND_AMOUNT,
       }
       validBridgeData = {
-        rootChainManager: ROOT_CHAIN_MGR,
-        erc20Predicate: ERC20_PREDICATE,
         receiver: alice.address,
         assetId: DAI_ADDRESS,
         amount: SEND_AMOUNT,
@@ -234,7 +232,9 @@ describe('PolygonBridgeFacet', function () {
         }
         const lifiData = {
           ...validLiFiData,
+          sendingAssetId: ZERO_ADDRESS,
           receivingAssetId: ZERO_ADDRESS,
+          amount: utils.parseEther('10'),
         }
 
         await expect(
