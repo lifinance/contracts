@@ -13,8 +13,6 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
 contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
-    /// Storage ///
-
     /// Types ///
     struct HopData {
         string asset;

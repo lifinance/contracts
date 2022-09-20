@@ -33,6 +33,7 @@ contract FusePoolZap {
 
     error InvalidPoolAddress(address);
     error InvalidSupplyToken(address);
+    error InvalidAmount(uint256);
     error MintingError(bytes);
 
     /// Events ///

@@ -7,6 +7,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { IArbitrumInbox } from "../Interfaces/IArbitrumInbox.sol";
 
 /// @title Arbitrum Bridge Facet
 /// @author Li.Finance (https://li.finance)
@@ -19,6 +20,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         address assetId;
         uint256 amount;
         address receiver;
+        address inbox;
         address gatewayRouter;
         address tokenRouter;
         uint256 maxSubmissionCost;
@@ -78,23 +80,14 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 _cost,
         bool _hasSourceSwap
     ) private {
-        IGatewayRouter gatewayRouter = IGatewayRouter(_bridgeData.gatewayRouter);
-
         if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            gatewayRouter.createRetryableTicketNoRefundAliasRewrite{ value: _amount + _cost }(
-                _bridgeData.receiver,
-                _amount, // l2CallValue
-                _bridgeData.maxSubmissionCost,
-                _bridgeData.receiver, // excessFeeRefundAddress
-                _bridgeData.receiver, // callValueRefundAddress
-                _bridgeData.maxGas,
-                _bridgeData.maxGasPrice,
-                ""
-            );
+            if (msg.sender != _bridgeData.receiver) {
+                revert InvalidReceiver();
+            }
+            IArbitrumInbox(_bridgeData.inbox).depositEth{ value: _amount }();
         } else {
             LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.tokenRouter, _amount);
-
-            gatewayRouter.outboundTransfer{ value: _cost }(
+            IGatewayRouter(_bridgeData.gatewayRouter).outboundTransfer{ value: _cost }(
                 _bridgeData.assetId,
                 _bridgeData.receiver,
                 _amount,
