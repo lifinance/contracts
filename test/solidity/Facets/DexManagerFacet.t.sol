@@ -96,8 +96,11 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         signatures[3] = bytes4(hex"deadface");
         signatures[4] = bytes4(hex"beefbeef");
         dexMgr.batchSetFunctionApprovalBySignature(signatures, true);
-        for (uint256 i = 0; i < 5; i++) {
+        for (uint256 i = 0; i < 5; ) {
             assertTrue(dexMgr.isFunctionApproved(signatures[i]));
+            unchecked {
+                ++i;
+            }
         }
     }
 
