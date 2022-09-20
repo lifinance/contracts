@@ -25,6 +25,7 @@
 - [LibSwap](./LibSwap.md)
 - [LibUtil](./LibUtil.md)
 - [LibAccess](./LibAccess.md)
+- [LibAllowList](./LibAllowList.md)
 
 # Periphery
 
