@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IWormholeRouter } from "../Interfaces/IWormholeRouter.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
@@ -94,14 +95,16 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         WormholeData memory _wormholeData,
         bool _hasSourceSwaps
     ) private {
-        if (block.chainid == _wormholeData.toChainId) revert CannotBridgeToSameNetwork();
-        uint256 fromChainId = block.chainid;
         Storage storage s = getStorage();
         uint16 toWormholeChainId = s.wormholeChainId[_wormholeData.toChainId];
-        if (toWormholeChainId == 0) revert UnsupportedChainId(_wormholeData.toChainId);
-        uint16 fromWormholeChainId = s.wormholeChainId[fromChainId];
-        if (fromWormholeChainId == 0) revert UnsupportedChainId(fromChainId);
-        if (fromWormholeChainId == toWormholeChainId) revert CannotBridgeToSameNetwork();
+        uint16 fromWormholeChainId = s.wormholeChainId[block.chainid];
+
+        {
+            if (block.chainid == _wormholeData.toChainId) revert CannotBridgeToSameNetwork();
+            if (toWormholeChainId == 0) revert UnsupportedChainId(_wormholeData.toChainId);
+            if (fromWormholeChainId == 0) revert UnsupportedChainId(block.chainid);
+            if (fromWormholeChainId == toWormholeChainId) revert CannotBridgeToSameNetwork();
+        }
 
         LibAsset.maxApproveERC20(IERC20(_wormholeData.token), _wormholeData.wormholeRouter, _wormholeData.amount);
         IWormholeRouter(_wormholeData.wormholeRouter).transferTokens(
