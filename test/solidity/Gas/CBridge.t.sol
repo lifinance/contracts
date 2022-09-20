@@ -33,7 +33,7 @@ contract CBridgeGasTest is DSTest, DiamondTest {
         fork();
 
         diamond = createDiamond();
-        cBridge = new CBridgeFacet();
+        cBridge = new CBridgeFacet(cBridgeRouter);
         usdc = ERC20(USDC_ADDRESS);
 
         bytes4[] memory functionSelectors = new bytes4[](1);
@@ -58,15 +58,7 @@ contract CBridgeGasTest is DSTest, DiamondTest {
 
         vm.startPrank(WHALE);
         usdc.approve(address(cBridge), amount);
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            137,
-            1,
-            amount,
-            WHALE,
-            USDC_ADDRESS
-        );
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(USDC_ADDRESS, amount, WHALE, 137, 1, 5000);
         cBridge.startBridgeTokensViaCBridge(lifiData, data);
         vm.stopPrank();
     }

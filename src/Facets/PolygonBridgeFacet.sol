@@ -15,7 +15,7 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Storage ///
 
     /// @notice The chain id of Polygon.
-    uint64 internal constant POLYGON_CHAIN_ID = 137;
+    uint64 private constant POLYGON_CHAIN_ID = 137;
 
     /// @notice The contract address of the RootChainManager on the source chain.
     IRootChainManager private immutable rootChainManager;

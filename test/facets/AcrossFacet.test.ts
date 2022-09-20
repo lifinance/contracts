@@ -103,8 +103,8 @@ describe('AcrossFacet', function () {
 
     const AcrossData = {
       weth: WETH_ADDRESS,
-      recipient: eth_whale.address,
-      token: '0x0000000000000000000000000000000000000000',
+      receiver: eth_whale.address,
+      assetId: '0x0000000000000000000000000000000000000000',
       amount: utils.parseUnits('1000', 6),
       destinationChainId: POLYGON_CHAIN_ID,
       relayerFeePct: 0,
@@ -124,8 +124,8 @@ describe('AcrossFacet', function () {
 
     const AcrossData = {
       weth: WETH_ADDRESS,
-      recipient: weth_whale.address,
-      token: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
+      receiver: weth_whale.address,
+      assetId: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
       amount: 1,
       destinationChainId: POLYGON_CHAIN_ID,
       relayerFeePct: 0,

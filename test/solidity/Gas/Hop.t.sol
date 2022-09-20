@@ -64,7 +64,6 @@ contract HopGasTest is Test, DiamondTest {
         uint256 deadline = block.timestamp + 20 minutes;
 
         HopFacet.HopData memory hopData = HopFacet.HopData(
-            "USDC",
             USDC_ADDRESS,
             HOP_USDC_BRIDGE,
             WHALE,
