@@ -21,89 +21,78 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// Types ///
 
-    struct GnosisBridgeData {
+    struct GnosisData {
         address xDaiBridge;
-        address receiver;
-        uint256 amount;
     }
 
     /// External Methods ///
 
     /// @notice Bridges tokens via XDaiBridge
-    /// @param lifiData data used purely for tracking and analytics
-    /// @param gnosisBridgeData data specific to bridge
-    function startBridgeTokensViaXDaiBridge(LiFiData calldata lifiData, GnosisBridgeData calldata gnosisBridgeData)
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _gnosisData data specific to bridge
+    function startBridgeTokensViaXDaiBridge(ILiFi.BridgeData memory _bridgeData, GnosisData calldata _gnosisData)
         external
         payable
         nonReentrant
     {
-        if (lifiData.destinationChainId != GNOSIS_CHAIN_ID) {
+        if (_bridgeData.destinationChainId != GNOSIS_CHAIN_ID) {
             revert InvalidDestinationChain();
         }
-        if (lifiData.sendingAssetId != DAI) {
+        if (_bridgeData.sendingAssetId != DAI) {
             revert InvalidSendingToken();
         }
-        if (gnosisBridgeData.amount == 0) {
+        if (_bridgeData.minAmount == 0) {
             revert InvalidAmount();
         }
-        if (LibUtil.isZeroAddress(gnosisBridgeData.receiver)) {
+        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
             revert InvalidReceiver();
         }
 
-        LibAsset.depositAsset(DAI, gnosisBridgeData.amount);
-        _startBridge(lifiData, gnosisBridgeData, false);
+        LibAsset.depositAsset(DAI, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _gnosisData, false);
     }
 
     /// @notice Performs a swap before bridging via XDaiBridge
-    /// @param lifiData data used purely for tracking and analytics
-    /// @param swapData an object containing swap related data to perform swaps before bridging
-    /// @param gnosisBridgeData data specific to bridge
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _swapData an object containing swap related data to perform swaps before bridging
+    /// @param _gnosisData data specific to bridge
     function swapAndStartBridgeTokensViaXDaiBridge(
-        LiFiData calldata lifiData,
-        LibSwap.SwapData calldata swapData,
-        GnosisBridgeData memory gnosisBridgeData
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
+        GnosisData memory _gnosisData
     ) external payable nonReentrant {
-        LibSwap.Swap[] calldata swaps = swapData.swaps;
-        if (lifiData.destinationChainId != GNOSIS_CHAIN_ID) {
+        if (_bridgeData.destinationChainId != GNOSIS_CHAIN_ID) {
             revert InvalidDestinationChain();
         }
-        if (lifiData.sendingAssetId != DAI || swaps[swaps.length - 1].receivingAssetId != DAI) {
+        if (_bridgeData.sendingAssetId != DAI || _swapData[_swapData.length - 1].receivingAssetId != DAI) {
             revert InvalidSendingToken();
         }
-        if (LibUtil.isZeroAddress(gnosisBridgeData.receiver)) {
+        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
             revert InvalidReceiver();
         }
-        LibAsset.depositAssets(swapData.swaps);
-        gnosisBridgeData.amount = _executeAndCheckSwaps(lifiData, swapData, payable(msg.sender));
-        _startBridge(lifiData, gnosisBridgeData, true);
+        LibAsset.depositAssets(_swapData);
+        _bridgeData.minAmount = _executeAndCheckSwaps(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        _startBridge(_bridgeData, _gnosisData, true);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via XDaiBridge
-    /// @param lifiData data used purely for tracking and analytics
-    /// @param gnosisBridgeData data specific to bridge
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _gnosisData data specific to bridge
     /// @param hasSourceSwaps whether or not the bridge has source swaps
     function _startBridge(
-        LiFiData calldata lifiData,
-        GnosisBridgeData memory gnosisBridgeData,
+        ILiFi.BridgeData memory _bridgeData,
+        GnosisData memory _gnosisData,
         bool hasSourceSwaps
     ) private {
-        LibAsset.maxApproveERC20(IERC20(DAI), gnosisBridgeData.xDaiBridge, gnosisBridgeData.amount);
-        IXDaiBridge(gnosisBridgeData.xDaiBridge).relayTokens(gnosisBridgeData.receiver, gnosisBridgeData.amount);
-        emit LiFiTransferStarted(
-            lifiData.transactionId,
-            "gnosis",
-            "",
-            lifiData.integrator,
-            lifiData.referrer,
-            DAI,
-            address(0),
-            gnosisBridgeData.receiver,
-            gnosisBridgeData.amount,
-            GNOSIS_CHAIN_ID,
-            hasSourceSwaps,
-            false
-        );
+        LibAsset.maxApproveERC20(IERC20(DAI), _gnosisData.xDaiBridge, _bridgeData.minAmount);
+        IXDaiBridge(_gnosisData.xDaiBridge).relayTokens(_bridgeData.receiver, _bridgeData.minAmount);
+        emit LiFiTransferStarted(_bridgeData);
     }
 }

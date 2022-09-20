@@ -7,7 +7,7 @@ import { InvalidContract, NoSwapFromZeroBalance, InsufficientBalance } from "../
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 library LibSwap {
-    struct Swap {
+    struct SwapData {
         address callTo;
         address approveTo;
         address sendingAssetId;
@@ -15,11 +15,6 @@ library LibSwap {
         uint256 fromAmount;
         bytes callData;
         bool requiresDeposit;
-    }
-
-    struct SwapData {
-        Swap[] swaps;
-        uint256 minReturnAmount;
     }
 
     event AssetSwapped(
@@ -32,7 +27,7 @@ library LibSwap {
         uint256 timestamp
     );
 
-    function swap(bytes32 transactionId, Swap calldata _swap) internal {
+    function swap(bytes32 transactionId, SwapData calldata _swap) internal {
         if (!LibAsset.isContract(_swap.callTo)) revert InvalidContract();
         uint256 fromAmount = _swap.fromAmount;
         if (fromAmount == 0) revert NoSwapFromZeroBalance();

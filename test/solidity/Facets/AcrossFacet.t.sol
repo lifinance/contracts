@@ -31,7 +31,8 @@ contract AcrossFacetTest is DSTest, DiamondTest {
     address internal WETH_HOLDER = 0xD022510A3414f255150Aa54b2e42DB6129a20d9E;
     address internal SPOKE_POOL = 0x4D9079Bb4165aeb4084c526a32695dCfd2F77381;
     // -----
-    ILiFi.LiFiData internal lifiData = ILiFi.LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0);
+    ILiFi.ILiFi.BridgeData internal lifiData =
+        ILiFi.ILiFi.BridgeData("", "", address(0), address(0), address(0), address(0), 0, 0);
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;

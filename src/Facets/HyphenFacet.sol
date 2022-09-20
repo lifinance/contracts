@@ -20,94 +20,82 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param recipient The address of the token recipient after bridging.
     /// @param toChainId The chainId of the chain to bridge to.
     struct HyphenData {
-        address token;
-        uint256 amount;
-        address recipient;
-        uint256 toChainId;
         address router;
     }
 
     /// External Methods ///
 
     /// @notice Bridges tokens via Hyphen
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _hyphenData data specific to Hyphen
-    function startBridgeTokensViaHyphen(LiFiData calldata _lifiData, HyphenData calldata _hyphenData)
+    function startBridgeTokensViaHyphen(ILiFi.BridgeData memory _bridgeData, HyphenData calldata _hyphenData)
         external
         payable
         nonReentrant
     {
-        if (LibUtil.isZeroAddress(_hyphenData.recipient)) {
+        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
             revert InvalidReceiver();
         }
-        if (_hyphenData.amount == 0) {
+        if (_bridgeData.minAmount == 0) {
             revert InvalidAmount();
         }
 
-        LibAsset.depositAsset(_hyphenData.token, _hyphenData.amount);
-        _startBridge(_lifiData, _hyphenData, false);
+        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _hyphenData, false);
     }
 
     /// @notice Performs a swap before bridging via Hyphen
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _hyphenData data specific to Hyphen
     function swapAndStartBridgeTokensViaHyphen(
-        LiFiData calldata _lifiData,
-        LibSwap.SwapData calldata _swapData,
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
         HyphenData memory _hyphenData
     ) external payable nonReentrant {
-        if (LibUtil.isZeroAddress(_hyphenData.recipient)) {
+        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
             revert InvalidReceiver();
         }
-        LibAsset.depositAssets(_swapData.swaps);
-        _hyphenData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        _startBridge(_lifiData, _hyphenData, true);
+        LibAsset.depositAssets(_swapData);
+        _bridgeData.minAmount = _executeAndCheckSwaps(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        _startBridge(_bridgeData, _hyphenData, true);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Hyphen
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _hyphenData data specific to Hyphen
     /// @param _hasSourceSwaps whether or not the bridge has source swaps
     function _startBridge(
-        LiFiData calldata _lifiData,
+        ILiFi.BridgeData memory _bridgeData,
         HyphenData memory _hyphenData,
         bool _hasSourceSwaps
     ) private {
-        if (!LibAsset.isNativeAsset(_hyphenData.token)) {
+        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Give the Hyphen router approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(_hyphenData.token), _hyphenData.router, _hyphenData.amount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _hyphenData.router, _bridgeData.minAmount);
 
             IHyphenRouter(_hyphenData.router).depositErc20(
-                _hyphenData.toChainId,
-                _hyphenData.token,
-                _hyphenData.recipient,
-                _hyphenData.amount,
+                _bridgeData.destinationChainId,
+                _bridgeData.sendingAssetId,
+                _bridgeData.receiver,
+                _bridgeData.minAmount,
                 "LIFI"
             );
         } else {
-            IHyphenRouter(_hyphenData.router).depositNative{ value: _hyphenData.amount }(
-                _hyphenData.recipient,
-                _hyphenData.toChainId,
+            IHyphenRouter(_hyphenData.router).depositNative{ value: _bridgeData.minAmount }(
+                _bridgeData.receiver,
+                _bridgeData.destinationChainId,
                 "LIFI"
             );
         }
 
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "hyphen",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _hyphenData.token,
-            _lifiData.receivingAssetId,
-            _hyphenData.recipient,
-            _hyphenData.amount,
-            _hyphenData.toChainId,
-            _hasSourceSwaps,
-            false
-        );
+        emit LiFiTransferStarted(_bridgeData);
     }
 }

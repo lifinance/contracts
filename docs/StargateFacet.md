@@ -12,9 +12,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaStargate(LiFiData calldata _lifiData, StargateData calldata _stargateData)`
+- `function startBridgeTokensViaStargate(BridgeData calldata _lifiData, StargateData calldata _stargateData)`
   - Simply bridges tokens using Stargate
-- `function swapAndStartBridgeTokensViaStargate(LiFiData calldata _lifiData, LibSwap.SwapData[] calldata _swapData, StargateData memory _stargateData)`
+- `function swapAndStartBridgeTokensViaStargate(BridgeData calldata _lifiData, LibSwap.SwapData[] calldata _swapData, StargateData memory _stargateData)`
   - Performs swap(s) before bridging tokens using Stargate
 - `function quoteLayerZeroFee(StargateData calldata _stargateData)`
   - Returns a required amount for native gass fee
@@ -66,9 +66,9 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `LiFiData _lifiData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `LiFiData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 

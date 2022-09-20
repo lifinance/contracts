@@ -29,7 +29,8 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
     address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
-    ILiFi.LiFiData internal lifiData = ILiFi.LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0);
+    ILiFi.ILiFi.BridgeData internal lifiData =
+        ILiFi.ILiFi.BridgeData("", "", address(0), address(0), address(0), address(0), 0, 0);
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
@@ -66,7 +67,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
     }
 
-    // struct CBridgeData {
+    // struct CILiFi.BridgeData {
     //     address cBridge;
     //     uint32 maxSlippage;
     //     uint64 dstChainId;
@@ -79,7 +80,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
     function testCanBridgeTokens() public {
         vm.startPrank(WHALE);
         usdc.approve(address(cBridge), 10_000 * 10**usdc.decimals());
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+        CBridgeFacet.CILiFi.BridgeData memory data = CBridgeFacet.CILiFi.BridgeData(
             CBRIDGE_ROUTER,
             5000,
             100,
@@ -107,7 +108,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
         uint256 amountIn = amounts[0];
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+        CBridgeFacet.CILiFi.BridgeData memory data = CBridgeFacet.CILiFi.BridgeData(
             CBRIDGE_ROUTER,
             5000,
             100,
@@ -117,8 +118,8 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             USDC_ADDRESS
         );
 
-        LibSwap.Swap[] memory swaps = new LibSwap.Swap[](1);
-        swaps[0] = LibSwap.Swap(
+        LibSwap.SwapData[] memory swaps = new LibSwap.SwapData[](1);
+        swaps[0] = LibSwap.SwapData(
             address(uniswap),
             address(uniswap),
             DAI_ADDRESS,
@@ -134,7 +135,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             ),
             true
         );
-        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, amountOut * 95 / 100);
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(swaps, (amountOut * 95) / 100);
         // Approve DAI
         dai.approve(address(cBridge), amountIn);
         cBridge.swapAndStartBridgeTokensViaCBridge(lifiData, swapData, data);

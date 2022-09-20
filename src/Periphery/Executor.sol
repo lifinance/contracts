@@ -30,7 +30,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     /// Modifiers ///
 
     /// @dev Sends any leftover balances back to the user
-    modifier noLeftovers(LibSwap.Swap[] calldata _swaps, address payable _leftoverReceiver) {
+    modifier noLeftovers(LibSwap.SwapData[] calldata _swaps, address payable _leftoverReceiver) {
         uint256 nSwaps = _swaps.length;
         if (nSwaps != 1) {
             uint256[] memory initialBalances = _fetchBalances(_swaps);
@@ -39,11 +39,16 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
 
             _;
 
-            for (uint256 i = 0; i < nSwaps - 1; i++) {
+            for (uint256 i = 0; i < nSwaps - 1; ) {
                 address curAsset = _swaps[i].receivingAssetId;
-                if (curAsset == finalAsset) continue; // Handle multi-to-one swaps
-                curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
-                if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
+                // Handle multi-to-one swaps
+                if (curAsset != finalAsset) {
+                    curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
+                    if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
+                }
+                unchecked {
+                    ++i;
+                }
             }
         } else _;
     }
@@ -97,18 +102,20 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
             revert InvalidStargateRouter();
         }
 
-        (LiFiData memory lifiData, LibSwap.SwapData memory swapData, address assetId, address receiver) = abi.decode(
-            _payload,
-            (LiFiData, LibSwap.SwapData, address, address)
-        );
+        (
+            ILiFi.BridgeData memory bridgeData,
+            LibSwap.SwapData[] memory swapData,
+            address assetId,
+            address receiver
+        ) = abi.decode(_payload, (ILiFi.BridgeData, LibSwap.SwapData[], address, address));
 
-        this.swapAndCompleteBridgeTokensViaStargate(lifiData, swapData, assetId, payable(receiver));
+        this.swapAndCompleteBridgeTokensViaStargate(bridgeData, swapData, assetId, payable(receiver));
     }
 
     /// @dev used to execute calls received by Stargate specifically
     function swapAndCompleteBridgeTokensViaStargate(
-        LiFiData calldata _lifiData,
-        LibSwap.SwapData calldata _swapData,
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
         address transferredAssetId,
         address payable receiver
     ) external payable nonReentrant {
@@ -116,7 +123,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
             revert InvalidCaller();
         }
 
-        LibSwap.Swap[] memory swaps = _swapData.swaps;
+        LibSwap.SwapData[] memory swaps = _swapData;
         uint256 startingBalance;
         uint256 finalAssetStartingBalance;
         address finalAssetId = swaps[swaps.length - 1].receivingAssetId;
@@ -133,7 +140,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
             startingBalance = LibAsset.getOwnBalance(transferredAssetId) - msg.value;
         }
 
-        _executeSwaps(_lifiData, _swapData, receiver);
+        _executeSwaps(_bridgeData, _swapData, receiver);
 
         uint256 postSwapBalance = LibAsset.getOwnBalance(transferredAssetId);
         if (postSwapBalance > startingBalance) {
@@ -146,7 +153,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
         }
 
         emit LiFiTransferCompleted(
-            _lifiData.transactionId,
+            _bridgeData.transactionId,
             transferredAssetId,
             receiver,
             swaps[0].fromAmount,
@@ -155,20 +162,19 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     }
 
     /// @notice Performs a swap before completing a cross-chain transaction
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _swapData array of data needed for swaps
     /// @param transferredAssetId token received from the other chain
     /// @param receiver address that will receive tokens in the end
     function swapAndCompleteBridgeTokens(
-        LiFiData calldata _lifiData,
-        LibSwap.SwapData calldata _swapData,
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
         address transferredAssetId,
         address payable receiver
     ) external payable nonReentrant {
         uint256 startingBalance;
         uint256 finalAssetStartingBalance;
-        LibSwap.Swap[] memory swaps = _swapData.swaps;
-        address finalAssetId = swaps[swaps.length - 1].receivingAssetId;
+        address finalAssetId = _swapData[_swapData.length - 1].receivingAssetId;
 
         if (!LibAsset.isNativeAsset(finalAssetId)) {
             finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId);
@@ -184,7 +190,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
             startingBalance = LibAsset.getOwnBalance(transferredAssetId) - msg.value;
         }
 
-        _executeSwaps(_lifiData, _swapData, receiver);
+        _executeSwaps(_bridgeData, _swapData, receiver);
 
         uint256 postSwapBalance = LibAsset.getOwnBalance(transferredAssetId);
         if (postSwapBalance > startingBalance) {
@@ -197,30 +203,29 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
         }
 
         emit LiFiTransferCompleted(
-            _lifiData.transactionId,
+            _bridgeData.transactionId,
             transferredAssetId,
             receiver,
-            swaps[0].fromAmount,
+            _swapData[0].fromAmount,
             block.timestamp
         );
     }
 
     /// @notice Performs a series of swaps or arbitrary executions
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _swapData array of data needed for swaps
     /// @param transferredAssetId token received from the other chain
     /// @param receiver address that will receive tokens in the end
     function swapAndExecute(
-        LiFiData calldata _lifiData,
-        LibSwap.SwapData calldata _swapData,
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
         address transferredAssetId,
         address payable receiver,
         uint256 amount
     ) external payable nonReentrant {
         uint256 startingBalance;
         uint256 finalAssetStartingBalance;
-        LibSwap.Swap[] memory swaps = _swapData.swaps;
-        address finalAssetId = swaps[swaps.length - 1].receivingAssetId;
+        address finalAssetId = _swapData[_swapData.length - 1].receivingAssetId;
 
         if (!LibAsset.isNativeAsset(finalAssetId)) {
             finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId);
@@ -235,7 +240,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
             startingBalance = LibAsset.getOwnBalance(transferredAssetId) - msg.value;
         }
 
-        _executeSwaps(_lifiData, _swapData, receiver);
+        _executeSwaps(_bridgeData, _swapData, receiver);
 
         uint256 postSwapBalance = LibAsset.getOwnBalance(transferredAssetId);
         if (postSwapBalance > startingBalance) {
@@ -247,35 +252,40 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
             LibAsset.transferAsset(finalAssetId, receiver, finalAssetPostSwapBalance - finalAssetStartingBalance);
         }
 
-        emit LiFiTransferCompleted(_lifiData.transactionId, transferredAssetId, receiver, amount, block.timestamp);
+        emit LiFiTransferCompleted(_bridgeData.transactionId, transferredAssetId, receiver, amount, block.timestamp);
     }
 
     /// Private Methods ///
 
     /// @dev Executes swaps one after the other
-    /// @param _lifiData LiFi tracking data
+    /// @param _bridgeData LiFi tracking data
     /// @param _swapData Array of data used to execute swaps
     function _executeSwaps(
-        LiFiData memory _lifiData,
-        LibSwap.SwapData calldata _swapData,
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
         address payable _leftoverReceiver
-    ) private noLeftovers(_swapData.swaps, _leftoverReceiver) {
-        LibSwap.Swap[] calldata swaps = _swapData.swaps;
-        for (uint256 i = 0; i < swaps.length; i++) {
-            if (swaps[i].callTo == address(erc20Proxy)) revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
-            LibSwap.Swap calldata currentSwapData = swaps[i];
-            LibSwap.swap(_lifiData.transactionId, currentSwapData);
+    ) private noLeftovers(_swapData, _leftoverReceiver) {
+        for (uint256 i = 0; i < _swapData.length; ) {
+            if (_swapData[i].callTo == address(erc20Proxy)) revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
+            LibSwap.SwapData calldata currentSwapData = _swapData[i];
+            LibSwap.swap(_bridgeData.transactionId, currentSwapData);
+            unchecked {
+                ++i;
+            }
         }
     }
 
     /// @dev Fetches balances of tokens to be swapped before swapping.
     /// @param _swapData Array of data used to execute swaps
     /// @return uint256[] Array of token balances.
-    function _fetchBalances(LibSwap.Swap[] calldata _swapData) private view returns (uint256[] memory) {
+    function _fetchBalances(LibSwap.SwapData[] calldata _swapData) private view returns (uint256[] memory) {
         uint256 length = _swapData.length;
         uint256[] memory balances = new uint256[](length);
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length; ) {
             balances[i] = LibAsset.getOwnBalance(_swapData[i].receivingAssetId);
+            unchecked {
+                ++i;
+            }
         }
         return balances;
     }

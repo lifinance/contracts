@@ -16,10 +16,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Types ///
     uint64 internal constant ARB_CHAIN_ID = 42161;
 
-    struct BridgeData {
-        address assetId;
-        uint256 amount;
-        address receiver;
+    struct ArbitrumData {
         address inbox;
         address gatewayRouter;
         address tokenRouter;
@@ -31,85 +28,76 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// External Methods ///
 
     /// @notice Bridges tokens via Arbitrum Bridge
-    /// @param _lifiData Data used purely for tracking and analytics
-    /// @param _bridgeData Data for gateway router address, asset id and amount
-    function startBridgeTokensViaArbitrumBridge(LiFiData calldata _lifiData, BridgeData calldata _bridgeData)
-        external
-        payable
-        nonReentrant
-    {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
-
-        uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
-        LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
-        _startBridge(_lifiData, _bridgeData, _bridgeData.amount, cost, false);
-    }
-
-    /// @notice Performs a swap before bridging via Arbitrum Bridge
-    /// @param _lifiData Data used purely for tracking and analytics
-    /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _bridgeData Data for gateway router address, asset id and amount
-    function swapAndStartBridgeTokensViaArbitrumBridge(
-        LiFiData calldata _lifiData,
-        LibSwap.SwapData calldata _swapData,
-        BridgeData calldata _bridgeData
+    /// @param _bridgeData Data containing core information for bridging
+    /// @param _arbitrumData Data for gateway router address, asset id and amount
+    function startBridgeTokensViaArbitrumBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        ArbitrumData calldata _arbitrumData
     ) external payable nonReentrant {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
-        LibAsset.depositAssets(_swapData.swaps);
-        uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        uint256 cost = _bridgeData.maxSubmissionCost + _bridgeData.maxGas * _bridgeData.maxGasPrice;
-        _startBridge(_lifiData, _bridgeData, amount, cost, true);
+
+        uint256 cost = _arbitrumData.maxSubmissionCost + _arbitrumData.maxGas * _arbitrumData.maxGasPrice;
+        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _arbitrumData, _bridgeData.minAmount, cost, false);
+    }
+
+    /// @notice Performs a swap before bridging via Arbitrum Bridge
+    /// @param _bridgeData Data containing core information for bridging
+    /// @param _swapData An array of swap related data for performing swaps before bridging
+    /// @param _arbitrumData Data for gateway router address, asset id and amount
+    function swapAndStartBridgeTokensViaArbitrumBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
+        ArbitrumData calldata _arbitrumData
+    ) external payable nonReentrant {
+        if (_bridgeData.receiver == address(0)) {
+            revert InvalidReceiver();
+        }
+        LibAsset.depositAssets(_swapData);
+        uint256 amount = _executeAndCheckSwaps(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        uint256 cost = _arbitrumData.maxSubmissionCost + _arbitrumData.maxGas * _arbitrumData.maxGasPrice;
+        _startBridge(_bridgeData, _arbitrumData, amount, cost, true);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Arbitrum Bridge
-    /// @param _lifiData Data used purely for tracking and analytics
-    /// @param _bridgeData Data for gateway router address, asset id and amount
+    /// @param _bridgeData Data containing core information for bridging
+    /// @param _arbitrumData Data for gateway router address, asset id and amount
     /// @param _amount Amount to bridge
     /// @param _cost Additional amount of native asset for the fee
     /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
-        LiFiData calldata _lifiData,
-        BridgeData calldata _bridgeData,
+        ILiFi.BridgeData memory _bridgeData,
+        ArbitrumData calldata _arbitrumData,
         uint256 _amount,
         uint256 _cost,
         bool _hasSourceSwap
     ) private {
-        if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             if (msg.sender != _bridgeData.receiver) {
                 revert InvalidReceiver();
             }
-            IArbitrumInbox(_bridgeData.inbox).depositEth{ value: _amount }();
+            IArbitrumInbox(_arbitrumData.inbox).depositEth{ value: _amount }();
         } else {
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.tokenRouter, _amount);
-            IGatewayRouter(_bridgeData.gatewayRouter).outboundTransfer{ value: _cost }(
-                _bridgeData.assetId,
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _arbitrumData.tokenRouter, _amount);
+            IGatewayRouter(_arbitrumData.gatewayRouter).outboundTransfer{ value: _cost }(
+                _bridgeData.sendingAssetId,
                 _bridgeData.receiver,
                 _amount,
-                _bridgeData.maxGas,
-                _bridgeData.maxGasPrice,
-                abi.encode(_bridgeData.maxSubmissionCost, "")
+                _arbitrumData.maxGas,
+                _arbitrumData.maxGasPrice,
+                abi.encode(_arbitrumData.maxSubmissionCost, "")
             );
         }
 
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "arbitrum",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _bridgeData.assetId,
-            _lifiData.receivingAssetId,
-            _bridgeData.receiver,
-            _bridgeData.amount,
-            ARB_CHAIN_ID,
-            _hasSourceSwap,
-            false
-        );
+        emit LiFiTransferStarted(_bridgeData);
     }
 }

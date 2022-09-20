@@ -96,9 +96,9 @@ library LibAsset {
         }
     }
 
-    function depositAssets(LibSwap.Swap[] calldata swaps) internal {
+    function depositAssets(LibSwap.SwapData[] calldata swaps) internal {
         for (uint256 i = 0; i < swaps.length; ) {
-            LibSwap.Swap memory swap = swaps[i];
+            LibSwap.SwapData memory swap = swaps[i];
             if (swap.requiresDeposit) {
                 depositAsset(swap.sendingAssetId, swap.fromAmount);
             }

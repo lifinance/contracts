@@ -14,11 +14,8 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// Types ///
 
-    struct BridgeData {
-        address assetId;
+    struct OptimismData {
         address assetIdOnL2;
-        uint256 amount;
-        address receiver;
         address bridge;
         uint32 l2Gas;
         bool isSynthetix;
@@ -27,85 +24,76 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// External Methods ///
 
     /// @notice Bridges tokens via Optimism Bridge
-    /// @param _lifiData Data used purely for tracking and analytics
+    /// @param _bridgeData Data contaning core information for bridging
     /// @param _bridgeData Data specific to Optimism Bridge
-    function startBridgeTokensViaOptimismBridge(LiFiData calldata _lifiData, BridgeData calldata _bridgeData)
-        external
-        payable
-        nonReentrant
-    {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
-
-        LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
-        _startBridge(_lifiData, _bridgeData, _bridgeData.amount, false);
-    }
-
-    /// @notice Performs a swap before bridging via Optimism Bridge
-    /// @param _lifiData Data used purely for tracking and analytics
-    /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _bridgeData Data specific to Optimism Bridge
-    function swapAndStartBridgeTokensViaOptimismBridge(
-        LiFiData calldata _lifiData,
-        LibSwap.SwapData calldata _swapData,
-        BridgeData calldata _bridgeData
+    function startBridgeTokensViaOptimismBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        OptimismData calldata _optimismData
     ) external payable nonReentrant {
         if (_bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
-        LibAsset.depositAssets(_swapData.swaps);
-        uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        _startBridge(_lifiData, _bridgeData, amount, true);
+
+        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _optimismData, _bridgeData.minAmount, false);
+    }
+
+    /// @notice Performs a swap before bridging via Optimism Bridge
+    /// @param _bridgeData Data contaning core information for bridging
+    /// @param _swapData An array of swap related data for performing swaps before bridging
+    /// @param _bridgeData Data specific to Optimism Bridge
+    function swapAndStartBridgeTokensViaOptimismBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
+        OptimismData calldata _optimismData
+    ) external payable nonReentrant {
+        if (_bridgeData.receiver == address(0)) {
+            revert InvalidReceiver();
+        }
+        LibAsset.depositAssets(_swapData);
+        uint256 amount = _executeAndCheckSwaps(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        _startBridge(_bridgeData, _optimismData, amount, true);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Optimism Bridge
-    /// @param _lifiData Data used purely for tracking and analytics
+    /// @param _bridgeData Data contaning core information for bridging
     /// @param _bridgeData Data specific to Optimism Bridge
     /// @param _amount Amount to bridge
     /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
-        LiFiData calldata _lifiData,
-        BridgeData calldata _bridgeData,
+        ILiFi.BridgeData memory _bridgeData,
+        OptimismData calldata _optimismData,
         uint256 _amount,
         bool _hasSourceSwap
     ) private {
-        IL1StandardBridge bridge = IL1StandardBridge(_bridgeData.bridge);
+        IL1StandardBridge bridge = IL1StandardBridge(_optimismData.bridge);
 
-        if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            bridge.depositETHTo{ value: _amount }(_bridgeData.receiver, _bridgeData.l2Gas, "");
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            bridge.depositETHTo{ value: _amount }(_bridgeData.receiver, _optimismData.l2Gas, "");
         } else {
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.bridge, _amount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _optimismData.bridge, _amount);
 
-            if (_bridgeData.isSynthetix) {
+            if (_optimismData.isSynthetix) {
                 bridge.depositTo(_bridgeData.receiver, _amount);
             } else {
                 bridge.depositERC20To(
-                    _bridgeData.assetId,
-                    _bridgeData.assetIdOnL2,
+                    _bridgeData.sendingAssetId,
+                    _optimismData.assetIdOnL2,
                     _bridgeData.receiver,
                     _amount,
-                    _bridgeData.l2Gas,
+                    _optimismData.l2Gas,
                     ""
                 );
             }
         }
 
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "optimism",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _bridgeData.assetId,
-            _bridgeData.assetIdOnL2,
-            _bridgeData.receiver,
-            _bridgeData.amount,
-            10,
-            _hasSourceSwap,
-            false
-        );
+        emit LiFiTransferStarted(_bridgeData);
     }
 }

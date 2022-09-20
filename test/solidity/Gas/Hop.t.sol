@@ -14,7 +14,8 @@ contract HopGasTest is Test, DiamondTest {
     address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
 
-    ILiFi.LiFiData internal lifiData = ILiFi.LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0);
+    ILiFi.ILiFi.BridgeData internal lifiData =
+        ILiFi.ILiFi.BridgeData("", "", address(0), address(0), address(0), address(0), 0, 0);
 
     IHopBridge internal hop;
     ERC20 internal usdc;

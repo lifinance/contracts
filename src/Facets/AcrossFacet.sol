@@ -18,19 +18,12 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
 
     /// @param weth The contract address of the WETH token on the current chain.
     /// @param spokePool The contract address of the spoke pool on the source chain.
-    /// @param recipient The address of the token recipient after bridging.
-    /// @param token The contract address of the token being bridged.
-    /// @param amount The amount of tokens to bridge.
     /// @param destinationChainId The chainId of the chain to bridge to.
     /// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
     /// @param quoteTimestamp The timestamp associated with the suggested fee.
     struct AcrossData {
         address weth;
         address spokePool;
-        address recipient;
-        address token;
-        uint256 amount;
-        uint256 destinationChainId;
         uint64 relayerFeePct;
         uint32 quoteTimestamp;
     }
@@ -38,69 +31,61 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// External Methods ///
 
     /// @notice Bridges tokens via Across
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
-    function startBridgeTokensViaAcross(LiFiData calldata _lifiData, AcrossData calldata _acrossData)
+    function startBridgeTokensViaAcross(ILiFi.BridgeData memory _bridgeData, AcrossData calldata _acrossData)
         external
         payable
         nonReentrant
     {
-        LibAsset.depositAsset(_acrossData.token, _acrossData.amount);
-        _startBridge(_lifiData, _acrossData, false);
+        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _acrossData, false);
     }
 
     /// @notice Performs a swap before bridging via Across
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _acrossData data specific to Across
     function swapAndStartBridgeTokensViaAcross(
-        LiFiData calldata _lifiData,
-        LibSwap.SwapData calldata _swapData,
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
         AcrossData memory _acrossData
     ) external payable nonReentrant {
-        LibAsset.depositAssets(_swapData.swaps);
-        _acrossData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        _startBridge(_lifiData, _acrossData, true);
+        LibAsset.depositAssets(_swapData);
+        _bridgeData.minAmount = _executeAndCheckSwaps(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        _startBridge(_bridgeData, _acrossData, true);
     }
 
     /// Internal Methods ///
 
     /// @dev Contains the business logic for the bridge via Across
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
     /// @param _hasSourceSwaps whether or not the bridge has source swaps
     function _startBridge(
-        LiFiData calldata _lifiData,
+        ILiFi.BridgeData memory _bridgeData,
         AcrossData memory _acrossData,
         bool _hasSourceSwaps
     ) internal {
-        bool isNative = _acrossData.token == LibAsset.NATIVE_ASSETID;
-        if (isNative) _acrossData.token = _acrossData.weth;
-        else LibAsset.maxApproveERC20(IERC20(_acrossData.token), _acrossData.spokePool, _acrossData.amount);
+        bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
+        if (isNative) _bridgeData.sendingAssetId = _acrossData.weth;
+        else LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _acrossData.spokePool, _bridgeData.minAmount);
 
         IAcrossSpokePool pool = IAcrossSpokePool(_acrossData.spokePool);
-        pool.deposit{ value: isNative ? _acrossData.amount : 0 }(
-            _acrossData.recipient,
-            _acrossData.token,
-            _acrossData.amount,
-            _acrossData.destinationChainId,
+        pool.deposit{ value: isNative ? _bridgeData.minAmount : 0 }(
+            _bridgeData.receiver,
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount,
+            _bridgeData.destinationChainId,
             _acrossData.relayerFeePct,
             _acrossData.quoteTimestamp
         );
 
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "across",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _acrossData.token,
-            _lifiData.receivingAssetId,
-            _acrossData.recipient,
-            _acrossData.amount,
-            _acrossData.destinationChainId,
-            _hasSourceSwaps,
-            false
-        );
+        emit LiFiTransferStarted(_bridgeData);
     }
 }

@@ -12,9 +12,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaOptimismBridge(LiFiData calldata _lifiData, BridgeData calldata _bridgeData)`
+- `function startBridgeTokensViaOptimismBridge(BridgeData calldata _lifiData, BridgeData calldata _bridgeData)`
   - Simply bridges tokens using Optimism Native Bridge
-- `function swapAndStartBridgeTokensViaOptimismBridge(LiFiData calldata, LibSwap.SwapData[] calldata _swapData, BridgeData calldata _bridgeData)`
+- `function swapAndStartBridgeTokensViaOptimismBridge(BridgeData calldata, LibSwap.SwapData[] calldata _swapData, BridgeData calldata _bridgeData)`
   - Performs swap(s) before bridging tokens using Optimism Native Bridge
 
 ## Optimism Bridge Specific Parameters
@@ -64,9 +64,9 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `LiFiData _lifiData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `LiFiData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 

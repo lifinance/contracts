@@ -19,100 +19,88 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     struct CBridgeData {
         address cBridge;
         uint32 maxSlippage;
-        uint64 dstChainId;
         uint64 nonce;
-        uint256 amount;
-        address receiver;
-        address token;
     }
 
     /// External Methods ///
 
     /// @notice Bridges tokens via CBridge
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _cBridgeData data specific to CBridge
-    function startBridgeTokensViaCBridge(LiFiData calldata _lifiData, CBridgeData calldata _cBridgeData)
+    function startBridgeTokensViaCBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData calldata _cBridgeData)
         external
         payable
         nonReentrant
     {
-        if (LibUtil.isZeroAddress(_cBridgeData.receiver)) {
+        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
             revert InvalidReceiver();
         }
-        if (_cBridgeData.amount == 0) {
+        if (_bridgeData.minAmount == 0) {
             revert InvalidAmount();
         }
 
-        LibAsset.depositAsset(_cBridgeData.token, _cBridgeData.amount);
-        _startBridge(_lifiData, _cBridgeData, false);
+        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _cBridgeData, false);
     }
 
     /// @notice Performs a swap before bridging via CBridge
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _cBridgeData data specific to CBridge
     function swapAndStartBridgeTokensViaCBridge(
-        LiFiData calldata _lifiData,
-        LibSwap.SwapData calldata _swapData,
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
         CBridgeData memory _cBridgeData
     ) external payable nonReentrant {
-        if (LibUtil.isZeroAddress(_cBridgeData.receiver)) {
+        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
             revert InvalidReceiver();
         }
-        LibAsset.depositAssets(_swapData.swaps);
-        _cBridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        _startBridge(_lifiData, _cBridgeData, true);
+        LibAsset.depositAssets(_swapData);
+        _bridgeData.minAmount = _executeAndCheckSwaps(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        _startBridge(_bridgeData, _cBridgeData, true);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via CBridge
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _cBridgeData data specific to CBridge
     /// @param _hasSourceSwaps whether or not the bridge has source swaps
     function _startBridge(
-        LiFiData calldata _lifiData,
+        ILiFi.BridgeData memory _bridgeData,
         CBridgeData memory _cBridgeData,
         bool _hasSourceSwaps
     ) private {
         // Do CBridge stuff
-        if (uint64(block.chainid) == _cBridgeData.dstChainId) revert CannotBridgeToSameNetwork();
+        if (uint64(block.chainid) == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
 
-        if (LibAsset.isNativeAsset(_cBridgeData.token)) {
-            ICBridge(_cBridgeData.cBridge).sendNative{ value: _cBridgeData.amount }(
-                _cBridgeData.receiver,
-                _cBridgeData.amount,
-                _cBridgeData.dstChainId,
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            ICBridge(_cBridgeData.cBridge).sendNative{ value: _bridgeData.minAmount }(
+                _bridgeData.receiver,
+                _bridgeData.minAmount,
+                uint64(_bridgeData.destinationChainId),
                 _cBridgeData.nonce,
                 _cBridgeData.maxSlippage
             );
         } else {
             // Give CBridge approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(_cBridgeData.token), _cBridgeData.cBridge, _cBridgeData.amount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _cBridgeData.cBridge, _bridgeData.minAmount);
             // solhint-disable check-send-result
             ICBridge(_cBridgeData.cBridge).send(
-                _cBridgeData.receiver,
-                _cBridgeData.token,
-                _cBridgeData.amount,
-                _cBridgeData.dstChainId,
+                _bridgeData.receiver,
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                uint64(_bridgeData.destinationChainId),
                 _cBridgeData.nonce,
                 _cBridgeData.maxSlippage
             );
         }
 
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "cbridge",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _cBridgeData.token,
-            _lifiData.receivingAssetId,
-            _cBridgeData.receiver,
-            _cBridgeData.amount,
-            _cBridgeData.dstChainId,
-            _hasSourceSwaps,
-            false
-        );
+        emit LiFiTransferStarted(_bridgeData);
     }
 }

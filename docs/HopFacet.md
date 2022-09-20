@@ -15,9 +15,9 @@ graph LR;
 
 - `function initHop( string[] memory _tokens, IHopBridge.BridgeConfig[] memory _bridgeConfigs, uint256 _chainId)`
   - Initializer method. Sets chainId,Hop bridge and Hop wrapper contracts for the specific chain
-- `function startBridgeTokensViaHop(LiFiData memory _lifiData, HopData calldata _hopData)`
+- `function startBridgeTokensViaHop(BridgeData memory _lifiData, HopData calldata _hopData)`
   - Simply bridges tokens using Hop
-- `function swapAndStartBridgeTokensViaHop( LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData, HopData memory _hopData)`
+- `function swapAndStartBridgeTokensViaHop( BridgeData memory _lifiData, LibSwap.SwapData[] calldata _swapData, HopData memory _hopData)`
   - Performs swap(s) before bridging tokens using Hop
 
 ## Hop Specific Parameters
@@ -64,9 +64,9 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `LiFiData _lifiData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `LiFiData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 
