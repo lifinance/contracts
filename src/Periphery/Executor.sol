@@ -97,7 +97,7 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
         address, // _token unused
         uint256, // _amountLD unused
         bytes memory _payload
-    ) external {
+    ) external nonReentrant {
         if (msg.sender != address(sgRouter)) {
             revert InvalidStargateRouter();
         }

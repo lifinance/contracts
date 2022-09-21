@@ -144,7 +144,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
         address _assetId,
         address _receiver,
         uint256 _amount
-    ) external {
+    ) external nonReentrant {
         if (msg.sender != address(this)) {
             revert InvalidCaller();
         }
@@ -164,7 +164,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         address _finalAssetId,
         address _receiver
-    ) external {
+    ) external nonReentrant {
         if (msg.sender != address(this)) {
             revert InvalidCaller();
         }
