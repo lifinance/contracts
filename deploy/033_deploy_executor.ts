@@ -29,7 +29,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   })
 
   const erc20Proxy: ERC20Proxy = await ethers.getContract('ERC20Proxy')
-
   const erc20ProxyAddr = await registryFacet.getPeripheryContract('ERC20Proxy')
 
   if (erc20ProxyAddr !== erc20Proxy.address) {
@@ -44,12 +43,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   await deploy('Executor', {
     from: deployer,
     log: true,
-    args: [deployer, sgRouter, erc20Proxy.address],
+    args: [deployer, erc20Proxy.address],
     deterministicDeployment: true,
   })
 
   const executor: Executor = await ethers.getContract('Executor')
-
   const executorAddr = await registryFacet.getPeripheryContract('Executor')
 
   if (executorAddr !== executor.address) {

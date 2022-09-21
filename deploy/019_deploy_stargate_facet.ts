@@ -16,8 +16,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     return
   }
 
-  const ROUTER_ADDR = config[network.name].stargateRouter
-
   await deploy('StargateFacet', {
     from: deployer,
     log: true,
@@ -28,17 +26,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const diamond = await ethers.getContract('LiFiDiamond')
 
-  const ABI = ['function initStargate(address)']
-  const iface = new utils.Interface(ABI)
-
-  const initData = iface.encodeFunctionData('initStargate', [ROUTER_ADDR])
-
-  await addOrReplaceFacets(
-    [stargetFacet],
-    diamond.address,
-    stargetFacet.address,
-    initData
-  )
+  await addOrReplaceFacets([stargetFacet], diamond.address)
 
   await verifyContract(hre, 'StargateFacet', { address: stargetFacet.address })
 }
