@@ -51,17 +51,6 @@ describe('HyphenFacet', function () {
       // setup tokens
       wmatic = ERC20__factory.connect(WMATIC_ADDRESS, alice)
       usdc = ERC20__factory.connect(USDC_ADDRESS, alice)
-
-      lifiData = {
-        transactionId: utils.randomBytes(32),
-        integrator: 'ACME Devs',
-        referrer: constants.AddressZero,
-        sendingAssetId: usdc.address,
-        receivingAssetId: usdc.address,
-        receiver: alice.address,
-        destinationChainId: 43114,
-        amount: utils.parseUnits('10', 6),
-      }
     }
   )
 
@@ -86,17 +75,27 @@ describe('HyphenFacet', function () {
 
   it('starts a bridge transaction on the sending chain', async () => {
     const amount = utils.parseUnits('10', 6)
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'hyphen',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: usdc.address,
+      receiver: alice.address,
+      minAmount: utils.parseUnits('10', 6),
+      destinationChainId: 43114,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
     const hyphenData = {
-      token: usdc.address,
-      amount: amount,
-      recipient: alice.address,
-      toChainId: 43114,
       router: '0x2A5c2568b10A0E826BfA892Cf21BA7218310180b',
     }
     await usdc.approve(lifi.address, amount)
-    await lifi.connect(alice).startBridgeTokensViaHyphen(lifiData, hyphenData, {
-      gasLimit: 500000,
-    })
+    await lifi
+      .connect(alice)
+      .startBridgeTokensViaHyphen(bridgeData, hyphenData, {
+        gasLimit: 500000,
+      })
   })
 
   it('performs a swap then starts bridge transaction on the sending chain', async () => {
@@ -126,20 +125,30 @@ describe('HyphenFacet', function () {
         receivingAssetId: usdc.address,
         fromAmount: amountETH,
         callData: uniswapData,
+        requiresDeposit: false,
       },
     ]
 
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'hyphen',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: usdc.address,
+      receiver: alice.address,
+      minAmount: amountUSDC,
+      destinationChainId: 43114,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
+
     const hyphenData = {
-      token: usdc.address,
-      amount: amountUSDC,
-      recipient: alice.address,
-      toChainId: 43114,
       router: '0x2A5c2568b10A0E826BfA892Cf21BA7218310180b',
     }
 
     await lifi
       .connect(alice)
-      .swapAndStartBridgeTokensViaHyphen(lifiData, swapData, hyphenData, {
+      .swapAndStartBridgeTokensViaHyphen(bridgeData, swapData, hyphenData, {
         gasLimit: 500000,
         value: amountETH,
       })

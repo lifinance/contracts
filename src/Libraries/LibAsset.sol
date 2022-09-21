@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.16;
-import { NullAddrIsNotAnERC20Token, NullAddrIsNotAValidSpender, NoTransferToNullAddress, InvalidAmount, NativeValueWithERC, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
+import { InsufficientBalance, NullAddrIsNotAnERC20Token, NullAddrIsNotAValidSpender, NoTransferToNullAddress, InvalidAmount, NativeValueWithERC, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { LibSwap } from "./LibSwap.sol";
@@ -92,6 +92,9 @@ library LibAsset {
         if (isNativeAsset(assetId)) {
             if (msg.value < amount) revert InvalidAmount();
         } else {
+            if (amount == 0) revert InvalidAmount();
+            uint256 balance = IERC20(assetId).balanceOf(msg.sender);
+            if (balance < amount) revert InsufficientBalance(amount, balance);
             transferFromERC20(assetId, msg.sender, address(this), amount);
         }
     }

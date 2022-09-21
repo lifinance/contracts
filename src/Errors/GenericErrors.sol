@@ -32,3 +32,4 @@ error InvalidFallbackAddress();
 error CumulativeSlippageTooHigh();
 error InsufficientBalance(uint256 required, uint256 balance);
 error ZeroAmount();
+error InvalidFee();

@@ -6,7 +6,7 @@ import {
   IERC20__factory as ERC20__factory,
 } from '../../typechain'
 import { deployments, network } from 'hardhat'
-import { constants, utils } from 'ethers'
+import { constants, ethers, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { expect } from '../chai-setup'
@@ -69,16 +69,6 @@ describe('AnyswapFacet', function () {
       wmatic = ERC20__factory.connect(WMATIC_ADDRESS, alice)
 
       usdt = ERC20__factory.connect(USDT_ADDRESS, alice)
-      lifiData = {
-        transactionId: utils.randomBytes(32),
-        integrator: 'ACME Devs',
-        referrer: constants.AddressZero,
-        sendingAssetId: usdt.address,
-        receivingAssetId: usdt.address,
-        receiver: alice.address,
-        destinationChainId: 100,
-        amount: utils.parseUnits('1000', 6),
-      }
       token = ERC20__factory.connect(anyUSDT_ADDRESS, alice)
       await usdt.approve(lifi.address, utils.parseUnits('1000', 6))
     }
@@ -104,17 +94,26 @@ describe('AnyswapFacet', function () {
   })
 
   it('starts a bridge transaction using native token on the sending chain', async () => {
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'amarok',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: anyMATIC_ADDRESS,
+      receiver: alice.address,
+      minAmount: utils.parseUnits('1000'),
+      destinationChainId: 100,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
+
     const AnyswapData = {
-      token: anyMATIC_ADDRESS,
       router: MATIC_ROUTER,
-      amount: utils.parseEther('1000'),
-      recipient: alice.address,
-      toChainId: 100,
     }
 
     await lifi
       .connect(alice)
-      .startBridgeTokensViaAnyswap(lifiData, AnyswapData, {
+      .startBridgeTokensViaAnyswap(bridgeData, AnyswapData, {
         gasLimit: 500000,
         value: utils.parseEther('1000'),
       })
@@ -124,33 +123,51 @@ describe('AnyswapFacet', function () {
     const beefy = ERC20__factory.connect(BEEFY_ADDRESS, beefHolder)
     await beefy.approve(lifi.address, utils.parseEther('10'))
 
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'amarok',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: BEEFY_ADDRESS,
+      receiver: alice.address,
+      minAmount: utils.parseUnits('10'),
+      destinationChainId: 100,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
+
     const AnyswapData = {
-      token: BEEFY_ADDRESS,
       router: BEEFY_ROUTER,
-      amount: utils.parseEther('10'),
-      recipient: beefHolder.address,
-      toChainId: 100,
     }
 
     await lifi
       .connect(beefHolder)
-      .startBridgeTokensViaAnyswap(lifiData, AnyswapData, {
+      .startBridgeTokensViaAnyswap(bridgeData, AnyswapData, {
         gasLimit: 500000,
       })
   })
 
   it('starts a bridge transaction on the sending chain', async () => {
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'amarok',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: token.address,
+      receiver: alice.address,
+      minAmount: utils.parseUnits('1000', 6),
+      destinationChainId: 100,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
+
     const AnyswapData = {
-      token: token.address,
       router: ANYSWAP_ROUTER,
-      amount: utils.parseUnits('1000', 6),
-      recipient: alice.address,
-      toChainId: 100,
     }
 
     await lifi
       .connect(alice)
-      .startBridgeTokensViaAnyswap(lifiData, AnyswapData, {
+      .startBridgeTokensViaAnyswap(bridgeData, AnyswapData, {
         gasLimit: 500000,
       })
   })
@@ -179,20 +196,30 @@ describe('AnyswapFacet', function () {
         receivingAssetId: usdt.address,
         fromAmount: utils.parseEther('700'),
         callData: uniswapData,
+        requiresDeposit: false,
       },
     ]
 
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'amarok',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: token.address,
+      receiver: alice.address,
+      minAmount: utils.parseUnits('1000', 6),
+      destinationChainId: 137,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
+
     const AnyswapData = {
-      token: token.address,
       router: ANYSWAP_ROUTER,
-      amount: utils.parseUnits('1000', 6),
-      recipient: alice.address,
-      toChainId: 137,
     }
 
     await lifi
       .connect(alice)
-      .swapAndStartBridgeTokensViaAnyswap(lifiData, swapData, AnyswapData, {
+      .swapAndStartBridgeTokensViaAnyswap(bridgeData, swapData, AnyswapData, {
         gasLimit: 500000,
         value: utils.parseEther('700'),
       })
@@ -223,21 +250,31 @@ describe('AnyswapFacet', function () {
         receivingAssetId: usdt.address,
         fromAmount: utils.parseEther('700'),
         callData: uniswapData,
+        requiresDeposit: true,
       },
     ]
 
     const AnyswapData = {
-      token: token.address,
       router: ANYSWAP_ROUTER,
-      amount: utils.parseUnits('1000', 6),
-      recipient: alice.address,
-      toChainId: 137,
+    }
+
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'amarok',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: token.address,
+      receiver: alice.address,
+      minAmount: utils.parseUnits('1000', 6),
+      destinationChainId: 137,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
     }
 
     await expect(
       lifi
         .connect(alice)
-        .swapAndStartBridgeTokensViaAnyswap(lifiData, swapData, AnyswapData, {
+        .swapAndStartBridgeTokensViaAnyswap(bridgeData, swapData, AnyswapData, {
           gasLimit: 500000,
           value: utils.parseEther('700'),
         })

@@ -6,7 +6,7 @@ import {
   DexManagerFacet,
 } from '../../typechain'
 import { deployments, network } from 'hardhat'
-import { BigNumber, constants, Contract, utils } from 'ethers'
+import { BigNumber, constants, Contract, ethers, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { expect } from '../chai-setup'
@@ -24,7 +24,7 @@ describe('GnosisBridgeFacet', function () {
     let lifi: GnosisBridgeFacet
     let alice: SignerWithAddress
     let bob: SignerWithAddress
-    let lifiData: any
+    let bridgeData: any
     let gnosisBridgeData: any
     let dai: ERC20
     let dexMgr: DexManagerFacet
@@ -71,22 +71,8 @@ describe('GnosisBridgeFacet', function () {
 
         usdc = ERC20__factory.connect(USDC_ADDRESS, alice)
         dai = ERC20__factory.connect(DAI_ADDRESS, alice)
-
-        lifiData = {
-          transactionId: utils.randomBytes(32),
-          integrator: 'ACME Devs',
-          referrer: constants.AddressZero,
-          sendingAssetId: config.mainnet.token,
-          receivingAssetId: constants.AddressZero,
-          receiver: bob.address,
-          destinationChainId: config.mainnet.dstChainId,
-          amount: daiSendAmount,
-        }
-
         gnosisBridgeData = {
           xDaiBridge: BRIDGE_MAINNET,
-          receiver: bob.address,
-          amount: daiSendAmount,
         }
 
         await dai.approve(lifi.address, daiSendAmount)
@@ -115,13 +101,24 @@ describe('GnosisBridgeFacet', function () {
     describe('starts a bridge transaction on the sending chain', async () => {
       describe('should be reverted to starts a bridge transaction', async () => {
         it('when sending amount is exceed allowances', async () => {
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'gnosis',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: config.mainnet.token,
+            receiver: bob.address,
+            minAmount: daiSendAmount.add(1),
+            destinationChainId: config.mainnet.dstChainId,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
+
           await expect(
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
-              lifiData,
+              bridgeData,
               {
                 xDaiBridge: BRIDGE_MAINNET,
-                receiver: bob.address,
-                amount: daiSendAmount.add(1),
               },
               {
                 gasLimit: 500000,
@@ -131,13 +128,24 @@ describe('GnosisBridgeFacet', function () {
         })
 
         it('when sending amount is zero', async () => {
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'gnosis',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: config.mainnet.token,
+            receiver: bob.address,
+            minAmount: daiSendAmount,
+            destinationChainId: config.mainnet.dstChainId,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
+
           await expect(
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
-              lifiData,
+              { ...bridgeData, minAmount: 0 },
               {
                 xDaiBridge: BRIDGE_MAINNET,
-                receiver: bob.address,
-                amount: 0,
               },
               {
                 gasLimit: 500000,
@@ -147,13 +155,23 @@ describe('GnosisBridgeFacet', function () {
         })
 
         it('when receiver is zero address', async () => {
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'gnosis',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: config.mainnet.token,
+            receiver: bob.address,
+            minAmount: daiSendAmount,
+            destinationChainId: config.mainnet.dstChainId,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
           await expect(
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
-              lifiData,
+              { ...bridgeData, receiver: constants.AddressZero },
               {
                 xDaiBridge: BRIDGE_MAINNET,
-                receiver: constants.AddressZero,
-                amount: daiSendAmount,
               },
               {
                 gasLimit: 500000,
@@ -165,11 +183,9 @@ describe('GnosisBridgeFacet', function () {
         it('when receiver is xDaiBridge address', async () => {
           await expect(
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
-              lifiData,
+              { ...bridgeData, receiver: BRIDGE_MAINNET },
               {
                 xDaiBridge: BRIDGE_MAINNET,
-                receiver: BRIDGE_MAINNET,
-                amount: daiSendAmount,
               },
               {
                 gasLimit: 500000,
@@ -181,11 +197,9 @@ describe('GnosisBridgeFacet', function () {
         it('when receiver is xDaiBridge address on other side', async () => {
           await expect(
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
-              lifiData,
+              { ...bridgeData, receiver: BRIDGE_XDAI },
               {
                 xDaiBridge: BRIDGE_MAINNET,
-                receiver: BRIDGE_XDAI,
-                amount: daiSendAmount,
               },
               {
                 gasLimit: 500000,
@@ -195,10 +209,22 @@ describe('GnosisBridgeFacet', function () {
         })
 
         it('when destination chain id is incorrect', async () => {
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'gnosis',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: config.mainnet.token,
+            receiver: bob.address,
+            minAmount: daiSendAmount,
+            destinationChainId: config.mainnet.dstChainId,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
           await expect(
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
               {
-                ...lifiData,
+                ...bridgeData,
                 destinationChainId: 1,
               },
               gnosisBridgeData,
@@ -206,14 +232,26 @@ describe('GnosisBridgeFacet', function () {
                 gasLimit: 500000,
               }
             )
-          ).to.be.revertedWith('InvalidDstChainId')
+          ).to.be.revertedWith('InvalidDestinationChain')
         })
 
         it('when sending asset id is incorrect', async () => {
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'gnosis',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: config.mainnet.token,
+            receiver: bob.address,
+            minAmount: daiSendAmount,
+            destinationChainId: config.mainnet.dstChainId,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
           await expect(
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
               {
-                ...lifiData,
+                ...bridgeData,
                 sendingAssetId: alice.address,
               },
               gnosisBridgeData,
@@ -227,29 +265,25 @@ describe('GnosisBridgeFacet', function () {
 
       it('should be possible to starts a bridge transaction', async () => {
         const daiBalanceOfXDaiBridge = await dai.balanceOf(BRIDGE_MAINNET)
-
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'gnosis',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: config.mainnet.token,
+          receiver: bob.address,
+          minAmount: daiSendAmount,
+          destinationChainId: config.mainnet.dstChainId,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaXDaiBridge(lifiData, gnosisBridgeData, {
+            .startBridgeTokensViaXDaiBridge(bridgeData, gnosisBridgeData, {
               gasLimit: 500000,
             })
-        )
-          .to.emit(lifi, 'LiFiTransferStarted')
-          .withArgs(
-            utils.hexlify(lifiData.transactionId),
-            'gnosis',
-            '',
-            lifiData.integrator,
-            lifiData.referrer,
-            config.mainnet.token,
-            lifiData.receivingAssetId,
-            gnosisBridgeData.receiver,
-            daiSendAmount,
-            config.mainnet.dstChainId,
-            false,
-            false
-          )
+        ).to.emit(lifi, 'LiFiTransferStarted')
 
         expect(await dai.balanceOf(BRIDGE_MAINNET)).to.be.equal(
           daiBalanceOfXDaiBridge.add(daiSendAmount)
@@ -293,17 +327,31 @@ describe('GnosisBridgeFacet', function () {
             receivingAssetId: DAI_ADDRESS,
             callData: <string>swapCallData?.data,
             fromAmount: amountIn,
+            requiresDeposit: true,
           },
         ]
       })
 
       describe('should be reverted to perform a swap then starts a bridge transaction', async () => {
         it('when sending amount is exceed allowances', async () => {
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'gnosis',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: config.mainnet.token,
+            receiver: bob.address,
+            minAmount: daiSendAmount.add(1),
+            destinationChainId: config.mainnet.dstChainId,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
+
           await expect(
             lifi
               .connect(alice)
               .swapAndStartBridgeTokensViaXDaiBridge(
-                lifiData,
+                bridgeData,
                 swapData,
                 gnosisBridgeData,
                 {
@@ -317,12 +365,10 @@ describe('GnosisBridgeFacet', function () {
           await usdc.approve(lifi.address, amountIn)
           await expect(
             lifi.connect(alice).swapAndStartBridgeTokensViaXDaiBridge(
-              lifiData,
+              { ...bridgeData, receiver: constants.AddressZero },
               swapData,
               {
                 xDaiBridge: BRIDGE_MAINNET,
-                receiver: constants.AddressZero,
-                amount: daiSendAmount,
               },
               {
                 gasLimit: 500000,
@@ -335,12 +381,10 @@ describe('GnosisBridgeFacet', function () {
           await usdc.approve(lifi.address, amountIn)
           await expect(
             lifi.connect(alice).swapAndStartBridgeTokensViaXDaiBridge(
-              lifiData,
+              { ...bridgeData, receiver: BRIDGE_MAINNET },
               swapData,
               {
                 xDaiBridge: BRIDGE_MAINNET,
-                receiver: BRIDGE_MAINNET,
-                amount: daiSendAmount,
               },
               {
                 gasLimit: 500000,
@@ -353,12 +397,10 @@ describe('GnosisBridgeFacet', function () {
           await usdc.approve(lifi.address, amountIn)
           await expect(
             lifi.connect(alice).swapAndStartBridgeTokensViaXDaiBridge(
-              lifiData,
+              { ...bridgeData, receiver: BRIDGE_XDAI },
               swapData,
               {
                 xDaiBridge: BRIDGE_MAINNET,
-                receiver: BRIDGE_XDAI,
-                amount: daiSendAmount,
               },
               {
                 gasLimit: 500000,
@@ -368,11 +410,23 @@ describe('GnosisBridgeFacet', function () {
         })
 
         it('when destination chain id is incorrect', async () => {
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'gnosis',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: config.mainnet.token,
+            receiver: bob.address,
+            minAmount: daiSendAmount,
+            destinationChainId: config.mainnet.dstChainId,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
           await usdc.approve(lifi.address, amountIn)
           await expect(
             lifi.connect(alice).swapAndStartBridgeTokensViaXDaiBridge(
               {
-                ...lifiData,
+                ...bridgeData,
                 destinationChainId: 1,
               },
               swapData,
@@ -381,15 +435,27 @@ describe('GnosisBridgeFacet', function () {
                 gasLimit: 500000,
               }
             )
-          ).to.be.revertedWith('InvalidDstChainId')
+          ).to.be.revertedWith('InvalidDestinationChain')
         })
 
         it('when sending asset id is incorrect', async () => {
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'gnosis',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: config.mainnet.token,
+            receiver: bob.address,
+            minAmount: daiSendAmount.add(1),
+            destinationChainId: config.mainnet.dstChainId,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
           await usdc.approve(lifi.address, amountIn)
           await expect(
             lifi.connect(alice).swapAndStartBridgeTokensViaXDaiBridge(
               {
-                ...lifiData,
+                ...bridgeData,
                 sendingAssetId: alice.address,
               },
               swapData,
@@ -402,6 +468,18 @@ describe('GnosisBridgeFacet', function () {
         })
 
         it('when the dex is not approved', async () => {
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'gnosis',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: config.mainnet.token,
+            receiver: bob.address,
+            minAmount: daiSendAmount.add(1),
+            destinationChainId: config.mainnet.dstChainId,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
           await dexMgr.removeDex(UNISWAP_ADDRESS)
 
           await usdc.approve(lifi.address, amountIn)
@@ -410,7 +488,7 @@ describe('GnosisBridgeFacet', function () {
             lifi
               .connect(alice)
               .swapAndStartBridgeTokensViaXDaiBridge(
-                lifiData,
+                bridgeData,
                 swapData,
                 gnosisBridgeData,
                 {
@@ -424,35 +502,33 @@ describe('GnosisBridgeFacet', function () {
       it('should be possible to perform a swap then starts a bridge transaction', async () => {
         await usdc.approve(lifi.address, amountIn)
 
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'gnosis',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: config.mainnet.token,
+          receiver: bob.address,
+          minAmount: daiSendAmount,
+          destinationChainId: config.mainnet.dstChainId,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         const daiBalanceOfXDaiBridge = await dai.balanceOf(BRIDGE_MAINNET)
 
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaXDaiBridge(
-              lifiData,
+              bridgeData,
               swapData,
               gnosisBridgeData,
               {
                 gasLimit: 500000,
               }
             )
-        )
-          .to.emit(lifi, 'LiFiTransferStarted')
-          .withArgs(
-            utils.hexlify(lifiData.transactionId),
-            'gnosis',
-            '',
-            lifiData.integrator,
-            lifiData.referrer,
-            swapData[0].sendingAssetId,
-            lifiData.receivingAssetId,
-            gnosisBridgeData.receiver,
-            swapData[0].fromAmount,
-            config.mainnet.dstChainId,
-            true,
-            false
-          )
+        ).to.emit(lifi, 'LiFiTransferStarted')
 
         expect(await dai.balanceOf(BRIDGE_MAINNET)).to.be.equal(
           daiBalanceOfXDaiBridge.add(daiSendAmount)

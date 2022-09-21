@@ -5,7 +5,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IGatewayRouter } from "../Interfaces/IGatewayRouter.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidReceiver, InvalidFee } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { IArbitrumInbox } from "../Interfaces/IArbitrumInbox.sol";
 
@@ -87,6 +87,9 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
             }
             IArbitrumInbox(_arbitrumData.inbox).depositEth{ value: _amount }();
         } else {
+            if (msg.value != _cost) {
+                revert InvalidFee();
+            }
             LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _arbitrumData.tokenRouter, _amount);
             IGatewayRouter(_arbitrumData.gatewayRouter).outboundTransfer{ value: _cost }(
                 _bridgeData.sendingAssetId,

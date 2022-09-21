@@ -6,7 +6,7 @@ import {
 // import { expect } from '../chai-setup'
 import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
-import { constants, Contract, utils } from 'ethers'
+import { constants, Contract, ethers, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { expect } from '../chai-setup'
 import { parseEther, parseUnits } from 'ethers/lib/utils'
@@ -21,7 +21,6 @@ describe('HopFacet L1', function () {
   let lifi: HopFacet
   let dexMgr: DexManagerFacet
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let lifiData: any
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
@@ -47,15 +46,17 @@ describe('HopFacet L1', function () {
         '0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503'
       )
 
-      lifiData = {
+      const bridgeData = {
         transactionId: utils.randomBytes(32),
+        bridge: 'gnosis',
         integrator: 'ACME Devs',
-        referrer: constants.AddressZero,
+        referrer: ethers.constants.AddressZero,
         sendingAssetId: USDC_ADDRESS,
-        receivingAssetId: USDC_ADDRESS,
         receiver: alice.address,
+        minAmount: utils.parseUnits('10000', 6),
         destinationChainId: 137,
-        amount: utils.parseUnits('10000', 6),
+        hasSourceSwaps: false,
+        hasDestinationCall: false,
       }
     }
   )
@@ -88,14 +89,22 @@ describe('HopFacet L1', function () {
 
     await token.approve(lifi.address, amount)
 
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'gnosis',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      receiver: alice.address,
+      minAmount: amount,
+      destinationChainId: 137,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
+
     const HopData = {
-      asset: 'USDC',
-      sendingAssetAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
       bridge: '0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a',
       fromChainId: 1,
-      toChainId: 137,
-      recipient: alice.address,
-      amount: amount,
       bonderFee: 0,
       amountOutMin: 0,
       deadline,
@@ -104,7 +113,7 @@ describe('HopFacet L1', function () {
     }
 
     await expect(
-      lifi.connect(alice).startBridgeTokensViaHop(lifiData, HopData, {
+      lifi.connect(alice).startBridgeTokensViaHop(bridgeData, HopData, {
         gasLimit: 500000,
       })
     ).to.emit(lifi, 'LiFiTransferStarted')
@@ -114,14 +123,22 @@ describe('HopFacet L1', function () {
     const amount = utils.parseEther('0.05')
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'gnosis',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: constants.AddressZero,
+      receiver: alice.address,
+      minAmount: amount,
+      destinationChainId: 137,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
+
     const HopData = {
-      asset: 'ETH',
       fromChainId: 1,
-      toChainId: 137,
-      sendingAssetAddress: '0x0000000000000000000000000000000000000000',
       bridge: '0xb8901acB165ed027E32754E0FFe830802919727f',
-      recipient: alice.address,
-      amount: amount,
       bonderFee: 0,
       amountOutMin: 0,
       deadline,
@@ -130,7 +147,7 @@ describe('HopFacet L1', function () {
     }
 
     await expect(
-      lifi.connect(alice).startBridgeTokensViaHop(lifiData, HopData, {
+      lifi.connect(alice).startBridgeTokensViaHop(bridgeData, HopData, {
         gasLimit: 500000,
         value: parseEther('0.05'),
       })
@@ -142,14 +159,23 @@ describe('HopFacet L1', function () {
     const amountOut = utils.parseEther('1010')
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'gnosis',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+      receiver: alice.address,
+      minAmount: parseUnits('900', 18),
+      destinationChainId: 137,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
+
     const HopData = {
-      asset: 'DAI',
       fromChainId: 1,
-      toChainId: 137,
       sendingAssetAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
       bridge: '0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1',
-      recipient: alice.address,
-      amount: parseUnits('900', 18),
       bonderFee: 0,
       amountOutMin: 0,
       deadline,
@@ -185,7 +211,7 @@ describe('HopFacet L1', function () {
 
     await expect(
       lifi.connect(alice).swapAndStartBridgeTokensViaHop(
-        lifiData,
+        bridgeData,
         [
           {
             callTo: <string>swapData.to,
@@ -194,6 +220,7 @@ describe('HopFacet L1', function () {
             receivingAssetId: DAI_ADDRESS,
             callData: <string>swapData?.data,
             fromAmount: amountIn,
+            requiresDeposit: true,
           },
         ],
         HopData,
@@ -211,6 +238,19 @@ describe('HopFacet L1', function () {
     const amountOut = utils.parseEther('1010')
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'gnosis',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+      receiver: alice.address,
+      minAmount: parseUnits('900', 18),
+      destinationChainId: 137,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
+
     const HopData = {
       asset: 'DAI',
       fromChainId: 1,
@@ -254,7 +294,7 @@ describe('HopFacet L1', function () {
 
     await expect(
       lifi.connect(alice).swapAndStartBridgeTokensViaHop(
-        lifiData,
+        bridgeData,
         [
           {
             callTo: <string>swapData.to,
@@ -263,6 +303,7 @@ describe('HopFacet L1', function () {
             receivingAssetId: DAI_ADDRESS,
             callData: <string>swapData?.data,
             fromAmount: amountIn,
+            requiresDeposit: true,
           },
         ],
         HopData,
