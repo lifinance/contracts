@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { CannotDepositNativeToken, ZeroAmount } from "../Errors/GenericErrors.sol";
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
+import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 
 interface IFusePool {
     function cTokensByUnderlying(address) external view returns (address);
@@ -22,7 +23,7 @@ interface IFusePoolDirectory {
 /// @title Fuse Pool Zap
 /// @author LI.FI (https://li.fi)
 /// @notice Allows anyone to quickly zap into a Rari Fuse Pool
-contract FusePoolZap {
+contract FusePoolZap is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// Constants ///
@@ -33,6 +34,7 @@ contract FusePoolZap {
 
     error InvalidPoolAddress(address);
     error InvalidSupplyToken(address);
+    error InvalidAmount(uint256);
     error MintingError(bytes);
 
     /// Events ///

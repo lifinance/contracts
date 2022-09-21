@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
@@ -62,7 +62,7 @@ contract FeeCollector is TransferrableOwnership {
         uint256 remaining = msg.value - (integratorFee + lifiFee);
         // Prevent extra native token from being locked in the contract
         if (remaining > 0) {
-            (bool success, ) = msg.sender.call{ value: remaining }("");
+            (bool success, ) = payable(msg.sender).call{ value: remaining }("");
             if (!success) {
                 revert TransferFailure();
             }
@@ -87,14 +87,16 @@ contract FeeCollector is TransferrableOwnership {
     function batchWithdrawIntegratorFees(address[] memory tokenAddresses) external {
         uint256 length = tokenAddresses.length;
         uint256 balance;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length; ) {
             balance = _balances[msg.sender][tokenAddresses[i]];
-            if (balance == 0) {
-                continue;
+            if (balance != 0) {
+                _balances[msg.sender][tokenAddresses[i]] = 0;
+                LibAsset.transferAsset(tokenAddresses[i], payable(msg.sender), balance);
+                emit FeesWithdrawn(tokenAddresses[i], msg.sender, balance);
             }
-            _balances[msg.sender][tokenAddresses[i]] = 0;
-            LibAsset.transferAsset(tokenAddresses[i], payable(msg.sender), balance);
-            emit FeesWithdrawn(tokenAddresses[i], msg.sender, balance);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -106,7 +108,7 @@ contract FeeCollector is TransferrableOwnership {
             return;
         }
         _lifiBalances[tokenAddress] = 0;
-        LibAsset.transferAsset(tokenAddress, payable(owner), balance);
+        LibAsset.transferAsset(tokenAddress, payable(msg.sender), balance);
         emit LiFiFeesWithdrawn(tokenAddress, msg.sender, balance);
     }
 
@@ -115,14 +117,14 @@ contract FeeCollector is TransferrableOwnership {
     function batchWithdrawLifiFees(address[] memory tokenAddresses) external onlyOwner {
         uint256 length = tokenAddresses.length;
         uint256 balance;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length; ) {
             balance = _lifiBalances[tokenAddresses[i]];
-            if (balance == 0) {
-                continue;
-            }
             _lifiBalances[tokenAddresses[i]] = 0;
-            LibAsset.transferAsset(tokenAddresses[i], payable(owner), balance);
+            LibAsset.transferAsset(tokenAddresses[i], payable(msg.sender), balance);
             emit LiFiFeesWithdrawn(tokenAddresses[i], msg.sender, balance);
+            unchecked {
+                ++i;
+            }
         }
     }
 

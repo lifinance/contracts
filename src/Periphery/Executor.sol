@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.16;
 
 import { IERC20 } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IERC20.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
@@ -35,11 +35,16 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
 
             _;
 
-            for (uint256 i = 0; i < nSwaps - 1; i++) {
+            for (uint256 i = 0; i < nSwaps - 1; ) {
                 address curAsset = _swapData[i].receivingAssetId;
-                if (curAsset == finalAsset) continue; // Handle multi-to-one swaps
-                curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
-                if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
+                // Handle multi-to-one swaps
+                if (curAsset != finalAsset) {
+                    curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
+                    if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
+                }
+                unchecked {
+                    ++i;
+                }
             }
         } else _;
     }
@@ -174,10 +179,13 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
         LibSwap.SwapData[] calldata _swapData,
         address payable _leftoverReceiver
     ) private noLeftovers(_swapData, _leftoverReceiver) {
-        for (uint256 i = 0; i < _swapData.length; i++) {
+        for (uint256 i = 0; i < _swapData.length; ) {
             if (_swapData[i].callTo == address(erc20Proxy)) revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
             LibSwap.swap(_lifiData.transactionId, currentSwapData);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -187,8 +195,11 @@ contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
     function _fetchBalances(LibSwap.SwapData[] calldata _swapData) private view returns (uint256[] memory) {
         uint256 length = _swapData.length;
         uint256[] memory balances = new uint256[](length);
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length; ) {
             balances[i] = LibAsset.getOwnBalance(_swapData[i].receivingAssetId);
+            unchecked {
+                ++i;
+            }
         }
         return balances;
     }
