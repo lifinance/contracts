@@ -25,12 +25,17 @@ contract SwapperV2 is ILiFi {
             uint256 newBalance = 0;
             _;
 
-            for (uint256 i = 0; i < nSwaps - 1; i++) {
+            for (uint256 i = 0; i < nSwaps - 1; ) {
                 address curAsset = _swapData[i].receivingAssetId;
-                if (curAsset == finalAsset) continue; // Handle multi-to-one swaps
-                newBalance = LibAsset.getOwnBalance(curAsset);
-                curBalance = newBalance > initialBalances[i] ? newBalance - initialBalances[i] : newBalance;
-                if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
+                // Handle multi-to-one swaps
+                if (curAsset != finalAsset) {
+                    newBalance = LibAsset.getOwnBalance(curAsset);
+                    curBalance = newBalance > initialBalances[i] ? newBalance - initialBalances[i] : newBalance;
+                    if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
+                }
+                unchecked {
+                    ++i;
+                }
             }
         } else _;
     }
@@ -67,7 +72,7 @@ contract SwapperV2 is ILiFi {
         LibSwap.SwapData[] calldata _swapData,
         address payable _leftoverReceiver
     ) internal noLeftovers(_swapData, _leftoverReceiver) {
-        for (uint256 i = 0; i < _swapData.length; i++) {
+        for (uint256 i = 0; i < _swapData.length; ) {
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
             if (
                 !((LibAsset.isNativeAsset(currentSwapData.sendingAssetId) ||
@@ -76,6 +81,9 @@ contract SwapperV2 is ILiFi {
                     LibAllowList.selectorIsAllowed(bytes4(currentSwapData.callData[:4])))
             ) revert ContractCallNotAllowed();
             LibSwap.swap(_lifiData.transactionId, currentSwapData);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -85,8 +93,11 @@ contract SwapperV2 is ILiFi {
     function _fetchBalances(LibSwap.SwapData[] calldata _swapData) private view returns (uint256[] memory) {
         uint256 length = _swapData.length;
         uint256[] memory balances = new uint256[](length);
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length; ) {
             balances[i] = LibAsset.getOwnBalance(_swapData[i].receivingAssetId);
+            unchecked {
+                ++i;
+            }
         }
         return balances;
     }

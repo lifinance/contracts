@@ -89,9 +89,12 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
         _stargateData.amountLD = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
 
         uint256 nativeFee = msg.value;
-        for (uint8 i = 0; i < _swapData.length; i++) {
+        for (uint8 i = 0; i < _swapData.length; ) {
             if (LibAsset.isNativeAsset(_swapData[i].sendingAssetId)) {
                 nativeFee -= _swapData[i].fromAmount;
+            }
+            unchecked {
+                ++i;
             }
         }
 
