@@ -25,6 +25,7 @@ error OnlyContractOwner();
 error CannotAuthoriseSelf();
 error RecoveryAddressCannotBeZero();
 error CannotDepositNativeToken();
+error InvalidCallData();
 error NativeAssetNotSupported();
 error UnAuthorized();
 error NoSwapFromZeroBalance();

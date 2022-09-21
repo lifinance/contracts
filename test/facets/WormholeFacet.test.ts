@@ -5,12 +5,13 @@ import {
   WormholeFacet,
   DexManagerFacet,
 } from '../../typechain'
-import { deployments, network } from 'hardhat'
+import { deployments, network, ethers } from 'hardhat'
 import { constants, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
 
+const ETH_WHALE_ADDR = '0x6e685a45db4d97ba160fa067cb81b40dfed47245'
 const USDT_ADDRESS = '0xc2132D05D31c914a87C6611C10748AEb04B58e8F'
 const WMATIC_ADDRESS = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'
 const UNISWAP_ADDRESS = '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff'
@@ -22,6 +23,7 @@ describe('WormholeFacet', function () {
   let usdt: ERC20
   let dexMgr: DexManagerFacet
   let wmatic: ERC20
+  let ethWhale: SignerWithAddress
 
   if (network.name != 'hardhat') {
     throw 'Only hardhat supported for testing'
@@ -48,9 +50,16 @@ describe('WormholeFacet', function () {
         params: ['0x6722846282868a9c084b423aee79eb8ff69fc497'],
       })
 
+      await network.provider.request({
+        method: 'hardhat_impersonateAccount',
+        params: [ETH_WHALE_ADDR],
+      })
+
       alice = await ethers.getSigner(
         '0x6722846282868a9c084b423aee79eb8ff69fc497'
       )
+
+      ethWhale = await ethers.getSigner(ETH_WHALE_ADDR)
 
       wmatic = ERC20__factory.connect(WMATIC_ADDRESS, alice)
       usdt = ERC20__factory.connect(USDT_ADDRESS, alice)
@@ -105,6 +114,24 @@ describe('WormholeFacet', function () {
       .connect(alice)
       .startBridgeTokensViaWormhole(lifiData, WormholeData, {
         gasLimit: 500000,
+      })
+  })
+
+  it('starts a bridge transaction on the sending chain (native)', async () => {
+    const WormholeData = {
+      wormholeRouter: WORMHOLE_ROUTER,
+      token: ethers.constants.AddressZero,
+      amount: utils.parseUnits('1000', 6),
+      recipient: ethWhale.address,
+      toChainId: 100,
+      arbiterFee: 0,
+      nonce: 342,
+    }
+    await lifi
+      .connect(ethWhale)
+      .startBridgeTokensViaWormhole(lifiData, WormholeData, {
+        gasLimit: 500000,
+        value: utils.parseUnits('1000', 6),
       })
   })
 
