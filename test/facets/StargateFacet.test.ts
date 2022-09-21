@@ -35,7 +35,7 @@ describe('StargateFacet', function () {
   let bob: SignerWithAddress
   let usdt: ERC20
   let wmatic: ERC20
-  let lifiData: any
+  let bridgeData: any
   let testStargateData: any
   let swapData: any
   let payloadSwapData: any
@@ -84,22 +84,10 @@ describe('StargateFacet', function () {
         alice
       )
 
-      lifiData = {
-        transactionId: utils.randomBytes(32),
-        integrator: 'ACME Devs',
-        referrer: constants.AddressZero,
-        sendingAssetId: usdt.address,
-        receivingAssetId: usdt.address,
-        receiver: alice.address,
-        destinationChainId: 1,
-        amount: utils.parseUnits('1000', 6),
-      }
       testStargateData = {
         router: config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
-        dstChainId: 1,
         srcPoolId: 2,
         dstPoolId: 2,
-        amountLD: utils.parseUnits('1000', 6),
         minAmountLD: utils.parseUnits('100', 6),
         dstGasForCall: 0,
         callTo: alice.address,
@@ -129,6 +117,7 @@ describe('StargateFacet', function () {
           receivingAssetId: usdt.address,
           fromAmount: utils.parseEther('700'),
           callData: uniswapData,
+          requiresDeposit: false,
         },
       ]
 
@@ -156,6 +145,7 @@ describe('StargateFacet', function () {
           receivingAssetId: ethers.constants.AddressZero,
           fromAmount: utils.parseUnits('1000', 6),
           callData: payloadUniswapData,
+          requiresDeposit: false,
         },
       ]
 
@@ -193,6 +183,20 @@ describe('StargateFacet', function () {
               (token: string) => POOLS[token] == pool
             )
             it(`to send to ${tokenName} on ${chain}`, async () => {
+
+              const bridgeData = {
+                transactionId: utils.randomBytes(32),
+                bridge: 'polygon',
+                integrator: 'ACME Devs',
+                referrer: ethers.constants.AddressZero,
+                sendingAssetId: usdt.address,
+                receiver: alice.address,
+                minAmount: utils.parseUnits('1000', 6),
+                destinationChainId: chain,
+                hasSourceSwaps: false,
+                hasDestinationCall: false,
+              }
+              
               const stargateData = {
                 ...testStargateData,
                 dstChainId: config[TEST_CHAINS[chain]].layerZeroChainId,
@@ -204,11 +208,7 @@ describe('StargateFacet', function () {
 
               await expect(
                 lifi.connect(alice).startBridgeTokensViaStargate(
-                  {
-                    ...lifiData,
-                    receivingAssetId: pool[TEST_CHAINS[chain]],
-                    destinationChainId: config[TEST_CHAINS[chain]].chainId,
-                  },
+                  bridgeData,
                   stargateData,
                   {
                     gasLimit: 500000,
@@ -217,20 +217,6 @@ describe('StargateFacet', function () {
                 )
               )
                 .to.emit(lifi, 'LiFiTransferStarted')
-                .withArgs(
-                  utils.hexlify(lifiData.transactionId),
-                  'stargate',
-                  '',
-                  lifiData.integrator,
-                  lifiData.referrer,
-                  lifiData.sendingAssetId,
-                  pool[TEST_CHAINS[chain]],
-                  lifiData.receiver,
-                  lifiData.amount,
-                  config[TEST_CHAINS[chain]].chainId,
-                  false,
-                  false
-                )
             })
           })
         }
@@ -251,14 +237,24 @@ describe('StargateFacet', function () {
               dstPoolId: pool.id,
             }
 
+            const bridgeData = {
+              transactionId: utils.randomBytes(32),
+              bridge: 'polygon',
+              integrator: 'ACME Devs',
+              referrer: ethers.constants.AddressZero,
+              sendingAssetId: usdt.address,
+              receiver: alice.address,
+              minAmount: utils.parseUnits('1000', 6),
+              destinationChainId: SRC_CHAIN,
+              hasSourceSwaps: false,
+              hasDestinationCall: false,
+            }
+
             await expect(lifi.quoteLayerZeroFee(stargateData)).to.be.reverted
 
             await expect(
               lifi.connect(alice).startBridgeTokensViaStargate(
-                {
-                  ...lifiData,
-                  destinationChainId: config[TEST_CHAINS[SRC_CHAIN]].chainId,
-                },
+                bridgeData,
                 stargateData,
                 {
                   gasLimit: 500000,
@@ -275,13 +271,25 @@ describe('StargateFacet', function () {
           ...testStargateData,
           dstChainId: 99999,
         }
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: utils.parseUnits('1000', 6),
+          destinationChainId: 99999,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
 
         await expect(lifi.quoteLayerZeroFee(stargateData)).to.be.reverted
 
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaStargate(lifiData, stargateData, {
+            .startBridgeTokensViaStargate(bridgeData, stargateData, {
               gasLimit: 500000,
               value: utils.parseEther('10'),
             })
@@ -294,13 +302,26 @@ describe('StargateFacet', function () {
           dstPoolId: 99999,
         }
 
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: utils.parseUnits('1000', 6),
+          destinationChainId: 99999,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         const quoteData = await lifi.quoteLayerZeroFee(stargateData)
         const requiredGasFee = quoteData[0]
 
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaStargate(lifiData, stargateData, {
+            .startBridgeTokensViaStargate(bridgeData, stargateData, {
               gasLimit: 500000,
               value: requiredGasFee,
             })
@@ -313,10 +334,23 @@ describe('StargateFacet', function () {
         const quoteData = await lifi.quoteLayerZeroFee(stargateData)
         const requiredGasFee = quoteData[0]
 
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: utils.parseUnits('1000', 6),
+          destinationChainId: 99999,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaStargate(lifiData, stargateData, {
+            .startBridgeTokensViaStargate(bridgeData, stargateData, {
               gasLimit: 500000,
               value: requiredGasFee.sub(1),
             })
@@ -326,7 +360,19 @@ describe('StargateFacet', function () {
       it('when the sending amount is zero', async () => {
         const stargateData = {
           ...testStargateData,
-          amountLD: 0,
+        }
+
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: 0,
+          destinationChainId: 99999,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         const quoteData = await lifi.quoteLayerZeroFee(stargateData)
@@ -335,7 +381,7 @@ describe('StargateFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaStargate(lifiData, stargateData, {
+            .startBridgeTokensViaStargate(bridgeData, stargateData, {
               gasLimit: 500000,
               value: requiredGasFee,
             })
@@ -348,13 +394,26 @@ describe('StargateFacet', function () {
           minAmountLD: utils.parseUnits('1000', 6),
         }
 
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: utils.parseUnits('1000', 6),
+          destinationChainId: 99999,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         const quoteData = await lifi.quoteLayerZeroFee(stargateData)
         const requiredGasFee = quoteData[0]
 
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaStargate(lifiData, stargateData, {
+            .startBridgeTokensViaStargate(bridgeData, stargateData, {
               gasLimit: 500000,
               value: requiredGasFee.sub(1),
             })
@@ -366,6 +425,19 @@ describe('StargateFacet', function () {
           ...testStargateData,
         }
 
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: utils.parseUnits('1000', 6),
+          destinationChainId: SRC_CHAIN,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         const usdtBalance = await usdt.balanceOf(alice.address)
         await usdt.transfer(lifi.address, usdtBalance)
 
@@ -375,11 +447,11 @@ describe('StargateFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaStargate(lifiData, stargateData, {
+            .startBridgeTokensViaStargate(bridgeData, stargateData, {
               gasLimit: 500000,
               value: requiredGasFee,
             })
-        ).to.be.revertedWith('ERC20: transfer amount exceeds balance')
+        ).to.be.revertedWith('InsufficientBalance')
       })
     })
   })
@@ -395,6 +467,19 @@ describe('StargateFacet', function () {
               (token: string) => POOLS[token] == pool
             )
             it(`to send to ${tokenName} on ${chain}`, async () => {
+
+              const bridgeData = {
+                transactionId: utils.randomBytes(32),
+                bridge: 'polygon',
+                integrator: 'ACME Devs',
+                referrer: ethers.constants.AddressZero,
+                sendingAssetId: usdt.address,
+                receiver: alice.address,
+                minAmount: utils.parseUnits('1000', 6),
+                destinationChainId: chain,
+                hasSourceSwaps: false,
+                hasDestinationCall: false,
+              }
               const stargateData = {
                 ...testStargateData,
                 dstChainId: config[TEST_CHAINS[chain]].layerZeroChainId,
@@ -407,9 +492,8 @@ describe('StargateFacet', function () {
               await expect(
                 lifi.connect(alice).swapAndStartBridgeTokensViaStargate(
                   {
-                    ...lifiData,
-                    receivingAssetId: pool[TEST_CHAINS[chain]],
-                    destinationChainId: config[TEST_CHAINS[chain]].chainId,
+                    ...bridgeData,
+                    destinationChainId: chain,
                   },
                   swapData,
                   stargateData,
@@ -420,20 +504,6 @@ describe('StargateFacet', function () {
                 )
               )
                 .to.emit(lifi, 'LiFiTransferStarted')
-                .withArgs(
-                  utils.hexlify(lifiData.transactionId),
-                  'stargate',
-                  '',
-                  lifiData.integrator,
-                  lifiData.referrer,
-                  lifiData.sendingAssetId,
-                  pool[TEST_CHAINS[chain]],
-                  lifiData.receiver,
-                  lifiData.amount,
-                  config[TEST_CHAINS[chain]].chainId,
-                  true,
-                  false
-                )
             })
           })
         }
@@ -453,13 +523,24 @@ describe('StargateFacet', function () {
               dstChainId: config[TEST_CHAINS[SRC_CHAIN]].layerZeroChainId,
               dstPoolId: pool.id,
             }
-
+            const bridgeData = {
+              transactionId: utils.randomBytes(32),
+              bridge: 'polygon',
+              integrator: 'ACME Devs',
+              referrer: ethers.constants.AddressZero,
+              sendingAssetId: usdt.address,
+              receiver: alice.address,
+              minAmount: utils.parseUnits('1000', 6),
+              destinationChainId: SRC_CHAIN,
+              hasSourceSwaps: false,
+              hasDestinationCall: false,
+            }
             await expect(lifi.quoteLayerZeroFee(stargateData)).to.be.reverted
 
             await expect(
               lifi.connect(alice).swapAndStartBridgeTokensViaStargate(
                 {
-                  ...lifiData,
+                  ...bridgeData,
                   destinationChainId: config[TEST_CHAINS[SRC_CHAIN]].chainId,
                 },
                 swapData,
@@ -477,7 +558,19 @@ describe('StargateFacet', function () {
       it('when the destination chain is invalid', async () => {
         const stargateData = {
           ...testStargateData,
-          dstChainId: 99999,
+        }
+
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: utils.parseUnits('1000', 6),
+          destinationChainId: 9999,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(lifi.quoteLayerZeroFee(stargateData)).to.be.reverted
@@ -486,7 +579,7 @@ describe('StargateFacet', function () {
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaStargate(
-              lifiData,
+              bridgeData,
               swapData,
               stargateData,
               {
@@ -502,7 +595,18 @@ describe('StargateFacet', function () {
           ...testStargateData,
           dstPoolId: 99999,
         }
-
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: utils.parseUnits('1000', 6),
+          destinationChainId: SRC_CHAIN,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
         const quoteData = await lifi.quoteLayerZeroFee(stargateData)
         const requiredGasFee = quoteData[0]
 
@@ -510,7 +614,7 @@ describe('StargateFacet', function () {
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaStargate(
-              lifiData,
+              bridgeData,
               swapData,
               stargateData,
               {
@@ -527,11 +631,24 @@ describe('StargateFacet', function () {
         const quoteData = await lifi.quoteLayerZeroFee(stargateData)
         const requiredGasFee = quoteData[0]
 
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: utils.parseUnits('1000', 6),
+          destinationChainId: SRC_CHAIN,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaStargate(
-              lifiData,
+              bridgeData,
               swapData,
               stargateData,
               {
@@ -548,6 +665,19 @@ describe('StargateFacet', function () {
           minAmountLD: utils.parseUnits('1000', 6),
         }
 
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: utils.parseUnits('1000', 6),
+          destinationChainId: SRC_CHAIN,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         const quoteData = await lifi.quoteLayerZeroFee(stargateData)
         const requiredGasFee = quoteData[0]
 
@@ -555,7 +685,7 @@ describe('StargateFacet', function () {
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaStargate(
-              lifiData,
+              bridgeData,
               swapData,
               stargateData,
               {
@@ -574,11 +704,24 @@ describe('StargateFacet', function () {
         const quoteData = await lifi.quoteLayerZeroFee(stargateData)
         const requiredGasFee = quoteData[0]
 
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: utils.parseUnits('1000', 6),
+          destinationChainId: SRC_CHAIN,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaStargate(
-              lifiData,
+              bridgeData,
               swapData,
               stargateData,
               {
@@ -594,12 +737,28 @@ describe('StargateFacet', function () {
   describe('sgReceive function', () => {
     describe('should be reverted to call sgReceive', () => {
       it('when sender is not stargate router', async () => {
+
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: utils.parseUnits('1000', 6),
+          destinationChainId: SRC_CHAIN,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-          Object.values(lifiData),
+          Object.values(bridgeData),
           [],
           POOLS[SRC_ASSET][TEST_CHAINS[SRC_CHAIN]],
           alice.address,
         ])
+
+        
         await expect(
           lifi.sgReceive(
             1,
@@ -616,11 +775,23 @@ describe('StargateFacet', function () {
     describe('completeBridgeTokensViaStargate function', () => {
       describe('should be reverted to process completeBridgeTokensViaStargate', () => {
         it('when call completeBridgeTokensViaStargate directly', async () => {
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'polygon',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: usdt.address,
+            receiver: alice.address,
+            minAmount: utils.parseUnits('1000', 6),
+            destinationChainId: SRC_CHAIN,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
           await expect(
             lifi
               .connect(bob)
               .completeBridgeTokensViaStargate(
-                lifiData,
+                bridgeData,
                 usdt.address,
                 alice.address,
                 utils.parseUnits('1000', 6)
@@ -630,11 +801,23 @@ describe('StargateFacet', function () {
 
         it('when asset id is invalid', async () => {
           const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-            Object.values(lifiData),
+            Object.values(bridgeData),
             [],
             ethers.constants.AddressZero,
             alice.address,
           ])
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'polygon',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: usdt.address,
+            receiver: alice.address,
+            minAmount: utils.parseUnits('1000', 6),
+            destinationChainId: SRC_CHAIN,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
           await expect(
             lifi
               .connect(bob)
@@ -650,8 +833,20 @@ describe('StargateFacet', function () {
         })
 
         it('when token arrived amount is low', async () => {
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'polygon',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: usdt.address,
+            receiver: alice.address,
+            minAmount: utils.parseUnits('1000', 6),
+            destinationChainId: SRC_CHAIN,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
           const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-            Object.values(lifiData),
+            Object.values(bridgeData),
             [],
             WMATIC_ADDRESS,
             alice.address,
@@ -672,8 +867,20 @@ describe('StargateFacet', function () {
       })
 
       it('should be possible to process completeBridgeTokensViaStargate', async () => {
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: utils.parseUnits('1000', 6),
+          destinationChainId: SRC_CHAIN,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
         const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-          Object.values(lifiData),
+          Object.values(bridgeData),
           [],
           POOLS[SRC_ASSET][TEST_CHAINS[SRC_CHAIN]],
           alice.address,
@@ -698,11 +905,23 @@ describe('StargateFacet', function () {
     describe('swapAndCompleteBridgeTokensViaStargate function', () => {
       describe('should be reverted to process swapAndCompleteBridgeTokensViaStargate', () => {
         it('when call swapAndCompleteBridgeTokensViaStargate directly', async () => {
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'polygon',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: usdt.address,
+            receiver: alice.address,
+            minAmount: utils.parseUnits('1000', 6),
+            destinationChainId: SRC_CHAIN,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
           await expect(
             lifi
               .connect(bob)
               .swapAndCompleteBridgeTokensViaStargate(
-                lifiData,
+                bridgeData,
                 payloadSwapData,
                 usdt.address,
                 alice.address
@@ -711,8 +930,20 @@ describe('StargateFacet', function () {
         })
 
         it('when token arrived amount is low', async () => {
+          const bridgeData = {
+            transactionId: utils.randomBytes(32),
+            bridge: 'polygon',
+            integrator: 'ACME Devs',
+            referrer: ethers.constants.AddressZero,
+            sendingAssetId: usdt.address,
+            receiver: alice.address,
+            minAmount: utils.parseUnits('1000', 6),
+            destinationChainId: SRC_CHAIN,
+            hasSourceSwaps: false,
+            hasDestinationCall: false,
+          }
           const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-            Object.values(lifiData),
+            Object.values(bridgeData),
             payloadSwapData.map((data: any) => Object.values(data)),
             ethers.constants.AddressZero,
             alice.address,
@@ -733,8 +964,20 @@ describe('StargateFacet', function () {
       })
 
       it('should be possible to process swapAndCompleteBridgeTokensViaStargate', async () => {
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: usdt.address,
+          receiver: alice.address,
+          minAmount: utils.parseUnits('1000', 6),
+          destinationChainId: SRC_CHAIN,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
         const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-          Object.values(lifiData),
+          Object.values(bridgeData),
           payloadSwapData.map((data: any) => Object.values(data)),
           ethers.constants.AddressZero,
           alice.address,

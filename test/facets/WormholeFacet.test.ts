@@ -6,7 +6,7 @@ import {
   DexManagerFacet,
 } from '../../typechain'
 import { deployments, network } from 'hardhat'
-import { constants, utils } from 'ethers'
+import { constants, ethers, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
@@ -19,7 +19,7 @@ const WORMHOLE_ROUTER = '0x5a58505a96D1dbf8dF91cB21B54419FC36e93fdE'
 describe('WormholeFacet', function () {
   let lifi: WormholeFacet
   let alice: SignerWithAddress
-  let lifiData: any
+  let bridgeData: any
   let usdt: ERC20
   let dexMgr: DexManagerFacet
   let wmatic: ERC20
@@ -56,16 +56,6 @@ describe('WormholeFacet', function () {
       wmatic = ERC20__factory.connect(WMATIC_ADDRESS, alice)
       usdt = ERC20__factory.connect(USDT_ADDRESS, alice)
 
-      lifiData = {
-        transactionId: utils.randomBytes(32),
-        integrator: 'ACME Devs',
-        referrer: constants.AddressZero,
-        sendingAssetId: usdt.address,
-        receivingAssetId: usdt.address,
-        receiver: alice.address,
-        destinationChainId: 137,
-        amount: utils.parseEther('1.006'),
-      }
       await usdt.approve(lifi.address, utils.parseUnits('1000', 6))
       // Gnosis
       await lifi.setWormholeChainId(100, 25)
@@ -94,18 +84,29 @@ describe('WormholeFacet', function () {
   })
 
   it('starts a bridge transaction on the sending chain', async () => {
+
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'portal',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: usdt.address,
+      receiver: alice.address,
+      minAmount: utils.parseUnits('1000', 6),
+      destinationChainId: 100,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
+    
     const WormholeData = {
       wormholeRouter: WORMHOLE_ROUTER,
-      token: usdt.address,
-      amount: utils.parseUnits('1000', 6),
-      recipient: alice.address,
-      toChainId: 100,
       arbiterFee: 0,
       nonce: 342,
     }
+
     await lifi
       .connect(alice)
-      .startBridgeTokensViaWormhole(lifiData, WormholeData, {
+      .startBridgeTokensViaWormhole(bridgeData, WormholeData, {
         gasLimit: 500000,
       })
   })
@@ -113,6 +114,19 @@ describe('WormholeFacet', function () {
   it('performs a swap then starts bridge transaction on the sending chain', async () => {
     const to = lifi.address // should be a checksummed recipient address
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
+
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'portal',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: usdt.address,
+      receiver: alice.address,
+      minAmount: utils.parseUnits('1000', 6),
+      destinationChainId: 100,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
 
     const iface = new utils.Interface([
       'function swapETHForExactTokens(uint,address[],address,uint256)',
@@ -134,22 +148,19 @@ describe('WormholeFacet', function () {
         receivingAssetId: usdt.address,
         fromAmount: utils.parseEther('700'),
         callData: uniswapData,
+        requiresDeposit: false
       },
     ]
 
     const WormholeData = {
       wormholeRouter: WORMHOLE_ROUTER,
-      token: usdt.address,
-      amount: utils.parseUnits('1000', 6),
-      recipient: alice.address,
-      toChainId: 100,
       arbiterFee: 0,
       nonce: 221,
     }
 
     await lifi
       .connect(alice)
-      .swapAndStartBridgeTokensViaWormhole(lifiData, swapData, WormholeData, {
+      .swapAndStartBridgeTokensViaWormhole(bridgeData, swapData, WormholeData, {
         gasLimit: 500000,
         value: utils.parseEther('700'),
       })
