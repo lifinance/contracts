@@ -160,6 +160,15 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (msg.sender != _bridgeData.receiver) {
             revert InvalidReceiver();
         }
-        IArbitrumInbox(_bridgeData.inbox).depositEth{ value: amount + cost }();
+        inbox.createRetryableTicketNoRefundAliasRewrite{ value: amount + cost }(
+            _bridgeData.receiver,
+            amount, // l2CallValue
+            _bridgeData.maxSubmissionCost,
+            _bridgeData.receiver, // excessFeeRefundAddress
+            _bridgeData.receiver, // callValueRefundAddress
+            _bridgeData.maxGas,
+            _bridgeData.maxGasPrice,
+            ""
+        );
     }
 }
