@@ -43,7 +43,7 @@ contract DexManagerFacet {
         }
         uint256 length = _dexs.length;
 
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length; ) {
             address dex = _dexs[i];
             if (dex == address(this)) {
                 revert CannotAuthoriseSelf();
@@ -51,6 +51,9 @@ contract DexManagerFacet {
             if (LibAllowList.contractIsAllowed(dex)) continue;
             LibAllowList.addAllowedContract(dex);
             emit DexAdded(dex);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -60,7 +63,6 @@ contract DexManagerFacet {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-
         LibAllowList.removeAllowedContract(_dex);
         emit DexRemoved(_dex);
     }
@@ -71,11 +73,13 @@ contract DexManagerFacet {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
-
         uint256 length = _dexs.length;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length; ) {
             LibAllowList.removeAllowedContract(_dexs[i]);
             emit DexRemoved(_dexs[i]);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -104,7 +108,7 @@ contract DexManagerFacet {
             LibAccess.enforceAccessControl();
         }
         uint256 length = _signatures.length;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length; ) {
             bytes4 _signature = _signatures[i];
             if (_approval) {
                 LibAllowList.addAllowedSelector(_signature);
@@ -112,6 +116,9 @@ contract DexManagerFacet {
                 LibAllowList.removeAllowedSelector(_signature);
             }
             emit FunctionSignatureApprovalChanged(_signature, _approval);
+            unchecked {
+                ++i;
+            }
         }
     }
 

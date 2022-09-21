@@ -7,7 +7,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
-import { InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
+import { InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 
 /// @title Hyphen Facet
 /// @author LI.FI (https://li.fi)
@@ -26,6 +26,8 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 toChainId;
         address router;
     }
+
+    /// External Methods ///
 
     /// @notice Bridges tokens via Hyphen
     /// @param _lifiData data used purely for tracking and analytics

@@ -10,4 +10,11 @@ interface IWormholeRouter {
         uint256 arbiterFee,
         uint32 nonce
     ) external;
+
+    function wrapAndTransferETH(
+        uint16 recipientChain,
+        bytes32 recipient,
+        uint256 arbiterFee,
+        uint32 nonce
+    ) external payable returns (uint64 sequence);
 }
