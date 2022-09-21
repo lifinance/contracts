@@ -76,6 +76,10 @@ describe('WormholeFacet', function () {
         amount: utils.parseEther('1.006'),
       }
       await usdt.approve(lifi.address, utils.parseUnits('1000', 6))
+      // Gnosis
+      await lifi.setWormholeChainId(100, 25)
+      // Assigning Hardhat to eth mainnet
+      await lifi.setWormholeChainId(1337, 2)
     }
   )
 
