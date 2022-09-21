@@ -121,7 +121,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
 
         if (LibAsset.isNativeAsset(_wormholeData.assetId)) {
             router.wrapAndTransferETH{ value: _wormholeData.amount }(
-                _wormholeData.toChainId,
+                toWormholeChainId,
                 bytes32(uint256(uint160(_wormholeData.receiver))),
                 _wormholeData.arbiterFee,
                 _wormholeData.nonce
@@ -130,7 +130,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
             router.transferTokens(
                 _wormholeData.assetId,
                 _wormholeData.amount,
-                _wormholeData.toChainId,
+                toWormholeChainId,
                 bytes32(uint256(uint160(_wormholeData.receiver))),
                 _wormholeData.arbiterFee,
                 _wormholeData.nonce

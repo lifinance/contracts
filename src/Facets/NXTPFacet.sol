@@ -66,22 +66,6 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
         _startBridge(_lifiData, _nxtpData, true);
     }
 
-    /// @notice Completes a cross-chain transaction on the receiving chain using the NXTP protocol.
-    /// @param _lifiData data used purely for tracking and analytics
-    /// @param assetId token received on the receiving chain
-    /// @param receiver address that will receive the tokens
-    /// @param amount number of tokens received
-    function completeBridgeTokensViaNXTP(
-        LiFiData calldata _lifiData,
-        address assetId,
-        address receiver,
-        uint256 amount
-    ) external payable nonReentrant {
-        LibAsset.depositAsset(assetId, amount);
-        LibAsset.transferAsset(assetId, payable(receiver), amount);
-        emit LiFiTransferCompleted(_lifiData.transactionId, assetId, receiver, amount, block.timestamp);
-    }
-
     /// @notice Performs a swap before completing a cross-chain transaction
     ///         on the receiving chain using the NXTP protocol.
     /// @param _lifiData data used purely for tracking and analytics
