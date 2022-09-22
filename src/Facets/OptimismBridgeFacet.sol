@@ -7,11 +7,12 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Optimism Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Optimism Bridge
-contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Types ///
 
     struct OptimismData {
@@ -29,11 +30,7 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     function startBridgeTokensViaOptimismBridge(
         ILiFi.BridgeData memory _bridgeData,
         OptimismData calldata _optimismData
-    ) external payable nonReentrant {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
-
+    ) external payable validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _optimismData, _bridgeData.minAmount, false);
     }
@@ -46,10 +43,7 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         OptimismData calldata _optimismData
-    ) external payable nonReentrant {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
+    ) external payable validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         uint256 amount = _executeAndCheckSwaps(
             _bridgeData.transactionId,

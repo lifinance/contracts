@@ -9,11 +9,12 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Across Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
-contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
+contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @param weth The contract address of the WETH token on the current chain.
@@ -36,6 +37,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     function startBridgeTokensViaAcross(ILiFi.BridgeData memory _bridgeData, AcrossData calldata _acrossData)
         external
         payable
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
@@ -50,7 +52,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         AcrossData memory _acrossData
-    ) external payable nonReentrant {
+    ) external payable validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,

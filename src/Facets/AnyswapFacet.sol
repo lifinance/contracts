@@ -8,11 +8,12 @@ import { IAnyswapToken } from "../Interfaces/IAnyswapToken.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { TokenAddressIsZero, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Anyswap Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Multichain (Prev. AnySwap)
-contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Types ///
 
     struct AnyswapData {
@@ -27,6 +28,7 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
     function startBridgeTokensViaAnyswap(ILiFi.BridgeData memory _bridgeData, AnyswapData calldata _anyswapData)
         external
         payable
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
         // Multichain (formerly Anyswap) tokens can wrap other tokens
@@ -43,8 +45,7 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         AnyswapData memory _anyswapData
-    ) external payable nonReentrant {
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) revert TokenAddressIsZero();
+    ) external payable validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,

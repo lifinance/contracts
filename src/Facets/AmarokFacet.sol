@@ -5,13 +5,14 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IConnextHandler } from "../Interfaces/IConnextHandler.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidReceiver, InvalidAmount, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
+import { InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Amarok Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Connext Amarok
-contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     uint32 immutable srcChainDomain;
 
     /// Types ///
@@ -41,15 +42,10 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
     function startBridgeTokensViaAmarok(BridgeData calldata _bridgeData, AmarokData calldata _amarokData)
         external
         payable
+        validateBridgeData(_bridgeData)
+        noNativeAsset(_bridgeData)
         nonReentrant
     {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
-        if (_bridgeData.sendingAssetId == address(0)) {
-            revert TokenAddressIsZero();
-        }
-
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _amarokData, _bridgeData.minAmount, false);
     }
@@ -62,13 +58,7 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
         BridgeData calldata _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         AmarokData calldata _amarokData
-    ) external payable nonReentrant {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
-        if (_bridgeData.sendingAssetId == address(0)) {
-            revert TokenAddressIsZero();
-        }
+    ) external payable validateBridgeData(_bridgeData) noNativeAsset(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         uint256 amount = _executeAndCheckSwaps(
             _bridgeData.transactionId,

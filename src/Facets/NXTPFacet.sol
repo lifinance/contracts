@@ -8,11 +8,12 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { InvalidReceiver, InvalidFallbackAddress } from "../Errors/GenericErrors.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title NXTP (Connext) Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through NXTP (Connext)
-contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Errors ///
     error InvariantDataMismatch();
 
@@ -35,6 +36,7 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
     function startBridgeTokensViaNXTP(ILiFi.BridgeData memory _bridgeData, NXTPData calldata _nxtpData)
         external
         payable
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
         validateInvariantData(_nxtpData.invariantData, _bridgeData);
@@ -51,7 +53,7 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         NXTPData calldata _nxtpData
-    ) external payable nonReentrant {
+    ) external payable validateBridgeData(_bridgeData) nonReentrant {
         validateInvariantData(_nxtpData.invariantData, _bridgeData);
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(

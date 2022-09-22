@@ -8,11 +8,12 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Hyphen Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hyphen
-contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Types ///
 
     /// @param token The contract address of the token being bridged.
@@ -31,15 +32,9 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
     function startBridgeTokensViaHyphen(ILiFi.BridgeData memory _bridgeData, HyphenData calldata _hyphenData)
         external
         payable
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
-        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
-            revert InvalidReceiver();
-        }
-        if (_bridgeData.minAmount == 0) {
-            revert InvalidAmount();
-        }
-
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _hyphenData, false);
     }
@@ -52,10 +47,7 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         HyphenData memory _hyphenData
-    ) external payable nonReentrant {
-        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
-            revert InvalidReceiver();
-        }
+    ) external payable validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,

@@ -7,11 +7,12 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Polygon Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Polygon Bridge
-contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     uint64 internal constant POLYGON_CHAIN_ID = 137;
 
     /// Types ///
@@ -29,12 +30,9 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     function startBridgeTokensViaPolygonBridge(ILiFi.BridgeData memory _bridgeData, PolygonData calldata _polygonData)
         external
         payable
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
-
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _polygonData, false);
     }
@@ -47,10 +45,7 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         PolygonData calldata _polygonData
-    ) external payable nonReentrant {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
+    ) external payable validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,

@@ -7,11 +7,12 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title OmniBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through OmniBridge
-contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Types ///
 
     uint64 internal constant GNOSIS_CHAIN_ID = 100;
@@ -28,11 +29,9 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     function startBridgeTokensViaOmniBridge(ILiFi.BridgeData memory _bridgeData, OmniData calldata _omniData)
         external
         payable
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _omniData, _bridgeData.minAmount, false);
     }
@@ -45,10 +44,7 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         OmniData calldata _omniData
-    ) external payable nonReentrant {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
+    ) external payable validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         uint256 amount = _executeAndCheckSwaps(
             _bridgeData.transactionId,

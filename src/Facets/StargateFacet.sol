@@ -9,11 +9,12 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidConfig, InvalidCaller, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { LibMappings } from "../Libraries/LibMappings.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Stargate Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate
-contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.stargate");
@@ -65,14 +66,10 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     function startBridgeTokensViaStargate(ILiFi.BridgeData memory _bridgeData, StargateData calldata _stargateData)
         external
         payable
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            revert TokenAddressIsZero();
-        }
-
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-
         _startBridge(_bridgeData, _stargateData, msg.value, false);
     }
 
@@ -84,7 +81,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         StargateData calldata _stargateData
-    ) external payable nonReentrant {
+    ) external payable validateBridgeData(_bridgeData) noNativeAsset(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -213,10 +210,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
         StargateData calldata _stargateData,
         uint256 _nativeFee,
         bool _hasSourceSwap
-    ) private {
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            revert TokenAddressIsZero();
-        }
+    ) private noNativeAsset(_bridgeData) {
         LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _stargateData.router, _bridgeData.minAmount);
 
         IStargateRouter(_stargateData.router).swap{ value: _nativeFee }(

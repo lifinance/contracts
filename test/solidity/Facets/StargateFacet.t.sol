@@ -37,7 +37,7 @@ contract StargateFacetTest is DSTest, DiamondTest {
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = vm.envUint("FORK_NUMBER");
+        uint256 blockNumber = 15588208;
         vm.createSelectFork(rpcUrl, blockNumber);
     }
 
@@ -65,6 +65,7 @@ contract StargateFacetTest is DSTest, DiamondTest {
 
     function testCanGetFees() public {
         vm.startPrank(USDC_HOLDER);
+        console.log(block.number);
         StargateFacet.StargateData memory stargateData = StargateFacet.StargateData(
             MAINNET_ROUTER,
             2,
@@ -79,6 +80,7 @@ contract StargateFacetTest is DSTest, DiamondTest {
     function testCanBridgeERC20Tokens() public {
         vm.startPrank(USDC_HOLDER);
         usdc.approve(address(stargate), 10_000 * 10**usdc.decimals());
+
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
             "",
             "stargate",
@@ -97,9 +99,11 @@ contract StargateFacetTest is DSTest, DiamondTest {
             9,
             0,
             abi.encodePacked(address(0)),
-            '0x'
+            "0x"
         );
-        stargate.startBridgeTokensViaStargate(bridgeData, data);
+
+        (uint256 fees, ) = stargate.quoteLayerZeroFee(137, data);
+        stargate.startBridgeTokensViaStargate{ value: fees }(bridgeData, data);
         vm.stopPrank();
     }
 }

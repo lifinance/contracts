@@ -12,11 +12,12 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, CannotBridgeToSameNetwork, InvalidConfig, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Wormhole Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Wormhole
-contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
+contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.wormhole");
 
     /// Events ///
@@ -51,6 +52,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     function startBridgeTokensViaWormhole(ILiFi.BridgeData memory _bridgeData, WormholeData calldata _wormholeData)
         external
         payable
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
@@ -65,7 +67,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         WormholeData calldata _wormholeData
-    ) external payable nonReentrant {
+    ) external payable validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,

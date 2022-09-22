@@ -8,11 +8,12 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidReceiver, InvalidFee } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { IArbitrumInbox } from "../Interfaces/IArbitrumInbox.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Arbitrum Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Arbitrum Bridge
-contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Types ///
     uint64 internal constant ARB_CHAIN_ID = 42161;
 
@@ -33,11 +34,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     function startBridgeTokensViaArbitrumBridge(
         ILiFi.BridgeData memory _bridgeData,
         ArbitrumData calldata _arbitrumData
-    ) external payable nonReentrant {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
-
+    ) external payable validateBridgeData(_bridgeData) nonReentrant {
         uint256 cost = _arbitrumData.maxSubmissionCost + _arbitrumData.maxGas * _arbitrumData.maxGasPrice;
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _arbitrumData, _bridgeData.minAmount, cost, false);
@@ -51,10 +48,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         ArbitrumData calldata _arbitrumData
-    ) external payable nonReentrant {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
+    ) external payable validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         uint256 amount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -80,7 +74,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         uint256 _amount,
         uint256 _cost,
         bool _hasSourceSwap
-    ) private {
+    ) private validateBridgeData(_bridgeData) {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             if (msg.sender != _bridgeData.receiver) {
                 revert InvalidReceiver();

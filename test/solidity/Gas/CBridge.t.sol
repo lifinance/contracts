@@ -14,9 +14,6 @@ contract CBridgeGasTest is DSTest, DiamondTest {
     address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
 
-    ILiFi.BridgeData internal lifiData =
-        ILiFi.BridgeData("", "", "", address(0), address(0), address(0), 0, 0, false, false);
-
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     ICBridge internal immutable cBridgeRouter = ICBridge(CBRIDGE_ROUTER);
     LiFiDiamond internal diamond;
@@ -75,7 +72,7 @@ contract CBridgeGasTest is DSTest, DiamondTest {
 
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(CBRIDGE_ROUTER, 5000, 1);
 
-        cBridge.startBridgeTokensViaCBridge(lifiData, data);
+        cBridge.startBridgeTokensViaCBridge(bridgeData, data);
         vm.stopPrank();
     }
 }

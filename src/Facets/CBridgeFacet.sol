@@ -9,11 +9,12 @@ import { CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title CBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
-contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Types ///
 
     struct CBridgeData {
@@ -31,14 +32,8 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         external
         payable
         nonReentrant
+        validateBridgeData(_bridgeData)
     {
-        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
-            revert InvalidReceiver();
-        }
-        if (_bridgeData.minAmount == 0) {
-            revert InvalidAmount();
-        }
-
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _cBridgeData, false);
     }
@@ -51,10 +46,7 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         CBridgeData memory _cBridgeData
-    ) external payable nonReentrant {
-        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
-            revert InvalidReceiver();
-        }
+    ) external payable validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,

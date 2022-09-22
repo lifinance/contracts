@@ -8,11 +8,12 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { CannotBridgeToSameNetwork, NativeValueWithERC, InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Hop Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Types ///
     struct HopData {
         address bridge;
@@ -31,15 +32,9 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
     function startBridgeTokensViaHop(ILiFi.BridgeData memory _bridgeData, HopData calldata _hopData)
         external
         payable
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
-        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
-            revert InvalidReceiver();
-        }
-        if (_bridgeData.minAmount == 0) {
-            revert InvalidAmount();
-        }
-
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _hopData, false);
     }
@@ -52,10 +47,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         HopData memory _hopData
-    ) external payable nonReentrant {
-        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
-            revert InvalidReceiver();
-        }
+    ) external payable validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         if (!LibAsset.isNativeAsset(address(_bridgeData.sendingAssetId)) && msg.value != 0) revert NativeValueWithERC();
         _bridgeData.minAmount = _executeAndCheckSwaps(

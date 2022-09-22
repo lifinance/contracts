@@ -9,11 +9,12 @@ import { InvalidAmount } from "../Errors/GenericErrors.sol";
 import { InvalidAmount, InvalidSendingToken, InvalidDestinationChain, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Gnosis Bridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through XDaiBridge
-contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Storage ///
 
     address internal constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
@@ -33,21 +34,11 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
     function startBridgeTokensViaXDaiBridge(ILiFi.BridgeData memory _bridgeData, GnosisData calldata _gnosisData)
         external
         payable
+        validateBridgeData(_bridgeData)
+        onlyAllowDestinationChain(_bridgeData, GNOSIS_CHAIN_ID)
+        onlyAllowSourceToken(_bridgeData, DAI)
         nonReentrant
     {
-        if (_bridgeData.destinationChainId != GNOSIS_CHAIN_ID) {
-            revert InvalidDestinationChain();
-        }
-        if (_bridgeData.sendingAssetId != DAI) {
-            revert InvalidSendingToken();
-        }
-        if (_bridgeData.minAmount == 0) {
-            revert InvalidAmount();
-        }
-        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
-            revert InvalidReceiver();
-        }
-
         LibAsset.depositAsset(DAI, _bridgeData.minAmount);
         _startBridge(_bridgeData, _gnosisData, false);
     }
@@ -60,15 +51,16 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         GnosisData memory _gnosisData
-    ) external payable nonReentrant {
-        if (_bridgeData.destinationChainId != GNOSIS_CHAIN_ID) {
-            revert InvalidDestinationChain();
-        }
-        if (_bridgeData.sendingAssetId != DAI || _swapData[_swapData.length - 1].receivingAssetId != DAI) {
+    )
+        external
+        payable
+        validateBridgeData(_bridgeData)
+        onlyAllowDestinationChain(_bridgeData, GNOSIS_CHAIN_ID)
+        onlyAllowSourceToken(_bridgeData, DAI)
+        nonReentrant
+    {
+        if (_swapData[_swapData.length - 1].receivingAssetId != DAI) {
             revert InvalidSendingToken();
-        }
-        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
-            revert InvalidReceiver();
         }
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
