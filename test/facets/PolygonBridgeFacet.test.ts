@@ -154,7 +154,7 @@ describe('PolygonBridgeFacet', function () {
           hasSourceSwaps: false,
           hasDestinationCall: false,
         }
-        
+
         await expect(
           lifi
             .connect(alice)
@@ -180,7 +180,7 @@ describe('PolygonBridgeFacet', function () {
           hasSourceSwaps: false,
           hasDestinationCall: false,
         }
-        
+
         await expect(
           lifi
             .connect(alice)
@@ -263,8 +263,7 @@ describe('PolygonBridgeFacet', function () {
             .startBridgeTokensViaPolygonBridge(bridgeData, validPolygonData, {
               gasLimit: 500000,
             })
-        )
-          .to.emit(lifi, 'LiFiTransferStarted')
+        ).to.emit(lifi, 'LiFiTransferStarted')
       })
 
       it('when transfer native asset', async function () {
@@ -281,7 +280,7 @@ describe('PolygonBridgeFacet', function () {
           referrer: ethers.constants.AddressZero,
           sendingAssetId: ZERO_ADDRESS,
           receiver: alice.address,
-          minAmount:  utils.parseEther('10'),
+          minAmount: utils.parseEther('10'),
           destinationChainId: 137,
           hasSourceSwaps: false,
           hasDestinationCall: false,
@@ -294,8 +293,7 @@ describe('PolygonBridgeFacet', function () {
               gasLimit: 500000,
               value: utils.parseEther('10'),
             })
-        )
-          .to.emit(lifi, 'LiFiTransferStarted')
+        ).to.emit(lifi, 'LiFiTransferStarted')
       })
     })
   })
@@ -362,18 +360,18 @@ describe('PolygonBridgeFacet', function () {
 
       it('when the dex is not approved', async function () {
         await dexMgr.removeDex(UNISWAP_ADDRESS)
-      const bridgeData = {
-        transactionId: utils.randomBytes(32),
-        bridge: 'polygon',
-        integrator: 'ACME Devs',
-        referrer: ethers.constants.AddressZero,
-        sendingAssetId: DAI_ADDRESS,
-        receiver: alice.address,
-        minAmount: SEND_AMOUNT,
-        destinationChainId: 137,
-        hasSourceSwaps: false,
-        hasDestinationCall: false,
-      }
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 137,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
         await expect(
           lifi
             .connect(alice)

@@ -8,6 +8,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidConfig, InvalidCaller, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { LibMappings } from "../Libraries/LibMappings.sol";
 
 /// @title Stargate Facet
 /// @author Li.Finance (https://li.finance)
@@ -24,10 +25,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     struct StargateData {
         address router;
-        uint16 dstChainId;
-        uint256 srcPoolId;
         uint256 dstPoolId;
-        uint256 amountLD;
         uint256 minAmountLD;
         uint256 dstGasForCall;
         bytes callTo;
@@ -35,11 +33,14 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     }
 
     /// Errors ///
-
+    error UnknownStargatePool();
+    error UnknownLayerZeroChain();
     error InvalidStargateRouter();
 
     /// Events ///
 
+    event StargatePoolIdSet(address indexed token, uint256 poolId);
+    event LayerZeroChainIdSet(uint256 indexed chainId, uint16 layerZeroChainId);
     event StargateInitialized(address stargateRouter);
 
     /// Init ///
@@ -66,13 +67,11 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
         payable
         nonReentrant
     {
-        address token = getTokenFromPoolId(_stargateData.router, _stargateData.srcPoolId);
-
-        if (token == address(0)) {
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             revert TokenAddressIsZero();
         }
 
-        LibAsset.depositAsset(token, _stargateData.amountLD);
+        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
 
         _startBridge(_bridgeData, _stargateData, msg.value, false);
     }
@@ -84,10 +83,10 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     function swapAndStartBridgeTokensViaStargate(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        StargateData memory _stargateData
+        StargateData calldata _stargateData
     ) external payable nonReentrant {
         LibAsset.depositAssets(_swapData);
-        _stargateData.amountLD = _executeAndCheckSwaps(
+        _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
@@ -187,28 +186,22 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
         emit LiFiTransferCompleted(_bridgeData.transactionId, _finalAssetId, _receiver, swapBalance, block.timestamp);
     }
 
-    function quoteLayerZeroFee(StargateData calldata _stargateData) external view returns (uint256, uint256) {
+    function quoteLayerZeroFee(uint256 _destinationChainId, StargateData calldata _stargateData)
+        external
+        view
+        returns (uint256, uint256)
+    {
         return
             IStargateRouter(_stargateData.router).quoteLayerZeroFee(
-                _stargateData.dstChainId,
+                getLayerZeroChainId(_destinationChainId),
                 1, // TYPE_SWAP_REMOTE on Bridge
                 _stargateData.callTo,
                 _stargateData.callData,
-                IStargateRouter.lzTxObj(_stargateData.dstGasForCall, 0, "0x")
+                IStargateRouter.lzTxObj(_stargateData.dstGasForCall, 0, "")
             );
     }
 
     /// Private Methods ///
-
-    /// @notice Returns token address from poolId
-    /// @dev Get token address which registered on router's factory
-    /// @param _router Stargate Bridge router address
-    /// @param _poolId PoolId of token
-    function getTokenFromPoolId(address _router, uint256 _poolId) private view returns (address) {
-        address factory = IStargateRouter(_router).factory();
-        address pool = IFactory(factory).getPool(_poolId);
-        return IPool(pool).token();
-    }
 
     /// @dev Contains the business logic for the bridge via Stargate Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
@@ -217,24 +210,21 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
     /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        StargateData memory _stargateData,
+        StargateData calldata _stargateData,
         uint256 _nativeFee,
         bool _hasSourceSwap
     ) private {
-        address token = getTokenFromPoolId(_stargateData.router, _stargateData.srcPoolId);
-
-        if (token == address(0)) {
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             revert TokenAddressIsZero();
         }
-
-        LibAsset.maxApproveERC20(IERC20(token), _stargateData.router, _stargateData.amountLD);
+        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _stargateData.router, _bridgeData.minAmount);
 
         IStargateRouter(_stargateData.router).swap{ value: _nativeFee }(
-            _stargateData.dstChainId,
-            _stargateData.srcPoolId,
+            getLayerZeroChainId(_bridgeData.destinationChainId),
+            getStargatePoolId(_bridgeData.sendingAssetId),
             _stargateData.dstPoolId,
             payable(msg.sender),
-            _stargateData.amountLD,
+            _bridgeData.minAmount,
             _stargateData.minAmountLD,
             IStargateRouter.lzTxObj(_stargateData.dstGasForCall, 0, "0x"),
             _stargateData.callTo,
@@ -251,5 +241,48 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
         assembly {
             s.slot := namespace
         }
+    }
+
+    /// Mappings management ///
+
+    /// @notice Sets the Stargate pool ID for a given token
+    /// @param _token address of the token
+    /// @param _poolId uint16 of the Stargate pool ID
+    function setStargatePoolId(address _token, uint16 _poolId) external {
+        LibDiamond.enforceIsContractOwner();
+        LibMappings.StargateMappings storage sm = LibMappings.getStargateMappings();
+        sm.stargatePoolId[_token] = _poolId;
+        emit StargatePoolIdSet(_token, _poolId);
+    }
+
+    /// @notice Sets the Layer 0 chain ID for a given chain ID
+    /// @param _chainId uint16 of the chain ID
+    /// @param _layerZeroChainId uint16 of the Layer 0 chain ID
+    /// @dev This is used to map a chain ID to its Layer 0 chain ID
+    function setLayerZeroChainId(uint256 _chainId, uint16 _layerZeroChainId) external {
+        LibDiamond.enforceIsContractOwner();
+        LibMappings.StargateMappings storage sm = LibMappings.getStargateMappings();
+        sm.layerZeroChainId[_chainId] = _layerZeroChainId;
+        emit LayerZeroChainIdSet(_chainId, _layerZeroChainId);
+    }
+
+    /// @notice Gets the Stargate pool ID for a given token
+    /// @param _token address of the token
+    /// @return uint256 of the Stargate pool ID
+    function getStargatePoolId(address _token) private view returns (uint16) {
+        LibMappings.StargateMappings storage sm = LibMappings.getStargateMappings();
+        uint16 poolId = sm.stargatePoolId[_token];
+        if (poolId == 0) revert UnknownStargatePool();
+        return poolId;
+    }
+
+    /// @notice Gets the Layer 0 chain ID for a given chain ID
+    /// @param _chainId uint256 of the chain ID
+    /// @return uint16 of the Layer 0 chain ID
+    function getLayerZeroChainId(uint256 _chainId) private view returns (uint16) {
+        LibMappings.StargateMappings storage sm = LibMappings.getStargateMappings();
+        uint16 chainId = sm.layerZeroChainId[_chainId];
+        if (chainId == 0) revert UnknownLayerZeroChain();
+        return chainId;
     }
 }

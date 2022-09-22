@@ -84,7 +84,6 @@ describe('WormholeFacet', function () {
   })
 
   it('starts a bridge transaction on the sending chain', async () => {
-
     const bridgeData = {
       transactionId: utils.randomBytes(32),
       bridge: 'portal',
@@ -97,7 +96,7 @@ describe('WormholeFacet', function () {
       hasSourceSwaps: false,
       hasDestinationCall: false,
     }
-    
+
     const WormholeData = {
       wormholeRouter: WORMHOLE_ROUTER,
       arbiterFee: 0,
@@ -148,7 +147,7 @@ describe('WormholeFacet', function () {
         receivingAssetId: usdt.address,
         fromAmount: utils.parseEther('700'),
         callData: uniswapData,
-        requiresDeposit: false
+        requiresDeposit: false,
       },
     ]
 
