@@ -77,7 +77,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             WHALE,
             10_000 * 10**usdc.decimals(),
             100,
-            true,
+            false,
             false
         );
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(CBRIDGE_ROUTER, 5000, 1);

@@ -66,7 +66,7 @@ contract CBridgeGasTest is DSTest, DiamondTest {
             WHALE,
             amount,
             100,
-            true,
+            false,
             false
         );
 
