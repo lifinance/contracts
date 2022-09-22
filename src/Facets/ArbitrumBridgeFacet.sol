@@ -34,10 +34,10 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaArbitrumBridge(
         ILiFi.BridgeData memory _bridgeData,
         ArbitrumData calldata _arbitrumData
-    ) external payable validateBridgeData(_bridgeData) nonReentrant {
+    ) external payable doesNotContainSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         uint256 cost = _arbitrumData.maxSubmissionCost + _arbitrumData.maxGas * _arbitrumData.maxGasPrice;
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _arbitrumData, _bridgeData.minAmount, cost, false);
+        _startBridge(_bridgeData, _arbitrumData, _bridgeData.minAmount, cost);
     }
 
     /// @notice Performs a swap before bridging via Arbitrum Bridge
@@ -48,7 +48,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         ArbitrumData calldata _arbitrumData
-    ) external payable validateBridgeData(_bridgeData) nonReentrant {
+    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         uint256 amount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -57,7 +57,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             payable(msg.sender)
         );
         uint256 cost = _arbitrumData.maxSubmissionCost + _arbitrumData.maxGas * _arbitrumData.maxGasPrice;
-        _startBridge(_bridgeData, _arbitrumData, amount, cost, true);
+        _startBridge(_bridgeData, _arbitrumData, amount, cost);
     }
 
     /// Private Methods ///
@@ -67,13 +67,11 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @param _arbitrumData Data for gateway router address, asset id and amount
     /// @param _amount Amount to bridge
     /// @param _cost Additional amount of native asset for the fee
-    /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         ArbitrumData calldata _arbitrumData,
         uint256 _amount,
-        uint256 _cost,
-        bool _hasSourceSwap
+        uint256 _cost
     ) private validateBridgeData(_bridgeData) {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             if (msg.sender != _bridgeData.receiver) {

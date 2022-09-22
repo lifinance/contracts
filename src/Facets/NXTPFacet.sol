@@ -36,12 +36,13 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaNXTP(ILiFi.BridgeData memory _bridgeData, NXTPData calldata _nxtpData)
         external
         payable
+        doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
     {
         validateInvariantData(_nxtpData.invariantData, _bridgeData);
         LibAsset.depositAsset(_nxtpData.invariantData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _nxtpData, true);
+        _startBridge(_bridgeData, _nxtpData);
     }
 
     /// @notice This function performs a swap or multiple swaps and then starts a cross-chain transaction
@@ -53,7 +54,7 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         NXTPData calldata _nxtpData
-    ) external payable validateBridgeData(_bridgeData) nonReentrant {
+    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         validateInvariantData(_nxtpData.invariantData, _bridgeData);
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
@@ -62,7 +63,7 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _nxtpData, true);
+        _startBridge(_bridgeData, _nxtpData);
     }
 
     /// @notice Completes a cross-chain transaction on the receiving chain using the NXTP protocol.
@@ -108,12 +109,7 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @dev Contains the business logic for the bridge via NXTP
     /// @param _bridgeData the core information needed for bridging
     /// @param _nxtpData data specific to NXTP
-    /// @param _hasSourceSwaps whether or not the bridge has source swaps
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        NXTPData memory _nxtpData,
-        bool _hasSourceSwaps
-    ) private {
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, NXTPData memory _nxtpData) private {
         ITransactionManager txManager = ITransactionManager(_nxtpData.nxtpTxManager);
         IERC20 sendingAssetId = IERC20(_nxtpData.invariantData.sendingAssetId);
         // Give Connext approval to bridge tokens

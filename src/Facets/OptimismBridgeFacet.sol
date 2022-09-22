@@ -30,9 +30,9 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaOptimismBridge(
         ILiFi.BridgeData memory _bridgeData,
         OptimismData calldata _optimismData
-    ) external payable validateBridgeData(_bridgeData) nonReentrant {
+    ) external payable doesNotContainSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _optimismData, _bridgeData.minAmount, false);
+        _startBridge(_bridgeData, _optimismData, _bridgeData.minAmount);
     }
 
     /// @notice Performs a swap before bridging via Optimism Bridge
@@ -43,7 +43,7 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         OptimismData calldata _optimismData
-    ) external payable validateBridgeData(_bridgeData) nonReentrant {
+    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         uint256 amount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -51,7 +51,7 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _optimismData, amount, true);
+        _startBridge(_bridgeData, _optimismData, amount);
     }
 
     /// Private Methods ///
@@ -60,12 +60,10 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @param _bridgeData Data contaning core information for bridging
     /// @param _bridgeData Data specific to Optimism Bridge
     /// @param _amount Amount to bridge
-    /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         OptimismData calldata _optimismData,
-        uint256 _amount,
-        bool _hasSourceSwap
+        uint256 _amount
     ) private {
         IL1StandardBridge bridge = IL1StandardBridge(_optimismData.bridge);
 

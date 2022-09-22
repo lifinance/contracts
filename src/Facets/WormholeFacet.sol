@@ -52,11 +52,12 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function startBridgeTokensViaWormhole(ILiFi.BridgeData memory _bridgeData, WormholeData calldata _wormholeData)
         external
         payable
+        doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _wormholeData, false);
+        _startBridge(_bridgeData, _wormholeData);
     }
 
     /// @notice Performs a swap before bridging via Wormhole
@@ -67,7 +68,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         WormholeData calldata _wormholeData
-    ) external payable validateBridgeData(_bridgeData) nonReentrant {
+    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -75,7 +76,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _wormholeData, true);
+        _startBridge(_bridgeData, _wormholeData);
     }
 
     /// @notice Creates a mapping between a lifi chain id and a wormhole chain id
@@ -93,12 +94,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via Wormhole
     /// @param _bridgeData the core information needed for bridging
     /// @param _wormholeData data specific to Wormhole
-    /// @param _hasSourceSwaps whether or not the bridge has source swaps
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        WormholeData calldata _wormholeData,
-        bool _hasSourceSwaps
-    ) private {
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, WormholeData calldata _wormholeData) private {
         Storage storage s = getStorage();
         uint16 toWormholeChainId = s.wormholeChainId[_bridgeData.destinationChainId];
         uint16 fromWormholeChainId = s.wormholeChainId[block.chainid];

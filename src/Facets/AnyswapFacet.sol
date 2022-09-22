@@ -28,13 +28,14 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaAnyswap(ILiFi.BridgeData memory _bridgeData, AnyswapData calldata _anyswapData)
         external
         payable
+        doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
     {
         // Multichain (formerly Anyswap) tokens can wrap other tokens
         (address underlyingToken, bool isNative) = _getUnderlyingToken(_bridgeData.sendingAssetId, _anyswapData.router);
         if (!isNative) LibAsset.depositAsset(underlyingToken, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _anyswapData, underlyingToken, isNative, false);
+        _startBridge(_bridgeData, _anyswapData, underlyingToken, isNative);
     }
 
     /// @notice Performs a swap before bridging via Anyswap
@@ -45,7 +46,7 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         AnyswapData memory _anyswapData
-    ) external payable validateBridgeData(_bridgeData) nonReentrant {
+    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -54,7 +55,7 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             payable(msg.sender)
         );
         (address underlyingToken, bool isNative) = _getUnderlyingToken(_bridgeData.sendingAssetId, _anyswapData.router);
-        _startBridge(_bridgeData, _anyswapData, underlyingToken, isNative, true);
+        _startBridge(_bridgeData, _anyswapData, underlyingToken, isNative);
     }
 
     /// Private Methods ///
@@ -82,13 +83,11 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @param _anyswapData data specific to Anyswap
     /// @param underlyingToken the underlying token to swap
     /// @param isNative denotes whether the token is a native token vs ERC20
-    /// @param hasSourceSwaps denotes whether the swap was performed before the bridge
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         AnyswapData memory _anyswapData,
         address underlyingToken,
-        bool isNative,
-        bool hasSourceSwaps
+        bool isNative
     ) private {
         if (block.chainid == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
 

@@ -32,11 +32,12 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaHop(ILiFi.BridgeData memory _bridgeData, HopData calldata _hopData)
         external
         payable
+        doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _hopData, false);
+        _startBridge(_bridgeData, _hopData);
     }
 
     /// @notice Performs a swap before bridging via Hop Protocol
@@ -47,7 +48,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         HopData memory _hopData
-    ) external payable validateBridgeData(_bridgeData) nonReentrant {
+    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         if (!LibAsset.isNativeAsset(address(_bridgeData.sendingAssetId)) && msg.value != 0) revert NativeValueWithERC();
         _bridgeData.minAmount = _executeAndCheckSwaps(
@@ -56,7 +57,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _hopData, true);
+        _startBridge(_bridgeData, _hopData);
     }
 
     /// private Methods ///
@@ -64,12 +65,7 @@ contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @dev Contains the business logic for the bridge via Hop Protocol
     /// @param _bridgeData the core information needed for bridging
     /// @param _hopData data specific to Hop Protocol
-    /// @param _hasSourceSwaps whether or not the bridge has source swaps
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        HopData memory _hopData,
-        bool _hasSourceSwaps
-    ) private {
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, HopData memory _hopData) private {
         // Do HOP stuff
         if (block.chainid == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
 

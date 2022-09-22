@@ -29,11 +29,12 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaOmniBridge(ILiFi.BridgeData memory _bridgeData, OmniData calldata _omniData)
         external
         payable
+        doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _omniData, _bridgeData.minAmount, false);
+        _startBridge(_bridgeData, _omniData, _bridgeData.minAmount);
     }
 
     /// @notice Performs a swap before bridging via OmniBridge
@@ -44,7 +45,7 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         OmniData calldata _omniData
-    ) external payable validateBridgeData(_bridgeData) nonReentrant {
+    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         uint256 amount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -52,7 +53,7 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _omniData, amount, true);
+        _startBridge(_bridgeData, _omniData, amount);
     }
 
     /// Private Methods ///
@@ -61,12 +62,10 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @param _bridgeData Data contaning core information for bridging
     /// @param _omniData Data specific to OmniBridge
     /// @param _amount Amount to bridge
-    /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         OmniData calldata _omniData,
-        uint256 _amount,
-        bool _hasSourceSwap
+        uint256 _amount
     ) private {
         IOmniBridge bridge = IOmniBridge(_omniData.bridge);
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {

@@ -32,11 +32,12 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaHyphen(ILiFi.BridgeData memory _bridgeData, HyphenData calldata _hyphenData)
         external
         payable
+        doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _hyphenData, false);
+        _startBridge(_bridgeData, _hyphenData);
     }
 
     /// @notice Performs a swap before bridging via Hyphen
@@ -47,7 +48,7 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         HyphenData memory _hyphenData
-    ) external payable validateBridgeData(_bridgeData) nonReentrant {
+    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -55,7 +56,7 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _hyphenData, true);
+        _startBridge(_bridgeData, _hyphenData);
     }
 
     /// Private Methods ///
@@ -63,12 +64,7 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @dev Contains the business logic for the bridge via Hyphen
     /// @param _bridgeData the core information needed for bridging
     /// @param _hyphenData data specific to Hyphen
-    /// @param _hasSourceSwaps whether or not the bridge has source swaps
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        HyphenData memory _hyphenData,
-        bool _hasSourceSwaps
-    ) private {
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, HyphenData memory _hyphenData) private {
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Give the Hyphen router approval to bridge tokens
             LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _hyphenData.router, _bridgeData.minAmount);

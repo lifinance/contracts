@@ -42,12 +42,13 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaAmarok(BridgeData calldata _bridgeData, AmarokData calldata _amarokData)
         external
         payable
+        doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _amarokData, _bridgeData.minAmount, false);
+        _startBridge(_bridgeData, _amarokData, _bridgeData.minAmount);
     }
 
     /// @notice Performs a swap before bridging via Amarok
@@ -58,7 +59,14 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         BridgeData calldata _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         AmarokData calldata _amarokData
-    ) external payable validateBridgeData(_bridgeData) noNativeAsset(_bridgeData) nonReentrant {
+    )
+        external
+        payable
+        containsSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
+        noNativeAsset(_bridgeData)
+        nonReentrant
+    {
         LibAsset.depositAssets(_swapData);
         uint256 amount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -66,7 +74,7 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _amarokData, amount, true);
+        _startBridge(_bridgeData, _amarokData, amount);
     }
 
     /// @notice Completes a cross-chain transaction on the receiving chain using the Amarok.
@@ -113,12 +121,10 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _amarokData Data specific to Amarok
     /// @param _amount Amount to bridge
-    /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
         BridgeData calldata _bridgeData,
         AmarokData calldata _amarokData,
-        uint256 _amount,
-        bool _hasSourceSwap
+        uint256 _amount
     ) private {
         IConnextHandler.XCallArgs memory xcallArgs = IConnextHandler.XCallArgs({
             params: IConnextHandler.CallParams({

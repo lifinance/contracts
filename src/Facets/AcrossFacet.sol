@@ -38,10 +38,11 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         external
         payable
         validateBridgeData(_bridgeData)
+        doesNotContainSourceSwaps(_bridgeData)
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _acrossData, false);
+        _startBridge(_bridgeData, _acrossData);
     }
 
     /// @notice Performs a swap before bridging via Across
@@ -52,7 +53,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         AcrossData memory _acrossData
-    ) external payable validateBridgeData(_bridgeData) nonReentrant {
+    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -60,7 +61,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _acrossData, true);
+        _startBridge(_bridgeData, _acrossData);
     }
 
     /// Internal Methods ///
@@ -68,12 +69,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via Across
     /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
-    /// @param _hasSourceSwaps whether or not the bridge has source swaps
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        AcrossData memory _acrossData,
-        bool _hasSourceSwaps
-    ) internal {
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, AcrossData memory _acrossData) internal {
         bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
         if (isNative) _bridgeData.sendingAssetId = _acrossData.weth;
         else LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _acrossData.spokePool, _bridgeData.minAmount);

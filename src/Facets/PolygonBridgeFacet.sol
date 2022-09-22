@@ -30,11 +30,12 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaPolygonBridge(ILiFi.BridgeData memory _bridgeData, PolygonData calldata _polygonData)
         external
         payable
+        doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _polygonData, false);
+        _startBridge(_bridgeData, _polygonData);
     }
 
     /// @notice Performs a swap before bridging via Polygon Bridge
@@ -45,7 +46,7 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         PolygonData calldata _polygonData
-    ) external payable validateBridgeData(_bridgeData) nonReentrant {
+    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -53,7 +54,7 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _polygonData, true);
+        _startBridge(_bridgeData, _polygonData);
     }
 
     /// Private Methods ///
@@ -61,12 +62,7 @@ contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @dev Contains the business logic for the bridge via Polygon Bridge
     /// @param _bridgeData Data containing core information for bridging
     /// @param _polygonData Parameters used for bridging
-    /// @param _hasSourceSwap Did swap on sending chain
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        PolygonData calldata _polygonData,
-        bool _hasSourceSwap
-    ) private {
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, PolygonData calldata _polygonData) private {
         IRootChainManager rootChainManager = IRootChainManager(_polygonData.rootChainManager);
         address childToken;
 

@@ -3,7 +3,7 @@ pragma solidity 0.8.16;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
-import { InvalidReceiver, InvalidSendingToken, InvalidAmount, NativeAssetNotSupported, InvalidDestinationChain } from "../Errors/GenericErrors.sol";
+import { InvalidReceiver, InformationMismatch, InvalidSendingToken, InvalidAmount, NativeAssetNotSupported, InvalidDestinationChain } from "../Errors/GenericErrors.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 
@@ -42,6 +42,20 @@ contract Validatable {
     modifier onlyAllowDestinationChain(ILiFi.BridgeData memory _bridgeData, uint256 _chainId) {
         if (_bridgeData.destinationChainId != _chainId) {
             revert InvalidDestinationChain();
+        }
+        _;
+    }
+
+    modifier containsSourceSwaps(ILiFi.BridgeData memory _bridgeData) {
+        if (!_bridgeData.hasSourceSwaps) {
+            revert InformationMismatch();
+        }
+        _;
+    }
+
+    modifier doesNotContainSourceSwaps(ILiFi.BridgeData memory _bridgeData) {
+        if (_bridgeData.hasSourceSwaps) {
+            revert InformationMismatch();
         }
         _;
     }

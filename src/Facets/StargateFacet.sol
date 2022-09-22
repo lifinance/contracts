@@ -66,11 +66,12 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaStargate(ILiFi.BridgeData memory _bridgeData, StargateData calldata _stargateData)
         external
         payable
+        doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _stargateData, msg.value, false);
+        _startBridge(_bridgeData, _stargateData, msg.value);
     }
 
     /// @notice Performs a swap before bridging via Stargate Bridge
@@ -81,7 +82,14 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         StargateData calldata _stargateData
-    ) external payable validateBridgeData(_bridgeData) noNativeAsset(_bridgeData) nonReentrant {
+    )
+        external
+        payable
+        containsSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
+        noNativeAsset(_bridgeData)
+        nonReentrant
+    {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -100,7 +108,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             }
         }
 
-        _startBridge(_bridgeData, _stargateData, nativeFee, true);
+        _startBridge(_bridgeData, _stargateData, nativeFee);
     }
 
     /// @notice Completes a cross-chain transaction on the receiving chain.
@@ -204,12 +212,10 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _stargateData Data specific to Stargate Bridge
     /// @param _nativeFee Native gas fee for the cross chain message
-    /// @param _hasSourceSwap Did swap on sending chain
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         StargateData calldata _stargateData,
-        uint256 _nativeFee,
-        bool _hasSourceSwap
+        uint256 _nativeFee
     ) private noNativeAsset(_bridgeData) {
         LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _stargateData.router, _bridgeData.minAmount);
 

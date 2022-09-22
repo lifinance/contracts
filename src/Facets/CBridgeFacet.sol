@@ -31,11 +31,12 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaCBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData calldata _cBridgeData)
         external
         payable
-        nonReentrant
+        doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
+        nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _cBridgeData, false);
+        _startBridge(_bridgeData, _cBridgeData);
     }
 
     /// @notice Performs a swap before bridging via CBridge
@@ -46,7 +47,7 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         CBridgeData memory _cBridgeData
-    ) external payable validateBridgeData(_bridgeData) nonReentrant {
+    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -54,7 +55,7 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _cBridgeData, true);
+        _startBridge(_bridgeData, _cBridgeData);
     }
 
     /// Private Methods ///
@@ -62,12 +63,7 @@ contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @dev Contains the business logic for the bridge via CBridge
     /// @param _bridgeData the core information needed for bridging
     /// @param _cBridgeData data specific to CBridge
-    /// @param _hasSourceSwaps whether or not the bridge has source swaps
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        CBridgeData memory _cBridgeData,
-        bool _hasSourceSwaps
-    ) private {
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData memory _cBridgeData) private {
         // Do CBridge stuff
         if (uint64(block.chainid) == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
 

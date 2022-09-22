@@ -34,13 +34,14 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaXDaiBridge(ILiFi.BridgeData memory _bridgeData, GnosisData calldata _gnosisData)
         external
         payable
+        doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         onlyAllowDestinationChain(_bridgeData, GNOSIS_CHAIN_ID)
         onlyAllowSourceToken(_bridgeData, DAI)
         nonReentrant
     {
         LibAsset.depositAsset(DAI, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _gnosisData, false);
+        _startBridge(_bridgeData, _gnosisData);
     }
 
     /// @notice Performs a swap before bridging via XDaiBridge
@@ -54,6 +55,7 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     )
         external
         payable
+        containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         onlyAllowDestinationChain(_bridgeData, GNOSIS_CHAIN_ID)
         onlyAllowSourceToken(_bridgeData, DAI)
@@ -69,7 +71,7 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _gnosisData, true);
+        _startBridge(_bridgeData, _gnosisData);
     }
 
     /// Private Methods ///
@@ -77,12 +79,7 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @dev Contains the business logic for the bridge via XDaiBridge
     /// @param _bridgeData the core information needed for bridging
     /// @param _gnosisData data specific to bridge
-    /// @param hasSourceSwaps whether or not the bridge has source swaps
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        GnosisData memory _gnosisData,
-        bool hasSourceSwaps
-    ) private {
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, GnosisData memory _gnosisData) private {
         LibAsset.maxApproveERC20(IERC20(DAI), _gnosisData.xDaiBridge, _bridgeData.minAmount);
         IXDaiBridge(_gnosisData.xDaiBridge).relayTokens(_bridgeData.receiver, _bridgeData.minAmount);
         emit LiFiTransferStarted(_bridgeData);
