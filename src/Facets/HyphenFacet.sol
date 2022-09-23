@@ -12,7 +12,7 @@ import { InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork } from "../Er
 /// @title Hyphen Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hyphen
-contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract HyphenFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Types ///
 
     /// @param token The contract address of the token being bridged.

@@ -11,7 +11,7 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @title Polygon Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Polygon Bridge
-contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     uint64 internal constant POLYGON_CHAIN_ID = 137;
 
     /// Types ///

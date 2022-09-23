@@ -12,7 +12,7 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @title Anyswap Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Multichain (Prev. AnySwap)
-contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract AnyswapFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Types ///
 
     struct AnyswapData {

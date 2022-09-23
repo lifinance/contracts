@@ -10,7 +10,7 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for swapping through ANY APPROVED DEX
 /// @dev Uses calldata to execute APPROVED arbitrary methods on DEXs
-contract GenericSwapFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Events ///
 
     event LiFiSwappedGeneric(
