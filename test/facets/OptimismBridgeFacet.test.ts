@@ -81,7 +81,6 @@ describe('OptimismBridgeFacet', function () {
         assetId: DAI_L1_ADDRESS,
         assetIdOnL2: DAI_L2_ADDRESS,
         amount: SEND_AMOUNT,
-        bridge: config['mainnet'].bridges[DAI_L1_ADDRESS.toLowerCase()],
         l2Gas: L2_GAS,
         isSynthetix: false,
       }
@@ -233,12 +232,14 @@ describe('OptimismBridgeFacet', function () {
         const bridgeData = {
           ...validBridgeData,
           assetId: ZERO_ADDRESS,
+          assetIdOnL2: ZERO_ADDRESS,
           amount: utils.parseEther('10'),
-          bridge: config['mainnet'].bridges.standardBridge,
         }
         const lifiData = {
           ...validLiFiData,
+          sendingAssetId: ZERO_ADDRESS,
           receivingAssetId: ZERO_ADDRESS,
+          amount: utils.parseEther('10'),
         }
 
         await expect(
