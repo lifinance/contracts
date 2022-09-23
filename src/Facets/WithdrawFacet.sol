@@ -7,6 +7,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
+import { NotAContract } from "../Errors/GenericErrors.sol";
 
 /// @title Withdraw Facet
 /// @author LI.FI (https://li.fi)
@@ -43,10 +44,8 @@ contract WithdrawFacet {
         // Check if the _callTo is a contract
         bool success;
         bool isContract = LibAsset.isContract(_callTo);
-        if (isContract) {
-            // solhint-disable-next-line avoid-low-level-calls
-            (success, ) = _callTo.call(_callData);
-        }
+        if (!isContract) revert NotAContract();
+        (success, ) = _callTo.call(_callData);
 
         if (success) {
             _withdrawAsset(_assetAddress, _to, _amount);
