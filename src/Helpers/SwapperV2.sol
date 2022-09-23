@@ -72,7 +72,8 @@ contract SwapperV2 is ILiFi {
         LibSwap.SwapData[] calldata _swapData,
         address payable _leftoverReceiver
     ) internal noLeftovers(_swapData, _leftoverReceiver) {
-        for (uint256 i = 0; i < _swapData.length; ) {
+        uint256 nSwaps = _swapData.length;
+        for (uint256 i = 0; i < nSwaps; ) {
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
             if (
                 !((LibAsset.isNativeAsset(currentSwapData.sendingAssetId) ||
