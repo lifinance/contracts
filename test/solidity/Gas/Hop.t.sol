@@ -35,14 +35,17 @@ contract HopGasTest is Test, DiamondTest {
         usdc = ERC20(USDC_ADDRESS);
         hop = IHopBridge(HOP_USDC_BRIDGE);
 
-        bytes4[] memory functionSelectors = new bytes4[](1);
-        functionSelectors[0] = hopFacet.startBridgeTokensViaHop.selector;
+        bytes4[] memory functionSelectors = new bytes4[](2);
+        functionSelectors[0] = hopFacet.initHop.selector;
+        functionSelectors[1] = hopFacet.startBridgeTokensViaHop.selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
         hopFacet = HopFacet(address(diamond));
 
-        IHopBridge.BridgeConfig[] memory config = new IHopBridge.BridgeConfig[](1);
-        config[0] = IHopBridge.BridgeConfig(USDC_ADDRESS, HOP_USDC_BRIDGE, address(0));
+        HopFacet.Config[] memory config = new HopFacet.Config[](1);
+        config[0] = HopFacet.Config(USDC_ADDRESS, HOP_USDC_BRIDGE);
+        hopFacet.initHop(config);
+
         string[] memory tokens = new string[](1);
         tokens[0] = "USDC";
     }
@@ -65,7 +68,6 @@ contract HopGasTest is Test, DiamondTest {
 
         HopFacet.HopData memory hopData = HopFacet.HopData(
             USDC_ADDRESS,
-            HOP_USDC_BRIDGE,
             WHALE,
             137,
             amount,
