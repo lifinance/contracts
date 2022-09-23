@@ -27,31 +27,31 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// @notice Bridges tokens via Multichain
     /// @param _lifiData data used purely for tracking and analytics
-    /// @param _multichainDatra data specific to Multichain
-    function startBridgeTokensViaMultichain(LiFiData calldata _lifiData, MultichainData calldata _multichainDatra)
+    /// @param _multichainData data specific to Multichain
+    function startBridgeTokensViaMultichain(LiFiData calldata _lifiData, MultichainData calldata _multichainData)
         external
         payable
         nonReentrant
     {
         // Multichain (formerly Multichain) tokens can wrap other tokens
-        (address underlyingToken, bool isNative) = _getUnderlyingToken(_multichainDatra.token, _multichainDatra.router);
-        if (!isNative) LibAsset.depositAsset(underlyingToken, _multichainDatra.amount);
-        _startBridge(_lifiData, _multichainDatra, underlyingToken, isNative, false);
+        (address underlyingToken, bool isNative) = _getUnderlyingToken(_multichainData.token, _multichainData.router);
+        LibAsset.depositAsset(underlyingToken, _multichainData.amount);
+        _startBridge(_lifiData, _multichainData, underlyingToken, isNative, false);
     }
 
     /// @notice Performs a swap before bridging via Multichain
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _swapData an array of swap related data for performing swaps before bridging
-    /// @param _multichainDatra data specific to Multichain
+    /// @param _multichainData data specific to Multichain
     function swapAndStartBridgeTokensViaMultichain(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        MultichainData memory _multichainDatra
+        MultichainData memory _multichainData
     ) external payable nonReentrant {
-        if (LibAsset.isNativeAsset(_multichainDatra.token)) revert TokenAddressIsZero();
-        _multichainDatra.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        (address underlyingToken, bool isNative) = _getUnderlyingToken(_multichainDatra.token, _multichainDatra.router);
-        _startBridge(_lifiData, _multichainDatra, underlyingToken, isNative, true);
+        if (LibAsset.isNativeAsset(_multichainData.token)) revert TokenAddressIsZero();
+        _multichainData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
+        (address underlyingToken, bool isNative) = _getUnderlyingToken(_multichainData.token, _multichainData.router);
+        _startBridge(_lifiData, _multichainData, underlyingToken, isNative, true);
     }
 
     /// Private Methods ///
@@ -76,42 +76,43 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
     /// @dev Contains the business logic for the bridge via Multichain
     /// @param _lifiData data used purely for tracking and analytics
-    /// @param _multichainDatra data specific to Multichain
+    /// @param _multichainData data specific to Multichain
     /// @param underlyingToken the underlying token to swap
     /// @param isNative denotes whether the token is a native token vs ERC20
     /// @param hasSourceSwaps denotes whether the swap was performed before the bridge
     function _startBridge(
         LiFiData calldata _lifiData,
-        MultichainData memory _multichainDatra,
+        MultichainData memory _multichainData,
         address underlyingToken,
         bool isNative,
         bool hasSourceSwaps
     ) private {
-        if (block.chainid == _multichainDatra.toChainId) revert CannotBridgeToSameNetwork();
+        if (block.chainid == _multichainData.toChainId) revert CannotBridgeToSameNetwork();
 
         if (isNative) {
-            IMultichainRouter(_multichainDatra.router).anySwapOutNative{ value: _multichainDatra.amount }(
-                _multichainDatra.token,
-                _multichainDatra.recipient,
-                _multichainDatra.toChainId
+            LibAsset.maxApproveERC20(IERC20(underlyingToken), _multichainData.router, _multichainData.amount);
+            IMultichainRouter(_multichainData.router).anySwapOutNative{ value: _multichainData.amount }(
+                _multichainData.token,
+                _multichainData.recipient,
+                _multichainData.toChainId
             );
         } else {
-            // Give Multichain approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(underlyingToken), _multichainDatra.router, _multichainDatra.amount);
             // Was the token wrapping another token?
-            if (_multichainDatra.token != underlyingToken) {
-                IMultichainRouter(_multichainDatra.router).anySwapOutUnderlying(
-                    _multichainDatra.token,
-                    _multichainDatra.recipient,
-                    _multichainDatra.amount,
-                    _multichainDatra.toChainId
+            if (_multichainData.token != underlyingToken) {
+                LibAsset.maxApproveERC20(IERC20(underlyingToken), _multichainData.router, _multichainData.amount);
+                IMultichainRouter(_multichainData.router).anySwapOutUnderlying(
+                    _multichainData.token,
+                    _multichainData.recipient,
+                    _multichainData.amount,
+                    _multichainData.toChainId
                 );
             } else {
-                IMultichainRouter(_multichainDatra.router).anySwapOut(
-                    _multichainDatra.token,
-                    _multichainDatra.recipient,
-                    _multichainDatra.amount,
-                    _multichainDatra.toChainId
+                // Tokens are burned which does not require allowance
+                IMultichainRouter(_multichainData.router).anySwapOut(
+                    _multichainData.token,
+                    _multichainData.recipient,
+                    _multichainData.amount,
+                    _multichainData.toChainId
                 );
             }
         }
@@ -124,9 +125,9 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard {
             _lifiData.referrer,
             underlyingToken,
             _lifiData.receivingAssetId,
-            _multichainDatra.recipient,
-            _multichainDatra.amount,
-            _multichainDatra.toChainId,
+            _multichainData.recipient,
+            _multichainData.amount,
+            _multichainData.toChainId,
             hasSourceSwaps,
             false
         );
