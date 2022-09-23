@@ -9,8 +9,9 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 
-contract AxelarFacet {
+contract AxelarFacet is ReentrancyGuard {
     /// Storage
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.axelar");
 
@@ -55,7 +56,7 @@ contract AxelarFacet {
 
     /// @notice Initiates a cross-chain contract call via Axelar Network
     /// @param params the parameters for the cross-chain call
-    function executeCallViaAxelar(AxelarCallParameters calldata params) external payable {
+    function executeCallViaAxelar(AxelarCallParameters calldata params) external payable nonReentrant {
         Storage storage s = getStorage();
         bytes memory payload = abi.encodePacked(params.callTo, params.callData);
 
@@ -88,7 +89,7 @@ contract AxelarFacet {
         address token,
         uint256 amount,
         address recoveryAddress
-    ) external payable {
+    ) external payable nonReentrant {
         if (recoveryAddress == address(0)) {
             revert RecoveryAddressCannotBeZero();
         }
@@ -102,6 +103,7 @@ contract AxelarFacet {
         string memory tokenSymbol = ERC20(token).symbol();
         Storage storage s = getStorage();
         IAxelarGateway gateway = s.gateway;
+
         {
             address tokenAddress = gateway.tokenAddresses(tokenSymbol);
             if (LibAsset.isNativeAsset(tokenAddress)) {

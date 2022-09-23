@@ -73,44 +73,6 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         _startBridge(_bridgeData, _nxtpData);
     }
 
-    /// @notice Completes a cross-chain transaction on the receiving chain using the NXTP protocol.
-    /// @param _bridgeData the core information needed for bridging
-    /// @param assetId token received on the receiving chain
-    /// @param receiver address that will receive the tokens
-    /// @param amount number of tokens received
-    function completeBridgeTokensViaNXTP(
-        ILiFi.BridgeData memory _bridgeData,
-        address assetId,
-        address receiver,
-        uint256 amount
-    ) external payable nonReentrant {
-        LibAsset.depositAsset(assetId, amount);
-        LibAsset.transferAsset(assetId, payable(receiver), amount);
-        emit LiFiTransferCompleted(_bridgeData.transactionId, assetId, receiver, amount, block.timestamp);
-    }
-
-    /// @notice Performs a swap before completing a cross-chain transaction
-    ///         on the receiving chain using the NXTP protocol.
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _swapData array of data needed for swaps
-    /// @param finalAssetId token received on the receiving chain
-    /// @param receiver address that will receive the tokens
-    function swapAndCompleteBridgeTokensViaNXTP(
-        ILiFi.BridgeData memory _bridgeData,
-        LibSwap.SwapData[] calldata _swapData,
-        address finalAssetId,
-        address receiver
-    ) external payable nonReentrant {
-        uint256 swapBalance = _executeAndCheckSwaps(
-            _bridgeData.transactionId,
-            _bridgeData.minAmount,
-            _swapData,
-            payable(receiver)
-        );
-        LibAsset.transferAsset(finalAssetId, payable(receiver), swapBalance);
-        emit LiFiTransferCompleted(_bridgeData.transactionId, finalAssetId, receiver, swapBalance, block.timestamp);
-    }
-
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via NXTP

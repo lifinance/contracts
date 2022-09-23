@@ -54,6 +54,9 @@ struct BridgeData {
 
 ```
 
+**WARNING**: If the l2Gas is underpaid, the `finalizeDeposit` internal function call will fail and the funds will be lost!
+Please make sure to pass enough gas if the Optimism facet is used directly. 
+
 ## Swap Data
 
 Some methods accept a `SwapData _swapData` parameter.

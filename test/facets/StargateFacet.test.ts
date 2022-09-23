@@ -2,6 +2,9 @@
 import {
   StargateFacet,
   DexManagerFacet,
+  Executor,
+  Receiver,
+  PeripheryRegistryFacet,
   IERC20 as ERC20,
   IERC20__factory as ERC20__factory,
 } from '../../typechain'
@@ -30,9 +33,11 @@ const SRC_ASSET = 'USDT'
 
 describe('StargateFacet', function () {
   let lifi: StargateFacet
+  let executor: Executor
+  let receiver: Receiver
   let dexMgr: DexManagerFacet
   let alice: SignerWithAddress
-  let bob: SignerWithAddress
+  let sgRouter: SignerWithAddress
   let usdt: ERC20
   let wmatic: ERC20
   let bridgeData: any
@@ -43,6 +48,9 @@ describe('StargateFacet', function () {
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
       await deployments.fixture('DeployStargateFacet')
+      await deployments.fixture('DeployExecutor')
+      await deployments.fixture('DeployReceiver')
+
       const diamond = await ethers.getContract('LiFiDiamond')
 
       lifi = <StargateFacet>(
@@ -51,6 +59,13 @@ describe('StargateFacet', function () {
       dexMgr = <DexManagerFacet>(
         await ethers.getContractAt('DexManagerFacet', diamond.address)
       )
+      const registryFacet = <PeripheryRegistryFacet>(
+        await ethers.getContractAt('PeripheryRegistryFacet', diamond.address)
+      )
+      const executorAddr = await registryFacet.getPeripheryContract('Executor')
+
+      executor = <Executor>await ethers.getContractAt('Executor', executorAddr)
+      receiver = await ethers.getContract('Receiver')
 
       await dexMgr.addDex(UNISWAP_ADDRESS)
       await dexMgr.batchSetFunctionApprovalBySignature(
@@ -64,19 +79,22 @@ describe('StargateFacet', function () {
       })
       await network.provider.request({
         method: 'hardhat_impersonateAccount',
-        params: ['0xf71b335a1d9449c381d867f4172fc1bb3d2bfb7b'],
+        params: [config[TEST_CHAINS[SRC_CHAIN]].stargateRouter],
       })
       await network.provider.request({
-        method: 'hardhat_impersonateAccount',
-        params: [config[TEST_CHAINS[SRC_CHAIN]].stargateRouter],
+        method: 'hardhat_setBalance',
+        params: [
+          config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
+          utils.parseEther('10').toHexString(),
+        ],
       })
 
       alice = await ethers.getSigner(
         '0x06959153b974d0d5fdfd87d561db6d8d4fa0bb0b'
       )
-      bob = await ethers.getSigner('0xf71b335a1d9449c381d867f4172fc1bb3d2bfb7b')
-
-      await lifi.initStargate(bob.address)
+      sgRouter = await ethers.getSigner(
+        config[TEST_CHAINS[SRC_CHAIN]].stargateRouter
+      )
 
       wmatic = ERC20__factory.connect(WMATIC_ADDRESS, alice)
       usdt = ERC20__factory.connect(
@@ -336,12 +354,6 @@ describe('StargateFacet', function () {
       it('when the fee is low', async () => {
         const stargateData = testStargateData
 
-        const quoteData = await lifi.quoteLayerZeroFee(
-          bridgeData.destinationChainId,
-          stargateData
-        )
-        const requiredGasFee = quoteData[0]
-
         const bridgeData = {
           transactionId: utils.randomBytes(32),
           bridge: 'polygon',
@@ -354,6 +366,12 @@ describe('StargateFacet', function () {
           hasSourceSwaps: false,
           hasDestinationCall: false,
         }
+
+        const quoteData = await lifi.quoteLayerZeroFee(
+          bridgeData.destinationChainId,
+          stargateData
+        )
+        const requiredGasFee = quoteData[0]
 
         await expect(
           lifi
@@ -656,12 +674,6 @@ describe('StargateFacet', function () {
       it('when the fee is low', async () => {
         const stargateData = testStargateData
 
-        const quoteData = await lifi.quoteLayerZeroFee(
-          bridgeData.destinationChainId,
-          stargateData
-        )
-        const requiredGasFee = quoteData[0]
-
         const bridgeData = {
           transactionId: utils.randomBytes(32),
           bridge: 'polygon',
@@ -674,6 +686,12 @@ describe('StargateFacet', function () {
           hasSourceSwaps: false,
           hasDestinationCall: false,
         }
+
+        const quoteData = await lifi.quoteLayerZeroFee(
+          bridgeData.destinationChainId,
+          stargateData
+        )
+        const requiredGasFee = quoteData[0]
 
         await expect(
           lifi
@@ -735,12 +753,6 @@ describe('StargateFacet', function () {
 
         const stargateData = testStargateData
 
-        const quoteData = await lifi.quoteLayerZeroFee(
-          bridgeData.destinationChainId,
-          stargateData
-        )
-        const requiredGasFee = quoteData[0]
-
         const bridgeData = {
           transactionId: utils.randomBytes(32),
           bridge: 'polygon',
@@ -753,6 +765,12 @@ describe('StargateFacet', function () {
           hasSourceSwaps: false,
           hasDestinationCall: false,
         }
+
+        const quoteData = await lifi.quoteLayerZeroFee(
+          bridgeData.destinationChainId,
+          stargateData
+        )
+        const requiredGasFee = quoteData[0]
 
         await expect(
           lifi
@@ -772,7 +790,7 @@ describe('StargateFacet', function () {
   })
 
   describe('sgReceive function', () => {
-    describe('should be reverted to call sgReceive', () => {
+    describe('should be reverted', () => {
       it('when sender is not stargate router', async () => {
         const bridgeData = {
           transactionId: utils.randomBytes(32),
@@ -795,241 +813,99 @@ describe('StargateFacet', function () {
         ])
 
         await expect(
-          lifi.sgReceive(
+          receiver.sgReceive(
             1,
             config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
             0,
-            POOLS[SRC_ASSET][TEST_CHAINS[SRC_CHAIN]],
+            usdt.address,
             utils.parseUnits('1000', 6),
             payload
           )
         ).to.be.revertedWith('InvalidStargateRouter')
       })
-    })
 
-    describe('completeBridgeTokensViaStargate function', () => {
-      describe('should be reverted to process completeBridgeTokensViaStargate', () => {
-        it('when call completeBridgeTokensViaStargate directly', async () => {
-          const bridgeData = {
-            transactionId: utils.randomBytes(32),
-            bridge: 'polygon',
-            integrator: 'ACME Devs',
-            referrer: ethers.constants.AddressZero,
-            sendingAssetId: usdt.address,
-            receiver: alice.address,
-            minAmount: utils.parseUnits('1000', 6),
-            destinationChainId: SRC_CHAIN,
-            hasSourceSwaps: false,
-            hasDestinationCall: false,
-          }
-          await expect(
-            lifi
-              .connect(bob)
-              .completeBridgeTokensViaStargate(
-                bridgeData,
-                usdt.address,
-                alice.address,
-                utils.parseUnits('1000', 6)
-              )
-          ).to.be.revertedWith('InvalidCaller()')
-        })
-
-        it('when asset id is invalid', async () => {
-          const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-            Object.values(bridgeData),
-            [],
-            ethers.constants.AddressZero,
-            alice.address,
-          ])
-          const bridgeData = {
-            transactionId: utils.randomBytes(32),
-            bridge: 'polygon',
-            integrator: 'ACME Devs',
-            referrer: ethers.constants.AddressZero,
-            sendingAssetId: usdt.address,
-            receiver: alice.address,
-            minAmount: utils.parseUnits('1000', 6),
-            destinationChainId: SRC_CHAIN,
-            hasSourceSwaps: false,
-            hasDestinationCall: false,
-          }
-          await expect(
-            lifi
-              .connect(bob)
-              .sgReceive(
-                1,
-                config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
-                0,
-                POOLS[SRC_ASSET][TEST_CHAINS[SRC_CHAIN]],
-                utils.parseUnits('1000', 6),
-                payload
-              )
-          ).to.be.revertedWith('NativeAssetTransferFailed()')
-        })
-
-        it('when token arrived amount is low', async () => {
-          const bridgeData = {
-            transactionId: utils.randomBytes(32),
-            bridge: 'polygon',
-            integrator: 'ACME Devs',
-            referrer: ethers.constants.AddressZero,
-            sendingAssetId: usdt.address,
-            receiver: alice.address,
-            minAmount: utils.parseUnits('1000', 6),
-            destinationChainId: SRC_CHAIN,
-            hasSourceSwaps: false,
-            hasDestinationCall: false,
-          }
-          const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-            Object.values(bridgeData),
-            [],
-            WMATIC_ADDRESS,
-            alice.address,
-          ])
-          await expect(
-            lifi
-              .connect(bob)
-              .sgReceive(
-                1,
-                config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
-                0,
-                WMATIC_ADDRESS,
-                utils.parseUnits('1000', 6),
-                payload
-              )
-          ).to.be.revertedWith('SafeERC20: low-level call failed')
-        })
-      })
-
-      it('should be possible to process completeBridgeTokensViaStargate', async () => {
-        const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'polygon',
-          integrator: 'ACME Devs',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: usdt.address,
-          receiver: alice.address,
-          minAmount: utils.parseUnits('1000', 6),
-          destinationChainId: SRC_CHAIN,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
-        }
-        const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-          Object.values(bridgeData),
-          [],
-          POOLS[SRC_ASSET][TEST_CHAINS[SRC_CHAIN]],
-          alice.address,
-        ])
-        await usdt.transfer(lifi.address, utils.parseUnits('1000', 6))
-
+      it('when call swapAndCompleteBridgeTokens directly', async () => {
         await expect(
-          lifi
-            .connect(bob)
-            .sgReceive(
-              1,
-              config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
-              0,
-              POOLS[SRC_ASSET][TEST_CHAINS[SRC_CHAIN]],
-              utils.parseUnits('1000', 6),
-              payload
+          executor
+            .connect(sgRouter)
+            .swapAndCompleteBridgeTokens(
+              bridgeData,
+              payloadSwapData,
+              usdt.address,
+              alice.address
             )
-        ).to.emit(lifi, 'LiFiTransferCompleted')
-      })
-    })
-
-    describe('swapAndCompleteBridgeTokensViaStargate function', () => {
-      describe('should be reverted to process swapAndCompleteBridgeTokensViaStargate', () => {
-        it('when call swapAndCompleteBridgeTokensViaStargate directly', async () => {
-          const bridgeData = {
-            transactionId: utils.randomBytes(32),
-            bridge: 'polygon',
-            integrator: 'ACME Devs',
-            referrer: ethers.constants.AddressZero,
-            sendingAssetId: usdt.address,
-            receiver: alice.address,
-            minAmount: utils.parseUnits('1000', 6),
-            destinationChainId: SRC_CHAIN,
-            hasSourceSwaps: false,
-            hasDestinationCall: false,
-          }
-          await expect(
-            lifi
-              .connect(bob)
-              .swapAndCompleteBridgeTokensViaStargate(
-                bridgeData,
-                payloadSwapData,
-                usdt.address,
-                alice.address
-              )
-          ).to.be.revertedWith('InvalidCaller()')
-        })
-
-        it('when token arrived amount is low', async () => {
-          const bridgeData = {
-            transactionId: utils.randomBytes(32),
-            bridge: 'polygon',
-            integrator: 'ACME Devs',
-            referrer: ethers.constants.AddressZero,
-            sendingAssetId: usdt.address,
-            receiver: alice.address,
-            minAmount: utils.parseUnits('1000', 6),
-            destinationChainId: SRC_CHAIN,
-            hasSourceSwaps: false,
-            hasDestinationCall: false,
-          }
-          const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-            Object.values(bridgeData),
-            payloadSwapData.map((data: any) => Object.values(data)),
-            ethers.constants.AddressZero,
-            alice.address,
-          ])
-          await expect(
-            lifi
-              .connect(bob)
-              .sgReceive(
-                1,
-                config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
-                0,
-                ethers.constants.AddressZero,
-                utils.parseUnits('1000', 6),
-                payload
-              )
-          ).to.be.revertedWith('ERC20: transfer amount exceeds balance')
-        })
+        ).to.be.revertedWith('InvalidAmount()')
       })
 
-      it('should be possible to process swapAndCompleteBridgeTokensViaStargate', async () => {
-        const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'polygon',
-          integrator: 'ACME Devs',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: usdt.address,
-          receiver: alice.address,
-          minAmount: utils.parseUnits('1000', 6),
-          destinationChainId: SRC_CHAIN,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
-        }
+      it('when token arrived amount is low', async () => {
         const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
           Object.values(bridgeData),
           payloadSwapData.map((data: any) => Object.values(data)),
-          ethers.constants.AddressZero,
+          usdt.address,
           alice.address,
         ])
-        await usdt.transfer(lifi.address, utils.parseUnits('1000', 6))
         await expect(
-          lifi
-            .connect(bob)
+          receiver
+            .connect(sgRouter)
             .sgReceive(
               1,
               config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
               0,
-              POOLS[SRC_ASSET][TEST_CHAINS[SRC_CHAIN]],
+              usdt.address,
               utils.parseUnits('1000', 6),
               payload
             )
-        ).to.emit(lifi, 'LiFiTransferCompleted')
+        ).to.be.revertedWith('ERC20: transfer amount exceeds balance')
+      })
+    })
+
+    describe('should be possible to process sgReceive', () => {
+      it('should process swapAndCompleteBridgeTokens', async () => {
+        const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
+          Object.values(bridgeData),
+          payloadSwapData.map((data: any) => Object.values(data)),
+          usdt.address,
+          alice.address,
+        ])
+        await usdt.transfer(receiver.address, utils.parseUnits('1000', 6))
+        await expect(
+          receiver
+            .connect(sgRouter)
+            .sgReceive(
+              1,
+              config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
+              0,
+              usdt.address,
+              utils.parseUnits('1000', 6),
+              payload
+            )
+        ).to.emit(executor, 'LiFiTransferCompleted')
+      })
+
+      it('should send to receiver when fails to call swapAndCompleteBridgeTokens', async () => {
+        const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
+          Object.values(bridgeData),
+          payloadSwapData.map((data: any) => Object.values(data)),
+          usdt.address,
+          alice.address,
+        ])
+        await usdt.transfer(receiver.address, utils.parseUnits('100', 6))
+        const usdtBalance = await usdt.balanceOf(alice.address)
+        await expect(
+          receiver
+            .connect(sgRouter)
+            .sgReceive(
+              1,
+              config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
+              0,
+              usdt.address,
+              utils.parseUnits('100', 6),
+              payload
+            )
+        ).to.emit(receiver, 'LiFiTransferCompleted')
+        expect(await usdt.balanceOf(alice.address)).to.equal(
+          usdtBalance.add(utils.parseUnits('100', 6))
+        )
       })
     })
   })

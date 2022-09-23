@@ -111,15 +111,24 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _wormholeData.wormholeRouter,
             _bridgeData.minAmount
         );
-        IWormholeRouter(_wormholeData.wormholeRouter).transferTokens(
-            _bridgeData.sendingAssetId,
-            _bridgeData.minAmount,
-            toWormholeChainId,
-            bytes32(uint256(uint160(_bridgeData.receiver))),
-            _wormholeData.arbiterFee,
-            _wormholeData.nonce
-        );
 
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            IWormholeRouter(_wormholeData.wormholeRouter).wrapAndTransferETH{ value: _bridgeData.minAmount }(
+                toWormholeChainId,
+                bytes32(uint256(uint160(_bridgeData.receiver))),
+                _wormholeData.arbiterFee,
+                _wormholeData.nonce
+            );
+        } else {
+            IWormholeRouter(_wormholeData.wormholeRouter).transferTokens(
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                toWormholeChainId,
+                bytes32(uint256(uint160(_bridgeData.receiver))),
+                _wormholeData.arbiterFee,
+                _wormholeData.nonce
+            );
+        }
         emit LiFiTransferStarted(_bridgeData);
     }
 

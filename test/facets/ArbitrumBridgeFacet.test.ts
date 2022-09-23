@@ -13,8 +13,8 @@ import { node_url } from '../../utils/network'
 import { expect } from '../chai-setup'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
 import config from '../../config/arbitrum'
-import { IArbitrumInbox__factory } from '../../typechain/factories/src/Interfaces/IArbitrumInbox__factory'
 import { IArbitrumInbox } from '../../typechain/src/Interfaces/IArbitrumInbox'
+import { IArbitrumInbox__factory } from '../../typechain/factories/src/Interfaces/IArbitrumInbox__factory'
 
 const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const DAI_L1_ADDRESS = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
@@ -136,7 +136,7 @@ describe('ArbitrumBridgeFacet', function () {
         {
           forking: {
             jsonRpcUrl: node_url('mainnet'),
-            blockNumber: 14954000,
+            blockNumber: 15573750,
           },
         },
       ],
@@ -303,9 +303,6 @@ describe('ArbitrumBridgeFacet', function () {
 
       it('when transfer native asset', async function () {
         const cost = MAX_SUBMISSION_COST.add(MAX_GAS_PRICE.mul(MAX_GAS))
-        const arbitrumData = {
-          ...validArbitrumData,
-        }
 
         const bridgeData = {
           transactionId: utils.randomBytes(32),
@@ -323,7 +320,7 @@ describe('ArbitrumBridgeFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(bridgeData, arbitrumData, {
+            .startBridgeTokensViaArbitrumBridge(bridgeData, validArbitrumData, {
               value: utils.parseEther('10').add(cost),
             })
         )

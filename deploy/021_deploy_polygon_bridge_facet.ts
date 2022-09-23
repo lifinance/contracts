@@ -16,9 +16,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     return
   }
 
-  const ROOT_CHAIN_MANAGER_ADDRESS = config[network.name].rootChainManager
-  const ERC20_PREDICATE_ADDRESS = config[network.name].erc20Predicate
-
   await deploy('PolygonBridgeFacet', {
     from: deployer,
     log: true,

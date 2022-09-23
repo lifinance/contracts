@@ -95,4 +95,34 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
 
         emit LiFiTransferStarted(_bridgeData);
     }
+
+    function _startTokenBridge(
+        BridgeData calldata _bridgeData,
+        ArbitrumData calldata _arbitrumData,
+        uint256 amount,
+        uint256 cost
+    ) private {
+        IGatewayRouter gatewayRouter = IGatewayRouter(_arbitrumData.gatewayRouter);
+        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _arbitrumData.tokenRouter, amount);
+        gatewayRouter.outboundTransfer{ value: cost }(
+            _bridgeData.sendingAssetId,
+            _bridgeData.receiver,
+            amount,
+            _arbitrumData.maxGas,
+            _arbitrumData.maxGasPrice,
+            abi.encode(_arbitrumData.maxSubmissionCost, "")
+        );
+    }
+
+    function _startNativeBridge(
+        BridgeData calldata _bridgeData,
+        ArbitrumData calldata _arbitrumData,
+        uint256 amount,
+        uint256 cost
+    ) private {
+        if (msg.sender != _bridgeData.receiver) {
+            revert InvalidReceiver();
+        }
+        IArbitrumInbox(_arbitrumData.inbox).depositEth{ value: amount + cost }();
+    }
 }
