@@ -90,7 +90,6 @@ describe('HopFacet L1', function () {
 
     const HopData = {
       assetId: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-      bridge: '0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a',
       fromChainId: 1,
       toChainId: 137,
       receiver: alice.address,
@@ -117,7 +116,6 @@ describe('HopFacet L1', function () {
       fromChainId: 1,
       toChainId: 137,
       assetId: '0x0000000000000000000000000000000000000000',
-      bridge: '0xb8901acB165ed027E32754E0FFe830802919727f',
       receiver: alice.address,
       amount: amount,
       bonderFee: 0,
@@ -144,7 +142,6 @@ describe('HopFacet L1', function () {
       fromChainId: 1,
       toChainId: 137,
       assetId: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
-      bridge: '0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1',
       receiver: alice.address,
       amount: parseUnits('900', 18),
       bonderFee: 0,
@@ -211,7 +208,6 @@ describe('HopFacet L1', function () {
     const HopData = {
       fromChainId: 1,
       toChainId: 137,
-      bridge: '0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1',
       assetId: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
       receiver: alice.address,
       amount: parseUnits('900', 18),

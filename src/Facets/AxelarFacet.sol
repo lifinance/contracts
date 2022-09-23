@@ -60,6 +60,9 @@ contract AxelarFacet is ReentrancyGuard {
 
     /// External Methods ///
 
+    /// @notice Register chainId and chain name
+    /// @param _chainId Chain id
+    /// @param _name Chain name
     function setChainName(uint256 _chainId, string calldata _name) external {
         LibDiamond.enforceIsContractOwner();
         Storage storage s = getStorage();
