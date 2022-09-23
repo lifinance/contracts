@@ -35,7 +35,7 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard {
     {
         // Multichain (formerly Multichain) tokens can wrap other tokens
         (address underlyingToken, bool isNative) = _getUnderlyingToken(_multichainData.token, _multichainData.router);
-        LibAsset.depositAsset(underlyingToken, _multichainData.amount);
+        if (!isNative) LibAsset.depositAsset(underlyingToken, _multichainData.amount);
         _startBridge(_lifiData, _multichainData, underlyingToken, isNative, false);
     }
 
@@ -90,7 +90,6 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard {
         if (block.chainid == _multichainData.toChainId) revert CannotBridgeToSameNetwork();
 
         if (isNative) {
-            LibAsset.maxApproveERC20(IERC20(underlyingToken), _multichainData.router, _multichainData.amount);
             IMultichainRouter(_multichainData.router).anySwapOutNative{ value: _multichainData.amount }(
                 _multichainData.token,
                 _multichainData.recipient,
