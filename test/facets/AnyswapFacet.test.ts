@@ -209,7 +209,7 @@ describe('AnyswapFacet', function () {
       receiver: alice.address,
       minAmount: utils.parseUnits('1000', 6),
       destinationChainId: 137,
-      hasSourceSwaps: false,
+      hasSourceSwaps: true,
       hasDestinationCall: false,
     }
 

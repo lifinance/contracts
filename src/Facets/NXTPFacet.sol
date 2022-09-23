@@ -7,7 +7,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { InvalidReceiver, InvalidFallbackAddress } from "../Errors/GenericErrors.sol";
+import { InvalidReceiver, InformationMismatch, InvalidFallbackAddress } from "../Errors/GenericErrors.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title NXTP (Connext) Facet
@@ -15,7 +15,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @notice Provides functionality for bridging through NXTP (Connext)
 contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Errors ///
-    error InvariantDataMismatch();
+    error InvariantDataMismatch(string message);
 
     /// Types ///
     struct NXTPData {
@@ -40,6 +40,9 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         validateBridgeData(_bridgeData)
         nonReentrant
     {
+        if (hasDestinationCall(_nxtpData) != _bridgeData.hasDestinationCall) {
+            revert InformationMismatch();
+        }
         validateInvariantData(_nxtpData.invariantData, _bridgeData);
         LibAsset.depositAsset(_nxtpData.invariantData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _nxtpData);
@@ -55,6 +58,10 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         LibSwap.SwapData[] calldata _swapData,
         NXTPData calldata _nxtpData
     ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
+        if (hasDestinationCall(_nxtpData) != _bridgeData.hasDestinationCall) {
+            revert InformationMismatch();
+        }
+
         validateInvariantData(_nxtpData.invariantData, _bridgeData);
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
@@ -148,13 +155,17 @@ contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ILiFi.BridgeData memory _bridgeData
     ) private pure {
         if (_invariantData.sendingAssetId != _bridgeData.sendingAssetId) {
-            revert InvariantDataMismatch();
+            revert InvariantDataMismatch("sendingAssetId");
         }
         if (_invariantData.receivingAddress != _bridgeData.receiver) {
-            revert InvariantDataMismatch();
+            revert InvariantDataMismatch("receivingAddress");
         }
         if (_invariantData.receivingChainId != _bridgeData.destinationChainId) {
-            revert InvariantDataMismatch();
+            revert InvariantDataMismatch("receivingChainId");
         }
+    }
+
+    function hasDestinationCall(NXTPData memory _nxtpData) private pure returns (bool) {
+        return _nxtpData.encryptedCallData.length > 0;
     }
 }

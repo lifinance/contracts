@@ -6,7 +6,7 @@ import { IStargateRouter, IFactory, IPool } from "../Interfaces/IStargateRouter.
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, InvalidConfig, InvalidCaller, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InformationMismatch, InvalidConfig, InvalidCaller, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { LibMappings } from "../Libraries/LibMappings.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -68,6 +68,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         payable
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
+        noNativeAsset(_bridgeData)
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
@@ -97,11 +98,10 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        LibSwap.SwapData[] memory swaps = _swapData;
         uint256 nativeFee = msg.value;
-        for (uint8 i = 0; i < swaps.length; ) {
-            if (LibAsset.isNativeAsset(swaps[i].sendingAssetId)) {
-                nativeFee -= swaps[i].fromAmount;
+        for (uint8 i = 0; i < _swapData.length; ) {
+            if (LibAsset.isNativeAsset(_swapData[i].sendingAssetId)) {
+                nativeFee -= _swapData[i].fromAmount;
             }
             unchecked {
                 ++i;
@@ -217,6 +217,14 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         StargateData calldata _stargateData,
         uint256 _nativeFee
     ) private noNativeAsset(_bridgeData) {
+        (, LibSwap.SwapData[] memory destinationSwaps, , ) = abi.decode(
+            _stargateData.callData,
+            (ILiFi.BridgeData, LibSwap.SwapData[], address, address)
+        );
+        if ((destinationSwaps.length > 0) != _bridgeData.hasDestinationCall) {
+            revert InformationMismatch();
+        }
+
         LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _stargateData.router, _bridgeData.minAmount);
 
         IStargateRouter(_stargateData.router).swap{ value: _nativeFee }(

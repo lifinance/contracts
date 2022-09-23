@@ -138,7 +138,7 @@ describe('HyphenFacet', function () {
       receiver: alice.address,
       minAmount: amountUSDC,
       destinationChainId: 43114,
-      hasSourceSwaps: false,
+      hasSourceSwaps: true,
       hasDestinationCall: false,
     }
 

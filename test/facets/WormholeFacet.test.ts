@@ -123,7 +123,7 @@ describe('WormholeFacet', function () {
       receiver: alice.address,
       minAmount: utils.parseUnits('1000', 6),
       destinationChainId: 100,
-      hasSourceSwaps: false,
+      hasSourceSwaps: true,
       hasDestinationCall: false,
     }
 

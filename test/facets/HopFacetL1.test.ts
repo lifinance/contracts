@@ -168,7 +168,7 @@ describe('HopFacet L1', function () {
       receiver: alice.address,
       minAmount: parseUnits('900', 18),
       destinationChainId: 137,
-      hasSourceSwaps: false,
+      hasSourceSwaps: true,
       hasDestinationCall: false,
     }
 

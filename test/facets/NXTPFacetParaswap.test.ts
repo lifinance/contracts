@@ -104,19 +104,19 @@ describe('NXTPFacet (Paraswap)', function () {
       bridge: 'nxtp',
       integrator: 'li.finance',
       referrer: '0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0',
-      sendingAssetId: '0x2791bca1f2de4661ed88a30c99a7a9449aa84174',
+      sendingAssetId: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f',
       receiver: '0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0',
-      minAmount: 1000000,
+      minAmount: 99999,
       destinationChainId: 100,
-      hasSourceSwaps: false,
-      hasDestinationCall: false,
+      hasSourceSwaps: true,
+      hasDestinationCall: true,
     }
 
     nxtpData.invariantData.initiator = lifi.address
 
     // Approve ERC20 for swapping
     const token = ERC20__factory.connect(USDC_ADDRESS, alice)
-    await token.approve(lifi.address, lifiData.amount)
+    await token.approve(lifi.address, '1000000')
 
     // Call LiFi smart contract to start the bridge process
     await expect(

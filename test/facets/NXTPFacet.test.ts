@@ -124,7 +124,7 @@ describe('NXTPFacet', function () {
       receiver: simpleNXTPData.invariantData.receivingAddress,
       minAmount: simpleNXTPData.amount,
       destinationChainId: simpleNXTPData.invariantData.receivingChainId,
-      hasSourceSwaps: false,
+      hasSourceSwaps: true,
       hasDestinationCall: false,
     }
 
@@ -208,7 +208,7 @@ describe('NXTPFacet', function () {
       receiver: simpleNXTPData.invariantData.receivingAddress,
       minAmount: simpleNXTPData.amount,
       destinationChainId: simpleNXTPData.invariantData.receivingChainId,
-      hasSourceSwaps: false,
+      hasSourceSwaps: true,
       hasDestinationCall: false,
     }
 
@@ -274,7 +274,7 @@ describe('NXTPFacet', function () {
       receiver: simpleNXTPData.invariantData.receivingAddress,
       minAmount: simpleNXTPData.amount,
       destinationChainId: simpleNXTPData.invariantData.receivingChainId,
-      hasSourceSwaps: false,
+      hasSourceSwaps: true,
       hasDestinationCall: false,
     }
 
@@ -359,7 +359,7 @@ describe('NXTPFacet', function () {
       receiver: simpleNXTPData.invariantData.receivingAddress,
       minAmount: simpleNXTPData.amount,
       destinationChainId: simpleNXTPData.invariantData.receivingChainId,
-      hasSourceSwaps: false,
+      hasSourceSwaps: true,
       hasDestinationCall: false,
     }
 

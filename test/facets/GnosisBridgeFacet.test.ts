@@ -343,7 +343,7 @@ describe('GnosisBridgeFacet', function () {
             receiver: bob.address,
             minAmount: daiSendAmount.add(1),
             destinationChainId: config.mainnet.dstChainId,
-            hasSourceSwaps: false,
+            hasSourceSwaps: true,
             hasDestinationCall: false,
           }
 
