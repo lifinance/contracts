@@ -19,6 +19,10 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// @notice The contract address of the spoke pool on the source chain.
     IAcrossSpokePool private immutable spokePool;
 
+    /// Errors
+
+    error QuoteTimeout();
+
     /// Types ///
 
     /// @param weth The contract address of the WETH token on the current chain.
@@ -84,9 +88,16 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         AcrossData memory _acrossData,
         bool _hasSourceSwaps
     ) internal {
+        if (_acrossData.quoteTimestamp > block.timestamp + 10 minutes) {
+            revert QuoteTimeout();
+        }
+
         bool isNative = _acrossData.assetId == LibAsset.NATIVE_ASSETID;
-        if (isNative) _acrossData.assetId = _acrossData.weth;
-        else LibAsset.maxApproveERC20(IERC20(_acrossData.assetId), address(spokePool), _acrossData.amount);
+        if (isNative) {
+            _acrossData.assetId = _acrossData.weth;
+        } else {
+            LibAsset.maxApproveERC20(IERC20(_acrossData.assetId), address(spokePool), _acrossData.amount);
+        }
 
         spokePool.deposit{ value: isNative ? _acrossData.amount : 0 }(
             _acrossData.receiver,
