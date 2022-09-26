@@ -12,7 +12,7 @@ import { IArbitrumInbox } from "../Interfaces/IArbitrumInbox.sol";
 /// @title Arbitrum Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Arbitrum Bridge
-contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Types ///
     uint64 internal constant ARB_CHAIN_ID = 42161;
 
