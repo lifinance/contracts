@@ -14,6 +14,9 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
+    /// Errors
+    error QuoteTimeout();
+
     /// Types ///
 
     /// @param weth The contract address of the WETH token on the current chain.
@@ -73,9 +76,16 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         AcrossData memory _acrossData,
         bool _hasSourceSwaps
     ) internal {
+        if (_acrossData.quoteTimestamp > block.timestamp + 10 minutes) {
+            revert QuoteTimeout();
+        }
+
         bool isNative = _acrossData.token == LibAsset.NATIVE_ASSETID;
-        if (isNative) _acrossData.token = _acrossData.weth;
-        else LibAsset.maxApproveERC20(IERC20(_acrossData.token), _acrossData.spokePool, _acrossData.amount);
+        if (isNative) {
+            _acrossData.token = _acrossData.weth;
+        } else {
+            LibAsset.maxApproveERC20(IERC20(_acrossData.token), _acrossData.spokePool, _acrossData.amount);
+        }
 
         IAcrossSpokePool pool = IAcrossSpokePool(_acrossData.spokePool);
         pool.deposit{ value: isNative ? _acrossData.amount : 0 }(
