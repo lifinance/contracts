@@ -48,7 +48,7 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _amarokData, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _amarokData);
     }
 
     /// @notice Performs a swap before bridging via Amarok
@@ -56,7 +56,7 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _amarokData Data specific to bridge
     function swapAndStartBridgeTokensViaAmarok(
-        BridgeData calldata _bridgeData,
+        BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         AmarokData calldata _amarokData
     )
@@ -68,13 +68,13 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         nonReentrant
     {
         LibAsset.depositAssets(_swapData);
-        uint256 amount = _executeAndCheckSwaps(
+        _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _amarokData, amount);
+        _startBridge(_bridgeData, _amarokData);
     }
 
     /// Private Methods ///
@@ -82,12 +82,7 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @dev Contains the business logic for the bridge via Amarok
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _amarokData Data specific to Amarok
-    /// @param _amount Amount to bridge
-    function _startBridge(
-        BridgeData calldata _bridgeData,
-        AmarokData calldata _amarokData,
-        uint256 _amount
-    ) private {
+    function _startBridge(BridgeData memory _bridgeData, AmarokData calldata _amarokData) private {
         IConnextHandler.XCallArgs memory xcallArgs = IConnextHandler.XCallArgs({
             params: IConnextHandler.CallParams({
                 to: _bridgeData.receiver,
@@ -104,11 +99,11 @@ contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
                 slippageTol: _amarokData.slippageTol
             }),
             transactingAsset: _bridgeData.sendingAssetId,
-            transactingAmount: _amount,
+            transactingAmount: _bridgeData.minAmount,
             originMinOut: _amarokData.originMinOut
         });
 
-        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _amarokData.connextHandler, _amount);
+        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _amarokData.connextHandler, _bridgeData.minAmount);
         IConnextHandler(_amarokData.connextHandler).xcall(xcallArgs);
 
         emit LiFiTransferStarted(_bridgeData);

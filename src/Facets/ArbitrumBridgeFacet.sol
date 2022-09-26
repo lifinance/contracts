@@ -37,7 +37,7 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     ) external payable doesNotContainSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         uint256 cost = _arbitrumData.maxSubmissionCost + _arbitrumData.maxGas * _arbitrumData.maxGasPrice;
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _arbitrumData, _bridgeData.minAmount, cost);
+        _startBridge(_bridgeData, _arbitrumData, cost);
     }
 
     /// @notice Performs a swap before bridging via Arbitrum Bridge
@@ -50,14 +50,14 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ArbitrumData calldata _arbitrumData
     ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
-        uint256 amount = _executeAndCheckSwaps(
+        _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender)
         );
         uint256 cost = _arbitrumData.maxSubmissionCost + _arbitrumData.maxGas * _arbitrumData.maxGasPrice;
-        _startBridge(_bridgeData, _arbitrumData, amount, cost);
+        _startBridge(_bridgeData, _arbitrumData, cost);
     }
 
     /// Private Methods ///
@@ -65,28 +65,30 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @dev Contains the business logic for the bridge via Arbitrum Bridge
     /// @param _bridgeData Data containing core information for bridging
     /// @param _arbitrumData Data for gateway router address, asset id and amount
-    /// @param _amount Amount to bridge
     /// @param _cost Additional amount of native asset for the fee
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         ArbitrumData calldata _arbitrumData,
-        uint256 _amount,
         uint256 _cost
     ) private validateBridgeData(_bridgeData) {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             if (msg.sender != _bridgeData.receiver) {
                 revert InvalidReceiver();
             }
-            IArbitrumInbox(_arbitrumData.inbox).depositEth{ value: _amount }();
+            IArbitrumInbox(_arbitrumData.inbox).depositEth{ value: _bridgeData.minAmount }();
         } else {
             if (msg.value != _cost) {
                 revert InvalidFee();
             }
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _arbitrumData.tokenRouter, _amount);
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                _arbitrumData.tokenRouter,
+                _bridgeData.minAmount
+            );
             IGatewayRouter(_arbitrumData.gatewayRouter).outboundTransfer{ value: _cost }(
                 _bridgeData.sendingAssetId,
                 _bridgeData.receiver,
-                _amount,
+                _bridgeData.minAmount,
                 _arbitrumData.maxGas,
                 _arbitrumData.maxGasPrice,
                 abi.encode(_arbitrumData.maxSubmissionCost, "")
@@ -94,35 +96,5 @@ contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
-    }
-
-    function _startTokenBridge(
-        BridgeData calldata _bridgeData,
-        ArbitrumData calldata _arbitrumData,
-        uint256 amount,
-        uint256 cost
-    ) private {
-        IGatewayRouter gatewayRouter = IGatewayRouter(_arbitrumData.gatewayRouter);
-        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _arbitrumData.tokenRouter, amount);
-        gatewayRouter.outboundTransfer{ value: cost }(
-            _bridgeData.sendingAssetId,
-            _bridgeData.receiver,
-            amount,
-            _arbitrumData.maxGas,
-            _arbitrumData.maxGasPrice,
-            abi.encode(_arbitrumData.maxSubmissionCost, "")
-        );
-    }
-
-    function _startNativeBridge(
-        BridgeData calldata _bridgeData,
-        ArbitrumData calldata _arbitrumData,
-        uint256 amount,
-        uint256 cost
-    ) private {
-        if (msg.sender != _bridgeData.receiver) {
-            revert InvalidReceiver();
-        }
-        IArbitrumInbox(_arbitrumData.inbox).depositEth{ value: amount + cost }();
     }
 }

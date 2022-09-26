@@ -34,7 +34,7 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _omniData, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _omniData);
     }
 
     /// @notice Performs a swap before bridging via OmniBridge
@@ -47,13 +47,13 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         OmniData calldata _omniData
     ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
-        uint256 amount = _executeAndCheckSwaps(
+        _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _omniData, amount);
+        _startBridge(_bridgeData, _omniData);
     }
 
     /// Private Methods ///
@@ -61,19 +61,14 @@ contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @dev Contains the business logic for the bridge via OmniBridge
     /// @param _bridgeData Data contaning core information for bridging
     /// @param _omniData Data specific to OmniBridge
-    /// @param _amount Amount to bridge
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        OmniData calldata _omniData,
-        uint256 _amount
-    ) private {
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, OmniData calldata _omniData) private {
         IOmniBridge bridge = IOmniBridge(_omniData.bridge);
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            bridge.wrapAndRelayTokens{ value: _amount }(_bridgeData.receiver);
+            bridge.wrapAndRelayTokens{ value: _bridgeData.minAmount }(_bridgeData.receiver);
         } else {
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _omniData.bridge, _amount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _omniData.bridge, _bridgeData.minAmount);
 
-            bridge.relayTokens(_bridgeData.sendingAssetId, _bridgeData.receiver, _amount);
+            bridge.relayTokens(_bridgeData.sendingAssetId, _bridgeData.receiver, _bridgeData.minAmount);
         }
 
         emit LiFiTransferStarted(_bridgeData);

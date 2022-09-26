@@ -32,7 +32,7 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         OptimismData calldata _optimismData
     ) external payable doesNotContainSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _optimismData, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _optimismData);
     }
 
     /// @notice Performs a swap before bridging via Optimism Bridge
@@ -45,13 +45,13 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         OptimismData calldata _optimismData
     ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
         LibAsset.depositAssets(_swapData);
-        uint256 amount = _executeAndCheckSwaps(
+        _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _optimismData, amount);
+        _startBridge(_bridgeData, _optimismData);
     }
 
     /// Private Methods ///
@@ -59,27 +59,22 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @dev Contains the business logic for the bridge via Optimism Bridge
     /// @param _bridgeData Data contaning core information for bridging
     /// @param _bridgeData Data specific to Optimism Bridge
-    /// @param _amount Amount to bridge
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        OptimismData calldata _optimismData,
-        uint256 _amount
-    ) private {
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, OptimismData calldata _optimismData) private {
         IL1StandardBridge bridge = IL1StandardBridge(_optimismData.bridge);
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            bridge.depositETHTo{ value: _amount }(_bridgeData.receiver, _optimismData.l2Gas, "");
+            bridge.depositETHTo{ value: _bridgeData.minAmount }(_bridgeData.receiver, _optimismData.l2Gas, "");
         } else {
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _optimismData.bridge, _amount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _optimismData.bridge, _bridgeData.minAmount);
 
             if (_optimismData.isSynthetix) {
-                bridge.depositTo(_bridgeData.receiver, _amount);
+                bridge.depositTo(_bridgeData.receiver, _bridgeData.minAmount);
             } else {
                 bridge.depositERC20To(
                     _bridgeData.sendingAssetId,
                     _optimismData.assetIdOnL2,
                     _bridgeData.receiver,
-                    _amount,
+                    _bridgeData.minAmount,
                     _optimismData.l2Gas,
                     ""
                 );
