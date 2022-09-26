@@ -37,6 +37,17 @@ contract SwapperV2 is ILiFi {
         } else _;
     }
 
+    /// @dev Refunds any excess native asset sent to the contract after the main function
+    modifier refundExcessNative(address payable _refundReceiver) {
+        uint256 initialBalance = address(this).balance - msg.value;
+        _;
+        uint256 finalBalance = address(this).balance;
+        uint256 excess = finalBalance > initialBalance ? finalBalance - initialBalance : 0;
+        if (excess > 0) {
+            LibAsset.transferAsset(address(0), _refundReceiver, excess);
+        }
+    }
+
     /// Internal Methods ///
 
     /// @dev Validates input before executing swaps

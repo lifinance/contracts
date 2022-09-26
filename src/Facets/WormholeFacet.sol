@@ -48,6 +48,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function startBridgeTokensViaWormhole(ILiFi.BridgeData memory _bridgeData, WormholeData calldata _wormholeData)
         external
         payable
+        refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
@@ -64,7 +65,14 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         WormholeData calldata _wormholeData
-    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
+    )
+        external
+        payable
+        refundExcessNative(payable(msg.sender))
+        containsSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
+        nonReentrant
+    {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,
@@ -128,7 +136,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// @notice Gets the wormhole chain id for a given lifi chain id
-    /// @param _chainId uint256 of the lifi chain ID
+    /// @param _lifiChainId uint256 of the lifi chain ID
     /// @return uint16 of the wormhole chain id
     function getWormholeChainId(uint256 _lifiChainId) private view returns (uint16) {
         LibMappings.WormholeMappings storage sm = LibMappings.getWormholeMappings();

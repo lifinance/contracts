@@ -32,6 +32,7 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaHyphen(ILiFi.BridgeData memory _bridgeData, HyphenData calldata _hyphenData)
         external
         payable
+        refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
@@ -48,7 +49,14 @@ contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         HyphenData memory _hyphenData
-    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
+    )
+        external
+        payable
+        refundExcessNative(payable(msg.sender))
+        containsSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
+        nonReentrant
+    {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,

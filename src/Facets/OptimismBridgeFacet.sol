@@ -30,7 +30,14 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaOptimismBridge(
         ILiFi.BridgeData memory _bridgeData,
         OptimismData calldata _optimismData
-    ) external payable doesNotContainSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
+    )
+        external
+        payable
+        refundExcessNative(payable(msg.sender))
+        doesNotContainSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
+        nonReentrant
+    {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _optimismData);
     }
@@ -43,7 +50,14 @@ contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         OptimismData calldata _optimismData
-    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
+    )
+        external
+        payable
+        refundExcessNative(payable(msg.sender))
+        containsSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
+        nonReentrant
+    {
         LibAsset.depositAssets(_swapData);
         _bridgeData.minAmount = _executeAndCheckSwaps(
             _bridgeData.transactionId,

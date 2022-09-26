@@ -66,6 +66,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaStargate(ILiFi.BridgeData memory _bridgeData, StargateData calldata _stargateData)
         external
         payable
+        refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
@@ -86,6 +87,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     )
         external
         payable
+        refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)

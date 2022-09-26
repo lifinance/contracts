@@ -38,7 +38,7 @@ contract GenericSwapFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         string calldata _referrer,
         uint256 _minAmount,
         LibSwap.SwapData[] calldata _swapData
-    ) external payable nonReentrant {
+    ) external payable refundExcessNative(payable(msg.sender)) nonReentrant {
         LibAsset.depositAssets(_swapData);
         uint256 postSwapBalance = _executeAndCheckSwaps(_transactionId, _minAmount, _swapData, payable(msg.sender));
         address receivingAssetId = _swapData[_swapData.length - 1].receivingAssetId;

@@ -34,6 +34,7 @@ contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function startBridgeTokensViaXDaiBridge(ILiFi.BridgeData memory _bridgeData, GnosisData calldata _gnosisData)
         external
         payable
+        refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         onlyAllowDestinationChain(_bridgeData, GNOSIS_CHAIN_ID)
