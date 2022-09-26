@@ -31,4 +31,5 @@ error UnAuthorized();
 error NoSwapFromZeroBalance();
 error InvalidFallbackAddress();
 error ZeroAmount();
+error NotAContract();
 error NotEnoughBalance(uint256 requested, uint256 available);
