@@ -88,7 +88,7 @@ describe('AcrossFacet', function () {
         {
           forking: {
             jsonRpcUrl: node_url('mainnet'),
-            blockNumber: 33296967,
+            blockNumber: 15596007,
           },
         },
       ],

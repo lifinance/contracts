@@ -5,6 +5,8 @@ import { IDiamondCut } from "../Interfaces/IDiamondCut.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { OnlyContractOwner } from "../Errors/GenericErrors.sol";
 
+/// Implementation of EIP-2535 Diamond Standard
+/// https://eips.ethereum.org/EIPS/eip-2535
 library LibDiamond {
     bytes32 internal constant DIAMOND_STORAGE_POSITION = keccak256("diamond.standard.diamond.storage");
 
