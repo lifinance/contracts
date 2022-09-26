@@ -70,7 +70,7 @@ contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
                 if (toSubtract > nativeFee) {
                     revert InvalidAmount();
                 }
-                nativeFee -= _swapData[i].fromAmount;
+                nativeFee -= toSubtract;
             }
             unchecked {
                 ++i;
