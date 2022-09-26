@@ -55,7 +55,7 @@ contract SwapperV2 is ILiFi {
         uint256 swapBalance = LibAsset.getOwnBalance(finalTokenId);
         _executeSwaps(_transactionId, _swaps, _leftoverReceiver);
         uint256 newBalance = LibAsset.getOwnBalance(finalTokenId);
-        swapBalance = newBalance > swapBalance ? newBalance - swapBalance : newBalance;
+        swapBalance = newBalance > swapBalance ? newBalance - swapBalance : 0;
         if (swapBalance < _minAmount) revert CumulativeSlippageTooHigh();
         return swapBalance;
     }

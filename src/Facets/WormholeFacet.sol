@@ -13,6 +13,7 @@ import { InvalidAmount, CannotBridgeToSameNetwork, InvalidConfig, UnsupportedCha
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { LibMappings } from "../Libraries/LibMappings.sol";
 
 /// @title Wormhole Facet
 /// @author LI.FI (https://li.fi)
@@ -37,11 +38,6 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address wormholeRouter;
         uint256 arbiterFee;
         uint32 nonce;
-    }
-
-    struct Storage {
-        // Mapping between lifi chain id and wormhole chain id
-        mapping(uint256 => uint16) wormholeChainId;
     }
 
     /// External Methods ///
@@ -84,8 +80,8 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _wormholeChainId wormhole chain id
     function setWormholeChainId(uint256 _lifiChainId, uint16 _wormholeChainId) external {
         LibDiamond.enforceIsContractOwner();
-        Storage storage s = getStorage();
-        s.wormholeChainId[_lifiChainId] = _wormholeChainId;
+        LibMappings.WormholeMappings storage sm = LibMappings.getWormholeMappings();
+        sm.wormholeChainId[_lifiChainId] = _wormholeChainId;
         emit WormholeChainIdMapped(_lifiChainId, _wormholeChainId);
     }
 
@@ -95,9 +91,8 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _wormholeData data specific to Wormhole
     function _startBridge(ILiFi.BridgeData memory _bridgeData, WormholeData calldata _wormholeData) private {
-        Storage storage s = getStorage();
-        uint16 toWormholeChainId = s.wormholeChainId[_bridgeData.destinationChainId];
-        uint16 fromWormholeChainId = s.wormholeChainId[block.chainid];
+        uint16 toWormholeChainId = getWormholeChainId(_bridgeData.destinationChainId);
+        uint16 fromWormholeChainId = getWormholeChainId(block.chainid);
 
         {
             if (block.chainid == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
@@ -132,12 +127,13 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            s.slot := namespace
-        }
+    /// @notice Gets the wormhole chain id for a given lifi chain id
+    /// @param _chainId uint256 of the lifi chain ID
+    /// @return uint16 of the wormhole chain id
+    function getWormholeChainId(uint256 _lifiChainId) private view returns (uint16) {
+        LibMappings.WormholeMappings storage sm = LibMappings.getWormholeMappings();
+        uint16 wormholeChainId = sm.wormholeChainId[_lifiChainId];
+        if (wormholeChainId == 0) revert UnsupportedChainId(_lifiChainId);
+        return wormholeChainId;
     }
 }
