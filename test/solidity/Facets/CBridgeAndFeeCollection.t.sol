@@ -97,7 +97,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             address(0),
             USDC_ADDRESS,
             WHALE,
-            amount,
+            amount - fee - lifiFee,
             100,
             true,
             false
@@ -139,9 +139,9 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             address(0),
             address(0),
             WHALE,
-            amount,
+            amount - fee - lifiFee,
             100,
-            false,
+            true,
             false
         );
 

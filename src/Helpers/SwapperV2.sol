@@ -53,12 +53,12 @@ contract SwapperV2 is ILiFi {
 
     /// Internal Methods ///
 
-    /// @dev Validates input before executing swaps
+    /// @dev Deposits value, executes swaps, and performs minimum amount check
     /// @param _transactionId the transaction id associated with the operation
     /// @param _minAmount the minimum amount of the final asset to receive
     /// @param _swaps Array of data used to execute swaps
     /// @param _leftoverReceiver The address to send leftover funds to
-    function _executeAndCheckSwaps(
+    function _depositAndSwap(
         bytes32 _transactionId,
         uint256 _minAmount,
         LibSwap.SwapData[] calldata _swaps,
@@ -66,12 +66,15 @@ contract SwapperV2 is ILiFi {
     ) internal returns (uint256) {
         if (_swaps.length == 0) revert NoSwapDataProvided();
         address finalTokenId = _swaps[_swaps.length - 1].receivingAssetId;
-        uint256 swapBalance = LibAsset.getOwnBalance(finalTokenId);
+        uint256 sentNative = LibAsset.isNativeAsset(finalTokenId) ? msg.value : 0;
+        uint256 initialBalance = LibAsset.getOwnBalance(finalTokenId) - sentNative;
+
+        LibAsset.depositAssets(_swaps);
         _executeSwaps(_transactionId, _swaps, _leftoverReceiver);
-        uint256 newBalance = LibAsset.getOwnBalance(finalTokenId);
-        swapBalance = newBalance > swapBalance ? newBalance - swapBalance : 0;
-        if (swapBalance < _minAmount) revert CumulativeSlippageTooHigh();
-        return swapBalance;
+
+        uint256 newBalance = LibAsset.getOwnBalance(finalTokenId) - initialBalance;
+        if (newBalance < _minAmount) revert CumulativeSlippageTooHigh(_minAmount, newBalance);
+        return newBalance;
     }
 
     /// Private Methods ///

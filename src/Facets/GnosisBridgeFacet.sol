@@ -65,8 +65,7 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (_swapData[_swapData.length - 1].receivingAssetId != DAI) {
             revert InvalidSendingToken();
         }
-        LibAsset.depositAssets(_swapData);
-        _bridgeData.minAmount = _executeAndCheckSwaps(
+        _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,

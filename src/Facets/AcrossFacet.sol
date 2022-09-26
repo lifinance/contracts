@@ -64,8 +64,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         nonReentrant
     {
-        LibAsset.depositAssets(_swapData);
-        _bridgeData.minAmount = _executeAndCheckSwaps(
+        _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,

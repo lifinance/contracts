@@ -15,8 +15,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 // Stub SwapperV2 Contract
 contract TestSwapperV2 is SwapperV2 {
     function doSwaps(LibSwap.SwapData[] calldata _swapData) public {
-        LibAsset.depositAssets(_swapData);
-        _executeAndCheckSwaps(
+        _depositAndSwap(
             "",
             (_swapData[_swapData.length - 1].fromAmount * 95) / 100,
             _swapData,

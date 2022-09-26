@@ -30,7 +30,7 @@ error NativeAssetNotSupported();
 error UnAuthorized();
 error NoSwapFromZeroBalance();
 error InvalidFallbackAddress();
-error CumulativeSlippageTooHigh();
+error CumulativeSlippageTooHigh(uint256 minAmount, uint256 receivedAmount);
 error InsufficientBalance(uint256 required, uint256 balance);
 error ZeroAmount();
 error InvalidFee();

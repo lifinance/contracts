@@ -71,8 +71,7 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         validateInvariantData(_nxtpData.invariantData, _bridgeData);
-        LibAsset.depositAssets(_swapData);
-        _bridgeData.minAmount = _executeAndCheckSwaps(
+        _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
