@@ -13,7 +13,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Arbitrum Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Arbitrum Bridge
-contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
+contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
     uint64 internal constant ARB_CHAIN_ID = 42161;
 

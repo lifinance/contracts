@@ -35,3 +35,4 @@ error InsufficientBalance(uint256 required, uint256 balance);
 error ZeroAmount();
 error InvalidFee();
 error InformationMismatch();
+error NotAContract();

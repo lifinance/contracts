@@ -15,6 +15,8 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// Errors
+    error QuoteTimeout();
     /// Types ///
 
     /// @param weth The contract address of the WETH token on the current chain.
@@ -78,6 +80,9 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
     function _startBridge(ILiFi.BridgeData memory _bridgeData, AcrossData memory _acrossData) internal {
+        if (_acrossData.quoteTimestamp > block.timestamp + 10 minutes) {
+            revert QuoteTimeout();
+        }
         bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
         if (isNative) _bridgeData.sendingAssetId = _acrossData.weth;
         else LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _acrossData.spokePool, _bridgeData.minAmount);

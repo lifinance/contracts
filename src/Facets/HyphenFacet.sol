@@ -13,7 +13,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Hyphen Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hyphen
-contract HyphenFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
+contract HyphenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @param token The contract address of the token being bridged.

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
-  AnyswapFacet,
+  MultichainFacet,
   DexManagerFacet,
   IERC20 as ERC20,
   IERC20__factory as ERC20__factory,
@@ -12,7 +12,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { expect } from '../chai-setup'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
 
-const ANYSWAP_ROUTER = '0x4f3aff3a747fcade12598081e80c6605a8be192f'
+const MULTICHAIN_ROUTER = '0x4f3aff3a747fcade12598081e80c6605a8be192f'
 const USDT_ADDRESS = '0xc2132D05D31c914a87C6611C10748AEb04B58e8F'
 const WMATIC_ADDRESS = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'
 const MATIC_ROUTER = '0x2ef4a574b72e1f555185afa8a09c6d1a8ac4025c'
@@ -22,8 +22,8 @@ const UNISWAP_ADDRESS = '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff'
 const BEEFY_ADDRESS = '0xFbdd194376de19a88118e84E279b977f165d01b8'
 const BEEFY_ROUTER = '0x6fF0609046A38D76Bd40C5863b4D1a2dCe687f73'
 
-describe('AnyswapFacet', function () {
-  let lifi: AnyswapFacet
+describe('MultichainFacet', function () {
+  let lifi: MultichainFacet
   let dexMgr: DexManagerFacet
   let alice: SignerWithAddress
   let beefHolder: SignerWithAddress
@@ -34,10 +34,10 @@ describe('AnyswapFacet', function () {
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
-      await deployments.fixture('DeployAnyswapFacet')
+      await deployments.fixture('DeployMultichainFacet')
       const diamond = await ethers.getContract('LiFiDiamond')
-      lifi = <AnyswapFacet>(
-        await ethers.getContractAt('AnyswapFacet', diamond.address)
+      lifi = <MultichainFacet>(
+        await ethers.getContractAt('MultichainFacet', diamond.address)
       )
       dexMgr = <DexManagerFacet>(
         await ethers.getContractAt('DexManagerFacet', diamond.address)
@@ -94,26 +94,14 @@ describe('AnyswapFacet', function () {
   })
 
   it('starts a bridge transaction using native token on the sending chain', async () => {
-    const bridgeData = {
-      transactionId: utils.randomBytes(32),
-      bridge: 'amarok',
-      integrator: 'ACME Devs',
-      referrer: ethers.constants.AddressZero,
-      sendingAssetId: anyMATIC_ADDRESS,
-      receiver: alice.address,
-      minAmount: utils.parseUnits('1000'),
-      destinationChainId: 100,
-      hasSourceSwaps: false,
-      hasDestinationCall: false,
-    }
-
-    const AnyswapData = {
+    const MultichainData = {
+      token: anyMATIC_ADDRESS,
       router: MATIC_ROUTER,
     }
 
     await lifi
       .connect(alice)
-      .startBridgeTokensViaAnyswap(bridgeData, AnyswapData, {
+      .startBridgeTokensViaMultichain(lifiData, MultichainData, {
         gasLimit: 500000,
         value: utils.parseEther('1000'),
       })
@@ -123,51 +111,30 @@ describe('AnyswapFacet', function () {
     const beefy = ERC20__factory.connect(BEEFY_ADDRESS, beefHolder)
     await beefy.approve(lifi.address, utils.parseEther('10'))
 
-    const bridgeData = {
-      transactionId: utils.randomBytes(32),
-      bridge: 'amarok',
-      integrator: 'ACME Devs',
-      referrer: ethers.constants.AddressZero,
-      sendingAssetId: BEEFY_ADDRESS,
-      receiver: alice.address,
-      minAmount: utils.parseUnits('10'),
-      destinationChainId: 100,
-      hasSourceSwaps: false,
-      hasDestinationCall: false,
-    }
-
-    const AnyswapData = {
+    const MultichainData = {
+      token: BEEFY_ADDRESS,
       router: BEEFY_ROUTER,
     }
 
     await lifi
       .connect(beefHolder)
-      .startBridgeTokensViaAnyswap(bridgeData, AnyswapData, {
+      .startBridgeTokensViaMultichain(lifiData, MultichainData, {
         gasLimit: 500000,
       })
   })
 
   it('starts a bridge transaction on the sending chain', async () => {
-    const bridgeData = {
-      transactionId: utils.randomBytes(32),
-      bridge: 'amarok',
-      integrator: 'ACME Devs',
-      referrer: ethers.constants.AddressZero,
-      sendingAssetId: token.address,
-      receiver: alice.address,
-      minAmount: utils.parseUnits('1000', 6),
-      destinationChainId: 100,
-      hasSourceSwaps: false,
-      hasDestinationCall: false,
-    }
-
-    const AnyswapData = {
-      router: ANYSWAP_ROUTER,
+    const MultichainData = {
+      token: token.address,
+      router: MULTICHAIN_ROUTER,
+      amount: utils.parseUnits('1000', 6),
+      recipient: alice.address,
+      toChainId: 100,
     }
 
     await lifi
       .connect(alice)
-      .startBridgeTokensViaAnyswap(bridgeData, AnyswapData, {
+      .startBridgeTokensViaMultichain(lifiData, MultichainData, {
         gasLimit: 500000,
       })
   })
@@ -200,29 +167,25 @@ describe('AnyswapFacet', function () {
       },
     ]
 
-    const bridgeData = {
-      transactionId: utils.randomBytes(32),
-      bridge: 'amarok',
-      integrator: 'ACME Devs',
-      referrer: ethers.constants.AddressZero,
-      sendingAssetId: token.address,
-      receiver: alice.address,
-      minAmount: utils.parseUnits('1000', 6),
-      destinationChainId: 137,
-      hasSourceSwaps: true,
-      hasDestinationCall: false,
-    }
-
-    const AnyswapData = {
-      router: ANYSWAP_ROUTER,
+    const MultichainData = {
+      token: token.address,
+      router: MULTICHAIN_ROUTER,
+      amount: utils.parseUnits('1000', 6),
+      recipient: alice.address,
+      toChainId: 137,
     }
 
     await lifi
       .connect(alice)
-      .swapAndStartBridgeTokensViaAnyswap(bridgeData, swapData, AnyswapData, {
-        gasLimit: 500000,
-        value: utils.parseEther('700'),
-      })
+      .swapAndStartBridgeTokensViaMultichain(
+        lifiData,
+        swapData,
+        MultichainData,
+        {
+          gasLimit: 500000,
+          value: utils.parseEther('700'),
+        }
+      )
   })
 
   it('fails to perform a swap when the dex is not approved', async () => {
@@ -250,34 +213,30 @@ describe('AnyswapFacet', function () {
         receivingAssetId: usdt.address,
         fromAmount: utils.parseEther('700'),
         callData: uniswapData,
-        requiresDeposit: true,
+        requiresDeposit: false,
       },
     ]
 
-    const AnyswapData = {
-      router: ANYSWAP_ROUTER,
-    }
-
-    const bridgeData = {
-      transactionId: utils.randomBytes(32),
-      bridge: 'amarok',
-      integrator: 'ACME Devs',
-      referrer: ethers.constants.AddressZero,
-      sendingAssetId: token.address,
-      receiver: alice.address,
-      minAmount: utils.parseUnits('1000', 6),
-      destinationChainId: 137,
-      hasSourceSwaps: false,
-      hasDestinationCall: false,
+    const MultichainData = {
+      token: token.address,
+      router: MULTICHAIN_ROUTER,
+      amount: utils.parseUnits('1000', 6),
+      recipient: alice.address,
+      toChainId: 137,
     }
 
     await expect(
       lifi
         .connect(alice)
-        .swapAndStartBridgeTokensViaAnyswap(bridgeData, swapData, AnyswapData, {
-          gasLimit: 500000,
-          value: utils.parseEther('700'),
-        })
+        .swapAndStartBridgeTokensViaMultichain(
+          lifiData,
+          swapData,
+          MultichainData,
+          {
+            gasLimit: 500000,
+            value: utils.parseEther('700'),
+          }
+        )
     ).to.be.revertedWith('ContractCallNotAllowed()')
   })
 })

@@ -12,7 +12,7 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-contract Executor is ReentrancyGuard, ILiFi, TransferrableOwnership {
+contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// Storage ///
     IERC20Proxy public erc20Proxy;
 

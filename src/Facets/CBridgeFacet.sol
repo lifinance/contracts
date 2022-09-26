@@ -14,7 +14,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title CBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
-contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
+contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     struct CBridgeData {

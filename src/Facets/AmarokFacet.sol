@@ -12,7 +12,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Amarok Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Connext Amarok
-contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
+contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     uint32 immutable srcChainDomain;
 
     /// Types ///

@@ -11,7 +11,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for swapping through ANY APPROVED DEX
 /// @dev Uses calldata to execute APPROVED arbitrary methods on DEXs
-contract GenericSwapFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
+contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Events ///
 
     event LiFiSwappedGeneric(

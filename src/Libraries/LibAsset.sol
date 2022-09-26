@@ -32,6 +32,7 @@ library LibAsset {
     /// @param amount Amount to send to given recipient
     function transferNativeAsset(address payable recipient, uint256 amount) private {
         if (recipient == NULL_ADDRESS) revert NoTransferToNullAddress();
+        if (amount > address(this).balance) revert InsufficientBalance(amount, address(this).balance);
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, ) = recipient.call{ value: amount }("");
         if (!success) revert NativeAssetTransferFailed();
@@ -65,6 +66,8 @@ library LibAsset {
         uint256 amount
     ) private {
         if (isNativeAsset(assetId)) revert NullAddrIsNotAnERC20Token();
+        uint256 assetBalance = IERC20(assetId).balanceOf(address(this));
+        if (amount > assetBalance) revert InsufficientBalance(amount, assetBalance);
         SafeERC20.safeTransfer(IERC20(assetId), recipient, amount);
     }
 

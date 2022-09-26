@@ -14,7 +14,8 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Stargate Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate
-contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
+
+contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.stargate");

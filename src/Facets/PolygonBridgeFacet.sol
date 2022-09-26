@@ -12,7 +12,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Polygon Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Polygon Bridge
-contract PolygonBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
+contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     uint64 internal constant POLYGON_CHAIN_ID = 137;
 
     /// Types ///

@@ -12,7 +12,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title OmniBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through OmniBridge
-contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
+contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     uint64 internal constant GNOSIS_CHAIN_ID = 100;

@@ -13,7 +13,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title NXTP (Connext) Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through NXTP (Connext)
-contract NXTPFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
+contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Errors ///
     error InvariantDataMismatch(string message);
 

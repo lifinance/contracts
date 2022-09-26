@@ -14,7 +14,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Gnosis Bridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through XDaiBridge
-contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
+contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     address internal constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;

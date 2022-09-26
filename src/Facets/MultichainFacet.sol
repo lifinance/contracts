@@ -2,30 +2,33 @@
 pragma solidity 0.8.16;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IAnyswapRouter } from "../Interfaces/IAnyswapRouter.sol";
+import { IMultichainToken } from "../Interfaces/IMultichainToken.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { IAnyswapToken } from "../Interfaces/IAnyswapToken.sol";
+import { IMultichainRouter } from "../Interfaces/IMultichainRouter.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { TokenAddressIsZero, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
-/// @title Anyswap Facet
+/// @title Multichain Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Multichain (Prev. AnySwap)
-contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
+contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Types ///
 
-    struct AnyswapData {
+    struct MultichainData {
         address router;
     }
 
     /// External Methods ///
 
-    /// @notice Bridges tokens via Anyswap
+    /// @notice Bridges tokens via Multichain
     /// @param _bridgeData the core information needed for bridging
-    /// @param _anyswapData data specific to Anyswap
-    function startBridgeTokensViaAnyswap(ILiFi.BridgeData memory _bridgeData, AnyswapData calldata _anyswapData)
+    /// @param _multichainData data specific to Multichain
+    function startBridgeTokensViaMultichain(
+        ILiFi.BridgeData memory _bridgeData,
+        MultichainData calldata _multichainData
+    )
         external
         payable
         refundExcessNative(payable(msg.sender))
@@ -33,20 +36,23 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         validateBridgeData(_bridgeData)
         nonReentrant
     {
-        // Multichain (formerly Anyswap) tokens can wrap other tokens
-        (address underlyingToken, bool isNative) = _getUnderlyingToken(_bridgeData.sendingAssetId, _anyswapData.router);
+        // Multichain (formerly Multichain) tokens can wrap other tokens
+        (address underlyingToken, bool isNative) = _getUnderlyingToken(
+            _bridgeData.sendingAssetId,
+            _multichainData.router
+        );
         if (!isNative) LibAsset.depositAsset(underlyingToken, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _anyswapData, underlyingToken, isNative);
+        _startBridge(_bridgeData, _multichainData, underlyingToken, isNative);
     }
 
-    /// @notice Performs a swap before bridging via Anyswap
+    /// @notice Performs a swap before bridging via Multichain
     /// @param _bridgeData the core information needed for bridging
     /// @param _swapData an array of swap related data for performing swaps before bridging
-    /// @param _anyswapData data specific to Anyswap
-    function swapAndStartBridgeTokensViaAnyswap(
+    /// @param _multichainData data specific to Multichain
+    function swapAndStartBridgeTokensViaMultichain(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        AnyswapData memory _anyswapData
+        MultichainData memory _multichainData
     )
         external
         payable
@@ -62,62 +68,65 @@ contract AnyswapFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        (address underlyingToken, bool isNative) = _getUnderlyingToken(_bridgeData.sendingAssetId, _anyswapData.router);
-        _startBridge(_bridgeData, _anyswapData, underlyingToken, isNative);
+        (address underlyingToken, bool isNative) = _getUnderlyingToken(
+            _bridgeData.sendingAssetId,
+            _multichainData.router
+        );
+        _startBridge(_bridgeData, _multichainData, underlyingToken, isNative);
     }
 
     /// Private Methods ///
 
-    /// @dev Unwraps the underlying token from the Anyswap token if necessary
+    /// @dev Unwraps the underlying token from the Multichain token if necessary
     /// @param token The (maybe) wrapped token
-    /// @param router The Anyswap router
+    /// @param router The Multichain router
     function _getUnderlyingToken(address token, address router)
         private
         returns (address underlyingToken, bool isNative)
     {
-        // Token must implement IAnyswapToken interface
+        // Token must implement IMultichainToken interface
         if (LibAsset.isNativeAsset(token)) revert TokenAddressIsZero();
-        underlyingToken = IAnyswapToken(token).underlying();
+        underlyingToken = IMultichainToken(token).underlying();
         // The native token does not use the standard null address ID
-        isNative = IAnyswapRouter(router).wNATIVE() == underlyingToken;
+        isNative = IMultichainRouter(router).wNATIVE() == underlyingToken;
         // Some Multichain complying tokens may wrap nothing
         if (!isNative && LibAsset.isNativeAsset(underlyingToken)) {
             underlyingToken = token;
         }
     }
 
-    /// @dev Contains the business logic for the bridge via Anyswap
+    /// @dev Contains the business logic for the bridge via Multichain
     /// @param _bridgeData the core information needed for bridging
-    /// @param _anyswapData data specific to Anyswap
+    /// @param _multichainData data specific to Multichain
     /// @param underlyingToken the underlying token to swap
     /// @param isNative denotes whether the token is a native token vs ERC20
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        AnyswapData memory _anyswapData,
+        MultichainData memory _multichainData,
         address underlyingToken,
         bool isNative
     ) private {
         if (block.chainid == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
 
         if (isNative) {
-            IAnyswapRouter(_anyswapData.router).anySwapOutNative{ value: _bridgeData.minAmount }(
+            IMultichainRouter(_multichainData.router).anySwapOutNative{ value: _bridgeData.minAmount }(
                 _bridgeData.sendingAssetId,
                 _bridgeData.receiver,
                 _bridgeData.destinationChainId
             );
         } else {
-            // Give Anyswap approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(underlyingToken), _anyswapData.router, _bridgeData.minAmount);
+            // Give Multichain approval to bridge tokens
+            LibAsset.maxApproveERC20(IERC20(underlyingToken), _multichainData.router, _bridgeData.minAmount);
             // Was the token wrapping another token?
             if (_bridgeData.sendingAssetId != underlyingToken) {
-                IAnyswapRouter(_anyswapData.router).anySwapOutUnderlying(
+                IMultichainRouter(_multichainData.router).anySwapOutUnderlying(
                     _bridgeData.sendingAssetId,
                     _bridgeData.receiver,
                     _bridgeData.minAmount,
                     _bridgeData.destinationChainId
                 );
             } else {
-                IAnyswapRouter(_anyswapData.router).anySwapOut(
+                IMultichainRouter(_multichainData.router).anySwapOut(
                     _bridgeData.sendingAssetId,
                     _bridgeData.receiver,
                     _bridgeData.minAmount,

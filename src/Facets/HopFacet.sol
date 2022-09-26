@@ -13,7 +13,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Hop Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
+contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
     struct HopData {
         address bridge;
