@@ -11,7 +11,7 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @title OmniBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through OmniBridge
-contract OmniBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Types ///
 
     uint64 internal constant GNOSIS_CHAIN_ID = 100;

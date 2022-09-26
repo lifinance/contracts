@@ -14,8 +14,6 @@ import { NotAContract } from "../Errors/GenericErrors.sol";
 /// @notice Allows admin to withdraw funds that are kept in the contract by accident
 contract WithdrawFacet {
     /// Errors ///
-
-    error NotEnoughBalance(uint256 requested, uint256 available);
     error WithdrawFailed();
 
     /// Events ///
@@ -79,17 +77,7 @@ contract WithdrawFacet {
         uint256 _amount
     ) internal {
         address sendTo = (LibUtil.isZeroAddress(_to)) ? msg.sender : _to;
-        uint256 assetBalance;
-        if (_assetAddress == LibAsset.NATIVE_ASSETID) {
-            if (_amount > address(this).balance) revert NotEnoughBalance(_amount, address(this).balance);
-            // solhint-disable-next-line avoid-low-level-calls
-            (bool success, ) = payable(sendTo).call{ value: _amount }("");
-            if (!success) revert WithdrawFailed();
-        } else {
-            assetBalance = IERC20(_assetAddress).balanceOf(address(this));
-            if (_amount > assetBalance) revert NotEnoughBalance(_amount, assetBalance);
-            SafeERC20.safeTransfer(IERC20(_assetAddress), sendTo, _amount);
-        }
+        LibAsset.transferAsset(_assetAddress, payable(sendTo), _amount);
         emit LogWithdraw(_assetAddress, sendTo, _amount);
     }
 }

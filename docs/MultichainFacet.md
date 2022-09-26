@@ -1,12 +1,12 @@
-# Anyswap Facet
+# Multichain Facet
 
 ## How it works
 
-The Anyswap Facet works by forwarding Anyswap specific calls to a token specific [router contract](https://github.com/anyswap/anyswap-v1-core/blob/master/contracts/AnyswapV5Router.sol). Anyswap works by locking tokens into a router contract on a base chain before bridging. Tokens can then be minted by a router contract on the receiving chain. This is handled by a decentralized network of [MPC nodes](https://docs.multichain.org/how-it-works) under the hood.
+The Multichain Facet works by forwarding Multichain specific calls to a token specific [router contract](https://github.com/anyswap/anyswap-v1-core/blob/master/contracts/AnyswapV5Router.sol). Multichain works by locking tokens into a router contract on a base chain before bridging. Tokens can then be minted by a router contract on the receiving chain. This is handled by a decentralized network of [MPC nodes](https://docs.multichain.org/how-it-works) under the hood.
 
 ```mermaid
 graph LR;
-    D{LiFiDiamond}-- DELEGATECALL -->A[AnyswapFacet]
+    D{LiFiDiamond}-- DELEGATECALL -->A[MultichainFacet]
     A -- CALL --> USDC(USDC Router)
     A -- CALL --> DAI(DAI Router)
     A -- CALL --> WETH(WETH Router)
@@ -14,18 +14,18 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaAnyswap(LiFiData memory _lifiData, AnyswapData calldata _anyswapData)`
-  - Simply bridges tokens using Anyswap
-- `function swapAndStartBridgeTokensViaAnyswap( LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData, AnyswapData memory _anyswapData)`
-  - Performs swap(s) before bridging tokens using Anyswap
+- `function startBridgeTokensViaMultichain(LiFiData memory _lifiData, MultichainData calldata _multichainData_)`
+  - Simply bridges tokens using Multichain
+- `function swapAndStartBridgeTokensViaMultichain( LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData, MultichainData memory _multichainData_)`
+  - Performs swap(s) before bridging tokens using Multichain
 
-## Anyswap Specific Parameters
+## Multichain Specific Parameters
 
-Some of the methods listed above take a variable labeled `_anyswapData`.
+Some of the methods listed above take a variable labeled `_multichainData_`.
 
-To populate `_anyswapData` you will need to fetch the router address for the chain ID you are bridging from. You can use the [Anyswap API](https://github.com/anyswap/CrossChain-Router/wiki/How-to-integrate-AnySwap-Router) to do this.
+To populate `_multichainData_` you will need to fetch the router address for the chain ID you are bridging from. You can use the [Multichain API](https://github.com/anyswap/CrossChain-Router/wiki/How-to-integrate-AnySwap-Router) to do this.
 
-This data is specific to Anyswap and is represented as the following struct type:
+This data is specific to Multichain and is represented as the following struct type:
 
 ```solidity
 /// @param token Address of the contract for the token being bridged.
@@ -33,7 +33,7 @@ This data is specific to Anyswap and is represented as the following struct type
 /// @param amount Amount of the token being bridged.
 /// @param recipient Recipient address
 /// @param chainId Chain ID of the chain to bridge tokens to
-struct AnyswapData {
+struct MultichainData {
   address token;
   address router;
   uint256 amount;
