@@ -12,7 +12,7 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @title Stargate Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate
-contract StargateFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Storage ///
 
     /// @notice The contract address of the stargate router on the source chain.

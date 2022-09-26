@@ -12,7 +12,7 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @title Optimism Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Optimism Bridge
-contract OptimismBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.optimism");

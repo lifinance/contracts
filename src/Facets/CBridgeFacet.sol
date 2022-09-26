@@ -13,7 +13,7 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 /// @title CBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
-contract CBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Storage ///
 
     /// @notice The contract address of the cbridge on the source chain.

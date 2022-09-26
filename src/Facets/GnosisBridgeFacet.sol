@@ -13,7 +13,7 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 /// @title Gnosis Bridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through XDaiBridge
-contract GnosisBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Storage ///
 
     /// @notice The DAI address on the source chain.

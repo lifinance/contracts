@@ -11,7 +11,7 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @title Arbitrum Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Arbitrum Bridge
-contract ArbitrumBridgeFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Storage ///
 
     /// @notice Chain id of Arbitrum.

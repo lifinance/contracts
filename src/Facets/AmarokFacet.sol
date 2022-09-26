@@ -11,7 +11,7 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @title Amarok Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Connext Amarok
-contract AmarokFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Storage ///
 
     /// @notice The contract address of the connext handler on the source chain.

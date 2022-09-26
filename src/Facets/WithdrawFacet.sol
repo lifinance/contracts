@@ -7,14 +7,13 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
+import { NotAContract } from "../Errors/GenericErrors.sol";
 
 /// @title Withdraw Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Allows admin to withdraw funds that are kept in the contract by accident
 contract WithdrawFacet {
     /// Errors ///
-
-    error NotEnoughBalance(uint256 requested, uint256 available);
     error WithdrawFailed();
 
     /// Events ///
@@ -43,10 +42,8 @@ contract WithdrawFacet {
         // Check if the _callTo is a contract
         bool success;
         bool isContract = LibAsset.isContract(_callTo);
-        if (isContract) {
-            // solhint-disable-next-line avoid-low-level-calls
-            (success, ) = _callTo.call(_callData);
-        }
+        if (!isContract) revert NotAContract();
+        (success, ) = _callTo.call(_callData);
 
         if (success) {
             _withdrawAsset(_assetAddress, _to, _amount);
@@ -80,17 +77,7 @@ contract WithdrawFacet {
         uint256 _amount
     ) internal {
         address sendTo = (LibUtil.isZeroAddress(_to)) ? msg.sender : _to;
-        uint256 assetBalance;
-        if (_assetAddress == LibAsset.NATIVE_ASSETID) {
-            if (_amount > address(this).balance) revert NotEnoughBalance(_amount, address(this).balance);
-            // solhint-disable-next-line avoid-low-level-calls
-            (bool success, ) = payable(sendTo).call{ value: _amount }("");
-            if (!success) revert WithdrawFailed();
-        } else {
-            assetBalance = IERC20(_assetAddress).balanceOf(address(this));
-            if (_amount > assetBalance) revert NotEnoughBalance(_amount, assetBalance);
-            SafeERC20.safeTransfer(IERC20(_assetAddress), sendTo, _amount);
-        }
+        LibAsset.transferAsset(_assetAddress, payable(sendTo), _amount);
         emit LogWithdraw(_assetAddress, sendTo, _amount);
     }
 }

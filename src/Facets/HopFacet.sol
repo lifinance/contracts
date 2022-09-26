@@ -13,7 +13,7 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 /// @title Hop Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-contract HopFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.hop");
