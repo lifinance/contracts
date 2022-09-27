@@ -12,8 +12,6 @@ graph LR;
 
 ## Public Methods
 
-- `function initHyphen(address _hyphenRouter)`
-  - Initializer method. Sets Hyphen LiquidityPool [contract address](https://docs.biconomy.io/products/hyphen-instant-cross-chain-transfers/contract-addresses) for the specific chain
 - `function startBridgeTokensViaHyphen(LiFiData memory _lifiData, HyphenData calldata _hyphenData)`
   - Simply bridges tokens using Hyphen
 - `function swapAndStartBridgeTokensViaHyphen(LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData, HyphenData memory _hyphenData)`
