@@ -42,4 +42,8 @@ export default [
   '0x160e8be3', // Superfluid downagradeToETH(uint256 wad)
   '0xeedd56e1', // FeeCollector collectTokenFees(address,uint256,uint256,address)
   '0xe0cbc5f2', // FeeCollector collectNativeFees(uint256,uint256,address)
+  '0xb56c9663', // OKEX swapExactOKTForTokens(uint,address[],address,uint)
+  '0xce8d3bde', // swapOKTForExactTokens(uint,address[],address,uint)
+  '0xa5669eae', // swapExactTokensForOKT(uint,uint,address[],address,uint)
+  '0x3cdf133f', // swapTokensForExactOKT(uint,uint,address[],address,uint)
 ]
