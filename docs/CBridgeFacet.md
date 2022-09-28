@@ -14,9 +14,9 @@ graph LR;
 
 - `function initCbridge(address _cBridge, uint64 _chainId)`
   - Initializer method. Sets chainId and CBridge contract for the specific chain
-- `function startBridgeTokensViaCBridge(LiFiData memory _lifiData, CBridgeData calldata _cBridgeData)`
+- `function startBridgeTokensViaCBridge(BridgeData memory _lifiData, CBridgeData calldata _cBridgeData)`
   - Simply bridges tokens using CBridge
-- `function swapAndStartBridgeTokensViaCBridge( LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData, CBridgeData memory _cBridgeData)`
+- `function swapAndStartBridgeTokensViaCBridge( BridgeData memory _lifiData, LibSwap.SwapData[] calldata _swapData, CBridgeData memory _cBridgeData)`
   - Performs swap(s) before bridging tokens using CBridge
 
 ## CBridge Specific Parameters
@@ -53,9 +53,9 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `LiFiData _lifiData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `LiFiData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 

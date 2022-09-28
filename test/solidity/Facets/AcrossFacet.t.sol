@@ -34,7 +34,6 @@ contract AcrossFacetTest is DSTest, DiamondTest {
     address internal constant WETH_HOLDER = 0xD022510A3414f255150Aa54b2e42DB6129a20d9E;
     address internal constant SPOKE_POOL = 0x4D9079Bb4165aeb4084c526a32695dCfd2F77381;
     // -----
-    ILiFi.LiFiData internal lifiData = ILiFi.LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0);
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
@@ -65,32 +64,49 @@ contract AcrossFacetTest is DSTest, DiamondTest {
 
     function testCanBridgeNativeTokens() public {
         vm.startPrank(ETH_HOLDER);
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "across",
+            "",
+            address(0),
+            address(0),
+            ETH_HOLDER,
+            1000000000000000000,
+            137,
+            false,
+            false
+        );
+
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
             WETH_ADDRESS,
-            address(0), // token
-            1000000000000000000, // amt
-            ETH_HOLDER,
-            137, // Polygon chain id
             0, // Relayer fee
             uint32(block.timestamp)
         );
-        across.startBridgeTokensViaAcross{ value: 1000000000000000000 }(lifiData, data);
+        across.startBridgeTokensViaAcross{ value: 1000000000000000000 }(bridgeData, data);
         vm.stopPrank();
     }
 
     function testCanBridgeERC20Tokens() public {
         vm.startPrank(WETH_HOLDER);
         weth.approve(address(across), 10_000 * 10**weth.decimals());
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "across",
+            "",
+            address(0),
+            WETH_ADDRESS,
+            WETH_HOLDER,
+            100000,
+            137,
+            false,
+            false
+        );
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
             WETH_ADDRESS,
-            WETH_ADDRESS, // token
-            100000, // amt
-            WETH_HOLDER,
-            137, // Polygon chain id
             0, // Relayer fee
             uint32(block.timestamp)
         );
-        across.startBridgeTokensViaAcross(lifiData, data);
+        across.startBridgeTokensViaAcross(bridgeData, data);
         vm.stopPrank();
     }
 }

@@ -12,9 +12,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaArbitrumBridge(LiFiData calldata _lifiData, BridgeData calldata _bridgeData)`
+- `function startBridgeTokensViaArbitrumBridge(BridgeData calldata _lifiData, BridgeData calldata _bridgeData)`
   - Simply bridges tokens using Arbitrum Native Bridge
-- `function swapAndStartBridgeTokensViaArbitrumBridge(LiFiData calldata, LibSwap.SwapData[] calldata _swapData, BridgeData calldata _bridgeData)`
+- `function swapAndStartBridgeTokensViaArbitrumBridge(BridgeData calldata, LibSwap.SwapData[] calldata _swapData, BridgeData calldata _bridgeData)`
   - Performs swap(s) before bridging tokens using Arbitrum Native Bridge
 
 ## Arbitrum Native Bridge Specific Parameters
@@ -82,9 +82,9 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `LiFiData _lifiData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `LiFiData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
 The receiving asset id can be get from `gatewayRouter.calculateL2TokenAddress(assetId)`.
 

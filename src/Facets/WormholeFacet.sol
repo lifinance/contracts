@@ -12,13 +12,13 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, CannotBridgeToSameNetwork, InvalidConfig, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
+import { LibMappings } from "../Libraries/LibMappings.sol";
 
 /// @title Wormhole Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Wormhole
-contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
-    /// Stargate ///
-
+contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.wormhole");
 
     /// @notice The contract address of the wormhole router on the source chain.
@@ -44,10 +44,6 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// @param arbiterFee The amount of token to pay a relayer (can be zero if no relayer is used).
     /// @param nonce A random nonce to associate with the tx.
     struct WormholeData {
-        address assetId;
-        uint256 amount;
-        address receiver;
-        uint16 toChainId;
         uint256 arbiterFee;
         uint32 nonce;
     }
@@ -63,28 +59,43 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// External Methods ///
 
     /// @notice Bridges tokens via Wormhole
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _wormholeData data specific to Wormhole
-    function startBridgeTokensViaWormhole(LiFiData calldata _lifiData, WormholeData calldata _wormholeData)
+    function startBridgeTokensViaWormhole(ILiFi.BridgeData memory _bridgeData, WormholeData calldata _wormholeData)
         external
         payable
+        refundExcessNative(payable(msg.sender))
+        doesNotContainSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
-        LibAsset.depositAsset(_wormholeData.assetId, _wormholeData.amount);
-        _startBridge(_lifiData, _wormholeData, false);
+        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _wormholeData);
     }
 
     /// @notice Performs a swap before bridging via Wormhole
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _wormholeData data specific to Wormhole
     function swapAndStartBridgeTokensViaWormhole(
-        LiFiData calldata _lifiData,
+        ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        WormholeData memory _wormholeData
-    ) external payable nonReentrant {
-        _wormholeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        _startBridge(_lifiData, _wormholeData, true);
+        WormholeData calldata _wormholeData
+    )
+        external
+        payable
+        refundExcessNative(payable(msg.sender))
+        containsSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
+        nonReentrant
+    {
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        _startBridge(_bridgeData, _wormholeData);
     }
 
     /// @notice Creates a mapping between a lifi chain id and a wormhole chain id
@@ -92,73 +103,56 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// @param _wormholeChainId wormhole chain id
     function setWormholeChainId(uint256 _lifiChainId, uint16 _wormholeChainId) external {
         LibDiamond.enforceIsContractOwner();
-        Storage storage s = getStorage();
-        s.wormholeChainId[_lifiChainId] = _wormholeChainId;
+        LibMappings.WormholeMappings storage sm = LibMappings.getWormholeMappings();
+        sm.wormholeChainId[_lifiChainId] = _wormholeChainId;
         emit WormholeChainIdMapped(_lifiChainId, _wormholeChainId);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Wormhole
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _wormholeData data specific to Wormhole
-    /// @param _hasSourceSwaps whether or not the bridge has source swaps
-    function _startBridge(
-        LiFiData calldata _lifiData,
-        WormholeData memory _wormholeData,
-        bool _hasSourceSwaps
-    ) private {
-        Storage storage s = getStorage();
-        uint16 toWormholeChainId = s.wormholeChainId[_wormholeData.toChainId];
-        uint16 fromWormholeChainId = s.wormholeChainId[block.chainid];
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, WormholeData calldata _wormholeData) private {
+        uint16 toWormholeChainId = getWormholeChainId(_bridgeData.destinationChainId);
+        uint16 fromWormholeChainId = getWormholeChainId(block.chainid);
 
-        if (block.chainid == _wormholeData.toChainId) revert CannotBridgeToSameNetwork();
-        if (toWormholeChainId == 0) revert UnsupportedChainId(_wormholeData.toChainId);
-        if (fromWormholeChainId == 0) revert UnsupportedChainId(block.chainid);
-        if (fromWormholeChainId == toWormholeChainId) revert CannotBridgeToSameNetwork();
+        {
+            if (block.chainid == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
+            if (toWormholeChainId == 0) revert UnsupportedChainId(_bridgeData.destinationChainId);
+            if (fromWormholeChainId == 0) revert UnsupportedChainId(block.chainid);
+            if (fromWormholeChainId == toWormholeChainId) revert CannotBridgeToSameNetwork();
+        }
 
-        LibAsset.maxApproveERC20(IERC20(_wormholeData.assetId), address(router), _wormholeData.amount);
+        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(router), _bridgeData.minAmount);
 
-        if (LibAsset.isNativeAsset(_wormholeData.assetId)) {
-            router.wrapAndTransferETH{ value: _wormholeData.amount }(
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            router.wrapAndTransferETH{ value: _bridgeData.minAmount }(
                 toWormholeChainId,
-                bytes32(uint256(uint160(_wormholeData.receiver))),
+                bytes32(uint256(uint160(_bridgeData.receiver))),
                 _wormholeData.arbiterFee,
                 _wormholeData.nonce
             );
         } else {
             router.transferTokens(
-                _wormholeData.assetId,
-                _wormholeData.amount,
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
                 toWormholeChainId,
-                bytes32(uint256(uint160(_wormholeData.receiver))),
+                bytes32(uint256(uint160(_bridgeData.receiver))),
                 _wormholeData.arbiterFee,
                 _wormholeData.nonce
             );
         }
-
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "wormhole",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _wormholeData.assetId,
-            _lifiData.receivingAssetId,
-            _wormholeData.receiver,
-            _wormholeData.amount,
-            _wormholeData.toChainId,
-            _hasSourceSwaps,
-            false
-        );
+        emit LiFiTransferStarted(_bridgeData);
     }
 
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            s.slot := namespace
-        }
+    /// @notice Gets the wormhole chain id for a given lifi chain id
+    /// @param _lifiChainId uint256 of the lifi chain ID
+    /// @return uint16 of the wormhole chain id
+    function getWormholeChainId(uint256 _lifiChainId) private view returns (uint16) {
+        LibMappings.WormholeMappings storage sm = LibMappings.getWormholeMappings();
+        uint16 wormholeChainId = sm.wormholeChainId[_lifiChainId];
+        if (wormholeChainId == 0) revert UnsupportedChainId(_lifiChainId);
+        return wormholeChainId;
     }
 }

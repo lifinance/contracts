@@ -22,13 +22,13 @@ graph LR;
 
 - `function initNXTP(ITransactionManager _txMgrAddr)`
   - Initializer method. Sets the chain specific NXTP Transaction Manager Contract
-- `function startBridgeTokensViaNXTP(LiFiData memory _lifiData, ITransactionManager.PrepareArgs memory _nxtpData)`
+- `function startBridgeTokensViaNXTP(BridgeData memory _lifiData, ITransactionManager.PrepareArgs memory _nxtpData)`
   - Simply bridges tokens using NXTP
-- `function swapAndStartBridgeTokensViaNXTP( LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData, ITransactionManager.PrepareArgs memory _nxtpData)`
+- `function swapAndStartBridgeTokensViaNXTP( BridgeData memory _lifiData, LibSwap.SwapData[] calldata _swapData, ITransactionManager.PrepareArgs memory _nxtpData)`
   - Performs swap(s) before bridging tokens using NXTP
-- `function completeBridgeTokensViaNXTP( LiFiData memory _lifiData, address assetId, address receiver, uint256 amount)`
+- `function completeBridgeTokensViaNXTP( BridgeData memory _lifiData, address assetId, address receiver, uint256 amount)`
   - Completes a bridge transaction on the receiving chain and sends the tokens to the receiver. Should be called by the NXTP Gelato Resolver.
-- `function swapAndCompleteBridgeTokensViaNXTP( LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData, address finalAssetId, address receiver)`
+- `function swapAndCompleteBridgeTokensViaNXTP( BridgeData memory _lifiData, LibSwap.SwapData[] calldata _swapData, address finalAssetId, address receiver)`
   - Performs swap(s) before completing a bridge transaction on the receiving chain and sending the tokens to the receiver. Should be called by the NXTP Gelato Resolver.
 
 ## NXTP Specific Parameters
@@ -81,9 +81,9 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `LiFiData _lifiData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `LiFiData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 

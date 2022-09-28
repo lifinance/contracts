@@ -8,7 +8,7 @@ import {
 } from '../../typechain'
 import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
-import { constants, Contract, utils } from 'ethers'
+import { constants, Contract, ethers, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { expect } from '../chai-setup'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
@@ -35,9 +35,9 @@ describe('ArbitrumBridgeFacet', function () {
   let dai: ERC20
   let usdc: ERC20
   let gatewayRouter: IGatewayRouter
-  let validLiFiData: any
-  let validBridgeData: any
   let swapData: any
+  let validArbitrumData: any
+
   /* eslint-enable @typescript-eslint/no-explicit-any */
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
@@ -75,21 +75,7 @@ describe('ArbitrumBridgeFacet', function () {
         alice
       )
 
-      validLiFiData = {
-        transactionId: utils.randomBytes(32),
-        integrator: 'ACME Devs',
-        referrer: ZERO_ADDRESS,
-        sendingAssetId: DAI_L1_ADDRESS,
-        receivingAssetId: DAI_L2_ADDRESS,
-        receiver: alice.address,
-        destinationChainId: 42161,
-        amount: SEND_AMOUNT,
-      }
-      validBridgeData = {
-        receiver: alice.address,
-        assetId: DAI_L1_ADDRESS,
-        amount: SEND_AMOUNT,
-        tokenRouter: await gatewayRouter.getGateway(DAI_L1_ADDRESS),
+      validArbitrumData = {
         maxSubmissionCost: MAX_SUBMISSION_COST,
         maxGas: MAX_GAS,
         maxGasPrice: MAX_GAS_PRICE,
@@ -125,6 +111,7 @@ describe('ArbitrumBridgeFacet', function () {
           receivingAssetId: DAI_L1_ADDRESS,
           callData: <string>swapCallData?.data,
           fromAmount: SWAP_AMOUNT_IN,
+          requiresDeposit: true,
         },
       ]
 
@@ -157,28 +144,51 @@ describe('ArbitrumBridgeFacet', function () {
   describe('startBridgeTokensViaArbitrumBridge function', () => {
     describe('should be reverted to starts a bridge transaction', () => {
       it('when the sending amount is zero', async function () {
+        const arbitrumData = {
+          ...validArbitrumData,
+        }
         const bridgeData = {
-          ...validBridgeData,
-          amount: '0',
+          transactionId: utils.randomBytes(32),
+          bridge: 'arbitrum',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: alice.address,
+          minAmount: 0,
+          destinationChainId: 42161,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(validLiFiData, bridgeData)
+            .startBridgeTokensViaArbitrumBridge(bridgeData, arbitrumData)
         ).to.be.revertedWith('InvalidAmount()')
       })
 
       it('when the receiver is zero address', async function () {
+        const arbitrumData = {
+          ...validArbitrumData,
+        }
+
         const bridgeData = {
-          ...validBridgeData,
-          receiver: ZERO_ADDRESS,
+          transactionId: utils.randomBytes(32),
+          bridge: 'arbitrum',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: ethers.constants.AddressZero,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 42161,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(validLiFiData, bridgeData)
+            .startBridgeTokensViaArbitrumBridge(bridgeData, arbitrumData)
         ).to.be.revertedWith('InvalidReceiver()')
       })
 
@@ -186,40 +196,69 @@ describe('ArbitrumBridgeFacet', function () {
         const daiBalance = await dai.balanceOf(alice.address)
         await dai.transfer(lifi.address, daiBalance)
 
-        await expect(
-          lifi
-            .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(validLiFiData, validBridgeData)
-        ).to.be.revertedWith('NativeValueWithERC()')
-      })
-
-      it('when the user sent no enough gas', async () => {
-        const cost = MAX_SUBMISSION_COST.add(MAX_GAS_PRICE.mul(MAX_GAS))
-
-        await expect(
-          lifi
-            .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(
-              validLiFiData,
-              validBridgeData,
-              {
-                value: cost.sub(1),
-              }
-            )
-        ).to.be.revertedWith('NativeValueWithERC()')
-      })
-
-      it('when the sending native asset amount is not enough', async () => {
         const bridgeData = {
-          ...validBridgeData,
-          assetId: ZERO_ADDRESS,
-          amount: utils.parseEther('10'),
+          transactionId: utils.randomBytes(32),
+          bridge: 'arbitrum',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 42161,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(validLiFiData, bridgeData, {
+            .startBridgeTokensViaArbitrumBridge(bridgeData, validArbitrumData)
+        ).to.be.revertedWith('InsufficientBalance')
+      })
+
+      it('when the user sent no enough gas', async () => {
+        const cost = MAX_SUBMISSION_COST.add(MAX_GAS_PRICE.mul(MAX_GAS))
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'arbitrum',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 42161,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+        await expect(
+          lifi
+            .connect(alice)
+            .startBridgeTokensViaArbitrumBridge(bridgeData, validArbitrumData, {
+              value: cost.sub(1),
+            })
+        ).to.be.revertedWith('InvalidFee()')
+      })
+
+      it('when the sending native asset amount is not enough', async () => {
+        const arbitrumData = {
+          ...validArbitrumData,
+        }
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'arbitrum',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: ethers.constants.AddressZero,
+          receiver: alice.address,
+          minAmount: utils.parseEther('10'),
+          destinationChainId: 42161,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+        await expect(
+          lifi
+            .connect(alice)
+            .startBridgeTokensViaArbitrumBridge(bridgeData, arbitrumData, {
               value: utils.parseEther('9'),
             })
         ).to.be.revertedWith('InvalidAmount()')
@@ -233,70 +272,53 @@ describe('ArbitrumBridgeFacet', function () {
           DAI_L1_ADDRESS
         )
 
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'arbitrum',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 42161,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(
-              validLiFiData,
-              validBridgeData,
-              {
-                value: cost,
-              }
-            )
-        )
-          .to.emit(lifi, 'LiFiTransferStarted')
-          .withArgs(
-            utils.hexlify(validLiFiData.transactionId),
-            'arbitrum',
-            '',
-            validLiFiData.integrator,
-            validLiFiData.referrer,
-            validLiFiData.sendingAssetId,
-            receivingAssetId,
-            validLiFiData.receiver,
-            validLiFiData.amount,
-            validLiFiData.destinationChainId,
-            false,
-            false
-          )
+            .startBridgeTokensViaArbitrumBridge(bridgeData, validArbitrumData, {
+              value: cost,
+            })
+        ).to.emit(lifi, 'LiFiTransferStarted')
       })
 
       it('when transfer native asset', async function () {
         const cost = MAX_SUBMISSION_COST.add(MAX_GAS_PRICE.mul(MAX_GAS))
+
         const bridgeData = {
-          ...validBridgeData,
-          assetId: ZERO_ADDRESS,
-          amount: utils.parseEther('10'),
-        }
-        const lifiData = {
-          ...validLiFiData,
-          sendingAssetId: ZERO_ADDRESS,
-          receivingAssetId: ZERO_ADDRESS,
-          amount: utils.parseEther('10'),
+          transactionId: utils.randomBytes(32),
+          bridge: 'arbitrum',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: ethers.constants.AddressZero,
+          receiver: alice.address,
+          minAmount: utils.parseEther('10'),
+          destinationChainId: 42161,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(lifiData, bridgeData, {
+            .startBridgeTokensViaArbitrumBridge(bridgeData, validArbitrumData, {
               value: utils.parseEther('10').add(cost),
             })
         )
           .to.emit(lifi, 'LiFiTransferStarted')
-          .withArgs(
-            utils.hexlify(lifiData.transactionId),
-            'arbitrum',
-            '',
-            lifiData.integrator,
-            lifiData.referrer,
-            lifiData.sendingAssetId,
-            ZERO_ADDRESS,
-            lifiData.receiver,
-            utils.parseEther('10'),
-            lifiData.destinationChainId,
-            false,
-            false
-          )
+          .withArgs(bridgeData)
       })
     })
   })
@@ -304,18 +326,31 @@ describe('ArbitrumBridgeFacet', function () {
   describe('swapAndStartBridgeTokensViaArbitrumBridge function', () => {
     describe('should be reverted to perform a swap then starts a bridge transaction', () => {
       it('when the receiver is zero address', async function () {
-        const bridgeData = {
-          ...validBridgeData,
+        const arbitrumData = {
+          ...validArbitrumData,
           receiver: ZERO_ADDRESS,
+        }
+
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'arbitrum',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: ethers.constants.AddressZero,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 42161,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaArbitrumBridge(
-              validLiFiData,
+              bridgeData,
               swapData,
-              bridgeData
+              arbitrumData
             )
         ).to.be.revertedWith('InvalidReceiver()')
       })
@@ -324,27 +359,53 @@ describe('ArbitrumBridgeFacet', function () {
         const usdcBalance = await usdc.balanceOf(alice.address)
         await usdc.transfer(dai.address, usdcBalance)
 
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'arbitrum',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 42161,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaArbitrumBridge(
-              validLiFiData,
+              bridgeData,
               swapData,
-              validBridgeData
+              validArbitrumData
             )
-        ).to.be.revertedWith('ERC20: transfer amount exceeds balance')
+        ).to.be.revertedWith('InsufficientBalance')
       })
 
       it('when the dex is not approved', async function () {
         await dexMgr.removeDex(UNISWAP_ADDRESS)
 
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'arbitrum',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 42161,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaArbitrumBridge(
-              validLiFiData,
+              bridgeData,
               swapData,
-              validBridgeData
+              validArbitrumData
             )
         ).to.be.revertedWith('ContractCallNotAllowed()')
       })
@@ -353,13 +414,26 @@ describe('ArbitrumBridgeFacet', function () {
     it('should be possible to perform a swap then starts a bridge transaction', async function () {
       const cost = MAX_SUBMISSION_COST.add(MAX_GAS_PRICE.mul(MAX_GAS))
 
+      const bridgeData = {
+        transactionId: utils.randomBytes(32),
+        bridge: 'arbitrum',
+        integrator: 'ACME Devs',
+        referrer: ethers.constants.AddressZero,
+        sendingAssetId: DAI_L1_ADDRESS,
+        receiver: alice.address,
+        minAmount: SEND_AMOUNT,
+        destinationChainId: 42161,
+        hasSourceSwaps: false,
+        hasDestinationCall: false,
+      }
+
       await expect(
         lifi
           .connect(alice)
           .swapAndStartBridgeTokensViaArbitrumBridge(
-            validLiFiData,
+            bridgeData,
             swapData,
-            validBridgeData,
+            validArbitrumData,
             {
               value: cost,
             }
@@ -367,20 +441,6 @@ describe('ArbitrumBridgeFacet', function () {
       )
         .to.emit(lifi, 'AssetSwapped')
         .and.to.emit(lifi, 'LiFiTransferStarted')
-        .withArgs(
-          utils.hexlify(validLiFiData.transactionId),
-          'arbitrum',
-          '',
-          validLiFiData.integrator,
-          validLiFiData.referrer,
-          validLiFiData.sendingAssetId,
-          validLiFiData.receivingAssetId,
-          validLiFiData.receiver,
-          validLiFiData.amount,
-          validLiFiData.destinationChainId,
-          true,
-          false
-        )
     })
   })
 })

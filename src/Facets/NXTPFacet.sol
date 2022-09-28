@@ -7,22 +7,25 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { InvalidReceiver, InvalidFallbackAddress } from "../Errors/GenericErrors.sol";
+import { InvalidReceiver, InformationMismatch, InvalidFallbackAddress } from "../Errors/GenericErrors.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title NXTP (Connext) Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through NXTP (Connext)
-contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2 {
+contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     /// @notice The contract address of the transaction manager on the source chain.
     ITransactionManager private immutable txManager;
 
+    /// Errors ///
+    error InvariantDataMismatch(string message);
+
     /// Types ///
 
     struct NXTPData {
         ITransactionManager.InvariantTransactionData invariantData;
-        uint256 amount;
         uint256 expiry;
         bytes encryptedCallData;
         bytes encodedBid;
@@ -41,46 +44,64 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// External Methods ///
 
     /// @notice This function starts a cross-chain transaction using the NXTP protocol
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _nxtpData data needed to complete an NXTP cross-chain transaction
-    function startBridgeTokensViaNXTP(LiFiData calldata _lifiData, NXTPData calldata _nxtpData)
+    function startBridgeTokensViaNXTP(ILiFi.BridgeData memory _bridgeData, NXTPData calldata _nxtpData)
         external
         payable
+        refundExcessNative(payable(msg.sender))
+        doesNotContainSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
-        LibAsset.depositAsset(_nxtpData.invariantData.sendingAssetId, _nxtpData.amount);
-        _startBridge(_lifiData, _nxtpData, true);
+        if (hasDestinationCall(_nxtpData) != _bridgeData.hasDestinationCall) {
+            revert InformationMismatch();
+        }
+        validateInvariantData(_nxtpData.invariantData, _bridgeData);
+        LibAsset.depositAsset(_nxtpData.invariantData.sendingAssetId, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _nxtpData);
     }
 
     /// @notice This function performs a swap or multiple swaps and then starts a cross-chain transaction
     ///         using the NXTP protocol.
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _swapData array of data needed for swaps
     /// @param _nxtpData data needed to complete an NXTP cross-chain transaction
     function swapAndStartBridgeTokensViaNXTP(
-        LiFiData calldata _lifiData,
+        ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        NXTPData memory _nxtpData
-    ) external payable nonReentrant {
-        _nxtpData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
+        NXTPData calldata _nxtpData
+    )
+        external
+        payable
+        refundExcessNative(payable(msg.sender))
+        containsSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
+        nonReentrant
+    {
+        if (hasDestinationCall(_nxtpData) != _bridgeData.hasDestinationCall) {
+            revert InformationMismatch();
+        }
 
-        _startBridge(_lifiData, _nxtpData, true);
+        validateInvariantData(_nxtpData.invariantData, _bridgeData);
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        _startBridge(_bridgeData, _nxtpData);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via NXTP
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _nxtpData data specific to NXTP
-    /// @param _hasSourceSwaps whether or not the bridge has source swaps
-    function _startBridge(
-        LiFiData calldata _lifiData,
-        NXTPData memory _nxtpData,
-        bool _hasSourceSwaps
-    ) private {
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, NXTPData memory _nxtpData) private {
         IERC20 sendingAssetId = IERC20(_nxtpData.invariantData.sendingAssetId);
         // Give Connext approval to bridge tokens
-        LibAsset.maxApproveERC20(IERC20(sendingAssetId), address(txManager), _nxtpData.amount);
+        LibAsset.maxApproveERC20(IERC20(sendingAssetId), address(txManager), _bridgeData.minAmount);
 
         {
             address sendingChainFallback = _nxtpData.invariantData.sendingChainFallback;
@@ -95,10 +116,10 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         }
 
         // Initiate bridge transaction on sending chain
-        txManager.prepare{ value: LibAsset.isNativeAsset(address(sendingAssetId)) ? _nxtpData.amount : 0 }(
+        txManager.prepare{ value: LibAsset.isNativeAsset(address(sendingAssetId)) ? _bridgeData.minAmount : 0 }(
             ITransactionManager.PrepareArgs(
                 _nxtpData.invariantData,
-                _nxtpData.amount,
+                _bridgeData.minAmount,
                 _nxtpData.expiry,
                 _nxtpData.encryptedCallData,
                 _nxtpData.encodedBid,
@@ -107,19 +128,25 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2 {
             )
         );
 
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "nxtp",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _nxtpData.invariantData.sendingAssetId,
-            _lifiData.receivingAssetId,
-            _nxtpData.invariantData.receivingAddress,
-            _nxtpData.amount,
-            _nxtpData.invariantData.receivingChainId,
-            _hasSourceSwaps,
-            !LibUtil.isZeroAddress(_nxtpData.invariantData.callTo)
-        );
+        emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function validateInvariantData(
+        ITransactionManager.InvariantTransactionData calldata _invariantData,
+        ILiFi.BridgeData memory _bridgeData
+    ) private pure {
+        if (_invariantData.sendingAssetId != _bridgeData.sendingAssetId) {
+            revert InvariantDataMismatch("sendingAssetId");
+        }
+        if (_invariantData.receivingAddress != _bridgeData.receiver) {
+            revert InvariantDataMismatch("receivingAddress");
+        }
+        if (_invariantData.receivingChainId != _bridgeData.destinationChainId) {
+            revert InvariantDataMismatch("receivingChainId");
+        }
+    }
+
+    function hasDestinationCall(NXTPData memory _nxtpData) private pure returns (bool) {
+        return _nxtpData.encryptedCallData.length > 0;
     }
 }

@@ -50,6 +50,10 @@ const config: HardhatUserConfig = {
           }
         : undefined,
     },
+    tenderly: {
+      chainId: 1,
+      url: 'https://rpc.tenderly.co/fork/f05241d2-6096-450d-94c0-460b0c2022d8',
+    },
     localhost: {
       url: node_url('localhost'),
       accounts: PKEY ? [PKEY] : accounts(),

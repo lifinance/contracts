@@ -26,17 +26,17 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// Modifiers ///
 
     /// @dev Sends any leftover balances back to the user
-    modifier noLeftovers(LibSwap.SwapData[] calldata _swapData, address payable _leftoverReceiver) {
-        uint256 nSwaps = _swapData.length;
+    modifier noLeftovers(LibSwap.SwapData[] calldata _swaps, address payable _leftoverReceiver) {
+        uint256 nSwaps = _swaps.length;
         if (nSwaps != 1) {
-            uint256[] memory initialBalances = _fetchBalances(_swapData);
-            address finalAsset = _swapData[nSwaps - 1].receivingAssetId;
+            uint256[] memory initialBalances = _fetchBalances(_swaps);
+            address finalAsset = _swaps[nSwaps - 1].receivingAssetId;
             uint256 curBalance = 0;
 
             _;
 
             for (uint256 i = 0; i < nSwaps - 1; ) {
-                address curAsset = _swapData[i].receivingAssetId;
+                address curAsset = _swaps[i].receivingAssetId;
                 // Handle multi-to-one swaps
                 if (curAsset != finalAsset) {
                     curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
@@ -66,12 +66,12 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     }
 
     /// @notice Performs a swap before completing a cross-chain transaction
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _swapData array of data needed for swaps
     /// @param transferredAssetId token received from the other chain
     /// @param receiver address that will receive tokens in the end
     function swapAndCompleteBridgeTokens(
-        LiFiData calldata _lifiData,
+        ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         address transferredAssetId,
         address payable receiver
@@ -94,7 +94,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
             startingBalance = LibAsset.getOwnBalance(transferredAssetId) - msg.value;
         }
 
-        _executeSwaps(_lifiData, _swapData, receiver);
+        _executeSwaps(_bridgeData, _swapData, receiver);
 
         uint256 postSwapBalance = LibAsset.getOwnBalance(transferredAssetId);
         if (postSwapBalance > startingBalance) {
@@ -109,7 +109,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         }
 
         emit LiFiTransferCompleted(
-            _lifiData.transactionId,
+            _bridgeData.transactionId,
             transferredAssetId,
             receiver,
             finalAssetSendAmount,
@@ -118,12 +118,12 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     }
 
     /// @notice Performs a series of swaps or arbitrary executions
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _swapData array of data needed for swaps
     /// @param transferredAssetId token received from the other chain
     /// @param receiver address that will receive tokens in the end
     function swapAndExecute(
-        LiFiData calldata _lifiData,
+        ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         address transferredAssetId,
         address payable receiver,
@@ -146,7 +146,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
             startingBalance = LibAsset.getOwnBalance(transferredAssetId) - msg.value;
         }
 
-        _executeSwaps(_lifiData, _swapData, receiver);
+        _executeSwaps(_bridgeData, _swapData, receiver);
 
         uint256 postSwapBalance = LibAsset.getOwnBalance(transferredAssetId);
         if (postSwapBalance > startingBalance) {
@@ -161,7 +161,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         }
 
         emit LiFiTransferCompleted(
-            _lifiData.transactionId,
+            _bridgeData.transactionId,
             transferredAssetId,
             receiver,
             finalAssetSendAmount,
@@ -172,10 +172,10 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// Private Methods ///
 
     /// @dev Executes swaps one after the other
-    /// @param _lifiData LiFi tracking data
+    /// @param _bridgeData LiFi tracking data
     /// @param _swapData Array of data used to execute swaps
     function _executeSwaps(
-        LiFiData memory _lifiData,
+        ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         address payable _leftoverReceiver
     ) private noLeftovers(_swapData, _leftoverReceiver) {
@@ -183,7 +183,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         for (uint256 i = 0; i < nSwaps; ) {
             if (_swapData[i].callTo == address(erc20Proxy)) revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
-            LibSwap.swap(_lifiData.transactionId, currentSwapData);
+            LibSwap.swap(_bridgeData.transactionId, currentSwapData);
             unchecked {
                 ++i;
             }

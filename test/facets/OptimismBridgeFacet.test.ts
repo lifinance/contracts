@@ -6,7 +6,7 @@ import {
 } from '../../typechain'
 import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
-import { constants, Contract, utils } from 'ethers'
+import { constants, Contract, ethers, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { expect } from '../chai-setup'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
@@ -30,8 +30,8 @@ describe('OptimismBridgeFacet', function () {
   let owner: any
   let dai: ERC20
   let usdc: ERC20
-  let validLiFiData: any
-  let validBridgeData: any
+  let bridgeData: any
+  let validOptimismData: any
   let swapData: any
   /* eslint-enable @typescript-eslint/no-explicit-any */
   const setupTest = deployments.createFixture(
@@ -66,21 +66,8 @@ describe('OptimismBridgeFacet', function () {
       dai = ERC20__factory.connect(DAI_L1_ADDRESS, alice)
       usdc = ERC20__factory.connect(USDC_ADDRESS, alice)
 
-      validLiFiData = {
-        transactionId: utils.randomBytes(32),
-        integrator: 'ACME Devs',
-        referrer: ZERO_ADDRESS,
-        sendingAssetId: DAI_L1_ADDRESS,
-        receivingAssetId: DAI_L2_ADDRESS,
-        receiver: alice.address,
-        destinationChainId: 10,
-        amount: SEND_AMOUNT,
-      }
-      validBridgeData = {
-        receiver: alice.address,
-        assetId: DAI_L1_ADDRESS,
+      validOptimismData = {
         assetIdOnL2: DAI_L2_ADDRESS,
-        amount: SEND_AMOUNT,
         l2Gas: L2_GAS,
         isSynthetix: false,
       }
@@ -115,6 +102,7 @@ describe('OptimismBridgeFacet', function () {
           receivingAssetId: DAI_L1_ADDRESS,
           callData: <string>swapCallData?.data,
           fromAmount: SWAP_AMOUNT_IN,
+          requiresDeposit: true,
         },
       ]
 
@@ -147,53 +135,98 @@ describe('OptimismBridgeFacet', function () {
   describe('startBridgeTokensViaOptimismBridge function', () => {
     describe('should be reverted to starts a bridge transaction', () => {
       it('when the sending amount is zero', async function () {
+        const optimismData = {
+          ...validOptimismData,
+        }
+
         const bridgeData = {
-          ...validBridgeData,
-          amount: '0',
+          transactionId: utils.randomBytes(32),
+          bridge: 'optimism',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: alice.address,
+          minAmount: '0',
+          destinationChainId: 10,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaOptimismBridge(validLiFiData, bridgeData)
+            .startBridgeTokensViaOptimismBridge(bridgeData, optimismData)
         ).to.be.revertedWith('InvalidAmount()')
       })
 
       it('when the receiver is zero address', async function () {
-        const bridgeData = {
-          ...validBridgeData,
+        const optimismData = {
+          ...validOptimismData,
           receiver: ZERO_ADDRESS,
+        }
+
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'optimism',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: ethers.constants.AddressZero,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 10,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaOptimismBridge(validLiFiData, bridgeData)
+            .startBridgeTokensViaOptimismBridge(bridgeData, optimismData)
         ).to.be.revertedWith('InvalidReceiver()')
       })
 
       it('when the user does not have enough amount', async () => {
         const daiBalance = await dai.balanceOf(alice.address)
         await dai.transfer(lifi.address, daiBalance)
-
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'optimism',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 10,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaOptimismBridge(validLiFiData, validBridgeData)
-        ).to.be.revertedWith('Dai/insufficient-balance')
+            .startBridgeTokensViaOptimismBridge(bridgeData, validOptimismData)
+        ).to.be.revertedWith('InsufficientBalance')
       })
 
       it('when the sending native asset amount is not enough', async () => {
-        const bridgeData = {
-          ...validBridgeData,
-          assetId: ZERO_ADDRESS,
-          amount: utils.parseEther('10'),
+        const optimismData = {
+          ...validOptimismData,
         }
-
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'optimism',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: ZERO_ADDRESS,
+          receiver: alice.address,
+          minAmount: utils.parseEther('10'),
+          destinationChainId: 10,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaOptimismBridge(validLiFiData, bridgeData, {
+            .startBridgeTokensViaOptimismBridge(bridgeData, optimismData, {
               value: utils.parseEther('9'),
             })
         ).to.be.revertedWith('InvalidAmount()')
@@ -206,64 +239,49 @@ describe('OptimismBridgeFacet', function () {
           (config['mainnet'].tokens || {})[DAI_L1_ADDRESS.toLowerCase()]
         )
 
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'optimism',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 10,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaOptimismBridge(validLiFiData, validBridgeData)
-        )
-          .to.emit(lifi, 'LiFiTransferStarted')
-          .withArgs(
-            utils.hexlify(validLiFiData.transactionId),
-            'optimism',
-            '',
-            validLiFiData.integrator,
-            validLiFiData.referrer,
-            validLiFiData.sendingAssetId,
-            receivingAssetId,
-            validLiFiData.receiver,
-            validLiFiData.amount,
-            validLiFiData.destinationChainId,
-            false,
-            false
-          )
+            .startBridgeTokensViaOptimismBridge(bridgeData, validOptimismData)
+        ).to.emit(lifi, 'LiFiTransferStarted')
       })
 
       it('when transfer native asset', async function () {
+        const optimismData = {
+          ...validOptimismData,
+        }
         const bridgeData = {
-          ...validBridgeData,
-          assetId: ZERO_ADDRESS,
-          assetIdOnL2: ZERO_ADDRESS,
-          amount: utils.parseEther('10'),
-        }
-        const lifiData = {
-          ...validLiFiData,
+          transactionId: utils.randomBytes(32),
+          bridge: 'optimism',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
           sendingAssetId: ZERO_ADDRESS,
-          receivingAssetId: ZERO_ADDRESS,
-          amount: utils.parseEther('10'),
+          receiver: alice.address,
+          minAmount: utils.parseEther('10'),
+          destinationChainId: 10,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
-
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaOptimismBridge(lifiData, bridgeData, {
+            .startBridgeTokensViaOptimismBridge(bridgeData, optimismData, {
               value: utils.parseEther('10'),
             })
-        )
-          .to.emit(lifi, 'LiFiTransferStarted')
-          .withArgs(
-            utils.hexlify(lifiData.transactionId),
-            'optimism',
-            '',
-            lifiData.integrator,
-            lifiData.referrer,
-            lifiData.sendingAssetId,
-            ZERO_ADDRESS,
-            lifiData.receiver,
-            lifiData.amount,
-            lifiData.destinationChainId,
-            false,
-            false
-          )
+        ).to.emit(lifi, 'LiFiTransferStarted')
       })
     })
   })
@@ -271,18 +289,31 @@ describe('OptimismBridgeFacet', function () {
   describe('swapAndStartBridgeTokensViaOptimismBridge function', () => {
     describe('should be reverted to perform a swap then starts a bridge transaction', () => {
       it('when the receiver is zero address', async function () {
-        const bridgeData = {
-          ...validBridgeData,
+        const optimismData = {
+          ...validOptimismData,
           receiver: ZERO_ADDRESS,
+        }
+
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'optimism',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: ethers.constants.AddressZero,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 10,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaOptimismBridge(
-              validLiFiData,
+              bridgeData,
               swapData,
-              bridgeData
+              optimismData
             )
         ).to.be.revertedWith('InvalidReceiver()')
       })
@@ -290,59 +321,80 @@ describe('OptimismBridgeFacet', function () {
       it('when the user does not have enough amount', async () => {
         const usdcBalance = await usdc.balanceOf(alice.address)
         await usdc.transfer(dai.address, usdcBalance)
-
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'optimism',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 10,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaOptimismBridge(
-              validLiFiData,
+              bridgeData,
               swapData,
-              validBridgeData
+              validOptimismData
             )
-        ).to.be.revertedWith('ERC20: transfer amount exceeds balance')
+        ).to.be.revertedWith('InsufficientBalance')
       })
 
       it('when the dex is not approved', async function () {
         await dexMgr.removeDex(UNISWAP_ADDRESS)
-
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'optimism',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_L1_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 10,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaOptimismBridge(
-              validLiFiData,
+              bridgeData,
               swapData,
-              validBridgeData
+              validOptimismData
             )
         ).to.be.revertedWith('ContractCallNotAllowed()')
       })
     })
 
     it('should be possible to perform a swap then starts a bridge transaction', async function () {
+      const bridgeData = {
+        transactionId: utils.randomBytes(32),
+        bridge: 'optimism',
+        integrator: 'ACME Devs',
+        referrer: ethers.constants.AddressZero,
+        sendingAssetId: DAI_L1_ADDRESS,
+        receiver: alice.address,
+        minAmount: SEND_AMOUNT,
+        destinationChainId: 10,
+        hasSourceSwaps: false,
+        hasDestinationCall: false,
+      }
+
       await expect(
         lifi
           .connect(alice)
           .swapAndStartBridgeTokensViaOptimismBridge(
-            validLiFiData,
+            bridgeData,
             swapData,
-            validBridgeData
+            validOptimismData
           )
       )
         .to.emit(lifi, 'AssetSwapped')
         .and.to.emit(lifi, 'LiFiTransferStarted')
-        .withArgs(
-          utils.hexlify(validLiFiData.transactionId),
-          'optimism',
-          '',
-          validLiFiData.integrator,
-          validLiFiData.referrer,
-          validLiFiData.sendingAssetId,
-          validLiFiData.receivingAssetId,
-          validLiFiData.receiver,
-          validLiFiData.amount,
-          validLiFiData.destinationChainId,
-          true,
-          false
-        )
     })
   })
 })

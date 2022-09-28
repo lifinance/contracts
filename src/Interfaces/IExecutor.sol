@@ -8,12 +8,12 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 /// @author LI.FI (https://li.fi)
 interface IExecutor {
     /// @notice Performs a swap before completing a cross-chain transaction
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _swapData array of data needed for swaps
     /// @param transferredAssetId token received from the other chain
     /// @param receiver address that will receive tokens in the end
     function swapAndCompleteBridgeTokens(
-        ILiFi.LiFiData calldata _lifiData,
+        ILiFi.BridgeData calldata _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         address transferredAssetId,
         address payable receiver
