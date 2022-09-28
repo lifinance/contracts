@@ -15,11 +15,9 @@ import { IStargateRouter } from "lifi/Interfaces/IStargateRouter.sol";
 
 // Stub CBridgeFacet Contract
 contract TestStargateFacet is StargateFacet {
-
     /// @notice Initialize the contract.
     /// @param _router The contract address of the stargate router on the source chain.
-    constructor(IStargateRouter _router) StargateFacet (_router) {}
-
+    constructor(IStargateRouter _router) StargateFacet(_router) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);

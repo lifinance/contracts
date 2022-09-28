@@ -85,10 +85,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             false,
             false
         );
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            5000,
-            1
-        );
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         cBridge.startBridgeTokensViaCBridge(bridgeData, data);
         vm.stopPrank();
