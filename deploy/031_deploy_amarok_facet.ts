@@ -32,11 +32,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   await Promise.all(
     Object.values(config).map(async (_config) => {
-      await amarokFacet.setAmarokDomain(
-        _config.chainId,
-        _config.domain,
-        { from: deployer }
-      )
+      await amarokFacet.setAmarokDomain(_config.chainId, _config.domain, {
+        from: deployer,
+      })
     })
   )
 

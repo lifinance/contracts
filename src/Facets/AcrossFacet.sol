@@ -27,7 +27,6 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     error QuoteTimeout();
     /// Types ///
 
-    /// @param destinationChainId The chainId of the chain to bridge to.
     /// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
     /// @param quoteTimestamp The timestamp associated with the suggested fee.
     struct AcrossData {
