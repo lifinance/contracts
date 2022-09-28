@@ -8,6 +8,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { LibMappings } from "../Libraries/LibMappings.sol";
 
 /// @title Amarok Facet
 /// @author LI.FI (https://li.fi)
@@ -21,8 +22,13 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The domain of source chain.
     uint32 private immutable srcChainDomain;
 
+    /// Errors ///
+    error UnknownAmarokDomain(uint32 domain);
+
+    /// Events ///
+    event AmarokDomainSet(uint256 indexed chainId, uint32 indexed domain);
+
     /// Types ///
-    /// @param destinationDomain The final domain (i.e. where `execute` / `reconcile` are called). Must match nomad domain schema
     /// @param receiver The address you are sending funds (and potentially data) to
     /// @param amount The amount of transferring asset supplied by the user in the `xcall`
     /// @param callData The data to execute on the receiving chain. If no crosschain call is needed, then leave empty.
@@ -34,7 +40,6 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
     /// @param originMinOut Minimum amount received on swaps for adopted <> local on origin chain
     struct AmarokData {
-        uint32 dstChainDomain;
         bytes callData;
         bool forceSlow;
         bool receiveLocal;
@@ -105,12 +110,14 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _amarokData Data specific to Amarok
     function _startBridge(BridgeData memory _bridgeData, AmarokData calldata _amarokData) private {
+        uint32 dstChainDomain = getAmarokDomain(_bridgeData.destinationChainId);
+
         IConnextHandler.XCallArgs memory xcallArgs = IConnextHandler.XCallArgs({
             params: IConnextHandler.CallParams({
                 to: _bridgeData.receiver,
                 callData: _amarokData.callData,
                 originDomain: srcChainDomain,
-                destinationDomain: _amarokData.dstChainDomain,
+                destinationDomain: dstChainDomain,
                 agent: _bridgeData.receiver,
                 recovery: msg.sender,
                 forceSlow: _amarokData.forceSlow,
@@ -129,5 +136,20 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         connextHandler.xcall(xcallArgs);
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function getAmarokDomain(uint256 _chainId) private view returns (uint32) {
+        LibMappings.AmarokMappings storage sm = LibMappings.getAmarokMappings();
+        uint32 domain = sm.amarokDomain[_chainId];
+        if (domain == 0) {
+            revert UnknownAmarokDomain(domain);
+        }
+        return domain;
+    }
+
+    function setAmarokDomain(uint256 _chainId, uint32 _domain) external {
+        LibMappings.AmarokMappings storage sm = LibMappings.getAmarokMappings();
+        sm.amarokDomain[_chainId] = _domain;
+        emit AmarokDomainSet(_chainId, _domain);
     }
 }
