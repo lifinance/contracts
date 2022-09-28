@@ -15,7 +15,8 @@ import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 
 // Stub CBridgeFacet Contract
 contract TestAcrossFacet is AcrossFacet {
-    constructor(IAcrossSpokePool _spokePool) AcrossFacet(_spokePool) {}
+    address internal constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    constructor(IAcrossSpokePool _spokePool) AcrossFacet(_spokePool, WETH_ADDRESS) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -78,7 +79,6 @@ contract AcrossFacetTest is DSTest, DiamondTest {
         );
 
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
-            WETH_ADDRESS,
             0, // Relayer fee
             uint32(block.timestamp)
         );
@@ -102,7 +102,6 @@ contract AcrossFacetTest is DSTest, DiamondTest {
             false
         );
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
-            WETH_ADDRESS,
             0, // Relayer fee
             uint32(block.timestamp)
         );

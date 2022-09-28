@@ -19,18 +19,18 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice The contract address of the spoke pool on the source chain.
     IAcrossSpokePool private immutable spokePool;
+    /// @notice The WETH address on the current chain.
+    address private immutable weth;
 
     /// Errors
 
     error QuoteTimeout();
     /// Types ///
 
-    /// @param weth The contract address of the WETH token on the current chain.
     /// @param destinationChainId The chainId of the chain to bridge to.
     /// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
     /// @param quoteTimestamp The timestamp associated with the suggested fee.
     struct AcrossData {
-        address weth;
         uint64 relayerFeePct;
         uint32 quoteTimestamp;
     }
@@ -39,8 +39,9 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize the contract.
     /// @param _spokePool The contract address of the spoke pool on the source chain.
-    constructor(IAcrossSpokePool _spokePool) {
+    constructor(IAcrossSpokePool _spokePool, address _weth) {
         spokePool = _spokePool;
+        weth = _weth;
     }
 
     /// External Methods ///
@@ -95,7 +96,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert QuoteTimeout();
         }
         bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
-        if (isNative) _bridgeData.sendingAssetId = _acrossData.weth;
+        if (isNative) _bridgeData.sendingAssetId = weth;
         else LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(spokePool), _bridgeData.minAmount);
 
         spokePool.deposit{ value: isNative ? _bridgeData.minAmount : 0 }(
