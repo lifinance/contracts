@@ -7,6 +7,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
@@ -15,6 +16,8 @@ import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
+    constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
+
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -51,7 +54,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         fork();
 
         diamond = createDiamond();
-        cBridge = new TestCBridgeFacet();
+        cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
         usdc = ERC20(USDC_ADDRESS);
         dai = ERC20(DAI_ADDRESS);
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
@@ -91,15 +94,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 fee = 10 * 10**usdc.decimals();
         uint256 lifiFee = 5 * 10**usdc.decimals();
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
-            amount,
-            WHALE,
-            USDC_ADDRESS
-        );
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(USDC_ADDRESS, amount, WHALE, 100, 1, 5000);
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(
@@ -128,15 +123,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 fee = 0.001 ether;
         uint256 lifiFee = 0.00015 ether;
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
-            amount,
-            WHALE,
-            address(0)
-        );
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(address(0), amount, WHALE, 100, 1, 5000);
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(
@@ -163,13 +150,12 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 lifiFee = 5 * 10**usdc.decimals();
 
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
+            DAI_ADDRESS,
             amountToBridge,
             WHALE,
-            DAI_ADDRESS
+            100,
+            1,
+            5000
         );
 
         // Calculate USDC amount
@@ -224,13 +210,12 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 lifiFee = 0.0015 ether;
 
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
+            USDC_ADDRESS,
             amountToBridge,
             WHALE,
-            USDC_ADDRESS
+            100,
+            1,
+            5000
         );
 
         // Calculate USDC amount
@@ -282,13 +267,12 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 lifiFee = 5 * 10**dai.decimals();
 
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
+            DAI_ADDRESS,
             amountToBridge,
             WHALE,
-            DAI_ADDRESS
+            100,
+            1,
+            5000
         );
 
         // Calculate USDC amount
@@ -344,13 +328,12 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 lifiFee = 5 * 10**usdc.decimals();
 
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
+            USDC_ADDRESS,
             amountToBridge,
             WHALE,
-            USDC_ADDRESS
+            100,
+            1,
+            5000
         );
 
         // Calculate USDC amount

@@ -11,7 +11,7 @@ import { node_url } from '../../utils/network'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { expect } from '../chai-setup'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
-import config from '../../config/gnosisBridge'
+import config from '../../config/gnosis'
 
 const BRIDGE_MAINNET = config.mainnet.xDaiBridge
 const UNISWAP_ADDRESS = '0xE592427A0AEce92De3Edee1F18E0157C05861564'
@@ -84,7 +84,6 @@ describe('GnosisBridgeFacet', function () {
         }
 
         gnosisBridgeData = {
-          xDaiBridge: BRIDGE_MAINNET,
           receiver: bob.address,
           amount: daiSendAmount,
         }
@@ -119,7 +118,6 @@ describe('GnosisBridgeFacet', function () {
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
               lifiData,
               {
-                xDaiBridge: BRIDGE_MAINNET,
                 receiver: bob.address,
                 amount: daiSendAmount.add(1),
               },
@@ -135,7 +133,6 @@ describe('GnosisBridgeFacet', function () {
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
               lifiData,
               {
-                xDaiBridge: BRIDGE_MAINNET,
                 receiver: bob.address,
                 amount: 0,
               },
@@ -151,7 +148,6 @@ describe('GnosisBridgeFacet', function () {
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
               lifiData,
               {
-                xDaiBridge: BRIDGE_MAINNET,
                 receiver: constants.AddressZero,
                 amount: daiSendAmount,
               },
@@ -167,7 +163,6 @@ describe('GnosisBridgeFacet', function () {
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
               lifiData,
               {
-                xDaiBridge: BRIDGE_MAINNET,
                 receiver: BRIDGE_MAINNET,
                 amount: daiSendAmount,
               },
@@ -183,7 +178,6 @@ describe('GnosisBridgeFacet', function () {
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
               lifiData,
               {
-                xDaiBridge: BRIDGE_MAINNET,
                 receiver: BRIDGE_XDAI,
                 amount: daiSendAmount,
               },
@@ -206,7 +200,7 @@ describe('GnosisBridgeFacet', function () {
                 gasLimit: 500000,
               }
             )
-          ).to.be.revertedWith('InvalidDstChainId')
+          ).to.be.revertedWith('InvalidDestinationChain')
         })
 
         it('when sending asset id is incorrect', async () => {
@@ -320,7 +314,6 @@ describe('GnosisBridgeFacet', function () {
               lifiData,
               swapData,
               {
-                xDaiBridge: BRIDGE_MAINNET,
                 receiver: constants.AddressZero,
                 amount: daiSendAmount,
               },
@@ -338,7 +331,6 @@ describe('GnosisBridgeFacet', function () {
               lifiData,
               swapData,
               {
-                xDaiBridge: BRIDGE_MAINNET,
                 receiver: BRIDGE_MAINNET,
                 amount: daiSendAmount,
               },
@@ -356,7 +348,6 @@ describe('GnosisBridgeFacet', function () {
               lifiData,
               swapData,
               {
-                xDaiBridge: BRIDGE_MAINNET,
                 receiver: BRIDGE_XDAI,
                 amount: daiSendAmount,
               },
@@ -381,7 +372,7 @@ describe('GnosisBridgeFacet', function () {
                 gasLimit: 500000,
               }
             )
-          ).to.be.revertedWith('InvalidDstChainId')
+          ).to.be.revertedWith('InvalidDestinationChain')
         })
 
         it('when sending asset id is incorrect', async () => {
@@ -445,10 +436,10 @@ describe('GnosisBridgeFacet', function () {
             '',
             lifiData.integrator,
             lifiData.referrer,
-            swapData[0].sendingAssetId,
+            lifiData.sendingAssetId,
             lifiData.receivingAssetId,
             gnosisBridgeData.receiver,
-            swapData[0].fromAmount,
+            lifiData.amount,
             config.mainnet.dstChainId,
             true,
             false

@@ -12,15 +12,36 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through OmniBridge
 contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
+    /// Storage ///
+
+    /// @notice The chain id of Gnosis.
+    uint64 private constant GNOSIS_CHAIN_ID = 100;
+
+    /// @notice The contract address of the foreign omni bridge on the source chain.
+    IOmniBridge private immutable foreignOmniBridge;
+
+    /// @notice The contract address of the weth omni bridge on the source chain.
+    IOmniBridge private immutable wethOmniBridge;
+
     /// Types ///
 
-    uint64 internal constant GNOSIS_CHAIN_ID = 100;
-
+    /// @param assetId The contract address of the token being bridged.
+    /// @param amount The amount of tokens to bridge.
+    /// @param receiver The address of the token receiver after bridging.
     struct BridgeData {
-        address bridge;
         address assetId;
-        address receiver;
         uint256 amount;
+        address receiver;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _foreignOmniBridge The contract address of the foreign omni bridge on the source chain.
+    /// @param _wethOmniBridge The contract address of the weth omni bridge on the source chain.
+    constructor(IOmniBridge _foreignOmniBridge, IOmniBridge _wethOmniBridge) {
+        foreignOmniBridge = _foreignOmniBridge;
+        wethOmniBridge = _wethOmniBridge;
     }
 
     /// External Methods ///
@@ -69,13 +90,12 @@ contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         uint256 _amount,
         bool _hasSourceSwap
     ) private {
-        IOmniBridge bridge = IOmniBridge(_bridgeData.bridge);
         if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            bridge.wrapAndRelayTokens{ value: _amount }(_bridgeData.receiver);
+            wethOmniBridge.wrapAndRelayTokens{ value: _amount }(_bridgeData.receiver);
         } else {
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.bridge, _amount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), address(foreignOmniBridge), _amount);
 
-            bridge.relayTokens(_bridgeData.assetId, _bridgeData.receiver, _amount);
+            foreignOmniBridge.relayTokens(_bridgeData.assetId, _bridgeData.receiver, _amount);
         }
 
         emit LiFiTransferStarted(

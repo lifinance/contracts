@@ -10,7 +10,6 @@ import { constants, Contract, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { expect } from '../chai-setup'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
-import config from '../../config/omni'
 
 const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const DAI_L1_ADDRESS = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
@@ -80,7 +79,6 @@ describe('OmniBridgeFacet', function () {
         receiver: alice.address,
         assetId: DAI_L1_ADDRESS,
         amount: SEND_AMOUNT,
-        bridge: config['mainnet'].foreignOmniBridge,
       }
 
       const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
@@ -227,11 +225,12 @@ describe('OmniBridgeFacet', function () {
           ...validBridgeData,
           assetId: ZERO_ADDRESS,
           amount: utils.parseEther('10'),
-          bridge: config['mainnet'].wethOmniBridge,
         }
         const lifiData = {
           ...validLiFiData,
+          sendingAssetId: ZERO_ADDRESS,
           receivingAssetId: WETH_L2_ADDRESS,
+          amount: utils.parseEther('10'),
         }
 
         await expect(

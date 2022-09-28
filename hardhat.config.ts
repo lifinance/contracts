@@ -9,7 +9,6 @@ import { node_url, accounts } from './utils/network'
 import '@nomiclabs/hardhat-etherscan'
 import '@tenderly/hardhat-tenderly'
 import './plugins/relay'
-import { ethers } from 'hardhat'
 
 require('./tasks/generateDiamondABI.ts')
 

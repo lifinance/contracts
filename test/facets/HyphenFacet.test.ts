@@ -87,11 +87,10 @@ describe('HyphenFacet', function () {
   it('starts a bridge transaction on the sending chain', async () => {
     const amount = utils.parseUnits('10', 6)
     const hyphenData = {
-      token: usdc.address,
+      assetId: usdc.address,
       amount: amount,
-      recipient: alice.address,
+      receiver: alice.address,
       toChainId: 43114,
-      router: '0x2A5c2568b10A0E826BfA892Cf21BA7218310180b',
     }
     await usdc.approve(lifi.address, amount)
     await lifi.connect(alice).startBridgeTokensViaHyphen(lifiData, hyphenData, {
@@ -100,7 +99,7 @@ describe('HyphenFacet', function () {
   })
 
   it('performs a swap then starts bridge transaction on the sending chain', async () => {
-    const to = lifi.address // should be a checksummed recipient address
+    const to = lifi.address // should be a checksummed receiver address
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
     const amountETH = utils.parseEther('700')
@@ -130,11 +129,10 @@ describe('HyphenFacet', function () {
     ]
 
     const hyphenData = {
-      token: usdc.address,
+      assetId: usdc.address,
       amount: amountUSDC,
-      recipient: alice.address,
+      receiver: alice.address,
       toChainId: 43114,
-      router: '0x2A5c2568b10A0E826BfA892Cf21BA7218310180b',
     }
 
     await lifi

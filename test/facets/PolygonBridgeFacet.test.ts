@@ -19,8 +19,6 @@ const ZERO_ADDRESS = constants.AddressZero
 const SEND_AMOUNT = utils.parseEther('1000')
 const SWAP_AMOUNT_IN = utils.parseUnits('1020', 6)
 const SWAP_AMOUNT_OUT = utils.parseEther('1000')
-const ROOT_CHAIN_MGR = '0xA0c68C638235ee32657e8f720a23ceC1bFc77C77'
-const ERC20_PREDICATE = '0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf'
 
 describe('PolygonBridgeFacet', function () {
   let alice: SignerWithAddress
@@ -77,8 +75,6 @@ describe('PolygonBridgeFacet', function () {
         amount: SEND_AMOUNT,
       }
       validBridgeData = {
-        rootChainManager: ROOT_CHAIN_MGR,
-        erc20Predicate: ERC20_PREDICATE,
         receiver: alice.address,
         assetId: DAI_ADDRESS,
         amount: SEND_AMOUNT,
@@ -234,7 +230,9 @@ describe('PolygonBridgeFacet', function () {
         }
         const lifiData = {
           ...validLiFiData,
+          sendingAssetId: ZERO_ADDRESS,
           receivingAssetId: ZERO_ADDRESS,
+          amount: utils.parseEther('10'),
         }
 
         await expect(

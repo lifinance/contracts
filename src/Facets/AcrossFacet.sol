@@ -14,28 +14,40 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
+    /// Storage ///
+
+    /// @notice The contract address of the spoke pool on the source chain.
+    IAcrossSpokePool private immutable spokePool;
+
     /// Errors
+
     error QuoteTimeout();
 
     /// Types ///
 
     /// @param weth The contract address of the WETH token on the current chain.
-    /// @param spokePool The contract address of the spoke pool on the source chain.
-    /// @param recipient The address of the token recipient after bridging.
-    /// @param token The contract address of the token being bridged.
+    /// @param assetId The contract address of the token being bridged.
     /// @param amount The amount of tokens to bridge.
+    /// @param receiver The address of the token receiver after bridging.
     /// @param destinationChainId The chainId of the chain to bridge to.
     /// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
     /// @param quoteTimestamp The timestamp associated with the suggested fee.
     struct AcrossData {
         address weth;
-        address spokePool;
-        address recipient;
-        address token;
+        address assetId;
         uint256 amount;
+        address receiver;
         uint256 destinationChainId;
         uint64 relayerFeePct;
         uint32 quoteTimestamp;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _spokePool The contract address of the spoke pool on the source chain.
+    constructor(IAcrossSpokePool _spokePool) {
+        spokePool = _spokePool;
     }
 
     /// External Methods ///
@@ -48,7 +60,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         payable
         nonReentrant
     {
-        LibAsset.depositAsset(_acrossData.token, _acrossData.amount);
+        LibAsset.depositAsset(_acrossData.assetId, _acrossData.amount);
         _startBridge(_lifiData, _acrossData, false);
     }
 
@@ -80,17 +92,16 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
             revert QuoteTimeout();
         }
 
-        bool isNative = _acrossData.token == LibAsset.NATIVE_ASSETID;
+        bool isNative = _acrossData.assetId == LibAsset.NATIVE_ASSETID;
         if (isNative) {
-            _acrossData.token = _acrossData.weth;
+            _acrossData.assetId = _acrossData.weth;
         } else {
-            LibAsset.maxApproveERC20(IERC20(_acrossData.token), _acrossData.spokePool, _acrossData.amount);
+            LibAsset.maxApproveERC20(IERC20(_acrossData.assetId), address(spokePool), _acrossData.amount);
         }
 
-        IAcrossSpokePool pool = IAcrossSpokePool(_acrossData.spokePool);
-        pool.deposit{ value: isNative ? _acrossData.amount : 0 }(
-            _acrossData.recipient,
-            _acrossData.token,
+        spokePool.deposit{ value: isNative ? _acrossData.amount : 0 }(
+            _acrossData.receiver,
+            _acrossData.assetId,
             _acrossData.amount,
             _acrossData.destinationChainId,
             _acrossData.relayerFeePct,
@@ -103,9 +114,9 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2 {
             "",
             _lifiData.integrator,
             _lifiData.referrer,
-            _acrossData.token,
+            _acrossData.assetId,
             _lifiData.receivingAssetId,
-            _acrossData.recipient,
+            _acrossData.receiver,
             _acrossData.amount,
             _acrossData.destinationChainId,
             _hasSourceSwaps,

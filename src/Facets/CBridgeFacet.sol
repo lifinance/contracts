@@ -14,16 +14,34 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
 contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
+    /// Storage ///
+
+    /// @notice The contract address of the cbridge on the source chain.
+    ICBridge private immutable cBridge;
+
     /// Types ///
 
+    /// @param assetId The address of the token.
+    /// @param amount The amount of the transfer.
+    /// @param receiver The address of the receiver.
+    /// @param dstChainId The destination chain ID.
+    /// @param nonce A number input to guarantee uniqueness of transferId. Can be timestamp in practice.
+    /// @param maxSlippage The max slippage accepted, given as percentage in point (pip).
     struct CBridgeData {
-        address cBridge;
-        uint32 maxSlippage;
-        uint64 dstChainId;
-        uint64 nonce;
+        address assetId;
         uint256 amount;
         address receiver;
-        address token;
+        uint64 dstChainId;
+        uint64 nonce;
+        uint32 maxSlippage;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _cBridge The contract address of the cbridge on the source chain.
+    constructor(ICBridge _cBridge) {
+        cBridge = _cBridge;
     }
 
     /// External Methods ///
@@ -43,7 +61,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
             revert InvalidAmount();
         }
 
-        LibAsset.depositAsset(_cBridgeData.token, _cBridgeData.amount);
+        LibAsset.depositAsset(_cBridgeData.assetId, _cBridgeData.amount);
         _startBridge(_lifiData, _cBridgeData, false);
     }
 
@@ -78,8 +96,8 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         // Do CBridge stuff
         if (uint64(block.chainid) == _cBridgeData.dstChainId) revert CannotBridgeToSameNetwork();
 
-        if (LibAsset.isNativeAsset(_cBridgeData.token)) {
-            ICBridge(_cBridgeData.cBridge).sendNative{ value: _cBridgeData.amount }(
+        if (LibAsset.isNativeAsset(_cBridgeData.assetId)) {
+            cBridge.sendNative{ value: _cBridgeData.amount }(
                 _cBridgeData.receiver,
                 _cBridgeData.amount,
                 _cBridgeData.dstChainId,
@@ -88,11 +106,11 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
             );
         } else {
             // Give CBridge approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(_cBridgeData.token), _cBridgeData.cBridge, _cBridgeData.amount);
+            LibAsset.maxApproveERC20(IERC20(_cBridgeData.assetId), address(cBridge), _cBridgeData.amount);
             // solhint-disable check-send-result
-            ICBridge(_cBridgeData.cBridge).send(
+            cBridge.send(
                 _cBridgeData.receiver,
-                _cBridgeData.token,
+                _cBridgeData.assetId,
                 _cBridgeData.amount,
                 _cBridgeData.dstChainId,
                 _cBridgeData.nonce,
@@ -106,7 +124,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
             "",
             _lifiData.integrator,
             _lifiData.referrer,
-            _cBridgeData.token,
+            _cBridgeData.assetId,
             _lifiData.receivingAssetId,
             _cBridgeData.receiver,
             _cBridgeData.amount,

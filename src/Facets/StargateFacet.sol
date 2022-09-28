@@ -13,10 +13,22 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate
 contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2 {
+    /// Storage ///
+
+    /// @notice The contract address of the stargate router on the source chain.
+    IStargateRouter private immutable router;
+
     /// Types ///
 
+    /// @param dstChainId Destination chainId.
+    /// @param srcPoolId Source pool id.
+    /// @param dstPoolId Dest pool id.
+    /// @param amountLD Quantity to swap.
+    /// @param minAmountLD The min qty you would accept on the destination.
+    /// @param dstGasForCall Additional gas fee for extral call on the destination.
+    /// @param callTo The address to send the tokens to on the destination.
+    /// @param callData Additional payload.
     struct StargateData {
-        address router;
         uint16 dstChainId;
         uint256 srcPoolId;
         uint256 dstPoolId;
@@ -31,6 +43,18 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2 {
 
     error InvalidStargateRouter();
 
+    /// Events ///
+
+    event StargateInitialized(address stargateRouter);
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _router The contract address of the stargate router on the source chain.
+    constructor(IStargateRouter _router) {
+        router = _router;
+    }
+
     /// External Methods ///
 
     /// @notice Bridges tokens via Stargate Bridge
@@ -41,7 +65,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         payable
         nonReentrant
     {
-        address token = getTokenFromPoolId(_stargateData.router, _stargateData.srcPoolId);
+        address token = getTokenFromPoolId(_stargateData.srcPoolId);
 
         if (token == address(0)) {
             revert TokenAddressIsZero();
@@ -83,7 +107,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2 {
 
     function quoteLayerZeroFee(StargateData calldata _stargateData) external view returns (uint256, uint256) {
         return
-            IStargateRouter(_stargateData.router).quoteLayerZeroFee(
+            router.quoteLayerZeroFee(
                 _stargateData.dstChainId,
                 1, // TYPE_SWAP_REMOTE on Bridge
                 _stargateData.callTo,
@@ -96,10 +120,9 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2 {
 
     /// @notice Returns token address from poolId
     /// @dev Get token address which registered on router's factory
-    /// @param _router Stargate Bridge router address
     /// @param _poolId PoolId of token
-    function getTokenFromPoolId(address _router, uint256 _poolId) private view returns (address) {
-        address factory = IStargateRouter(_router).factory();
+    function getTokenFromPoolId(uint256 _poolId) private view returns (address) {
+        address factory = router.factory();
         address pool = IFactory(factory).getPool(_poolId);
         return IPool(pool).token();
     }
@@ -115,15 +138,15 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         uint256 _nativeFee,
         bool _hasSourceSwap
     ) private {
-        address token = getTokenFromPoolId(_stargateData.router, _stargateData.srcPoolId);
+        address token = getTokenFromPoolId(_stargateData.srcPoolId);
 
         if (token == address(0)) {
             revert TokenAddressIsZero();
         }
 
-        LibAsset.maxApproveERC20(IERC20(token), _stargateData.router, _stargateData.amountLD);
+        LibAsset.maxApproveERC20(IERC20(token), address(router), _stargateData.amountLD);
 
-        IStargateRouter(_stargateData.router).swap{ value: _nativeFee }(
+        router.swap{ value: _nativeFee }(
             _stargateData.dstChainId,
             _stargateData.srcPoolId,
             _stargateData.dstPoolId,

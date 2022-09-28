@@ -16,15 +16,30 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Storage ///
 
-    address internal constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    uint64 internal constant GNOSIS_CHAIN_ID = 100;
+    /// @notice The DAI address on the source chain.
+    address private constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+
+    /// @notice The chain id of Gnosis.
+    uint64 private constant GNOSIS_CHAIN_ID = 100;
+
+    /// @notice The contract address of the xdai bridge on the source chain.
+    IXDaiBridge private immutable xDaiBridge;
 
     /// Types ///
 
+    /// @param amount The amount of the transfer.
+    /// @param receiver The address of the receiver.
     struct GnosisBridgeData {
-        address xDaiBridge;
-        address receiver;
         uint256 amount;
+        address receiver;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _xDaiBridge The contract address of the xdai bridge on the source chain.
+    constructor(IXDaiBridge _xDaiBridge) {
+        xDaiBridge = _xDaiBridge;
     }
 
     /// External Methods ///
@@ -88,8 +103,8 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         GnosisBridgeData memory gnosisBridgeData,
         bool hasSourceSwaps
     ) private {
-        LibAsset.maxApproveERC20(IERC20(DAI), gnosisBridgeData.xDaiBridge, gnosisBridgeData.amount);
-        IXDaiBridge(gnosisBridgeData.xDaiBridge).relayTokens(gnosisBridgeData.receiver, gnosisBridgeData.amount);
+        LibAsset.maxApproveERC20(IERC20(DAI), address(xDaiBridge), gnosisBridgeData.amount);
+        xDaiBridge.relayTokens(gnosisBridgeData.receiver, gnosisBridgeData.amount);
         emit LiFiTransferStarted(
             lifiData.transactionId,
             "gnosis",
@@ -99,7 +114,7 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
             lifiData.sendingAssetId,
             lifiData.receivingAssetId,
             gnosisBridgeData.receiver,
-            gnosisBridgeData.amount,
+            lifiData.amount,
             GNOSIS_CHAIN_ID,
             hasSourceSwaps,
             false

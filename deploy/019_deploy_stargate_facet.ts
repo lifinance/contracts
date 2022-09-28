@@ -1,4 +1,3 @@
-import { utils } from 'ethers'
 import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
@@ -11,24 +10,29 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  if (config[network.name] === undefined) {
-    console.log('No Stargate config set for network. Skipping...')
+  if (!config[network.name]) {
+    console.log(`No StargateFacet config set for ${network.name}. Skipping...`)
     return
   }
+
+  const ROUTER_ADDR = config[network.name].stargateRouter
 
   await deploy('StargateFacet', {
     from: deployer,
     log: true,
+    args: [ROUTER_ADDR],
     deterministicDeployment: true,
   })
 
   const stargetFacet = await ethers.getContract('StargateFacet')
-
   const diamond = await ethers.getContract('LiFiDiamond')
 
   await addOrReplaceFacets([stargetFacet], diamond.address)
 
-  await verifyContract(hre, 'StargateFacet', { address: stargetFacet.address })
+  await verifyContract(hre, 'StargateFacet', {
+    address: stargetFacet.address,
+    args: [ROUTER_ADDR],
+  })
 }
 
 export default func

@@ -17,7 +17,19 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Wormhole
 contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
+    /// Stargate ///
+
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.wormhole");
+
+    /// @notice The contract address of the wormhole router on the source chain.
+    IWormholeRouter private immutable router;
+
+    /// Types ///
+
+    struct Storage {
+        // Mapping between lifi chain id and wormhole chain id
+        mapping(uint256 => uint16) wormholeChainId;
+    }
 
     /// Events ///
 
@@ -25,26 +37,27 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
 
     /// Types ///
 
-    /// @param wormholeRouter The contract address of the Wormhole router.
-    /// @param token The contract address of the token being bridged.
+    /// @param assetId The contract address of the token being bridged.
     /// @param amount The amount of tokens to bridge.
-    /// @param recipient The address of the token recipient after bridging.
+    /// @param receiver The address of the token receiver after bridging.
     /// @param toChainId The chainId of the chain to bridge to.
     /// @param arbiterFee The amount of token to pay a relayer (can be zero if no relayer is used).
     /// @param nonce A random nonce to associate with the tx.
     struct WormholeData {
-        address wormholeRouter;
-        address token;
+        address assetId;
         uint256 amount;
-        address recipient;
-        uint256 toChainId;
+        address receiver;
+        uint16 toChainId;
         uint256 arbiterFee;
         uint32 nonce;
     }
 
-    struct Storage {
-        // Mapping between lifi chain id and wormhole chain id
-        mapping(uint256 => uint16) wormholeChainId;
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _router The contract address of the wormhole router on the source chain.
+    constructor(IWormholeRouter _router) {
+        router = _router;
     }
 
     /// External Methods ///
@@ -57,7 +70,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         payable
         nonReentrant
     {
-        LibAsset.depositAsset(_wormholeData.token, _wormholeData.amount);
+        LibAsset.depositAsset(_wormholeData.assetId, _wormholeData.amount);
         _startBridge(_lifiData, _wormholeData, false);
     }
 
@@ -99,28 +112,26 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         uint16 toWormholeChainId = s.wormholeChainId[_wormholeData.toChainId];
         uint16 fromWormholeChainId = s.wormholeChainId[block.chainid];
 
-        {
-            if (block.chainid == _wormholeData.toChainId) revert CannotBridgeToSameNetwork();
-            if (toWormholeChainId == 0) revert UnsupportedChainId(_wormholeData.toChainId);
-            if (fromWormholeChainId == 0) revert UnsupportedChainId(block.chainid);
-            if (fromWormholeChainId == toWormholeChainId) revert CannotBridgeToSameNetwork();
-        }
+        if (block.chainid == _wormholeData.toChainId) revert CannotBridgeToSameNetwork();
+        if (toWormholeChainId == 0) revert UnsupportedChainId(_wormholeData.toChainId);
+        if (fromWormholeChainId == 0) revert UnsupportedChainId(block.chainid);
+        if (fromWormholeChainId == toWormholeChainId) revert CannotBridgeToSameNetwork();
 
-        LibAsset.maxApproveERC20(IERC20(_wormholeData.token), _wormholeData.wormholeRouter, _wormholeData.amount);
+        LibAsset.maxApproveERC20(IERC20(_wormholeData.assetId), address(router), _wormholeData.amount);
 
-        if (LibAsset.isNativeAsset(_wormholeData.token)) {
-            IWormholeRouter(_wormholeData.wormholeRouter).wrapAndTransferETH{ value: _wormholeData.amount }(
+        if (LibAsset.isNativeAsset(_wormholeData.assetId)) {
+            router.wrapAndTransferETH{ value: _wormholeData.amount }(
                 toWormholeChainId,
-                bytes32(uint256(uint160(_wormholeData.recipient))),
+                bytes32(uint256(uint160(_wormholeData.receiver))),
                 _wormholeData.arbiterFee,
                 _wormholeData.nonce
             );
         } else {
-            IWormholeRouter(_wormholeData.wormholeRouter).transferTokens(
-                _wormholeData.token,
+            router.transferTokens(
+                _wormholeData.assetId,
                 _wormholeData.amount,
                 toWormholeChainId,
-                bytes32(uint256(uint160(_wormholeData.recipient))),
+                bytes32(uint256(uint160(_wormholeData.receiver))),
                 _wormholeData.arbiterFee,
                 _wormholeData.nonce
             );
@@ -132,9 +143,9 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
             "",
             _lifiData.integrator,
             _lifiData.referrer,
-            _wormholeData.token,
+            _wormholeData.assetId,
             _lifiData.receivingAssetId,
-            _wormholeData.recipient,
+            _wormholeData.receiver,
             _wormholeData.amount,
             _wormholeData.toChainId,
             _hasSourceSwaps,

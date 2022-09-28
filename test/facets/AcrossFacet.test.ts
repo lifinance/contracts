@@ -3,14 +3,12 @@ import { deployments, network, ethers } from 'hardhat'
 import { constants, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
-import { expect } from 'chai'
 
 const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const WETH_ADDRESS = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'
 const POLYGON_CHAIN_ID = 137
 const ETH_WHALE_ADDR = '0xb5d85CBf7cB3EE0D56b3bB207D5Fc4B82f43F511'
 const WETH_WHALE_ADDR = '0xD022510A3414f255150Aa54b2e42DB6129a20d9E'
-const ETH_SPOKE_POOL = '0x4D9079Bb4165aeb4084c526a32695dCfd2F77381'
 
 describe('AcrossFacet', function () {
   let lifi: AcrossFacet
@@ -105,9 +103,8 @@ describe('AcrossFacet', function () {
 
     const AcrossData = {
       weth: WETH_ADDRESS,
-      spokePool: ETH_SPOKE_POOL,
-      recipient: eth_whale.address,
-      token: '0x0000000000000000000000000000000000000000',
+      receiver: eth_whale.address,
+      assetId: '0x0000000000000000000000000000000000000000',
       amount: utils.parseUnits('1000', 6),
       destinationChainId: POLYGON_CHAIN_ID,
       relayerFeePct: 0,
@@ -127,9 +124,8 @@ describe('AcrossFacet', function () {
 
     const AcrossData = {
       weth: WETH_ADDRESS,
-      spokePool: ETH_SPOKE_POOL,
-      recipient: weth_whale.address,
-      token: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
+      receiver: weth_whale.address,
+      assetId: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
       amount: 1,
       destinationChainId: POLYGON_CHAIN_ID,
       relayerFeePct: 0,

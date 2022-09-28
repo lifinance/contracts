@@ -113,7 +113,6 @@ describe('StargateFacet', function () {
         amount: utils.parseUnits('1000', 6),
       }
       testStargateData = {
-        router: config[TEST_CHAINS[SRC_CHAIN]].stargateRouter,
         dstChainId: 1,
         srcPoolId: 2,
         dstPoolId: 2,
@@ -650,6 +649,7 @@ describe('StargateFacet', function () {
           usdt.address,
           alice.address,
         ])
+
         await expect(
           receiver
             .connect(sgRouter)
@@ -695,6 +695,7 @@ describe('StargateFacet', function () {
           usdt.address,
           alice.address,
         ])
+
         await usdt.transfer(receiver.address, utils.parseUnits('100', 6))
         const usdtBalance = await usdt.balanceOf(alice.address)
         await expect(

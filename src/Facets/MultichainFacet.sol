@@ -12,14 +12,14 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 /// @title Multichain Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Multichain (Prev. AnySwap)
-contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard {
+contract MultichainFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// Types ///
 
     struct MultichainData {
-        address token;
+        address assetId;
         address router;
         uint256 amount;
-        address recipient;
+        address receiver;
         uint256 toChainId;
     }
 
@@ -34,7 +34,7 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard {
         nonReentrant
     {
         // Multichain (formerly Multichain) tokens can wrap other tokens
-        (address underlyingToken, bool isNative) = _getUnderlyingToken(_multichainData.token, _multichainData.router);
+        (address underlyingToken, bool isNative) = _getUnderlyingToken(_multichainData.assetId, _multichainData.router);
         if (!isNative) LibAsset.depositAsset(underlyingToken, _multichainData.amount);
         _startBridge(_lifiData, _multichainData, underlyingToken, isNative, false);
     }
@@ -48,9 +48,9 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard {
         LibSwap.SwapData[] calldata _swapData,
         MultichainData memory _multichainData
     ) external payable nonReentrant {
-        if (LibAsset.isNativeAsset(_multichainData.token)) revert TokenAddressIsZero();
+        if (LibAsset.isNativeAsset(_multichainData.assetId)) revert TokenAddressIsZero();
         _multichainData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        (address underlyingToken, bool isNative) = _getUnderlyingToken(_multichainData.token, _multichainData.router);
+        (address underlyingToken, bool isNative) = _getUnderlyingToken(_multichainData.assetId, _multichainData.router);
         _startBridge(_lifiData, _multichainData, underlyingToken, isNative, true);
     }
 
@@ -91,25 +91,25 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard {
 
         if (isNative) {
             IMultichainRouter(_multichainData.router).anySwapOutNative{ value: _multichainData.amount }(
-                _multichainData.token,
-                _multichainData.recipient,
+                _multichainData.assetId,
+                _multichainData.receiver,
                 _multichainData.toChainId
             );
         } else {
             // Was the token wrapping another token?
-            if (_multichainData.token != underlyingToken) {
+            if (_multichainData.assetId != underlyingToken) {
                 LibAsset.maxApproveERC20(IERC20(underlyingToken), _multichainData.router, _multichainData.amount);
                 IMultichainRouter(_multichainData.router).anySwapOutUnderlying(
-                    _multichainData.token,
-                    _multichainData.recipient,
+                    _multichainData.assetId,
+                    _multichainData.receiver,
                     _multichainData.amount,
                     _multichainData.toChainId
                 );
             } else {
                 // Tokens are burned which does not require allowance
                 IMultichainRouter(_multichainData.router).anySwapOut(
-                    _multichainData.token,
-                    _multichainData.recipient,
+                    _multichainData.assetId,
+                    _multichainData.receiver,
                     _multichainData.amount,
                     _multichainData.toChainId
                 );
@@ -124,7 +124,7 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard {
             _lifiData.referrer,
             underlyingToken,
             _lifiData.receivingAssetId,
-            _multichainData.recipient,
+            _multichainData.receiver,
             _multichainData.amount,
             _multichainData.toChainId,
             hasSourceSwaps,
