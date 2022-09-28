@@ -14,9 +14,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaMultichain(LiFiData memory _lifiData, MultichainData calldata _multichainData_)`
+- `function startBridgeTokensViaMultichain(BridgeData memory _bridgeData_, MultichainData calldata _multichainData)`
   - Simply bridges tokens using Multichain
-- `function swapAndStartBridgeTokensViaMultichain( LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData, MultichainData memory _multichainData_)`
+- `function swapAndStartBridgeTokensViaMultichain( BridgeData memory _bridgeData_, LibSwap.SwapData[] calldata _swapData, MultichainData memory _multichainData)`
   - Performs swap(s) before bridging tokens using Multichain
 
 ## Multichain Specific Parameters
@@ -53,9 +53,9 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `LiFiData _lifiData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `LiFiData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 

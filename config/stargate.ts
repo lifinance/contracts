@@ -60,14 +60,14 @@ export const POOLS: any = {
 // https://layerzero.gitbook.io/docs/technical-reference/mainnet/supported-chain-ids
 const config: StargateConfig = {
   hardhat: {
-    chainId: 1,
-    layerZeroChainId: 1,
+    chainId: 137,
+    layerZeroChainId: 109,
     stargateRouter: '0x45A01E4e04F14f7A4a6702c74187c5F6222033cd',
     pools: [POOLS.USDC, POOLS.USDT],
   },
   mainnet: {
     chainId: 1,
-    layerZeroChainId: 1,
+    layerZeroChainId: 101,
     stargateRouter: '0x8731d54E9D02c286767d56ac03e8037C07e01e98',
     pools: [POOLS.USDC, POOLS.USDT],
   },
@@ -79,7 +79,7 @@ const config: StargateConfig = {
   },
   bsc: {
     chainId: 56,
-    layerZeroChainId: 2,
+    layerZeroChainId: 102,
     stargateRouter: '0x4a364f8c717cAAD9A442737Eb7b8A55cc6cf18D8',
     pools: [POOLS.USDT, POOLS.BUSD],
   },
@@ -91,7 +91,7 @@ const config: StargateConfig = {
   },
   polygon: {
     chainId: 137,
-    layerZeroChainId: 9,
+    layerZeroChainId: 109,
     stargateRouter: '0x45A01E4e04F14f7A4a6702c74187c5F6222033cd',
     pools: [POOLS.USDC, POOLS.USDT],
   },
@@ -103,7 +103,7 @@ const config: StargateConfig = {
   },
   avalanche: {
     chainId: 43114,
-    layerZeroChainId: 6,
+    layerZeroChainId: 106,
     stargateRouter: '0x45A01E4e04F14f7A4a6702c74187c5F6222033cd',
     pools: [POOLS.USDC, POOLS.USDT],
   },
@@ -115,19 +115,19 @@ const config: StargateConfig = {
   },
   opera: {
     chainId: 250,
-    layerZeroChainId: 12,
+    layerZeroChainId: 112,
     stargateRouter: '0xAf5191B0De278C7286d6C7CC6ab6BB8A73bA2Cd6',
     pools: [POOLS.USDC],
   },
   fantom_testnet: {
     chainId: 4002,
-    layerZeroChainId: 100012,
+    layerZeroChainId: 10012,
     stargateRouter: '0xa73b0a56B29aD790595763e71505FCa2c1abb77f',
     pools: [POOLS.USDC],
   },
   arbitrumOne: {
     chainId: 42161,
-    layerZeroChainId: 10,
+    layerZeroChainId: 110,
     stargateRouter: '0x53Bf833A5d6c4ddA888F69c22C88C9f356a41614',
     pools: [POOLS.USDC, POOLS.USDT],
   },
@@ -139,7 +139,7 @@ const config: StargateConfig = {
   },
   optimisticEthereum: {
     chainId: 10,
-    layerZeroChainId: 11,
+    layerZeroChainId: 111,
     stargateRouter: '0xB0D502E938ed5f4df2E681fE6E419ff29631d62b',
     pools: [POOLS.USDC],
   },

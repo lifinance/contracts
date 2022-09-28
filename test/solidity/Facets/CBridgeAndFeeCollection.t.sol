@@ -7,6 +7,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
@@ -15,6 +16,8 @@ import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
+    constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
+
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -31,7 +34,6 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
     address internal constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address internal constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
-    ILiFi.LiFiData internal lifiData = ILiFi.LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0);
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
@@ -51,7 +53,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         fork();
 
         diamond = createDiamond();
-        cBridge = new TestCBridgeFacet();
+        cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
         usdc = ERC20(USDC_ADDRESS);
         dai = ERC20(DAI_ADDRESS);
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
@@ -74,7 +76,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         cBridge.setFunctionApprovalBySignature(bytes4(uniswap.swapETHForExactTokens.selector));
     }
 
-    // struct CBridgeData {
+    // struct CILiFi.BridgeData {
     //     address cBridge;
     //     uint32 maxSlippage;
     //     uint64 dstChainId;
@@ -91,15 +93,19 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 fee = 10 * 10**usdc.decimals();
         uint256 lifiFee = 5 * 10**usdc.decimals();
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
-            amount,
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "cbridge",
+            "",
+            address(0),
+            USDC_ADDRESS,
             WHALE,
-            USDC_ADDRESS
+            amount - fee - lifiFee,
+            100,
+            true,
+            false
         );
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(
@@ -108,12 +114,12 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             USDC_ADDRESS,
             USDC_ADDRESS,
             amount + fee + lifiFee,
-            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, address(0xb33f))
+            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, address(0xb33f)),
+            true
         );
-
         // Approve USDC
         usdc.approve(address(cBridge), amount + fee + lifiFee);
-        cBridge.swapAndStartBridgeTokensViaCBridge(lifiData, swapData, data);
+        cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
         vm.stopPrank();
 
         assertEq(feeCollector.getTokenBalance(address(0xb33f), USDC_ADDRESS), fee);
@@ -128,15 +134,20 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 fee = 0.001 ether;
         uint256 lifiFee = 0.00015 ether;
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
-            amount,
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "cbridge",
+            "",
+            address(0),
+            address(0),
             WHALE,
-            address(0)
+            amount - fee - lifiFee,
+            100,
+            true,
+            false
         );
+
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(
@@ -145,10 +156,11 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             address(0),
             address(0),
             amount + fee + lifiFee,
-            abi.encodeWithSelector(feeCollector.collectNativeFees.selector, fee, lifiFee, address(0xb33f))
+            abi.encodeWithSelector(feeCollector.collectNativeFees.selector, fee, lifiFee, address(0xb33f)),
+            true
         );
 
-        cBridge.swapAndStartBridgeTokensViaCBridge{ value: amount + fee + lifiFee }(lifiData, swapData, data);
+        cBridge.swapAndStartBridgeTokensViaCBridge{ value: amount + fee + lifiFee }(bridgeData, swapData, data);
         vm.stopPrank();
 
         assertEq(feeCollector.getTokenBalance(address(0xb33f), address(0)), fee);
@@ -162,15 +174,20 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 fee = 10 * 10**usdc.decimals();
         uint256 lifiFee = 5 * 10**usdc.decimals();
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
-            amountToBridge,
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "cbridge",
+            "",
+            address(0),
+            DAI_ADDRESS,
             WHALE,
-            DAI_ADDRESS
+            amountToBridge,
+            100,
+            true,
+            false
         );
+
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         // Calculate USDC amount
         address[] memory path = new address[](2);
@@ -186,7 +203,8 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             USDC_ADDRESS,
             USDC_ADDRESS,
             amountIn + fee + lifiFee,
-            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, address(0xb33f))
+            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, address(0xb33f)),
+            true
         );
 
         swapData[1] = LibSwap.SwapData(
@@ -202,12 +220,12 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
                 path,
                 address(cBridge),
                 block.timestamp
-            )
+            ),
+            false
         );
-
         // Approve USDC
         usdc.approve(address(cBridge), amountIn + fee + lifiFee);
-        cBridge.swapAndStartBridgeTokensViaCBridge(lifiData, swapData, data);
+        cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
         vm.stopPrank();
 
         assertEq(feeCollector.getTokenBalance(address(0xb33f), USDC_ADDRESS), fee);
@@ -223,15 +241,20 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 fee = 0.01 ether;
         uint256 lifiFee = 0.0015 ether;
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
-            amountToBridge,
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "cbridge",
+            "",
+            address(0),
+            USDC_ADDRESS,
             WHALE,
-            USDC_ADDRESS
+            amountToBridge,
+            100,
+            true,
+            false
         );
+
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         // Calculate USDC amount
         address[] memory path = new address[](2);
@@ -247,7 +270,8 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             address(0),
             address(0),
             fee + lifiFee,
-            abi.encodeWithSelector(feeCollector.collectNativeFees.selector, fee, lifiFee, address(0xb33f))
+            abi.encodeWithSelector(feeCollector.collectNativeFees.selector, fee, lifiFee, address(0xb33f)),
+            true
         );
 
         swapData[1] = LibSwap.SwapData(
@@ -262,10 +286,10 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
                 path,
                 address(cBridge),
                 block.timestamp
-            )
+            ),
+            false
         );
-
-        cBridge.swapAndStartBridgeTokensViaCBridge{ value: amountIn + fee + lifiFee }(lifiData, swapData, data);
+        cBridge.swapAndStartBridgeTokensViaCBridge{ value: amountIn + fee + lifiFee }(bridgeData, swapData, data);
         vm.stopPrank();
 
         assertEq(feeCollector.getTokenBalance(address(0xb33f), address(0)), fee);
@@ -281,15 +305,20 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 fee = 10 * 10**dai.decimals();
         uint256 lifiFee = 5 * 10**dai.decimals();
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
-            amountToBridge,
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "cbridge",
+            "",
+            address(0),
+            DAI_ADDRESS,
             WHALE,
-            DAI_ADDRESS
+            amountToBridge,
+            100,
+            true,
+            false
         );
+
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         // Calculate USDC amount
         address[] memory path = new address[](2);
@@ -313,7 +342,8 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
                 path,
                 address(cBridge),
                 block.timestamp
-            )
+            ),
+            true
         );
 
         swapData[1] = LibSwap.SwapData(
@@ -322,12 +352,12 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             DAI_ADDRESS,
             DAI_ADDRESS,
             fee + lifiFee,
-            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, DAI_ADDRESS, fee, lifiFee, address(0xb33f))
+            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, DAI_ADDRESS, fee, lifiFee, address(0xb33f)),
+            false
         );
-
         // Approve USDC
         usdc.approve(address(cBridge), amountIn + fee + lifiFee);
-        cBridge.swapAndStartBridgeTokensViaCBridge(lifiData, swapData, data);
+        cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
         vm.stopPrank();
 
         assertEq(feeCollector.getTokenBalance(address(0xb33f), DAI_ADDRESS), fee);
@@ -343,15 +373,20 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 fee = 10 * 10**usdc.decimals();
         uint256 lifiFee = 5 * 10**usdc.decimals();
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
-            amountToBridge,
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "cbridge",
+            "",
+            address(0),
+            USDC_ADDRESS,
             WHALE,
-            USDC_ADDRESS
+            amountToBridge,
+            100,
+            true,
+            false
         );
+
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         // Calculate USDC amount
         address[] memory path = new address[](2);
@@ -374,7 +409,8 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
                 path,
                 address(cBridge),
                 block.timestamp
-            )
+            ),
+            true
         );
 
         swapData[1] = LibSwap.SwapData(
@@ -383,10 +419,10 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             USDC_ADDRESS,
             USDC_ADDRESS,
             fee + lifiFee,
-            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, address(0xb33f))
+            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, address(0xb33f)),
+            false
         );
-
-        cBridge.swapAndStartBridgeTokensViaCBridge{ value: amountIn }(lifiData, swapData, data);
+        cBridge.swapAndStartBridgeTokensViaCBridge{ value: amountIn }(bridgeData, swapData, data);
         vm.stopPrank();
 
         assertEq(feeCollector.getTokenBalance(address(0xb33f), USDC_ADDRESS), fee);

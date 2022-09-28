@@ -10,12 +10,14 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { TestAMM } from "../utils/TestAMM.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 
 // Stub SwapperV2 Contract
 contract TestSwapperV2 is SwapperV2 {
     function doSwaps(LibSwap.SwapData[] calldata _swapData) public {
-        _executeAndCheckSwaps(
-            LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0),
+        _depositAndSwap(
+            "",
+            (_swapData[_swapData.length - 1].fromAmount * 95) / 100,
             _swapData,
             payable(address(0xb33f))
         );
@@ -70,7 +72,8 @@ contract SwapperV2Test is DSTest, DiamondTest {
             address(token1),
             address(token2),
             10_000 ether,
-            abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token2, 10_100 ether)
+            abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token2, 10_100 ether),
+            true
         );
 
         swapData[1] = LibSwap.SwapData(
@@ -79,9 +82,11 @@ contract SwapperV2Test is DSTest, DiamondTest {
             address(token2),
             address(token3),
             10_000 ether,
-            abi.encodeWithSelector(amm.swap.selector, token2, 10_000 ether, token3, 10_200 ether)
+            abi.encodeWithSelector(amm.swap.selector, token2, 10_000 ether, token3, 10_200 ether),
+            false
         );
 
+        // 95%
         token1.mint(address(this), 10_000 ether);
         token1.approve(address(swapper), 10_000 ether);
 
@@ -107,7 +112,8 @@ contract SwapperV2Test is DSTest, DiamondTest {
             address(token1),
             address(token3),
             10_000 ether,
-            abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token3, 10_100 ether)
+            abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token3, 10_100 ether),
+            true
         );
 
         swapData[1] = LibSwap.SwapData(
@@ -116,7 +122,8 @@ contract SwapperV2Test is DSTest, DiamondTest {
             address(token2),
             address(token3),
             10_000 ether,
-            abi.encodeWithSelector(amm.swap.selector, token2, 10_000 ether, token3, 10_200 ether)
+            abi.encodeWithSelector(amm.swap.selector, token2, 10_000 ether, token3, 10_200 ether),
+            true
         );
 
         token1.mint(address(this), 10_000 ether);
@@ -145,9 +152,9 @@ contract SwapperV2Test is DSTest, DiamondTest {
             address(token1),
             address(token2),
             10_000 ether,
-            abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token2, 10_100 ether)
+            abi.encodeWithSelector(amm.swap.selector, token1, 10_000 ether, token2, 10_100 ether),
+            true
         );
-
         token1.mint(address(this), 10_000 ether);
         token1.approve(address(swapper), 10_000 ether);
 

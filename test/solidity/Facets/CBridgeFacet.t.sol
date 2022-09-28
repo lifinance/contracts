@@ -7,6 +7,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
@@ -14,6 +15,8 @@ import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
+    constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
+
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -29,7 +32,8 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
     address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
-    ILiFi.LiFiData internal lifiData = ILiFi.LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0);
+
+    address internal constant DAI_WHALE = 0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
@@ -48,7 +52,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         fork();
 
         diamond = createDiamond();
-        cBridge = new TestCBridgeFacet();
+        cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
         usdc = ERC20(USDC_ADDRESS);
         dai = ERC20(DAI_ADDRESS);
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
@@ -66,34 +70,28 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
     }
 
-    // struct CBridgeData {
-    //     address cBridge;
-    //     uint32 maxSlippage;
-    //     uint64 dstChainId;
-    //     uint64 nonce;
-    //     uint256 amount;
-    //     address receiver;
-    //     address token;
-    // }
-
     function testCanBridgeTokens() public {
         vm.startPrank(WHALE);
         usdc.approve(address(cBridge), 10_000 * 10**usdc.decimals());
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
-            10_000 * 10**usdc.decimals(),
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "cbridge",
+            "",
+            address(0),
+            USDC_ADDRESS,
             WHALE,
-            USDC_ADDRESS
+            10_000 * 10**usdc.decimals(),
+            100,
+            false,
+            false
         );
-        cBridge.startBridgeTokensViaCBridge(lifiData, data);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
+
+        cBridge.startBridgeTokensViaCBridge(bridgeData, data);
         vm.stopPrank();
     }
 
     function testCanSwapAndBridgeTokens() public {
-        address DAI_WHALE = 0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
         vm.startPrank(DAI_WHALE);
 
         // Swap DAI -> USDC
@@ -107,15 +105,20 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
         uint256 amountIn = amounts[0];
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            CBRIDGE_ROUTER,
-            5000,
-            100,
-            1,
-            amountOut,
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "cbridge",
+            "",
+            address(0),
+            USDC_ADDRESS,
             DAI_WHALE,
-            USDC_ADDRESS
+            amountOut,
+            100,
+            true,
+            false
         );
+
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(
@@ -131,12 +134,12 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
                 path,
                 address(cBridge),
                 block.timestamp + 20 minutes
-            )
+            ),
+            true
         );
-
         // Approve DAI
         dai.approve(address(cBridge), amountIn);
-        cBridge.swapAndStartBridgeTokensViaCBridge(lifiData, swapData, data);
+        cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
         vm.stopPrank();
     }
 }

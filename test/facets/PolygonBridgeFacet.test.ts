@@ -6,7 +6,7 @@ import {
 } from '../../typechain'
 import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
-import { constants, Contract, utils } from 'ethers'
+import { constants, Contract, ethers, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { expect } from '../chai-setup'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
@@ -19,8 +19,6 @@ const ZERO_ADDRESS = constants.AddressZero
 const SEND_AMOUNT = utils.parseEther('1000')
 const SWAP_AMOUNT_IN = utils.parseUnits('1020', 6)
 const SWAP_AMOUNT_OUT = utils.parseEther('1000')
-const ROOT_CHAIN_MGR = '0xA0c68C638235ee32657e8f720a23ceC1bFc77C77'
-const ERC20_PREDICATE = '0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf'
 
 describe('PolygonBridgeFacet', function () {
   let alice: SignerWithAddress
@@ -30,8 +28,7 @@ describe('PolygonBridgeFacet', function () {
   let owner: any
   let dai: ERC20
   let usdc: ERC20
-  let validLiFiData: any
-  let validBridgeData: any
+  let bridgeData: any
   let swapData: any
   /* eslint-enable @typescript-eslint/no-explicit-any */
   const setupTest = deployments.createFixture(
@@ -66,24 +63,6 @@ describe('PolygonBridgeFacet', function () {
       dai = ERC20__factory.connect(DAI_ADDRESS, alice)
       usdc = ERC20__factory.connect(USDC_ADDRESS, alice)
 
-      validLiFiData = {
-        transactionId: utils.randomBytes(32),
-        integrator: 'ACME Devs',
-        referrer: ZERO_ADDRESS,
-        sendingAssetId: DAI_ADDRESS,
-        receivingAssetId: POS_DAI_ADDRESS,
-        receiver: alice.address,
-        destinationChainId: 137,
-        amount: SEND_AMOUNT,
-      }
-      validBridgeData = {
-        rootChainManager: ROOT_CHAIN_MGR,
-        erc20Predicate: ERC20_PREDICATE,
-        receiver: alice.address,
-        assetId: DAI_ADDRESS,
-        amount: SEND_AMOUNT,
-      }
-
       const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
       const uniswap = new Contract(
@@ -114,6 +93,7 @@ describe('PolygonBridgeFacet', function () {
           receivingAssetId: DAI_ADDRESS,
           callData: <string>swapCallData?.data,
           fromAmount: SWAP_AMOUNT_IN,
+          requiresDeposit: true,
         },
       ]
 
@@ -147,27 +127,48 @@ describe('PolygonBridgeFacet', function () {
     describe('should be reverted to starts a bridge transaction', () => {
       it('when the sending amount is zero', async function () {
         const bridgeData = {
-          ...validBridgeData,
-          amount: '0',
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_ADDRESS,
+          receiver: alice.address,
+          minAmount: '0',
+          destinationChainId: 137,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaPolygonBridge(validLiFiData, bridgeData)
+            .startBridgeTokensViaPolygonBridge(bridgeData, polygonData)
         ).to.be.revertedWith('InvalidAmount()')
       })
 
       it('when the receiver is zero address', async function () {
-        const bridgeData = {
-          ...validBridgeData,
+        const polygonData = {
+          ...validPolygonData,
           receiver: ZERO_ADDRESS,
+        }
+
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_ADDRESS,
+          receiver: ZERO_ADDRESS,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 137,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaPolygonBridge(validLiFiData, bridgeData)
+            .startBridgeTokensViaPolygonBridge(bridgeData, polygonData)
         ).to.be.revertedWith('InvalidReceiver()')
       })
 
@@ -175,24 +176,50 @@ describe('PolygonBridgeFacet', function () {
         const daiBalance = await dai.balanceOf(alice.address)
         await dai.transfer(lifi.address, daiBalance)
 
-        await expect(
-          lifi
-            .connect(alice)
-            .startBridgeTokensViaPolygonBridge(validLiFiData, validBridgeData)
-        ).to.be.revertedWith('Dai/insufficient-balance')
-      })
-
-      it('when the sending native asset amount is not enough', async () => {
         const bridgeData = {
-          ...validBridgeData,
-          assetId: ZERO_ADDRESS,
-          amount: utils.parseEther('10'),
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 137,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaPolygonBridge(validLiFiData, bridgeData, {
+            .startBridgeTokensViaPolygonBridge(bridgeData, validPolygonData)
+        ).to.be.revertedWith('InsufficientBalance')
+      })
+
+      it('when the sending native asset amount is not enough', async () => {
+        const polygonData = {
+          ...validPolygonData,
+          assetId: ZERO_ADDRESS,
+          amount: utils.parseEther('10'),
+        }
+
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: ZERO_ADDRESS,
+          receiver: alice.address,
+          minAmount: utils.parseEther('10'),
+          destinationChainId: 137,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
+        await expect(
+          lifi
+            .connect(alice)
+            .startBridgeTokensViaPolygonBridge(bridgeData, polygonData, {
               gasLimit: 500000,
               value: utils.parseEther('9'),
             })
@@ -202,64 +229,54 @@ describe('PolygonBridgeFacet', function () {
 
     describe('should be possible to starts a bridge transaction', () => {
       it('when transfer non-native asset', async function () {
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 137,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaPolygonBridge(validLiFiData, validBridgeData, {
+            .startBridgeTokensViaPolygonBridge(bridgeData, validPolygonData, {
               gasLimit: 500000,
             })
-        )
-          .to.emit(lifi, 'LiFiTransferStarted')
-          .withArgs(
-            utils.hexlify(validLiFiData.transactionId),
-            'polygon',
-            '',
-            validLiFiData.integrator,
-            validLiFiData.referrer,
-            validLiFiData.sendingAssetId,
-            validLiFiData.receivingAssetId,
-            validLiFiData.receiver,
-            validLiFiData.amount,
-            validLiFiData.destinationChainId,
-            false,
-            false
-          )
+        ).to.emit(lifi, 'LiFiTransferStarted')
       })
 
       it('when transfer native asset', async function () {
-        const bridgeData = {
-          ...validBridgeData,
+        const polygonData = {
+          ...validPolygonData,
           assetId: ZERO_ADDRESS,
           amount: utils.parseEther('10'),
         }
-        const lifiData = {
-          ...validLiFiData,
-          receivingAssetId: ZERO_ADDRESS,
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: ZERO_ADDRESS,
+          receiver: alice.address,
+          minAmount: utils.parseEther('10'),
+          destinationChainId: 137,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaPolygonBridge(lifiData, bridgeData, {
+            .startBridgeTokensViaPolygonBridge(bridgeData, polygonData, {
               gasLimit: 500000,
               value: utils.parseEther('10'),
             })
-        )
-          .to.emit(lifi, 'LiFiTransferStarted')
-          .withArgs(
-            utils.hexlify(lifiData.transactionId),
-            'polygon',
-            '',
-            lifiData.integrator,
-            lifiData.referrer,
-            lifiData.sendingAssetId,
-            ZERO_ADDRESS,
-            lifiData.receiver,
-            lifiData.amount,
-            lifiData.destinationChainId,
-            false,
-            false
-          )
+        ).to.emit(lifi, 'LiFiTransferStarted')
       })
     })
   })
@@ -267,18 +284,31 @@ describe('PolygonBridgeFacet', function () {
   describe('swapAndStartBridgeTokensViaPolygonBridge function', () => {
     describe('should be reverted to perform a swap then starts a bridge transaction', () => {
       it('when the receiver is zero address', async function () {
-        const bridgeData = {
-          ...validBridgeData,
+        const polygonData = {
+          ...validPolygonData,
           receiver: ZERO_ADDRESS,
+        }
+
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_ADDRESS,
+          receiver: ZERO_ADDRESS,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 137,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
         }
 
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaPolygonBridge(
-              validLiFiData,
+              bridgeData,
               swapData,
-              bridgeData
+              polygonData
             )
         ).to.be.revertedWith('InvalidReceiver()')
       })
@@ -287,58 +317,72 @@ describe('PolygonBridgeFacet', function () {
         const usdcBalance = await usdc.balanceOf(alice.address)
         await usdc.transfer(dai.address, usdcBalance)
 
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 137,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
+
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaPolygonBridge(
-              validLiFiData,
+              bridgeData,
               swapData,
-              validBridgeData
+              validPolygonData
             )
-        ).to.be.revertedWith('ERC20: transfer amount exceeds balance')
+        ).to.be.revertedWith('InsufficientBalance')
       })
 
       it('when the dex is not approved', async function () {
         await dexMgr.removeDex(UNISWAP_ADDRESS)
-
+        const bridgeData = {
+          transactionId: utils.randomBytes(32),
+          bridge: 'polygon',
+          integrator: 'ACME Devs',
+          referrer: ethers.constants.AddressZero,
+          sendingAssetId: DAI_ADDRESS,
+          receiver: alice.address,
+          minAmount: SEND_AMOUNT,
+          destinationChainId: 137,
+          hasSourceSwaps: false,
+          hasDestinationCall: false,
+        }
         await expect(
           lifi
             .connect(alice)
-            .swapAndStartBridgeTokensViaPolygonBridge(
-              validLiFiData,
-              swapData,
-              validBridgeData
-            )
+            .swapAndStartBridgeTokensViaPolygonBridge(bridgeData, swapData)
         ).to.be.revertedWith('ContractCallNotAllowed()')
       })
     })
 
     it('should be possible to perform a swap then starts a bridge transaction', async function () {
+      const bridgeData = {
+        transactionId: utils.randomBytes(32),
+        bridge: 'polygon',
+        integrator: 'ACME Devs',
+        referrer: ethers.constants.AddressZero,
+        sendingAssetId: DAI_ADDRESS,
+        receiver: alice.address,
+        minAmount: SEND_AMOUNT,
+        destinationChainId: 137,
+        hasSourceSwaps: false,
+        hasDestinationCall: false,
+      }
       await expect(
         lifi
           .connect(alice)
-          .swapAndStartBridgeTokensViaPolygonBridge(
-            validLiFiData,
-            swapData,
-            validBridgeData
-          )
+          .swapAndStartBridgeTokensViaPolygonBridge(bridgeData, swapData)
       )
         .to.emit(lifi, 'AssetSwapped')
         .and.to.emit(lifi, 'LiFiTransferStarted')
-        .withArgs(
-          utils.hexlify(validLiFiData.transactionId),
-          'polygon',
-          '',
-          validLiFiData.integrator,
-          validLiFiData.referrer,
-          validLiFiData.sendingAssetId,
-          validLiFiData.receivingAssetId,
-          validLiFiData.receiver,
-          validLiFiData.amount,
-          validLiFiData.destinationChainId,
-          true,
-          false
-        )
     })
   })
 })

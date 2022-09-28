@@ -36,12 +36,12 @@ This method is used to execute transactions received by Connext
 
 ```solidity
 /// @notice Performs a swap before completing a cross-chain transaction
-/// @param _lifiData data used purely for tracking and analytics
+/// @param _lifiData the core information needed for bridging
 /// @param _swapData array of data needed for swaps
 /// @param transferredAssetId token received from the other chain
 /// @param receiver address that will receive tokens in the end
 function swapAndCompleteBridgeTokens(
-    LiFiData calldata _lifiData,
+    BridgeData calldata _lifiData,
     LibSwap.SwapData[] calldata _swapData,
     address transferredAssetId,
     address payable receiver
@@ -53,12 +53,12 @@ a user to make any number of swaps or arbitrary contract calls.
 
 ```solidity
 /// @notice Performs a series of swaps or arbitrary executions
-/// @param _lifiData data used purely for tracking and analytics
+/// @param _lifiData the core information needed for bridging
 /// @param _swapData array of data needed for swaps
 /// @param transferredAssetId token received from the other chain
 /// @param receiver address that will receive tokens in the end
 function swapAndExecute(
-    LiFiData calldata _lifiData,
+    BridgeData calldata _lifiData,
     LibSwap.SwapData[] calldata _swapData,
     address transferredAssetId,
     address payable receiver,

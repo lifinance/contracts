@@ -7,95 +7,90 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Polygon Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Polygon Bridge
-contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
-    uint64 internal constant POLYGON_CHAIN_ID = 137;
+contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// Storage ///
 
-    /// Types ///
+    /// @notice The chain id of Polygon.
+    uint64 private constant POLYGON_CHAIN_ID = 137;
 
-    struct BridgeData {
-        address rootChainManager;
-        address erc20Predicate;
-        address assetId;
-        address receiver;
-        uint256 amount;
+    /// @notice The contract address of the RootChainManager on the source chain.
+    IRootChainManager private immutable rootChainManager;
+
+    /// @notice The contract address of the ERC20Predicate on the source chain.
+    address private immutable erc20Predicate;
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _rootChainManager The contract address of the RootChainManager on the source chain.
+    /// @param _erc20Predicate The contract address of the ERC20Predicate on the source chain.
+    constructor(IRootChainManager _rootChainManager, address _erc20Predicate) {
+        rootChainManager = _rootChainManager;
+        erc20Predicate = _erc20Predicate;
     }
 
     /// External Methods ///
 
     /// @notice Bridges tokens via Polygon Bridge
-    /// @param _lifiData Data used purely for tracking and analytics
-    /// @param _bridgeData Data for asset id and amount
-    function startBridgeTokensViaPolygonBridge(LiFiData calldata _lifiData, BridgeData calldata _bridgeData)
+    /// @param _bridgeData Data containing core information for bridging
+    function startBridgeTokensViaPolygonBridge(ILiFi.BridgeData memory _bridgeData)
         external
         payable
+        refundExcessNative(payable(msg.sender))
+        doesNotContainSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
-
-        LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
-        _startBridge(_lifiData, _bridgeData, false);
+        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        _startBridge(_bridgeData);
     }
 
     /// @notice Performs a swap before bridging via Polygon Bridge
-    /// @param _lifiData Data used purely for tracking and analytics
+    /// @param _bridgeData Data containing core information for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _bridgeData Data for asset id and amount
     function swapAndStartBridgeTokensViaPolygonBridge(
-        LiFiData calldata _lifiData,
-        LibSwap.SwapData[] calldata _swapData,
-        BridgeData memory _bridgeData
-    ) external payable nonReentrant {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
-        _bridgeData.amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        _startBridge(_lifiData, _bridgeData, true);
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData
+    )
+        external
+        payable
+        refundExcessNative(payable(msg.sender))
+        containsSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
+        nonReentrant
+    {
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        _startBridge(_bridgeData);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Polygon Bridge
-    /// @param _lifiData Data used purely for tracking and analytics
-    /// @param _bridgeData Parameters used for bridging
-    /// @param _hasSourceSwap Did swap on sending chain
-    function _startBridge(
-        LiFiData calldata _lifiData,
-        BridgeData memory _bridgeData,
-        bool _hasSourceSwap
-    ) private {
-        IRootChainManager rootChainManager = IRootChainManager(_bridgeData.rootChainManager);
+    /// @param _bridgeData Data containing core information for bridging
+    function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
         address childToken;
 
-        if (LibAsset.isNativeAsset(_bridgeData.assetId)) {
-            rootChainManager.depositEtherFor{ value: _bridgeData.amount }(_bridgeData.receiver);
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            rootChainManager.depositEtherFor{ value: _bridgeData.minAmount }(_bridgeData.receiver);
         } else {
-            childToken = rootChainManager.rootToChildToken(_lifiData.sendingAssetId);
+            childToken = rootChainManager.rootToChildToken(_bridgeData.sendingAssetId);
 
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.erc20Predicate, _bridgeData.amount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), erc20Predicate, _bridgeData.minAmount);
 
-            bytes memory depositData = abi.encode(_bridgeData.amount);
-            rootChainManager.depositFor(_bridgeData.receiver, _bridgeData.assetId, depositData);
+            bytes memory depositData = abi.encode(_bridgeData.minAmount);
+            rootChainManager.depositFor(_bridgeData.receiver, _bridgeData.sendingAssetId, depositData);
         }
 
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "polygon",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _bridgeData.assetId,
-            childToken,
-            _bridgeData.receiver,
-            _bridgeData.amount,
-            POLYGON_CHAIN_ID,
-            _hasSourceSwap,
-            false
-        );
+        emit LiFiTransferStarted(_bridgeData);
     }
 }

@@ -1,22 +1,14 @@
 import { IERC20__factory as ERC20__factory, HopFacet } from '../../typechain'
 import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
-import { constants, utils } from 'ethers'
+import { constants, ethers, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { addOrReplaceFacets } from '../../utils/diamond'
-import config from '../../config/hop'
 import { Hop, Chain } from '@hop-protocol/sdk'
 import { expect } from '../chai-setup'
 import { parseEther } from 'ethers/lib/utils'
 
 const USDC_ADDRESS = '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'
-
-type Token = 'USDC' | 'USDT' | 'MATIC' | 'DAI'
-interface BridgeConfig {
-  token: string | undefined
-  ammWrapper: string | undefined
-  bridge: string | undefined
-}
 
 describe('HopFacet L2', function () {
   let bob: SignerWithAddress
@@ -52,17 +44,6 @@ describe('HopFacet L2', function () {
       })
 
       bob = await ethers.getSigner('0x06959153b974d0d5fdfd87d561db6d8d4fa0bb0b')
-
-      lifiData = {
-        transactionId: utils.randomBytes(32),
-        integrator: 'ACME Devs',
-        referrer: constants.AddressZero,
-        sendingAssetId: USDC_ADDRESS,
-        receivingAssetId: USDC_ADDRESS,
-        receiver: bob.address,
-        destinationChainId: 100,
-        amount: utils.parseUnits('10000', 6),
-      }
     }
   )
 
@@ -97,14 +78,21 @@ describe('HopFacet L2', function () {
     const token = ERC20__factory.connect(USDC_ADDRESS, bob)
     await token.approve(lifi.address, amountIn)
 
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'gnosis',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+      receiver: bob.address,
+      minAmount: amountIn,
+      destinationChainId: 100,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
+
     const HopData = {
-      asset: 'USDC',
       fromChainId: 137,
-      toChainId: 100,
-      sendingAssetAddress: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
-      bridge: '0x76b22b8C1079A44F1211D867D68b1eda76a635A7',
-      recipient: bob.address,
-      amount: amountIn,
       bonderFee: fee,
       amountOutMin: utils.parseUnits('10000', 6),
       deadline,
@@ -113,7 +101,7 @@ describe('HopFacet L2', function () {
     }
 
     await expect(
-      lifi.connect(bob).startBridgeTokensViaHop(lifiData, HopData, {
+      lifi.connect(bob).startBridgeTokensViaHop(bridgeData, HopData, {
         gasLimit: 500000,
       })
     ).to.emit(lifi, 'LiFiTransferStarted')
@@ -127,13 +115,24 @@ describe('HopFacet L2', function () {
 
     const fee = await bridge.getTotalFee(amountIn, Chain.Polygon, Chain.Gnosis)
 
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'gnosis',
+      integrator: 'ACME Devs',
+      referrer: ethers.constants.AddressZero,
+      sendingAssetId: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+      receiver: bob.address,
+      minAmount: amountIn,
+      destinationChainId: 100,
+      hasSourceSwaps: false,
+      hasDestinationCall: false,
+    }
+
     const HopData = {
-      asset: 'MATIC',
       fromChainId: 137,
       toChainId: 100,
-      sendingAssetAddress: '0x0000000000000000000000000000000000000000',
-      bridge: '0x884d1Aa15F9957E1aEAA86a82a72e49Bc2bfCbe3',
-      recipient: bob.address,
+      assetId: '0x0000000000000000000000000000000000000000',
+      receiver: bob.address,
       amount: amountIn,
       bonderFee: fee,
       amountOutMin: utils.parseEther('0.9'),
@@ -143,7 +142,7 @@ describe('HopFacet L2', function () {
     }
 
     await expect(
-      lifi.connect(bob).startBridgeTokensViaHop(lifiData, HopData, {
+      lifi.connect(bob).startBridgeTokensViaHop(bridgeData, HopData, {
         gasLimit: 500000,
         value: parseEther('1'),
       })
@@ -165,9 +164,8 @@ describe('HopFacet L2', function () {
   //   )
 
   //   const HopData = {
-  //     asset: 'USDC',
   //     chainId: 100,
-  //     recipient: bob.address,
+  //     receiver: bob.address,
   //     amount: amountOut,
   //     bonderFee: fee,
   //     amountOutMin: utils.parseUnits('95000', 6),

@@ -6,7 +6,7 @@ import {
   IERC20__factory as ERC20__factory,
 } from '../../typechain'
 import { deployments, network } from 'hardhat'
-import { constants, utils } from 'ethers'
+import { constants, ethers, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { expect } from '../chai-setup'
@@ -69,16 +69,6 @@ describe('MultichainFacet', function () {
       wmatic = ERC20__factory.connect(WMATIC_ADDRESS, alice)
 
       usdt = ERC20__factory.connect(USDT_ADDRESS, alice)
-      lifiData = {
-        transactionId: utils.randomBytes(32),
-        integrator: 'ACME Devs',
-        referrer: constants.AddressZero,
-        sendingAssetId: usdt.address,
-        receivingAssetId: usdt.address,
-        receiver: alice.address,
-        destinationChainId: 100,
-        amount: utils.parseUnits('1000', 6),
-      }
       token = ERC20__factory.connect(anyUSDT_ADDRESS, alice)
       await usdt.approve(lifi.address, utils.parseUnits('1000', 6))
     }
@@ -105,11 +95,8 @@ describe('MultichainFacet', function () {
 
   it('starts a bridge transaction using native token on the sending chain', async () => {
     const MultichainData = {
-      token: anyMATIC_ADDRESS,
+      assetId: anyMATIC_ADDRESS,
       router: MATIC_ROUTER,
-      amount: utils.parseEther('1000'),
-      recipient: alice.address,
-      toChainId: 100,
     }
 
     await lifi
@@ -125,11 +112,8 @@ describe('MultichainFacet', function () {
     await beefy.approve(lifi.address, utils.parseEther('10'))
 
     const MultichainData = {
-      token: BEEFY_ADDRESS,
+      assetId: BEEFY_ADDRESS,
       router: BEEFY_ROUTER,
-      amount: utils.parseEther('10'),
-      recipient: beefHolder.address,
-      toChainId: 100,
     }
 
     await lifi
@@ -141,10 +125,10 @@ describe('MultichainFacet', function () {
 
   it('starts a bridge transaction on the sending chain', async () => {
     const MultichainData = {
-      token: token.address,
+      assetId: token.address,
       router: MULTICHAIN_ROUTER,
       amount: utils.parseUnits('1000', 6),
-      recipient: alice.address,
+      receiver: alice.address,
       toChainId: 100,
     }
 
@@ -156,7 +140,7 @@ describe('MultichainFacet', function () {
   })
 
   it('performs a swap then starts bridge transaction on the sending chain', async () => {
-    const to = lifi.address // should be a checksummed recipient address
+    const to = lifi.address // should be a checksummed receiver address
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
     const iface = new utils.Interface([
@@ -184,10 +168,10 @@ describe('MultichainFacet', function () {
     ]
 
     const MultichainData = {
-      token: token.address,
+      assetId: token.address,
       router: MULTICHAIN_ROUTER,
       amount: utils.parseUnits('1000', 6),
-      recipient: alice.address,
+      receiver: alice.address,
       toChainId: 137,
     }
 
@@ -206,7 +190,7 @@ describe('MultichainFacet', function () {
 
   it('fails to perform a swap when the dex is not approved', async () => {
     await dexMgr.removeDex(UNISWAP_ADDRESS)
-    const to = lifi.address // should be a checksummed recipient address
+    const to = lifi.address // should be a checksummed receiver address
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
     const iface = new utils.Interface([
@@ -234,10 +218,10 @@ describe('MultichainFacet', function () {
     ]
 
     const MultichainData = {
-      token: token.address,
+      assetId: token.address,
       router: MULTICHAIN_ROUTER,
       amount: utils.parseUnits('1000', 6),
-      recipient: alice.address,
+      receiver: alice.address,
       toChainId: 137,
     }
 

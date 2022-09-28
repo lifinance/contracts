@@ -14,8 +14,6 @@ contract HopGasTest is Test, DiamondTest {
     address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
 
-    ILiFi.LiFiData internal lifiData = ILiFi.LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0);
-
     IHopBridge internal hop;
     ERC20 internal usdc;
     LiFiDiamond internal diamond;
@@ -35,14 +33,17 @@ contract HopGasTest is Test, DiamondTest {
         usdc = ERC20(USDC_ADDRESS);
         hop = IHopBridge(HOP_USDC_BRIDGE);
 
-        bytes4[] memory functionSelectors = new bytes4[](1);
-        functionSelectors[0] = hopFacet.startBridgeTokensViaHop.selector;
+        bytes4[] memory functionSelectors = new bytes4[](2);
+        functionSelectors[0] = hopFacet.initHop.selector;
+        functionSelectors[1] = hopFacet.startBridgeTokensViaHop.selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
         hopFacet = HopFacet(address(diamond));
 
-        IHopBridge.BridgeConfig[] memory config = new IHopBridge.BridgeConfig[](1);
-        config[0] = IHopBridge.BridgeConfig(USDC_ADDRESS, HOP_USDC_BRIDGE, address(0));
+        HopFacet.Config[] memory config = new HopFacet.Config[](1);
+        config[0] = HopFacet.Config(USDC_ADDRESS, HOP_USDC_BRIDGE);
+        hopFacet.initHop(config);
+
         string[] memory tokens = new string[](1);
         tokens[0] = "USDC";
     }
@@ -63,13 +64,20 @@ contract HopGasTest is Test, DiamondTest {
         uint256 amountOutMin = 99 * 10**usdc.decimals();
         uint256 deadline = block.timestamp + 20 minutes;
 
-        HopFacet.HopData memory hopData = HopFacet.HopData(
-            "USDC",
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "hop",
+            "",
+            address(0),
             USDC_ADDRESS,
-            HOP_USDC_BRIDGE,
             WHALE,
-            137,
             amount,
+            137,
+            false,
+            false
+        );
+
+        HopFacet.HopData memory hopData = HopFacet.HopData(
             0, // not needed
             0, // not needed
             0, // not needed
@@ -80,7 +88,7 @@ contract HopGasTest is Test, DiamondTest {
         vm.startPrank(WHALE);
         vm.chainId(1); // Only needed because of bug in forge forking...
         usdc.approve(address(hopFacet), amount);
-        hopFacet.startBridgeTokensViaHop(lifiData, hopData);
+        hopFacet.startBridgeTokensViaHop(bridgeData, hopData);
         vm.stopPrank();
     }
 }

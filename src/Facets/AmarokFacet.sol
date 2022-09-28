@@ -5,23 +5,41 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IConnextHandler } from "../Interfaces/IConnextHandler.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidReceiver, InvalidAmount, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
+import { InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
+import { LibMappings } from "../Libraries/LibMappings.sol";
 
 /// @title Amarok Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Connext Amarok
-contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2 {
-    uint32 immutable srcChainDomain;
+contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// Storage ///
+
+    /// @notice The contract address of the connext handler on the source chain.
+    IConnextHandler private immutable connextHandler;
+
+    /// @notice The domain of source chain.
+    uint32 private immutable srcChainDomain;
+
+    /// Errors ///
+    error UnknownAmarokDomain(uint32 domain);
+
+    /// Events ///
+    event AmarokDomainSet(uint256 indexed chainId, uint32 indexed domain);
 
     /// Types ///
-
-    struct BridgeData {
-        address connextHandler;
-        address assetId;
-        uint32 dstChainDomain;
-        address receiver;
-        uint256 amount;
+    /// @param receiver The address you are sending funds (and potentially data) to
+    /// @param amount The amount of transferring asset supplied by the user in the `xcall`
+    /// @param callData The data to execute on the receiving chain. If no crosschain call is needed, then leave empty.
+    /// @param forceSlow If true, will take slow liquidity path even if it is not a permissioned call
+    /// @param receiveLocal If true, will use the local nomad asset on the destination instead of adopted.
+    /// @param callback The address on the origin domain of the callback contract
+    /// @param callbackFee The relayer fee to execute the callback
+    /// @param relayerFee The amount of relayer fee the tx called xcall with
+    /// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
+    /// @param originMinOut Minimum amount received on swaps for adopted <> local on origin chain
+    struct AmarokData {
         bytes callData;
         bool forceSlow;
         bool receiveLocal;
@@ -32,100 +50,106 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2 {
         uint256 originMinOut;
     }
 
-    constructor(uint32 _srcChainDomain) {
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _connextHandler The contract address of the connext handler on the source chain.
+    /// @param _srcChainDomain The domain of source chain.
+    constructor(IConnextHandler _connextHandler, uint32 _srcChainDomain) {
+        connextHandler = _connextHandler;
         srcChainDomain = _srcChainDomain;
     }
 
     /// External Methods ///
 
     /// @notice Bridges tokens via Amarok
-    /// @param _lifiData Data used purely for tracking and analytics
-    /// @param _bridgeData Data specific to bridge
-    function startBridgeTokensViaAmarok(LiFiData calldata _lifiData, BridgeData calldata _bridgeData)
+    /// @param _bridgeData Data containing core information for bridging
+    /// @param _amarokData Data specific to bridge
+    function startBridgeTokensViaAmarok(BridgeData calldata _bridgeData, AmarokData calldata _amarokData)
         external
         payable
+        refundExcessNative(payable(msg.sender))
+        doesNotContainSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
+        noNativeAsset(_bridgeData)
         nonReentrant
     {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
-        if (_bridgeData.assetId == address(0)) {
-            revert TokenAddressIsZero();
-        }
-
-        LibAsset.depositAsset(_bridgeData.assetId, _bridgeData.amount);
-        _startBridge(_lifiData, _bridgeData, _bridgeData.amount, false);
+        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _amarokData);
     }
 
     /// @notice Performs a swap before bridging via Amarok
-    /// @param _lifiData Data used purely for tracking and analytics
+    /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _bridgeData Data specific to bridge
+    /// @param _amarokData Data specific to bridge
     function swapAndStartBridgeTokensViaAmarok(
-        LiFiData calldata _lifiData,
+        BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        BridgeData calldata _bridgeData
-    ) external payable nonReentrant {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
-        if (_bridgeData.assetId == address(0)) {
-            revert TokenAddressIsZero();
-        }
-
-        uint256 amount = _executeAndCheckSwaps(_lifiData, _swapData, payable(msg.sender));
-        _startBridge(_lifiData, _bridgeData, amount, true);
+        AmarokData calldata _amarokData
+    )
+        external
+        payable
+        refundExcessNative(payable(msg.sender))
+        containsSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
+        noNativeAsset(_bridgeData)
+        nonReentrant
+    {
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        _startBridge(_bridgeData, _amarokData);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Amarok
-    /// @param _lifiData Data used purely for tracking and analytics
-    /// @param _bridgeData Data specific to Amarok
-    /// @param _amount Amount to bridge
-    /// @param _hasSourceSwap Did swap on sending chain
-    function _startBridge(
-        LiFiData calldata _lifiData,
-        BridgeData calldata _bridgeData,
-        uint256 _amount,
-        bool _hasSourceSwap
-    ) private {
+    /// @param _bridgeData Data used purely for tracking and analytics
+    /// @param _amarokData Data specific to Amarok
+    function _startBridge(BridgeData memory _bridgeData, AmarokData calldata _amarokData) private {
+        uint32 dstChainDomain = getAmarokDomain(_bridgeData.destinationChainId);
+
         IConnextHandler.XCallArgs memory xcallArgs = IConnextHandler.XCallArgs({
             params: IConnextHandler.CallParams({
                 to: _bridgeData.receiver,
-                callData: _bridgeData.callData,
+                callData: _amarokData.callData,
                 originDomain: srcChainDomain,
-                destinationDomain: _bridgeData.dstChainDomain,
+                destinationDomain: dstChainDomain,
                 agent: _bridgeData.receiver,
                 recovery: msg.sender,
-                forceSlow: _bridgeData.forceSlow,
-                receiveLocal: _bridgeData.receiveLocal,
-                callback: _bridgeData.callback,
-                callbackFee: _bridgeData.callbackFee,
-                relayerFee: _bridgeData.relayerFee,
-                slippageTol: _bridgeData.slippageTol
+                forceSlow: _amarokData.forceSlow,
+                receiveLocal: _amarokData.receiveLocal,
+                callback: _amarokData.callback,
+                callbackFee: _amarokData.callbackFee,
+                relayerFee: _amarokData.relayerFee,
+                slippageTol: _amarokData.slippageTol
             }),
-            transactingAsset: _bridgeData.assetId,
-            transactingAmount: _amount,
-            originMinOut: _bridgeData.originMinOut
+            transactingAsset: _bridgeData.sendingAssetId,
+            transactingAmount: _bridgeData.minAmount,
+            originMinOut: _amarokData.originMinOut
         });
 
-        LibAsset.maxApproveERC20(IERC20(_bridgeData.assetId), _bridgeData.connextHandler, _amount);
-        IConnextHandler(_bridgeData.connextHandler).xcall(xcallArgs);
+        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(connextHandler), _bridgeData.minAmount);
+        connextHandler.xcall(xcallArgs);
 
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "amarok",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _bridgeData.assetId,
-            _lifiData.receivingAssetId,
-            _bridgeData.receiver,
-            _bridgeData.amount,
-            _lifiData.destinationChainId,
-            _hasSourceSwap,
-            _bridgeData.callData.length > 0
-        );
+        emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function getAmarokDomain(uint256 _chainId) private view returns (uint32) {
+        LibMappings.AmarokMappings storage sm = LibMappings.getAmarokMappings();
+        uint32 domain = sm.amarokDomain[_chainId];
+        if (domain == 0) {
+            revert UnknownAmarokDomain(domain);
+        }
+        return domain;
+    }
+
+    function setAmarokDomain(uint256 _chainId, uint32 _domain) external {
+        LibMappings.AmarokMappings storage sm = LibMappings.getAmarokMappings();
+        sm.amarokDomain[_chainId] = _domain;
+        emit AmarokDomainSet(_chainId, _domain);
     }
 }

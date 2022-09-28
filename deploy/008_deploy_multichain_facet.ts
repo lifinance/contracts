@@ -3,12 +3,17 @@ import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { addOrReplaceFacets } from '../utils/diamond'
 import { verifyContract } from './9999_verify_all_facets'
+import config from '../config/multichain'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
-  const { deployments } = hre
+  const { deployments, getNamedAccounts, network } = hre
   const { deploy } = deployments
-  const alice = await ethers.getSigners()
-  const deployer = alice[0].address
+  const { deployer } = await getNamedAccounts()
+
+  if (!config[network.name]) {
+    console.log(`No AnyswapFacet config set for ${network.name}. Skipping...`)
+    return
+  }
 
   await deploy('MultichainFacet', {
     from: deployer,
