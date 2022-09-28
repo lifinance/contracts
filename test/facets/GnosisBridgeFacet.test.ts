@@ -11,7 +11,7 @@ import { node_url } from '../../utils/network'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { expect } from '../chai-setup'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
-import config from '../../config/gnosisBridge'
+import config from '../../config/gnosis'
 
 const BRIDGE_MAINNET = config.mainnet.xDaiBridge
 const UNISWAP_ADDRESS = '0xE592427A0AEce92De3Edee1F18E0157C05861564'
@@ -71,9 +71,7 @@ describe('GnosisBridgeFacet', function () {
 
         usdc = ERC20__factory.connect(USDC_ADDRESS, alice)
         dai = ERC20__factory.connect(DAI_ADDRESS, alice)
-        gnosisBridgeData = {
-          xDaiBridge: BRIDGE_MAINNET,
-        }
+        gnosisBridgeData = {}
 
         await dai.approve(lifi.address, daiSendAmount)
       }
@@ -115,15 +113,9 @@ describe('GnosisBridgeFacet', function () {
           }
 
           await expect(
-            lifi.connect(alice).startBridgeTokensViaXDaiBridge(
-              bridgeData,
-              {
-                xDaiBridge: BRIDGE_MAINNET,
-              },
-              {
-                gasLimit: 500000,
-              }
-            )
+            lifi.connect(alice).startBridgeTokensViaXDaiBridge(bridgeData, {
+              gasLimit: 500000,
+            })
           ).to.be.revertedWith('Dai/insufficient-allowance')
         })
 
@@ -144,9 +136,6 @@ describe('GnosisBridgeFacet', function () {
           await expect(
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
               { ...bridgeData, minAmount: 0 },
-              {
-                xDaiBridge: BRIDGE_MAINNET,
-              },
               {
                 gasLimit: 500000,
               }
@@ -171,9 +160,6 @@ describe('GnosisBridgeFacet', function () {
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
               { ...bridgeData, receiver: constants.AddressZero },
               {
-                xDaiBridge: BRIDGE_MAINNET,
-              },
-              {
                 gasLimit: 500000,
               }
             )
@@ -185,9 +171,6 @@ describe('GnosisBridgeFacet', function () {
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
               { ...bridgeData, receiver: BRIDGE_MAINNET },
               {
-                xDaiBridge: BRIDGE_MAINNET,
-              },
-              {
                 gasLimit: 500000,
               }
             )
@@ -198,9 +181,6 @@ describe('GnosisBridgeFacet', function () {
           await expect(
             lifi.connect(alice).startBridgeTokensViaXDaiBridge(
               { ...bridgeData, receiver: BRIDGE_XDAI },
-              {
-                xDaiBridge: BRIDGE_MAINNET,
-              },
               {
                 gasLimit: 500000,
               }
@@ -364,48 +344,45 @@ describe('GnosisBridgeFacet', function () {
         it('when receiver is zero address', async () => {
           await usdc.approve(lifi.address, amountIn)
           await expect(
-            lifi.connect(alice).swapAndStartBridgeTokensViaXDaiBridge(
-              { ...bridgeData, receiver: constants.AddressZero },
-              swapData,
-              {
-                xDaiBridge: BRIDGE_MAINNET,
-              },
-              {
-                gasLimit: 500000,
-              }
-            )
+            lifi
+              .connect(alice)
+              .swapAndStartBridgeTokensViaXDaiBridge(
+                { ...bridgeData, receiver: constants.AddressZero },
+                swapData,
+                {
+                  gasLimit: 500000,
+                }
+              )
           ).to.be.reverted
         })
 
         it('when receiver is xDaiBridge address', async () => {
           await usdc.approve(lifi.address, amountIn)
           await expect(
-            lifi.connect(alice).swapAndStartBridgeTokensViaXDaiBridge(
-              { ...bridgeData, receiver: BRIDGE_MAINNET },
-              swapData,
-              {
-                xDaiBridge: BRIDGE_MAINNET,
-              },
-              {
-                gasLimit: 500000,
-              }
-            )
+            lifi
+              .connect(alice)
+              .swapAndStartBridgeTokensViaXDaiBridge(
+                { ...bridgeData, receiver: BRIDGE_MAINNET },
+                swapData,
+                {
+                  gasLimit: 500000,
+                }
+              )
           ).to.be.reverted
         })
 
         it('when receiver is xDaiBridge address on other side', async () => {
           await usdc.approve(lifi.address, amountIn)
           await expect(
-            lifi.connect(alice).swapAndStartBridgeTokensViaXDaiBridge(
-              { ...bridgeData, receiver: BRIDGE_XDAI },
-              swapData,
-              {
-                xDaiBridge: BRIDGE_MAINNET,
-              },
-              {
-                gasLimit: 500000,
-              }
-            )
+            lifi
+              .connect(alice)
+              .swapAndStartBridgeTokensViaXDaiBridge(
+                { ...bridgeData, receiver: BRIDGE_XDAI },
+                swapData,
+                {
+                  gasLimit: 500000,
+                }
+              )
           ).to.be.reverted
         })
 

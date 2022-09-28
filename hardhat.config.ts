@@ -10,9 +10,6 @@ import '@nomiclabs/hardhat-etherscan'
 import '@tenderly/hardhat-tenderly'
 import './plugins/relay'
 
-import * as tenderly from '@tenderly/hardhat-tenderly'
-tenderly.setup()
-
 require('./tasks/generateDiamondABI.ts')
 
 const PKEY = process.env.PRIVATE_KEY || null

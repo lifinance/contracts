@@ -12,16 +12,19 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 
 contract AxelarFacet is ReentrancyGuard {
-    /// Storage
+    /// Storage ///
+
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.axelar");
 
-    /// Events ///
-    event LifiXChainTXStarted(uint256 indexed destinationChain, address indexed callTo, bytes callData);
-    event ChainNameRegistered(uint256 indexed chainID, string chainName);
+    /// @notice The contract address of the gateway on the source chain.
+    IAxelarGateway private immutable gateway;
+
+    /// @notice The contract address of the gas service on the source chain.
+    IAxelarGasService private immutable gasService;
+
+    /// Types ///
 
     struct Storage {
-        IAxelarGateway gateway;
-        IAxelarGasService gasReceiver;
         mapping(uint256 => string) chainIdToName;
     }
 
@@ -36,17 +39,30 @@ contract AxelarFacet is ReentrancyGuard {
         bytes callData;
     }
 
+    /// Events ///
+
+    event LifiXChainTXStarted(uint256 indexed destinationChain, address indexed callTo, bytes callData);
+    event ChainNameRegistered(uint256 indexed chainID, string chainName);
+
     /// Errors
+
     error SymbolDoesNotExist();
 
-    /// Init
-    function initAxelar(address _gateway, address _gasReceiver) external {
-        LibDiamond.enforceIsContractOwner();
-        Storage storage s = getStorage();
-        s.gateway = IAxelarGateway(_gateway);
-        s.gasReceiver = IAxelarGasService(_gasReceiver);
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _gateway The contract address of the gateway on the source chain.
+    /// @param _gasService The contract address of the gas service on the source chain.
+    constructor(IAxelarGateway _gateway, IAxelarGasService _gasService) {
+        gateway = _gateway;
+        gasService = _gasService;
     }
 
+    /// External Methods ///
+
+    /// @notice Register chainId and chain name
+    /// @param _chainId Chain id
+    /// @param _name Chain name
     function setChainName(uint256 _chainId, string calldata _name) external {
         LibDiamond.enforceIsContractOwner();
         Storage storage s = getStorage();
@@ -60,22 +76,23 @@ contract AxelarFacet is ReentrancyGuard {
         Storage storage s = getStorage();
         bytes memory payload = abi.encodePacked(params.callTo, params.callData);
 
-        string memory _destinationChain = s.chainIdToName[params.destinationChain];
-        if (bytes(_destinationChain).length == 0) {
+        string memory destinationChain = s.chainIdToName[params.destinationChain];
+        if (bytes(destinationChain).length == 0) {
             revert InvalidDestinationChain();
         }
-        string memory _destinationAddress = Strings.toHexString(params.destinationAddress);
+        string memory destinationAddress = Strings.toHexString(params.destinationAddress);
 
         // Pay gas up front
-        s.gasReceiver.payNativeGasForContractCall{ value: msg.value }(
+        gasService.payNativeGasForContractCall{ value: msg.value }(
             address(this),
-            _destinationChain,
-            _destinationAddress,
+            destinationChain,
+            destinationAddress,
             payload,
             msg.sender
         );
 
-        s.gateway.callContract(_destinationChain, _destinationAddress, payload);
+        gateway.callContract(destinationChain, destinationAddress, payload);
+
         emit LifiXChainTXStarted(params.destinationChain, params.callTo, params.callData);
     }
 
@@ -102,7 +119,6 @@ contract AxelarFacet is ReentrancyGuard {
 
         string memory tokenSymbol = ERC20(token).symbol();
         Storage storage s = getStorage();
-        IAxelarGateway gateway = s.gateway;
 
         {
             address tokenAddress = gateway.tokenAddresses(tokenSymbol);
@@ -114,30 +130,30 @@ contract AxelarFacet is ReentrancyGuard {
         }
 
         bytes memory payload = abi.encodePacked(params.callTo, recoveryAddress, params.callData);
-        string memory _destinationChain = s.chainIdToName[params.destinationChain];
-        if (bytes(_destinationChain).length == 0) {
+        string memory destinationChain = s.chainIdToName[params.destinationChain];
+        if (bytes(destinationChain).length == 0) {
             revert InvalidDestinationChain();
         }
-        string memory _destinationAddress = Strings.toHexString(params.destinationAddress);
+        string memory destinationAddress = Strings.toHexString(params.destinationAddress);
 
         // Pay gas up front
         if (msg.value > 0) {
-            _payGasWithToken(s, _destinationChain, _destinationAddress, tokenSymbol, amount, payload);
+            _payGasWithToken(destinationChain, destinationAddress, tokenSymbol, amount, payload);
         }
 
-        gateway.callContractWithToken(_destinationChain, _destinationAddress, payload, tokenSymbol, amount);
+        gateway.callContractWithToken(destinationChain, destinationAddress, payload, tokenSymbol, amount);
+
         emit LifiXChainTXStarted(params.destinationChain, params.callTo, params.callData);
     }
 
     function _payGasWithToken(
-        Storage storage s,
         string memory destinationChain,
         string memory destinationAddress,
         string memory symbol,
         uint256 amount,
         bytes memory payload
     ) private {
-        s.gasReceiver.payNativeGasForContractCallWithToken{ value: msg.value }(
+        gasService.payNativeGasForContractCallWithToken{ value: msg.value }(
             address(this),
             destinationChain,
             destinationAddress,

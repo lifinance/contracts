@@ -17,21 +17,28 @@ import { Validatable } from "../Helpers/Validatable.sol";
 contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    address internal constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    uint64 internal constant GNOSIS_CHAIN_ID = 100;
+    /// @notice The DAI address on the source chain.
+    address private constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
 
-    /// Types ///
+    /// @notice The chain id of Gnosis.
+    uint64 private constant GNOSIS_CHAIN_ID = 100;
 
-    struct GnosisData {
-        address xDaiBridge;
+    /// @notice The contract address of the xdai bridge on the source chain.
+    IXDaiBridge private immutable xDaiBridge;
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _xDaiBridge The contract address of the xdai bridge on the source chain.
+    constructor(IXDaiBridge _xDaiBridge) {
+        xDaiBridge = _xDaiBridge;
     }
 
     /// External Methods ///
 
     /// @notice Bridges tokens via XDaiBridge
     /// @param _bridgeData the core information needed for bridging
-    /// @param _gnosisData data specific to bridge
-    function startBridgeTokensViaXDaiBridge(ILiFi.BridgeData memory _bridgeData, GnosisData calldata _gnosisData)
+    function startBridgeTokensViaXDaiBridge(ILiFi.BridgeData memory _bridgeData)
         external
         payable
         refundExcessNative(payable(msg.sender))
@@ -42,17 +49,15 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
     {
         LibAsset.depositAsset(DAI, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _gnosisData);
+        _startBridge(_bridgeData);
     }
 
     /// @notice Performs a swap before bridging via XDaiBridge
     /// @param _bridgeData the core information needed for bridging
     /// @param _swapData an object containing swap related data to perform swaps before bridging
-    /// @param _gnosisData data specific to bridge
     function swapAndStartBridgeTokensViaXDaiBridge(
         ILiFi.BridgeData memory _bridgeData,
-        LibSwap.SwapData[] calldata _swapData,
-        GnosisData memory _gnosisData
+        LibSwap.SwapData[] calldata _swapData
     )
         external
         payable
@@ -71,17 +76,16 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _gnosisData);
+        _startBridge(_bridgeData);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via XDaiBridge
     /// @param _bridgeData the core information needed for bridging
-    /// @param _gnosisData data specific to bridge
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, GnosisData memory _gnosisData) private {
-        LibAsset.maxApproveERC20(IERC20(DAI), _gnosisData.xDaiBridge, _bridgeData.minAmount);
-        IXDaiBridge(_gnosisData.xDaiBridge).relayTokens(_bridgeData.receiver, _bridgeData.minAmount);
+    function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
+        LibAsset.maxApproveERC20(IERC20(DAI), address(xDaiBridge), _bridgeData.minAmount);
+        xDaiBridge.relayTokens(_bridgeData.receiver, _bridgeData.minAmount);
         emit LiFiTransferStarted(_bridgeData);
     }
 }

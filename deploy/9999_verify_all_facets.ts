@@ -5,7 +5,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 export const verifyContract = async function (
   hre: HardhatRuntimeEnvironment,
   name: string,
-  options?: { address?: string; args?: string[] }
+  options?: { address?: string; args?: any[] }
 ) {
   if (hre.network.name === 'hardhat') {
     return

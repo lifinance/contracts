@@ -6,10 +6,8 @@ import {
 import { expect } from '../chai-setup'
 import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
-import { utils } from 'ethers'
 import { paraswapNXTPData } from '../fixtures/nxtp'
 import { node_url } from '../../utils/network'
-import config from '../../config/nxtp'
 import { addOrReplaceFacets } from '../../utils/diamond'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
 
@@ -36,7 +34,6 @@ describe('NXTPFacet (Paraswap)', function () {
       )
 
       // setup contract
-      const TX_MGR_ADDR = config['polygon'].txManagerAddress
 
       const [deployer] = await getUnnamedAccounts()
 
@@ -45,6 +42,7 @@ describe('NXTPFacet (Paraswap)', function () {
       await deployments.deploy('NXTPFacet', {
         from: deployer,
         log: true,
+        args: [TX_MGR_ADDR],
         deterministicDeployment: false,
       })
 
@@ -93,10 +91,7 @@ describe('NXTPFacet (Paraswap)', function () {
   })
 
   it('performs a swap then starts bridge transaction on the sending chain', async function () {
-    const nxtpData = {
-      nxtpTxManager: TX_MGR_ADDR,
-      ...paraswapNXTPData,
-    }
+    const nxtpData = paraswapNXTPData
 
     const bridgeData = {
       transactionId:

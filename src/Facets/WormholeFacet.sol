@@ -21,23 +21,39 @@ import { LibMappings } from "../Libraries/LibMappings.sol";
 contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.wormhole");
 
+    /// @notice The contract address of the wormhole router on the source chain.
+    IWormholeRouter private immutable router;
+
+    /// Types ///
+
+    struct Storage {
+        // Mapping between lifi chain id and wormhole chain id
+        mapping(uint256 => uint16) wormholeChainId;
+    }
+
     /// Events ///
 
     event WormholeChainIdMapped(uint256 indexed lifiChainId, uint256 indexed wormholeChainId);
 
     /// Types ///
 
-    /// @param wormholeRouter The contract address of the Wormhole router.
-    /// @param token The contract address of the token being bridged.
+    /// @param assetId The contract address of the token being bridged.
     /// @param amount The amount of tokens to bridge.
-    /// @param recipient The address of the token recipient after bridging.
+    /// @param receiver The address of the token receiver after bridging.
     /// @param toChainId The chainId of the chain to bridge to.
     /// @param arbiterFee The amount of token to pay a relayer (can be zero if no relayer is used).
     /// @param nonce A random nonce to associate with the tx.
     struct WormholeData {
-        address wormholeRouter;
         uint256 arbiterFee;
         uint32 nonce;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _router The contract address of the wormhole router on the source chain.
+    constructor(IWormholeRouter _router) {
+        router = _router;
     }
 
     /// External Methods ///
@@ -108,21 +124,17 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             if (fromWormholeChainId == toWormholeChainId) revert CannotBridgeToSameNetwork();
         }
 
-        LibAsset.maxApproveERC20(
-            IERC20(_bridgeData.sendingAssetId),
-            _wormholeData.wormholeRouter,
-            _bridgeData.minAmount
-        );
+        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(router), _bridgeData.minAmount);
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            IWormholeRouter(_wormholeData.wormholeRouter).wrapAndTransferETH{ value: _bridgeData.minAmount }(
+            router.wrapAndTransferETH{ value: _bridgeData.minAmount }(
                 toWormholeChainId,
                 bytes32(uint256(uint160(_bridgeData.receiver))),
                 _wormholeData.arbiterFee,
                 _wormholeData.nonce
             );
         } else {
-            IWormholeRouter(_wormholeData.wormholeRouter).transferTokens(
+            router.transferTokens(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 toWormholeChainId,

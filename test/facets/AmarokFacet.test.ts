@@ -67,7 +67,6 @@ describe('AmarokFacet', function () {
       dai = ERC20__factory.connect(GOERLI_USDC_ADDRESS, alice)
 
       validAmarokData = {
-        connextHandler: config['goerli'].connextHandler,
         callData: '0x',
         forceSlow: false,
         receiveLocal: false,

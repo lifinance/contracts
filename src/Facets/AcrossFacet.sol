@@ -15,20 +15,32 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// Storage ///
+
+    /// @notice The contract address of the spoke pool on the source chain.
+    IAcrossSpokePool private immutable spokePool;
+
     /// Errors
+
     error QuoteTimeout();
     /// Types ///
 
     /// @param weth The contract address of the WETH token on the current chain.
-    /// @param spokePool The contract address of the spoke pool on the source chain.
     /// @param destinationChainId The chainId of the chain to bridge to.
     /// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
     /// @param quoteTimestamp The timestamp associated with the suggested fee.
     struct AcrossData {
         address weth;
-        address spokePool;
         uint64 relayerFeePct;
         uint32 quoteTimestamp;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _spokePool The contract address of the spoke pool on the source chain.
+    constructor(IAcrossSpokePool _spokePool) {
+        spokePool = _spokePool;
     }
 
     /// External Methods ///
@@ -84,10 +96,9 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
         bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
         if (isNative) _bridgeData.sendingAssetId = _acrossData.weth;
-        else LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _acrossData.spokePool, _bridgeData.minAmount);
+        else LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(spokePool), _bridgeData.minAmount);
 
-        IAcrossSpokePool pool = IAcrossSpokePool(_acrossData.spokePool);
-        pool.deposit{ value: isNative ? _bridgeData.minAmount : 0 }(
+        spokePool.deposit{ value: isNative ? _bridgeData.minAmount : 0 }(
             _bridgeData.receiver,
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,

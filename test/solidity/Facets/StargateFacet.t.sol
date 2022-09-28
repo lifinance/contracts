@@ -11,9 +11,16 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
+import { IStargateRouter } from "lifi/Interfaces/IStargateRouter.sol";
 
 // Stub CBridgeFacet Contract
 contract TestStargateFacet is StargateFacet {
+
+    /// @notice Initialize the contract.
+    /// @param _router The contract address of the stargate router on the source chain.
+    constructor(IStargateRouter _router) StargateFacet (_router) {}
+
+
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -50,7 +57,7 @@ contract StargateFacetTest is DSTest, DiamondTest {
         fork();
 
         diamond = createDiamond();
-        stargate = new TestStargateFacet();
+        stargate = new TestStargateFacet(IStargateRouter(MAINNET_ROUTER));
         usdc = ERC20(USDC_ADDRESS);
         dai = ERC20(DAI_ADDRESS);
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
@@ -80,7 +87,6 @@ contract StargateFacetTest is DSTest, DiamondTest {
         vm.startPrank(USDC_HOLDER);
         console.log(block.number);
         StargateFacet.StargateData memory stargateData = StargateFacet.StargateData(
-            MAINNET_ROUTER,
             2,
             100,
             0,
@@ -107,7 +113,6 @@ contract StargateFacetTest is DSTest, DiamondTest {
             false
         );
         StargateFacet.StargateData memory data = StargateFacet.StargateData(
-            MAINNET_ROUTER,
             1,
             9,
             0,
@@ -165,7 +170,6 @@ contract StargateFacetTest is DSTest, DiamondTest {
             true
         );
         StargateFacet.StargateData memory data = StargateFacet.StargateData(
-            MAINNET_ROUTER,
             1,
             9,
             0,

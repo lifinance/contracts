@@ -95,7 +95,7 @@ describe('MultichainFacet', function () {
 
   it('starts a bridge transaction using native token on the sending chain', async () => {
     const MultichainData = {
-      token: anyMATIC_ADDRESS,
+      assetId: anyMATIC_ADDRESS,
       router: MATIC_ROUTER,
     }
 
@@ -112,7 +112,7 @@ describe('MultichainFacet', function () {
     await beefy.approve(lifi.address, utils.parseEther('10'))
 
     const MultichainData = {
-      token: BEEFY_ADDRESS,
+      assetId: BEEFY_ADDRESS,
       router: BEEFY_ROUTER,
     }
 
@@ -125,10 +125,10 @@ describe('MultichainFacet', function () {
 
   it('starts a bridge transaction on the sending chain', async () => {
     const MultichainData = {
-      token: token.address,
+      assetId: token.address,
       router: MULTICHAIN_ROUTER,
       amount: utils.parseUnits('1000', 6),
-      recipient: alice.address,
+      receiver: alice.address,
       toChainId: 100,
     }
 
@@ -140,7 +140,7 @@ describe('MultichainFacet', function () {
   })
 
   it('performs a swap then starts bridge transaction on the sending chain', async () => {
-    const to = lifi.address // should be a checksummed recipient address
+    const to = lifi.address // should be a checksummed receiver address
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
     const iface = new utils.Interface([
@@ -168,10 +168,10 @@ describe('MultichainFacet', function () {
     ]
 
     const MultichainData = {
-      token: token.address,
+      assetId: token.address,
       router: MULTICHAIN_ROUTER,
       amount: utils.parseUnits('1000', 6),
-      recipient: alice.address,
+      receiver: alice.address,
       toChainId: 137,
     }
 
@@ -190,7 +190,7 @@ describe('MultichainFacet', function () {
 
   it('fails to perform a swap when the dex is not approved', async () => {
     await dexMgr.removeDex(UNISWAP_ADDRESS)
-    const to = lifi.address // should be a checksummed recipient address
+    const to = lifi.address // should be a checksummed receiver address
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
     const iface = new utils.Interface([
@@ -218,10 +218,10 @@ describe('MultichainFacet', function () {
     ]
 
     const MultichainData = {
-      token: token.address,
+      assetId: token.address,
       router: MULTICHAIN_ROUTER,
       amount: utils.parseUnits('1000', 6),
-      recipient: alice.address,
+      receiver: alice.address,
       toChainId: 137,
     }
 

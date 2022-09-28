@@ -19,8 +19,6 @@ const ZERO_ADDRESS = constants.AddressZero
 const SEND_AMOUNT = utils.parseEther('1000')
 const SWAP_AMOUNT_IN = utils.parseUnits('1020', 6)
 const SWAP_AMOUNT_OUT = utils.parseEther('1000')
-const ROOT_CHAIN_MGR = '0xA0c68C638235ee32657e8f720a23ceC1bFc77C77'
-const ERC20_PREDICATE = '0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf'
 
 describe('PolygonBridgeFacet', function () {
   let alice: SignerWithAddress
@@ -31,7 +29,6 @@ describe('PolygonBridgeFacet', function () {
   let dai: ERC20
   let usdc: ERC20
   let bridgeData: any
-  let validPolygonData: any
   let swapData: any
   /* eslint-enable @typescript-eslint/no-explicit-any */
   const setupTest = deployments.createFixture(
@@ -100,14 +97,6 @@ describe('PolygonBridgeFacet', function () {
         },
       ]
 
-      validPolygonData = {
-        rootChainManager: ROOT_CHAIN_MGR,
-        erc20Predicate: ERC20_PREDICATE,
-        receiver: alice.address,
-        assetId: DAI_ADDRESS,
-        amount: SEND_AMOUNT,
-      }
-
       // Approve ERC20 for swapping
       await usdc.approve(lifi.address, SWAP_AMOUNT_IN)
       await dai.approve(lifi.address, SEND_AMOUNT)
@@ -137,11 +126,6 @@ describe('PolygonBridgeFacet', function () {
   describe('startBridgeTokensViaPolygonBridge function', () => {
     describe('should be reverted to starts a bridge transaction', () => {
       it('when the sending amount is zero', async function () {
-        const polygonData = {
-          ...validPolygonData,
-          amount: '0',
-        }
-
         const bridgeData = {
           transactionId: utils.randomBytes(32),
           bridge: 'polygon',
@@ -272,7 +256,6 @@ describe('PolygonBridgeFacet', function () {
           assetId: ZERO_ADDRESS,
           amount: utils.parseEther('10'),
         }
-
         const bridgeData = {
           transactionId: utils.randomBytes(32),
           bridge: 'polygon',
@@ -375,11 +358,7 @@ describe('PolygonBridgeFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .swapAndStartBridgeTokensViaPolygonBridge(
-              bridgeData,
-              swapData,
-              validPolygonData
-            )
+            .swapAndStartBridgeTokensViaPolygonBridge(bridgeData, swapData)
         ).to.be.revertedWith('ContractCallNotAllowed()')
       })
     })
@@ -400,11 +379,7 @@ describe('PolygonBridgeFacet', function () {
       await expect(
         lifi
           .connect(alice)
-          .swapAndStartBridgeTokensViaPolygonBridge(
-            bridgeData,
-            swapData,
-            validPolygonData
-          )
+          .swapAndStartBridgeTokensViaPolygonBridge(bridgeData, swapData)
       )
         .to.emit(lifi, 'AssetSwapped')
         .and.to.emit(lifi, 'LiFiTransferStarted')

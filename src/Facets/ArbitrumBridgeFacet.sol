@@ -7,23 +7,47 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidReceiver, InvalidFee } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { IArbitrumInbox } from "../Interfaces/IArbitrumInbox.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Arbitrum Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Arbitrum Bridge
 contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    /// Types ///
-    uint64 internal constant ARB_CHAIN_ID = 42161;
+    /// Storage ///
 
+    /// @notice Chain id of Arbitrum.
+    uint64 private constant ARB_CHAIN_ID = 42161;
+
+    /// @notice The contract address of the gateway router on the source chain.
+    IGatewayRouter private immutable gatewayRouter;
+
+    /// @notice The contract address of the inbox on the source chain.
+    IGatewayRouter private immutable inbox;
+
+    /// Types ///
+
+    /// @param assetId The contract address of the token being bridged on sending chain.
+    /// @param amount The amount of tokens to bridge.
+    /// @param receiver The address you are sending funds (and potentially data) to.
+    /// @param tokenRouter Token router address for sending token.
+    /// @param maxSubmissionCost Max gas deducted from user's L2 balance to cover base submission fee.
+    /// @param maxGas Max gas deducted from user's L2 balance to cover L2 execution.
+    /// @param maxGasPrice price bid for L2 execution.
     struct ArbitrumData {
-        address inbox;
-        address gatewayRouter;
         address tokenRouter;
         uint256 maxSubmissionCost;
         uint256 maxGas;
         uint256 maxGasPrice;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _gatewayRouter The contract address of the gateway router on the source chain.
+    /// @param _inbox The contract address of the inbox on the source chain.
+    constructor(IGatewayRouter _gatewayRouter, IGatewayRouter _inbox) {
+        gatewayRouter = _gatewayRouter;
+        inbox = _inbox;
     }
 
     /// External Methods ///
@@ -88,17 +112,22 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             if (msg.sender != _bridgeData.receiver) {
                 revert InvalidReceiver();
             }
-            IArbitrumInbox(_arbitrumData.inbox).depositEth{ value: _bridgeData.minAmount }();
+            inbox.createRetryableTicketNoRefundAliasRewrite{ value: _bridgeData.minAmount + _cost }(
+                _bridgeData.receiver,
+                _bridgeData.minAmount, // l2CallValue
+                _arbitrumData.maxSubmissionCost,
+                _bridgeData.receiver, // excessFeeRefundAddress
+                _bridgeData.receiver, // callValueRefundAddress
+                _arbitrumData.maxGas,
+                _arbitrumData.maxGasPrice,
+                ""
+            );
         } else {
             if (msg.value != _cost) {
                 revert InvalidFee();
             }
-            LibAsset.maxApproveERC20(
-                IERC20(_bridgeData.sendingAssetId),
-                _arbitrumData.tokenRouter,
-                _bridgeData.minAmount
-            );
-            IGatewayRouter(_arbitrumData.gatewayRouter).outboundTransfer{ value: _cost }(
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(gatewayRouter), _bridgeData.minAmount);
+            gatewayRouter.outboundTransfer{ value: _cost }(
                 _bridgeData.sendingAssetId,
                 _bridgeData.receiver,
                 _bridgeData.minAmount,

@@ -1,4 +1,4 @@
-import { ethers, network } from 'hardhat'
+import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { PeripheryRegistryFacet, FusePoolZap } from '../typechain'

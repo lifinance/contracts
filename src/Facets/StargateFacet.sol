@@ -18,15 +18,17 @@ import { Validatable } from "../Helpers/Validatable.sol";
 contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.stargate");
-    struct Storage {
-        address stargateRouter;
-    }
+    /// @notice The contract address of the stargate router on the source chain.
+    IStargateRouter private immutable router;
 
     /// Types ///
 
+    /// @param dstPoolId Dest pool id.
+    /// @param minAmountLD The min qty you would accept on the destination.
+    /// @param dstGasForCall Additional gas fee for extral call on the destination.
+    /// @param callTo The address to send the tokens to on the destination.
+    /// @param callData Additional payload.
     struct StargateData {
-        address router;
         uint256 dstPoolId;
         uint256 minAmountLD;
         uint256 dstGasForCall;
@@ -43,20 +45,13 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     event StargatePoolIdSet(address indexed token, uint256 poolId);
     event LayerZeroChainIdSet(uint256 indexed chainId, uint16 layerZeroChainId);
-    event StargateInitialized(address stargateRouter);
 
-    /// Init ///
+    /// Constructor ///
 
-    /// @notice Initializes local variables for the Stargate facet
-    /// @param _stargateRouter address of the canonical Stargate router contract
-    function initStargate(address _stargateRouter) external {
-        LibDiamond.enforceIsContractOwner();
-        if (_stargateRouter == address(0)) {
-            revert InvalidConfig();
-        }
-        Storage storage s = getStorage();
-        s.stargateRouter = _stargateRouter;
-        emit StargateInitialized(_stargateRouter);
+    /// @notice Initialize the contract.
+    /// @param _router The contract address of the stargate router on the source chain.
+    constructor(IStargateRouter _router) {
+        router = _router;
     }
 
     /// External Methods ///
@@ -124,7 +119,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         returns (uint256, uint256)
     {
         return
-            IStargateRouter(_stargateData.router).quoteLayerZeroFee(
+            router.quoteLayerZeroFee(
                 getLayerZeroChainId(_destinationChainId),
                 1, // TYPE_SWAP_REMOTE on Bridge
                 _stargateData.callTo,
@@ -152,9 +147,9 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InformationMismatch();
         }
 
-        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _stargateData.router, _bridgeData.minAmount);
+        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(router), _bridgeData.minAmount);
 
-        IStargateRouter(_stargateData.router).swap{ value: _nativeFee }(
+        router.swap{ value: _nativeFee }(
             getLayerZeroChainId(_bridgeData.destinationChainId),
             getStargatePoolId(_bridgeData.sendingAssetId),
             _stargateData.dstPoolId,
@@ -167,15 +162,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         emit LiFiTransferStarted(_bridgeData);
-    }
-
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            s.slot := namespace
-        }
     }
 
     /// Mappings management ///

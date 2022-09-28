@@ -14,7 +14,6 @@ import approvedFunctionSelectors from '../../utils/approvedFunctions'
 const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const DAI_ADDRESS = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
 const UNISWAP_ADDRESS = '0xE592427A0AEce92De3Edee1F18E0157C05861564'
-const CBRIDGE_ADDRESS = '0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820'
 
 describe('CBridgeFacet', function () {
   let alice: SignerWithAddress
@@ -55,7 +54,6 @@ describe('CBridgeFacet', function () {
       )
 
       CBridgeData = {
-        cBridge: CBRIDGE_ADDRESS,
         nonce: 1,
         maxSlippage: 5000,
       }
@@ -108,7 +106,6 @@ describe('CBridgeFacet', function () {
 
   it('fails to start a native token bridge transaction without msg.value', async function () {
     const CBridgeDataNative = {
-      cBridge: CBRIDGE_ADDRESS,
       nonce: 1,
       maxSlippage: 5000,
     }
@@ -137,7 +134,6 @@ describe('CBridgeFacet', function () {
 
   it('fails to start a native token bridge transaction with no enough msg.value', async function () {
     const CBridgeDataNative = {
-      cBridge: CBRIDGE_ADDRESS,
       nonce: 1,
       maxSlippage: 5000,
     }
@@ -180,7 +176,6 @@ describe('CBridgeFacet', function () {
     }
 
     const CBridgeDataNative = {
-      cBridge: CBRIDGE_ADDRESS,
       nonce: 1,
       maxSlippage: 5000,
     }
@@ -235,7 +230,6 @@ describe('CBridgeFacet', function () {
     }
 
     CBridgeData = {
-      cBridge: CBRIDGE_ADDRESS,
       nonce: 1,
       maxSlippage: 5000,
     }
@@ -309,9 +303,8 @@ describe('CBridgeFacet', function () {
     ])
 
     CBridgeData = {
-      cBridge: CBRIDGE_ADDRESS,
       receiver: alice.address,
-      token: DAI_ADDRESS,
+      assetId: DAI_ADDRESS,
       amount: utils.parseUnits('1000', 6),
       dstChainId: 137,
       nonce: 1,

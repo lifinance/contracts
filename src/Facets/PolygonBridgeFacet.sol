@@ -13,21 +13,32 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Polygon Bridge
 contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    uint64 internal constant POLYGON_CHAIN_ID = 137;
+    /// Storage ///
 
-    /// Types ///
+    /// @notice The chain id of Polygon.
+    uint64 private constant POLYGON_CHAIN_ID = 137;
 
-    struct PolygonData {
-        address rootChainManager;
-        address erc20Predicate;
+    /// @notice The contract address of the RootChainManager on the source chain.
+    IRootChainManager private immutable rootChainManager;
+
+    /// @notice The contract address of the ERC20Predicate on the source chain.
+    address private immutable erc20Predicate;
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _rootChainManager The contract address of the RootChainManager on the source chain.
+    /// @param _erc20Predicate The contract address of the ERC20Predicate on the source chain.
+    constructor(IRootChainManager _rootChainManager, address _erc20Predicate) {
+        rootChainManager = _rootChainManager;
+        erc20Predicate = _erc20Predicate;
     }
 
     /// External Methods ///
 
     /// @notice Bridges tokens via Polygon Bridge
     /// @param _bridgeData Data containing core information for bridging
-    /// @param _polygonData Data for asset id and amount
-    function startBridgeTokensViaPolygonBridge(ILiFi.BridgeData memory _bridgeData, PolygonData calldata _polygonData)
+    function startBridgeTokensViaPolygonBridge(ILiFi.BridgeData memory _bridgeData)
         external
         payable
         refundExcessNative(payable(msg.sender))
@@ -36,17 +47,15 @@ contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _polygonData);
+        _startBridge(_bridgeData);
     }
 
     /// @notice Performs a swap before bridging via Polygon Bridge
     /// @param _bridgeData Data containing core information for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _polygonData Data for asset id and amount
     function swapAndStartBridgeTokensViaPolygonBridge(
         ILiFi.BridgeData memory _bridgeData,
-        LibSwap.SwapData[] calldata _swapData,
-        PolygonData calldata _polygonData
+        LibSwap.SwapData[] calldata _swapData
     )
         external
         payable
@@ -61,16 +70,14 @@ contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _polygonData);
+        _startBridge(_bridgeData);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Polygon Bridge
     /// @param _bridgeData Data containing core information for bridging
-    /// @param _polygonData Parameters used for bridging
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, PolygonData calldata _polygonData) private {
-        IRootChainManager rootChainManager = IRootChainManager(_polygonData.rootChainManager);
+    function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
         address childToken;
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
@@ -78,11 +85,7 @@ contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         } else {
             childToken = rootChainManager.rootToChildToken(_bridgeData.sendingAssetId);
 
-            LibAsset.maxApproveERC20(
-                IERC20(_bridgeData.sendingAssetId),
-                _polygonData.erc20Predicate,
-                _bridgeData.minAmount
-            );
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), erc20Predicate, _bridgeData.minAmount);
 
             bytes memory depositData = abi.encode(_bridgeData.minAmount);
             rootChainManager.depositFor(_bridgeData.receiver, _bridgeData.sendingAssetId, depositData);

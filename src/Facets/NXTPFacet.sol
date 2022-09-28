@@ -14,18 +14,31 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through NXTP (Connext)
 contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// Storage ///
+
+    /// @notice The contract address of the transaction manager on the source chain.
+    ITransactionManager private immutable txManager;
+
     /// Errors ///
     error InvariantDataMismatch(string message);
 
     /// Types ///
+
     struct NXTPData {
-        address nxtpTxManager;
         ITransactionManager.InvariantTransactionData invariantData;
         uint256 expiry;
         bytes encryptedCallData;
         bytes encodedBid;
         bytes bidSignature;
         bytes encodedMeta;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _txManager The contract address of the transaction manager on the source chain.
+    constructor(ITransactionManager _txManager) {
+        txManager = _txManager;
     }
 
     /// External Methods ///
@@ -86,10 +99,9 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _nxtpData data specific to NXTP
     function _startBridge(ILiFi.BridgeData memory _bridgeData, NXTPData memory _nxtpData) private {
-        ITransactionManager txManager = ITransactionManager(_nxtpData.nxtpTxManager);
         IERC20 sendingAssetId = IERC20(_nxtpData.invariantData.sendingAssetId);
         // Give Connext approval to bridge tokens
-        LibAsset.maxApproveERC20(IERC20(sendingAssetId), _nxtpData.nxtpTxManager, _bridgeData.minAmount);
+        LibAsset.maxApproveERC20(IERC20(sendingAssetId), address(txManager), _bridgeData.minAmount);
 
         {
             address sendingChainFallback = _nxtpData.invariantData.sendingChainFallback;

@@ -68,7 +68,6 @@ describe('OptimismBridgeFacet', function () {
 
       validOptimismData = {
         assetIdOnL2: DAI_L2_ADDRESS,
-        bridge: config['mainnet'].bridges[DAI_L1_ADDRESS.toLowerCase()],
         l2Gas: L2_GAS,
         isSynthetix: false,
       }
@@ -263,7 +262,6 @@ describe('OptimismBridgeFacet', function () {
       it('when transfer native asset', async function () {
         const optimismData = {
           ...validOptimismData,
-          bridge: config['mainnet'].bridges.standardBridge,
         }
         const bridgeData = {
           transactionId: utils.randomBytes(32),

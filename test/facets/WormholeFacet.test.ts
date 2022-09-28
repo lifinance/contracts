@@ -15,7 +15,6 @@ const ETH_WHALE_ADDR = '0x6e685a45db4d97ba160fa067cb81b40dfed47245'
 const USDT_ADDRESS = '0xc2132D05D31c914a87C6611C10748AEb04B58e8F'
 const WMATIC_ADDRESS = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'
 const UNISWAP_ADDRESS = '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff'
-const WORMHOLE_ROUTER = '0x5a58505a96D1dbf8dF91cB21B54419FC36e93fdE'
 
 describe('WormholeFacet', function () {
   let lifi: WormholeFacet
@@ -107,7 +106,6 @@ describe('WormholeFacet', function () {
     }
 
     const WormholeData = {
-      wormholeRouter: WORMHOLE_ROUTER,
       arbiterFee: 0,
       nonce: 342,
     }
@@ -121,11 +119,6 @@ describe('WormholeFacet', function () {
 
   it('starts a bridge transaction on the sending chain (native)', async () => {
     const WormholeData = {
-      wormholeRouter: WORMHOLE_ROUTER,
-      token: ethers.constants.AddressZero,
-      amount: utils.parseUnits('1000', 6),
-      recipient: ethWhale.address,
-      toChainId: 100,
       arbiterFee: 0,
       nonce: 342,
     }
@@ -152,7 +145,7 @@ describe('WormholeFacet', function () {
   })
 
   it('performs a swap then starts bridge transaction on the sending chain', async () => {
-    const to = lifi.address // should be a checksummed recipient address
+    const to = lifi.address // should be a checksummed receiver address
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
     const bridgeData = {
@@ -193,7 +186,6 @@ describe('WormholeFacet', function () {
     ]
 
     const WormholeData = {
-      wormholeRouter: WORMHOLE_ROUTER,
       arbiterFee: 0,
       nonce: 221,
     }

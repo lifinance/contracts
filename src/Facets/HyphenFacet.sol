@@ -14,22 +14,24 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hyphen
 contract HyphenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    /// Types ///
+    /// Storage ///
 
-    /// @param token The contract address of the token being bridged.
-    /// @param amount The amount of tokens to bridge.
-    /// @param recipient The address of the token recipient after bridging.
-    /// @param toChainId The chainId of the chain to bridge to.
-    struct HyphenData {
-        address router;
+    /// @notice The contract address of the router on the source chain.
+    IHyphenRouter private immutable router;
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _router The contract address of the router on the source chain.
+    constructor(IHyphenRouter _router) {
+        router = _router;
     }
 
     /// External Methods ///
 
     /// @notice Bridges tokens via Hyphen
     /// @param _bridgeData the core information needed for bridging
-    /// @param _hyphenData data specific to Hyphen
-    function startBridgeTokensViaHyphen(ILiFi.BridgeData memory _bridgeData, HyphenData calldata _hyphenData)
+    function startBridgeTokensViaHyphen(ILiFi.BridgeData memory _bridgeData)
         external
         payable
         refundExcessNative(payable(msg.sender))
@@ -38,17 +40,15 @@ contract HyphenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _hyphenData);
+        _startBridge(_bridgeData);
     }
 
     /// @notice Performs a swap before bridging via Hyphen
     /// @param _bridgeData the core information needed for bridging
     /// @param _swapData an array of swap related data for performing swaps before bridging
-    /// @param _hyphenData data specific to Hyphen
     function swapAndStartBridgeTokensViaHyphen(
         ILiFi.BridgeData memory _bridgeData,
-        LibSwap.SwapData[] calldata _swapData,
-        HyphenData memory _hyphenData
+        LibSwap.SwapData[] calldata _swapData
     )
         external
         payable
@@ -63,20 +63,19 @@ contract HyphenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _hyphenData);
+        _startBridge(_bridgeData);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Hyphen
     /// @param _bridgeData the core information needed for bridging
-    /// @param _hyphenData data specific to Hyphen
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, HyphenData memory _hyphenData) private {
+    function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Give the Hyphen router approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _hyphenData.router, _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(router), _bridgeData.minAmount);
 
-            IHyphenRouter(_hyphenData.router).depositErc20(
+            router.depositErc20(
                 _bridgeData.destinationChainId,
                 _bridgeData.sendingAssetId,
                 _bridgeData.receiver,
@@ -84,7 +83,7 @@ contract HyphenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 "LIFI"
             );
         } else {
-            IHyphenRouter(_hyphenData.router).depositNative{ value: _bridgeData.minAmount }(
+            router.depositNative{ value: _bridgeData.minAmount }(
                 _bridgeData.receiver,
                 _bridgeData.destinationChainId,
                 "LIFI"

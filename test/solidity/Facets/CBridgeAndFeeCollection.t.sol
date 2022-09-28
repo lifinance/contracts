@@ -7,6 +7,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
@@ -15,6 +16,8 @@ import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
+    constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
+
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -50,7 +53,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         fork();
 
         diamond = createDiamond();
-        cBridge = new TestCBridgeFacet();
+        cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
         usdc = ERC20(USDC_ADDRESS);
         dai = ERC20(DAI_ADDRESS);
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
@@ -102,8 +105,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             true,
             false
         );
-
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(CBRIDGE_ROUTER, 5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(
@@ -145,7 +147,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             false
         );
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(CBRIDGE_ROUTER, 5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(
@@ -185,7 +187,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             false
         );
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(CBRIDGE_ROUTER, 5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         // Calculate USDC amount
         address[] memory path = new address[](2);
@@ -252,7 +254,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             false
         );
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(CBRIDGE_ROUTER, 5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         // Calculate USDC amount
         address[] memory path = new address[](2);
@@ -316,7 +318,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             false
         );
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(CBRIDGE_ROUTER, 5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         // Calculate USDC amount
         address[] memory path = new address[](2);
@@ -384,7 +386,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             false
         );
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(CBRIDGE_ROUTER, 5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         // Calculate USDC amount
         address[] memory path = new address[](2);

@@ -103,8 +103,6 @@ describe('HopFacet L1', function () {
     }
 
     const HopData = {
-      bridge: '0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a',
-      fromChainId: 1,
       bonderFee: 0,
       amountOutMin: 0,
       deadline,
@@ -138,7 +136,6 @@ describe('HopFacet L1', function () {
 
     const HopData = {
       fromChainId: 1,
-      bridge: '0xb8901acB165ed027E32754E0FFe830802919727f',
       bonderFee: 0,
       amountOutMin: 0,
       deadline,
@@ -174,8 +171,6 @@ describe('HopFacet L1', function () {
 
     const HopData = {
       fromChainId: 1,
-      sendingAssetAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
-      bridge: '0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1',
       bonderFee: 0,
       amountOutMin: 0,
       deadline,
@@ -183,7 +178,7 @@ describe('HopFacet L1', function () {
       destinationDeadline: deadline,
     }
 
-    const to = lifi.address // should be a checksummed recipient address
+    const to = lifi.address // should be a checksummed receiver address
 
     const uniswap = new Contract(
       UNISWAP_ADDRESS,
@@ -252,12 +247,10 @@ describe('HopFacet L1', function () {
     }
 
     const HopData = {
-      asset: 'DAI',
       fromChainId: 1,
       toChainId: 137,
-      bridge: '0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1',
-      sendingAssetAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
-      recipient: alice.address,
+      assetId: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+      receiver: alice.address,
       amount: parseUnits('900', 18),
       bonderFee: 0,
       amountOutMin: 0,
@@ -266,7 +259,7 @@ describe('HopFacet L1', function () {
       destinationDeadline: deadline,
     }
 
-    const to = lifi.address // should be a checksummed recipient address
+    const to = lifi.address // should be a checksummed receiver address
 
     const uniswap = new Contract(
       UNISWAP_ADDRESS,

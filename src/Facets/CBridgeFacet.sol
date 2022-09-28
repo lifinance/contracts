@@ -15,12 +15,25 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
 contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// Storage ///
+    /// @notice The contract address of the cbridge on the source chain.
+    ICBridge private immutable cBridge;
+
     /// Types ///
 
+    /// @param nonce A number input to guarantee uniqueness of transferId. Can be timestamp in practice.
+    /// @param maxSlippage The max slippage accepted, given as percentage in point (pip).
     struct CBridgeData {
-        address cBridge;
         uint32 maxSlippage;
         uint64 nonce;
+    }
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _cBridge The contract address of the cbridge on the source chain.
+    constructor(ICBridge _cBridge) {
+        cBridge = _cBridge;
     }
 
     /// External Methods ///
@@ -75,7 +88,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (uint64(block.chainid) == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            ICBridge(_cBridgeData.cBridge).sendNative{ value: _bridgeData.minAmount }(
+            cBridge.sendNative{ value: _bridgeData.minAmount }(
                 _bridgeData.receiver,
                 _bridgeData.minAmount,
                 uint64(_bridgeData.destinationChainId),
@@ -84,9 +97,9 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         } else {
             // Give CBridge approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _cBridgeData.cBridge, _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(cBridge), _bridgeData.minAmount);
             // solhint-disable check-send-result
-            ICBridge(_cBridgeData.cBridge).send(
+            cBridge.send(
                 _bridgeData.receiver,
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,

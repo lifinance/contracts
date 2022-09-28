@@ -7,6 +7,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { AcrossFacet } from "lifi/Facets/AcrossFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
@@ -14,6 +15,8 @@ import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 
 // Stub CBridgeFacet Contract
 contract TestAcrossFacet is AcrossFacet {
+    constructor(IAcrossSpokePool _spokePool) AcrossFacet(_spokePool) {}
+
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -28,8 +31,8 @@ contract AcrossFacetTest is DSTest, DiamondTest {
     address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address internal constant ETH_HOLDER = 0xb5d85CBf7cB3EE0D56b3bB207D5Fc4B82f43F511;
-    address internal WETH_HOLDER = 0xD022510A3414f255150Aa54b2e42DB6129a20d9E;
-    address internal SPOKE_POOL = 0x4D9079Bb4165aeb4084c526a32695dCfd2F77381;
+    address internal constant WETH_HOLDER = 0xD022510A3414f255150Aa54b2e42DB6129a20d9E;
+    address internal constant SPOKE_POOL = 0x4D9079Bb4165aeb4084c526a32695dCfd2F77381;
     // -----
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
@@ -48,7 +51,7 @@ contract AcrossFacetTest is DSTest, DiamondTest {
         fork();
 
         diamond = createDiamond();
-        across = new TestAcrossFacet();
+        across = new TestAcrossFacet(IAcrossSpokePool(SPOKE_POOL));
         usdc = ERC20(USDC_ADDRESS);
         weth = ERC20(WETH_ADDRESS);
         bytes4[] memory functionSelectors = new bytes4[](1);
@@ -76,7 +79,6 @@ contract AcrossFacetTest is DSTest, DiamondTest {
 
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
             WETH_ADDRESS,
-            SPOKE_POOL,
             0, // Relayer fee
             uint32(block.timestamp)
         );
@@ -101,7 +103,6 @@ contract AcrossFacetTest is DSTest, DiamondTest {
         );
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
             WETH_ADDRESS,
-            SPOKE_POOL,
             0, // Relayer fee
             uint32(block.timestamp)
         );

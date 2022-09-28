@@ -87,19 +87,14 @@ describe('HyphenFacet', function () {
       hasSourceSwaps: false,
       hasDestinationCall: false,
     }
-    const hyphenData = {
-      router: '0x2A5c2568b10A0E826BfA892Cf21BA7218310180b',
-    }
     await usdc.approve(lifi.address, amount)
-    await lifi
-      .connect(alice)
-      .startBridgeTokensViaHyphen(bridgeData, hyphenData, {
-        gasLimit: 500000,
-      })
+    await lifi.connect(alice).startBridgeTokensViaHyphen(bridgeData, {
+      gasLimit: 500000,
+    })
   })
 
   it('performs a swap then starts bridge transaction on the sending chain', async () => {
-    const to = lifi.address // should be a checksummed recipient address
+    const to = lifi.address // should be a checksummed receiver address
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
     const amountETH = utils.parseEther('700')
@@ -142,13 +137,9 @@ describe('HyphenFacet', function () {
       hasDestinationCall: false,
     }
 
-    const hyphenData = {
-      router: '0x2A5c2568b10A0E826BfA892Cf21BA7218310180b',
-    }
-
     await lifi
       .connect(alice)
-      .swapAndStartBridgeTokensViaHyphen(bridgeData, swapData, hyphenData, {
+      .swapAndStartBridgeTokensViaHyphen(bridgeData, swapData, {
         gasLimit: 500000,
         value: amountETH,
       })

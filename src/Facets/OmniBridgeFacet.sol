@@ -13,20 +13,34 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through OmniBridge
 contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// Storage ///
+
+    /// @notice The chain id of Gnosis.
+    uint64 private constant GNOSIS_CHAIN_ID = 100;
+
+    /// @notice The contract address of the foreign omni bridge on the source chain.
+    IOmniBridge private immutable foreignOmniBridge;
+
     /// Types ///
 
-    uint64 internal constant GNOSIS_CHAIN_ID = 100;
+    /// @notice The contract address of the weth omni bridge on the source chain.
+    IOmniBridge private immutable wethOmniBridge;
 
-    struct OmniData {
-        address bridge;
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _foreignOmniBridge The contract address of the foreign omni bridge on the source chain.
+    /// @param _wethOmniBridge The contract address of the weth omni bridge on the source chain.
+    constructor(IOmniBridge _foreignOmniBridge, IOmniBridge _wethOmniBridge) {
+        foreignOmniBridge = _foreignOmniBridge;
+        wethOmniBridge = _wethOmniBridge;
     }
 
     /// External Methods ///
 
     /// @notice Bridges tokens via OmniBridge
     /// @param _bridgeData Data contaning core information for bridging
-    /// @param _omniData Data specific to bridge
-    function startBridgeTokensViaOmniBridge(ILiFi.BridgeData memory _bridgeData, OmniData calldata _omniData)
+    function startBridgeTokensViaOmniBridge(ILiFi.BridgeData memory _bridgeData)
         external
         payable
         refundExcessNative(payable(msg.sender))
@@ -35,17 +49,15 @@ contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _omniData);
+        _startBridge(_bridgeData);
     }
 
     /// @notice Performs a swap before bridging via OmniBridge
     /// @param _bridgeData Data contaning core information for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _omniData Data specific to bridge
     function swapAndStartBridgeTokensViaOmniBridge(
         ILiFi.BridgeData memory _bridgeData,
-        LibSwap.SwapData[] calldata _swapData,
-        OmniData calldata _omniData
+        LibSwap.SwapData[] calldata _swapData
     )
         external
         payable
@@ -60,22 +72,23 @@ contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _omniData);
+        _startBridge(_bridgeData);
     }
 
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via OmniBridge
     /// @param _bridgeData Data contaning core information for bridging
-    /// @param _omniData Data specific to OmniBridge
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, OmniData calldata _omniData) private {
-        IOmniBridge bridge = IOmniBridge(_omniData.bridge);
+    function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            bridge.wrapAndRelayTokens{ value: _bridgeData.minAmount }(_bridgeData.receiver);
+            wethOmniBridge.wrapAndRelayTokens{ value: _bridgeData.minAmount }(_bridgeData.receiver);
         } else {
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _omniData.bridge, _bridgeData.minAmount);
-
-            bridge.relayTokens(_bridgeData.sendingAssetId, _bridgeData.receiver, _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(foreignOmniBridge),
+                _bridgeData.minAmount
+            );
+            foreignOmniBridge.relayTokens(_bridgeData.sendingAssetId, _bridgeData.receiver, _bridgeData.minAmount);
         }
 
         emit LiFiTransferStarted(_bridgeData);
