@@ -56,6 +56,7 @@ contract MockGateway {
 
 contract ExecutorTest is DSTest {
     ILiFi.LiFiData internal lifiData = ILiFi.LiFiData("", "", address(0), address(0), address(0), address(0), 0, 0);
+    address internal constant RECEIVER = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     Executor internal executor;
@@ -68,7 +69,7 @@ contract ExecutorTest is DSTest {
     function setUp() public {
         gw = new MockGateway();
         erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(this), address(erc20Proxy));
+        executor = new Executor(address(this), address(erc20Proxy), RECEIVER);
         erc20Proxy.setAuthorizedCaller(address(executor), true);
         amm = new TestAMM();
         vault = new Vault();
@@ -76,6 +77,8 @@ contract ExecutorTest is DSTest {
     }
 
     function testCanPerformComplexSwap() public {
+        vm.startPrank(RECEIVER);
+
         ERC20 tokenA = new ERC20("Token A", "TOKA", 18);
         ERC20 tokenB = new ERC20("Token B", "TOKB", 18);
         ERC20 tokenC = new ERC20("Token C", "TOKC", 18);
@@ -143,7 +146,7 @@ contract ExecutorTest is DSTest {
             abi.encodeWithSelector(vault.deposit.selector, address(tokenD), 100 ether)
         );
 
-        tokenA.mint(address(this), 4_000 ether);
+        tokenA.mint(RECEIVER, 4_000 ether);
         tokenA.mint(address(executor), 10 ether); // Add some accidental tokens to contract
         tokenA.approve(address(executor), 4_000 ether);
 
@@ -157,9 +160,15 @@ contract ExecutorTest is DSTest {
         assertEq(tokenB.balanceOf(address(vault)), 100 ether);
         assertEq(tokenC.balanceOf(address(vault)), 100 ether);
         assertEq(tokenD.balanceOf(address(vault)), 100 ether);
+
+        vm.stopPrank();
     }
 
     function testCanPerformComplexSwapWithNativeToken() public {
+        RECEIVER.call{ value: 10_000 ether }("");
+
+        vm.startPrank(RECEIVER);
+
         ERC20 tokenB = new ERC20("Token B", "TOKB", 18);
         ERC20 tokenC = new ERC20("Token C", "TOKC", 18);
         ERC20 tokenD = new ERC20("Token D", "TOKD", 18);
@@ -243,9 +252,13 @@ contract ExecutorTest is DSTest {
         assertEq(tokenB.balanceOf(address(vault)), 100 ether);
         assertEq(tokenC.balanceOf(address(vault)), 100 ether);
         assertEq(tokenD.balanceOf(address(vault)), 100 ether);
+
+        vm.stopPrank();
     }
 
     function testCanPerformSwapWithCleanup() public {
+        vm.startPrank(RECEIVER);
+
         ERC20 tokenA = new ERC20("Token A", "TOKA", 18);
         ERC20 tokenB = new ERC20("Token B", "TOKB", 18);
 
@@ -261,12 +274,14 @@ contract ExecutorTest is DSTest {
             abi.encodeWithSelector(amm.swap.selector, tokenA, 0.2 ether, tokenB, 0.2 ether)
         );
 
-        tokenA.mint(address(this), 1 ether);
+        tokenA.mint(RECEIVER, 1 ether);
         tokenA.approve(address(executor), 1 ether);
 
         executor.swapAndCompleteBridgeTokens(lifiData, swapData, address(tokenA), payable(address(0xb33f)));
         assertEq(tokenB.balanceOf(address(0xb33f)), 0.2 ether);
         assertEq(tokenA.balanceOf(address(0xb33f)), 0.8 ether);
+
+        vm.stopPrank();
     }
 
     function testCanPerformSameChainComplexSwap() public {

@@ -14,14 +14,21 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
 contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// Storage ///
+
+    /// @notice The address of the ERC20Proxy contract
     IERC20Proxy public erc20Proxy;
+
+    /// @notice The address of the Receiver contract
+    address public receiverContract;
 
     /// Errors ///
     error ExecutionFailed();
     error InvalidCaller();
+    error CallerIsNotReceiverContract();
 
     /// Events ///
     event ERC20ProxySet(address indexed proxy);
+    event ReceiverContractSet(address indexed receiver);
 
     /// Modifiers ///
 
@@ -40,95 +47,102 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 // Handle multi-to-one swaps
                 if (curAsset != finalAsset) {
                     curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
-                    if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
+                    if (curBalance > 0) {
+                        LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
+                    }
                 }
                 unchecked {
                     ++i;
                 }
             }
-        } else _;
+        } else {
+            _;
+        }
     }
 
     /// Constructor
-    constructor(address _owner, address _erc20Proxy) TransferrableOwnership(_owner) {
+    /// @notice Initialize local variables for the Executor
+    /// @param _owner The address of owner
+    /// @param _erc20Proxy The address of the ERC20Proxy contract
+    /// @param _receiverContract The address of the Receiver contract
+    constructor(
+        address _owner,
+        address _erc20Proxy,
+        address _receiverContract
+    ) TransferrableOwnership(_owner) {
         owner = _owner;
         erc20Proxy = IERC20Proxy(_erc20Proxy);
+        receiverContract = _receiverContract;
+
         emit ERC20ProxySet(_erc20Proxy);
+        emit ReceiverContractSet(_receiverContract);
     }
 
     /// External Methods ///
 
     /// @notice set ERC20 Proxy
-    /// @param _erc20Proxy the address of the ERC20Proxy contract
+    /// @param _erc20Proxy The address of the ERC20Proxy contract
     function setERC20Proxy(address _erc20Proxy) external onlyOwner {
         erc20Proxy = IERC20Proxy(_erc20Proxy);
         emit ERC20ProxySet(_erc20Proxy);
     }
 
+    /// @notice set Receiver Contract
+    /// @param _receiverContract The address of the Receiver contract
+    function setReceiverContract(address _receiverContract) external onlyOwner {
+        receiverContract = _receiverContract;
+        emit ReceiverContractSet(_receiverContract);
+    }
+
     /// @notice Performs a swap before completing a cross-chain transaction
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _swapData array of data needed for swaps
-    /// @param transferredAssetId token received from the other chain
-    /// @param receiver address that will receive tokens in the end
+    /// @param _transferredAssetId token received from the other chain
+    /// @param _receiver address that will receive tokens in the end
     function swapAndCompleteBridgeTokens(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        address transferredAssetId,
-        address payable receiver
+        address _transferredAssetId,
+        address payable _receiver
     ) external payable nonReentrant {
-        uint256 startingBalance;
-        uint256 finalAssetStartingBalance;
-        address finalAssetId = _swapData[_swapData.length - 1].receivingAssetId;
-
-        if (!LibAsset.isNativeAsset(finalAssetId)) {
-            finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId);
-        } else {
-            finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId) - msg.value;
+        if (msg.sender != receiverContract) {
+            revert CallerIsNotReceiverContract();
         }
 
-        if (!LibAsset.isNativeAsset(transferredAssetId)) {
-            startingBalance = LibAsset.getOwnBalance(transferredAssetId);
-            uint256 allowance = IERC20(transferredAssetId).allowance(msg.sender, address(this));
-            LibAsset.depositAsset(transferredAssetId, allowance);
-        } else {
-            startingBalance = LibAsset.getOwnBalance(transferredAssetId) - msg.value;
-        }
-
-        _executeSwaps(_lifiData, _swapData, receiver);
-
-        uint256 postSwapBalance = LibAsset.getOwnBalance(transferredAssetId);
-        if (postSwapBalance > startingBalance) {
-            LibAsset.transferAsset(transferredAssetId, receiver, postSwapBalance - startingBalance);
-        }
-
-        uint256 finalAssetPostSwapBalance = LibAsset.getOwnBalance(finalAssetId);
-        uint256 finalAssetSendAmount = finalAssetPostSwapBalance - finalAssetStartingBalance;
-
-        if (finalAssetSendAmount > 0) {
-            LibAsset.transferAsset(finalAssetId, receiver, finalAssetSendAmount);
-        }
-
-        emit LiFiTransferCompleted(
-            _lifiData.transactionId,
-            transferredAssetId,
-            receiver,
-            finalAssetSendAmount,
-            block.timestamp
-        );
+        _processSwaps(_lifiData, _swapData, _transferredAssetId, _receiver, 0);
     }
 
     /// @notice Performs a series of swaps or arbitrary executions
     /// @param _lifiData data used purely for tracking and analytics
     /// @param _swapData array of data needed for swaps
-    /// @param transferredAssetId token received from the other chain
-    /// @param receiver address that will receive tokens in the end
+    /// @param _transferredAssetId token received from the other chain
+    /// @param _receiver address that will receive tokens in the end
+    /// @param _amount amount of token for swaps or arbitrary executions
     function swapAndExecute(
         LiFiData calldata _lifiData,
         LibSwap.SwapData[] calldata _swapData,
-        address transferredAssetId,
-        address payable receiver,
-        uint256 amount
+        address _transferredAssetId,
+        address payable _receiver,
+        uint256 _amount
     ) external payable nonReentrant {
+        _processSwaps(_lifiData, _swapData, _transferredAssetId, _receiver, _amount);
+    }
+
+    /// Private Methods ///
+
+    /// @notice Performs a series of swaps or arbitrary executions
+    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _swapData array of data needed for swaps
+    /// @param _transferredAssetId token received from the other chain
+    /// @param _receiver address that will receive tokens in the end
+    /// @param _amount amount of token for swaps or arbitrary executions
+    function _processSwaps(
+        LiFiData calldata _lifiData,
+        LibSwap.SwapData[] calldata _swapData,
+        address _transferredAssetId,
+        address payable _receiver,
+        uint256 _amount
+    ) private {
         uint256 startingBalance;
         uint256 finalAssetStartingBalance;
         address finalAssetId = _swapData[_swapData.length - 1].receivingAssetId;
@@ -139,37 +153,40 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
             finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId) - msg.value;
         }
 
-        if (!LibAsset.isNativeAsset(transferredAssetId)) {
-            startingBalance = LibAsset.getOwnBalance(transferredAssetId);
-            erc20Proxy.transferFrom(transferredAssetId, msg.sender, address(this), amount);
+        if (!LibAsset.isNativeAsset(_transferredAssetId)) {
+            startingBalance = LibAsset.getOwnBalance(_transferredAssetId);
+            if (msg.sender == receiverContract) {
+                uint256 allowance = IERC20(_transferredAssetId).allowance(msg.sender, address(this));
+                LibAsset.depositAsset(_transferredAssetId, allowance);
+            } else {
+                erc20Proxy.transferFrom(_transferredAssetId, msg.sender, address(this), _amount);
+            }
         } else {
-            startingBalance = LibAsset.getOwnBalance(transferredAssetId) - msg.value;
+            startingBalance = LibAsset.getOwnBalance(_transferredAssetId) - msg.value;
         }
 
-        _executeSwaps(_lifiData, _swapData, receiver);
+        _executeSwaps(_lifiData, _swapData, _receiver);
 
-        uint256 postSwapBalance = LibAsset.getOwnBalance(transferredAssetId);
+        uint256 postSwapBalance = LibAsset.getOwnBalance(_transferredAssetId);
         if (postSwapBalance > startingBalance) {
-            LibAsset.transferAsset(transferredAssetId, receiver, postSwapBalance - startingBalance);
+            LibAsset.transferAsset(_transferredAssetId, _receiver, postSwapBalance - startingBalance);
         }
 
         uint256 finalAssetPostSwapBalance = LibAsset.getOwnBalance(finalAssetId);
         uint256 finalAssetSendAmount = finalAssetPostSwapBalance - finalAssetStartingBalance;
 
         if (finalAssetSendAmount > 0) {
-            LibAsset.transferAsset(finalAssetId, receiver, finalAssetSendAmount);
+            LibAsset.transferAsset(finalAssetId, _receiver, finalAssetSendAmount);
         }
 
         emit LiFiTransferCompleted(
             _lifiData.transactionId,
-            transferredAssetId,
-            receiver,
+            _transferredAssetId,
+            _receiver,
             finalAssetSendAmount,
             block.timestamp
         );
     }
-
-    /// Private Methods ///
 
     /// @dev Executes swaps one after the other
     /// @param _lifiData LiFi tracking data
@@ -181,9 +198,13 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     ) private noLeftovers(_swapData, _leftoverReceiver) {
         uint256 nSwaps = _swapData.length;
         for (uint256 i = 0; i < nSwaps; ) {
-            if (_swapData[i].callTo == address(erc20Proxy)) revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
+            if (_swapData[i].callTo == address(erc20Proxy)) {
+                revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
+            }
+
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
             LibSwap.swap(_lifiData.transactionId, currentSwapData);
+
             unchecked {
                 ++i;
             }
@@ -194,14 +215,22 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @param _swapData Array of data used to execute swaps
     /// @return uint256[] Array of token balances.
     function _fetchBalances(LibSwap.SwapData[] calldata _swapData) private view returns (uint256[] memory) {
-        uint256 length = _swapData.length;
-        uint256[] memory balances = new uint256[](length);
-        for (uint256 i = 0; i < length; ) {
-            balances[i] = LibAsset.getOwnBalance(_swapData[i].receivingAssetId);
+        uint256 nSwaps = _swapData.length;
+        uint256[] memory balances = new uint256[](nSwaps);
+        address asset;
+        for (uint256 i = 0; i < nSwaps; ) {
+            asset = _swapData[i].receivingAssetId;
+            balances[i] = LibAsset.getOwnBalance(asset);
+
+            if (LibAsset.isNativeAsset(asset)) {
+                balances[i] -= msg.value;
+            }
+
             unchecked {
                 ++i;
             }
         }
+
         return balances;
     }
 }

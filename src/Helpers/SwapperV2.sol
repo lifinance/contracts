@@ -22,22 +22,24 @@ contract SwapperV2 is ILiFi {
             uint256[] memory initialBalances = _fetchBalances(_swapData);
             address finalAsset = _swapData[nSwaps - 1].receivingAssetId;
             uint256 curBalance = 0;
-            uint256 newBalance = 0;
             _;
 
             for (uint256 i = 0; i < nSwaps - 1; ) {
                 address curAsset = _swapData[i].receivingAssetId;
                 // Handle multi-to-one swaps
                 if (curAsset != finalAsset) {
-                    newBalance = LibAsset.getOwnBalance(curAsset);
-                    curBalance = newBalance > initialBalances[i] ? newBalance - initialBalances[i] : newBalance;
-                    if (curBalance > 0) LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
+                    curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
+                    if (curBalance > 0) {
+                        LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
+                    }
                 }
                 unchecked {
                     ++i;
                 }
             }
-        } else _;
+        } else {
+            _;
+        }
     }
 
     /// Internal Methods ///
@@ -52,13 +54,27 @@ contract SwapperV2 is ILiFi {
         address payable _leftoverReceiver
     ) internal returns (uint256) {
         uint256 nSwaps = _swapData.length;
-        if (nSwaps == 0) revert NoSwapDataProvided();
-        address finalTokenId = _swapData[_swapData.length - 1].receivingAssetId;
+
+        if (nSwaps == 0) {
+            revert NoSwapDataProvided();
+        }
+
+        address finalTokenId = _swapData[nSwaps - 1].receivingAssetId;
         uint256 swapBalance = LibAsset.getOwnBalance(finalTokenId);
+
+        if (LibAsset.isNativeAsset(finalTokenId)) {
+            swapBalance -= msg.value;
+        }
+
         _executeSwaps(_lifiData, _swapData, _leftoverReceiver);
+
         uint256 newBalance = LibAsset.getOwnBalance(finalTokenId);
-        swapBalance = newBalance > swapBalance ? newBalance - swapBalance : newBalance;
-        if (swapBalance == 0) revert InvalidAmount();
+        swapBalance = newBalance > swapBalance ? newBalance - swapBalance : 0;
+
+        if (swapBalance == 0) {
+            revert InvalidAmount();
+        }
+
         return swapBalance;
     }
 
@@ -73,15 +89,21 @@ contract SwapperV2 is ILiFi {
         address payable _leftoverReceiver
     ) internal noLeftovers(_swapData, _leftoverReceiver) {
         uint256 nSwaps = _swapData.length;
+        LibSwap.SwapData calldata currentSwapData;
         for (uint256 i = 0; i < nSwaps; ) {
-            LibSwap.SwapData calldata currentSwapData = _swapData[i];
+            currentSwapData = _swapData[i];
+
             if (
                 !((LibAsset.isNativeAsset(currentSwapData.sendingAssetId) ||
                     LibAllowList.contractIsAllowed(currentSwapData.approveTo)) &&
                     LibAllowList.contractIsAllowed(currentSwapData.callTo) &&
                     LibAllowList.selectorIsAllowed(bytes4(currentSwapData.callData[:4])))
-            ) revert ContractCallNotAllowed();
+            ) {
+                revert ContractCallNotAllowed();
+            }
+
             LibSwap.swap(_lifiData.transactionId, currentSwapData);
+
             unchecked {
                 ++i;
             }
@@ -92,14 +114,22 @@ contract SwapperV2 is ILiFi {
     /// @param _swapData Array of data used to execute swaps
     /// @return uint256[] Array of token balances.
     function _fetchBalances(LibSwap.SwapData[] calldata _swapData) private view returns (uint256[] memory) {
-        uint256 length = _swapData.length;
-        uint256[] memory balances = new uint256[](length);
-        for (uint256 i = 0; i < length; ) {
-            balances[i] = LibAsset.getOwnBalance(_swapData[i].receivingAssetId);
+        uint256 nSwaps = _swapData.length;
+        uint256[] memory balances = new uint256[](nSwaps);
+        address asset;
+        for (uint256 i = 0; i < nSwaps; ) {
+            asset = _swapData[i].receivingAssetId;
+            balances[i] = LibAsset.getOwnBalance(asset);
+
+            if (LibAsset.isNativeAsset(asset)) {
+                balances[i] -= msg.value;
+            }
+
             unchecked {
                 ++i;
             }
         }
+
         return balances;
     }
 }

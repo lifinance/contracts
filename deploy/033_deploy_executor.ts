@@ -43,7 +43,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   await deploy('Executor', {
     from: deployer,
     log: true,
-    args: [deployer, erc20Proxy.address],
+    args: [deployer, erc20Proxy.address, ethers.constants.AddressZero],
     deterministicDeployment: true,
   })
 
@@ -61,7 +61,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   try {
     await hre.run('verify:verify', {
       address: executor.address,
-      constructorArguments: [deployer, sgRouter, erc20Proxy.address],
+      constructorArguments: [
+        deployer,
+        erc20Proxy.address,
+        ethers.constants.AddressZero,
+      ],
     })
   } catch (e) {
     console.log(`Failed to verify contract: ${e}`)
