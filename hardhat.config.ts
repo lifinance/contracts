@@ -9,7 +9,9 @@ import { node_url, accounts } from './utils/network'
 import '@nomiclabs/hardhat-etherscan'
 import '@tenderly/hardhat-tenderly'
 import './plugins/relay'
-import { ethers } from 'hardhat'
+
+import * as tenderly from '@tenderly/hardhat-tenderly'
+tenderly.setup()
 
 require('./tasks/generateDiamondABI.ts')
 
@@ -50,6 +52,10 @@ const config: HardhatUserConfig = {
               : undefined,
           }
         : undefined,
+    },
+    tenderly: {
+      chainId: 1,
+      url: 'https://rpc.tenderly.co/fork/f05241d2-6096-450d-94c0-460b0c2022d8',
     },
     localhost: {
       url: node_url('localhost'),

@@ -179,7 +179,8 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         LibSwap.SwapData[] calldata _swapData,
         address payable _leftoverReceiver
     ) private noLeftovers(_swapData, _leftoverReceiver) {
-        for (uint256 i = 0; i < _swapData.length; ) {
+        uint256 nSwaps = _swapData.length;
+        for (uint256 i = 0; i < nSwaps; ) {
             if (_swapData[i].callTo == address(erc20Proxy)) revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
             LibSwap.swap(_bridgeData.transactionId, currentSwapData);

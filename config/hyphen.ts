@@ -27,6 +27,9 @@ const config: HyphenConfig = {
   arbitrumOne: {
     hyphenRouter: '0x856cb5c3cBBe9e2E21293A644aA1f9363CEE11E8',
   },
+  opera: {
+    hyphenRouter: '0x856cb5c3cBBe9e2E21293A644aA1f9363CEE11E8',
+  },
 
   // Testnets
   goerli: {

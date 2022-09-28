@@ -1,6 +1,6 @@
 # Facets
 
-- [DEX Manager Facet](/DexManagerFacet.md)
+- [DEX Manager Facet](./DexManagerFacet.md)
 - [Swapper](./Swapper.md)
 - [Generic Swap Facet](./GenericSwapFacet.md)
 - [NXTP Facet](./NXTPFacet.md)

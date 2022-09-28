@@ -54,8 +54,6 @@ library LibAllowList {
                 als.contracts[i] = als.contracts[length - 1];
                 // Remove the last element
                 als.contracts.pop();
-                // Update the length
-                length = als.contracts.length;
                 break;
             }
         }
