@@ -49,7 +49,7 @@ contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2 {
     /// @notice Initialize local variables for the Optimism Bridge Facet
     /// @param configs Bridge configuration data
     function initOptimism(Config[] calldata configs, IL1StandardBridge standardBridge) external {
-        // LibDiamond.enforceIsContractOwner();
+        LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
 
