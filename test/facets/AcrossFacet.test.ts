@@ -104,7 +104,6 @@ describe('AcrossFacet', function () {
     }
 
     const AcrossData = {
-      weth: WETH_ADDRESS,
       relayerFeePct: 0,
       quoteTimestamp: now,
     }
@@ -135,7 +134,6 @@ describe('AcrossFacet', function () {
     }
 
     const AcrossData = {
-      weth: WETH_ADDRESS,
       relayerFeePct: 0,
       quoteTimestamp: now,
     }
