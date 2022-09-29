@@ -20,7 +20,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   await deploy('AcrossFacet', {
     from: deployer,
     log: true,
-    args: [POOL_ADDR, config[network.name].weth],
+    args: [POOL_ADDR, config[network.name].weth, 600], // 600 seconds being 10 minutes
     deterministicDeployment: true,
   })
 
@@ -31,7 +31,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   await verifyContract(hre, 'AcrossFacet', {
     address: acrossFacet.address,
-    args: [POOL_ADDR, config[network.name].weth],
+    args: [POOL_ADDR, config[network.name].weth, 600], // 600 seconds being 10 minutes
   })
 }
 
