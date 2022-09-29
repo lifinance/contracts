@@ -1,6 +1,6 @@
 [profile.default]
 test = 'test/solidity'
-solc_version = '0.8.16'
+solc_version = '0.8.17'
 optimizer = true
 optimizer_runs = 10000
 sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
