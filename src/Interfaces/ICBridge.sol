@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.17;
 
 interface ICBridge {
     /// @notice Send a cross-chain transfer via the liquidity pool-based bridge.
