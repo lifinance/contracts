@@ -40,7 +40,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   await verifyContract(hre, 'AmarokFacet', {
     address: amarokFacet.address,
-    args: [CONNEXT_HANDLER_ADDR, DOMAIN.toString()],
+    args: [CONNEXT_HANDLER_ADDR, DOMAIN],
   })
 }
 

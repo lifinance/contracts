@@ -9,7 +9,7 @@ interface AmarokConfig {
 const config: AmarokConfig = {
   hardhat: {
     chainId: 5,
-    connextHandler: '',
+    connextHandler: '0xB4C1340434920d70aD774309C75f9a4B679d801e',
     domain: 1735353714,
   },
   goerli: {
