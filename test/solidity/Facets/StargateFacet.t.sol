@@ -95,6 +95,7 @@ contract StargateFacetTest is DSTest, DiamondTest {
             2,
             100,
             0,
+            0,
             abi.encodePacked(USDC_HOLDER),
             ""
         );
@@ -121,11 +122,12 @@ contract StargateFacetTest is DSTest, DiamondTest {
             1,
             9,
             0,
+            0,
             abi.encodePacked(address(0)),
             abi.encode(bridgeData, new LibSwap.SwapData[](0), USDC_ADDRESS, USDC_HOLDER)
         );
-
         (uint256 fees, ) = stargate.quoteLayerZeroFee(137, data);
+        data.lzFee = fees;
         stargate.startBridgeTokensViaStargate{ value: fees }(bridgeData, data);
         vm.stopPrank();
     }
@@ -174,15 +176,17 @@ contract StargateFacetTest is DSTest, DiamondTest {
             true,
             true
         );
+
         StargateFacet.StargateData memory data = StargateFacet.StargateData(
             1,
             9,
             0,
+            0,
             abi.encodePacked(address(0)),
             abi.encode(bridgeData, swapData, USDC_ADDRESS, DAI_HOLDER)
         );
-
         (uint256 fees, ) = stargate.quoteLayerZeroFee(137, data);
+        data.lzFee = fees;
         stargate.swapAndStartBridgeTokensViaStargate{ value: fees }(bridgeData, swapData, data);
         vm.stopPrank();
     }
@@ -240,16 +244,17 @@ contract StargateFacetTest is DSTest, DiamondTest {
             hasSourceSwaps: true,
             hasDestinationCall: true
         });
+
         StargateFacet.StargateData memory data = StargateFacet.StargateData({
             dstPoolId: 1,
             minAmountLD: 7 * 10**usdc.decimals(),
             dstGasForCall: 0,
+            lzFee: 0,
             callTo: abi.encodePacked(address(0)),
             callData: abi.encode(bridgeData, swapData, USDC_ADDRESS, DAI_HOLDER)
         });
-
         (uint256 fees, ) = stargate.quoteLayerZeroFee(137, data);
-        console.log(fees);
+        data.lzFee = fees;
         stargate.swapAndStartBridgeTokensViaStargate{ value: fees + amountIn + fee + lifiFee }(
             bridgeData,
             swapData,
