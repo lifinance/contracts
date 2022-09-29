@@ -91,7 +91,6 @@ contract StargateFacetTest is DSTest, DiamondTest {
 
     function testCanGetFees() public {
         vm.startPrank(USDC_HOLDER);
-        console.log(block.number);
         StargateFacet.StargateData memory stargateData = StargateFacet.StargateData(
             2,
             100,
@@ -236,20 +235,21 @@ contract StargateFacetTest is DSTest, DiamondTest {
             referrer: address(0),
             sendingAssetId: USDC_ADDRESS,
             receiver: DAI_HOLDER,
-            minAmount: 9,
+            minAmount: 9 * 10**usdc.decimals(),
             destinationChainId: 137,
             hasSourceSwaps: true,
             hasDestinationCall: true
         });
         StargateFacet.StargateData memory data = StargateFacet.StargateData({
             dstPoolId: 1,
-            minAmountLD: 9,
+            minAmountLD: 7 * 10**usdc.decimals(),
             dstGasForCall: 0,
             callTo: abi.encodePacked(address(0)),
             callData: abi.encode(bridgeData, swapData, USDC_ADDRESS, DAI_HOLDER)
         });
 
         (uint256 fees, ) = stargate.quoteLayerZeroFee(137, data);
+        console.log(fees);
         stargate.swapAndStartBridgeTokensViaStargate{ value: fees + amountIn + fee + lifiFee }(
             bridgeData,
             swapData,
