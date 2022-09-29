@@ -18,17 +18,12 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @notice The address of the ERC20Proxy contract
     IERC20Proxy public erc20Proxy;
 
-    /// @notice The address of the Receiver contract
-    address public receiverContract;
-
     /// Errors ///
     error ExecutionFailed();
     error InvalidCaller();
-    error CallerIsNotReceiverContract();
 
     /// Events ///
     event ERC20ProxySet(address indexed proxy);
-    event ReceiverContractSet(address indexed receiver);
 
     /// Modifiers ///
 
@@ -64,18 +59,11 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @notice Initialize local variables for the Executor
     /// @param _owner The address of owner
     /// @param _erc20Proxy The address of the ERC20Proxy contract
-    /// @param _receiverContract The address of the Receiver contract
-    constructor(
-        address _owner,
-        address _erc20Proxy,
-        address _receiverContract
-    ) TransferrableOwnership(_owner) {
+    constructor(address _owner, address _erc20Proxy) TransferrableOwnership(_owner) {
         owner = _owner;
         erc20Proxy = IERC20Proxy(_erc20Proxy);
-        receiverContract = _receiverContract;
 
         emit ERC20ProxySet(_erc20Proxy);
-        emit ReceiverContractSet(_receiverContract);
     }
 
     /// External Methods ///
@@ -85,13 +73,6 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     function setERC20Proxy(address _erc20Proxy) external onlyOwner {
         erc20Proxy = IERC20Proxy(_erc20Proxy);
         emit ERC20ProxySet(_erc20Proxy);
-    }
-
-    /// @notice set Receiver Contract
-    /// @param _receiverContract The address of the Receiver contract
-    function setReceiverContract(address _receiverContract) external onlyOwner {
-        receiverContract = _receiverContract;
-        emit ReceiverContractSet(_receiverContract);
     }
 
     /// @notice Performs a swap before completing a cross-chain transaction
@@ -105,11 +86,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         address _transferredAssetId,
         address payable _receiver
     ) external payable nonReentrant {
-        if (msg.sender != receiverContract) {
-            revert CallerIsNotReceiverContract();
-        }
-
-        _processSwaps(_bridgeData, _swapData, _transferredAssetId, _receiver, 0);
+        _processSwaps(_bridgeData, _swapData, _transferredAssetId, _receiver, 0, true);
     }
 
     /// @notice Performs a series of swaps or arbitrary executions
@@ -125,7 +102,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         address payable _receiver,
         uint256 _amount
     ) external payable nonReentrant {
-        _processSwaps(_bridgeData, _swapData, _transferredAssetId, _receiver, _amount);
+        _processSwaps(_bridgeData, _swapData, _transferredAssetId, _receiver, _amount, false);
     }
 
     /// Private Methods ///
@@ -136,12 +113,14 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @param _transferredAssetId token received from the other chain
     /// @param _receiver address that will receive tokens in the end
     /// @param _amount amount of token for swaps or arbitrary executions
+    /// @param _amount amount of token for swaps or arbitrary executions
     function _processSwaps(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         address _transferredAssetId,
         address payable _receiver,
-        uint256 _amount
+        uint256 _amount,
+        bool _depositAllowance
     ) private {
         uint256 startingBalance;
         uint256 finalAssetStartingBalance;
@@ -155,7 +134,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
         if (!LibAsset.isNativeAsset(_transferredAssetId)) {
             startingBalance = LibAsset.getOwnBalance(_transferredAssetId);
-            if (msg.sender == receiverContract) {
+            if (_depositAllowance) {
                 uint256 allowance = IERC20(_transferredAssetId).allowance(msg.sender, address(this));
                 LibAsset.depositAsset(_transferredAssetId, allowance);
             } else {

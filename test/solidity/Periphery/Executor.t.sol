@@ -57,7 +57,6 @@ contract MockGateway {
 contract ExecutorTest is DSTest {
     ILiFi.BridgeData internal bridgeData =
         ILiFi.BridgeData("", "", "", address(0), address(0), address(0), 0, 0, false, false);
-    address internal constant RECEIVER = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     Executor internal executor;
@@ -70,7 +69,7 @@ contract ExecutorTest is DSTest {
     function setUp() public {
         gw = new MockGateway();
         erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(this), address(erc20Proxy), RECEIVER);
+        executor = new Executor(address(this), address(erc20Proxy));
         erc20Proxy.setAuthorizedCaller(address(executor), true);
         amm = new TestAMM();
         vault = new Vault();
@@ -78,8 +77,6 @@ contract ExecutorTest is DSTest {
     }
 
     function testCanPerformComplexSwap() public {
-        vm.startPrank(RECEIVER);
-
         ERC20 tokenA = new ERC20("Token A", "TOKA", 18);
         ERC20 tokenB = new ERC20("Token B", "TOKB", 18);
         ERC20 tokenC = new ERC20("Token C", "TOKC", 18);
@@ -153,7 +150,7 @@ contract ExecutorTest is DSTest {
             true
         );
 
-        tokenA.mint(RECEIVER, 4_000 ether);
+        tokenA.mint(address(this), 4_000 ether);
         tokenA.mint(address(executor), 10 ether); // Add some accidental tokens to contract
         tokenA.approve(address(executor), 4_000 ether);
 
@@ -172,10 +169,6 @@ contract ExecutorTest is DSTest {
     }
 
     function testCanPerformComplexSwapWithNativeToken() public {
-        RECEIVER.call{ value: 10_000 ether }("");
-
-        vm.startPrank(RECEIVER);
-
         ERC20 tokenB = new ERC20("Token B", "TOKB", 18);
         ERC20 tokenC = new ERC20("Token C", "TOKC", 18);
         ERC20 tokenD = new ERC20("Token D", "TOKD", 18);
@@ -270,8 +263,6 @@ contract ExecutorTest is DSTest {
     }
 
     function testCanPerformSwapWithCleanup() public {
-        vm.startPrank(RECEIVER);
-
         ERC20 tokenA = new ERC20("Token A", "TOKA", 18);
         ERC20 tokenB = new ERC20("Token B", "TOKB", 18);
 
@@ -288,7 +279,7 @@ contract ExecutorTest is DSTest {
             true
         );
 
-        tokenA.mint(RECEIVER, 1 ether);
+        tokenA.mint(address(this), 1 ether);
         tokenA.approve(address(executor), 1 ether);
 
         executor.swapAndCompleteBridgeTokens(bridgeData, swapData, address(tokenA), payable(address(0xb33f)));

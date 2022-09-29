@@ -16,12 +16,16 @@ contract SwapperV2 is ILiFi {
     /// Modifiers ///
 
     /// @dev Sends any leftover balances back to the user
-    modifier noLeftovers(LibSwap.SwapData[] calldata _swaps, address payable _leftoverReceiver) {
+    modifier noLeftovers(
+        LibSwap.SwapData[] calldata _swaps,
+        address payable _leftoverReceiver,
+        uint256[] memory initialBalances
+    ) {
         uint256 numSwaps = _swaps.length;
         if (numSwaps != 1) {
-            uint256[] memory initialBalances = _fetchBalances(_swaps);
             address finalAsset = _swaps[numSwaps - 1].receivingAssetId;
-            uint256 curBalance = 0;
+            uint256 curBalance;
+
             _;
 
             for (uint256 i = 0; i < numSwaps - 1; ) {
@@ -79,8 +83,10 @@ contract SwapperV2 is ILiFi {
             initialBalance -= msg.value;
         }
 
+        uint256[] memory initialBalances = _fetchBalances(_swaps);
+
         LibAsset.depositAssets(_swaps);
-        _executeSwaps(_transactionId, _swaps, _leftoverReceiver);
+        _executeSwaps(_transactionId, _swaps, _leftoverReceiver, initialBalances);
 
         uint256 newBalance = LibAsset.getOwnBalance(finalTokenId) - initialBalance;
 
@@ -96,12 +102,12 @@ contract SwapperV2 is ILiFi {
     /// @dev Executes swaps and checks that DEXs used are in the allowList
     /// @param _transactionId the transaction id associated with the operation
     /// @param _swaps Array of data used to execute swaps
-    /// @param _leftoverReceiver The address to send leftover funds to
     function _executeSwaps(
         bytes32 _transactionId,
         LibSwap.SwapData[] calldata _swaps,
-        address payable _leftoverReceiver
-    ) internal noLeftovers(_swaps, _leftoverReceiver) {
+        address payable _leftoverReceiver,
+        uint256[] memory initialBalances
+    ) internal noLeftovers(_swaps, _leftoverReceiver, initialBalances) {
         uint256 numSwaps = _swaps.length;
         for (uint256 i = 0; i < numSwaps; ) {
             LibSwap.SwapData calldata currentSwap = _swaps[i];
