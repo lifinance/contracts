@@ -10,12 +10,19 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 
 /// @title Across Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
+
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.across");
+
+    struct Storage {
+        uint256 maxQuoteTime;
+    }
 
     /// @notice The contract address of the spoke pool on the source chain.
     IAcrossSpokePool private immutable spokePool;
@@ -38,9 +45,14 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize the contract.
     /// @param _spokePool The contract address of the spoke pool on the source chain.
-    constructor(IAcrossSpokePool _spokePool, address _weth) {
+    constructor(
+        IAcrossSpokePool _spokePool,
+        address _weth,
+        uint256 _maxQuoteTime
+    ) {
         spokePool = _spokePool;
         weth = _weth;
+        getStorage().maxQuoteTime = _maxQuoteTime;
     }
 
     /// External Methods ///
@@ -91,7 +103,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
     function _startBridge(ILiFi.BridgeData memory _bridgeData, AcrossData memory _acrossData) internal {
-        if (_acrossData.quoteTimestamp > block.timestamp + 10 minutes) {
+        if (_acrossData.quoteTimestamp > block.timestamp + getStorage().maxQuoteTime) {
             revert QuoteTimeout();
         }
         bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
@@ -108,5 +120,20 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @notice Sets the amount of time a quote is valid for.
+    function setMaxQuoteTime(uint256 _maxQuoteTime) external {
+        LibDiamond.enforceIsContractOwner();
+        getStorage().maxQuoteTime = _maxQuoteTime;
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }

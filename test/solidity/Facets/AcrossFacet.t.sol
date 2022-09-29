@@ -17,7 +17,7 @@ import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 contract TestAcrossFacet is AcrossFacet {
     address internal constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
-    constructor(IAcrossSpokePool _spokePool) AcrossFacet(_spokePool, WETH_ADDRESS) {}
+    constructor(IAcrossSpokePool _spokePool) AcrossFacet(_spokePool, WETH_ADDRESS, 10 minutes) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -105,6 +105,29 @@ contract AcrossFacetTest is DSTest, DiamondTest {
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
             0, // Relayer fee
             uint32(block.timestamp)
+        );
+        across.startBridgeTokensViaAcross(bridgeData, data);
+        vm.stopPrank();
+    }
+
+    function testFailsToBridgeERC20TokensDueToQuoteTimeout() public {
+        vm.startPrank(WETH_HOLDER);
+        weth.approve(address(across), 10_000 * 10**weth.decimals());
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "across",
+            "",
+            address(0),
+            WETH_ADDRESS,
+            WETH_HOLDER,
+            100000,
+            137,
+            false,
+            false
+        );
+        AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
+            0, // Relayer fee
+            uint32(block.timestamp + 20 minutes)
         );
         across.startBridgeTokensViaAcross(bridgeData, data);
         vm.stopPrank();
