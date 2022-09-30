@@ -16,10 +16,14 @@ contract SwapperV2 is ILiFi {
     /// Modifiers ///
 
     /// @dev Sends any leftover balances back to the user
+    /// @notice Sends any leftover balances to the user
+    /// @param _swaps Swap data array
+    /// @param _leftoverReceiver Address to send leftover tokens to
+    /// @param _initialBalances Array of initial token balances
     modifier noLeftovers(
         LibSwap.SwapData[] calldata _swaps,
         address payable _leftoverReceiver,
-        uint256[] memory initialBalances
+        uint256[] memory _initialBalances
     ) {
         uint256 numSwaps = _swaps.length;
         if (numSwaps != 1) {
@@ -32,7 +36,7 @@ contract SwapperV2 is ILiFi {
                 address curAsset = _swaps[i].receivingAssetId;
                 // Handle multi-to-one swaps
                 if (curAsset != finalAsset) {
-                    curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
+                    curBalance = LibAsset.getOwnBalance(curAsset) - _initialBalances[i];
                     if (curBalance > 0) {
                         LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
                     }
@@ -47,6 +51,8 @@ contract SwapperV2 is ILiFi {
     }
 
     /// @dev Refunds any excess native asset sent to the contract after the main function
+    /// @notice Refunds any excess native asset sent to the contract after the main function
+    /// @param _refundReceiver Address to send refunds to
     modifier refundExcessNative(address payable _refundReceiver) {
         uint256 initialBalance = address(this).balance - msg.value;
         _;
@@ -64,6 +70,7 @@ contract SwapperV2 is ILiFi {
     /// @param _minAmount the minimum amount of the final asset to receive
     /// @param _swaps Array of data used to execute swaps
     /// @param _leftoverReceiver The address to send leftover funds to
+    /// @return uint256 result of the swap
     function _depositAndSwap(
         bytes32 _transactionId,
         uint256 _minAmount,
@@ -102,12 +109,14 @@ contract SwapperV2 is ILiFi {
     /// @dev Executes swaps and checks that DEXs used are in the allowList
     /// @param _transactionId the transaction id associated with the operation
     /// @param _swaps Array of data used to execute swaps
+    /// @param _leftoverReceiver Address to send leftover tokens to
+    /// @param _initialBalances Array of initial balances
     function _executeSwaps(
         bytes32 _transactionId,
         LibSwap.SwapData[] calldata _swaps,
         address payable _leftoverReceiver,
-        uint256[] memory initialBalances
-    ) internal noLeftovers(_swaps, _leftoverReceiver, initialBalances) {
+        uint256[] memory _initialBalances
+    ) internal noLeftovers(_swaps, _leftoverReceiver, _initialBalances) {
         uint256 numSwaps = _swaps.length;
         for (uint256 i = 0; i < numSwaps; ) {
             LibSwap.SwapData calldata currentSwap = _swaps[i];

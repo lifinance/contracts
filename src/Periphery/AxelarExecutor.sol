@@ -10,6 +10,9 @@ import { LibBytes } from "../Libraries/LibBytes.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ExcessivelySafeCall } from "../Helpers/ExcessivelySafeCall.sol";
 
+/// @title Axelar Executor
+/// @author LI.FI (https://li.fi)
+/// @notice Arbitrary execution contract used for cross-chain swaps and message passing using Axelar
 contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     using LibBytes for bytes;
     using SafeERC20 for IERC20;
@@ -105,6 +108,8 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     }
 
     /// Internal Methods ///
+
+    /// @dev handles a failed execution and sends tokens to a specified receiver
     function _handleFailedExecution(
         address callTo,
         bytes4 selector,
