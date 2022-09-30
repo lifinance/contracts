@@ -21,8 +21,8 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
-    /// @param nonce A number input to guarantee uniqueness of transferId. Can be timestamp in practice.
     /// @param maxSlippage The max slippage accepted, given as percentage in point (pip).
+    /// @param nonce A number input to guarantee uniqueness of transferId. Can be timestamp in practice.
     struct CBridgeData {
         uint32 maxSlippage;
         uint64 nonce;
