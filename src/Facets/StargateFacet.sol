@@ -101,7 +101,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     function quoteLayerZeroFee(uint256 _destinationChainId, StargateData calldata _stargateData)
-        public
+        external
         view
         returns (uint256, uint256)
     {
