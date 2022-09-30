@@ -20,18 +20,27 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   await deploy('AcrossFacet', {
     from: deployer,
     log: true,
-    args: [POOL_ADDR, config[network.name].weth],
+    args: [POOL_ADDR, config[network.name].weth, 600], // 600 seconds being 10 minutes
     deterministicDeployment: true,
   })
 
+  const ABI = ['function initAcross(uint256)']
+  const iface = new ethers.utils.Interface(ABI)
+
   const acrossFacet = await ethers.getContract('AcrossFacet')
   const diamond = await ethers.getContract('LiFiDiamond')
+  const initData = iface.encodeFunctionData('initHop', [10 * 60])
 
-  await addOrReplaceFacets([acrossFacet], diamond.address)
+  await addOrReplaceFacets(
+    [acrossFacet],
+    diamond.address,
+    acrossFacet.address,
+    initData
+  )
 
   await verifyContract(hre, 'AcrossFacet', {
     address: acrossFacet.address,
-    args: [POOL_ADDR, config[network.name].weth],
+    args: [POOL_ADDR, config[network.name].weth, 600], // 600 seconds being 10 minutes
   })
 }
 

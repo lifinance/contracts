@@ -22,6 +22,7 @@ error InvalidDestinationChain();
 error InvalidSendingToken();
 error InvalidCaller();
 error AlreadyInitialized();
+error NotInitialized();
 error OnlyContractOwner();
 error CannotAuthoriseSelf();
 error RecoveryAddressCannotBeZero();

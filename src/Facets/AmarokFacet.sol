@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IConnextHandler } from "../Interfaces/IConnextHandler.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidReceiver, InvalidAmount, InformationMismatch } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
@@ -113,6 +114,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     function setAmarokDomain(uint256 _chainId, uint32 _domain) external {
+        LibDiamond.enforceIsContractOwner();
         LibMappings.AmarokMappings storage sm = LibMappings.getAmarokMappings();
         sm.amarokDomain[_chainId] = _domain;
         emit AmarokDomainSet(_chainId, _domain);

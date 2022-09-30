@@ -4,9 +4,10 @@ pragma solidity 0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IMultichainToken } from "../Interfaces/IMultichainToken.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { IMultichainRouter } from "../Interfaces/IMultichainRouter.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { TokenAddressIsZero, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
+import { TokenAddressIsZero, CannotBridgeToSameNetwork, InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
@@ -14,13 +15,107 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Multichain (Prev. AnySwap)
 contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
+    /// Storage ///
+
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.multichain");
+
+    struct Storage {
+        mapping(address => bool) allowedRouters;
+        bool initialized;
+    }
+
     /// Types ///
 
     struct MultichainData {
         address router;
     }
 
+    /// Errors ///
+    error InvalidRouter();
+
+    /// Events ///
+
+    event MultichainInitialized();
+    event MultichainRouterRegistered(address indexed router, bool allowed);
+
+    /// Init ///
+
+    /// @notice Initialize local variables for the Multichain Facet
+    /// @param routers Allowed Multichain Routers
+    function initMultichain(address[] calldata routers) external {
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage s = getStorage();
+
+        if (s.initialized) {
+            revert AlreadyInitialized();
+        }
+
+        uint256 len = routers.length;
+        for (uint256 i = 0; i < len; ) {
+            if (routers[i] == address(0)) {
+                revert InvalidConfig();
+            }
+            s.allowedRouters[routers[i]] = true;
+            unchecked {
+                ++i;
+            }
+        }
+
+        s.initialized = true;
+
+        emit MultichainInitialized();
+    }
+
     /// External Methods ///
+
+    /// @notice Register router
+    /// @param router Address of the router
+    /// @param allowed Whether the address is allowed or not
+    function registerBridge(address router, bool allowed) external {
+        LibDiamond.enforceIsContractOwner();
+
+        if (router == address(0)) {
+            revert InvalidConfig();
+        }
+
+        Storage storage s = getStorage();
+
+        if (!s.initialized) {
+            revert NotInitialized();
+        }
+
+        s.allowedRouters[router] = allowed;
+
+        emit MultichainRouterRegistered(router, allowed);
+    }
+
+    /// @notice Batch register routers
+    /// @param routers Router addresses
+    /// @param allowed Array of whether the addresses are allowed or not
+    function registerBridge(address[] calldata routers, bool[] calldata allowed) external {
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage s = getStorage();
+
+        if (!s.initialized) {
+            revert NotInitialized();
+        }
+
+        uint256 len = routers.length;
+        for (uint256 i = 0; i < len; ) {
+            if (routers[i] == address(0)) {
+                revert InvalidConfig();
+            }
+            s.allowedRouters[routers[i]] = allowed[i];
+
+            emit MultichainRouterRegistered(routers[i], allowed[i]);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
 
     /// @notice Bridges tokens via Multichain
     /// @param _bridgeData the core information needed for bridging
@@ -37,6 +132,8 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         validateBridgeData(_bridgeData)
         nonReentrant
     {
+        Storage storage s = getStorage();
+        if (!s.allowedRouters[_multichainData.router]) revert InvalidRouter();
         // Multichain (formerly Multichain) tokens can wrap other tokens
         (address underlyingToken, bool isNative) = _getUnderlyingToken(
             _bridgeData.sendingAssetId,
@@ -63,6 +160,10 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         validateBridgeData(_bridgeData)
         nonReentrant
     {
+        Storage storage s = getStorage();
+
+        if (!s.allowedRouters[_multichainData.router]) revert InvalidRouter();
+
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -137,5 +238,14 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }

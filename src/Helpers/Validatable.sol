@@ -25,13 +25,6 @@ contract Validatable {
         _;
     }
 
-    modifier receiverMustBeSender(ILiFi.BridgeData memory _bridgeData) {
-        if (_bridgeData.receiver != msg.sender) {
-            revert InvalidReceiver();
-        }
-        _;
-    }
-
     modifier onlyAllowSourceToken(ILiFi.BridgeData memory _bridgeData, address _token) {
         if (_bridgeData.sendingAssetId != _token) {
             revert InvalidSendingToken();
