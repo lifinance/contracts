@@ -17,7 +17,7 @@ import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 contract TestAcrossFacet is AcrossFacet {
     address internal constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
-    constructor(IAcrossSpokePool _spokePool) AcrossFacet(_spokePool, WETH_ADDRESS, 10 minutes) {}
+    constructor(IAcrossSpokePool _spokePool) AcrossFacet(_spokePool, WETH_ADDRESS) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -56,12 +56,14 @@ contract AcrossFacetTest is DSTest, DiamondTest {
         across = new TestAcrossFacet(IAcrossSpokePool(SPOKE_POOL));
         usdc = ERC20(USDC_ADDRESS);
         weth = ERC20(WETH_ADDRESS);
-        bytes4[] memory functionSelectors = new bytes4[](1);
+        bytes4[] memory functionSelectors = new bytes4[](2);
         functionSelectors[0] = across.startBridgeTokensViaAcross.selector;
+        functionSelectors[1] = across.initializeAcross.selector;
 
         addFacet(diamond, address(across), functionSelectors);
 
         across = TestAcrossFacet(address(diamond));
+        across.initializeAcross(10 minutes);
     }
 
     function testCanBridgeNativeTokens() public {

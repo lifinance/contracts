@@ -30,8 +30,11 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     address private immutable weth;
 
     /// Errors
-
     error QuoteTimeout();
+
+    /// Events
+    event AcrossInitialized(uint256 maxQuoteTime);
+
     /// Types ///
 
     /// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
@@ -45,17 +48,18 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize the contract.
     /// @param _spokePool The contract address of the spoke pool on the source chain.
-    constructor(
-        IAcrossSpokePool _spokePool,
-        address _weth,
-        uint256 _maxQuoteTime
-    ) {
+    constructor(IAcrossSpokePool _spokePool, address _weth) {
         spokePool = _spokePool;
         weth = _weth;
-        getStorage().maxQuoteTime = _maxQuoteTime;
     }
 
     /// External Methods ///
+
+    function initializeAcross(uint256 _maxQuoteTime) external {
+        LibDiamond.enforceIsContractOwner();
+        getStorage().maxQuoteTime = _maxQuoteTime;
+        emit AcrossInitialized(_maxQuoteTime);
+    }
 
     /// @notice Bridges tokens via Across
     /// @param _bridgeData the core information needed for bridging
