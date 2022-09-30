@@ -66,12 +66,12 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     }
 
     /// @notice Performs a swap before completing a cross-chain transaction
-    /// @param _bridgeData the core information needed for bridging
+    /// @param _transactionId the transaction id for the swap
     /// @param _swapData array of data needed for swaps
     /// @param transferredAssetId token received from the other chain
     /// @param receiver address that will receive tokens in the end
     function swapAndCompleteBridgeTokens(
-        ILiFi.BridgeData memory _bridgeData,
+        bytes32 _transactionId,
         LibSwap.SwapData[] calldata _swapData,
         address transferredAssetId,
         address payable receiver
@@ -94,7 +94,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
             startingBalance = LibAsset.getOwnBalance(transferredAssetId) - msg.value;
         }
 
-        _executeSwaps(_bridgeData, _swapData, receiver);
+        _executeSwaps(_transactionId, _swapData, receiver);
 
         uint256 postSwapBalance = LibAsset.getOwnBalance(transferredAssetId);
         if (postSwapBalance > startingBalance) {
@@ -108,22 +108,16 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
             LibAsset.transferAsset(finalAssetId, receiver, finalAssetSendAmount);
         }
 
-        emit LiFiTransferCompleted(
-            _bridgeData.transactionId,
-            transferredAssetId,
-            receiver,
-            finalAssetSendAmount,
-            block.timestamp
-        );
+        emit LiFiTransferCompleted(_transactionId, transferredAssetId, receiver, finalAssetSendAmount, block.timestamp);
     }
 
     /// @notice Performs a series of swaps or arbitrary executions
-    /// @param _bridgeData the core information needed for bridging
+    /// @param _transactionId the transaction id for the swap
     /// @param _swapData array of data needed for swaps
     /// @param transferredAssetId token received from the other chain
     /// @param receiver address that will receive tokens in the end
     function swapAndExecute(
-        ILiFi.BridgeData memory _bridgeData,
+        bytes32 _transactionId,
         LibSwap.SwapData[] calldata _swapData,
         address transferredAssetId,
         address payable receiver,
@@ -146,7 +140,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
             startingBalance = LibAsset.getOwnBalance(transferredAssetId) - msg.value;
         }
 
-        _executeSwaps(_bridgeData, _swapData, receiver);
+        _executeSwaps(_transactionId, _swapData, receiver);
 
         uint256 postSwapBalance = LibAsset.getOwnBalance(transferredAssetId);
         if (postSwapBalance > startingBalance) {
@@ -160,22 +154,16 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
             LibAsset.transferAsset(finalAssetId, receiver, finalAssetSendAmount);
         }
 
-        emit LiFiTransferCompleted(
-            _bridgeData.transactionId,
-            transferredAssetId,
-            receiver,
-            finalAssetSendAmount,
-            block.timestamp
-        );
+        emit LiFiTransferCompleted(_transactionId, transferredAssetId, receiver, finalAssetSendAmount, block.timestamp);
     }
 
     /// Private Methods ///
 
     /// @dev Executes swaps one after the other
-    /// @param _bridgeData LiFi tracking data
+    /// @param _transactionId the transaction id for the swap
     /// @param _swapData Array of data used to execute swaps
     function _executeSwaps(
-        ILiFi.BridgeData memory _bridgeData,
+        bytes32 _transactionId,
         LibSwap.SwapData[] calldata _swapData,
         address payable _leftoverReceiver
     ) private noLeftovers(_swapData, _leftoverReceiver) {
@@ -183,7 +171,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         for (uint256 i = 0; i < nSwaps; ) {
             if (_swapData[i].callTo == address(erc20Proxy)) revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
-            LibSwap.swap(_bridgeData.transactionId, currentSwapData);
+            LibSwap.swap(_transactionId, currentSwapData);
             unchecked {
                 ++i;
             }
