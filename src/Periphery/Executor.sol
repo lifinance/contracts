@@ -113,7 +113,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @param _transferredAssetId token received from the other chain
     /// @param _receiver address that will receive tokens in the end
     /// @param _amount amount of token for swaps or arbitrary executions
-    /// @param _amount amount of token for swaps or arbitrary executions
+    /// @param _depositAllowance If deposit approved amount of token
     function _processSwaps(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
