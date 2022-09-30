@@ -56,12 +56,14 @@ contract AcrossFacetTest is DSTest, DiamondTest {
         across = new TestAcrossFacet(IAcrossSpokePool(SPOKE_POOL));
         usdc = ERC20(USDC_ADDRESS);
         weth = ERC20(WETH_ADDRESS);
-        bytes4[] memory functionSelectors = new bytes4[](1);
+        bytes4[] memory functionSelectors = new bytes4[](2);
         functionSelectors[0] = across.startBridgeTokensViaAcross.selector;
+        functionSelectors[1] = across.initializeAcross.selector;
 
         addFacet(diamond, address(across), functionSelectors);
 
         across = TestAcrossFacet(address(diamond));
+        across.initializeAcross(10 minutes);
     }
 
     function testCanBridgeNativeTokens() public {
@@ -105,6 +107,29 @@ contract AcrossFacetTest is DSTest, DiamondTest {
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
             0, // Relayer fee
             uint32(block.timestamp)
+        );
+        across.startBridgeTokensViaAcross(bridgeData, data);
+        vm.stopPrank();
+    }
+
+    function testFailsToBridgeERC20TokensDueToQuoteTimeout() public {
+        vm.startPrank(WETH_HOLDER);
+        weth.approve(address(across), 10_000 * 10**weth.decimals());
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "across",
+            "",
+            address(0),
+            WETH_ADDRESS,
+            WETH_HOLDER,
+            100000,
+            137,
+            false,
+            false
+        );
+        AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
+            0, // Relayer fee
+            uint32(block.timestamp + 20 minutes)
         );
         across.startBridgeTokensViaAcross(bridgeData, data);
         vm.stopPrank();
