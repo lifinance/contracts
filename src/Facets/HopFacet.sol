@@ -6,7 +6,7 @@ import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { CannotBridgeToSameNetwork, NativeValueWithERC, InvalidReceiver, InvalidAmount, InvalidConfig, InvalidSendingToken, AlreadyInitialized } from "../Errors/GenericErrors.sol";
+import { CannotBridgeToSameNetwork, NativeValueWithERC, InvalidReceiver, InvalidAmount, InvalidConfig, InvalidSendingToken, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -78,6 +78,13 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
+
+        if (!s.initialized) revert NotInitialized();
+
+        if (bridge == address(0)) {
+            revert InvalidConfig();
+        }
+
         s.bridges[assetId] = IHopBridge(bridge);
 
         emit HopBridgeRegistered(assetId, bridge);
@@ -91,6 +98,7 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         payable
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
     {
@@ -106,7 +114,14 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         HopData memory _hopData
-    ) external payable containsSourceSwaps(_bridgeData) validateBridgeData(_bridgeData) nonReentrant {
+    )
+        external
+        payable
+        containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        validateBridgeData(_bridgeData)
+        nonReentrant
+    {
         if (!LibAsset.isNativeAsset(address(_bridgeData.sendingAssetId)) && msg.value != 0) revert NativeValueWithERC();
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
