@@ -7,38 +7,48 @@ interface MultichainConfig {
 const config: MultichainConfig = {
   // leave multichainRouter as '' if you want to deploy a router with deployments
   hardhat: {
-    multichainRouter: '',
+    [],
   },
-  // Anyswap v4 router
+  // Anyswap v4 routers
   mainnet: {
-    multichainRouter: '0x6b7a87899490EcE95443e979cA9485CBE7E71522',
-  },
-  rinkeby: {
-    multichainRouter: '-',
-  },
-  ropsten: {
-    multichainRouter: '-',
-  },
-  goerli: {
-    multichainRouter: '-',
-  },
-  polygon: {
-    multichainRouter: '-',
-  },
-  xdai: {
-    multichainRouter: '-',
-  },
-  bsc: {
-    multichainRouter: '-',
-  },
-  fantom: {
-    multichainRouter: '-',
-  },
-  mumbai: {
-    multichainRouter: '-',
-  },
-  arbitrum_rinkeby: {
-    multichainRouter: '-',
+    [
+    "0x55af5865807b196bd0197e0902746f31fbccfa58",
+    "0x5cbe98480a790554403694b98bff71a525907f5d",
+    "0x3053ad3b31600074e9a90440770f78d5e8fc5a54",
+    "0x84b67e43474a403cde9aa181b02ba07399a54573",
+    "0x6ccf12b480a99c54b23647c995f4525d544a7e72",
+    "0xf99d58e463a2e07e5692127302c20a191861b4d6",
+    "0x979aca85ba37c675e78322ed5d97fa980b9bdf00",
+    "0x2cf51e73c3516f3d86e9c0b4de0971dbf0766fd4",
+    "0x667fd83e24ca1d935d36717d305d54fa0cac991c",
+    "0x442B153F6F61C0c99A33Aa4170DCb31e1ABDa1D0",
+    "0xfbdd194376de19a88118e84e279b977f165d01b8",
+    "0xc4bb7277a74678f053259cb1f96140347efbfd46",
+    "0xaef9e3e050d0ef060cdfd5246209b0b6bb66060f",
+    "0x9fB83c0635De2E815fd1c21b3a292277540C2e8d",
+    "0xb0e1fc65c1a741b4662b813eb787d369b8614af1",
+    "0xd22a58f79e9481d1a88e00c343885a588b34b68b",
+    "0x3907e6ff436e2b2b05d6b929fb05f14c0ee18d90",
+    "0x3129662808bec728a27ab6a6b9afd3cbaca8a43c",
+    "0x39fc9e94caeacb435842fadedecb783589f50f5f",
+    "0x5f006745a9a192a7cd1236089f704f9b35d3b9cd",
+    "0xaac2bb703093eca3ce9b97434fd16f2765951c0e",
+    "0x461d52769884ca6235b685ef2040f47d30c94eb5",
+    "0xcb9f441ffae898e7a2f32143fd79ac899517a9dc",
+    "0x1d7ca62f6af49ec66f6680b8606e634e55ef22c1",
+    "0x5444c30210d8a0a156178cfb8048b4137c0d40d1",
+    "0x3405a1bd46b85c5c029483fbecf2f3e611026e45",
+    "0x9fda7ceec4c18008096c2fe2b85f05dc300f94d0",
+    "0xe069af87450fb51fc0d0e044617f1c134163e591",
+    "0xa384bc7cdc0a93e686da9e7b8c0807cd040f4e0b",
+    "0x6afcff9189e8ed3fcc1cffa184feb1276f6a82a5",
+    "0xba8da9dcf11b50b03fd5284f164ef5cdef910705",
+    "0x420a24c9c65bd44c48bfb1cc8d6cd1ea8b1ac840",
+    "0x6b7a87899490ece95443e979ca9485cbe7e71522",
+    "0xe95fd76cf16008c12ff3b3a937cb16cd9cc20284",
+    "0x765277eebeca2e31912c9946eae1021199b39c61",
+    "0x765277eebeca2e31912c9946eae1021199b39c61",
+    ]
   },
 }
 

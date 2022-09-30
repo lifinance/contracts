@@ -6,7 +6,7 @@ import { IL1StandardBridge } from "../Interfaces/IL1StandardBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, InvalidReceiver, InvalidConfig, AlreadyInitialized } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidReceiver, InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
@@ -78,6 +78,13 @@ contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
+
+        if (!s.initialized) revert NotInitialized();
+
+        if (bridge == address(0)) {
+            revert InvalidConfig();
+        }
+
         s.bridges[assetId] = IL1StandardBridge(bridge);
 
         emit OptimismBridgeRegistered(assetId, bridge);
