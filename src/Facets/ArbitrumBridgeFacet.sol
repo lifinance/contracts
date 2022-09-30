@@ -155,7 +155,7 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InvalidReceiver();
         }
 
-        inbox.createRetryableTicketNoRefundAliasRewrite{ value: _bridgeData.minAmount + cost }(
+        inbox.unsafeCreateRetryableTicket{ value: _bridgeData.minAmount + cost }(
             _bridgeData.receiver,
             _bridgeData.minAmount, // l2CallValue
             _arbitrumData.maxSubmissionCost,
