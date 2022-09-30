@@ -23,9 +23,11 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     uint32 private immutable srcChainDomain;
 
     /// Errors ///
+
     error UnknownAmarokDomain(uint32 domain);
 
     /// Events ///
+
     event AmarokDomainSet(uint256 indexed chainId, uint32 indexed domain);
 
     /// Types ///

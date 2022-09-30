@@ -16,6 +16,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @notice Provides functionality for bridging through CBridge
 contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
+
     /// @notice The contract address of the cbridge on the source chain.
     ICBridge private immutable cBridge;
 
