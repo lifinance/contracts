@@ -5,7 +5,7 @@ import {
   IERC20__factory as ERC20__factory,
   DexManagerFacet,
 } from '../../typechain'
-import { deployments, ethers, network } from 'hardhat'
+import { deployments, network } from 'hardhat'
 import { constants, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
@@ -19,7 +19,6 @@ describe('HyphenFacet', function () {
   let lifi: HyphenFacet
   let dexMgr: DexManagerFacet
   let alice: SignerWithAddress
-  let lifiData: any
   let usdc: ERC20
   let wmatic: ERC20
 
@@ -79,7 +78,7 @@ describe('HyphenFacet', function () {
       transactionId: utils.randomBytes(32),
       bridge: 'hyphen',
       integrator: 'ACME Devs',
-      referrer: ethers.constants.AddressZero,
+      referrer: constants.AddressZero,
       sendingAssetId: usdc.address,
       receiver: alice.address,
       minAmount: utils.parseUnits('10', 6),
@@ -116,7 +115,7 @@ describe('HyphenFacet', function () {
       {
         callTo: UNISWAP_ADDRESS,
         approveTo: UNISWAP_ADDRESS,
-        sendingAssetId: ethers.constants.AddressZero,
+        sendingAssetId: constants.AddressZero,
         receivingAssetId: usdc.address,
         fromAmount: amountETH,
         callData: uniswapData,
@@ -128,7 +127,7 @@ describe('HyphenFacet', function () {
       transactionId: utils.randomBytes(32),
       bridge: 'hyphen',
       integrator: 'ACME Devs',
-      referrer: ethers.constants.AddressZero,
+      referrer: constants.AddressZero,
       sendingAssetId: usdc.address,
       receiver: alice.address,
       minAmount: amountUSDC,
