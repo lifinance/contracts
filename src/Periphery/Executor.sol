@@ -170,6 +170,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @dev Executes swaps one after the other
     /// @param _bridgeData LiFi tracking data
     /// @param _swapData Array of data used to execute swaps
+    /// @param _leftoverReceiver Address to receive lefover tokens
     function _executeSwaps(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
