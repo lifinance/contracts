@@ -29,12 +29,10 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param assetId The contract address of the token being bridged on sending chain.
     /// @param amount The amount of tokens to bridge.
     /// @param receiver The address you are sending funds (and potentially data) to.
-    /// @param tokenRouter Token router address for sending token.
     /// @param maxSubmissionCost Max gas deducted from user's L2 balance to cover base submission fee.
     /// @param maxGas Max gas deducted from user's L2 balance to cover L2 execution.
     /// @param maxGasPrice price bid for L2 execution.
     struct ArbitrumData {
-        address tokenRouter;
         uint256 maxSubmissionCost;
         uint256 maxGas;
         uint256 maxGasPrice;
