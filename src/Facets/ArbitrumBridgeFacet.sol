@@ -135,7 +135,7 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ArbitrumData calldata _arbitrumData,
         uint256 cost
     ) private {
-        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _arbitrumData.tokenRouter, _bridgeData.minAmount);
+        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(gatewayRouter), _bridgeData.minAmount);
         gatewayRouter.outboundTransfer{ value: cost }(
             _bridgeData.sendingAssetId,
             _bridgeData.receiver,
