@@ -109,13 +109,13 @@ describe('MultichainFacet', function () {
   })
 
   it('starts a bridge transaction using native token on the sending chain', async () => {
-    const MultichainData = {
+    const multichainData = {
       router: MATIC_ROUTER,
     }
 
     await lifi
       .connect(alice)
-      .startBridgeTokensViaMultichain(validBridgeData, MultichainData, {
+      .startBridgeTokensViaMultichain(validBridgeData, multichainData, {
         gasLimit: 500000,
         value: utils.parseEther('1000'),
       })
@@ -128,7 +128,7 @@ describe('MultichainFacet', function () {
       sendingAssetId: BEEFY_ADDRESS,
     }
 
-    const MultichainData = {
+    const multichainData = {
       router: BEEFY_ROUTER,
     }
 
@@ -137,7 +137,7 @@ describe('MultichainFacet', function () {
 
     await lifi
       .connect(beefHolder)
-      .startBridgeTokensViaMultichain(bridgeData, MultichainData, {
+      .startBridgeTokensViaMultichain(bridgeData, multichainData, {
         gasLimit: 500000,
       })
   })
@@ -149,13 +149,13 @@ describe('MultichainFacet', function () {
       minAmount: utils.parseUnits('1000', 6),
     }
 
-    const MultichainData = {
+    const multichainData = {
       router: MULTICHAIN_ROUTER,
     }
 
     await lifi
       .connect(alice)
-      .startBridgeTokensViaMultichain(bridgeData, MultichainData, {
+      .startBridgeTokensViaMultichain(bridgeData, multichainData, {
         gasLimit: 500000,
       })
   })
@@ -196,7 +196,7 @@ describe('MultichainFacet', function () {
       hasSourceSwaps: true,
     }
 
-    const MultichainData = {
+    const multichainData = {
       router: MULTICHAIN_ROUTER,
     }
 
@@ -205,7 +205,7 @@ describe('MultichainFacet', function () {
       .swapAndStartBridgeTokensViaMultichain(
         bridgeData,
         swapData,
-        MultichainData,
+        multichainData,
         {
           gasLimit: 500000,
           value: utils.parseEther('700'),
@@ -250,7 +250,7 @@ describe('MultichainFacet', function () {
       hasSourceSwaps: true,
     }
 
-    const MultichainData = {
+    const multichainData = {
       router: MULTICHAIN_ROUTER,
     }
 
@@ -260,7 +260,7 @@ describe('MultichainFacet', function () {
         .swapAndStartBridgeTokensViaMultichain(
           bridgeData,
           swapData,
-          MultichainData,
+          multichainData,
           {
             gasLimit: 500000,
             value: utils.parseEther('700'),
