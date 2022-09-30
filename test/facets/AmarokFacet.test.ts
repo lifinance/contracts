@@ -29,7 +29,7 @@ describe('AmarokFacet', function () {
   let usdc: ERC20
   /* eslint-disable @typescript-eslint/no-explicit-any */
   let validBridgeData: any
-  let validAmarokData: any
+  let amarokData: any
   let swapData: any
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -82,7 +82,7 @@ describe('AmarokFacet', function () {
         hasDestinationCall: false,
       }
 
-      validAmarokData = {
+      amarokData = {
         callData: '0x',
         forceSlow: false,
         receiveLocal: false,
@@ -160,9 +160,7 @@ describe('AmarokFacet', function () {
         }
 
         await expect(
-          lifi
-            .connect(alice)
-            .startBridgeTokensViaAmarok(bridgeData, validAmarokData)
+          lifi.connect(alice).startBridgeTokensViaAmarok(bridgeData, amarokData)
         ).to.be.revertedWith('InvalidAmount()')
       })
 
@@ -173,9 +171,7 @@ describe('AmarokFacet', function () {
         }
 
         await expect(
-          lifi
-            .connect(alice)
-            .startBridgeTokensViaAmarok(bridgeData, validAmarokData)
+          lifi.connect(alice).startBridgeTokensViaAmarok(bridgeData, amarokData)
         ).to.be.revertedWith('InvalidReceiver()')
       })
 
@@ -186,7 +182,7 @@ describe('AmarokFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaAmarok(validBridgeData, validAmarokData)
+            .startBridgeTokensViaAmarok(validBridgeData, amarokData)
         ).to.be.revertedWith('InsufficientBalance')
       })
 
@@ -195,11 +191,6 @@ describe('AmarokFacet', function () {
           ...validBridgeData,
           sendingAssetId: ZERO_ADDRESS,
           minAmount: utils.parseEther('3'),
-        }
-
-        const amarokData = {
-          ...validAmarokData,
-          assetId: ZERO_ADDRESS,
         }
 
         await expect(
@@ -218,9 +209,7 @@ describe('AmarokFacet', function () {
         }
 
         await expect(
-          lifi
-            .connect(alice)
-            .startBridgeTokensViaAmarok(bridgeData, validAmarokData)
+          lifi.connect(alice).startBridgeTokensViaAmarok(bridgeData, amarokData)
         ).to.be.revertedWith('InformationMismatch()')
       })
     })
@@ -229,7 +218,7 @@ describe('AmarokFacet', function () {
       await expect(
         lifi
           .connect(alice)
-          .startBridgeTokensViaAmarok(validBridgeData, validAmarokData)
+          .startBridgeTokensViaAmarok(validBridgeData, amarokData)
       ).to.emit(lifi, 'LiFiTransferStarted')
     })
   })
@@ -246,11 +235,7 @@ describe('AmarokFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .swapAndStartBridgeTokensViaAmarok(
-              bridgeData,
-              swapData,
-              validAmarokData
-            )
+            .swapAndStartBridgeTokensViaAmarok(bridgeData, swapData, amarokData)
         ).to.be.revertedWith('InvalidReceiver()')
       })
 
@@ -266,11 +251,7 @@ describe('AmarokFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .swapAndStartBridgeTokensViaAmarok(
-              bridgeData,
-              swapData,
-              validAmarokData
-            )
+            .swapAndStartBridgeTokensViaAmarok(bridgeData, swapData, amarokData)
         ).to.be.revertedWith('InsufficientBalance')
       })
 
@@ -288,7 +269,7 @@ describe('AmarokFacet', function () {
             .swapAndStartBridgeTokensViaAmarok(
               bridgeData,
               swapData,
-              validAmarokData,
+              amarokData,
               {
                 value: utils.parseEther('3'),
               }
@@ -307,11 +288,7 @@ describe('AmarokFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .swapAndStartBridgeTokensViaAmarok(
-              bridgeData,
-              swapData,
-              validAmarokData
-            )
+            .swapAndStartBridgeTokensViaAmarok(bridgeData, swapData, amarokData)
         ).to.be.revertedWith('ContractCallNotAllowed()')
       })
 
@@ -325,11 +302,7 @@ describe('AmarokFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .swapAndStartBridgeTokensViaAmarok(
-              bridgeData,
-              swapData,
-              validAmarokData
-            )
+            .swapAndStartBridgeTokensViaAmarok(bridgeData, swapData, amarokData)
         ).to.be.revertedWith('InformationMismatch()')
       })
     })
@@ -345,11 +318,7 @@ describe('AmarokFacet', function () {
       await expect(
         lifi
           .connect(alice)
-          .swapAndStartBridgeTokensViaAmarok(
-            bridgeData,
-            swapData,
-            validAmarokData
-          )
+          .swapAndStartBridgeTokensViaAmarok(bridgeData, swapData, amarokData)
       )
         .to.emit(lifi, 'AssetSwapped')
         .and.to.emit(lifi, 'LiFiTransferStarted')

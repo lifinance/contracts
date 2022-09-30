@@ -32,7 +32,7 @@ describe('ArbitrumBridgeFacet', function () {
   let owner: any
   let swapData: any
   let validBridgeData: any
-  let validArbitrumData: any
+  let arbitrumData: any
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
   const setupTest = deployments.createFixture(
@@ -80,7 +80,7 @@ describe('ArbitrumBridgeFacet', function () {
         hasDestinationCall: false,
       }
 
-      validArbitrumData = {
+      arbitrumData = {
         maxSubmissionCost: MAX_SUBMISSION_COST,
         maxGas: MAX_GAS,
         maxGasPrice: MAX_GAS_PRICE,
@@ -157,7 +157,7 @@ describe('ArbitrumBridgeFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(bridgeData, validArbitrumData)
+            .startBridgeTokensViaArbitrumBridge(bridgeData, arbitrumData)
         ).to.be.revertedWith('InvalidAmount()')
       })
 
@@ -170,7 +170,7 @@ describe('ArbitrumBridgeFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(bridgeData, validArbitrumData)
+            .startBridgeTokensViaArbitrumBridge(bridgeData, arbitrumData)
         ).to.be.revertedWith('InvalidReceiver()')
       })
 
@@ -181,10 +181,7 @@ describe('ArbitrumBridgeFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(
-              validBridgeData,
-              validArbitrumData
-            )
+            .startBridgeTokensViaArbitrumBridge(validBridgeData, arbitrumData)
         ).to.be.revertedWith('InsufficientBalance')
       })
 
@@ -194,13 +191,9 @@ describe('ArbitrumBridgeFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(
-              validBridgeData,
-              validArbitrumData,
-              {
-                value: cost.sub(1),
-              }
-            )
+            .startBridgeTokensViaArbitrumBridge(validBridgeData, arbitrumData, {
+              value: cost.sub(1),
+            })
         ).to.be.revertedWith('InvalidFee()')
       })
 
@@ -213,7 +206,7 @@ describe('ArbitrumBridgeFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(bridgeData, validArbitrumData, {
+            .startBridgeTokensViaArbitrumBridge(bridgeData, arbitrumData, {
               value: utils.parseEther('9'),
             })
         ).to.be.revertedWith('InvalidAmount()')
@@ -227,13 +220,9 @@ describe('ArbitrumBridgeFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(
-              validBridgeData,
-              validArbitrumData,
-              {
-                value: cost,
-              }
-            )
+            .startBridgeTokensViaArbitrumBridge(validBridgeData, arbitrumData, {
+              value: cost,
+            })
         ).to.emit(lifi, 'LiFiTransferStarted')
       })
 
@@ -249,7 +238,7 @@ describe('ArbitrumBridgeFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaArbitrumBridge(bridgeData, validArbitrumData, {
+            .startBridgeTokensViaArbitrumBridge(bridgeData, arbitrumData, {
               value: utils.parseEther('10').add(cost),
             })
         ).to.emit(lifi, 'LiFiTransferStarted')
@@ -272,7 +261,7 @@ describe('ArbitrumBridgeFacet', function () {
             .swapAndStartBridgeTokensViaArbitrumBridge(
               bridgeData,
               swapData,
-              validArbitrumData
+              arbitrumData
             )
         ).to.be.revertedWith('InvalidReceiver()')
       })
@@ -292,7 +281,7 @@ describe('ArbitrumBridgeFacet', function () {
             .swapAndStartBridgeTokensViaArbitrumBridge(
               bridgeData,
               swapData,
-              validArbitrumData
+              arbitrumData
             )
         ).to.be.revertedWith('InsufficientBalance')
       })
@@ -311,7 +300,7 @@ describe('ArbitrumBridgeFacet', function () {
             .swapAndStartBridgeTokensViaArbitrumBridge(
               bridgeData,
               swapData,
-              validArbitrumData
+              arbitrumData
             )
         ).to.be.revertedWith('ContractCallNotAllowed()')
       })
@@ -331,7 +320,7 @@ describe('ArbitrumBridgeFacet', function () {
           .swapAndStartBridgeTokensViaArbitrumBridge(
             bridgeData,
             swapData,
-            validArbitrumData,
+            arbitrumData,
             {
               value: cost,
             }
