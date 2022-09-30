@@ -112,7 +112,7 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             if (msg.sender != _bridgeData.receiver) {
                 revert InvalidReceiver();
             }
-            inbox.createRetryableTicketNoRefundAliasRewrite{ value: _bridgeData.minAmount + _cost }(
+            inbox.unsafeCreateRetryableTicket{ value: _bridgeData.minAmount + _cost }(
                 _bridgeData.receiver,
                 _bridgeData.minAmount, // l2CallValue
                 _arbitrumData.maxSubmissionCost,
@@ -123,9 +123,6 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 ""
             );
         } else {
-            if (msg.value != _cost) {
-                revert InvalidFee();
-            }
             LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(gatewayRouter), _bridgeData.minAmount);
             gatewayRouter.outboundTransfer{ value: _cost }(
                 _bridgeData.sendingAssetId,

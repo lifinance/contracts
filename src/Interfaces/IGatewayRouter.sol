@@ -18,8 +18,6 @@ interface IGatewayRouter {
         bytes calldata _data
     ) external payable returns (bytes memory);
 
-    /// @notice Will be deprecated post-nitro in favour of unsafeCreateRetryableTicket
-    ///         Put a message in the L2 inbox that can be reexecuted for some fixed amount of time if it reverts
     /// @dev Advanced usage only (does not rewrite aliases for excessFeeRefundAddress and callValueRefundAddress). createRetryableTicket method is the recommended standard.
     /// @param _destAddr destination L2 contract address
     /// @param _l2CallValue call value for retryable L2 message
@@ -30,7 +28,7 @@ interface IGatewayRouter {
     /// @param _gasPriceBid price bid for L2 execution
     /// @param _data ABI encoded data of L2 message
     /// @return unique id for retryable transaction (keccak256(requestID, uint(0) )
-    function createRetryableTicketNoRefundAliasRewrite(
+    function unsafeCreateRetryableTicket(
         address _destAddr,
         uint256 _l2CallValue,
         uint256 _maxSubmissionCost,
