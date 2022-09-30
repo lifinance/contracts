@@ -55,7 +55,7 @@ contract MockGateway {
 }
 
 contract ExecutorTest is DSTest {
-    ILiFi.BridgeData internal lifiData =
+    ILiFi.BridgeData internal bridgeData =
         ILiFi.BridgeData("", "", "", address(0), address(0), address(0), 0, 0, false, false);
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
@@ -154,7 +154,7 @@ contract ExecutorTest is DSTest {
         tokenA.mint(address(executor), 10 ether); // Add some accidental tokens to contract
         tokenA.approve(address(executor), 4_000 ether);
 
-        executor.swapAndCompleteBridgeTokens(lifiData, swapData, address(tokenA), payable(address(0xb33f)));
+        executor.swapAndCompleteBridgeTokens(bridgeData, swapData, address(tokenA), payable(address(0xb33f)));
 
         assertEq(tokenA.balanceOf(address(executor)), 10 ether); // Pre execution balance
         assertEq(tokenA.balanceOf(address(0xb33f)), 1_000 ether);
@@ -164,6 +164,8 @@ contract ExecutorTest is DSTest {
         assertEq(tokenB.balanceOf(address(vault)), 100 ether);
         assertEq(tokenC.balanceOf(address(vault)), 100 ether);
         assertEq(tokenD.balanceOf(address(vault)), 100 ether);
+
+        vm.stopPrank();
     }
 
     function testCanPerformComplexSwapWithNativeToken() public {
@@ -242,7 +244,7 @@ contract ExecutorTest is DSTest {
         vm.deal(address(executor), 10 ether);
 
         executor.swapAndCompleteBridgeTokens{ value: 4_000 ether }(
-            lifiData,
+            bridgeData,
             swapData,
             address(0),
             payable(address(0xb33f))
@@ -256,6 +258,8 @@ contract ExecutorTest is DSTest {
         assertEq(tokenB.balanceOf(address(vault)), 100 ether);
         assertEq(tokenC.balanceOf(address(vault)), 100 ether);
         assertEq(tokenD.balanceOf(address(vault)), 100 ether);
+
+        vm.stopPrank();
     }
 
     function testCanPerformSwapWithCleanup() public {
@@ -274,12 +278,15 @@ contract ExecutorTest is DSTest {
             abi.encodeWithSelector(amm.swap.selector, tokenA, 0.2 ether, tokenB, 0.2 ether),
             true
         );
+
         tokenA.mint(address(this), 1 ether);
         tokenA.approve(address(executor), 1 ether);
 
-        executor.swapAndCompleteBridgeTokens(lifiData, swapData, address(tokenA), payable(address(0xb33f)));
+        executor.swapAndCompleteBridgeTokens(bridgeData, swapData, address(tokenA), payable(address(0xb33f)));
         assertEq(tokenB.balanceOf(address(0xb33f)), 0.2 ether);
         assertEq(tokenA.balanceOf(address(0xb33f)), 0.8 ether);
+
+        vm.stopPrank();
     }
 
     function testCanPerformSameChainComplexSwap() public {
@@ -360,7 +367,7 @@ contract ExecutorTest is DSTest {
         tokenA.mint(address(executor), 10 ether); // Add some accidental tokens to contract
         tokenA.approve(address(erc20Proxy), 4_000 ether);
 
-        executor.swapAndExecute(lifiData, swapData, address(tokenA), payable(address(0xb33f)), 4_000 ether);
+        executor.swapAndExecute(bridgeData, swapData, address(tokenA), payable(address(0xb33f)), 4_000 ether);
 
         assertEq(tokenA.balanceOf(address(executor)), 10 ether); // Pre execution balance
         assertEq(tokenA.balanceOf(address(0xb33f)), 1_000 ether);
@@ -397,7 +404,7 @@ contract ExecutorTest is DSTest {
         tokenA.mint(address(this), 1 ether);
         tokenA.approve(address(erc20Proxy), 1 ether);
 
-        executor.swapAndExecute(lifiData, swapData, address(tokenA), payable(address(0xb33f)), 0.2 ether);
+        executor.swapAndExecute(bridgeData, swapData, address(tokenA), payable(address(0xb33f)), 0.2 ether);
     }
 
     function testOwnerCanTransferOwnership() public {
