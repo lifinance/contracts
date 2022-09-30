@@ -6,7 +6,7 @@ import {
   DexManagerFacet,
 } from '../../typechain'
 import { deployments, network } from 'hardhat'
-import { constants, ethers, utils } from 'ethers'
+import { constants, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
@@ -15,15 +15,17 @@ const ETH_WHALE_ADDR = '0x6e685a45db4d97ba160fa067cb81b40dfed47245'
 const USDT_ADDRESS = '0xc2132D05D31c914a87C6611C10748AEb04B58e8F'
 const WMATIC_ADDRESS = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'
 const UNISWAP_ADDRESS = '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff'
+const ZERO_ADDRESS = constants.AddressZero
 
 describe('WormholeFacet', function () {
   let lifi: WormholeFacet
   let alice: SignerWithAddress
-  let bridgeData: any
   let usdt: ERC20
   let dexMgr: DexManagerFacet
   let wmatic: ERC20
   let ethWhale: SignerWithAddress
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  let validBridgeData: any
 
   if (network.name != 'hardhat') {
     throw 'Only hardhat supported for testing'
@@ -64,6 +66,19 @@ describe('WormholeFacet', function () {
       wmatic = ERC20__factory.connect(WMATIC_ADDRESS, alice)
       usdt = ERC20__factory.connect(USDT_ADDRESS, alice)
 
+      validBridgeData = {
+        transactionId: utils.randomBytes(32),
+        bridge: 'portal',
+        integrator: 'ACME Devs',
+        referrer: ethers.constants.AddressZero,
+        sendingAssetId: usdt.address,
+        receiver: alice.address,
+        minAmount: utils.parseUnits('1000', 6),
+        destinationChainId: 100,
+        hasSourceSwaps: false,
+        hasDestinationCall: false,
+      }
+
       await usdt.approve(lifi.address, utils.parseUnits('1000', 6))
       // Gnosis
       await lifi.setWormholeChainId(100, 25)
@@ -92,19 +107,6 @@ describe('WormholeFacet', function () {
   })
 
   it('starts a bridge transaction on the sending chain', async () => {
-    const bridgeData = {
-      transactionId: utils.randomBytes(32),
-      bridge: 'portal',
-      integrator: 'ACME Devs',
-      referrer: ethers.constants.AddressZero,
-      sendingAssetId: usdt.address,
-      receiver: alice.address,
-      minAmount: utils.parseUnits('1000', 6),
-      destinationChainId: 100,
-      hasSourceSwaps: false,
-      hasDestinationCall: false,
-    }
-
     const WormholeData = {
       arbiterFee: 0,
       nonce: 342,
@@ -112,7 +114,7 @@ describe('WormholeFacet', function () {
 
     await lifi
       .connect(alice)
-      .startBridgeTokensViaWormhole(bridgeData, WormholeData, {
+      .startBridgeTokensViaWormhole(validBridgeData, WormholeData, {
         gasLimit: 500000,
       })
   })
@@ -124,16 +126,8 @@ describe('WormholeFacet', function () {
     }
 
     const bridgeData = {
-      transactionId: utils.randomBytes(32),
-      bridge: 'portal',
-      integrator: 'ACME Devs',
-      referrer: ethers.constants.AddressZero,
-      sendingAssetId: ethers.constants.AddressZero,
-      receiver: alice.address,
-      minAmount: utils.parseUnits('1000', 6),
-      destinationChainId: 100,
-      hasSourceSwaps: false,
-      hasDestinationCall: false,
+      ...validBridgeData,
+      sendingAssetId: ZERO_ADDRESS,
     }
 
     await lifi
@@ -149,16 +143,8 @@ describe('WormholeFacet', function () {
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
     const bridgeData = {
-      transactionId: utils.randomBytes(32),
-      bridge: 'portal',
-      integrator: 'ACME Devs',
-      referrer: ethers.constants.AddressZero,
-      sendingAssetId: usdt.address,
-      receiver: alice.address,
-      minAmount: utils.parseUnits('1000', 6),
-      destinationChainId: 100,
+      ...validBridgeData,
       hasSourceSwaps: true,
-      hasDestinationCall: false,
     }
 
     const iface = new utils.Interface([
