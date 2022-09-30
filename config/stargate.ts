@@ -8,8 +8,8 @@ interface StargateConfig {
 }
 
 export const PAYLOAD_ABI = [
-  'tuple(bytes32, string, address, address, address, address, uint256, uint256)', // LiFi Data
-  'tuple(address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData)[]', // Swap Data
+  'tuple(bytes32, string, string, address, address, address, uint256, uint256, bool, bool)', // LiFi Data
+  'tuple(address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requireDeposit)[]', // Swap Data
   'address', // Asset Id
   'address', // Receiver
 ]
@@ -27,7 +27,7 @@ export const POOLS: any = {
     fantom_testnet: '0x076488D244A73DA4Fa843f5A8Cd91F655CA81a1e',
     arbitrumOne: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8',
     arbitrumTestnet: '0x1EA8Fb2F671620767f41559b663b86B1365BBc3d',
-    optimisticEthereum: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607',
+    optimism: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607',
     optimisticKovan: '0x567f39d9e6d02078F357658f498F80eF087059aa',
   },
   USDT: {
@@ -40,7 +40,7 @@ export const POOLS: any = {
     avalancheFujiTestnet: '0x4A0D1092E9df255cf95D72834Ea9255132782318',
     opera: '0x049d68029688eAbF473097a2fC38ef61633A3C7A',
     arbitrumOne: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
-    optimisticEthereum: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',
+    optimism: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',
   },
   BUSD: {
     id: 5, // Pool Id on Stargate
@@ -48,9 +48,6 @@ export const POOLS: any = {
     bsc: '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56',
     polygon: '0x9fB83c0635De2E815fd1c21b3a292277540C2e8d',
     avalanche: '0x19860CCB0A68fd4213aB9D8266F7bBf05A8dDe98',
-    opera: '',
-    arbitrumOne: '',
-    optimisticEthereum: '',
   },
 }
 
@@ -60,8 +57,8 @@ export const POOLS: any = {
 // https://layerzero.gitbook.io/docs/technical-reference/mainnet/supported-chain-ids
 const config: StargateConfig = {
   hardhat: {
-    chainId: 137,
-    layerZeroChainId: 109,
+    chainId: 1,
+    layerZeroChainId: 101,
     stargateRouter: '0x45A01E4e04F14f7A4a6702c74187c5F6222033cd',
     pools: [POOLS.USDC, POOLS.USDT],
   },
@@ -137,7 +134,7 @@ const config: StargateConfig = {
     stargateRouter: '0x6701D9802aDF674E524053bd44AA83ef253efc41',
     pools: [POOLS.USDC],
   },
-  optimisticEthereum: {
+  optimism: {
     chainId: 10,
     layerZeroChainId: 111,
     stargateRouter: '0xB0D502E938ed5f4df2E681fE6E419ff29631d62b',
