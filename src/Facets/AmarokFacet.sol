@@ -5,7 +5,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IConnextHandler } from "../Interfaces/IConnextHandler.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
+import { InvalidReceiver, InvalidAmount, InformationMismatch } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibMappings } from "../Libraries/LibMappings.sol";
@@ -74,6 +74,10 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         noNativeAsset(_bridgeData)
         nonReentrant
     {
+        if (hasDestinationCall(_amarokData) != _bridgeData.hasDestinationCall) {
+            revert InformationMismatch();
+        }
+
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _amarokData);
     }
@@ -95,6 +99,10 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         noNativeAsset(_bridgeData)
         nonReentrant
     {
+        if (hasDestinationCall(_amarokData) != _bridgeData.hasDestinationCall) {
+            revert InformationMismatch();
+        }
+
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -102,6 +110,12 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             payable(msg.sender)
         );
         _startBridge(_bridgeData, _amarokData);
+    }
+
+    function setAmarokDomain(uint256 _chainId, uint32 _domain) external {
+        LibMappings.AmarokMappings storage sm = LibMappings.getAmarokMappings();
+        sm.amarokDomain[_chainId] = _domain;
+        emit AmarokDomainSet(_chainId, _domain);
     }
 
     /// Private Methods ///
@@ -147,9 +161,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         return domain;
     }
 
-    function setAmarokDomain(uint256 _chainId, uint32 _domain) external {
-        LibMappings.AmarokMappings storage sm = LibMappings.getAmarokMappings();
-        sm.amarokDomain[_chainId] = _domain;
-        emit AmarokDomainSet(_chainId, _domain);
+    function hasDestinationCall(AmarokData calldata _amarokData) private pure returns (bool) {
+        return _amarokData.callData.length > 0;
     }
 }
