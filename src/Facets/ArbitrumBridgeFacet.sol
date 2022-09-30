@@ -61,9 +61,6 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         nonReentrant
     {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
         uint256 cost = _arbitrumData.maxSubmissionCost + _arbitrumData.maxGas * _arbitrumData.maxGasPrice;
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount + cost);
         _startBridge(_bridgeData, _arbitrumData, cost, msg.value);
@@ -85,10 +82,6 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         nonReentrant
     {
-        if (_bridgeData.receiver == address(0)) {
-            revert InvalidReceiver();
-        }
-
         uint256 ethBalance = address(this).balance - msg.value;
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
