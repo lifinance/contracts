@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   HyphenFacet,
   IERC20 as ERC20,

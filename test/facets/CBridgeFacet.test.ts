@@ -24,6 +24,7 @@ describe('CBridgeFacet', function () {
   let validBridgeData: any
   let cBridgeData: any
   /* eslint-enable @typescript-eslint/no-explicit-any */
+
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
       await deployments.fixture('DeployCBridgeFacet')

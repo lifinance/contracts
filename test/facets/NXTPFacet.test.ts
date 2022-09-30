@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   DexManagerFacet,
   IERC20__factory as ERC20__factory,
@@ -22,8 +21,10 @@ describe('NXTPFacet', function () {
   let alice: SignerWithAddress
   let lifi: NXTPFacet
   let dexMgr: DexManagerFacet
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   let validBridgeData: any
   let validNXTPData: any
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {

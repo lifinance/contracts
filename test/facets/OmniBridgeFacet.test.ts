@@ -6,15 +6,13 @@ import {
 } from '../../typechain'
 import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
-import { constants, Contract, ethers, utils } from 'ethers'
+import { constants, Contract, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { expect } from '../chai-setup'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
 
 const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const DAI_L1_ADDRESS = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
-const DAI_L2_ADDRESS = '0x44fA8E6f47987339850636F88629646662444217'
-const WETH_L2_ADDRESS = '0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1'
 const UNISWAP_ADDRESS = '0xE592427A0AEce92De3Edee1F18E0157C05861564'
 const ZERO_ADDRESS = constants.AddressZero
 const SEND_AMOUNT = utils.parseEther('1000')
@@ -30,7 +28,9 @@ describe('OmniBridgeFacet', function () {
   let usdc: ERC20
   /* eslint-disable @typescript-eslint/no-explicit-any */
   let swapData: any
+  let validBridgeData: any
   /* eslint-enable @typescript-eslint/no-explicit-any */
+
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
       await deployments.fixture('DeployOmniBridgeFacet')
@@ -97,6 +97,19 @@ describe('OmniBridgeFacet', function () {
         },
       ]
 
+      validBridgeData = {
+        transactionId: utils.randomBytes(32),
+        bridge: 'omni',
+        integrator: 'ACME Devs',
+        referrer: ZERO_ADDRESS,
+        sendingAssetId: DAI_L1_ADDRESS,
+        receiver: alice.address,
+        minAmount: SEND_AMOUNT,
+        destinationChainId: 100,
+        hasSourceSwaps: false,
+        hasDestinationCall: false,
+      }
+
       // Approve ERC20 for swapping
       await usdc.approve(lifi.address, SWAP_AMOUNT_IN)
       await dai.approve(lifi.address, SEND_AMOUNT)
@@ -127,16 +140,8 @@ describe('OmniBridgeFacet', function () {
     describe('should be reverted to starts a bridge transaction', () => {
       it('when the sending amount is zero', async function () {
         const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'omni',
-          integrator: 'ACME Devs',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: DAI_L1_ADDRESS,
-          receiver: alice.address,
+          ...validBridgeData,
           minAmount: 0,
-          destinationChainId: 100,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
         }
 
         await expect(
@@ -146,16 +151,8 @@ describe('OmniBridgeFacet', function () {
 
       it('when the receiver is zero address', async function () {
         const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'omni',
-          integrator: 'ACME Devs',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: DAI_L1_ADDRESS,
+          ...validBridgeData,
           receiver: ZERO_ADDRESS,
-          minAmount: SEND_AMOUNT,
-          destinationChainId: 100,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
         }
 
         await expect(
@@ -167,36 +164,16 @@ describe('OmniBridgeFacet', function () {
         const daiBalance = await dai.balanceOf(alice.address)
         await dai.transfer(lifi.address, daiBalance)
 
-        const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'omni',
-          integrator: 'ACME Devs',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: DAI_L1_ADDRESS,
-          receiver: alice.address,
-          minAmount: SEND_AMOUNT,
-          destinationChainId: 100,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
-        }
-
         await expect(
-          lifi.connect(alice).startBridgeTokensViaOmniBridge(bridgeData)
+          lifi.connect(alice).startBridgeTokensViaOmniBridge(validBridgeData)
         ).to.be.revertedWith('InsufficientBalance')
       })
 
       it('when the sending native asset amount is not enough', async () => {
         const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'omni',
-          integrator: 'ACME Devs',
-          referrer: ethers.constants.AddressZero,
+          ...validBridgeData,
           sendingAssetId: ZERO_ADDRESS,
-          receiver: alice.address,
           minAmount: utils.parseEther('10'),
-          destinationChainId: 100,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
         }
 
         await expect(
@@ -209,35 +186,16 @@ describe('OmniBridgeFacet', function () {
 
     describe('should be possible to starts a bridge transaction', () => {
       it('when transfer non-native asset', async function () {
-        const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'omni',
-          integrator: 'ACME Devs',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: DAI_L1_ADDRESS,
-          receiver: alice.address,
-          minAmount: SEND_AMOUNT,
-          destinationChainId: 100,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
-        }
         await expect(
-          lifi.connect(alice).startBridgeTokensViaOmniBridge(bridgeData)
+          lifi.connect(alice).startBridgeTokensViaOmniBridge(validBridgeData)
         ).to.emit(lifi, 'LiFiTransferStarted')
       })
 
       it('when transfer native asset', async function () {
         const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'omni',
-          integrator: 'ACME Devs',
-          referrer: ethers.constants.AddressZero,
+          ...validBridgeData,
           sendingAssetId: ZERO_ADDRESS,
-          receiver: alice.address,
           minAmount: utils.parseEther('10'),
-          destinationChainId: 100,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
         }
 
         await expect(
@@ -253,16 +211,9 @@ describe('OmniBridgeFacet', function () {
     describe('should be reverted to perform a swap then starts a bridge transaction', () => {
       it('when the receiver is zero address', async function () {
         const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'omni',
-          integrator: 'ACME Devs',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: DAI_L1_ADDRESS,
+          ...validBridgeData,
           receiver: ZERO_ADDRESS,
-          minAmount: SEND_AMOUNT,
-          destinationChainId: 100,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
+          hasSourceSwaps: true,
         }
 
         await expect(
@@ -277,16 +228,8 @@ describe('OmniBridgeFacet', function () {
         await usdc.transfer(dai.address, usdcBalance)
 
         const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'omni',
-          integrator: 'ACME Devs',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: DAI_L1_ADDRESS,
-          receiver: alice.address,
-          minAmount: SEND_AMOUNT,
-          destinationChainId: 100,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
+          ...validBridgeData,
+          hasSourceSwaps: true,
         }
 
         await expect(
@@ -300,16 +243,8 @@ describe('OmniBridgeFacet', function () {
         await dexMgr.removeDex(UNISWAP_ADDRESS)
 
         const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'omni',
-          integrator: 'ACME Devs',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: DAI_L1_ADDRESS,
-          receiver: alice.address,
-          minAmount: SEND_AMOUNT,
-          destinationChainId: 100,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
+          ...validBridgeData,
+          hasSourceSwaps: true,
         }
 
         await expect(
@@ -322,16 +257,8 @@ describe('OmniBridgeFacet', function () {
 
     it('should be possible to perform a swap then starts a bridge transaction', async function () {
       const bridgeData = {
-        transactionId: utils.randomBytes(32),
-        bridge: 'omni',
-        integrator: 'ACME Devs',
-        referrer: ethers.constants.AddressZero,
-        sendingAssetId: DAI_L1_ADDRESS,
-        receiver: alice.address,
-        minAmount: SEND_AMOUNT,
-        destinationChainId: 100,
-        hasSourceSwaps: false,
-        hasDestinationCall: false,
+        ...validBridgeData,
+        hasSourceSwaps: true,
       }
 
       await expect(

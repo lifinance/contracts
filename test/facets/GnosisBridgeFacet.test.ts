@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   IERC20 as ERC20,
   IERC20__factory as ERC20__factory,
@@ -25,7 +24,9 @@ describe('GnosisBridgeFacet', function () {
     let lifi: GnosisBridgeFacet
     let alice: SignerWithAddress
     let bob: SignerWithAddress
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     let validBridgeData: any
+    /* eslint-enable @typescript-eslint/no-explicit-any */
     let dai: ERC20
     let dexMgr: DexManagerFacet
     let usdc: ERC20
@@ -218,6 +219,7 @@ describe('GnosisBridgeFacet', function () {
     })
 
     describe('performs a swap then starts bridge transaction on the sending chain', async () => {
+      /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
       let swapData: any
       const amountIn = utils.parseUnits('1020', 6)
 

@@ -32,6 +32,7 @@ describe('AmarokFacet', function () {
   let validAmarokData: any
   let swapData: any
   /* eslint-enable @typescript-eslint/no-explicit-any */
+
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
       await deployments.fixture('DeployAmarokFacet')

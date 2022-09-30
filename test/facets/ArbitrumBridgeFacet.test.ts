@@ -26,15 +26,15 @@ describe('ArbitrumBridgeFacet', function () {
   let alice: SignerWithAddress
   let lifi: ArbitrumBridgeFacet
   let dexMgr: DexManagerFacet
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  let owner: any
   let dai: ERC20
   let usdc: ERC20
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  let owner: any
   let swapData: any
   let validBridgeData: any
   let validArbitrumData: any
-
   /* eslint-enable @typescript-eslint/no-explicit-any */
+
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
       await deployments.fixture('DeployArbitrumBridgeFacet')

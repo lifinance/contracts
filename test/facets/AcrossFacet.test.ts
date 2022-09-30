@@ -12,14 +12,14 @@ const WETH_WHALE_ADDR = '0xD022510A3414f255150Aa54b2e42DB6129a20d9E'
 
 describe('AcrossFacet', function () {
   let lifi: AcrossFacet
-  let owner: any
+  let dexMgr: DexManagerFacet
   /* eslint-disable @typescript-eslint/no-explicit-any */
+  let owner: any
   let eth_whale: any
   let weth_whale: any
   let bridgeData: any
   let usdc: any
   let weth: any
-  let dexMgr: DexManagerFacet
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
   if (network.name != 'hardhat') {

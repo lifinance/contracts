@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   MultichainFacet,
   DexManagerFacet,
@@ -28,10 +27,11 @@ describe('MultichainFacet', function () {
   let dexMgr: DexManagerFacet
   let alice: SignerWithAddress
   let beefHolder: SignerWithAddress
-  let validBridgeData: any
   let token: ERC20
   let usdt: ERC20
   let wmatic: ERC20
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  let validBridgeData: any
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
