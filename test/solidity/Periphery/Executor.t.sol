@@ -55,7 +55,6 @@ contract MockGateway {
 }
 
 contract ExecutorTest is DSTest {
-
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     Executor internal executor;
     TestAMM internal amm;
@@ -151,7 +150,6 @@ contract ExecutorTest is DSTest {
         tokenA.mint(address(this), 4_000 ether);
         tokenA.mint(address(executor), 10 ether); // Add some accidental tokens to contract
         tokenA.approve(address(executor), 4_000 ether);
-
         executor.swapAndCompleteBridgeTokens("", swapData, address(tokenA), payable(address(0xb33f)));
 
         assertEq(tokenA.balanceOf(address(executor)), 10 ether); // Pre execution balance
@@ -162,6 +160,8 @@ contract ExecutorTest is DSTest {
         assertEq(tokenB.balanceOf(address(vault)), 100 ether);
         assertEq(tokenC.balanceOf(address(vault)), 100 ether);
         assertEq(tokenD.balanceOf(address(vault)), 100 ether);
+
+        vm.stopPrank();
     }
 
     function testCanPerformComplexSwapWithNativeToken() public {
@@ -239,12 +239,7 @@ contract ExecutorTest is DSTest {
 
         vm.deal(address(executor), 10 ether);
 
-        executor.swapAndCompleteBridgeTokens{ value: 4_000 ether }(
-            "",
-            swapData,
-            address(0),
-            payable(address(0xb33f))
-        );
+        executor.swapAndCompleteBridgeTokens{ value: 4_000 ether }("", swapData, address(0), payable(address(0xb33f)));
 
         assertEq(address(executor).balance, 10 ether); // Pre execution balance
         assertEq(address(0xb33f).balance, 1_000 ether);
@@ -254,6 +249,8 @@ contract ExecutorTest is DSTest {
         assertEq(tokenB.balanceOf(address(vault)), 100 ether);
         assertEq(tokenC.balanceOf(address(vault)), 100 ether);
         assertEq(tokenD.balanceOf(address(vault)), 100 ether);
+
+        vm.stopPrank();
     }
 
     function testCanPerformSwapWithCleanup() public {
@@ -272,12 +269,15 @@ contract ExecutorTest is DSTest {
             abi.encodeWithSelector(amm.swap.selector, tokenA, 0.2 ether, tokenB, 0.2 ether),
             true
         );
+
         tokenA.mint(address(this), 1 ether);
         tokenA.approve(address(executor), 1 ether);
 
         executor.swapAndCompleteBridgeTokens("", swapData, address(tokenA), payable(address(0xb33f)));
         assertEq(tokenB.balanceOf(address(0xb33f)), 0.2 ether);
         assertEq(tokenA.balanceOf(address(0xb33f)), 0.8 ether);
+
+        vm.stopPrank();
     }
 
     function testCanPerformSameChainComplexSwap() public {
