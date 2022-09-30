@@ -27,14 +27,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const acrossFacet = await ethers.getContract('AcrossFacet')
   const diamond = await ethers.getContract('LiFiDiamond')
 
-  await addOrReplaceFacets(
-    [acrossFacet],
-    diamond.address,
-  )
+  await addOrReplaceFacets([acrossFacet], diamond.address)
 
   await verifyContract(hre, 'AcrossFacet', {
     address: acrossFacet.address,
-    args: [POOL_ADDR, config[network.name].weth]
+    args: [POOL_ADDR, config[network.name].weth],
   })
 }
 
