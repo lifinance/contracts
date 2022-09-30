@@ -61,7 +61,9 @@ contract WithdrawFacet {
         address _to,
         uint256 _amount
     ) external {
-        LibDiamond.enforceIsContractOwner();
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
         _withdrawAsset(_assetAddress, _to, _amount);
     }
 
