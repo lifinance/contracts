@@ -58,6 +58,7 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         payable
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
     {
@@ -79,6 +80,7 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         payable
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
     {
@@ -128,7 +130,7 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ArbitrumData calldata _arbitrumData,
         uint256 cost
     ) private {
-        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), _arbitrumData.tokenRouter, _bridgeData.minAmount);
+        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(gatewayRouter), _bridgeData.minAmount);
         gatewayRouter.outboundTransfer{ value: cost }(
             _bridgeData.sendingAssetId,
             _bridgeData.receiver,
@@ -144,11 +146,7 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ArbitrumData calldata _arbitrumData,
         uint256 cost
     ) private {
-        if (msg.sender != _bridgeData.receiver) {
-            revert InvalidReceiver();
-        }
-
-        inbox.createRetryableTicketNoRefundAliasRewrite{ value: _bridgeData.minAmount + cost }(
+        inbox.unsafeCreateRetryableTicket{ value: _bridgeData.minAmount + cost }(
             _bridgeData.receiver,
             _bridgeData.minAmount, // l2CallValue
             _arbitrumData.maxSubmissionCost,

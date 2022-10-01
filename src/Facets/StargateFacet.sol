@@ -68,6 +68,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         noNativeAsset(_bridgeData)
         nonReentrant
     {
+        validateDestinationCallFlag(_bridgeData, _stargateData);
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _stargateData);
     }
@@ -89,6 +90,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         noNativeAsset(_bridgeData)
         nonReentrant
     {
+        validateDestinationCallFlag(_bridgeData, _stargateData);
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -120,18 +122,11 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via Stargate Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _stargateData Data specific to Stargate Bridge
+
     function _startBridge(ILiFi.BridgeData memory _bridgeData, StargateData calldata _stargateData)
         private
         noNativeAsset(_bridgeData)
     {
-        (, LibSwap.SwapData[] memory destinationSwaps, , ) = abi.decode(
-            _stargateData.callData,
-            (ILiFi.BridgeData, LibSwap.SwapData[], address, address)
-        );
-        if ((destinationSwaps.length > 0) != _bridgeData.hasDestinationCall) {
-            revert InformationMismatch();
-        }
-
         LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(router), _bridgeData.minAmount);
 
         router.swap{ value: _stargateData.lzFee }(
@@ -147,6 +142,19 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function validateDestinationCallFlag(ILiFi.BridgeData memory _bridgeData, StargateData calldata _stargateData)
+        private
+        pure
+    {
+        (, LibSwap.SwapData[] memory destinationSwaps, , ) = abi.decode(
+            _stargateData.callData,
+            (ILiFi.BridgeData, LibSwap.SwapData[], address, address)
+        );
+        if ((destinationSwaps.length > 0) != _bridgeData.hasDestinationCall) {
+            revert InformationMismatch();
+        }
     }
 
     /// Mappings management ///

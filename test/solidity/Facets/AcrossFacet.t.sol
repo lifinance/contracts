@@ -58,12 +58,10 @@ contract AcrossFacetTest is DSTest, DiamondTest {
         weth = ERC20(WETH_ADDRESS);
         bytes4[] memory functionSelectors = new bytes4[](2);
         functionSelectors[0] = across.startBridgeTokensViaAcross.selector;
-        functionSelectors[1] = across.initializeAcross.selector;
 
         addFacet(diamond, address(across), functionSelectors);
 
         across = TestAcrossFacet(address(diamond));
-        across.initializeAcross(10 minutes);
     }
 
     function testCanBridgeNativeTokens() public {

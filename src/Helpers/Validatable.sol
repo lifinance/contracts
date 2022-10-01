@@ -52,4 +52,11 @@ contract Validatable {
         }
         _;
     }
+
+    modifier doesNotContainDestinationCalls(ILiFi.BridgeData memory _bridgeData) {
+        if (_bridgeData.hasDestinationCall) {
+            revert InformationMismatch();
+        }
+        _;
+    }
 }

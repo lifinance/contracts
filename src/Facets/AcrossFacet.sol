@@ -20,10 +20,6 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.across");
 
-    struct Storage {
-        uint256 maxQuoteTime;
-    }
-
     /// @notice The contract address of the spoke pool on the source chain.
     IAcrossSpokePool private immutable spokePool;
     /// @notice The WETH address on the current chain.
@@ -31,9 +27,6 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Errors
     error QuoteTimeout();
-
-    /// Events
-    event AcrossInitialized(uint256 maxQuoteTime);
 
     /// Types ///
 
@@ -55,12 +48,6 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// External Methods ///
 
-    function initializeAcross(uint256 _maxQuoteTime) external {
-        LibDiamond.enforceIsContractOwner();
-        getStorage().maxQuoteTime = _maxQuoteTime;
-        emit AcrossInitialized(_maxQuoteTime);
-    }
-
     /// @notice Bridges tokens via Across
     /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
@@ -70,6 +57,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
@@ -89,6 +77,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         payable
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
     {
@@ -107,9 +96,6 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
     function _startBridge(ILiFi.BridgeData memory _bridgeData, AcrossData memory _acrossData) internal {
-        if (_acrossData.quoteTimestamp > block.timestamp + getStorage().maxQuoteTime) {
-            revert QuoteTimeout();
-        }
         bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
         if (isNative) _bridgeData.sendingAssetId = weth;
         else LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(spokePool), _bridgeData.minAmount);
@@ -124,20 +110,5 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         emit LiFiTransferStarted(_bridgeData);
-    }
-
-    /// @notice Sets the amount of time a quote is valid for.
-    function setMaxQuoteTime(uint256 _maxQuoteTime) external {
-        LibDiamond.enforceIsContractOwner();
-        getStorage().maxQuoteTime = _maxQuoteTime;
-    }
-
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            s.slot := namespace
-        }
     }
 }
