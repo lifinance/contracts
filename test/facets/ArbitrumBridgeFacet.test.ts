@@ -194,7 +194,7 @@ describe('ArbitrumBridgeFacet', function () {
             .startBridgeTokensViaArbitrumBridge(validBridgeData, arbitrumData, {
               value: cost.sub(1),
             })
-        ).to.be.revertedWith('InvalidFee()')
+        ).to.be.revertedWith('InvalidAmount()')
       })
 
       it('when the sending native asset amount is not enough', async () => {

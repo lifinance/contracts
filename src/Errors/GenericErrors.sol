@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.17;
 
 error TokenAddressIsZero();
 error TokenNotSupported();
@@ -22,6 +22,7 @@ error InvalidDestinationChain();
 error InvalidSendingToken();
 error InvalidCaller();
 error AlreadyInitialized();
+error NotInitialized();
 error OnlyContractOwner();
 error CannotAuthoriseSelf();
 error RecoveryAddressCannotBeZero();

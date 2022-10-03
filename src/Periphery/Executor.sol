@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.17;
 
 import { IERC20 } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IERC20.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
@@ -76,46 +76,46 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     }
 
     /// @notice Performs a swap before completing a cross-chain transaction
-    /// @param _bridgeData the core information needed for bridging
+    /// @param _transactionId the transaction id for the swap
     /// @param _swapData array of data needed for swaps
     /// @param _transferredAssetId token received from the other chain
     /// @param _receiver address that will receive tokens in the end
     function swapAndCompleteBridgeTokens(
-        ILiFi.BridgeData memory _bridgeData,
+        bytes32 _transactionId,
         LibSwap.SwapData[] calldata _swapData,
         address _transferredAssetId,
         address payable _receiver
     ) external payable nonReentrant {
-        _processSwaps(_bridgeData, _swapData, _transferredAssetId, _receiver, 0, true);
+        _processSwaps(_transactionId, _swapData, _transferredAssetId, _receiver, 0, true);
     }
 
     /// @notice Performs a series of swaps or arbitrary executions
-    /// @param _bridgeData the core information needed for bridging
+    /// @param _transactionId the transaction id for the swap
     /// @param _swapData array of data needed for swaps
     /// @param _transferredAssetId token received from the other chain
     /// @param _receiver address that will receive tokens in the end
     /// @param _amount amount of token for swaps or arbitrary executions
     function swapAndExecute(
-        ILiFi.BridgeData memory _bridgeData,
+        bytes32 _transactionId,
         LibSwap.SwapData[] calldata _swapData,
         address _transferredAssetId,
         address payable _receiver,
         uint256 _amount
     ) external payable nonReentrant {
-        _processSwaps(_bridgeData, _swapData, _transferredAssetId, _receiver, _amount, false);
+        _processSwaps(_transactionId, _swapData, _transferredAssetId, _receiver, _amount, false);
     }
 
     /// Private Methods ///
 
     /// @notice Performs a series of swaps or arbitrary executions
-    /// @param _bridgeData the core information needed for bridging
+    /// @param _transactionId the transaction id for the swap
     /// @param _swapData array of data needed for swaps
     /// @param _transferredAssetId token received from the other chain
     /// @param _receiver address that will receive tokens in the end
     /// @param _amount amount of token for swaps or arbitrary executions
-    /// @param _amount amount of token for swaps or arbitrary executions
+    /// @param _depositAllowance If deposit approved amount of token
     function _processSwaps(
-        ILiFi.BridgeData memory _bridgeData,
+        bytes32 _transactionId,
         LibSwap.SwapData[] calldata _swapData,
         address _transferredAssetId,
         address payable _receiver,
@@ -144,7 +144,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
             startingBalance = LibAsset.getOwnBalance(_transferredAssetId) - msg.value;
         }
 
-        _executeSwaps(_bridgeData, _swapData, _receiver);
+        _executeSwaps(_transactionId, _swapData, _receiver);
 
         uint256 postSwapBalance = LibAsset.getOwnBalance(_transferredAssetId);
         if (postSwapBalance > startingBalance) {
@@ -159,7 +159,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         }
 
         emit LiFiTransferCompleted(
-            _bridgeData.transactionId,
+            _transactionId,
             _transferredAssetId,
             _receiver,
             finalAssetSendAmount,
@@ -168,10 +168,11 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     }
 
     /// @dev Executes swaps one after the other
-    /// @param _bridgeData LiFi tracking data
+    /// @param _transactionId the transaction id for the swap
     /// @param _swapData Array of data used to execute swaps
+    /// @param _leftoverReceiver Address to receive lefover tokens
     function _executeSwaps(
-        ILiFi.BridgeData memory _bridgeData,
+        bytes32 _transactionId,
         LibSwap.SwapData[] calldata _swapData,
         address payable _leftoverReceiver
     ) private noLeftovers(_swapData, _leftoverReceiver) {
@@ -182,8 +183,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
             }
 
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
-            LibSwap.swap(_bridgeData.transactionId, currentSwapData);
-
+            LibSwap.swap(_transactionId, currentSwapData);
             unchecked {
                 ++i;
             }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IXDaiBridge } from "../Interfaces/IXDaiBridge.sol";
@@ -43,6 +43,7 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         payable
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         onlyAllowDestinationChain(_bridgeData, GNOSIS_CHAIN_ID)
         onlyAllowSourceToken(_bridgeData, DAI)
@@ -62,6 +63,7 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         external
         payable
         containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         onlyAllowDestinationChain(_bridgeData, GNOSIS_CHAIN_ID)
         onlyAllowSourceToken(_bridgeData, DAI)

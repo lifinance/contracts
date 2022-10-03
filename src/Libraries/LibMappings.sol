@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.17;
 
 import { CannotAuthoriseSelf, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";

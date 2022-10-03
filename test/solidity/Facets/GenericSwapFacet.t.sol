@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.16;
+pragma solidity 0.8.17;
 
 import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
@@ -98,7 +98,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
             true
         );
 
-        genericSwapFacet.swapTokensGeneric("", "", "", amountOut, swapData);
+        genericSwapFacet.swapTokensGeneric("", "", "", payable(USDC_HOLDER), amountOut, swapData);
         vm.stopPrank();
     }
 }

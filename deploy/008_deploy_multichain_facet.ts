@@ -21,11 +21,23 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     deterministicDeployment: true,
   })
 
+  const ABI = ['function initMultichain(address[] routers)']
+  const iface = new utils.Interface(ABI)
+
+  const routers = config[network.name]
+
+  const initData = iface.encodeFunctionData('initMultichain', [routers])
+
   const multichainFacet = await ethers.getContract('MultichainFacet')
 
   const diamond = await ethers.getContract('LiFiDiamond')
 
-  await addOrReplaceFacets([multichainFacet], diamond.address)
+  await addOrReplaceFacets(
+    [multichainFacet],
+    diamond.address,
+    multichainFacet.address,
+    initData
+  )
 
   await verifyContract(hre, 'MultichainFacet', {
     address: multichainFacet.address,

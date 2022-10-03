@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -10,12 +10,15 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 
 /// @title Across Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
+
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.across");
 
     /// @notice The contract address of the spoke pool on the source chain.
     IAcrossSpokePool private immutable spokePool;
@@ -24,7 +27,6 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     address private immutable weth;
 
     /// Errors
-
     error QuoteTimeout();
 
     /// Types ///
@@ -57,6 +59,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
@@ -76,6 +79,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         payable
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         nonReentrant
     {
@@ -94,9 +98,6 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
     function _startBridge(ILiFi.BridgeData memory _bridgeData, AcrossData memory _acrossData) internal {
-        if (_acrossData.quoteTimestamp > block.timestamp + 10 minutes) {
-            revert QuoteTimeout();
-        }
         bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
         if (isNative) _bridgeData.sendingAssetId = weth;
         else LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(spokePool), _bridgeData.minAmount);

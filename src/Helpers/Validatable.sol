@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.16;
+pragma solidity 0.8.17;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
@@ -21,13 +21,6 @@ contract Validatable {
     modifier noNativeAsset(ILiFi.BridgeData memory _bridgeData) {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             revert NativeAssetNotSupported();
-        }
-        _;
-    }
-
-    modifier receiverMustBeSender(ILiFi.BridgeData memory _bridgeData) {
-        if (_bridgeData.receiver != msg.sender) {
-            revert InvalidReceiver();
         }
         _;
     }
@@ -55,6 +48,13 @@ contract Validatable {
 
     modifier doesNotContainSourceSwaps(ILiFi.BridgeData memory _bridgeData) {
         if (_bridgeData.hasSourceSwaps) {
+            revert InformationMismatch();
+        }
+        _;
+    }
+
+    modifier doesNotContainDestinationCalls(ILiFi.BridgeData memory _bridgeData) {
+        if (_bridgeData.hasDestinationCall) {
             revert InformationMismatch();
         }
         _;

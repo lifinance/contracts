@@ -34,7 +34,6 @@ describe('AcrossFacet', function () {
       lifi = <AcrossFacet>(
         await ethers.getContractAt('AcrossFacet', diamond.address)
       )
-
       dexMgr = <DexManagerFacet>(
         await ethers.getContractAt('DexManagerFacet', diamond.address)
       )

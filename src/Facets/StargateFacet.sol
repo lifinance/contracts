@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IStargateRouter, IFactory, IPool } from "../Interfaces/IStargateRouter.sol";
@@ -14,7 +14,6 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Stargate Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate
-
 contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -26,12 +25,14 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param dstPoolId Dest pool id.
     /// @param minAmountLD The min qty you would accept on the destination.
     /// @param dstGasForCall Additional gas fee for extral call on the destination.
+    /// @param lzFee Estimated message fee.
     /// @param callTo The address to send the tokens to on the destination.
     /// @param callData Additional payload.
     struct StargateData {
         uint256 dstPoolId;
         uint256 minAmountLD;
         uint256 dstGasForCall;
+        uint256 lzFee;
         bytes callTo;
         bytes callData;
     }
@@ -69,8 +70,9 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         noNativeAsset(_bridgeData)
         nonReentrant
     {
+        validateDestinationCallFlag(_bridgeData, _stargateData);
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
-        _startBridge(_bridgeData, _stargateData, msg.value);
+        _startBridge(_bridgeData, _stargateData);
     }
 
     /// @notice Performs a swap before bridging via Stargate Bridge
@@ -90,28 +92,16 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         noNativeAsset(_bridgeData)
         nonReentrant
     {
+        validateDestinationCallFlag(_bridgeData, _stargateData);
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(msg.sender),
+            _stargateData.lzFee
         );
-        uint256 nativeFee = msg.value;
-        uint256 nSwaps = _swapData.length;
-        for (uint256 i = 0; i < nSwaps; ) {
-            if (LibAsset.isNativeAsset(_swapData[i].sendingAssetId)) {
-                uint256 toSubtract = _swapData[i].fromAmount;
-                if (toSubtract > nativeFee) {
-                    revert InvalidAmount();
-                }
-                nativeFee -= toSubtract;
-            }
-            unchecked {
-                ++i;
-            }
-        }
 
-        _startBridge(_bridgeData, _stargateData, nativeFee);
+        _startBridge(_bridgeData, _stargateData);
     }
 
     function quoteLayerZeroFee(uint256 _destinationChainId, StargateData calldata _stargateData)
@@ -134,19 +124,13 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via Stargate Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _stargateData Data specific to Stargate Bridge
-    /// @param _nativeFee Native gas fee for the cross chain message
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        StargateData calldata _stargateData,
-        uint256 _nativeFee
-    ) private noNativeAsset(_bridgeData) {
-        if ((_stargateData.callData.length > 0) != _bridgeData.hasDestinationCall) {
-            revert InformationMismatch();
-        }
-
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, StargateData calldata _stargateData)
+        private
+        noNativeAsset(_bridgeData)
+    {
         LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(router), _bridgeData.minAmount);
 
-        router.swap{ value: _nativeFee }(
+        router.swap{ value: _stargateData.lzFee }(
             getLayerZeroChainId(_bridgeData.destinationChainId),
             getStargatePoolId(_bridgeData.sendingAssetId),
             _stargateData.dstPoolId,
@@ -159,6 +143,15 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function validateDestinationCallFlag(ILiFi.BridgeData memory _bridgeData, StargateData calldata _stargateData)
+        private
+        pure
+    {
+        if ((_stargateData.callData.length > 0) != _bridgeData.hasDestinationCall) {
+            revert InformationMismatch();
+        }
     }
 
     /// Mappings management ///

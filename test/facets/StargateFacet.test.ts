@@ -107,6 +107,7 @@ describe('StargateFacet', function () {
         dstPoolId: 1,
         minAmountLD: utils.parseUnits('100', 6),
         dstGasForCall: 0,
+        lzFee: 0,
         callTo: alice.address,
         callData: '0x',
       }
@@ -203,10 +204,15 @@ describe('StargateFacet', function () {
         validStargateData
       )
 
+      const stargateData = {
+        ...validStargateData,
+        lzFee: requiredGasFee,
+      }
+
       await expect(
         lifi
           .connect(alice)
-          .startBridgeTokensViaStargate(bridgeData, validStargateData, {
+          .startBridgeTokensViaStargate(bridgeData, stargateData, {
             gasLimit: 500000,
             value: requiredGasFee,
           })
@@ -259,10 +265,15 @@ describe('StargateFacet', function () {
           validStargateData
         )
 
+        const stargateData = {
+          ...validStargateData,
+          lzFee: requiredGasFee.sub(1),
+        }
+
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaStargate(validBridgeData, validStargateData, {
+            .startBridgeTokensViaStargate(validBridgeData, stargateData, {
               gasLimit: 500000,
               value: requiredGasFee.sub(1),
             })
@@ -280,10 +291,15 @@ describe('StargateFacet', function () {
           validStargateData
         )
 
+        const stargateData = {
+          ...validStargateData,
+          lzFee: requiredGasFee,
+        }
+
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaStargate(bridgeData, validStargateData, {
+            .startBridgeTokensViaStargate(bridgeData, stargateData, {
               gasLimit: 500000,
               value: requiredGasFee,
             })
@@ -296,10 +312,15 @@ describe('StargateFacet', function () {
           validStargateData
         )
 
+        const stargateData = {
+          ...validStargateData,
+          lzFee: requiredGasFee.sub(1),
+        }
+
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaStargate(validBridgeData, validStargateData, {
+            .startBridgeTokensViaStargate(validBridgeData, stargateData, {
               gasLimit: 500000,
               value: requiredGasFee.sub(1),
             })
@@ -315,10 +336,15 @@ describe('StargateFacet', function () {
           validStargateData
         )
 
+        const stargateData = {
+          ...validStargateData,
+          lzFee: requiredGasFee,
+        }
+
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaStargate(validBridgeData, validStargateData, {
+            .startBridgeTokensViaStargate(validBridgeData, stargateData, {
               gasLimit: 500000,
               value: requiredGasFee,
             })
@@ -340,13 +366,18 @@ describe('StargateFacet', function () {
         validStargateData
       )
 
+      const stargateData = {
+        ...validStargateData,
+        lzFee: requiredGasFee,
+      }
+
       await expect(
         lifi
           .connect(alice)
           .swapAndStartBridgeTokensViaStargate(
             bridgeData,
             swapData,
-            validStargateData,
+            stargateData,
             {
               gasLimit: 1000000,
               value: utils.parseEther('1500').add(requiredGasFee),
@@ -418,13 +449,18 @@ describe('StargateFacet', function () {
           validStargateData
         )
 
+        const stargateData = {
+          ...validStargateData,
+          lzFee: requiredGasFee.sub(1),
+        }
+
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaStargate(
               bridgeData,
               swapData,
-              validStargateData,
+              stargateData,
               {
                 gasLimit: 1000000,
                 value: utils.parseEther('1500').add(requiredGasFee).sub(1),
@@ -444,13 +480,18 @@ describe('StargateFacet', function () {
           validStargateData
         )
 
+        const stargateData = {
+          ...validStargateData,
+          lzFee: requiredGasFee.sub(1),
+        }
+
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaStargate(
               bridgeData,
               swapData,
-              validStargateData,
+              stargateData,
               {
                 gasLimit: 1000000,
                 value: utils.parseEther('1500').add(requiredGasFee).sub(1),
@@ -472,13 +513,18 @@ describe('StargateFacet', function () {
           validStargateData
         )
 
+        const stargateData = {
+          ...validStargateData,
+          lzFee: requiredGasFee,
+        }
+
         await expect(
           lifi
             .connect(alice)
             .swapAndStartBridgeTokensViaStargate(
               bridgeData,
               swapData,
-              validStargateData,
+              stargateData,
               {
                 gasLimit: 1000000,
                 value: utils.parseEther('1500').add(requiredGasFee),

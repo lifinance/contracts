@@ -7,7 +7,7 @@ export const verifyContract = async function (
   name: string,
   options?: { address?: string; args?: any[] }
 ) {
-  if (hre.network.name === 'hardhat') {
+  if (hre.network.name === 'hardhat' || !process.env.VERIFY) {
     return
   }
 
