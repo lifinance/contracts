@@ -539,7 +539,7 @@ describe('StargateFacet', function () {
     describe('should be reverted', () => {
       it('when sender is not stargate router', async () => {
         const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-          Object.values(validBridgeData),
+          utils.randomBytes(32),
           [],
           POOLS[SRC_ASSET][SRC_CHAIN],
           alice.address,
@@ -562,7 +562,7 @@ describe('StargateFacet', function () {
           executor
             .connect(sgRouter)
             .swapAndCompleteBridgeTokens(
-              validBridgeData,
+              utils.randomBytes(32),
               payloadSwapData,
               usdc.address,
               alice.address
@@ -572,7 +572,7 @@ describe('StargateFacet', function () {
 
       it('when token arrived amount is low', async () => {
         const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-          Object.values(validBridgeData),
+          utils.randomBytes(32),
           payloadSwapData.map((data: any) => Object.values(data)),
           usdc.address,
           alice.address,
@@ -596,7 +596,7 @@ describe('StargateFacet', function () {
     describe('should be possible to process sgReceive', () => {
       it('should process swapAndCompleteBridgeTokens', async () => {
         const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-          Object.values(validBridgeData),
+          utils.randomBytes(32),
           payloadSwapData.map((data: any) => Object.values(data)),
           usdc.address,
           alice.address,
@@ -618,7 +618,7 @@ describe('StargateFacet', function () {
 
       it('should send to receiver when fails to call swapAndCompleteBridgeTokens', async () => {
         const payload = ethers.utils.defaultAbiCoder.encode(PAYLOAD_ABI, [
-          Object.values(validBridgeData),
+          utils.randomBytes(32),
           payloadSwapData.map((data: any) => Object.values(data)),
           usdc.address,
           alice.address,

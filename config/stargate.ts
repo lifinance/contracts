@@ -8,7 +8,7 @@ interface StargateConfig {
 }
 
 export const PAYLOAD_ABI = [
-  'tuple(bytes32, string, string, address, address, address, uint256, uint256, bool, bool)', // LiFi Data
+  'bytes32', // Transaction Id
   'tuple(address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requireDeposit)[]', // Swap Data
   'address', // Asset Id
   'address', // Receiver
