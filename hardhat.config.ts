@@ -1,13 +1,12 @@
 import 'dotenv/config'
+import '@nomiclabs/hardhat-ethers'
 import { HardhatUserConfig } from 'hardhat/types'
 import 'hardhat-deploy'
-import '@nomiclabs/hardhat-ethers'
 import 'hardhat-gas-reporter'
 import '@typechain/hardhat'
 import 'solidity-coverage'
 import { node_url, accounts } from './utils/network'
 import '@nomiclabs/hardhat-etherscan'
-import '@tenderly/hardhat-tenderly'
 import './plugins/relay'
 
 require('./tasks/generateDiamondABI.ts')
