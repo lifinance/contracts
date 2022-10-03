@@ -1,6 +1,6 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
-import { network } from 'hardhat'
+import { network, ethers } from 'hardhat'
 import { verifyContract } from './9999_verify_all_facets'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
@@ -9,7 +9,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     return
   }
 
-  const { deployments, getNamedAccounts, ethers } = hre
+  const { deployments, getNamedAccounts } = hre
   const { deploy } = deployments
 
   const { deployer } = await getNamedAccounts()
