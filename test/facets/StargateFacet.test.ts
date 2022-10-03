@@ -108,6 +108,7 @@ describe('StargateFacet', function () {
         minAmountLD: utils.parseUnits('100', 6),
         dstGasForCall: 0,
         lzFee: 0,
+        refundAddress: alice.address,
         callTo: alice.address,
         callData: '0x',
       }

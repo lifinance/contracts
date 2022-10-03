@@ -96,6 +96,7 @@ contract StargateFacetTest is DSTest, DiamondTest {
             100,
             0,
             0,
+            payable(USDC_HOLDER),
             abi.encodePacked(USDC_HOLDER),
             ""
         );
@@ -123,6 +124,7 @@ contract StargateFacetTest is DSTest, DiamondTest {
             9,
             0,
             0,
+            payable(USDC_HOLDER),
             abi.encodePacked(address(0)),
             ""
         );
@@ -182,6 +184,7 @@ contract StargateFacetTest is DSTest, DiamondTest {
             9,
             0,
             0,
+            payable(USDC_HOLDER),
             abi.encodePacked(address(0)),
             abi.encode("", swapData, USDC_ADDRESS, DAI_HOLDER)
         );
@@ -245,14 +248,15 @@ contract StargateFacetTest is DSTest, DiamondTest {
             hasDestinationCall: true
         });
 
-        StargateFacet.StargateData memory data = StargateFacet.StargateData({
-            dstPoolId: 1,
-            minAmountLD: 7 * 10**usdc.decimals(),
-            dstGasForCall: 0,
-            lzFee: 0,
-            callTo: abi.encodePacked(address(0)),
-            callData: abi.encode("", swapData, USDC_ADDRESS, DAI_HOLDER)
-        });
+        StargateFacet.StargateData memory data = StargateFacet.StargateData(
+            1,
+            7 * 10**usdc.decimals(),
+            0,
+            0,
+            payable(USDC_HOLDER),
+            abi.encodePacked(address(0)),
+            abi.encode("", swapData, USDC_ADDRESS, DAI_HOLDER)
+        );
         (uint256 fees, ) = stargate.quoteLayerZeroFee(137, data);
         data.lzFee = fees;
         stargate.swapAndStartBridgeTokensViaStargate{ value: fees + amountIn + fee + lifiFee }(
