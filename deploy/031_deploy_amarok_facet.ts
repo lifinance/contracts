@@ -25,10 +25,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     deterministicDeployment: true,
   })
 
-  const amarokFacet = await ethers.getContract('AmarokFacet')
+  let amarokFacet = await ethers.getContract('AmarokFacet')
   const diamond = await ethers.getContract('LiFiDiamond')
 
   await addOrReplaceFacets([amarokFacet], diamond.address)
+
+  amarokFacet = await ethers.getContractAt('AmarokFacet', diamond.address)
 
   await Promise.all(
     Object.values(config).map(async (_config) => {

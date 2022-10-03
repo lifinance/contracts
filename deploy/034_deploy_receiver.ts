@@ -3,6 +3,7 @@ import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import sgConfig from '../config/stargate'
 import { Receiver, PeripheryRegistryFacet } from '../typechain'
+import { verifyContract } from './9999_verify_all_facets.ts'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts } = hre
@@ -37,15 +38,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     await registryFacet.registerPeripheryContract('Receiver', receiver.address)
     console.log('Done!')
   }
-
-  try {
-    await hre.run('verify:verify', {
-      address: receiver.address,
-      constructorArguments: [deployer, sgRouter, diamond.address],
-    })
-  } catch (e) {
-    console.log(`Failed to verify contract: ${e}`)
-  }
+  await verifyContract(hre, 'Receiver', {
+    address: receiver.address,
+    args: [deployer, sgRouter, executorAddr],
+  })
 }
 
 export default func

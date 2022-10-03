@@ -3,6 +3,7 @@ import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import sgConfig from '../config/stargate'
 import { Executor, ERC20Proxy, PeripheryRegistryFacet } from '../typechain'
+import { verifyContract } from './9999_verify_all_facets.ts'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts } = hre
@@ -58,14 +59,14 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   await erc20Proxy.setAuthorizedCaller(executor.address, true)
 
-  try {
-    await hre.run('verify:verify', {
-      address: executor.address,
-      constructorArguments: [deployer, erc20Proxy.address],
-    })
-  } catch (e) {
-    console.log(`Failed to verify contract: ${e}`)
-  }
+  await verifyContract(hre, 'Executor', {
+    address: executor.address,
+    args: [deployer, erc20Proxy.address],
+  })
+  await verifyContract(hre, 'ERC20Proxy', {
+    address: erc20Proxy.address,
+    args: [deployer],
+  })
 }
 
 export default func

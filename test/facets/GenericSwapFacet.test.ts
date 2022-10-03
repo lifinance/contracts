@@ -109,6 +109,7 @@ describe('GenericSwapFacet', async () => {
         utils.randomBytes(32),
         'ACME Devs',
         ZERO_ADDRESS,
+        bob.address,
         utils.parseUnits('1000', 6),
         [
           {
@@ -166,6 +167,7 @@ describe('GenericSwapFacet', async () => {
         utils.randomBytes(32),
         'ACME Devs',
         ZERO_ADDRESS,
+        bob.address,
         utils.parseUnits('1000', 6),
         [
           {

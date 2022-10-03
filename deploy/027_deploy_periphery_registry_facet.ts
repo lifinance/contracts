@@ -2,6 +2,7 @@ import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { addOrReplaceFacets } from '../utils/diamond'
+import { verifyContract } from './9999_verify_all_facets.ts'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts } = hre
@@ -21,13 +22,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   await addOrReplaceFacets([registryFacet], diamond.address)
 
-  try {
-    await hre.run('verify:verify', {
-      address: registryFacet.address,
-    })
-  } catch (e) {
-    console.log(`Failed to verify contract: ${e}`)
-  }
+  await verifyContract(hre, 'PeripheryRegistryFacet', {
+    address: registryFacet.address,
+  })
 }
 
 export default func

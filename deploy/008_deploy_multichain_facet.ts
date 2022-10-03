@@ -3,6 +3,7 @@ import { DeployFunction } from 'hardhat-deploy/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { addOrReplaceFacets } from '../utils/diamond'
 import { verifyContract } from './9999_verify_all_facets'
+import { utils } from 'ethers'
 import config from '../config/multichain'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
