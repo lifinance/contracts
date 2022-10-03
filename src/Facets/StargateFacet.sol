@@ -25,6 +25,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param dstPoolId Dest pool id.
     /// @param minAmountLD The min qty you would accept on the destination.
     /// @param dstGasForCall Additional gas fee for extral call on the destination.
+    /// @param lzFee Estimated message fee.
     /// @param callTo The address to send the tokens to on the destination.
     /// @param callData Additional payload.
     struct StargateData {
@@ -37,6 +38,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// Errors ///
+
     error UnknownStargatePool();
     error UnknownLayerZeroChain();
     error InvalidStargateRouter();
@@ -113,7 +115,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 1, // TYPE_SWAP_REMOTE on Bridge
                 _stargateData.callTo,
                 _stargateData.callData,
-                IStargateRouter.lzTxObj(_stargateData.dstGasForCall, 0, "")
+                IStargateRouter.lzTxObj(_stargateData.dstGasForCall, 0, toBytes(msg.sender))
             );
     }
 
@@ -122,7 +124,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via Stargate Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _stargateData Data specific to Stargate Bridge
-
     function _startBridge(ILiFi.BridgeData memory _bridgeData, StargateData calldata _stargateData)
         private
         noNativeAsset(_bridgeData)
@@ -136,7 +137,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             payable(msg.sender),
             _bridgeData.minAmount,
             _stargateData.minAmountLD,
-            IStargateRouter.lzTxObj(_stargateData.dstGasForCall, 0, "0x"),
+            IStargateRouter.lzTxObj(_stargateData.dstGasForCall, 0, toBytes(_bridgeData.receiver)),
             _stargateData.callTo,
             _stargateData.callData
         );
@@ -148,11 +149,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         private
         pure
     {
-        (, LibSwap.SwapData[] memory destinationSwaps, , ) = abi.decode(
-            _stargateData.callData,
-            (ILiFi.BridgeData, LibSwap.SwapData[], address, address)
-        );
-        if ((destinationSwaps.length > 0) != _bridgeData.hasDestinationCall) {
+        if ((_stargateData.callData.length > 0) != _bridgeData.hasDestinationCall) {
             revert InformationMismatch();
         }
     }
@@ -198,5 +195,19 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint16 chainId = sm.layerZeroChainId[_chainId];
         if (chainId == 0) revert UnknownLayerZeroChain();
         return chainId;
+    }
+
+    function toBytes(address _address) private pure returns (bytes memory) {
+        bytes memory tempBytes;
+
+        assembly {
+            let m := mload(0x40)
+            _address := and(_address, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)
+            mstore(add(m, 20), xor(0x140000000000000000000000000000000000000000, _address))
+            mstore(0x40, add(m, 52))
+            tempBytes := m
+        }
+
+        return tempBytes;
     }
 }

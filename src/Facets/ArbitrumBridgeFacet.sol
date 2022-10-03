@@ -5,7 +5,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IGatewayRouter } from "../Interfaces/IGatewayRouter.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, InvalidReceiver, InvalidFee } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
@@ -63,7 +63,7 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
     {
         uint256 cost = _arbitrumData.maxSubmissionCost + _arbitrumData.maxGas * _arbitrumData.maxGasPrice;
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount + cost);
+        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _arbitrumData, cost, msg.value);
     }
 
@@ -130,7 +130,11 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ArbitrumData calldata _arbitrumData,
         uint256 cost
     ) private {
-        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(gatewayRouter), _bridgeData.minAmount);
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            gatewayRouter.getGateway(_bridgeData.sendingAssetId),
+            _bridgeData.minAmount
+        );
         gatewayRouter.outboundTransfer{ value: cost }(
             _bridgeData.sendingAssetId,
             _bridgeData.receiver,

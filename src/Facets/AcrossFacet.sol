@@ -22,6 +22,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice The contract address of the spoke pool on the source chain.
     IAcrossSpokePool private immutable spokePool;
+
     /// @notice The WETH address on the current chain.
     address private immutable weth;
 
@@ -41,6 +42,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize the contract.
     /// @param _spokePool The contract address of the spoke pool on the source chain.
+    /// @param _weth The address of the WETH token on the source chain.
     constructor(IAcrossSpokePool _spokePool, address _weth) {
         spokePool = _spokePool;
         weth = _weth;

@@ -16,13 +16,14 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @notice Provides functionality for bridging through CBridge
 contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
+
     /// @notice The contract address of the cbridge on the source chain.
     ICBridge private immutable cBridge;
 
     /// Types ///
 
-    /// @param nonce A number input to guarantee uniqueness of transferId. Can be timestamp in practice.
     /// @param maxSlippage The max slippage accepted, given as percentage in point (pip).
+    /// @param nonce A number input to guarantee uniqueness of transferId. Can be timestamp in practice.
     struct CBridgeData {
         uint32 maxSlippage;
         uint64 nonce;

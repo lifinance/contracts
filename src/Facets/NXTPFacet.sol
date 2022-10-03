@@ -20,6 +20,7 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ITransactionManager private immutable txManager;
 
     /// Errors ///
+
     error InvariantDataMismatch(string message);
 
     /// Types ///

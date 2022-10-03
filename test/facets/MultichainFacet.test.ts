@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   MultichainFacet,
   DexManagerFacet,
@@ -6,7 +5,7 @@ import {
   IERC20__factory as ERC20__factory,
 } from '../../typechain'
 import { deployments, network } from 'hardhat'
-import { constants, ethers, utils } from 'ethers'
+import { constants, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { expect } from '../chai-setup'
@@ -21,16 +20,18 @@ const anyUSDT_ADDRESS = '0xE3eeDa11f06a656FcAee19de663E84C7e61d3Cac'
 const UNISWAP_ADDRESS = '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff'
 const BEEFY_ADDRESS = '0xFbdd194376de19a88118e84E279b977f165d01b8'
 const BEEFY_ROUTER = '0x6fF0609046A38D76Bd40C5863b4D1a2dCe687f73'
+const ZERO_ADDRESS = constants.AddressZero
 
 describe('MultichainFacet', function () {
   let lifi: MultichainFacet
   let dexMgr: DexManagerFacet
   let alice: SignerWithAddress
   let beefHolder: SignerWithAddress
-  let lifiData: any
   let token: ERC20
   let usdt: ERC20
   let wmatic: ERC20
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  let validBridgeData: any
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
@@ -70,6 +71,20 @@ describe('MultichainFacet', function () {
 
       usdt = ERC20__factory.connect(USDT_ADDRESS, alice)
       token = ERC20__factory.connect(anyUSDT_ADDRESS, alice)
+
+      validBridgeData = {
+        transactionId: utils.randomBytes(32),
+        bridge: 'gnosis',
+        integrator: 'ACME Devs',
+        referrer: ZERO_ADDRESS,
+        sendingAssetId: anyMATIC_ADDRESS,
+        receiver: alice.address,
+        minAmount: utils.parseEther('1000'),
+        destinationChainId: 100,
+        hasSourceSwaps: false,
+        hasDestinationCall: false,
+      }
+
       await usdt.approve(lifi.address, utils.parseUnits('1000', 6))
     }
   )
@@ -94,47 +109,53 @@ describe('MultichainFacet', function () {
   })
 
   it('starts a bridge transaction using native token on the sending chain', async () => {
-    const MultichainData = {
-      assetId: anyMATIC_ADDRESS,
+    const multichainData = {
       router: MATIC_ROUTER,
     }
 
     await lifi
       .connect(alice)
-      .startBridgeTokensViaMultichain(lifiData, MultichainData, {
+      .startBridgeTokensViaMultichain(validBridgeData, multichainData, {
         gasLimit: 500000,
         value: utils.parseEther('1000'),
       })
   })
 
   it('starts a bridge transaction using anyToken implementation on the sending chain', async () => {
-    const beefy = ERC20__factory.connect(BEEFY_ADDRESS, beefHolder)
-    await beefy.approve(lifi.address, utils.parseEther('10'))
+    const bridgeData = {
+      ...validBridgeData,
+      minAmount: utils.parseEther('0.01'),
+      sendingAssetId: BEEFY_ADDRESS,
+    }
 
-    const MultichainData = {
-      assetId: BEEFY_ADDRESS,
+    const multichainData = {
       router: BEEFY_ROUTER,
     }
 
+    const beefy = ERC20__factory.connect(BEEFY_ADDRESS, beefHolder)
+    await beefy.approve(lifi.address, utils.parseEther('10'))
+
     await lifi
       .connect(beefHolder)
-      .startBridgeTokensViaMultichain(lifiData, MultichainData, {
+      .startBridgeTokensViaMultichain(bridgeData, multichainData, {
         gasLimit: 500000,
       })
   })
 
   it('starts a bridge transaction on the sending chain', async () => {
-    const MultichainData = {
-      assetId: token.address,
+    const bridgeData = {
+      ...validBridgeData,
+      sendingAssetId: token.address,
+      minAmount: utils.parseUnits('1000', 6),
+    }
+
+    const multichainData = {
       router: MULTICHAIN_ROUTER,
-      amount: utils.parseUnits('1000', 6),
-      receiver: alice.address,
-      toChainId: 100,
     }
 
     await lifi
       .connect(alice)
-      .startBridgeTokensViaMultichain(lifiData, MultichainData, {
+      .startBridgeTokensViaMultichain(bridgeData, multichainData, {
         gasLimit: 500000,
       })
   })
@@ -163,24 +184,28 @@ describe('MultichainFacet', function () {
         receivingAssetId: usdt.address,
         fromAmount: utils.parseEther('700'),
         callData: uniswapData,
-        requiresDeposit: false,
+        requiresDeposit: true,
       },
     ]
 
-    const MultichainData = {
-      assetId: token.address,
+    const bridgeData = {
+      ...validBridgeData,
+      sendingAssetId: token.address,
+      minAmount: utils.parseUnits('1000', 6),
+      destinationChainId: 137,
+      hasSourceSwaps: true,
+    }
+
+    const multichainData = {
       router: MULTICHAIN_ROUTER,
-      amount: utils.parseUnits('1000', 6),
-      receiver: alice.address,
-      toChainId: 137,
     }
 
     await lifi
       .connect(alice)
       .swapAndStartBridgeTokensViaMultichain(
-        lifiData,
+        bridgeData,
         swapData,
-        MultichainData,
+        multichainData,
         {
           gasLimit: 500000,
           value: utils.parseEther('700'),
@@ -213,25 +238,29 @@ describe('MultichainFacet', function () {
         receivingAssetId: usdt.address,
         fromAmount: utils.parseEther('700'),
         callData: uniswapData,
-        requiresDeposit: false,
+        requiresDeposit: true,
       },
     ]
 
-    const MultichainData = {
-      assetId: token.address,
+    const bridgeData = {
+      ...validBridgeData,
+      sendingAssetId: token.address,
+      minAmount: utils.parseUnits('1000', 6),
+      destinationChainId: 137,
+      hasSourceSwaps: true,
+    }
+
+    const multichainData = {
       router: MULTICHAIN_ROUTER,
-      amount: utils.parseUnits('1000', 6),
-      receiver: alice.address,
-      toChainId: 137,
     }
 
     await expect(
       lifi
         .connect(alice)
         .swapAndStartBridgeTokensViaMultichain(
-          lifiData,
+          bridgeData,
           swapData,
-          MultichainData,
+          multichainData,
           {
             gasLimit: 500000,
             value: utils.parseEther('700'),

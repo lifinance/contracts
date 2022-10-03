@@ -6,7 +6,7 @@ import {
 } from '../../typechain'
 import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
-import { constants, Contract, ethers, utils } from 'ethers'
+import { constants, Contract, utils } from 'ethers'
 import { node_url } from '../../utils/network'
 import { expect } from '../chai-setup'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
@@ -14,8 +14,6 @@ import config from '../../config/amarok'
 
 const GOERLI_USDC_ADDRESS = '0x98339D8C260052B7ad81c28c16C0b98420f2B46a'
 const GOERLI_TOKEN_ADDRESS = '0x7ea6eA49B0b0Ae9c5db7907d139D9Cd3439862a1'
-const OPTIMISM_GOERLI_TOKEN_ADDRESS =
-  '0x68Db1c8d85C09d546097C65ec7DCBFF4D6497CbF'
 const UNISWAP_ADDRESS = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
 const ZERO_ADDRESS = constants.AddressZero
 const SEND_AMOUNT = utils.parseEther('1000')
@@ -28,12 +26,13 @@ describe('AmarokFacet', function () {
   let dexMgr: DexManagerFacet
   let owner: SignerWithAddress
   let testToken: ERC20
-  let dai: ERC20
+  let usdc: ERC20
   /* eslint-disable @typescript-eslint/no-explicit-any */
-  let validLiFiData: any
-  let validAmarokData: any
+  let validBridgeData: any
+  let amarokData: any
   let swapData: any
   /* eslint-enable @typescript-eslint/no-explicit-any */
+
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
       await deployments.fixture('DeployAmarokFacet')
@@ -43,6 +42,10 @@ describe('AmarokFacet', function () {
       const diamond = await ethers.getContract('LiFiDiamond')
       lifi = <AmarokFacet>(
         await ethers.getContractAt('AmarokFacet', diamond.address)
+      )
+      await lifi.setAmarokDomain(
+        config['optimism_goerli'].chainId,
+        config['optimism_goerli'].domain
       )
 
       dexMgr = <DexManagerFacet>(
@@ -64,9 +67,22 @@ describe('AmarokFacet', function () {
       )
 
       testToken = ERC20__factory.connect(GOERLI_TOKEN_ADDRESS, alice)
-      dai = ERC20__factory.connect(GOERLI_USDC_ADDRESS, alice)
+      usdc = ERC20__factory.connect(GOERLI_USDC_ADDRESS, alice)
 
-      validAmarokData = {
+      validBridgeData = {
+        transactionId: utils.randomBytes(32),
+        bridge: 'amarok',
+        integrator: 'ACME Devs',
+        referrer: ZERO_ADDRESS,
+        sendingAssetId: GOERLI_TOKEN_ADDRESS,
+        receiver: alice.address,
+        minAmount: SEND_AMOUNT,
+        destinationChainId: 420,
+        hasSourceSwap: false,
+        hasDestinationCall: false,
+      }
+
+      amarokData = {
         callData: '0x',
         forceSlow: false,
         receiveLocal: false,
@@ -105,11 +121,12 @@ describe('AmarokFacet', function () {
           receivingAssetId: GOERLI_TOKEN_ADDRESS,
           callData: <string>swapCallData?.data,
           fromAmount: SWAP_AMOUNT_IN,
+          requiresDeposit: true,
         },
       ]
 
       // Approve ERC20 for swapping
-      await dai.connect(alice).approve(lifi.address, SWAP_AMOUNT_IN)
+      await usdc.connect(alice).approve(lifi.address, SWAP_AMOUNT_IN)
       await testToken.approve(lifi.address, SEND_AMOUNT)
     }
   )
@@ -138,20 +155,8 @@ describe('AmarokFacet', function () {
     describe('should be reverted to starts a bridge transaction', () => {
       it('when the sending amount is zero', async function () {
         const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'amarok',
-          integrator: '',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: GOERLI_TOKEN_ADDRESS,
-          receiver: alice.address,
+          ...validBridgeData,
           minAmount: 0,
-          destinationChainId: 420,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
-        }
-
-        const amarokData = {
-          ...validAmarokData,
         }
 
         await expect(
@@ -161,20 +166,8 @@ describe('AmarokFacet', function () {
 
       it('when the receiver is zero address', async function () {
         const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'amarok',
-          integrator: '',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: GOERLI_TOKEN_ADDRESS,
-          receiver: ethers.constants.AddressZero,
-          minAmount: SEND_AMOUNT,
-          destinationChainId: 420,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
-        }
-
-        const amarokData = {
-          ...validAmarokData,
+          ...validBridgeData,
+          receiver: ZERO_ADDRESS,
         }
 
         await expect(
@@ -186,43 +179,18 @@ describe('AmarokFacet', function () {
         const testTokenBalance = await testToken.balanceOf(alice.address)
         await testToken.transfer(lifi.address, testTokenBalance)
 
-        const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'amarok',
-          integrator: '',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: GOERLI_TOKEN_ADDRESS,
-          receiver: alice.address,
-          minAmount: SEND_AMOUNT,
-          destinationChainId: 420,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
-        }
-
         await expect(
           lifi
             .connect(alice)
-            .startBridgeTokensViaAmarok(bridgeData, validAmarokData)
-        ).to.be.revertedWith('ERC20: transfer amount exceeds balance')
+            .startBridgeTokensViaAmarok(validBridgeData, amarokData)
+        ).to.be.revertedWith('InsufficientBalance')
       })
 
       it('when sending native asset', async () => {
-        const amarokData = {
-          ...validAmarokData,
-          assetId: ZERO_ADDRESS,
-          amount: utils.parseEther('3'),
-        }
         const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'amarok',
-          integrator: '',
-          referrer: ethers.constants.AddressZero,
+          ...validBridgeData,
           sendingAssetId: ZERO_ADDRESS,
-          receiver: alice.address,
           minAmount: utils.parseEther('3'),
-          destinationChainId: 420,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
         }
 
         await expect(
@@ -231,94 +199,69 @@ describe('AmarokFacet', function () {
             .startBridgeTokensViaAmarok(bridgeData, amarokData, {
               value: utils.parseEther('3'),
             })
-        ).to.be.revertedWith('TokenAddressIsZero()')
+        ).to.be.revertedWith('NativeAssetNotSupported()')
+      })
+
+      it('when infomation mismatch', async function () {
+        const bridgeData = {
+          ...validBridgeData,
+          hasSourceSwaps: true,
+        }
+
+        await expect(
+          lifi.connect(alice).startBridgeTokensViaAmarok(bridgeData, amarokData)
+        ).to.be.revertedWith('InformationMismatch()')
       })
     })
 
     it('should be possible to starts a bridge transaction', async () => {
-      const bridgeData = {
-        transactionId: utils.randomBytes(32),
-        bridge: 'amarok',
-        integrator: '',
-        referrer: ethers.constants.AddressZero,
-        sendingAssetId: GOERLI_TOKEN_ADDRESS,
-        receiver: alice.address,
-        minAmount: SEND_AMOUNT,
-        destinationChainId: 420,
-        hasSourceSwaps: false,
-        hasDestinationCall: false,
-      }
-
       await expect(
         lifi
           .connect(alice)
-          .startBridgeTokensViaAmarok(bridgeData, validAmarokData)
-      )
-        .to.emit(lifi, 'LiFiTransferStarted')
-        .withArgs(
-          utils.hexlify(validLiFiData.transactionId),
-          'amarok',
-          '',
-          validLiFiData.integrator,
-          validLiFiData.referrer,
-          validLiFiData.sendingAssetId,
-          OPTIMISM_GOERLI_TOKEN_ADDRESS,
-          validLiFiData.receiver,
-          validLiFiData.amount,
-          validLiFiData.destinationChainId,
-          false,
-          false
-        )
+          .startBridgeTokensViaAmarok(validBridgeData, amarokData)
+      ).to.emit(lifi, 'LiFiTransferStarted')
     })
   })
 
   describe('swapAndStartBridgeTokensViaAmarok function', () => {
     describe('should be reverted to perform a swap then starts a bridge transaction', () => {
       it('when the receiver is zero address', async function () {
-        const amarokData = {
-          ...validAmarokData,
-        }
-
         const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'amarok',
-          integrator: '',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: GOERLI_TOKEN_ADDRESS,
-          receiver: ethers.constants.AddressZero,
-          minAmount: SEND_AMOUNT,
-          destinationChainId: 420,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
+          ...validBridgeData,
+          receiver: ZERO_ADDRESS,
+          hasSourceSwaps: true,
         }
 
         await expect(
           lifi
             .connect(alice)
-            .swapAndStartBridgeTokensViaAmarok(
-              validLiFiData,
-              swapData,
-              amarokData
-            )
+            .swapAndStartBridgeTokensViaAmarok(bridgeData, swapData, amarokData)
         ).to.be.revertedWith('InvalidReceiver()')
       })
 
       it('when the user does not have enough amount', async () => {
         const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'amarok',
-          integrator: '',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: GOERLI_TOKEN_ADDRESS,
-          receiver: alice.address,
-          minAmount: SEND_AMOUNT,
-          destinationChainId: 420,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
+          ...validBridgeData,
+          hasSourceSwaps: true,
         }
 
-        const daiBalance = await dai.connect(alice).balanceOf(alice.address)
-        await dai.connect(alice).transfer(testToken.address, daiBalance)
+        const usdcBalance = await usdc.connect(alice).balanceOf(alice.address)
+        await usdc.connect(alice).transfer(testToken.address, usdcBalance)
+
+        await expect(
+          lifi
+            .connect(alice)
+            .swapAndStartBridgeTokensViaAmarok(bridgeData, swapData, amarokData)
+        ).to.be.revertedWith('InsufficientBalance')
+      })
+
+      it('when sending native asset', async () => {
+        const bridgeData = {
+          ...validBridgeData,
+          sendingAssetId: ZERO_ADDRESS,
+          minAmount: utils.parseEther('3'),
+          hasSourceSwaps: true,
+        }
 
         await expect(
           lifi
@@ -326,44 +269,18 @@ describe('AmarokFacet', function () {
             .swapAndStartBridgeTokensViaAmarok(
               bridgeData,
               swapData,
-              validAmarokData
-            )
-        ).to.be.revertedWith('ERC20: transfer amount exceeds balance')
-      })
-
-      it('when sending native asset', async () => {
-        const amarokData = {
-          ...validAmarokData,
-          assetId: ZERO_ADDRESS,
-          amount: utils.parseEther('3'),
-        }
-
-        await expect(
-          lifi
-            .connect(alice)
-            .swapAndStartBridgeTokensViaAmarok(
-              validLiFiData,
-              swapData,
               amarokData,
               {
                 value: utils.parseEther('3'),
               }
             )
-        ).to.be.revertedWith('TokenAddressIsZero()')
+        ).to.be.revertedWith('NativeAssetNotSupported()')
       })
 
       it('when the dex is not approved', async function () {
         const bridgeData = {
-          transactionId: utils.randomBytes(32),
-          bridge: 'amarok',
-          integrator: '',
-          referrer: ethers.constants.AddressZero,
-          sendingAssetId: GOERLI_TOKEN_ADDRESS,
-          receiver: alice.address,
-          minAmount: SEND_AMOUNT,
-          destinationChainId: 420,
-          hasSourceSwaps: false,
-          hasDestinationCall: false,
+          ...validBridgeData,
+          hasSourceSwaps: true,
         }
 
         await dexMgr.removeDex(UNISWAP_ADDRESS)
@@ -371,41 +288,40 @@ describe('AmarokFacet', function () {
         await expect(
           lifi
             .connect(alice)
-            .swapAndStartBridgeTokensViaAmarok(
-              bridgeData,
-              swapData,
-              validAmarokData
-            )
+            .swapAndStartBridgeTokensViaAmarok(bridgeData, swapData, amarokData)
         ).to.be.revertedWith('ContractCallNotAllowed()')
+      })
+
+      it('when infomation mismatch', async function () {
+        const bridgeData = {
+          ...validBridgeData,
+          sendingAssetId: GOERLI_USDC_ADDRESS,
+          minAmount: SWAP_AMOUNT_OUT,
+        }
+
+        await expect(
+          lifi
+            .connect(alice)
+            .swapAndStartBridgeTokensViaAmarok(bridgeData, swapData, amarokData)
+        ).to.be.revertedWith('InformationMismatch()')
       })
     })
 
     it('should be possible to perform a swap then starts a bridge transaction', async function () {
       const bridgeData = {
-        transactionId: utils.randomBytes(32),
-        bridge: 'amarok',
-        integrator: '',
-        referrer: ethers.constants.AddressZero,
-        sendingAssetId: GOERLI_USDC_ADDRESS,
-        receiver: alice.address,
+        ...validBridgeData,
+        sendingAssetId: GOERLI_TOKEN_ADDRESS,
         minAmount: SWAP_AMOUNT_OUT,
-        destinationChainId: 420,
-        hasSourceSwaps: false,
-        hasDestinationCall: false,
+        hasSourceSwaps: true,
       }
 
       await expect(
         lifi
           .connect(alice)
-          .swapAndStartBridgeTokensViaAmarok(
-            bridgeData,
-            swapData,
-            validAmarokData
-          )
+          .swapAndStartBridgeTokensViaAmarok(bridgeData, swapData, amarokData)
       )
         .to.emit(lifi, 'AssetSwapped')
         .and.to.emit(lifi, 'LiFiTransferStarted')
-        .withArgs(bridgeData)
     })
   })
 })

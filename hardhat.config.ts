@@ -196,7 +196,7 @@ const config: HardhatUserConfig = {
     target: 'ethers-v5',
   },
   mocha: {
-    timeout: 0,
+    timeout: 60000,
   },
   tenderly: {
     project: 'production',

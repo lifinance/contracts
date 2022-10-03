@@ -24,14 +24,15 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     uint32 private immutable srcChainDomain;
 
     /// Errors ///
+
     error UnknownAmarokDomain(uint32 domain);
 
     /// Events ///
+
     event AmarokDomainSet(uint256 indexed chainId, uint32 indexed domain);
 
     /// Types ///
-    /// @param receiver The address you are sending funds (and potentially data) to
-    /// @param amount The amount of transferring asset supplied by the user in the `xcall`
+
     /// @param callData The data to execute on the receiving chain. If no crosschain call is needed, then leave empty.
     /// @param forceSlow If true, will take slow liquidity path even if it is not a permissioned call
     /// @param receiveLocal If true, will use the local nomad asset on the destination instead of adopted.

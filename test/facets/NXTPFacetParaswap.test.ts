@@ -19,9 +19,6 @@ describe('NXTPFacet (Paraswap)', function () {
   let lifi: NXTPFacet
   let dexMgr: DexManagerFacet
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let lifiData: any
-
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers, getUnnamedAccounts }) => {
       // setup wallet

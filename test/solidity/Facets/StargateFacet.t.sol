@@ -124,7 +124,7 @@ contract StargateFacetTest is DSTest, DiamondTest {
             0,
             0,
             abi.encodePacked(address(0)),
-            abi.encode(bridgeData, new LibSwap.SwapData[](0), USDC_ADDRESS, USDC_HOLDER)
+            ""
         );
         (uint256 fees, ) = stargate.quoteLayerZeroFee(137, data);
         data.lzFee = fees;
@@ -183,7 +183,7 @@ contract StargateFacetTest is DSTest, DiamondTest {
             0,
             0,
             abi.encodePacked(address(0)),
-            abi.encode(bridgeData, swapData, USDC_ADDRESS, DAI_HOLDER)
+            abi.encode("", swapData, USDC_ADDRESS, DAI_HOLDER)
         );
         (uint256 fees, ) = stargate.quoteLayerZeroFee(137, data);
         data.lzFee = fees;
@@ -251,7 +251,7 @@ contract StargateFacetTest is DSTest, DiamondTest {
             dstGasForCall: 0,
             lzFee: 0,
             callTo: abi.encodePacked(address(0)),
-            callData: abi.encode(bridgeData, swapData, USDC_ADDRESS, DAI_HOLDER)
+            callData: abi.encode("", swapData, USDC_ADDRESS, DAI_HOLDER)
         });
         (uint256 fees, ) = stargate.quoteLayerZeroFee(137, data);
         data.lzFee = fees;
