@@ -6,7 +6,7 @@ import { IStargateRouter, IFactory, IPool } from "../Interfaces/IStargateRouter.
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, InformationMismatch, InvalidConfig, InvalidCaller, TokenAddressIsZero } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InformationMismatch, InvalidConfig, InvalidCaller, TokenAddressIsZero, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { LibMappings } from "../Libraries/LibMappings.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -21,6 +21,16 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     IStargateRouter private immutable router;
 
     /// Types ///
+
+    struct PoolIdConfig {
+        address token;
+        uint16 poolId;
+    }
+
+    struct ChainIdConfig {
+        uint256 chainId;
+        uint16 layerZeroChainId;
+    }
 
     /// @param dstPoolId Dest pool id.
     /// @param minAmountLD The min qty you would accept on the destination.
@@ -47,6 +57,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Events ///
 
+    event StargateInitialized(PoolIdConfig[] poolIdConfigs, ChainIdConfig[] chainIdConfigs);
     event StargatePoolIdSet(address indexed token, uint256 poolId);
     event LayerZeroChainIdSet(uint256 indexed chainId, uint16 layerZeroChainId);
 
@@ -56,6 +67,36 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _router The contract address of the stargate router on the source chain.
     constructor(IStargateRouter _router) {
         router = _router;
+    }
+
+    /// Init ///
+
+    /// @notice Initialize local variables for the Stargate Facet
+    /// @param poolIdConfigs Pool Id configuration data
+    /// @param chainIdConfigs Chain Id configuration data
+    function initStargate(PoolIdConfig[] calldata poolIdConfigs, ChainIdConfig[] calldata chainIdConfigs) external {
+        LibDiamond.enforceIsContractOwner();
+
+        LibMappings.StargateMappings storage sm = LibMappings.getStargateMappings();
+
+        if (sm.initialized) {
+            revert AlreadyInitialized();
+        }
+
+        for (uint256 i = 0; i < poolIdConfigs.length; i++) {
+            if (poolIdConfigs[i].token == address(0)) {
+                revert InvalidConfig();
+            }
+            sm.stargatePoolId[poolIdConfigs[i].token] = poolIdConfigs[i].poolId;
+        }
+
+        for (uint256 i = 0; i < chainIdConfigs.length; i++) {
+            sm.layerZeroChainId[chainIdConfigs[i].chainId] = chainIdConfigs[i].layerZeroChainId;
+        }
+
+        sm.initialized = true;
+
+        emit StargateInitialized(poolIdConfigs, chainIdConfigs);
     }
 
     /// External Methods ///
@@ -164,6 +205,11 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function setStargatePoolId(address _token, uint16 _poolId) external {
         LibDiamond.enforceIsContractOwner();
         LibMappings.StargateMappings storage sm = LibMappings.getStargateMappings();
+
+        if (!sm.initialized) {
+            revert NotInitialized();
+        }
+
         sm.stargatePoolId[_token] = _poolId;
         emit StargatePoolIdSet(_token, _poolId);
     }
@@ -175,6 +221,11 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function setLayerZeroChainId(uint256 _chainId, uint16 _layerZeroChainId) external {
         LibDiamond.enforceIsContractOwner();
         LibMappings.StargateMappings storage sm = LibMappings.getStargateMappings();
+
+        if (!sm.initialized) {
+            revert NotInitialized();
+        }
+
         sm.layerZeroChainId[_chainId] = _layerZeroChainId;
         emit LayerZeroChainIdSet(_chainId, _layerZeroChainId);
     }

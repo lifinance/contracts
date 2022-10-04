@@ -17,6 +17,7 @@ library LibMappings {
     struct StargateMappings {
         mapping(address => uint16) stargatePoolId;
         mapping(uint256 => uint16) layerZeroChainId;
+        bool initialized;
     }
 
     struct WormholeMappings {
