@@ -64,22 +64,27 @@ contract StargateFacetTest is DSTest, DiamondTest {
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
         feeCollector = new FeeCollector(address(this));
 
-        bytes4[] memory functionSelectors = new bytes4[](7);
-        functionSelectors[0] = stargate.startBridgeTokensViaStargate.selector;
-        functionSelectors[1] = stargate.swapAndStartBridgeTokensViaStargate.selector;
-        functionSelectors[2] = stargate.setLayerZeroChainId.selector;
-        functionSelectors[3] = stargate.setStargatePoolId.selector;
-        functionSelectors[4] = stargate.quoteLayerZeroFee.selector;
-        functionSelectors[5] = stargate.addDex.selector;
-        functionSelectors[6] = stargate.setFunctionApprovalBySignature.selector;
+        bytes4[] memory functionSelectors = new bytes4[](8);
+        functionSelectors[0] = stargate.initStargate.selector;
+        functionSelectors[1] = stargate.startBridgeTokensViaStargate.selector;
+        functionSelectors[2] = stargate.swapAndStartBridgeTokensViaStargate.selector;
+        functionSelectors[3] = stargate.setLayerZeroChainId.selector;
+        functionSelectors[4] = stargate.setStargatePoolId.selector;
+        functionSelectors[5] = stargate.quoteLayerZeroFee.selector;
+        functionSelectors[6] = stargate.addDex.selector;
+        functionSelectors[7] = stargate.setFunctionApprovalBySignature.selector;
 
         addFacet(diamond, address(stargate), functionSelectors);
 
+        StargateFacet.PoolIdConfig[] memory poolIdConfig = new StargateFacet.PoolIdConfig[](2);
+        StargateFacet.ChainIdConfig[] memory chainIdConfig = new StargateFacet.ChainIdConfig[](2);
+        poolIdConfig[0] = StargateFacet.PoolIdConfig(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, 1);
+        poolIdConfig[1] = StargateFacet.PoolIdConfig(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174, 1);
+        chainIdConfig[0] = StargateFacet.ChainIdConfig(1, 101);
+        chainIdConfig[1] = StargateFacet.ChainIdConfig(137, 109);
+
         stargate = TestStargateFacet(address(diamond));
-        stargate.setLayerZeroChainId(1, 101);
-        stargate.setLayerZeroChainId(137, 109);
-        stargate.setStargatePoolId(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, 1);
-        stargate.setStargatePoolId(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174, 1);
+        stargate.initStargate(poolIdConfig, chainIdConfig);
 
         stargate.addDex(address(uniswap));
         stargate.addDex(address(feeCollector));

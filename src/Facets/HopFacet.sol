@@ -79,7 +79,9 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         Storage storage s = getStorage();
 
-        if (!s.initialized) revert NotInitialized();
+        if (!s.initialized) {
+            revert NotInitialized();
+        }
 
         if (bridge == address(0)) {
             revert InvalidConfig();
