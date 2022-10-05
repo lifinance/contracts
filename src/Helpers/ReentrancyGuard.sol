@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.13;
+pragma solidity 0.8.17;
 
 /// @title Reentrancy Guard
 /// @author LI.FI (https://li.fi)
@@ -7,7 +7,7 @@ pragma solidity 0.8.13;
 abstract contract ReentrancyGuard {
     /// Storage ///
 
-    bytes32 private constant NAMESPACE = hex"a65bb2f450488ab0858c00edc14abc5297769bf42adb48cfb77752890e8b697b";
+    bytes32 private constant NAMESPACE = keccak256("com.lifi.reentrancyguard");
 
     /// Types ///
 

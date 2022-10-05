@@ -1,7 +1,12 @@
 lifi/=src/
-ds-test/=lib/ds-test/src/
-solmate/=lib/solmate/src/
-forge-std/=lib/forge-std/src/
+@axelar-network/=node_modules/@axelar-network/
+@connext/=node_modules/@connext/
+@eth-optimism/=node_modules/@eth-optimism/
 @openzeppelin/=node_modules/@openzeppelin/
-uniswap/=lib/v2-periphery/contracts/
-hardhat/=node_modules/hardhat
+@uniswap/=node_modules/@uniswap/
+ds-test/=lib/ds-test/src/
+eth-gas-reporter/=node_modules/eth-gas-reporter/
+forge-std/=lib/forge-std/src/
+hardhat-deploy/=node_modules/hardhat-deploy/
+hardhat/=node_modules/hardhat/
+solmate/=lib/solmate/src/

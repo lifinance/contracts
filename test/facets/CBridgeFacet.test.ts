@@ -3,8 +3,7 @@ import {
   CBridgeFacet,
   DexManagerFacet,
 } from '../../typechain'
-// import { expect } from '../chai-setup'
-import { deployments, ethers, network } from 'hardhat'
+import { deployments, network } from 'hardhat'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signers'
 import { constants, Contract, utils } from 'ethers'
 import { node_url } from '../../utils/network'
@@ -14,7 +13,7 @@ import approvedFunctionSelectors from '../../utils/approvedFunctions'
 const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const DAI_ADDRESS = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
 const UNISWAP_ADDRESS = '0xE592427A0AEce92De3Edee1F18E0157C05861564'
-const CBRIDGE_ADDRESS = '0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820'
+const ZERO_ADDRESS = constants.AddressZero
 
 describe('CBridgeFacet', function () {
   let alice: SignerWithAddress
@@ -22,9 +21,10 @@ describe('CBridgeFacet', function () {
   let dexMgr: DexManagerFacet
   /* eslint-disable @typescript-eslint/no-explicit-any */
   let owner: any
-  let lifiData: any
-  let CBridgeData: any
+  let validBridgeData: any
+  let cBridgeData: any
   /* eslint-enable @typescript-eslint/no-explicit-any */
+
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
       await deployments.fixture('DeployCBridgeFacet')
@@ -54,27 +54,23 @@ describe('CBridgeFacet', function () {
         '0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503'
       )
 
-      lifiData = {
+      validBridgeData = {
         transactionId: utils.randomBytes(32),
+        bridge: 'cbridge',
         integrator: 'ACME Devs',
-        referrer: constants.AddressZero,
+        referrer: ZERO_ADDRESS,
         sendingAssetId: DAI_ADDRESS,
-        receivingAssetId: DAI_ADDRESS,
         receiver: alice.address,
+        minAmount: utils.parseUnits('100000', 10),
         destinationChainId: 137,
-        amount: utils.parseUnits('100000', 10),
+        hasSourceSwaps: false,
+        hasDestinationCall: false,
       }
-      CBridgeData = {
-        receiver: alice.address,
-        token: DAI_ADDRESS,
-        amount: utils.parseUnits('100000', 10),
-        dstChainId: 137,
+
+      cBridgeData = {
         nonce: 1,
         maxSlippage: 5000,
       }
-      lifi.connect(owner).initCbridge(CBRIDGE_ADDRESS, 1, {
-        gasLimit: 500000,
-      })
     }
   )
 
@@ -98,79 +94,60 @@ describe('CBridgeFacet', function () {
     await setupTest()
   })
 
-  it('should init bridge address and chain Id', async function () {
-    await expect(
-      lifi.connect(owner).initCbridge(CBRIDGE_ADDRESS, 1, {
-        gasLimit: 500000,
-      })
-    ).to.emit(lifi, 'CBridgeInitialized')
-  })
-
   it('starts a bridge transaction on the sending chain', async function () {
     // Approve ERC20 for swapping
     const token = await ERC20__factory.connect(DAI_ADDRESS, alice)
     await token.approve(lifi.address, utils.parseUnits('100000', 10))
 
     await expect(
-      lifi.connect(alice).startBridgeTokensViaCBridge(lifiData, CBridgeData, {
-        gasLimit: 500000,
-      })
+      lifi
+        .connect(alice)
+        .startBridgeTokensViaCBridge(validBridgeData, cBridgeData, {
+          gasLimit: 500000,
+        })
     ).to.emit(lifi, 'LiFiTransferStarted')
   })
 
   it('fails to start a native token bridge transaction without msg.value', async function () {
-    const CBridgeDataNative = {
-      receiver: alice.address,
-      token: ethers.constants.AddressZero,
-      amount: utils.parseUnits('1', 18),
-      dstChainId: 137,
-      nonce: 1,
-      maxSlippage: 5000,
+    const bridgeData = {
+      ...validBridgeData,
+      sendingAssetId: ZERO_ADDRESS,
     }
+
     await expect(
-      lifi
-        .connect(alice)
-        .startBridgeTokensViaCBridge(lifiData, CBridgeDataNative, {
-          gasLimit: 500000,
-        })
+      lifi.connect(alice).startBridgeTokensViaCBridge(bridgeData, cBridgeData, {
+        gasLimit: 500000,
+      })
     ).to.be.revertedWith('InvalidAmount()')
   })
 
-  it('fails to start a native token bridge transaction with too much msg.value', async function () {
-    const CBridgeDataNative = {
-      receiver: alice.address,
-      token: ethers.constants.AddressZero,
-      amount: utils.parseUnits('0.0001', 18),
-      dstChainId: 137,
-      nonce: 1,
-      maxSlippage: 5000,
+  it('fails to start a native token bridge transaction with no enough msg.value', async function () {
+    const bridgeData = {
+      ...validBridgeData,
+      sendingAssetId: ZERO_ADDRESS,
+      minAmount: utils.parseUnits('0.0001', 18),
     }
+
     await expect(
-      lifi
-        .connect(alice)
-        .startBridgeTokensViaCBridge(lifiData, CBridgeDataNative, {
-          gasLimit: 500000,
-          value: utils.parseUnits('0.01', 18),
-        })
+      lifi.connect(alice).startBridgeTokensViaCBridge(bridgeData, cBridgeData, {
+        gasLimit: 500000,
+        value: utils.parseUnits('0.00001', 18),
+      })
     ).to.be.revertedWith('InvalidAmount()')
   })
 
   it('starts a native token bridge transaction on the sending chain', async function () {
-    const CBridgeDataNative = {
-      receiver: alice.address,
-      token: ethers.constants.AddressZero,
-      amount: utils.parseUnits('0.01', 18),
-      dstChainId: 137,
-      nonce: 1,
-      maxSlippage: 5000,
+    const bridgeData = {
+      ...validBridgeData,
+      sendingAssetId: ZERO_ADDRESS,
+      minAmount: utils.parseUnits('0.01', 18),
     }
+
     await expect(
-      lifi
-        .connect(alice)
-        .startBridgeTokensViaCBridge(lifiData, CBridgeDataNative, {
-          gasLimit: 500000,
-          value: CBridgeDataNative.amount,
-        })
+      lifi.connect(alice).startBridgeTokensViaCBridge(bridgeData, cBridgeData, {
+        gasLimit: 500000,
+        value: bridgeData.minAmount,
+      })
     ).to.emit(lifi, 'LiFiTransferStarted')
   })
 
@@ -201,13 +178,11 @@ describe('CBridgeFacet', function () {
       0,
     ])
 
-    CBridgeData = {
-      receiver: alice.address,
-      token: DAI_ADDRESS,
-      amount: utils.parseUnits('1000', 6),
-      dstChainId: 137,
-      nonce: 1,
-      maxSlippage: 5000,
+    const bridgeData = {
+      ...validBridgeData,
+      sendingAssetId: DAI_ADDRESS,
+      minAmount: utils.parseUnits('1000', 6),
+      hasSourceSwaps: true,
     }
 
     // Approve ERC20 for swapping
@@ -216,7 +191,7 @@ describe('CBridgeFacet', function () {
 
     await expect(
       lifi.connect(alice).swapAndStartBridgeTokensViaCBridge(
-        lifiData,
+        bridgeData,
         [
           {
             callTo: <string>swapData.to,
@@ -225,9 +200,10 @@ describe('CBridgeFacet', function () {
             receivingAssetId: DAI_ADDRESS,
             callData: <string>swapData?.data,
             fromAmount: amountIn,
+            requiresDeposit: true,
           },
         ],
-        CBridgeData,
+        cBridgeData,
         { gasLimit: 500000 }
       )
     )
@@ -252,6 +228,13 @@ describe('CBridgeFacet', function () {
       alice
     )
 
+    const bridgeData = {
+      ...validBridgeData,
+      sendingAssetId: DAI_ADDRESS,
+      minAmount: utils.parseUnits('1000', 6),
+      hasSourceSwaps: true,
+    }
+
     // Generate swap calldata
     const swapData = await uniswap.populateTransaction.exactOutputSingle([
       USDC_ADDRESS,
@@ -264,22 +247,13 @@ describe('CBridgeFacet', function () {
       0,
     ])
 
-    CBridgeData = {
-      receiver: alice.address,
-      token: DAI_ADDRESS,
-      amount: utils.parseUnits('1000', 6),
-      dstChainId: 137,
-      nonce: 1,
-      maxSlippage: 5000,
-    }
-
     // Approve ERC20 for swapping
     const token = ERC20__factory.connect(USDC_ADDRESS, alice)
     await token.approve(lifi.address, amountIn)
 
     await expect(
       lifi.connect(alice).swapAndStartBridgeTokensViaCBridge(
-        lifiData,
+        bridgeData,
         [
           {
             callTo: <string>swapData.to,
@@ -288,9 +262,10 @@ describe('CBridgeFacet', function () {
             receivingAssetId: DAI_ADDRESS,
             callData: <string>swapData?.data,
             fromAmount: amountIn,
+            requiresDeposit: true,
           },
         ],
-        CBridgeData,
+        cBridgeData,
         { gasLimit: 500000 }
       )
     ).to.be.revertedWith('ContractCallNotAllowed()')

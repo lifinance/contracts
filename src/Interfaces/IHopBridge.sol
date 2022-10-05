@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.17;
 
 interface IHopBridge {
-    struct BridgeConfig {
-        address token;
-        address bridge;
-        address ammWrapper;
-    }
-
     function sendToL2(
         uint256 chainId,
         address recipient,

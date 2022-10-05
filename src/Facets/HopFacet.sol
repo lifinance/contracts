@@ -1,33 +1,37 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, InvalidBridgeConfigLength, CannotBridgeToSameNetwork, NativeValueWithERC, InvalidConfig } from "../Errors/GenericErrors.sol";
-import { Swapper, LibSwap } from "../Helpers/Swapper.sol";
+import { CannotBridgeToSameNetwork, NativeValueWithERC, InvalidReceiver, InvalidAmount, InvalidConfig, InvalidSendingToken, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
+import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
+import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Hop Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
+contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE = hex"6d21be7f069eba22e6227bbf0972cf4a3ee2f0ce81ad8bd8004228e83b4830b8"; //keccak256("com.lifi.facets.hop");
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.hop");
+
     struct Storage {
-        mapping(string => IHopBridge.BridgeConfig) hopBridges;
-        uint256 hopChainId;
+        mapping(address => IHopBridge) bridges;
+        bool initialized;
     }
 
     /// Types ///
 
+    struct Config {
+        address assetId;
+        address bridge;
+    }
+
     struct HopData {
-        string asset;
-        address recipient;
-        uint256 chainId;
-        uint256 amount;
         uint256 bonderFee;
         uint256 amountOutMin;
         uint256 deadline;
@@ -37,123 +41,123 @@ contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
 
     /// Events ///
 
-    event HopInitialized(string[] tokens, IHopBridge.BridgeConfig[] bridgeConfigs, uint256 chainId);
+    event HopInitialized(Config[] configs);
+    event HopBridgeRegistered(address indexed assetId, address bridge);
 
     /// Init ///
 
     /// @notice Initialize local variables for the Hop Facet
-    /// @param _tokens tokens allowed for bridging
-    /// @param _bridgeConfigs configured bridge contracts for specific tokens
-    /// @param _chainId the chainId
-    function initHop(
-        string[] calldata _tokens,
-        IHopBridge.BridgeConfig[] calldata _bridgeConfigs,
-        uint256 _chainId
-    ) external {
+    /// @param configs Bridge configuration data
+    function initHop(Config[] calldata configs) external {
         LibDiamond.enforceIsContractOwner();
+
         Storage storage s = getStorage();
-        uint256 length = _tokens.length;
 
-        if (_bridgeConfigs.length != length) revert InvalidBridgeConfigLength();
-
-        for (uint256 i = 0; i < length; i++) {
-            if (_bridgeConfigs[i].bridge == address(0)) revert InvalidConfig();
-            s.hopBridges[_tokens[i]] = _bridgeConfigs[i];
+        if (s.initialized) {
+            revert AlreadyInitialized();
         }
-        s.hopChainId = _chainId;
-        emit HopInitialized(_tokens, _bridgeConfigs, _chainId);
+
+        for (uint256 i = 0; i < configs.length; i++) {
+            if (configs[i].bridge == address(0)) {
+                revert InvalidConfig();
+            }
+            s.bridges[configs[i].assetId] = IHopBridge(configs[i].bridge);
+        }
+
+        s.initialized = true;
+
+        emit HopInitialized(configs);
     }
 
     /// External Methods ///
 
+    /// @notice Register token and bridge
+    /// @param assetId Address of token
+    /// @param bridge Address of bridge for asset
+    function registerBridge(address assetId, address bridge) external {
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage s = getStorage();
+
+        if (!s.initialized) {
+            revert NotInitialized();
+        }
+
+        if (bridge == address(0)) {
+            revert InvalidConfig();
+        }
+
+        s.bridges[assetId] = IHopBridge(bridge);
+
+        emit HopBridgeRegistered(assetId, bridge);
+    }
+
     /// @notice Bridges tokens via Hop Protocol
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _hopData data specific to Hop Protocol
-    function startBridgeTokensViaHop(LiFiData calldata _lifiData, HopData calldata _hopData)
+    function startBridgeTokensViaHop(ILiFi.BridgeData memory _bridgeData, HopData calldata _hopData)
         external
         payable
+        refundExcessNative(payable(msg.sender))
+        doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
-        address sendingAssetId = _bridge(_hopData.asset).token;
-        LibAsset.depositAsset(sendingAssetId, _hopData.amount);
-        _startBridge(_hopData);
-
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "hop",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            sendingAssetId,
-            _lifiData.receivingAssetId,
-            _hopData.recipient,
-            _hopData.amount,
-            _hopData.chainId,
-            false,
-            false
-        );
+        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        _startBridge(_bridgeData, _hopData);
     }
 
     /// @notice Performs a swap before bridging via Hop Protocol
-    /// @param _lifiData data used purely for tracking and analytics
+    /// @param _bridgeData the core information needed for bridging
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _hopData data specific to Hop Protocol
     function swapAndStartBridgeTokensViaHop(
-        LiFiData calldata _lifiData,
+        ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         HopData memory _hopData
-    ) external payable nonReentrant {
-        if (!LibAsset.isNativeAsset(address(_lifiData.sendingAssetId)) && msg.value != 0) revert NativeValueWithERC();
-        _hopData.amount = _executeAndCheckSwaps(_lifiData, _swapData);
-        _startBridge(_hopData);
-
-        emit LiFiTransferStarted(
-            _lifiData.transactionId,
-            "hop",
-            "",
-            _lifiData.integrator,
-            _lifiData.referrer,
-            _swapData[0].sendingAssetId,
-            _lifiData.receivingAssetId,
-            _hopData.recipient,
-            _swapData[0].fromAmount,
-            _hopData.chainId,
-            true,
-            false
+    )
+        external
+        payable
+        containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        validateBridgeData(_bridgeData)
+        nonReentrant
+    {
+        if (!LibAsset.isNativeAsset(address(_bridgeData.sendingAssetId)) && msg.value != 0) revert NativeValueWithERC();
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
         );
+        _startBridge(_bridgeData, _hopData);
     }
 
     /// private Methods ///
 
-    /// @dev Conatains the business logic for the bridge via Hop Protocol
+    /// @dev Contains the business logic for the bridge via Hop Protocol
+    /// @param _bridgeData the core information needed for bridging
     /// @param _hopData data specific to Hop Protocol
-    function _startBridge(HopData memory _hopData) private {
-        Storage storage s = getStorage();
-        IHopBridge.BridgeConfig storage hopBridgeConfig = s.hopBridges[_hopData.asset];
-
-        address sendingAssetId = hopBridgeConfig.token;
-
-        address bridge;
-        if (s.hopChainId == 1) {
-            bridge = hopBridgeConfig.bridge;
-        } else {
-            bridge = hopBridgeConfig.ammWrapper;
-        }
-
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, HopData memory _hopData) private {
         // Do HOP stuff
-        if (s.hopChainId == _hopData.chainId) revert CannotBridgeToSameNetwork();
+        if (block.chainid == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
+
+        address sendingAssetId = _bridgeData.sendingAssetId;
+        Storage storage s = getStorage();
+        IHopBridge bridge = s.bridges[sendingAssetId];
 
         // Give Hop approval to bridge tokens
-        LibAsset.maxApproveERC20(IERC20(sendingAssetId), bridge, _hopData.amount);
+        LibAsset.maxApproveERC20(IERC20(sendingAssetId), address(bridge), _bridgeData.minAmount);
 
-        uint256 value = LibAsset.isNativeAsset(address(sendingAssetId)) ? _hopData.amount : 0;
+        uint256 value = LibAsset.isNativeAsset(address(sendingAssetId)) ? _bridgeData.minAmount : 0;
 
-        if (s.hopChainId == 1) {
+        if (block.chainid == 1) {
             // Ethereum L1
-            IHopBridge(bridge).sendToL2{ value: value }(
-                _hopData.chainId,
-                _hopData.recipient,
-                _hopData.amount,
+            bridge.sendToL2{ value: value }(
+                _bridgeData.destinationChainId,
+                _bridgeData.receiver,
+                _bridgeData.minAmount,
                 _hopData.destinationAmountOutMin,
                 _hopData.destinationDeadline,
                 address(0),
@@ -162,10 +166,10 @@ contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
         } else {
             // L2
             // solhint-disable-next-line check-send-result
-            IHopBridge(bridge).swapAndSend{ value: value }(
-                _hopData.chainId,
-                _hopData.recipient,
-                _hopData.amount,
+            bridge.swapAndSend{ value: value }(
+                _bridgeData.destinationChainId,
+                _bridgeData.receiver,
+                _bridgeData.minAmount,
                 _hopData.bonderFee,
                 _hopData.amountOutMin,
                 _hopData.deadline,
@@ -173,13 +177,8 @@ contract HopFacet is ILiFi, Swapper, ReentrancyGuard {
                 _hopData.destinationDeadline
             );
         }
-    }
 
-    /// @dev fetch bridge config
-    /// @param _asset Asset for which to return a specific config
-    function _bridge(string memory _asset) private view returns (IHopBridge.BridgeConfig memory) {
-        Storage storage s = getStorage();
-        return s.hopBridges[_asset];
+        emit LiFiTransferStarted(_bridgeData);
     }
 
     /// @dev fetch local storage

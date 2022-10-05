@@ -5,18 +5,29 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
+      ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
+      FORK_NUMBER: ${{ secrets.FORK_NUMBER }}
+      POLYGON_FORK_NUMBER: ${{ secrets.POLYGON_FORK_NUMBER }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16'
       - name: Install dev dependencies
         run: npm install
 
       - name: Install Foundry
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
 
-      - name: Run forge tests forking mainnet
-        run: forge test -f ${{ secrets.ETH_NODE_URI_MAINNET }} --fork-block-number 14518542
+      - name: Install Deps
+        run: forge install
+      - name: Run forge tests
+        run: forge test
+      - name: Get forge test coverage
+        run: forge coverage

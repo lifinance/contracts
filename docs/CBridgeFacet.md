@@ -14,9 +14,9 @@ graph LR;
 
 - `function initCbridge(address _cBridge, uint64 _chainId)`
   - Initializer method. Sets chainId and CBridge contract for the specific chain
-- `function startBridgeTokensViaCBridge(LiFiData memory _lifiData, CBridgeData calldata _cBridgeData)`
+- `function startBridgeTokensViaCBridge(BridgeData memory _lifiData, CBridgeData calldata _cBridgeData)`
   - Simply bridges tokens using CBridge
-- `function swapAndStartBridgeTokensViaCBridge( LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData, CBridgeData memory _cBridgeData)`
+- `function swapAndStartBridgeTokensViaCBridge( BridgeData memory _lifiData, LibSwap.SwapData[] calldata _swapData, CBridgeData memory _cBridgeData)`
   - Performs swap(s) before bridging tokens using CBridge
 
 ## CBridge Specific Parameters
@@ -24,19 +24,21 @@ graph LR;
 Some of the methods listed above take a variable labeled `_cBridgeData`. This data is specific to CBridge and is represented as the following struct type:
 
 ```solidity
-/// @param receiver The address of the token recipient after bridging.
-/// @param token The contract address of the token being bridged.
-/// @param amount The amount of tokens to bridge.
+/// @param cBridge The address of the CBridge contract for the sending chain.
+/// @param maxSlippage The maximum slippage in percent tolerated for bridging.
 /// @param dstChainId The chainId of the chain to bridge to.
 /// @param nonce Unique number used for this specific bridging TX.
-/// @param maxSlippage The maximum slippage in percent tolerated for bridging.
+/// @param amount The amount of tokens to bridge.
+/// @param receiver The address of the token recipient after bridging.
+/// @param token The contract address of the token being bridged.
 struct CBridgeData {
-  address receiver;
-  address token;
-  uint256 amount;
+  address cBridge;
+  uint32 maxSlippage;
   uint64 dstChainId;
   uint64 nonce;
-  uint32 maxSlippage;
+  uint256 amount;
+  address receiver;
+  address token;
 }
 
 ```
@@ -51,9 +53,9 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `LiFiData _lifiData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `LiFiData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 
@@ -84,7 +86,7 @@ const quoteResult = {
 }
 ```
 
-A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/more-integration-options/li.fi-api/transferring-tokens-example).
+A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/products/more-integration-options/li.fi-api/transferring-tokens-example).
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 

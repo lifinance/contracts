@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   DexManagerFacet,
   IERC20__factory as ERC20__factory,
@@ -16,13 +15,16 @@ import approvedFunctionSelectors from '../../utils/approvedFunctions'
 describe('NXTPFacet', function () {
   const RINKEBY_DAI_ADDRESS = '0xc7AD46e0b8a400Bb3C915120d284AafbA8fc4735'
   const RINKEBY_TOKEN_ADDRESS = '0x9aC2c46d7AcC21c881154D57c0Dc1c55a3139198'
-  const GOERLI_TOKEN_ADDRESS = '0x8a1Cad3703E0beAe0e0237369B4fcD04228d1682'
   const UNISWAP_ADDRESS = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
+  const ZERO_ADDRESS = constants.AddressZero
 
   let alice: SignerWithAddress
   let lifi: NXTPFacet
   let dexMgr: DexManagerFacet
-  let lifiData: any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  let validBridgeData: any
+  let validNXTPData: any
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
@@ -50,17 +52,23 @@ describe('NXTPFacet', function () {
         true
       )
 
-      // test data
-      lifiData = {
+      validBridgeData = {
         transactionId: utils.randomBytes(32),
+        bridge: 'nxtp',
         integrator: 'ACME Devs',
-        referrer: constants.AddressZero,
-        sendingAssetId: RINKEBY_DAI_ADDRESS,
-        receivingAssetId: GOERLI_TOKEN_ADDRESS,
-        receiver: alice.address,
-        destinationChainId: 5,
-        amount: simpleNXTPData.amount,
+        referrer: ZERO_ADDRESS,
+        sendingAssetId: simpleNXTPData.invariantData.sendingAssetId,
+        receiver: simpleNXTPData.invariantData.receivingAddress,
+        minAmount: simpleNXTPData.amount,
+        destinationChainId: simpleNXTPData.invariantData.receivingChainId,
+        hasSourceSwaps: false,
+        hasDestinationCall: false,
       }
+
+      validNXTPData = {
+        ...simpleNXTPData,
+      }
+      validNXTPData.invariantData.initiator = lifi.address
     }
   )
 
@@ -89,14 +97,8 @@ describe('NXTPFacet', function () {
     const token = ERC20__factory.connect(RINKEBY_TOKEN_ADDRESS, alice)
     await token.approve(lifi.address, simpleNXTPData.amount)
 
-    const nxtpData = {
-      ...simpleNXTPData,
-    }
-
-    nxtpData.invariantData.initiator = lifi.address
-
     await expect(
-      lifi.startBridgeTokensViaNXTP(lifiData, nxtpData, {
+      lifi.startBridgeTokensViaNXTP(validBridgeData, validNXTPData, {
         gasLimit: 500000,
       })
     )
@@ -112,11 +114,10 @@ describe('NXTPFacet', function () {
     const amountIn = utils.parseEther('12')
     const amountOut = utils.parseEther('10') // 1 TestToken
 
-    const nxtpData = {
-      ...simpleNXTPData,
+    const bridgeData = {
+      ...validBridgeData,
+      hasSourceSwaps: true,
     }
-
-    nxtpData.invariantData.initiator = lifi.address
 
     const path = [DAI.address, TOKEN.address]
     const to = lifi.address // should be a checksummed recipient address
@@ -146,7 +147,7 @@ describe('NXTPFacet', function () {
     // Call LiFi smart contract to start the bridge process
     await expect(
       lifi.swapAndStartBridgeTokensViaNXTP(
-        lifiData,
+        bridgeData,
         [
           {
             callTo: <string>swapData.to,
@@ -155,9 +156,10 @@ describe('NXTPFacet', function () {
             receivingAssetId: TOKEN.address,
             callData: <string>swapData?.data,
             fromAmount: amountIn,
+            requiresDeposit: true,
           },
         ],
-        nxtpData,
+        validNXTPData,
         { gasLimit: 500000 }
       )
     )
@@ -176,11 +178,10 @@ describe('NXTPFacet', function () {
     const amountIn = utils.parseEther('12')
     const amountOut = utils.parseEther('10') // 1 TestToken
 
-    const nxtpData = {
-      ...simpleNXTPData,
+    const bridgeData = {
+      ...validBridgeData,
+      hasSourceSwaps: true,
     }
-
-    nxtpData.invariantData.initiator = lifi.address
 
     const path = [DAI.address, TOKEN.address]
     const to = lifi.address // should be a checksummed recipient address
@@ -210,7 +211,7 @@ describe('NXTPFacet', function () {
     // Call LiFi smart contract to start the bridge process
     await expect(
       lifi.swapAndStartBridgeTokensViaNXTP(
-        lifiData,
+        bridgeData,
         [
           {
             callTo: <string>swapData.to,
@@ -219,9 +220,10 @@ describe('NXTPFacet', function () {
             receivingAssetId: TOKEN.address,
             callData: <string>swapData?.data,
             fromAmount: amountIn,
+            requiresDeposit: true,
           },
         ],
-        nxtpData,
+        validNXTPData,
         { gasLimit: 500000 }
       )
     ).to.be.revertedWith('ContractCallNotAllowed()')
@@ -232,14 +234,13 @@ describe('NXTPFacet', function () {
     const TOKEN = new Token(ChainId.RINKEBY, RINKEBY_TOKEN_ADDRESS, 18)
     const DAI = new Token(ChainId.RINKEBY, RINKEBY_DAI_ADDRESS, 18)
 
-    const amountIn = utils.parseEther('12')
-    const amountOut = utils.parseEther('10.5') // 1 TestToken
-
-    const nxtpData = {
-      ...simpleNXTPData,
+    const bridgeData = {
+      ...validBridgeData,
+      hasSourceSwaps: true,
     }
 
-    nxtpData.invariantData.initiator = lifi.address
+    const amountIn = utils.parseEther('12')
+    const amountOut = utils.parseEther('10.5') // 1 TestToken
 
     const path = [DAI.address, TOKEN.address]
     const to = lifi.address // should be a checksummed recipient address
@@ -269,7 +270,7 @@ describe('NXTPFacet', function () {
     // Call LiFi smart contract to start the bridge process
     await expect(
       lifi.swapAndStartBridgeTokensViaNXTP(
-        lifiData,
+        bridgeData,
         [
           {
             callTo: <string>swapData.to,
@@ -278,9 +279,10 @@ describe('NXTPFacet', function () {
             receivingAssetId: TOKEN.address,
             callData: <string>swapData?.data,
             fromAmount: amountIn,
+            requiresDeposit: true,
           },
         ],
-        nxtpData,
+        validNXTPData,
         { gasLimit: 500000 }
       )
     )
@@ -297,11 +299,10 @@ describe('NXTPFacet', function () {
     const amountIn = utils.parseEther('12')
     const amountOut = utils.parseEther('10') // 1 TestToken
 
-    const nxtpData = {
-      ...simpleNXTPData,
+    const bridgeData = {
+      ...validBridgeData,
+      hasSourceSwaps: true,
     }
-
-    nxtpData.invariantData.initiator = lifi.address
 
     const path = [DAI.address, TOKEN.address]
     const to = lifi.address // should be a checksummed recipient address
@@ -331,7 +332,7 @@ describe('NXTPFacet', function () {
     // Call LiFi smart contract to start the bridge process
     await expect(
       lifi.swapAndStartBridgeTokensViaNXTP(
-        lifiData,
+        bridgeData,
         [
           {
             callTo: <string>swapData.to,
@@ -340,21 +341,24 @@ describe('NXTPFacet', function () {
             receivingAssetId: TOKEN.address,
             callData: <string>swapData?.data,
             fromAmount: amountIn,
+            requiresDeposit: true,
           },
         ],
-        nxtpData,
+        validNXTPData,
         { gasLimit: 500000 }
       )
     ).to.emit(token, 'Approval')
 
     await token.approve(lifi.address, amountIn)
 
+    const nxtpData = validNXTPData
+
     nxtpData.invariantData.transactionId =
       '0x9761f6676e6f42010794b5ec0f7c4dd25e5f3c5220dd2b16040761db87fd6e45'
     // Call LiFi smart contract to start the bridge process
     await expect(
       lifi.swapAndStartBridgeTokensViaNXTP(
-        lifiData,
+        bridgeData,
         [
           {
             callTo: <string>swapData.to,
@@ -363,6 +367,7 @@ describe('NXTPFacet', function () {
             receivingAssetId: TOKEN.address,
             callData: <string>swapData?.data,
             fromAmount: amountIn,
+            requiresDeposit: true,
           },
         ],
         nxtpData,

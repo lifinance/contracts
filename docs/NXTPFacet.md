@@ -22,13 +22,13 @@ graph LR;
 
 - `function initNXTP(ITransactionManager _txMgrAddr)`
   - Initializer method. Sets the chain specific NXTP Transaction Manager Contract
-- `function startBridgeTokensViaNXTP(LiFiData memory _lifiData, ITransactionManager.PrepareArgs memory _nxtpData)`
+- `function startBridgeTokensViaNXTP(BridgeData memory _lifiData, ITransactionManager.PrepareArgs memory _nxtpData)`
   - Simply bridges tokens using NXTP
-- `function swapAndStartBridgeTokensViaNXTP( LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData, ITransactionManager.PrepareArgs memory _nxtpData)`
+- `function swapAndStartBridgeTokensViaNXTP( BridgeData memory _lifiData, LibSwap.SwapData[] calldata _swapData, ITransactionManager.PrepareArgs memory _nxtpData)`
   - Performs swap(s) before bridging tokens using NXTP
-- `function completeBridgeTokensViaNXTP( LiFiData memory _lifiData, address assetId, address receiver, uint256 amount)`
+- `function completeBridgeTokensViaNXTP( BridgeData memory _lifiData, address assetId, address receiver, uint256 amount)`
   - Completes a bridge transaction on the receiving chain and sends the tokens to the receiver. Should be called by the NXTP Gelato Resolver.
-- `function swapAndCompleteBridgeTokensViaNXTP( LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData, address finalAssetId, address receiver)`
+- `function swapAndCompleteBridgeTokensViaNXTP( BridgeData memory _lifiData, LibSwap.SwapData[] calldata _swapData, address finalAssetId, address receiver)`
   - Performs swap(s) before completing a bridge transaction on the receiving chain and sending the tokens to the receiver. Should be called by the NXTP Gelato Resolver.
 
 ## NXTP Specific Parameters
@@ -37,6 +37,7 @@ Some of the methods listed above take a variable labeled `_nxtpData`. This data 
 
 ```solidity
 /// Arguments for calling prepare()
+/// @param nxtpTxManager The NXTP bridge contract address
 /// @param invariantData The data for a crosschain transaction that will
 ///        not change between sending and receiving chains.
 ///        The hash of this data is used as the key to store
@@ -57,8 +58,9 @@ Some of the methods listed above take a variable labeled `_nxtpData`. This data 
 ///        event emission. The validity of the bid and
 ///        bidSignature are enforced offchain
 /// @param encodedMeta The meta for the function
-struct PrepareArgs {
-  InvariantTransactionData invariantData;
+struct NXTPData {
+  address nxtpTxManager;
+  ITransactionManager.InvariantTransactionData invariantData;
   uint256 amount;
   uint256 expiry;
   bytes encryptedCallData;
@@ -79,9 +81,9 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `LiFiData _lifiData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `LiFiData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 
@@ -112,7 +114,7 @@ const quoteResult = {
 }
 ```
 
-A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/more-integration-options/li.fi-api/transferring-tokens-example).
+A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/products/more-integration-options/li.fi-api/transferring-tokens-example).
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 

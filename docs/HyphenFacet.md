@@ -14,9 +14,9 @@ graph LR;
 
 - `function initHyphen(address _hyphenRouter)`
   - Initializer method. Sets Hyphen LiquidityPool [contract address](https://docs.biconomy.io/products/hyphen-instant-cross-chain-transfers/contract-addresses) for the specific chain
-- `function startBridgeTokensViaHyphen(LiFiData memory _lifiData, HyphenData calldata _hyphenData)`
+- `function startBridgeTokensViaHyphen(BridgeData memory _lifiData, HyphenData calldata _hyphenData)`
   - Simply bridges tokens using Hyphen
-- `function swapAndStartBridgeTokensViaHyphen(LiFiData memory _lifiData, LibSwap.SwapData[] calldata _swapData, HyphenData memory _hyphenData)`
+- `function swapAndStartBridgeTokensViaHyphen(BridgeData memory _lifiData, LibSwap.SwapData[] calldata _swapData, HyphenData memory _hyphenData)`
   - Performs swap(s) before bridging tokens using Hyphen
 
 ## Hyphen Specific Parameters
@@ -28,11 +28,13 @@ Some of the methods listed above take a variable labeled `_hyphenData`. This dat
 /// @param amount The amount of tokens to bridge.
 /// @param recipient The address of the token recipient after bridging.
 /// @param toChainId The chainId of the chain to bridge to.
+/// @param router The address of the hyphen router.
 struct HyphenData {
   address token;
   uint256 amount;
   address recipient;
   uint256 toChainId;
+  address router;
 }
 
 ```
@@ -47,9 +49,9 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `LiFiData _lifiData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `LiFiData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 
@@ -80,7 +82,7 @@ const quoteResult = {
 }
 ```
 
-A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/more-integration-options/li.fi-api/transferring-tokens-example).
+A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/products/more-integration-options/li.fi-api/transferring-tokens-example).
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 

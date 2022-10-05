@@ -8,9 +8,10 @@
 update:; forge update
 
 # Build & test
-build  :; forge build
-test   :; forge test --fork-url ${ETH_NODE_URI_MAINNET} --fork-block-number ${FORK_NUMBER} -vv
-trace   :; forge test --fork-url ${ETH_NODE_URI_MAINNET} --fork-block-number ${FORK_NUMBER} -vvv
-watch   :; forge test --watch src test --fork-url ${ETH_NODE_URI_MAINNET} --fork-block-number ${FORK_NUMBER} -vvvv
-clean  :; forge clean
-snapshot :; forge snapshot
+build         		:; forge build
+test          		:; forge test -vvv
+coverage      		:; forge coverage
+trace         		:; forge test -vvvv
+watch         		:; forge test --watch src test -vvv
+clean         		:; forge clean
+snapshot      		:; forge snapshot --match-path "test/solidity/Gas/**/*"
