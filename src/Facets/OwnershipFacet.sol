@@ -12,7 +12,8 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 contract OwnershipFacet is IERC173 {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.ownership");
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.ownership");
     struct Storage {
         address newOwner;
     }
@@ -26,7 +27,10 @@ contract OwnershipFacet is IERC173 {
 
     /// Events ///
 
-    event OwnershipTransferRequested(address indexed _from, address indexed _to);
+    event OwnershipTransferRequested(
+        address indexed _from,
+        address indexed _to
+    );
 
     /// External Methods ///
 
@@ -38,7 +42,8 @@ contract OwnershipFacet is IERC173 {
 
         if (LibUtil.isZeroAddress(_newOwner)) revert NoNullOwner();
 
-        if (_newOwner == LibDiamond.contractOwner()) revert NewOwnerMustNotBeSelf();
+        if (_newOwner == LibDiamond.contractOwner())
+            revert NewOwnerMustNotBeSelf();
 
         s.newOwner = _newOwner;
         emit OwnershipTransferRequested(msg.sender, s.newOwner);
@@ -49,7 +54,8 @@ contract OwnershipFacet is IERC173 {
         LibDiamond.enforceIsContractOwner();
         Storage storage s = getStorage();
 
-        if (LibUtil.isZeroAddress(s.newOwner)) revert NoPendingOwnershipTransfer();
+        if (LibUtil.isZeroAddress(s.newOwner))
+            revert NoPendingOwnershipTransfer();
         s.newOwner = address(0);
     }
 

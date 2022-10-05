@@ -66,12 +66,23 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             revert InvalidStargateRouter();
         }
 
-        (bytes32 transactionId, LibSwap.SwapData[] memory swapData, , address receiver) = abi.decode(
-            _payload,
-            (bytes32, LibSwap.SwapData[], address, address)
-        );
+        (
+            bytes32 transactionId,
+            LibSwap.SwapData[] memory swapData,
+            ,
+            address receiver
+        ) = abi.decode(
+                _payload,
+                (bytes32, LibSwap.SwapData[], address, address)
+            );
 
-        _swapAndCompleteBridgeTokens(transactionId, swapData, _token, payable(receiver), _amountLD);
+        _swapAndCompleteBridgeTokens(
+            transactionId,
+            swapData,
+            _token,
+            payable(receiver),
+            _amountLD
+        );
     }
 
     /// @notice Performs a swap before completing a cross-chain transaction
@@ -86,11 +97,26 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         address payable receiver
     ) external payable nonReentrant {
         if (LibAsset.isNativeAsset(assetId)) {
-            _swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver, msg.value);
+            _swapAndCompleteBridgeTokens(
+                _transactionId,
+                _swapData,
+                assetId,
+                receiver,
+                msg.value
+            );
         } else {
-            uint256 allowance = IERC20(assetId).allowance(msg.sender, address(this));
+            uint256 allowance = IERC20(assetId).allowance(
+                msg.sender,
+                address(this)
+            );
             LibAsset.depositAsset(assetId, allowance);
-            _swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver, allowance);
+            _swapAndCompleteBridgeTokens(
+                _transactionId,
+                _swapData,
+                assetId,
+                receiver,
+                allowance
+            );
         }
     }
 
@@ -128,7 +154,14 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         bool success;
 
         if (LibAsset.isNativeAsset(assetId)) {
-            try executor.swapAndCompleteBridgeTokens{ value: amount }(_transactionId, _swapData, assetId, receiver) {
+            try
+                executor.swapAndCompleteBridgeTokens{ value: amount }(
+                    _transactionId,
+                    _swapData,
+                    assetId,
+                    receiver
+                )
+            {
                 success = true;
             } catch {
                 receiver.call{ value: amount }("");
@@ -138,7 +171,14 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             token.safeApprove(address(executor), 0);
             token.safeIncreaseAllowance(address(executor), amount);
 
-            try executor.swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver) {
+            try
+                executor.swapAndCompleteBridgeTokens(
+                    _transactionId,
+                    _swapData,
+                    assetId,
+                    receiver
+                )
+            {
                 success = true;
             } catch {
                 token.safeTransfer(receiver, amount);
@@ -148,7 +188,13 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         }
 
         if (!success) {
-            emit LiFiTransferCompleted(_transactionId, assetId, receiver, amount, block.timestamp);
+            emit LiFiTransferCompleted(
+                _transactionId,
+                assetId,
+                receiver,
+                amount,
+                block.timestamp
+            );
         }
     }
 }

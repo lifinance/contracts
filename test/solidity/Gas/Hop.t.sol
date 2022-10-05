@@ -10,9 +10,12 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { console } from "../utils/Console.sol";
 
 contract HopGasTest is Test, DiamondTest {
-    address internal constant HOP_USDC_BRIDGE = 0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a;
-    address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
+    address internal constant HOP_USDC_BRIDGE =
+        0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a;
+    address internal constant USDC_ADDRESS =
+        0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address internal constant WHALE =
+        0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
 
     IHopBridge internal hop;
     ERC20 internal usdc;
@@ -55,7 +58,15 @@ contract HopGasTest is Test, DiamondTest {
 
         vm.startPrank(WHALE);
         usdc.approve(HOP_USDC_BRIDGE, amount);
-        hop.sendToL2(137, WHALE, amount, amountOutMin, deadline, address(0), 0);
+        hop.sendToL2(
+            137,
+            WHALE,
+            amount,
+            amountOutMin,
+            deadline,
+            address(0),
+            0
+        );
         vm.stopPrank();
     }
 

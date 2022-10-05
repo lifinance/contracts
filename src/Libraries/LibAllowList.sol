@@ -8,7 +8,8 @@ import { InvalidContract } from "../Errors/GenericErrors.sol";
 /// @notice Library for managing and accessing the conract address allow list
 library LibAllowList {
     /// Storage ///
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.library.allow.list");
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.library.allow.list");
 
     struct AllowListStorage {
         mapping(address => bool) allowlist;
@@ -31,7 +32,11 @@ library LibAllowList {
 
     /// @dev Checks whether a contract address has been added to the allow list
     /// @param _contract the contract address to check
-    function contractIsAllowed(address _contract) internal view returns (bool) {
+    function contractIsAllowed(address _contract)
+        internal
+        view
+        returns (bool)
+    {
         return _getStorage().allowlist[_contract];
     }
 
@@ -83,7 +88,11 @@ library LibAllowList {
     }
 
     /// @dev Fetch local storage struct
-    function _getStorage() internal pure returns (AllowListStorage storage als) {
+    function _getStorage()
+        internal
+        pure
+        returns (AllowListStorage storage als)
+    {
         bytes32 position = NAMESPACE;
         // solhint-disable-next-line no-inline-assembly
         assembly {

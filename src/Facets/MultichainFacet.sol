@@ -17,20 +17,22 @@ import { Validatable } from "../Helpers/Validatable.sol";
 contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.multichain");
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.multichain");
+
+    /// Types ///
 
     struct Storage {
         mapping(address => bool) allowedRouters;
         bool initialized;
     }
 
-    /// Types ///
-
     struct MultichainData {
         address router;
     }
 
     /// Errors ///
+
     error InvalidRouter();
 
     /// Events ///
@@ -93,7 +95,10 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @notice Batch register routers
     /// @param routers Router addresses
     /// @param allowed Array of whether the addresses are allowed or not
-    function registerBridge(address[] calldata routers, bool[] calldata allowed) external {
+    function registerBridge(
+        address[] calldata routers,
+        bool[] calldata allowed
+    ) external {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
@@ -139,7 +144,8 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             _bridgeData.sendingAssetId,
             _multichainData.router
         );
-        if (!isNative) LibAsset.depositAsset(underlyingToken, _bridgeData.minAmount);
+        if (!isNative)
+            LibAsset.depositAsset(underlyingToken, _bridgeData.minAmount);
         _startBridge(_bridgeData, _multichainData, underlyingToken, isNative);
     }
 
@@ -208,25 +214,32 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         address underlyingToken,
         bool isNative
     ) private {
-        if (block.chainid == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
+        if (block.chainid == _bridgeData.destinationChainId)
+            revert CannotBridgeToSameNetwork();
 
         if (isNative) {
-            IMultichainRouter(_multichainData.router).anySwapOutNative{ value: _bridgeData.minAmount }(
+            IMultichainRouter(_multichainData.router).anySwapOutNative{
+                value: _bridgeData.minAmount
+            }(
                 _bridgeData.sendingAssetId,
                 _bridgeData.receiver,
                 _bridgeData.destinationChainId
             );
         } else {
             // Give Multichain approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(underlyingToken), _multichainData.router, _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(
+                IERC20(underlyingToken),
+                _multichainData.router,
+                _bridgeData.minAmount
+            );
             // Was the token wrapping another token?
             if (_bridgeData.sendingAssetId != underlyingToken) {
                 IMultichainRouter(_multichainData.router).anySwapOutUnderlying(
-                    _bridgeData.sendingAssetId,
-                    _bridgeData.receiver,
-                    _bridgeData.minAmount,
-                    _bridgeData.destinationChainId
-                );
+                        _bridgeData.sendingAssetId,
+                        _bridgeData.receiver,
+                        _bridgeData.minAmount,
+                        _bridgeData.destinationChainId
+                    );
             } else {
                 IMultichainRouter(_multichainData.router).anySwapOut(
                     _bridgeData.sendingAssetId,

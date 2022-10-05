@@ -27,13 +27,19 @@ contract TestCBridgeFacet is CBridgeFacet {
 }
 
 contract CBridgeFacetTest is DSTest, DiamondTest {
-    address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
-    address internal constant UNISWAP_V2_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
-    address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address internal constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
+    address internal constant CBRIDGE_ROUTER =
+        0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
+    address internal constant UNISWAP_V2_ROUTER =
+        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    address internal constant USDC_ADDRESS =
+        0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address internal constant DAI_ADDRESS =
+        0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address internal constant WHALE =
+        0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
 
-    address internal constant DAI_WHALE = 0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
+    address internal constant DAI_WHALE =
+        0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
@@ -59,7 +65,9 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
 
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = cBridge.startBridgeTokensViaCBridge.selector;
-        functionSelectors[1] = cBridge.swapAndStartBridgeTokensViaCBridge.selector;
+        functionSelectors[1] = cBridge
+            .swapAndStartBridgeTokensViaCBridge
+            .selector;
         functionSelectors[2] = cBridge.addDex.selector;
         functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
 
@@ -67,7 +75,9 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
 
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addDex(address(uniswap));
-        cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
+        cBridge.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
     }
 
     function testCanBridgeTokens() public {
@@ -85,7 +95,10 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             false,
             false
         );
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            5000,
+            1
+        );
 
         cBridge.startBridgeTokensViaCBridge(bridgeData, data);
         vm.stopPrank();
@@ -118,7 +131,10 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             false
         );
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            5000,
+            1
+        );
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(

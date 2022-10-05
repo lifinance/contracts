@@ -42,7 +42,10 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via CBridge
     /// @param _bridgeData the core information needed for bridging
     /// @param _cBridgeData data specific to CBridge
-    function startBridgeTokensViaCBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData calldata _cBridgeData)
+    function startBridgeTokensViaCBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        CBridgeData calldata _cBridgeData
+    )
         external
         payable
         refundExcessNative(payable(msg.sender))
@@ -51,7 +54,10 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         nonReentrant
     {
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData, _cBridgeData);
     }
 
@@ -86,9 +92,13 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via CBridge
     /// @param _bridgeData the core information needed for bridging
     /// @param _cBridgeData data specific to CBridge
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData memory _cBridgeData) private {
+    function _startBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        CBridgeData memory _cBridgeData
+    ) private {
         // Do CBridge stuff
-        if (uint64(block.chainid) == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
+        if (uint64(block.chainid) == _bridgeData.destinationChainId)
+            revert CannotBridgeToSameNetwork();
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             cBridge.sendNative{ value: _bridgeData.minAmount }(
@@ -100,7 +110,11 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         } else {
             // Give CBridge approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(cBridge), _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(cBridge),
+                _bridgeData.minAmount
+            );
             // solhint-disable check-send-result
             cBridge.send(
                 _bridgeData.receiver,

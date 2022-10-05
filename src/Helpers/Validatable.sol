@@ -25,14 +25,20 @@ contract Validatable {
         _;
     }
 
-    modifier onlyAllowSourceToken(ILiFi.BridgeData memory _bridgeData, address _token) {
+    modifier onlyAllowSourceToken(
+        ILiFi.BridgeData memory _bridgeData,
+        address _token
+    ) {
         if (_bridgeData.sendingAssetId != _token) {
             revert InvalidSendingToken();
         }
         _;
     }
 
-    modifier onlyAllowDestinationChain(ILiFi.BridgeData memory _bridgeData, uint256 _chainId) {
+    modifier onlyAllowDestinationChain(
+        ILiFi.BridgeData memory _bridgeData,
+        uint256 _chainId
+    ) {
         if (_bridgeData.destinationChainId != _chainId) {
             revert InvalidDestinationChain();
         }
@@ -53,7 +59,9 @@ contract Validatable {
         _;
     }
 
-    modifier doesNotContainDestinationCalls(ILiFi.BridgeData memory _bridgeData) {
+    modifier doesNotContainDestinationCalls(
+        ILiFi.BridgeData memory _bridgeData
+    ) {
         if (_bridgeData.hasDestinationCall) {
             revert InformationMismatch();
         }

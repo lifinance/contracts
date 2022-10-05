@@ -30,8 +30,12 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         functionSelectors[2] = DexManagerFacet.batchAddDex.selector;
         functionSelectors[3] = DexManagerFacet.batchRemoveDex.selector;
         functionSelectors[4] = DexManagerFacet.approvedDexs.selector;
-        functionSelectors[5] = DexManagerFacet.setFunctionApprovalBySignature.selector;
-        functionSelectors[6] = DexManagerFacet.batchSetFunctionApprovalBySignature.selector;
+        functionSelectors[5] = DexManagerFacet
+            .setFunctionApprovalBySignature
+            .selector;
+        functionSelectors[6] = DexManagerFacet
+            .batchSetFunctionApprovalBySignature
+            .selector;
         functionSelectors[7] = DexManagerFacet.isFunctionApproved.selector;
 
         addFacet(diamond, address(dexMgr), functionSelectors);

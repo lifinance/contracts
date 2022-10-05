@@ -10,9 +10,12 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 
 contract CBridgeGasTest is DSTest, DiamondTest {
-    address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
-    address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
+    address internal constant CBRIDGE_ROUTER =
+        0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
+    address internal constant USDC_ADDRESS =
+        0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address internal constant WHALE =
+        0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     ICBridge internal immutable cBridgeRouter = ICBridge(CBRIDGE_ROUTER);
@@ -70,7 +73,10 @@ contract CBridgeGasTest is DSTest, DiamondTest {
             false
         );
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            5000,
+            1
+        );
 
         cBridge.startBridgeTokensViaCBridge(bridgeData, data);
         vm.stopPrank();

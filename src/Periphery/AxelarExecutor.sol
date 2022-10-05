@@ -26,7 +26,11 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     /// Events ///
     event AxelarGatewaySet(address indexed gateway);
     event AxelarExecutionComplete(address indexed callTo, bytes4 selector);
-    event AxelarExecutionFailed(address indexed callTo, bytes4 selector, address recoveryAddress);
+    event AxelarExecutionFailed(
+        address indexed callTo,
+        bytes4 selector,
+        address recoveryAddress
+    );
 
     /// Constructor ///
     constructor(address _owner, address _gateway) IAxelarExecutable(_gateway) {
@@ -62,7 +66,12 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
         // The remaining bytes should be calldata
         bytes memory callData = payload.slice(20, payload.length - 20);
 
-        (bool success, ) = callTo.excessivelySafeCall(gasleft(), 0, 0, callData);
+        (bool success, ) = callTo.excessivelySafeCall(
+            gasleft(),
+            0,
+            0,
+            callData
+        );
         if (!success) revert ExecutionFailed();
         emit AxelarExecutionComplete(callTo, bytes4(callData));
     }
@@ -88,20 +97,42 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
         address tokenAddress = gateway.tokenAddresses(tokenSymbol);
 
         if (callTo == address(gateway) || !LibAsset.isContract(callTo)) {
-            return _handleFailedExecution(callTo, bytes4(callData), tokenAddress, recoveryAddress, amount);
+            return
+                _handleFailedExecution(
+                    callTo,
+                    bytes4(callData),
+                    tokenAddress,
+                    recoveryAddress,
+                    amount
+                );
         }
 
         // transfer received tokens to the recipient
         IERC20(tokenAddress).safeApprove(callTo, 0);
         IERC20(tokenAddress).safeApprove(callTo, amount);
 
-        (bool success, ) = callTo.excessivelySafeCall(gasleft(), 0, 0, callData);
+        (bool success, ) = callTo.excessivelySafeCall(
+            gasleft(),
+            0,
+            0,
+            callData
+        );
         if (!success) {
-            return _handleFailedExecution(callTo, bytes4(callData), tokenAddress, recoveryAddress, amount);
+            return
+                _handleFailedExecution(
+                    callTo,
+                    bytes4(callData),
+                    tokenAddress,
+                    recoveryAddress,
+                    amount
+                );
         }
 
         // leftover tokens not used by the contract
-        uint256 allowanceLeft = IERC20(tokenAddress).allowance(address(this), callTo);
+        uint256 allowanceLeft = IERC20(tokenAddress).allowance(
+            address(this),
+            callTo
+        );
         if (allowanceLeft > 0) {
             IERC20(tokenAddress).safeTransfer(recoveryAddress, allowanceLeft);
         }

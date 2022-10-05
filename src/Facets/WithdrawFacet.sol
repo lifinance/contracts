@@ -18,7 +18,11 @@ contract WithdrawFacet {
 
     /// Events ///
 
-    event LogWithdraw(address indexed _assetAddress, address _to, uint256 amount);
+    event LogWithdraw(
+        address indexed _assetAddress,
+        address _to,
+        uint256 amount
+    );
 
     /// External Methods ///
 

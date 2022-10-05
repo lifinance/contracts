@@ -26,7 +26,9 @@ contract AccessManagerFacet {
             revert CannotAuthoriseSelf();
         }
         LibDiamond.enforceIsContractOwner();
-        _canExecute ? LibAccess.addAccess(_selector, _executor) : LibAccess.removeAccess(_selector, _executor);
+        _canExecute
+            ? LibAccess.addAccess(_selector, _executor)
+            : LibAccess.removeAccess(_selector, _executor);
         if (_canExecute) {
             emit ExecutionAllowed(_executor, _selector);
         } else {
@@ -37,7 +39,11 @@ contract AccessManagerFacet {
     /// @notice Check if a method can be executed by a specific address
     /// @param _selector The method selector to check
     /// @param _executor The address to check
-    function addressCanExecuteMethod(bytes4 _selector, address _executor) external view returns (bool) {
+    function addressCanExecuteMethod(bytes4 _selector, address _executor)
+        external
+        view
+        returns (bool)
+    {
         return LibAccess.accessStorage().execAccess[_selector][_executor];
     }
 }

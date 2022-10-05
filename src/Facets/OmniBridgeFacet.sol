@@ -21,8 +21,6 @@ contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The contract address of the foreign omni bridge on the source chain.
     IOmniBridge private immutable foreignOmniBridge;
 
-    /// Types ///
-
     /// @notice The contract address of the weth omni bridge on the source chain.
     IOmniBridge private immutable wethOmniBridge;
 
@@ -40,7 +38,9 @@ contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via OmniBridge
     /// @param _bridgeData Data contaning core information for bridging
-    function startBridgeTokensViaOmniBridge(ILiFi.BridgeData memory _bridgeData)
+    function startBridgeTokensViaOmniBridge(
+        ILiFi.BridgeData memory _bridgeData
+    )
         external
         payable
         refundExcessNative(payable(msg.sender))
@@ -49,7 +49,10 @@ contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         nonReentrant
     {
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData);
     }
 
@@ -83,14 +86,20 @@ contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData Data contaning core information for bridging
     function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            wethOmniBridge.wrapAndRelayTokens{ value: _bridgeData.minAmount }(_bridgeData.receiver);
+            wethOmniBridge.wrapAndRelayTokens{ value: _bridgeData.minAmount }(
+                _bridgeData.receiver
+            );
         } else {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(foreignOmniBridge),
                 _bridgeData.minAmount
             );
-            foreignOmniBridge.relayTokens(_bridgeData.sendingAssetId, _bridgeData.receiver, _bridgeData.minAmount);
+            foreignOmniBridge.relayTokens(
+                _bridgeData.sendingAssetId,
+                _bridgeData.receiver,
+                _bridgeData.minAmount
+            );
         }
 
         emit LiFiTransferStarted(_bridgeData);

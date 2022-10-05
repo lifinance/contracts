@@ -12,7 +12,12 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Arbitrum Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Arbitrum Bridge
-contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract ArbitrumBridgeFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable
+{
     /// Storage ///
 
     /// @notice Chain id of Arbitrum.
@@ -62,8 +67,13 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         nonReentrant
     {
-        uint256 cost = _arbitrumData.maxSubmissionCost + _arbitrumData.maxGas * _arbitrumData.maxGasPrice;
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        uint256 cost = _arbitrumData.maxSubmissionCost +
+            _arbitrumData.maxGas *
+            _arbitrumData.maxGasPrice;
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData, _arbitrumData, cost, msg.value);
     }
 
@@ -91,9 +101,16 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        uint256 cost = _arbitrumData.maxSubmissionCost + _arbitrumData.maxGas * _arbitrumData.maxGasPrice;
+        uint256 cost = _arbitrumData.maxSubmissionCost +
+            _arbitrumData.maxGas *
+            _arbitrumData.maxGasPrice;
 
-        _startBridge(_bridgeData, _arbitrumData, cost, address(this).balance - ethBalance);
+        _startBridge(
+            _bridgeData,
+            _arbitrumData,
+            cost,
+            address(this).balance - ethBalance
+        );
     }
 
     /// Private Methods ///
@@ -109,9 +126,13 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 _cost,
         uint256 _receivedEther
     ) private validateBridgeData(_bridgeData) {
-        bool isNativeTransfer = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
+        bool isNativeTransfer = LibAsset.isNativeAsset(
+            _bridgeData.sendingAssetId
+        );
 
-        uint256 requiredEther = isNativeTransfer ? _cost + _bridgeData.minAmount : _cost;
+        uint256 requiredEther = isNativeTransfer
+            ? _cost + _bridgeData.minAmount
+            : _cost;
         if (_receivedEther < requiredEther) {
             revert InvalidAmount();
         }
@@ -150,7 +171,9 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ArbitrumData calldata _arbitrumData,
         uint256 cost
     ) private {
-        inbox.unsafeCreateRetryableTicket{ value: _bridgeData.minAmount + cost }(
+        inbox.unsafeCreateRetryableTicket{
+            value: _bridgeData.minAmount + cost
+        }(
             _bridgeData.receiver,
             _bridgeData.minAmount, // l2CallValue
             _arbitrumData.maxSubmissionCost,

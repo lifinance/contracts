@@ -25,10 +25,14 @@ contract TestGenericSwapFacet is GenericSwapFacet {
 
 contract GenericSwapFacetTest is DSTest, DiamondTest {
     // These values are for Mainnet
-    address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address internal constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    address internal constant USDC_HOLDER = 0xee5B5B923fFcE93A870B3104b7CA09c3db80047A;
-    address internal constant UNISWAP_V2_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    address internal constant USDC_ADDRESS =
+        0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address internal constant DAI_ADDRESS =
+        0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address internal constant USDC_HOLDER =
+        0xee5B5B923fFcE93A870B3104b7CA09c3db80047A;
+    address internal constant UNISWAP_V2_ROUTER =
+        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
 
     // -----
 
@@ -57,13 +61,17 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = genericSwapFacet.swapTokensGeneric.selector;
         functionSelectors[1] = genericSwapFacet.addDex.selector;
-        functionSelectors[2] = genericSwapFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[2] = genericSwapFacet
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond, address(genericSwapFacet), functionSelectors);
 
         genericSwapFacet = TestGenericSwapFacet(address(diamond));
         genericSwapFacet.addDex(address(uniswap));
-        genericSwapFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
+        genericSwapFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
     }
 
     function testCanSwapERC20() public {
@@ -98,7 +106,14 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
             true
         );
 
-        genericSwapFacet.swapTokensGeneric("", "", "", payable(USDC_HOLDER), amountOut, swapData);
+        genericSwapFacet.swapTokensGeneric(
+            "",
+            "",
+            "",
+            payable(USDC_HOLDER),
+            amountOut,
+            swapData
+        );
         vm.stopPrank();
     }
 }

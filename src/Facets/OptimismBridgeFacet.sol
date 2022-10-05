@@ -14,18 +14,24 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 /// @title Optimism Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Optimism Bridge
-contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract OptimismBridgeFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable
+{
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.optimism");
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.optimism");
+
+    /// Types ///
 
     struct Storage {
         mapping(address => IL1StandardBridge) bridges;
         IL1StandardBridge standardBridge;
         bool initialized;
     }
-
-    /// Types ///
 
     struct Config {
         address assetId;
@@ -47,7 +53,10 @@ contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize local variables for the Optimism Bridge Facet
     /// @param configs Bridge configuration data
-    function initOptimism(Config[] calldata configs, IL1StandardBridge standardBridge) external {
+    function initOptimism(
+        Config[] calldata configs,
+        IL1StandardBridge standardBridge
+    ) external {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
@@ -60,7 +69,9 @@ contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             if (configs[i].bridge == address(0)) {
                 revert InvalidConfig();
             }
-            s.bridges[configs[i].assetId] = IL1StandardBridge(configs[i].bridge);
+            s.bridges[configs[i].assetId] = IL1StandardBridge(
+                configs[i].bridge
+            );
         }
 
         s.standardBridge = standardBridge;
@@ -105,7 +116,10 @@ contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         nonReentrant
     {
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData, _optimismData);
     }
 
@@ -140,17 +154,32 @@ contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via Optimism Bridge
     /// @param _bridgeData Data contaning core information for bridging
     /// @param _bridgeData Data specific to Optimism Bridge
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, OptimismData calldata _optimismData) private {
+    function _startBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        OptimismData calldata _optimismData
+    ) private {
         Storage storage s = getStorage();
-        IL1StandardBridge nonStandardBridge = s.bridges[_bridgeData.sendingAssetId];
-        IL1StandardBridge bridge = LibUtil.isZeroAddress(address(nonStandardBridge))
+        IL1StandardBridge nonStandardBridge = s.bridges[
+            _bridgeData.sendingAssetId
+        ];
+        IL1StandardBridge bridge = LibUtil.isZeroAddress(
+            address(nonStandardBridge)
+        )
             ? s.standardBridge
             : nonStandardBridge;
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            bridge.depositETHTo{ value: _bridgeData.minAmount }(_bridgeData.receiver, _optimismData.l2Gas, "");
+            bridge.depositETHTo{ value: _bridgeData.minAmount }(
+                _bridgeData.receiver,
+                _optimismData.l2Gas,
+                ""
+            );
         } else {
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(bridge), _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(bridge),
+                _bridgeData.minAmount
+            );
 
             if (_optimismData.isSynthetix) {
                 bridge.depositTo(_bridgeData.receiver, _bridgeData.minAmount);

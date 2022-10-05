@@ -38,7 +38,9 @@ contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via Polygon Bridge
     /// @param _bridgeData Data containing core information for bridging
-    function startBridgeTokensViaPolygonBridge(ILiFi.BridgeData memory _bridgeData)
+    function startBridgeTokensViaPolygonBridge(
+        ILiFi.BridgeData memory _bridgeData
+    )
         external
         payable
         refundExcessNative(payable(msg.sender))
@@ -47,7 +49,10 @@ contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         nonReentrant
     {
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData);
     }
 
@@ -83,14 +88,26 @@ contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address childToken;
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            rootChainManager.depositEtherFor{ value: _bridgeData.minAmount }(_bridgeData.receiver);
+            rootChainManager.depositEtherFor{ value: _bridgeData.minAmount }(
+                _bridgeData.receiver
+            );
         } else {
-            childToken = rootChainManager.rootToChildToken(_bridgeData.sendingAssetId);
+            childToken = rootChainManager.rootToChildToken(
+                _bridgeData.sendingAssetId
+            );
 
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), erc20Predicate, _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                erc20Predicate,
+                _bridgeData.minAmount
+            );
 
             bytes memory depositData = abi.encode(_bridgeData.minAmount);
-            rootChainManager.depositFor(_bridgeData.receiver, _bridgeData.sendingAssetId, depositData);
+            rootChainManager.depositFor(
+                _bridgeData.receiver,
+                _bridgeData.sendingAssetId,
+                depositData
+            );
         }
 
         emit LiFiTransferStarted(_bridgeData);
