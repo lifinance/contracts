@@ -34,23 +34,32 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     await ethers.getContractAt('StargateFacet', diamond.address)
   )
 
-  await Promise.all(
-    Object.values(config).map((_config) => {
-      stargate.setLayerZeroChainId(_config.chainId, _config.layerZeroChainId, {
+  let tx
+  let i = 1
+  let configs = Object.values(config)
+  for (let _config of configs) {
+    console.log(`Mapping ${i} of ${configs.length}...`)
+    tx = await stargate.setLayerZeroChainId(
+      _config.chainId,
+      _config.layerZeroChainId,
+      {
         from: deployer,
-      })
-    })
-  )
+      }
+    )
+    await tx.wait()
+    i++
+  }
 
-  await Promise.all(
-    Object.values(POOLS)
-      .filter((pool: any) => pool[network.name])
-      .map((pool: any) => {
-        return stargate.setStargatePoolId(pool[network.name], pool.id, {
-          from: deployer,
-        })
-      })
-  )
+  i = 1
+  let pools = Object.values(POOLS).filter((pool: any) => pool[network.name])
+  for (let pool of pools) {
+    console.log(`Setting pool ${i} of ${pools.length}...`)
+    tx = await stargate.setStargatePoolId(pool[network.name], pool.id, {
+      from: deployer,
+    })
+    await tx.wait()
+    i++
+  }
 
   await verifyContract(hre, 'StargateFacet', {
     address: stargetFacet.address,

@@ -51,13 +51,19 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const executor: Executor = await ethers.getContract('Executor')
   const executorAddr = await registryFacet.getPeripheryContract('Executor')
 
+  let tx
   if (executorAddr !== executor.address) {
     console.log('Updating periphery registry...')
-    await registryFacet.registerPeripheryContract('Executor', executor.address)
+    tx = await registryFacet.registerPeripheryContract(
+      'Executor',
+      executor.address
+    )
+    await tx.wait()
     console.log('Done!')
   }
 
-  await erc20Proxy.setAuthorizedCaller(executor.address, true)
+  tx = await erc20Proxy.setAuthorizedCaller(executor.address, true)
+  await tx.wait()
 
   await verifyContract(hre, 'Executor', {
     address: executor.address,
