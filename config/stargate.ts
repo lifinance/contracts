@@ -68,12 +68,12 @@ const config: StargateConfig = {
     stargateRouter: '0x8731d54E9D02c286767d56ac03e8037C07e01e98',
     pools: [POOLS.USDC, POOLS.USDT],
   },
-  rinkeby: {
-    chainId: 4,
-    layerZeroChainId: 10001,
-    stargateRouter: '0x82A0F5F531F9ce0df1DF5619f74a0d3fA31FF561',
-    pools: [POOLS.USDC],
-  },
+  // goerli: {
+  //   chainId: 5,
+  //   layerZeroChainId: 10121,
+  //   stargateRouter: '', // Not deployed yet
+  //   pools: [],
+  // },
   bsc: {
     chainId: 56,
     layerZeroChainId: 102,
@@ -82,7 +82,7 @@ const config: StargateConfig = {
   },
   bscTestnet: {
     chainId: 97,
-    layerZeroChainId: 10002,
+    layerZeroChainId: 10102,
     stargateRouter: '0xbB0f1be1E9CE9cB27EA5b0c3a85B7cc3381d8176',
     pools: [POOLS.USDT],
   },
@@ -94,7 +94,7 @@ const config: StargateConfig = {
   },
   polygonMumbai: {
     chainId: 80001,
-    layerZeroChainId: 10009,
+    layerZeroChainId: 10109,
     stargateRouter: '0x817436a076060D158204d955E5403b6Ed0A5fac0',
     pools: [POOLS.USDC],
   },
@@ -106,7 +106,7 @@ const config: StargateConfig = {
   },
   avalancheFujiTestnet: {
     chainId: 43113,
-    layerZeroChainId: 10006,
+    layerZeroChainId: 10106,
     stargateRouter: '0x13093E05Eb890dfA6DacecBdE51d24DabAb2Faa1',
     pools: [POOLS.USDC],
   },
@@ -118,7 +118,7 @@ const config: StargateConfig = {
   },
   fantom_testnet: {
     chainId: 4002,
-    layerZeroChainId: 10012,
+    layerZeroChainId: 10112,
     stargateRouter: '0xa73b0a56B29aD790595763e71505FCa2c1abb77f',
     pools: [POOLS.USDC],
   },
@@ -128,24 +128,24 @@ const config: StargateConfig = {
     stargateRouter: '0x53Bf833A5d6c4ddA888F69c22C88C9f356a41614',
     pools: [POOLS.USDC, POOLS.USDT],
   },
-  arbitrumTestnet: {
-    chainId: 421611,
-    layerZeroChainId: 10010,
-    stargateRouter: '0x6701D9802aDF674E524053bd44AA83ef253efc41',
-    pools: [POOLS.USDC],
-  },
+  // arbitrumGoerli: {
+  //   chainId: 421613,
+  //   layerZeroChainId: 10143,
+  //   stargateRouter: '', // Not deployed yet
+  //   pools: [],
+  // },
   optimism: {
     chainId: 10,
     layerZeroChainId: 111,
     stargateRouter: '0xB0D502E938ed5f4df2E681fE6E419ff29631d62b',
     pools: [POOLS.USDC],
   },
-  optimisticKovan: {
-    chainId: 69,
-    layerZeroChainId: 10011,
-    stargateRouter: '0xCC68641528B948642bDE1729805d6cf1DECB0B00',
-    pools: [POOLS.USDC],
-  },
+  // optimisticGoerli: {
+  //   chainId: 420,
+  //   layerZeroChainId: 10132,
+  //   stargateRouter: '', // Not deployed yet
+  //   pools: [],
+  // },
 }
 
 export default config
