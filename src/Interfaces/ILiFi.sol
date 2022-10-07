@@ -19,7 +19,7 @@ interface ILiFi {
 
     /// Events ///
 
-    event LiFiTransferStarted(ILiFi.BridgeData indexed bridgeData);
+    event LiFiTransferStarted(ILiFi.BridgeData bridgeData);
 
     event LiFiTransferCompleted(
         bytes32 indexed transactionId,
