@@ -1,14 +1,16 @@
 #!/bin/bash
 
 deploy() {
-	NETWORK=$(cat ./networks | gum choose)
-	CONTRACT=$(cat ./contracts | gum choose)
+	NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
+	CONTRACT=$(cat ./contracts | gum choose --cursor "Contract > ")
 	SALT=$(gum input --prompt "Salt: ")
 
-	RAW_RETURN_DATA=$(forge script "script/Deploy$CONTRACT.s.sol" -f $NETWORK -vvvv --json --silent --verify --skip-simulation --legacy)
+	RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK forge script script/Deploy$CONTRACT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy)
 	RETURN_DATA=$(echo $RAW_RETURN_DATA | jq -r '.returns' 2> /dev/null)
 
-	deployed=$(echo $RETURN_DATA | jq -r '.factory.value')
+	deployed=$(echo $RETURN_DATA | jq -r '.deployed.value')
+
+	echo "$CONTRACT deployed on $NETWORK at address $deployed"
 
 	saveContract $NETWORK $CONTRACT $deployed
 }
@@ -28,4 +30,4 @@ saveContract() {
 	printf %s "$result" >"$ADDRESSES_FILE"
 }
 
-deploy $1
+deploy

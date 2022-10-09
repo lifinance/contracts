@@ -5,6 +5,7 @@ optimizer = true
 optimizer_runs = 10000
 sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
 tx_origin = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
+fs_permissions = [{ access = "read", path = "./deployments/"}]
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
@@ -30,7 +31,6 @@ boba = "${ETH_NODE_URI_BOBA}"
 # testnets
 goerli = "${ETH_NODE_URI_GOERLI}"
 sepolia = "${ETH_NODE_URI_SEPOLIA}"
-
 
 [etherscan]
 mainnet = {key = "${ETHERSCAN_KEY}"}
