@@ -197,10 +197,6 @@ const config: HardhatUserConfig = {
   mocha: {
     timeout: 60000,
   },
-  tenderly: {
-    project: 'production',
-    username: 'tenderly@li.finance',
-  },
   etherscan: {
     apiKey: {
       mainnet: process.env.ETHERSCAN_API_KEY,

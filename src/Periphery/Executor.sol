@@ -41,9 +41,9 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 address curAsset = _swaps[i].receivingAssetId;
                 // Handle multi-to-one swaps
                 if (curAsset != finalAsset) {
-                    curBalance = LibAsset.getOwnBalance(curAsset) - initialBalances[i];
-                    if (curBalance > 0) {
-                        LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance);
+                    curBalance = LibAsset.getOwnBalance(curAsset);
+                    if (curBalance > initialBalances[i]) {
+                        LibAsset.transferAsset(curAsset, _leftoverReceiver, curBalance - initialBalances[i]);
                     }
                 }
                 unchecked {
@@ -152,17 +152,17 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         }
 
         uint256 finalAssetPostSwapBalance = LibAsset.getOwnBalance(finalAssetId);
-        uint256 finalAssetSendAmount = finalAssetPostSwapBalance - finalAssetStartingBalance;
 
-        if (finalAssetSendAmount > 0) {
-            LibAsset.transferAsset(finalAssetId, _receiver, finalAssetSendAmount);
+        if (finalAssetPostSwapBalance > finalAssetStartingBalance) {
+            finalAssetPostSwapBalance = finalAssetPostSwapBalance - finalAssetStartingBalance;
+            LibAsset.transferAsset(finalAssetId, _receiver, finalAssetPostSwapBalance - finalAssetStartingBalance);
         }
 
         emit LiFiTransferCompleted(
             _transactionId,
             _transferredAssetId,
             _receiver,
-            finalAssetSendAmount,
+            finalAssetPostSwapBalance,
             block.timestamp
         );
     }
