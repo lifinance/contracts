@@ -2,11 +2,15 @@
 
 
 deploy() {
-	NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
-	SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum choose --cursor "Deploy Script > ")
+	NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+	SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+	CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 	SALT=$(gum input --prompt "Salt: ")
 
+	echo $SCRIPT
+
 	RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy)
+	echo $RAW_RETURN_DATA | jq 2> /dev/null
 	RETURN_DATA=$(echo $RAW_RETURN_DATA | jq -r '.returns' 2> /dev/null)
 
 	deployed=$(echo $RETURN_DATA | jq -r '.deployed.value')

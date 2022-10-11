@@ -17,6 +17,11 @@ contract DeployScript is Script {
 
         CREATE3Factory factory = CREATE3Factory(factoryAddress);
 
+        address predicted = factory.getDeployed(vm.addr(deployerPrivateKey), salt);
+        if (predicted.code.length > 0) {
+            return DiamondLoupeFacet(predicted);
+        }
+
         deployed = DiamondLoupeFacet(factory.deploy(salt, type(DiamondLoupeFacet).creationCode));
 
         vm.stopBroadcast();
