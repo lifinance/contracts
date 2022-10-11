@@ -2,17 +2,14 @@
 pragma solidity ^0.8.17;
 
 import { Script } from "forge-std/Script.sol";
-import { stdJson } from "forge-std/StdJson.sol";
-import "forge-std/console.sol";
+import { console } from "forge-std/console.sol";
 
 import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
-import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 
-contract DeployScript is Script {
-    using stdJson for string;
-
+contract DeployScriptBase is Script {
     uint256 internal deployerPrivateKey;
     address internal deployerAddress;
+    address internal predicted;
     CREATE3Factory internal factory;
     bytes32 internal salt;
     string internal network;
@@ -25,6 +22,7 @@ contract DeployScript is Script {
         network = vm.envString("NETWORK");
         salt = keccak256(abi.encodePacked(saltPrefix, contractName));
         factory = CREATE3Factory(factoryAddress);
+        predicted = factory.getDeployed(deployerAddress, salt);
     }
 
     function isContract(address _contractAddr) internal view returns (bool) {
@@ -34,5 +32,9 @@ contract DeployScript is Script {
             size := extcodesize(_contractAddr)
         }
         return size > 0;
+    }
+
+    function isDeployed() internal view returns (bool) {
+        return isContract(predicted);
     }
 }
