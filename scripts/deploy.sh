@@ -5,8 +5,8 @@ deploy() {
 	NETWORK=$(cat ./networks | gum filter --placeholder "Network")
 	SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
 	CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
-	SALT=$(cat "./out/$CONTRACT.sol/$CONTRACT.json" | jq -r '.bytecode.object')
-	SALT=$(cast keccak $SALT)
+	BYTECODE=$(forge inspect $CONTRACT bytecode)
+	SALT=$(cast keccak $BYTECODE)
 
 	echo $SCRIPT
 
