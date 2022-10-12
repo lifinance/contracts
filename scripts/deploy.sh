@@ -32,7 +32,7 @@ saveContract() {
 	if [[ ! -e $ADDRESSES_FILE ]]; then
 		echo "{}" >"$ADDRESSES_FILE"
 	fi
-	result=$(cat "$ADDRESSES_FILE" | jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}")
+	result=$(cat "$ADDRESSES_FILE" | jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$ADDRESSES_FILE")
 	printf %s "$result" >"$ADDRESSES_FILE"
 }
 
