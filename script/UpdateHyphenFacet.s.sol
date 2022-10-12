@@ -5,7 +5,7 @@ import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import "forge-std/console.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
-import { NXTPFacet } from "lifi/Facets/NXTPFacet.sol";
+import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
@@ -14,18 +14,18 @@ contract DeployScript is UpdateScriptBase {
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/deployments/", network, ".json");
         string memory json = vm.readFile(path);
-        address facet = json.readAddress(".NXTPFacet");
+        address facet = json.readAddress(".HyphenFacet");
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // NXTP
+        // Hyphen
         if (loupe.facetFunctionSelectors(facet).length == 0) {
             bytes4[] memory exclude;
             cut.push(
                 IDiamondCut.FacetCut({
                     facetAddress: address(facet),
                     action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("NXTPFacet", exclude)
+                    functionSelectors: getSelectors("HyphenFacet", exclude)
                 })
             );
             cutter.diamondCut(cut, address(0), "");
