@@ -62,10 +62,6 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 _amountLD,
         bytes memory _payload
     ) external nonReentrant {
-        if (msg.sender != address(sgRouter)) {
-            revert InvalidStargateRouter();
-        }
-
         (bytes32 transactionId, LibSwap.SwapData[] memory swapData, , address receiver) = abi.decode(
             _payload,
             (bytes32, LibSwap.SwapData[], address, address)
