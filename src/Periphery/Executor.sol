@@ -154,7 +154,6 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 finalAssetPostSwapBalance = LibAsset.getOwnBalance(finalAssetId);
 
         if (finalAssetPostSwapBalance > finalAssetStartingBalance) {
-            finalAssetPostSwapBalance = finalAssetPostSwapBalance - finalAssetStartingBalance;
             LibAsset.transferAsset(finalAssetId, _receiver, finalAssetPostSwapBalance - finalAssetStartingBalance);
         }
 
