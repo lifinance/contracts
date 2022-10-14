@@ -10,19 +10,21 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("HyphenFacet") {}
 
-    function run() public returns (HyphenFacet deployed) {
+    function run() public returns (HyphenFacet deployed, bytes memory constructorArgs) {
         string memory path = string.concat(vm.projectRoot(), "/config/hyphen.json");
         string memory json = vm.readFile(path);
         address hyphenRouter = json.readAddress(string.concat(".", network, ".hyphenRouter"));
 
+        constructorArgs = abi.encode(hyphenRouter);
+
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return HyphenFacet(payable(predicted));
+            return (HyphenFacet(payable(predicted)), constructorArgs);
         }
 
         deployed = HyphenFacet(
-            payable(factory.deploy(salt, bytes.concat(type(HyphenFacet).creationCode, abi.encode(hyphenRouter))))
+            payable(factory.deploy(salt, bytes.concat(type(HyphenFacet).creationCode, constructorArgs)))
         );
 
         vm.stopBroadcast();

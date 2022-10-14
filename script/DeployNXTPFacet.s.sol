@@ -10,20 +10,20 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("NXTPFacet") {}
 
-    function run() public returns (NXTPFacet deployed) {
+    function run() public returns (NXTPFacet deployed, bytes memory constructorArgs) {
         string memory path = string.concat(vm.projectRoot(), "/config/nxtp.json");
         string memory json = vm.readFile(path);
         address txMgrAddress = json.readAddress(string.concat(".", network, ".txManagerAddress"));
 
+        constructorArgs = abi.encode(txMgrAddress);
+
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return NXTPFacet(predicted);
+            return (NXTPFacet(predicted), constructorArgs);
         }
 
-        deployed = NXTPFacet(
-            factory.deploy(salt, bytes.concat(type(NXTPFacet).creationCode, abi.encode(txMgrAddress)))
-        );
+        deployed = NXTPFacet(factory.deploy(salt, bytes.concat(type(NXTPFacet).creationCode, constructorArgs)));
 
         vm.stopBroadcast();
     }
