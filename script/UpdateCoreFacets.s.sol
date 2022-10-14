@@ -29,58 +29,49 @@ contract DeployScript is UpdateScriptBase {
         bytes4[] memory emptyExclude;
 
         // Diamond Loupe
-        if (loupe.facetFunctionSelectors(diamondLoupe).length == 0) {
-            cut.push(
-                IDiamondCut.FacetCut({
-                    facetAddress: address(diamondLoupe),
-                    action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("DiamondLoupeFacet", emptyExclude)
-                })
-            );
-        }
+        cut.push(
+            IDiamondCut.FacetCut({
+                facetAddress: address(diamondLoupe),
+                action: IDiamondCut.FacetCutAction.Add,
+                functionSelectors: getSelectors("DiamondLoupeFacet", emptyExclude)
+            })
+        );
 
         // Ownership Facet
-        if (loupe.facetFunctionSelectors(ownership).length == 0) {
-            cut.push(
-                IDiamondCut.FacetCut({
-                    facetAddress: address(ownership),
-                    action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("OwnershipFacet", emptyExclude)
-                })
-            );
-        }
+        cut.push(
+            IDiamondCut.FacetCut({
+                facetAddress: address(ownership),
+                action: IDiamondCut.FacetCutAction.Add,
+                functionSelectors: getSelectors("OwnershipFacet", emptyExclude)
+            })
+        );
+
         // Withdraw Facet
-        if (loupe.facetFunctionSelectors(withdraw).length == 0) {
-            cut.push(
-                IDiamondCut.FacetCut({
-                    facetAddress: withdraw,
-                    action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("WithdrawFacet", emptyExclude)
-                })
-            );
-        }
+        cut.push(
+            IDiamondCut.FacetCut({
+                facetAddress: withdraw,
+                action: IDiamondCut.FacetCutAction.Add,
+                functionSelectors: getSelectors("WithdrawFacet", emptyExclude)
+            })
+        );
 
         // Dex Manager Facet
-        if (loupe.facetFunctionSelectors(dexMgr).length == 0) {
-            cut.push(
-                IDiamondCut.FacetCut({
-                    facetAddress: dexMgr,
-                    action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("DexManagerFacet", emptyExclude)
-                })
-            );
-        }
+        cut.push(
+            IDiamondCut.FacetCut({
+                facetAddress: dexMgr,
+                action: IDiamondCut.FacetCutAction.Add,
+                functionSelectors: getSelectors("DexManagerFacet", emptyExclude)
+            })
+        );
 
         // Access Manager Facet
-        if (loupe.facetFunctionSelectors(accessMgr).length == 0) {
-            cut.push(
-                IDiamondCut.FacetCut({
-                    facetAddress: accessMgr,
-                    action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("AccessManagerFacet", emptyExclude)
-                })
-            );
-        }
+        cut.push(
+            IDiamondCut.FacetCut({
+                facetAddress: accessMgr,
+                action: IDiamondCut.FacetCutAction.Add,
+                functionSelectors: getSelectors("AccessManagerFacet", emptyExclude)
+            })
+        );
 
         cutter.diamondCut(cut, address(0), "");
 

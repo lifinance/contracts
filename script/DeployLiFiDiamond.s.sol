@@ -10,24 +10,21 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("LiFiDiamond") {}
 
-    function run() public returns (LiFiDiamond deployed) {
+    function run() public returns (LiFiDiamond deployed, bytes memory constructorArgs) {
         string memory path = string.concat(vm.projectRoot(), "/deployments/", network, ".json");
         string memory json = vm.readFile(path);
         address diamondCut = json.readAddress(".DiamondCutFacet");
 
+        constructorArgs = abi.encode(deployerAddress, diamondCut);
+
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return LiFiDiamond(payable(predicted));
+            return (LiFiDiamond(payable(predicted)), constructorArgs);
         }
 
         deployed = LiFiDiamond(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(type(LiFiDiamond).creationCode, abi.encode(vm.addr(deployerPrivateKey), diamondCut))
-                )
-            )
+            payable(factory.deploy(salt, bytes.concat(type(LiFiDiamond).creationCode, constructorArgs)))
         );
 
         vm.stopBroadcast();
