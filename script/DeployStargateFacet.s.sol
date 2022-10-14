@@ -13,7 +13,7 @@ contract DeployScript is DeployScriptBase {
     function run() public returns (StargateFacet deployed) {
         string memory path = string.concat(vm.projectRoot(), "/config/stargate.json");
         string memory json = vm.readFile(path);
-        address stargateRouter = json.readAddress(string.concat(".config.", network, ".stargateRouter"));
+        address stargateRouter = json.readAddress(string.concat(".routers.", network));
 
         vm.startBroadcast(deployerPrivateKey);
 

@@ -10,17 +10,6 @@ import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    struct ConfigFragment {
-        uint256 chainId;
-        uint256 lzChainId;
-        string[] pools;
-        address sgRouter;
-    }
-
-    struct Config {
-        mapping(string => Config) cfg;
-    }
-
     struct PoolIdConfig {
         address token;
         uint16 poolId;
@@ -39,10 +28,13 @@ contract DeployScript is UpdateScriptBase {
 
         path = string.concat(root, "/config/stargate.json");
         json = vm.readFile(path);
-        bytes memory rawConfig = json.parseRaw(string.concat(".config"));
-        Config storage config = abi.decode(rawConfig, (Config));
+        bytes memory rawChains = json.parseRaw(string.concat(".chains"));
+        ChainIdConfig[] memory cidCfg = abi.decode(rawChains, (ChainIdConfig[]));
+        
+        bytes memory rawPools = json.parseRaw(string.concat(".pools.polygon"));
+        PoolIdConfig[] memory poolCfg = abi.decode(rawPools, (PoolIdConfig[]));
 
-        // bytes memory callData = abi.encodeWithSelector(StargateFacet.initStargate.selector, bridges);
+        bytes memory callData = abi.encodeWithSelector(StargateFacet.initStargate.selector, poolCfg, cidCfg);
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -57,7 +49,7 @@ contract DeployScript is UpdateScriptBase {
                     functionSelectors: getSelectors("StargateFacet", exclude)
                 })
             );
-            cutter.diamondCut(cut, address(0), "");
+            cutter.diamondCut(cut, address(facet), callData);
         }
 
         facets = loupe.facetAddresses();
