@@ -40,7 +40,7 @@ contract UpdateScriptBase is Script {
         for (uint256 i; i < _exclude.length; i++) {
             exclude = string.concat(exclude, fromCode(_exclude[i]), " ");
         }
-        cmd[2] = string.concat("'", exclude, "'");
+        cmd[2] = exclude;
         bytes memory res = vm.ffi(cmd);
         selectors = abi.decode(res, (bytes4[]));
     }

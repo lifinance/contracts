@@ -10,20 +10,22 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("AxelarFacet") {}
 
-    function run() public returns (AxelarFacet deployed) {
+    function run() public returns (AxelarFacet deployed, bytes memory constructorArgs) {
         string memory path = string.concat(vm.projectRoot(), "/config/axelar.json");
         string memory json = vm.readFile(path);
         address gateway = json.readAddress(string.concat(".", network, ".gateway"));
         address gasService = json.readAddress(string.concat(".", network, ".gasService"));
 
+        constructorArgs = abi.encode(gateway, gasService);
+
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return AxelarFacet(payable(predicted));
+            return (AxelarFacet(payable(predicted)), constructorArgs);
         }
 
         deployed = AxelarFacet(
-            payable(factory.deploy(salt, bytes.concat(type(AxelarFacet).creationCode, abi.encode(gateway, gasService))))
+            payable(factory.deploy(salt, bytes.concat(type(AxelarFacet).creationCode, constructorArgs)))
         );
 
         vm.stopBroadcast();

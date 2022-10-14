@@ -10,23 +10,25 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("ArbitrumBridgeFacet") {}
 
-    function run() public returns (ArbitrumBridgeFacet deployed) {
+    function run() public returns (ArbitrumBridgeFacet deployed, bytes memory constructorArgs) {
         string memory path = string.concat(vm.projectRoot(), "/config/arbitrum.json");
         string memory json = vm.readFile(path);
         address gatewayRouter = json.readAddress(string.concat(".", network, ".gatewayRouter"));
         address inbox = json.readAddress(string.concat(".", network, ".inbox"));
 
+        constructorArgs = abi.encode(gatewayRouter, inbox);
+
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return ArbitrumBridgeFacet(payable(predicted));
+            return (ArbitrumBridgeFacet(payable(predicted)), constructorArgs);
         }
 
         deployed = ArbitrumBridgeFacet(
             payable(
                 factory.deploy(
                     salt,
-                    bytes.concat(type(ArbitrumBridgeFacet).creationCode, abi.encode(gatewayRouter, inbox))
+                    bytes.concat(type(ArbitrumBridgeFacet).creationCode, constructorArgs)
                 )
             )
         );

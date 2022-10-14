@@ -10,15 +10,17 @@ deploy() {
 
 	echo $SCRIPT
 
-	RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy)
+	RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
 	echo $RAW_RETURN_DATA | jq 2> /dev/null
 	RETURN_DATA=$(echo $RAW_RETURN_DATA | jq -r '.returns' 2> /dev/null)
 
 	deployed=$(echo $RETURN_DATA | jq -r '.deployed.value')
+	args=$(echo $RETURN_DATA | jq -r '.constructorArgs.value // "0x"')
 
 	echo "$CONTRACT deployed on $NETWORK at address $deployed"
 
 	saveContract $NETWORK $CONTRACT $deployed
+	verifyContract $NETWORK $CONTRACT $deployed $args
 }
 
 saveContract() {
@@ -36,4 +38,18 @@ saveContract() {
 	printf %s "$result" >"$ADDRESSES_FILE"
 }
 
+verifyContract() {
+	source .env
+
+	NETWORK=$1
+	CONTRACT=$2
+	ADDRESS=$3
+	ARGS=$4
+	API_KEY="$(tr '[:lower:]' '[:upper:]' <<< $NETWORK)_ETHERSCAN_API_KEY"
+	if [ "$ARGS" = "0x" ]; then
+		forge verify-contract --watch --flatten --chain $NETWORK $ADDRESS $CONTRACT "${!API_KEY}"
+	else
+		forge verify-contract --watch --flatten --chain $NETWORK $ADDRESS $CONTRACT --constructor-args $ARGS "${!API_KEY}"
+	fi
+}
 deploy
