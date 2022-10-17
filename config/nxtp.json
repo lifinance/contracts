@@ -29,7 +29,7 @@
   "moonriver": {
     "txManagerAddress": "0x373ba9aa0f48b27A977F73423039E6dE341a0C7C"
   },
-  "arbitrumOne": {
+  "arbitrum": {
     "txManagerAddress": "0xcF4d2994088a8CDE52FB584fE29608b63Ec063B2"
   },
   "optimisticEthereum": {

@@ -7,7 +7,7 @@
     "acrossSpokePool": "0xBbc6009fEfFc27ce705322832Cb2068F8C1e0A58",
     "weth": "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000"
   },
-  "arbitrumOne": {
+  "arbitrum": {
     "acrossSpokePool": "0xB88690461dDbaB6f04Dfad7df66B7725942FEb9C",
     "weth": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
   },

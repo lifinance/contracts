@@ -38,7 +38,7 @@
   "evmos": {
     "cBridge": "0x5F52B9d1C0853da636e178169e6B426E4cCfA813"
   },
-  "arbitrumOne": {
+  "arbitrum": {
     "cBridge": "0x1619DE6B6B20eD217a58d00f37B9d47C7663feca"
   },
   "celo": {

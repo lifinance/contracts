@@ -44,7 +44,7 @@ bsc = { key = "${BSC_ETHERSCAN_API_KEY}", url = "https://api.bscscan.com/api" }
 gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://blockscout.com/poa/xdai/api" }
 fantom = { key = "${FTMSCAN_KEY}", url = "https://api.ftmscan.com/api" }
 avalanche = { key = "${SNOWTRACE_KEY}", url = "https://api.snowtrace.io/api" }
-arbitrum = { key = "${ARBISCAN_KEY}", url = "https://api.arbiscan.io/api" }
+arbitrum = { key = "${ARBITRUM_ETHERSCAN_API_KEY}", url = "https://api.arbiscan.io/api" }
 optimism = { key = "${OPTIMISM_ETHERSCAN_KEY}", url = "https://api-optimistic.etherscan.io/api" }
 moonriver = { key = "${MOONRIVER_MOONSCAN_KEY}", url = "https://api-moonriver.moonscan.io/api" }
 moonbeam = { key = "${MOONBEAM_MOONSCAN_KEY}", url = "https://api-moonbeam.moonscan.io/api" }
