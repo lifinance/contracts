@@ -7,16 +7,16 @@ import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("ERC20Proxy") {}
 
-    function run() public returns (ERC20Proxy deployed) {
+    function run() public returns (ERC20Proxy deployed, bytes memory constructorArgs) {
+        constructorArgs = abi.encode(deployerAddress);
+
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return ERC20Proxy(predicted);
+            return (ERC20Proxy(predicted), constructorArgs);
         }
 
-        deployed = ERC20Proxy(
-            factory.deploy(salt, bytes.concat(type(ERC20Proxy).creationCode, abi.encode(deployerAddress)))
-        );
+        deployed = ERC20Proxy(factory.deploy(salt, bytes.concat(type(ERC20Proxy).creationCode, constructorArgs)));
 
         vm.stopBroadcast();
     }
