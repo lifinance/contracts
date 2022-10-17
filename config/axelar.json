@@ -21,7 +21,7 @@
   },
   "bsc": {
     "gateway": "0x304acf330bbE08d1e512eefaa92F6a57871fD895",
-    "gasService": ""
+    "gasService": "0x2d5d7d31F671F86C782533cc367F14109a082712"
   },
   "ropsten": {
     "gateway": "0xBC6fcce7c5487d43830a219CA6E7B83238B41e71",

@@ -40,8 +40,8 @@ sepolia = "${ETH_NODE_URI_SEPOLIA}"
 [etherscan]
 mainnet = { key = "${ETHERSCAN_KEY}" }
 polygon = { key = "${POLYGON_ETHERSCAN_API_KEY}", url = "https://api.polygonscan.com/api" }
-bsc = { key = "${BSCSCAN_KEY}", url = "https://api.bscscan.com/api" }
-gnosis = { key = "${GNOSISBSCOUT_KEY}", url = "https://blockscout.com/poa/xdai/api" }
+bsc = { key = "${BSC_ETHERSCAN_API_KEY}", url = "https://api.bscscan.com/api" }
+gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://blockscout.com/poa/xdai/api" }
 fantom = { key = "${FTMSCAN_KEY}", url = "https://api.ftmscan.com/api" }
 avalanche = { key = "${SNOWTRACE_KEY}", url = "https://api.snowtrace.io/api" }
 arbitrum = { key = "${ARBISCAN_KEY}", url = "https://api.arbiscan.io/api" }
