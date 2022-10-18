@@ -11,7 +11,7 @@
     "acrossSpokePool": "0xB88690461dDbaB6f04Dfad7df66B7725942FEb9C",
     "weth": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
   },
-  "optimisticEthereum": {
+  "optimism": {
     "acrossSpokePool": "0xa420b2d1c0841415A695b81E5B867BCD07Dff8C9",
     "weth": "0x4200000000000000000000000000000000000006"
   },

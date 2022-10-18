@@ -153,30 +153,34 @@
       }
     ]
   },
-  "optimisticEthereum": {
+  "optimism": {
     "chainId": 10,
-    "tokens": {
-      "USDC": {
+    "tokens": [
+      {
+        "name": "USDC",
         "bridge": "0xa81D244A1814468C734E5b4101F7b9c0c577a8fC",
         "token": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
         "ammWrapper": "0x2ad09850b0CA4c7c1B33f5AcD6cBAbCaB5d6e796"
       },
-      "USDT": {
+      {
+        "name": "USDT",
         "bridge": "0x46ae9BaB8CEA96610807a275EBD36f8e916b5C61",
         "token": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
         "ammWrapper": "0x7D269D3E0d61A05a0bA976b7DBF8805bF844AF3F"
       },
-      "DAI": {
+      {
+        "name": "DAI",
         "bridge": "0x7191061D5d4C60f598214cC6913502184BAddf18",
         "token": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
         "ammWrapper": "0xb3C68a491608952Cb1257FC9909a537a0173b63B"
       },
-      "ETH": {
+      {
+        "name": "ETH",
         "bridge": "0x83f6244Bd87662118d96D9a6D44f09dffF14b30E",
         "token": "0x0000000000000000000000000000000000000000",
         "ammWrapper": "0x86cA30bEF97fB651b8d866D45503684b90cb3312"
       }
-    }
+    ]
   },
   "goerli": {
     "chainId": 5,

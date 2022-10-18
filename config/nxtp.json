@@ -32,7 +32,7 @@
   "arbitrum": {
     "txManagerAddress": "0xcF4d2994088a8CDE52FB584fE29608b63Ec063B2"
   },
-  "optimisticEthereum": {
+  "optimism": {
     "txManagerAddress": "0x31eFc4AeAA7c39e54A33FDc3C46ee2Bd70ae0A09"
   },
   "boba": {

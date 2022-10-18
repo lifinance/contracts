@@ -14,7 +14,7 @@
   "bsc": {
     "hyphenRouter": "0x94D3E62151B12A12A4976F60EdC18459538FaF08"
   },
-  "optimisticEthereum": {
+  "optimism": {
     "hyphenRouter": "0x856cb5c3cbbe9e2e21293a644aa1f9363cee11e8"
   },
   "arbitrum": {

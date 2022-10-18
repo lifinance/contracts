@@ -3,7 +3,8 @@
     "mainnet": "0x8731d54E9D02c286767d56ac03e8037C07e01e98",
     "bsc": "0x4a364f8c717cAAD9A442737Eb7b8A55cc6cf18D8",
     "polygon": "0x53Bf833A5d6c4ddA888F69c22C88C9f356a41614",
-    "arbitrum": "0x53Bf833A5d6c4ddA888F69c22C88C9f356a41614"
+    "arbitrum": "0x53Bf833A5d6c4ddA888F69c22C88C9f356a41614",
+    "optimism": "0xB0D502E938ed5f4df2E681fE6E419ff29631d62b"
   },
   "chains": [
     {
@@ -71,6 +72,16 @@
       },
       {
         "address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+        "id": 2
+      }
+    ],
+    "optimism": [
+      {
+        "address": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+        "id": 1
+      },
+      {
+        "address": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
         "id": 2
       }
     ]
