@@ -48,6 +48,7 @@ arbitrum = { key = "${ARBITRUM_ETHERSCAN_API_KEY}", url = "https://api.arbiscan.
 optimism = { key = "${OPTIMISM_ETHERSCAN_KEY}", url = "https://api-optimistic.etherscan.io/api" }
 moonriver = { key = "${MOONRIVER_ETHERSCAN_API_KEY}", url = "https://api-moonriver.moonscan.io/api" }
 moonbeam = { key = "${MOONBEAM_ETHERSCAN_API_KEY}", url = "https://api-moonbeam.moonscan.io/api" }
+celo = { key = "${CELO_ETHERSCAN_API_KEY}", url = "https://explorer.celo.org/api" }
 
 #testnets
 goerli = { key = "${ETHERSCAN_API_KEY}" }
