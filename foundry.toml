@@ -38,17 +38,17 @@ goerli = "${ETH_NODE_URI_GOERLI}"
 sepolia = "${ETH_NODE_URI_SEPOLIA}"
 
 [etherscan]
-mainnet = { key = "${ETHERSCAN_KEY}" }
+mainnet = { key = "${ETHERSCAN_API_KEY}" }
 polygon = { key = "${POLYGON_ETHERSCAN_API_KEY}", url = "https://api.polygonscan.com/api" }
 bsc = { key = "${BSC_ETHERSCAN_API_KEY}", url = "https://api.bscscan.com/api" }
 gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://blockscout.com/poa/xdai/api" }
-fantom = { key = "${FTMSCAN_KEY}", url = "https://api.ftmscan.com/api" }
-avalanche = { key = "${SNOWTRACE_KEY}", url = "https://api.snowtrace.io/api" }
+fantom = { key = "${FANTOM_ETHERSCAN_API_KEY}", url = "https://api.ftmscan.com/api" }
+avalanche = { key = "${AVALANCHE_ETHERSCAN_KEY}", url = "https://api.snowtrace.io/api" }
 arbitrum = { key = "${ARBITRUM_ETHERSCAN_API_KEY}", url = "https://api.arbiscan.io/api" }
 optimism = { key = "${OPTIMISM_ETHERSCAN_KEY}", url = "https://api-optimistic.etherscan.io/api" }
-moonriver = { key = "${MOONRIVER_MOONSCAN_KEY}", url = "https://api-moonriver.moonscan.io/api" }
-moonbeam = { key = "${MOONBEAM_MOONSCAN_KEY}", url = "https://api-moonbeam.moonscan.io/api" }
+moonriver = { key = "${MOONRIVER_ETHERSCAN_API_KEY}", url = "https://api-moonriver.moonscan.io/api" }
+moonbeam = { key = "${MOONBEAM_ETHERSCAN_API_KEY}", url = "https://api-moonbeam.moonscan.io/api" }
 
 #testnets
-goerli = { key = "${ETHERSCAN_KEY}" }
-sepolia = { key = "${ETHERSCAN_KEY}" }
+goerli = { key = "${ETHERSCAN_API_KEY}" }
+sepolia = { key = "${ETHERSCAN_API_KEY}" }

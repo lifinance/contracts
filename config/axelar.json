@@ -7,7 +7,7 @@
     "gateway": "0x6f015F16De9fC8791b234eF68D486d2bF203FBA8",
     "gasService": "0xc8E0b617c388c7E800a7643adDD01218E14a727a"
   },
-  "opera": {
+  "fantom": {
     "gateway": "0x304acf330bbE08d1e512eefaa92F6a57871fD895",
     "gasService": "0x2879da536D9d107D6b92D95D7c4CFaA5De7088f4"
   },
