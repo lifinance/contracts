@@ -8,7 +8,7 @@
   "polygon": {
     "txManagerAddress": "0x6090De2EC76eb1Dc3B5d632734415c93c44Fd113"
   },
-  "xdai": {
+  "gnosis": {
     "txManagerAddress": "0x115909BDcbaB21954bEb4ab65FC2aBEE9866fa93"
   },
   "bsc": {

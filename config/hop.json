@@ -94,35 +94,40 @@
       }
     ]
   },
-  "xdai": {
+  "gnosis": {
     "chainId": 100,
-    "tokens": {
-      "USDC": {
+    "tokens": [
+      {
+        "name": "USDC",
         "bridge": "0x25D8039bB044dC227f741a9e381CA4cEAE2E6aE8",
         "token": "0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83",
         "ammWrapper": "0x76b22b8C1079A44F1211D867D68b1eda76a635A7"
       },
-      "USDT": {
+      {
+        "name": "USDT",
         "bridge": "0xFD5a186A7e8453Eb867A360526c5d987A00ACaC2",
         "token": "0x4ECaBa5870353805a9F068101A40E0f32ed605C6",
         "ammWrapper": "0x49094a1B3463c4e2E82ca41b8e6A023bdd6E222f"
       },
-      "MATIC": {
+      {
+        "name": "MATIC",
         "bridge": "0x7ac71c29fEdF94BAc5A5C9aB76E1Dd12Ea885CCC",
         "token": "0x7122d7661c4564b7C6Cd4878B06766489a6028A2",
         "ammWrapper": "0x86cA30bEF97fB651b8d866D45503684b90cb3312"
       },
-      "DAI": {
+      {
+        "name": "DAI",
         "bridge": "0x0460352b91D7CF42B0E1C1c30f06B602D9ef2238",
         "token": "0x0000000000000000000000000000000000000000",
         "ammWrapper": "0x6C928f435d1F3329bABb42d69CCF043e3900EcF1"
       },
-      "ETH": {
+      {
+        "name": "ETH",
         "bridge": "0xD8926c12C0B2E5Cd40cFdA49eCaFf40252Af491B",
         "token": "0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1",
         "ammWrapper": "0x03D7f750777eC48d39D080b020D83Eb2CB4e3547"
       }
-    }
+    ]
   },
   "arbitrum": {
     "chainId": 42161,
