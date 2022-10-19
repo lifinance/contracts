@@ -49,6 +49,8 @@ optimism = { key = "${OPTIMISM_ETHERSCAN_KEY}", url = "https://api-optimistic.et
 moonriver = { key = "${MOONRIVER_ETHERSCAN_API_KEY}", url = "https://api-moonriver.moonscan.io/api" }
 moonbeam = { key = "${MOONBEAM_ETHERSCAN_API_KEY}", url = "https://api-moonbeam.moonscan.io/api" }
 celo = { key = "${CELO_ETHERSCAN_API_KEY}", url = "https://explorer.celo.org/api" }
+fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api" }
+cronos = { key = "${CRONOS_ETHERSCAN_API_KEY}", url = "https://api.cronoscan.com/api" }
 
 #testnets
 goerli = { key = "${ETHERSCAN_API_KEY}" }
