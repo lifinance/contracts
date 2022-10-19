@@ -26,6 +26,7 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
 
     /// Types ///
 
+    /// @param router Address of the router contract for the token being bridged.
     struct MultichainData {
         address router;
     }

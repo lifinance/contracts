@@ -12,29 +12,19 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaWormhole(BridgeData calldata _lifiData, WormholeData calldata _wormholeData)`
+- `function startBridgeTokensViaWormhole(BridgeData memory _bridgeData, WormholeData calldata _wormholeData)`
   - Simply bridges tokens using Wormhole
-- `swapAndStartBridgeTokensViaWormhole(BridgeData calldata _lifiData, LibSwap.SwapData[] calldata _swapData, WormholeData memory _wormholeData)`
+- `swapAndStartBridgeTokensViaWormhole(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, WormholeData calldata _wormholeData)`
   - Performs swap(s) before bridging tokens using Wormhole
 
 ## Wormhole Specific Parameters
 
-The methods listed above take a variable labeled `_WormholeData`. This data is specific to Wormhole and is represented as the following struct type:
+The methods listed above take a variable labeled `_wormholeData`. This data is specific to Wormhole and is represented as the following struct type:
 
 ```solidity
-/// @param wormholeRouter The contract address of the Wormhole router.
-/// @param token The contract address of the token being bridged.
-/// @param amount The amount of tokens to bridge.
-/// @param recipient The address of the token recipient after bridging.
-/// @param toChainId The chainId of the chain to bridge to.
 /// @param arbiterFee The amount of token to pay a relayer (can be zero if no relayer is used).
 /// @param nonce A random nonce to associate with the tx.
 struct WormholeData {
-    address wormholeRouter;
-    address token;
-    uint256 amount;
-    address recipient;
-    uint16 toChainId;
     uint256 arbiterFee;
     uint32 nonce;
 }
@@ -51,7 +41,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `BridgeData _lifiData` parameter.
+Some methods accept a `BridgeData _bridgeData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 

@@ -12,11 +12,9 @@ graph LR;
 
 ## Public Methods
 
-- `function initCbridge(address _cBridge, uint64 _chainId)`
-  - Initializer method. Sets chainId and CBridge contract for the specific chain
-- `function startBridgeTokensViaCBridge(BridgeData memory _lifiData, CBridgeData calldata _cBridgeData)`
+- `function startBridgeTokensViaCBridge(BridgeData memory _bridgeData, CBridgeData calldata _cBridgeData)`
   - Simply bridges tokens using CBridge
-- `function swapAndStartBridgeTokensViaCBridge( BridgeData memory _lifiData, LibSwap.SwapData[] calldata _swapData, CBridgeData memory _cBridgeData)`
+- `function swapAndStartBridgeTokensViaCBridge( BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, CBridgeData memory _cBridgeData)`
   - Performs swap(s) before bridging tokens using CBridge
 
 ## CBridge Specific Parameters
@@ -24,21 +22,11 @@ graph LR;
 Some of the methods listed above take a variable labeled `_cBridgeData`. This data is specific to CBridge and is represented as the following struct type:
 
 ```solidity
-/// @param cBridge The address of the CBridge contract for the sending chain.
-/// @param maxSlippage The maximum slippage in percent tolerated for bridging.
-/// @param dstChainId The chainId of the chain to bridge to.
-/// @param nonce Unique number used for this specific bridging TX.
-/// @param amount The amount of tokens to bridge.
-/// @param receiver The address of the token recipient after bridging.
-/// @param token The contract address of the token being bridged.
+/// @param maxSlippage The max slippage accepted, given as percentage in point (pip).
+/// @param nonce A number input to guarantee uniqueness of transferId. Can be timestamp in practice.
 struct CBridgeData {
-  address cBridge;
-  uint32 maxSlippage;
-  uint64 dstChainId;
-  uint64 nonce;
-  uint256 amount;
-  address receiver;
-  address token;
+    uint32 maxSlippage;
+    uint64 nonce;
 }
 
 ```
@@ -53,7 +41,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `BridgeData _lifiData` parameter.
+Some methods accept a `BridgeData _bridgeData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 

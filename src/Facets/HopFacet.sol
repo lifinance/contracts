@@ -31,6 +31,11 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address bridge;
     }
 
+    /// @param bonderFee The amount to pay bonders for facilitating the bridge.
+    /// @param amountOutMin The minimum acceptable amount of hTokens to receive after swapping via the wrapper.
+    /// @param deadline The time the transaction must be completed or revert.
+    /// @param destinationAmountOutMin The minimum acceptable amount of tokens to receive after bridging.
+    /// @param destinationDeadline The time the transaction must be completed or revert.
     struct HopData {
         uint256 bonderFee;
         uint256 amountOutMin;

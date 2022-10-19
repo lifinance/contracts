@@ -11,40 +11,19 @@ and which third-party integration is being used.
 
 The following methods are available:
 
-This method is used to execute transactions received by the Stargate Router
-
-```solidity
-/// @notice Completes a cross-chain transaction on the receiving chain.
-/// @dev This function is called from Stargate Router.
-/// @param * (unused) The remote chainId sending the tokens
-/// @param * (unused) The remote Bridge address
-/// @param * (unused) Nonce
-/// @param * (unused) The token contract on the local chain
-/// @param * (unused) The amount of local _token contract tokens
-/// @param _payload The data to execute
-function sgReceive(
-    uint16, // _srcChainId unused
-    bytes memory, // _srcAddress unused
-    uint256, // _nonce unused
-    address, // _token unused
-    uint256, // _amountLD unused
-    bytes memory _payload
-)
-```
-
 This method is used to execute transactions received by Connext
 
 ```solidity
 /// @notice Performs a swap before completing a cross-chain transaction
-/// @param _lifiData the core information needed for bridging
+/// @param _transactionId the transaction id for the swap
 /// @param _swapData array of data needed for swaps
-/// @param transferredAssetId token received from the other chain
-/// @param receiver address that will receive tokens in the end
+/// @param _transferredAssetId token received from the other chain
+/// @param _receiver address that will receive tokens in the end
 function swapAndCompleteBridgeTokens(
-    BridgeData calldata _lifiData,
+    bytes32 _transactionId,
     LibSwap.SwapData[] calldata _swapData,
-    address transferredAssetId,
-    address payable receiver
+    address _transferredAssetId,
+    address payable _receiver
 )
 ```
 
@@ -53,26 +32,23 @@ a user to make any number of swaps or arbitrary contract calls.
 
 ```solidity
 /// @notice Performs a series of swaps or arbitrary executions
-/// @param _lifiData the core information needed for bridging
+/// @param _transactionId the transaction id for the swap
 /// @param _swapData array of data needed for swaps
-/// @param transferredAssetId token received from the other chain
-/// @param receiver address that will receive tokens in the end
+/// @param _transferredAssetId token received from the other chain
+/// @param _receiver address that will receive tokens in the end
+/// @param _amount amount of token for swaps or arbitrary executions
 function swapAndExecute(
-    BridgeData calldata _lifiData,
+    bytes32 _transactionId,
     LibSwap.SwapData[] calldata _swapData,
-    address transferredAssetId,
-    address payable receiver,
-    uint256 amount
+    address _transferredAssetId,
+    address payable _receiver,
+    uint256 _amount
 )
 ```
 
 The contract also has a number of utility methods that are self-explanatory
 
 ```solidity
-/// @notice set Stargate Router
-/// @param _router the Stargate router address
-function setStargateRouter(address _router)
-
 /// @notice set ERC20 Proxy
 /// @param _erc20Proxy the address of the ERC20Proxy contract
 function setERC20Proxy(address _erc20Proxy)

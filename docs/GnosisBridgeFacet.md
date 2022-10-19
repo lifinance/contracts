@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Gnosis Bridge Facet works by forwarding Gnosis Bridge specific calls to Gnosis Bridge [contract](https://docs.tokenbridge.net/xdai-bridge/xdai-bridge-contracts-management/xdai-bridge-management-api#the-contract-on-the-eth-mainnet). The Gnosis chain uses the ERC20 to Native TokenBridge functionality to provide fast, inexpensive and stable transactions. This bridge allows users to transform DAI (an ERC20 stable token) on the mainnet into Gnosis on a compatible chain.
+The Gnosis Bridge Facet works by forwarding Gnosis Bridge specific calls to Gnosis Bridge [contract](https://docs.tokenbridge.net/xdai-bridge/xdai-bridge-contracts-management/xdai-bridge-management-api#the-contract-on-the-eth-mainnet). The Gnosis chain uses the ERC20 to Native TokenBridge functionality to provide fast, inexpensive and stable transactions. This bridge allows users to transform DAI (an ERC20 stable token) on the mainnet into Gnosis on a compatible chain..
 
 ```mermaid
 graph LR;
@@ -12,30 +12,10 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaXDaiBridge(BridgeData calldata lifiData, GnosisBridgeData calldata gnosisBridgeData)`
+- `function startBridgeTokensViaXDaiBridge(BridgeData memory _bridgeData)`
   - Simply bridges DAI using Gnosis Bridge
-- `function swapAndStartBridgeTokensViaXDaiBridge(BridgeData calldata lifiData, LibSwap.SwapData[] calldata swapData, GnosisBridgeData memory gnosisBridgeData)`
+- `function swapAndStartBridgeTokensViaXDaiBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
   - Performs swap(s) before bridging DAI using Gnosis Bridge
-
-## Gnosis Bridge Specific Parameters
-
-Some of the methods listed above take a variable labeled `gnosisBridgeData`.
-
-This data is specific to Gnosis Bridge and is represented as the following struct type:
-
-```solidity
-/**
- * @param xDaiBridge The address of the XDai Bridge contract.
- * @param receiver The address of the token recipient after bridging.
- * @param amount The amount of DAI to bridge.
- */
-struct GnosisBridgeData {
-  address xDaiBridge;
-  address receiver;
-  uint256 amount;
-}
-
-```
 
 ## Swap Data
 
@@ -47,7 +27,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `BridgeData _lifiData` parameter.
+Some methods accept a `BridgeData _bridgeData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 

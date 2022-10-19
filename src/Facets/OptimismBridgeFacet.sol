@@ -32,6 +32,9 @@ contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address bridge;
     }
 
+    /// @param assetIdOnL2 The contract address of the token on L2.
+    /// @param l2Gas Gas limit required to complete the deposit on L2.
+    /// @param isSynthetix If the sending token is SNX.
     struct OptimismData {
         address assetIdOnL2;
         uint32 l2Gas;
