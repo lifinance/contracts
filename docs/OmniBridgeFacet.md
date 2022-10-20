@@ -14,7 +14,7 @@ graph LR;
 
 - `function startBridgeTokensViaOmniBridge(BridgeData calldata _bridgeData)`
   - Simply bridges tokens using Omni Native Bridge
-- `function swapAndStartBridgeTokensViaOmniBridge(BridgeData calldata, LibSwap.SwapData[] calldata _swapData)`
+- `function swapAndStartBridgeTokensViaOmniBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
   - Performs swap(s) before bridging tokens using Omni Native Bridge
 
 ## Swap Data

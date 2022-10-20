@@ -14,7 +14,7 @@ graph LR;
 
 - `function initStargate(PoolIdConfig[] calldata poolIdConfigs, ChainIdConfig[] calldata chainIdConfigs)`
   - Initializer method. Sets pool ids for the specific assets and layerzero chain ids for chains.
-- `function startBridgeTokensViaStargate(BridgeData memory _bridgeData, StargateData calldata _stargateData)`
+- `function startBridgeTokensViaStargate(BridgeData calldata _bridgeData, StargateData calldata _stargateData)`
   - Simply bridges tokens using Stargate
 - `function swapAndStartBridgeTokensViaStargate(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, StargateData calldata _stargateData)`
   - Performs swap(s) before bridging tokens using Stargate

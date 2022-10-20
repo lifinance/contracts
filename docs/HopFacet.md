@@ -17,9 +17,9 @@ graph LR;
   - Initializer method. Sets bridges for the specific assets
 - `function registerBridge(address assetId, address bridge)`
   - Register method. Sets bridge for the specific asset
-- `function startBridgeTokensViaHop(BridgeData memory _bridgeData, HopData calldata _hopData)`
+- `function startBridgeTokensViaHop(BridgeData calldata _bridgeData, HopData calldata _hopData)`
   - Simply bridges tokens using Hop
-- `function swapAndStartBridgeTokensViaHop( BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, HopData memory _hopData)`
+- `function swapAndStartBridgeTokensViaHop(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, HopData memory _hopData)`
   - Performs swap(s) before bridging tokens using Hop
 
 ## Hop Specific Parameters

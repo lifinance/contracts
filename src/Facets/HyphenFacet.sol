@@ -31,7 +31,7 @@ contract HyphenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via Hyphen
     /// @param _bridgeData the core information needed for bridging
-    function startBridgeTokensViaHyphen(ILiFi.BridgeData memory _bridgeData)
+    function startBridgeTokensViaHyphen(ILiFi.BridgeData calldata _bridgeData)
         external
         payable
         refundExcessNative(payable(msg.sender))

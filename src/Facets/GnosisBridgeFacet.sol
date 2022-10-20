@@ -38,7 +38,7 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via XDaiBridge
     /// @param _bridgeData the core information needed for bridging
-    function startBridgeTokensViaXDaiBridge(ILiFi.BridgeData memory _bridgeData)
+    function startBridgeTokensViaXDaiBridge(ILiFi.BridgeData calldata _bridgeData)
         external
         payable
         refundExcessNative(payable(msg.sender))

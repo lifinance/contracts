@@ -12,7 +12,7 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaCBridge(BridgeData memory _bridgeData, CBridgeData calldata _cBridgeData)`
+- `function startBridgeTokensViaCBridge(BridgeData calldata _bridgeData, CBridgeData calldata _cBridgeData)`
   - Simply bridges tokens using CBridge
 - `function swapAndStartBridgeTokensViaCBridge( BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, CBridgeData memory _cBridgeData)`
   - Performs swap(s) before bridging tokens using CBridge

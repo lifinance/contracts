@@ -51,7 +51,7 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData Data containing core information for bridging
     /// @param _arbitrumData Data for gateway router address, asset id and amount
     function startBridgeTokensViaArbitrumBridge(
-        ILiFi.BridgeData memory _bridgeData,
+        ILiFi.BridgeData calldata _bridgeData,
         ArbitrumData calldata _arbitrumData
     )
         external

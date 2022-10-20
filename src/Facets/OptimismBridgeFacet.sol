@@ -97,7 +97,7 @@ contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData Data contaning core information for bridging
     /// @param _bridgeData Data specific to Optimism Bridge
     function startBridgeTokensViaOptimismBridge(
-        ILiFi.BridgeData memory _bridgeData,
+        ILiFi.BridgeData calldata _bridgeData,
         OptimismData calldata _optimismData
     )
         external

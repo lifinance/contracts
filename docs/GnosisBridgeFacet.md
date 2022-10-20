@@ -12,7 +12,7 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaXDaiBridge(BridgeData memory _bridgeData)`
+- `function startBridgeTokensViaXDaiBridge(BridgeData calldata _bridgeData)`
   - Simply bridges DAI using Gnosis Bridge
 - `function swapAndStartBridgeTokensViaXDaiBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
   - Performs swap(s) before bridging DAI using Gnosis Bridge

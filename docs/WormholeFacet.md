@@ -12,7 +12,7 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaWormhole(BridgeData memory _bridgeData, WormholeData calldata _wormholeData)`
+- `function startBridgeTokensViaWormhole(BridgeData calldata _bridgeData, WormholeData calldata _wormholeData)`
   - Simply bridges tokens using Wormhole
 - `swapAndStartBridgeTokensViaWormhole(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, WormholeData calldata _wormholeData)`
   - Performs swap(s) before bridging tokens using Wormhole

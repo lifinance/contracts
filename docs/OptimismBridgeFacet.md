@@ -16,7 +16,7 @@ graph LR;
   - Initializer method. Sets bridges for the specific assets and register standard bridge.
 - `function registerBridge(address assetId, address bridge)`
   - Register method. Sets bridge for the specific asset.
-- `function startBridgeTokensViaOptimismBridge(BridgeData memory _bridgeData, OptimismData calldata _optimismData)`
+- `function startBridgeTokensViaOptimismBridge(BridgeData calldata _bridgeData, OptimismData calldata _optimismData)`
   - Simply bridges tokens using Optimism Native Bridge
 - `function swapAndStartBridgeTokensViaOptimismBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, OptimismData calldata _optimismData)`
   - Performs swap(s) before bridging tokens using Optimism Native Bridge

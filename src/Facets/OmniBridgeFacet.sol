@@ -40,7 +40,7 @@ contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via OmniBridge
     /// @param _bridgeData Data contaning core information for bridging
-    function startBridgeTokensViaOmniBridge(ILiFi.BridgeData memory _bridgeData)
+    function startBridgeTokensViaOmniBridge(ILiFi.BridgeData calldata _bridgeData)
         external
         payable
         refundExcessNative(payable(msg.sender))

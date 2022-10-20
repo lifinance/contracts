@@ -14,7 +14,7 @@ graph LR;
 
 - `function startBridgeTokensViaAcross(BridgeData calldata _bridgeData, AcrossData calldata _acrossData)`
   - Simply bridges tokens using Across
-- `swapAndStartBridgeTokensViaAcross(BridgeData calldata _bridgeData, LibSwap.SwapData[] calldata _swapData, AcrossData memory _acrossData)`
+- `swapAndStartBridgeTokensViaAcross(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, AcrossData memory _acrossData)`
   - Performs swap(s) before bridging tokens using Across
 
 ## Across Specific Parameters

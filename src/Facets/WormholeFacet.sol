@@ -57,7 +57,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via Wormhole
     /// @param _bridgeData the core information needed for bridging
     /// @param _wormholeData data specific to Wormhole
-    function startBridgeTokensViaWormhole(ILiFi.BridgeData memory _bridgeData, WormholeData calldata _wormholeData)
+    function startBridgeTokensViaWormhole(ILiFi.BridgeData calldata _bridgeData, WormholeData calldata _wormholeData)
         external
         payable
         refundExcessNative(payable(msg.sender))
