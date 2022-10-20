@@ -38,7 +38,7 @@ goerli = "${ETH_NODE_URI_GOERLI}"
 sepolia = "${ETH_NODE_URI_SEPOLIA}"
 
 [etherscan]
-mainnet = { key = "${ETHERSCAN_API_KEY}" }
+mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
 polygon = { key = "${POLYGON_ETHERSCAN_API_KEY}", url = "https://api.polygonscan.com/api" }
 bsc = { key = "${BSC_ETHERSCAN_API_KEY}", url = "https://api.bscscan.com/api" }
 gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://blockscout.com/poa/xdai/api" }

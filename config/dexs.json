@@ -116,8 +116,7 @@
   ],
   "harmony": [
     "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",
-    "0xf012702a5f0e54015362cBCA26a26fc90AA832a3",
-    "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9"
+    "0xf012702a5f0e54015362cBCA26a26fc90AA832a3"
   ],
   "okx": [
     "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",
@@ -190,6 +189,7 @@
     "0x30ae282cf477e2ef28b14d0125acead57fe1d7a1",
     "0x1fA76f2Cd0C3fe6c399A80111408d9C42C0CAC23"
   ],
+  "velas": [],
   "polygonMumbai": [],
   "optimisticKovan": [],
   "avalancheFujiTestnet": []
