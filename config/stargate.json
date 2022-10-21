@@ -39,6 +39,20 @@
     }
   ],
   "pools": {
+    "mainnet": [
+      {
+        "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "id": 1
+      },
+      {
+        "address": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+        "id": 2
+      },
+      {
+        "address": "0x4Fabb145d64652a948d72533023f6E7A623C7C53",
+        "id": 5
+      }
+    ],
     "polygon": [
       {
         "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",

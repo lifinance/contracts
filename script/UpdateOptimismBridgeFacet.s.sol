@@ -10,17 +10,35 @@ import { OptimismBridgeFacet } from "lifi/Facets/OptimismBridgeFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
+    struct Config {
+        address assetId;
+        address bridge;
+    }
+
     function run() public returns (address[] memory facets) {
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/deployments/", network, ".json");
         string memory json = vm.readFile(path);
         address facet = json.readAddress(".OptimismBridgeFacet");
 
+        path = string.concat(root, "/config/optimism.json");
+        json = vm.readFile(path);
+        address standardBridge = json.readAddress(string.concat(".", network, ".standardBridge"));
+        bytes memory rawConfig = json.parseRaw(string.concat(".", network, ".tokens"));
+        Config[] memory configs = abi.decode(rawConfig, (Config[]));
+
+        bytes memory callData = abi.encodeWithSelector(
+            OptimismBridgeFacet.initOptimism.selector,
+            configs,
+            standardBridge
+        );
+
         vm.startBroadcast(deployerPrivateKey);
 
         // OptimismBridge
         if (loupe.facetFunctionSelectors(facet).length == 0) {
-            bytes4[] memory exclude;
+            bytes4[] memory exclude = new bytes4[](1);
+            exclude[0] = OptimismBridgeFacet.initOptimism.selector;
             cut.push(
                 IDiamondCut.FacetCut({
                     facetAddress: address(facet),
@@ -28,7 +46,7 @@ contract DeployScript is UpdateScriptBase {
                     functionSelectors: getSelectors("OptimismBridgeFacet", exclude)
                 })
             );
-            cutter.diamondCut(cut, address(0), "");
+            cutter.diamondCut(cut, address(facet), callData);
         }
 
         facets = loupe.facetAddresses();

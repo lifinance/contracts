@@ -1,63 +1,38 @@
 {
-  "hardhat": {
-    "chainId": 1,
-    "tokens": {
-      "USDC": {
-        "bridge": "0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a",
-        "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        "ammWrapper": "0x0000000000000000000000000000000000000000"
-      },
-      "USDT": {
-        "bridge": "0x3E4a3a4796d16c0Cd582C382691998f7c06420B6",
-        "token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-        "ammWrapper": "0x0000000000000000000000000000000000000000"
-      },
-      "MATIC": {
-        "bridge": "0x22B1Cbb8D98a01a3B71D034BB899775A76Eb1cc2",
-        "token": "0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0",
-        "ammWrapper": "0x0000000000000000000000000000000000000000"
-      },
-      "DAI": {
-        "bridge": "0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1",
-        "token": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
-        "ammWrapper": "0x0000000000000000000000000000000000000000"
-      },
-      "ETH": {
-        "bridge": "0xb8901acB165ed027E32754E0FFe830802919727f",
-        "token": "0x0000000000000000000000000000000000000000",
-        "ammWrapper": "0x0000000000000000000000000000000000000000"
-      }
-    }
-  },
   "mainnet": {
     "chainId": 1,
-    "tokens": {
-      "USDC": {
+    "tokens": [
+      {
+        "name": "USDC",
         "bridge": "0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a",
         "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         "ammWrapper": "0x0000000000000000000000000000000000000000"
       },
-      "USDT": {
+      {
+        "name": "USDT",
         "bridge": "0x3E4a3a4796d16c0Cd582C382691998f7c06420B6",
         "token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
         "ammWrapper": "0x0000000000000000000000000000000000000000"
       },
-      "MATIC": {
+      {
+        "name": "MATIC",
         "bridge": "0x22B1Cbb8D98a01a3B71D034BB899775A76Eb1cc2",
         "token": "0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0",
         "ammWrapper": "0x0000000000000000000000000000000000000000"
       },
-      "DAI": {
+      {
+        "name": "DAI",
         "bridge": "0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1",
         "token": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
         "ammWrapper": "0x0000000000000000000000000000000000000000"
       },
-      "ETH": {
+      {
+        "name": "ETH",
         "bridge": "0xb8901acB165ed027E32754E0FFe830802919727f",
         "token": "0x0000000000000000000000000000000000000000",
         "ammWrapper": "0x0000000000000000000000000000000000000000"
       }
-    }
+    ]
   },
   "polygon": {
     "chainId": 137,
