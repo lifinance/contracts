@@ -53,7 +53,9 @@
     "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
     "0x30aE282CF477E2eF28B14d0125aCEAd57Fe1d7a1"
   ],
-  "bscTestnet": ["0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"],
+  "bscTestnet": [
+    "0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"
+  ],
   "fuse": [
     "0xF4d73326C13a4Fc5FD7A064217e12780e9Bd62c3",
     "0xE3F85aAd0c8DD7337427B9dF5d0fB741d65EEEB5",
@@ -165,7 +167,6 @@
     "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9"
   ],
   "metis": [],
-
   "rinkeby": [
     "0xcC8d87A7C747eeE4242045C47Ef25e0A81D56ae3",
     "0xba001E96AF87bF9d8D0BDA667067A9921FE6d294",
@@ -189,7 +190,9 @@
     "0x30ae282cf477e2ef28b14d0125acead57fe1d7a1",
     "0x1fA76f2Cd0C3fe6c399A80111408d9C42C0CAC23"
   ],
-  "velas": [],
+  "velas": [
+    "0x3D1c58B6d4501E34DF37Cf0f664A58059a188F00"
+  ],
   "polygonMumbai": [],
   "optimisticKovan": [],
   "avalancheFujiTestnet": []
