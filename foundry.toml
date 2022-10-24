@@ -55,5 +55,5 @@ aurora = { key = "${AURORA_ETHERSCAN_API_KEY}", url = "https://api.aurorascan.de
 boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.bobascan.com/api" }
 
 #testnets
-goerli = { key = "${ETHERSCAN_API_KEY}" }
-sepolia = { key = "${ETHERSCAN_API_KEY}" }
+goerli = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
+sepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
