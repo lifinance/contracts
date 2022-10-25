@@ -30,12 +30,16 @@ contract DeployScript is UpdateScriptBase {
         json = vm.readFile(path);
         bytes memory rawChains = json.parseRaw(string.concat(".chains"));
         ChainIdConfig[] memory cidCfg = abi.decode(rawChains, (ChainIdConfig[]));
-        
-        bytes memory rawPools = json.parseRaw(string.concat(".pools.polygon"));
+
+        bytes memory rawPools = json.parseRaw(string.concat(".pools.", network));
         PoolIdConfig[] memory poolCfg = abi.decode(rawPools, (PoolIdConfig[]));
 
         bytes memory callData = abi.encodeWithSelector(StargateFacet.initStargate.selector, poolCfg, cidCfg);
 
+        for (uint256 i = 0; i < poolCfg.length; i++) {
+            console.log(poolCfg[i].poolId);
+            console.log(poolCfg[i].token);
+        }
         vm.startBroadcast(deployerPrivateKey);
 
         // Stargate
