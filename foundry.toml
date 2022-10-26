@@ -35,7 +35,6 @@ boba = "${ETH_NODE_URI_BOBA}"
 
 # testnets
 goerli = "${ETH_NODE_URI_GOERLI}"
-sepolia = "${ETH_NODE_URI_SEPOLIA}"
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
@@ -56,4 +55,3 @@ boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.bobascan.com/api"
 
 #testnets
 goerli = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
-sepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
