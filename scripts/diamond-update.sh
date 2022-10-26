@@ -16,11 +16,17 @@ update() {
 }
 
 saveDiamond() {
+	source .env
+
+	if [[ -z "$PRODUCTION" ]]; then
+		FILE_SUFFIX="staging."
+	fi
+
 	NETWORK=$1
 	FACETS=$(echo $2 | tr -d '[' | tr -d ']' | tr -d ',')
 	FACETS=$(printf '"%s",' $FACETS | sed 's/,*$//')
 
-	DIAMOND_FILE=./deployments/$NETWORK.diamond.json
+	DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
 
 	# create an empty json if it does not exist
 	if [[ ! -e $DIAMOND_FILE ]]; then
