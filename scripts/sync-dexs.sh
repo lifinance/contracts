@@ -1,9 +1,13 @@
 #!/bin/bash
 source .env
 
+if [[ -z "$PRODUCTION" ]]; then
+	FILE_SUFFIX="staging."
+fi
+
 NETWORK=$(cat ./networks | gum filter --placeholder "Network")
 
-DIAMOND=$(jq -r '.LiFiDiamond' "./deployments/${NETWORK}.json")
+DIAMOND=$(jq -r '.LiFiDiamond' "./deployments/${NETWORK}.${FILE_SUFFIX}json")
 CFG_DEXS=($(jq --arg n "$NETWORK" -r '.[$n] | @sh' "./config/dexs.json" | tr -d \' | tr '[:upper:]' '[:lower:]'))
 
 RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
