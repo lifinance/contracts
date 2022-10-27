@@ -6,7 +6,8 @@
     "arbitrum": "0x53Bf833A5d6c4ddA888F69c22C88C9f356a41614",
     "optimism": "0xB0D502E938ed5f4df2E681fE6E419ff29631d62b",
     "fantom": "0xAf5191B0De278C7286d6C7CC6ab6BB8A73bA2Cd6",
-    "avalanche": "0x45A01E4e04F14f7A4a6702c74187c5F6222033cd"
+    "avalanche": "0x45A01E4e04F14f7A4a6702c74187c5F6222033cd",
+    "mumbai": "0x817436a076060D158204d955E5403b6Ed0A5fac0"
   },
   "chains": [
     {
@@ -123,6 +124,12 @@
       {
         "address": "0x19860CCB0A68fd4213aB9D8266F7bBf05A8dDe98",
         "id": 5
+      }
+    ],
+    "mumbai": [
+      {
+        "address": "0x742DfA5Aa70a8212857966D491D67B09Ce7D6ec7",
+        "id": 1
       }
     ]
   }

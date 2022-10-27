@@ -39,7 +39,7 @@
     "acrossSpokePool": "0x2b7b7bAE341089103dD22fa4e8D7E4FA63E11084",
     "weth": "0x4200000000000000000000000000000000000006"
   },
-  "polygonMumbai": {
+  "mumbai": {
     "acrossSpokePool": "0xFd9e2642a170aDD10F53Ee14a93FcF2F31924944",
     "weth": "0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa"
   }
