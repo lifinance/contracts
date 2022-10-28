@@ -12,42 +12,33 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaOptimismBridge(BridgeData calldata _lifiData, BridgeData calldata _bridgeData)`
+- `function initOptimism(Config[] calldata configs, IL1StandardBridge standardBridge)`
+  - Initializer method. Sets bridges for the specific assets and register standard bridge.
+- `function registerBridge(address assetId, address bridge)`
+  - Register method. Sets bridge for the specific asset.
+- `function startBridgeTokensViaOptimismBridge(BridgeData calldata _bridgeData, OptimismData calldata _optimismData)`
   - Simply bridges tokens using Optimism Native Bridge
-- `function swapAndStartBridgeTokensViaOptimismBridge(BridgeData calldata, LibSwap.SwapData[] calldata _swapData, BridgeData calldata _bridgeData)`
+- `function swapAndStartBridgeTokensViaOptimismBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, OptimismData calldata _optimismData)`
   - Performs swap(s) before bridging tokens using Optimism Native Bridge
 
 ## Optimism Bridge Specific Parameters
 
-Some of the methods listed above take a variable labeled `_bridgeData`.
+Some of the methods listed above take a variable labeled `_optimismData`.
 
-To populate `_bridgeData` you will need to get the `l2Token` and `bridge`.
-- `l2Token`
+To populate `_optimismData` you need to get the `assetIdOnL2` and `bridge`.
+- `assetIdOnL2`
   Address of token on L2.
   It can be get from the configuration.
   For native asset, it can be zero address.
-- `bridge`
-  Optimism Native Bridge has several bridges such as `L1StandardBridge`, `L1DAITokenBridge`, `SynthetixBridgeToOptimism`, etc.
-  The bridges for bridging asset can be get from the configuration. If you can't find bridge for the asset from the configuration or for native asset, you should use standard bridge.
 
 This data is specific to Optimism Bridge and is represented as the following struct type:
 
 ```solidity
-/**
- * @param assetId The contract address of the token being bridged on L1.
- * @param assetIdOnL2 The contract address of the token on L2.
- * @param amount The amount of tokens to bridge.
- * @param receiver The address of the token recipient after bridging.
- * @param bridge The contract address of bridge for token.
- * @param l2Gas Gas limit required to complete the deposit on L2.
- * @param isSynthetix If the sending token is SNX.
- */
-struct BridgeData {
-  address assetId;
+/// @param assetIdOnL2 The contract address of the token on L2.
+/// @param l2Gas Gas limit required to complete the deposit on L2.
+/// @param isSynthetix If the sending token is SNX.
+struct OptimismData {
   address assetIdOnL2;
-  uint256 amount;
-  address receiver;
-  address bridge;
   uint32 l2Gas;
   bool isSynthetix;
 }
@@ -67,7 +58,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `BridgeData _lifiData` parameter.
+Some methods accept a `BridgeData _bridgeData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
