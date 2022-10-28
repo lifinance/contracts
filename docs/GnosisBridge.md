@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Gnosis Bridge Facet works by forwarding Gnosis Bridge specific calls to Gnosis Bridge [contract](https://docs.tokenbridge.net/xdai-bridge/xdai-bridge-contracts-management/xdai-bridge-management-api#the-contract-on-the-eth-mainnet). The Gnosis chain uses the ERC20 to Native TokenBridge functionality to provide fast, inexpensive and stable transactions. This bridge allows users to transform DAI (an ERC20 stable token) on the mainnet into Gnosis on a compatible chain.
+The Gnosis Bridge Facet works by forwarding Gnosis Bridge specific calls to Gnosis Bridge [contract](https://docs.tokenbridge.net/xdai-bridge/xdai-bridge-contracts-management/xdai-bridge-management-api#the-contract-on-the-eth-mainnet). The Gnosis chain uses the ERC20 to Native TokenBridge functionality to provide fast, inexpensive and stable transactions. This bridge allows users to transform DAI (an ERC20 stable token) on the mainnet into Gnosis on a compatible chain..
 
 ```mermaid
 graph LR;
@@ -25,12 +25,10 @@ This data is specific to Gnosis Bridge and is represented as the following struc
 
 ```solidity
 /**
- * @param xDaiBridge The address of the XDai Bridge contract.
  * @param receiver The address of the token recipient after bridging.
  * @param amount The amount of DAI to bridge.
  */
 struct GnosisBridgeData {
-  address xDaiBridge;
   address receiver;
   uint256 amount;
 }

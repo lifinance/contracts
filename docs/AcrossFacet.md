@@ -12,23 +12,34 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaAcross(BridgeData calldata _bridgeData, AcrossData calldata _acrossData)`
+- `function startBridgeTokensViaAcross(BridgeData calldata _lifiData, AcrossData calldata _AcrossData)`
   - Simply bridges tokens using Across
-- `swapAndStartBridgeTokensViaAcross(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, AcrossData memory _acrossData)`
+- `swapAndStartBridgeTokensViaAcross(BridgeData calldata _lifiData, LibSwap.SwapData[] calldata _swapData, AcrossData memory _AcrossData)`
   - Performs swap(s) before bridging tokens using Across
 
 ## Across Specific Parameters
 
-The methods listed above take a variable labeled `_acrossData`. This data is specific to Across and is represented as the following struct type:
+The methods listed above take a variable labeled `_AcrossData`. This data is specific to Across and is represented as the following struct type:
 
 ```solidity
+/// @param weth The contract address of the WETH token on the current chain.
+/// @param spokePool The contract address of the spoke pool on the source chain.
+/// @param recipient The address of the token recipient after bridging.
+/// @param token The contract address of the token being bridged.
+/// @param amount The amount of tokens to bridge.
+/// @param destinationChainId The chainId of the chain to bridge to.
 /// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
 /// @param quoteTimestamp The timestamp associated with the suggested fee.
 struct AcrossData {
+    address weth;
+    address spokePool;
+    address recipient;
+    address token;
+    uint256 amount;
+    uint256 destinationChainId;
     uint64 relayerFeePct;
     uint32 quoteTimestamp;
 }
-
 ```
 
 ## Swap Data
@@ -41,7 +52,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `BridgeData _bridgeData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 

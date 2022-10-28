@@ -16,7 +16,7 @@ graph LR;
 
 ## Public Methods
 
-- `function swapTokensGeneric(bytes32 _transactionId, string calldata _integrator, string calldata _referrer, address payable _receiver, uint256 _minAmount, LibSwap.SwapData[] calldata _swapData)`
+- `function swapTokensGeneric(BridgeData memory _lifiData, LibSwap.SwapData[] calldata _swapData)`
   - Performs swap(s) before withdrawing the final token to the user
 
 ## Swap Data
@@ -27,3 +27,8 @@ Swapping is performed by a swap specific library that expects an array of callda
 
 The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
+## LiFi Data
+
+Some methods accept a `BridgeData _lifiData` parameter.
+
+This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).

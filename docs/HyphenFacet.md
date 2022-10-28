@@ -12,10 +12,32 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaHyphen(BridgeData calldata _bridgeData)`
+- `function initHyphen(address _hyphenRouter)`
+  - Initializer method. Sets Hyphen LiquidityPool [contract address](https://docs.biconomy.io/products/hyphen-instant-cross-chain-transfers/contract-addresses) for the specific chain
+- `function startBridgeTokensViaHyphen(BridgeData memory _lifiData, HyphenData calldata _hyphenData)`
   - Simply bridges tokens using Hyphen
-- `function swapAndStartBridgeTokensViaHyphen(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
+- `function swapAndStartBridgeTokensViaHyphen(BridgeData memory _lifiData, LibSwap.SwapData[] calldata _swapData, HyphenData memory _hyphenData)`
   - Performs swap(s) before bridging tokens using Hyphen
+
+## Hyphen Specific Parameters
+
+Some of the methods listed above take a variable labeled `_hyphenData`. This data is specific to Hyphen and is represented as the following struct type:
+
+```solidity
+/// @param token The contract address of the token being bridged.
+/// @param amount The amount of tokens to bridge.
+/// @param recipient The address of the token recipient after bridging.
+/// @param toChainId The chainId of the chain to bridge to.
+/// @param router The address of the hyphen router.
+struct HyphenData {
+  address token;
+  uint256 amount;
+  address recipient;
+  uint256 toChainId;
+  address router;
+}
+
+```
 
 ## Swap Data
 
@@ -27,7 +49,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `BridgeData _bridgeData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 

@@ -13,10 +13,34 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaPolygonBridge(BridgeData calldata _bridgeData)`
+- `function startBridgeTokensViaPolygonBridge(BridgeData calldata _lifiData, BridgeData calldata _bridgeData)`
   - Simply bridges tokens using Polygon PoS Bridge
-- `function swapAndStartBridgeTokensViaPolygonBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
+- `function swapAndStartBridgeTokensViaPolygonBridge(BridgeData calldata _lifiData, LibSwap.SwapData[] calldata _swapData, BridgeData calldata _bridgeData)`
   - Performs swap(s) before bridging tokens using Polygon PoS Bridge
+
+## Polygon Bridge Specific Parameters
+
+Some of the methods listed above take a variable labeled `_bridgeData`.
+
+This data is specific to Polygon PoS Bridge and is represented as the following struct type:
+
+```solidity
+/**
+ * @param rootChainManager The contract address of the root chain manager.
+ * @param erc20Predicate The contract address of the ERC20 predicate.
+ * @param assetId The contract address of the token being bridged.
+ * @param amount The amount of tokens to bridge.
+ * @param receiver The address of the token recipient after bridging.
+ */
+struct BridgeData {
+  address rootChainManager;
+  address erc20Predicate;
+  address assetId;
+  address receiver;
+  uint256 amount;
+}
+
+```
 
 ## Swap Data
 
@@ -28,7 +52,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `BridgeData _bridgeData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 

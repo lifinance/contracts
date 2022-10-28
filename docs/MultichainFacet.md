@@ -14,27 +14,31 @@ graph LR;
 
 ## Public Methods
 
-- `function initMultichain(address[] calldata routers)`
-  - Initializer method. Allow routers.
-- `function registerBridge(address router, bool allowed)`
-  - Register method. Allow or disallow router.
-- `function startBridgeTokensViaMultichain(BridgeData memory _bridgeData, MultichainData calldata _multichainData)`
+- `function startBridgeTokensViaMultichain(BridgeData memory _bridgeData_, MultichainData calldata _multichainData)`
   - Simply bridges tokens using Multichain
-- `function swapAndStartBridgeTokensViaMultichain( BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, MultichainData memory _multichainData)`
+- `function swapAndStartBridgeTokensViaMultichain( BridgeData memory _bridgeData_, LibSwap.SwapData[] calldata _swapData, MultichainData memory _multichainData)`
   - Performs swap(s) before bridging tokens using Multichain
 
 ## Multichain Specific Parameters
 
-Some of the methods listed above take a variable labeled `_multichainData`.
+Some of the methods listed above take a variable labeled `_multichainData_`.
 
-To populate `_multichainData` you will need to fetch the router address for the chain ID you are bridging from. You can use the [Multichain API](https://github.com/anyswap/CrossChain-Router/wiki/How-to-integrate-AnySwap-Router) to do this.
+To populate `_multichainData_` you will need to fetch the router address for the chain ID you are bridging from. You can use the [Multichain API](https://github.com/anyswap/CrossChain-Router/wiki/How-to-integrate-AnySwap-Router) to do this.
 
 This data is specific to Multichain and is represented as the following struct type:
 
 ```solidity
+/// @param token Address of the contract for the token being bridged.
 /// @param router Address of the router contract for the token being bridged.
+/// @param amount Amount of the token being bridged.
+/// @param recipient Recipient address
+/// @param chainId Chain ID of the chain to bridge tokens to
 struct MultichainData {
+  address token;
   address router;
+  uint256 amount;
+  address recipient;
+  uint256 toChainId;
 }
 
 ```
@@ -49,7 +53,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `BridgeData _bridgeData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 

@@ -20,10 +20,16 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaNXTP(BridgeData memory _bridgeData, NXTPData calldata _nxtpData)`
+- `function initNXTP(ITransactionManager _txMgrAddr)`
+  - Initializer method. Sets the chain specific NXTP Transaction Manager Contract
+- `function startBridgeTokensViaNXTP(BridgeData memory _lifiData, ITransactionManager.PrepareArgs memory _nxtpData)`
   - Simply bridges tokens using NXTP
-- `function swapAndStartBridgeTokensViaNXTP( BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, NXTPData calldata _nxtpData)`
+- `function swapAndStartBridgeTokensViaNXTP( BridgeData memory _lifiData, LibSwap.SwapData[] calldata _swapData, ITransactionManager.PrepareArgs memory _nxtpData)`
   - Performs swap(s) before bridging tokens using NXTP
+- `function completeBridgeTokensViaNXTP( BridgeData memory _lifiData, address assetId, address receiver, uint256 amount)`
+  - Completes a bridge transaction on the receiving chain and sends the tokens to the receiver. Should be called by the NXTP Gelato Resolver.
+- `function swapAndCompleteBridgeTokensViaNXTP( BridgeData memory _lifiData, LibSwap.SwapData[] calldata _swapData, address finalAssetId, address receiver)`
+  - Performs swap(s) before completing a bridge transaction on the receiving chain and sending the tokens to the receiver. Should be called by the NXTP Gelato Resolver.
 
 ## NXTP Specific Parameters
 
@@ -31,11 +37,13 @@ Some of the methods listed above take a variable labeled `_nxtpData`. This data 
 
 ```solidity
 /// Arguments for calling prepare()
+/// @param nxtpTxManager The NXTP bridge contract address
 /// @param invariantData The data for a crosschain transaction that will
 ///        not change between sending and receiving chains.
 ///        The hash of this data is used as the key to store
 ///        the inforamtion that does change between chains
 ///        (amount,expiry,preparedBlock) for verification
+/// @param amount The amount of the transaction on this chain
 /// @param expiry The block.timestamp when the transaction will no longer be
 ///        fulfillable and is freely cancellable on this chain
 /// @param encryptedCallData The calldata to be executed when the tx is
@@ -51,7 +59,9 @@ Some of the methods listed above take a variable labeled `_nxtpData`. This data 
 ///        bidSignature are enforced offchain
 /// @param encodedMeta The meta for the function
 struct NXTPData {
+  address nxtpTxManager;
   ITransactionManager.InvariantTransactionData invariantData;
+  uint256 amount;
   uint256 expiry;
   bytes encryptedCallData;
   bytes encodedBid;
@@ -71,7 +81,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `BridgeData _bridgeData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 

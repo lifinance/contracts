@@ -1,38 +1,39 @@
-# Gnosis Bridge Facet
+# Polygon Bridge Facet
 
 ## How it works
 
-The Gnosis Bridge Facet works by forwarding Gnosis Bridge specific calls to Gnosis Bridge [contract](https://docs.tokenbridge.net/xdai-bridge/xdai-bridge-contracts-management/xdai-bridge-management-api#the-contract-on-the-eth-mainnet). The Gnosis chain uses the ERC20 to Native TokenBridge functionality to provide fast, inexpensive and stable transactions. This bridge allows users to transform DAI (an ERC20 stable token) on the mainnet into Gnosis on a compatible chain.
+The Polygon Bridge Facet works by forwarding Polygon PoS Bridge specific calls to Root Chain Manager [contract](https://static.matic.network/network/mainnet/v1/index.json). Polygon Bridge provides a scaling solution which is near-instant, low-cost, and quite flexible. There is no change to the circulating supply of your token when it crosses the bridge. Tokens that leave ethereum network are locked and the same number of tokens are minted on Polygon as a pegged token (1:1).
 
 ```mermaid
 graph LR;
-    D{LiFiDiamond}-- DELEGATECALL -->GnosisBridgeFacet;
-    GnosisBridgeFacet -- CALL --> G(GnosisBridge)
+    D{LiFiDiamond}-- DELEGATECALL -->PolygonBridgeFacet;
+    PolygonBridgeFacet -- Approve --> P(ERC20Predicate)
+    PolygonBridgeFacet -- CALL --> M(Root Chain Manager)
 ```
 
 ## Public Methods
 
-- `function startBridgeTokensViaXDaiBridge(BridgeData calldata lifiData, GnosisBridgeData calldata gnosisBridgeData)`
-  - Simply bridges DAI using Gnosis Bridge
-- `function swapAndStartBridgeTokensViaXDaiBridge(BridgeData calldata lifiData, LibSwap.SwapData[] calldata swapData, GnosisBridgeData memory gnosisBridgeData)`
-  - Performs swap(s) before bridging DAI using Gnosis Bridge
+- `function startBridgeTokensViaPolygonBridge(BridgeData calldata _lifiData, BridgeData calldata _bridgeData)`
+  - Simply bridges tokens using Polygon PoS Bridge
+- `function swapAndStartBridgeTokensViaPolygonBridge(BridgeData calldata _lifiData, LibSwap.SwapData[] calldata _swapData, BridgeData calldata _bridgeData)`
+  - Performs swap(s) before bridging tokens using Polygon PoS Bridge
 
-## Gnosis Bridge Specific Parameters
+## Polygon Bridge Specific Parameters
 
-Some of the methods listed above take a variable labeled `gnosisBridgeData`.
+Some of the methods listed above take a variable labeled `_bridgeData`.
 
-This data is specific to Gnosis Bridge and is represented as the following struct type:
+This data is specific to Polygon PoS Bridge and is represented as the following struct type:
 
 ```solidity
 /**
- * @param xDaiBridge The address of the XDai Bridge contract.
+ * @param assetId The contract address of the token being bridged.
+ * @param amount The amount of tokens to bridge.
  * @param receiver The address of the token recipient after bridging.
- * @param amount The amount of DAI to bridge.
  */
-struct GnosisBridgeData {
-  address xDaiBridge;
-  address receiver;
+struct BridgeData {
+  address assetId;
   uint256 amount;
+  address receiver;
 }
 
 ```
@@ -86,16 +87,16 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 
 ### Cross Only
 
-To get a transaction for a transfer from 20 DAI on Ethereum to DAI on Gnosis you can execute the following request:
+To get a transaction for a transfer from 20 DAI on Ethereum to DAI on Polygon you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=20000000000000000000&fromToken=DAI&toChain=DAI&toToken=DAI&slippage=0.03&allowBridges=gnosis&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=20000000000000000000&fromToken=DAI&toChain=POL&toToken=DAI&slippage=0.03&allowBridges=polygon&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross
 
-To get a transaction for a transfer from 10 USDT on Ethereum to DAI on Gnosis you can execute the following request:
+To get a transaction for a transfer from 10 USDT on Ethereum to DAI on Polygon you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=10000000000000000000&fromToken=USDT&toChain=DAI&toToken=DAI&slippage=0.03&allowBridges=gnosis&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=10000000000000000000&fromToken=USDT&toChain=POL&toToken=DAI&slippage=0.03&allowBridges=polygon&fromAddress={YOUR_WALLET_ADDRESS}'
 ```

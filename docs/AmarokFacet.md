@@ -12,35 +12,40 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaAmarokBridge(BridgeData calldata _bridgeData, AmarokData calldata _amarokData)`
+- `function startBridgeTokensViaAmarokBridge(BridgeData calldata _lifiData, BridgeData calldata _bridgeData)`
   - Simply bridges tokens using Amarok BridgeFacet
-- `function swapAndStartBridgeTokensViaAmarokBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, AmarokData calldata _amarokData)`
+- `function swapAndStartBridgeTokensViaAmarokBridge(BridgeData calldata, LibSwap.SwapData[] calldata _swapData, BridgeData calldata _bridgeData)`
   - Performs swap(s) before bridging tokens using Amarok BridgeFacet
 
 ## Amarok Specific Parameters
 
-Some of the methods listed above take a variable labeled `_amarokData`.
+Some of the methods listed above take a variable labeled `_bridgeData`.
 
 This data is specific to Amarok BridgeFacet and is represented as the following struct type:
 
 ```solidity
-/// @param callData The data to execute on the receiving chain. If no crosschain call is needed, then leave empty.
-/// @param forceSlow If true, will take slow liquidity path even if it is not a permissioned call
-/// @param receiveLocal If true, will use the local nomad asset on the destination instead of adopted.
-/// @param callback The address on the origin domain of the callback contract
-/// @param callbackFee The relayer fee to execute the callback
-/// @param relayerFee The amount of relayer fee the tx called xcall with
-/// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
-/// @param originMinOut Minimum amount received on swaps for adopted <> local on origin chain
-struct AmarokData {
-    bytes callData;
-    bool forceSlow;
-    bool receiveLocal;
-    address callback;
-    uint256 callbackFee;
-    uint256 relayerFee;
-    uint256 slippageTol;
-    uint256 originMinOut;
+/**
+ * @param connextHandler The contract address of the Amarok Diamond.
+ * @param assetId The contract address of the token being bridged on sending chain.
+ * @param srcChainDomain Domain of sending chain. Must match nomad domain schema.
+ *                       It can be get from configuration.
+ * @param dstChainDomain Domain of destination chain. Must match nomad domain schema
+ *                       It can be get from configuration.
+ * @param receiver The address of the token recipient after bridging.
+ * @param amount The amount of tokens to bridge.
+ * @param callData The data to execute on the receiving chain.
+ *                 If no crosschain call is needed, then leave empty.
+ * @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
+ */
+struct BridgeData {
+  address connextHandler;
+  address assetId;
+  uint32 srcChainDomain;
+  uint32 dstChainDomain;
+  address receiver;
+  uint256 amount;
+  bytes callData;
+  uint256 slippageTol;
 }
 
 ```
@@ -55,7 +60,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `BridgeData _bridgeData` parameter.
+Some methods accept a `BridgeData _lifiData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
