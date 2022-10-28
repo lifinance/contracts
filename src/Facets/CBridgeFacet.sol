@@ -42,7 +42,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via CBridge
     /// @param _bridgeData the core information needed for bridging
     /// @param _cBridgeData data specific to CBridge
-    function startBridgeTokensViaCBridge(ILiFi.BridgeData calldata _bridgeData, CBridgeData calldata _cBridgeData)
+    function startBridgeTokensViaCBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData calldata _cBridgeData)
         external
         payable
         refundExcessNative(payable(msg.sender))

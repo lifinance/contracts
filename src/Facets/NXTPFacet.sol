@@ -25,25 +25,6 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
-    /// @param invariantData The data for a crosschain transaction that will
-    ///        not change between sending and receiving chains.
-    ///        The hash of this data is used as the key to store
-    ///        the inforamtion that does change between chains
-    ///        (amount,expiry,preparedBlock) for verification
-    /// @param expiry The block.timestamp when the transaction will no longer be
-    ///        fulfillable and is freely cancellable on this chain
-    /// @param encryptedCallData The calldata to be executed when the tx is
-    ///        fulfilled. Used in the function to allow the user
-    ///        to reconstruct the tx from events. Hash is stored
-    ///        onchain to prevent shenanigans.
-    /// @param encodedBid The encoded bid that was accepted by the user for this
-    ///        crosschain transfer. It is supplied as a param to the
-    ///        function but is only used in event emission
-    /// @param bidSignature The signature of the bidder on the encoded bid for
-    ///        this transaction. Only used within the function for
-    ///        event emission. The validity of the bid and
-    ///        bidSignature are enforced offchain
-    /// @param encodedMeta The meta for the function
     struct NXTPData {
         ITransactionManager.InvariantTransactionData invariantData;
         uint256 expiry;

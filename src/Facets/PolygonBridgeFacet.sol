@@ -38,7 +38,7 @@ contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via Polygon Bridge
     /// @param _bridgeData Data containing core information for bridging
-    function startBridgeTokensViaPolygonBridge(ILiFi.BridgeData calldata _bridgeData)
+    function startBridgeTokensViaPolygonBridge(ILiFi.BridgeData memory _bridgeData)
         external
         payable
         refundExcessNative(payable(msg.sender))

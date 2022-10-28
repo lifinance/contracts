@@ -104,7 +104,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via Stargate Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _stargateData Data specific to Stargate Bridge
-    function startBridgeTokensViaStargate(ILiFi.BridgeData calldata _bridgeData, StargateData calldata _stargateData)
+    function startBridgeTokensViaStargate(ILiFi.BridgeData memory _bridgeData, StargateData calldata _stargateData)
         external
         payable
         refundExcessNative(payable(msg.sender))

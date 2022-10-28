@@ -32,9 +32,6 @@ contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address bridge;
     }
 
-    /// @param assetIdOnL2 The contract address of the token on L2.
-    /// @param l2Gas Gas limit required to complete the deposit on L2.
-    /// @param isSynthetix If the sending token is SNX.
     struct OptimismData {
         address assetIdOnL2;
         uint32 l2Gas;
@@ -77,7 +74,7 @@ contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Register token and bridge
     /// @param assetId Address of token
     /// @param bridge Address of bridge for asset
-    function registerBridge(address assetId, address bridge) external {
+    function registerOptimismBridge(address assetId, address bridge) external {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
@@ -97,7 +94,7 @@ contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData Data contaning core information for bridging
     /// @param _bridgeData Data specific to Optimism Bridge
     function startBridgeTokensViaOptimismBridge(
-        ILiFi.BridgeData calldata _bridgeData,
+        ILiFi.BridgeData memory _bridgeData,
         OptimismData calldata _optimismData
     )
         external

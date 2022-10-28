@@ -53,7 +53,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via Across
     /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
-    function startBridgeTokensViaAcross(ILiFi.BridgeData calldata _bridgeData, AcrossData calldata _acrossData)
+    function startBridgeTokensViaAcross(ILiFi.BridgeData memory _bridgeData, AcrossData calldata _acrossData)
         external
         payable
         refundExcessNative(payable(msg.sender))
