@@ -34,6 +34,19 @@ const destinationChainId = 421613 // Arbitrum Goerli chain id
 const amountIn = utils.parseEther('1050')
 const amountOut = utils.parseUnits('1000', 6)
 
+const {
+  gasLimit: errorTriggerGasLimit,
+  maxFeePerGas: errorTriggerMaxFeePerGas,
+} = RetryableDataTools.ErrorTriggeringParams
+const errorTriggerArbitrumData = {
+  maxSubmissionCost: 1,
+  maxGas: errorTriggerGasLimit,
+  maxGasPrice: errorTriggerMaxFeePerGas,
+}
+const errorTriggerCost = BigNumber.from(1).add(
+  errorTriggerGasLimit.mul(errorTriggerMaxFeePerGas)
+)
+
 async function main() {
   const l1JsonProvider = new providers.JsonRpcProvider(node_url('goerli'))
   const l1Provider = new providers.FallbackProvider([l1JsonProvider])
@@ -63,13 +76,26 @@ async function main() {
     const to = LIFI_ADDRESS // should be a checksummed recipient address
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
-    const swapData = await uniswap.populateTransaction.swapTokensForExactTokens(
-      amountOut,
-      amountIn,
-      path,
-      to,
-      deadline
-    )
+    const dexSwapData =
+      await uniswap.populateTransaction.swapTokensForExactTokens(
+        amountOut,
+        amountIn,
+        path,
+        to,
+        deadline
+      )
+
+    const swapData = [
+      {
+        callTo: <string>dexSwapData.to,
+        approveTo: <string>dexSwapData.to,
+        sendingAssetId: TEST_TOKEN_ADDRESS,
+        receivingAssetId: USDC_ADDRESS,
+        fromAmount: amountIn,
+        callData: <string>dexSwapData?.data,
+        requiresDeposit: true,
+      },
+    ]
 
     // LIFI Data
     const bridgeData = {
@@ -89,34 +115,11 @@ async function main() {
       return {
         data: ArbitrumBridgeFacet__factory.createInterface().encodeFunctionData(
           'swapAndStartBridgeTokensViaArbitrumBridge',
-          [
-            bridgeData,
-            [
-              {
-                callTo: <string>swapData.to,
-                approveTo: <string>swapData.to,
-                sendingAssetId: TEST_TOKEN_ADDRESS,
-                receivingAssetId: USDC_ADDRESS,
-                fromAmount: amountIn,
-                callData: <string>swapData?.data,
-                requiresDeposit: true,
-              },
-            ],
-            {
-              maxSubmissionCost: 1,
-              maxGas: RetryableDataTools.ErrorTriggeringParams.gasLimit,
-              maxGasPrice:
-                RetryableDataTools.ErrorTriggeringParams.maxFeePerGas,
-            },
-          ]
+          [bridgeData, swapData, errorTriggerArbitrumData]
         ),
         to: lifi.address,
         from: walletAddress,
-        value: BigNumber.from(1).add(
-          RetryableDataTools.ErrorTriggeringParams.gasLimit.mul(
-            RetryableDataTools.ErrorTriggeringParams.maxFeePerGas
-          )
-        ),
+        value: errorTriggerCost,
       }
     }
 
@@ -137,7 +140,6 @@ async function main() {
 
     // Total cost
     const cost = maxSubmissionCost.add(maxFeePerGas.mul(gasLimit))
-    console.log(cost.toString())
 
     // Bridge Data
     const arbitrumData = {
@@ -149,17 +151,7 @@ async function main() {
     // Call LiFi smart contract to start the bridge process -- WITH SWAP
     await lifi.swapAndStartBridgeTokensViaArbitrumBridge(
       bridgeData,
-      [
-        {
-          callTo: <string>swapData.to,
-          approveTo: <string>swapData.to,
-          sendingAssetId: TEST_TOKEN_ADDRESS,
-          receivingAssetId: USDC_ADDRESS,
-          fromAmount: amountIn,
-          callData: <string>swapData?.data,
-          requiresDeposit: true,
-        },
-      ],
+      swapData,
       arbitrumData,
       {
         gasLimit: '500000',
@@ -191,25 +183,11 @@ async function main() {
       return {
         data: ArbitrumBridgeFacet__factory.createInterface().encodeFunctionData(
           'startBridgeTokensViaArbitrumBridge',
-          [
-            bridgeData,
-            {
-              maxSubmissionCost: 1,
-              maxGas: RetryableDataTools.ErrorTriggeringParams.gasLimit,
-              maxGasPrice:
-                RetryableDataTools.ErrorTriggeringParams.maxFeePerGas,
-            },
-          ]
+          [bridgeData, errorTriggerArbitrumData]
         ),
         to: lifi.address,
         from: walletAddress,
-        value: amount
-          .add(1)
-          .add(
-            RetryableDataTools.ErrorTriggeringParams.gasLimit.mul(
-              RetryableDataTools.ErrorTriggeringParams.maxFeePerGas
-            )
-          ),
+        value: amount.add(errorTriggerCost),
       }
     }
 
@@ -230,12 +208,6 @@ async function main() {
       maxGas: gasLimit,
       maxGasPrice: maxGasPrice,
     }
-
-    console.log(
-      maxSubmissionCost.toString(),
-      gasLimit.toString(),
-      maxGasPrice.toString()
-    )
 
     // Total cost
     const cost = maxSubmissionCost.add(maxGasPrice.mul(gasLimit))
