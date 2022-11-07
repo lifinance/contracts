@@ -107,10 +107,10 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function startBridgeTokensViaStargate(ILiFi.BridgeData memory _bridgeData, StargateData calldata _stargateData)
         external
         payable
-        refundExcessNative(payable(msg.sender))
-        doesNotContainSourceSwaps(_bridgeData)
-        validateBridgeData(_bridgeData)
-        noNativeAsset(_bridgeData)
+        refundExcessNative(payable(msg.sender))                     //! returns remaining gas to sender after function
+        doesNotContainSourceSwaps(_bridgeData)                      //! makes sure that BridgeData does not contains swap info
+        validateBridgeData(_bridgeData)                             //! receiver != address(0) && minAmount != 0
+        noNativeAsset(_bridgeData)                                  //! prevents usage of native asset as sendingAssetId
         nonReentrant
     {
         validateDestinationCallFlag(_bridgeData, _stargateData);
@@ -129,13 +129,20 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     )
         external
         payable
-        refundExcessNative(payable(msg.sender))
-        containsSourceSwaps(_bridgeData)
-        validateBridgeData(_bridgeData)
-        noNativeAsset(_bridgeData)
+        refundExcessNative(payable(msg.sender))                     //! returns remaining gas to sender after function
+        containsSourceSwaps(_bridgeData)                            //! makes sure that BridgeData contains swap info
+        validateBridgeData(_bridgeData)                             //! receiver != address(0) && minAmount != 0
+        noNativeAsset(_bridgeData)                                  //! prevents usage of native asset as sendingAssetId
         nonReentrant
     {
+        //! make sure that data for message call was provided if tx is flagged for destination call   
         validateDestinationCallFlag(_bridgeData, _stargateData);
+        
+        //! get deposit from sender and executeswap
+        //! bridging fee is paid in native tokens on source chain
+        //TODO - Is getting paid in native asset specific for starlink only or common practice?
+        //TODO - Are we using the amountOut of the swaps as minAmountOut for the bridging since the bridging 
+        //TODO   fee is already paid and we expect a 1:1 bridging?
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -144,6 +151,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _stargateData.lzFee
         );
 
+        //! bridge assets using stargate bridge
         _startBridge(_bridgeData, _stargateData);
     }
 
@@ -169,23 +177,31 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _stargateData Data specific to Stargate Bridge
     function _startBridge(ILiFi.BridgeData memory _bridgeData, StargateData calldata _stargateData)
         private
-        noNativeAsset(_bridgeData)
+        noNativeAsset(_bridgeData)    //! prevents usage of native asset (address(0) as sendingAssetId
     {
+        //TODO QUESTION: are native transfers not allowed for starlink only? 
+        //! check approval, if insufficient then max approve 
+        //TODO Why are we working with max approvals here? to save gas? Cause I thought its recommended to not use them anymore
         LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(router), _bridgeData.minAmount);
 
+        //! initiate bridging with stargate router
+        //! attach bridging fee in native tokens  
         router.swap{ value: _stargateData.lzFee }(
-            getLayerZeroChainId(_bridgeData.destinationChainId),
-            getStargatePoolId(_bridgeData.sendingAssetId),
-            _stargateData.dstPoolId,
-            _stargateData.refundAddress,
-            _bridgeData.minAmount,
-            _stargateData.minAmountLD,
+            getLayerZeroChainId(_bridgeData.destinationChainId),    //! layerZero chainId
+            getStargatePoolId(_bridgeData.sendingAssetId),          //! source pool ID (=token address but for starlink)
+            _stargateData.dstPoolId,                                //! dest pool ID (=token address but for starlink)
+            _stargateData.refundAddress,                            //! refund address for extra gas
+            _bridgeData.minAmount,                                  //! bridge amount
+            _stargateData.minAmountLD,                              //! minAmountOut at destination
+            //TODO for starlink this variable seems useless as bridgings are 1:1
+            //TODO in test cases this variable is not set so I guess it's at 0, therefore "any amount"?
             IStargateRouter.lzTxObj(_stargateData.dstGasForCall, 0, toBytes(_bridgeData.receiver)),
-            _stargateData.callTo,
-            _stargateData.callData
+            _stargateData.callTo,                                   //! receiver addr on dest chain
+            _stargateData.callData                                  //! call on dest chain
         );
 
         emit LiFiTransferStarted(_bridgeData);
+        //TODO What happens after this? How does the release work?
     }
 
     function validateDestinationCallFlag(ILiFi.BridgeData memory _bridgeData, StargateData calldata _stargateData)

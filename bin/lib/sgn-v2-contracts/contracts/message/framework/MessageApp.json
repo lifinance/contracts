@@ -1,0 +1,567 @@
+{
+    "contractName": "MessageApp",
+    "abi": [
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": false,
+                    "internalType": "address",
+                    "name": "messageBus",
+                    "type": "address"
+                }
+            ],
+            "name": "MessageBusUpdated",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "previousOwner",
+                    "type": "address"
+                },
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "newOwner",
+                    "type": "address"
+                }
+            ],
+            "name": "OwnershipTransferred",
+            "type": "event"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "bytes",
+                    "name": "_sender",
+                    "type": "bytes"
+                },
+                {
+                    "internalType": "uint64",
+                    "name": "_srcChainId",
+                    "type": "uint64"
+                },
+                {
+                    "internalType": "bytes",
+                    "name": "_message",
+                    "type": "bytes"
+                },
+                {
+                    "internalType": "address",
+                    "name": "_executor",
+                    "type": "address"
+                }
+            ],
+            "name": "executeMessage",
+            "outputs": [
+                {
+                    "internalType": "enum IMessageReceiverApp.ExecutionStatus",
+                    "name": "",
+                    "type": "uint8"
+                }
+            ],
+            "stateMutability": "payable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "_sender",
+                    "type": "address"
+                },
+                {
+                    "internalType": "uint64",
+                    "name": "_srcChainId",
+                    "type": "uint64"
+                },
+                {
+                    "internalType": "bytes",
+                    "name": "_message",
+                    "type": "bytes"
+                },
+                {
+                    "internalType": "address",
+                    "name": "_executor",
+                    "type": "address"
+                }
+            ],
+            "name": "executeMessage",
+            "outputs": [
+                {
+                    "internalType": "enum IMessageReceiverApp.ExecutionStatus",
+                    "name": "",
+                    "type": "uint8"
+                }
+            ],
+            "stateMutability": "payable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "_sender",
+                    "type": "address"
+                },
+                {
+                    "internalType": "address",
+                    "name": "_token",
+                    "type": "address"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "_amount",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "uint64",
+                    "name": "_srcChainId",
+                    "type": "uint64"
+                },
+                {
+                    "internalType": "bytes",
+                    "name": "_message",
+                    "type": "bytes"
+                },
+                {
+                    "internalType": "address",
+                    "name": "_executor",
+                    "type": "address"
+                }
+            ],
+            "name": "executeMessageWithTransfer",
+            "outputs": [
+                {
+                    "internalType": "enum IMessageReceiverApp.ExecutionStatus",
+                    "name": "",
+                    "type": "uint8"
+                }
+            ],
+            "stateMutability": "payable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "_sender",
+                    "type": "address"
+                },
+                {
+                    "internalType": "address",
+                    "name": "_token",
+                    "type": "address"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "_amount",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "uint64",
+                    "name": "_srcChainId",
+                    "type": "uint64"
+                },
+                {
+                    "internalType": "bytes",
+                    "name": "_message",
+                    "type": "bytes"
+                },
+                {
+                    "internalType": "address",
+                    "name": "_executor",
+                    "type": "address"
+                }
+            ],
+            "name": "executeMessageWithTransferFallback",
+            "outputs": [
+                {
+                    "internalType": "enum IMessageReceiverApp.ExecutionStatus",
+                    "name": "",
+                    "type": "uint8"
+                }
+            ],
+            "stateMutability": "payable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "_token",
+                    "type": "address"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "_amount",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "bytes",
+                    "name": "_message",
+                    "type": "bytes"
+                },
+                {
+                    "internalType": "address",
+                    "name": "_executor",
+                    "type": "address"
+                }
+            ],
+            "name": "executeMessageWithTransferRefund",
+            "outputs": [
+                {
+                    "internalType": "enum IMessageReceiverApp.ExecutionStatus",
+                    "name": "",
+                    "type": "uint8"
+                }
+            ],
+            "stateMutability": "payable",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "messageBus",
+            "outputs": [
+                {
+                    "internalType": "address",
+                    "name": "",
+                    "type": "address"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "owner",
+            "outputs": [
+                {
+                    "internalType": "address",
+                    "name": "",
+                    "type": "address"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "_messageBus",
+                    "type": "address"
+                }
+            ],
+            "name": "setMessageBus",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "newOwner",
+                    "type": "address"
+                }
+            ],
+            "name": "transferOwnership",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        }
+    ],
+    "metadata": "{\"compiler\":{\"version\":\"0.8.9+commit.e5eed63a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"messageBus\",\"type\":\"address\"}],\"name\":\"MessageBusUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_sender\",\"type\":\"bytes\"},{\"internalType\":\"uint64\",\"name\":\"_srcChainId\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"_message\",\"type\":\"bytes\"},{\"internalType\":\"address\",\"name\":\"_executor\",\"type\":\"address\"}],\"name\":\"executeMessage\",\"outputs\":[{\"internalType\":\"enum IMessageReceiverApp.ExecutionStatus\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_sender\",\"type\":\"address\"},{\"internalType\":\"uint64\",\"name\":\"_srcChainId\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"_message\",\"type\":\"bytes\"},{\"internalType\":\"address\",\"name\":\"_executor\",\"type\":\"address\"}],\"name\":\"executeMessage\",\"outputs\":[{\"internalType\":\"enum IMessageReceiverApp.ExecutionStatus\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_sender\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_token\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amount\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"_srcChainId\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"_message\",\"type\":\"bytes\"},{\"internalType\":\"address\",\"name\":\"_executor\",\"type\":\"address\"}],\"name\":\"executeMessageWithTransfer\",\"outputs\":[{\"internalType\":\"enum IMessageReceiverApp.ExecutionStatus\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_sender\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_token\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amount\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"_srcChainId\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"_message\",\"type\":\"bytes\"},{\"internalType\":\"address\",\"name\":\"_executor\",\"type\":\"address\"}],\"name\":\"executeMessageWithTransferFallback\",\"outputs\":[{\"internalType\":\"enum IMessageReceiverApp.ExecutionStatus\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_token\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amount\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_message\",\"type\":\"bytes\"},{\"internalType\":\"address\",\"name\":\"_executor\",\"type\":\"address\"}],\"name\":\"executeMessageWithTransferRefund\",\"outputs\":[{\"internalType\":\"enum IMessageReceiverApp.ExecutionStatus\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"messageBus\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_messageBus\",\"type\":\"address\"}],\"name\":\"setMessageBus\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"executeMessage(address,uint64,bytes,address)\":{\"params\":{\"_executor\":\"Address who called the MessageBus execution function\",\"_message\":\"Arbitrary message bytes originated from and encoded by the source app contract\",\"_sender\":\"The address of the source app contract\",\"_srcChainId\":\"The source chain ID where the transfer is originated from\"}},\"executeMessageWithTransfer(address,address,uint256,uint64,bytes,address)\":{\"params\":{\"_amount\":\"The amount of tokens received at this contract through the cross-chain bridge.\",\"_executor\":\"Address who called the MessageBus execution function\",\"_message\":\"Arbitrary message bytes originated from and encoded by the source app contract\",\"_sender\":\"The address of the source app contract\",\"_srcChainId\":\"The source chain ID where the transfer is originated from\",\"_token\":\"The address of the token that comes out of the bridge\"}},\"executeMessageWithTransferFallback(address,address,uint256,uint64,bytes,address)\":{\"params\":{\"_amount\":\"The amount of tokens received at this contract through the cross-chain bridge.\",\"_executor\":\"Address who called the MessageBus execution function\",\"_message\":\"Arbitrary message bytes originated from and encoded by the source app contract\",\"_sender\":\"The address of the source app contract\",\"_srcChainId\":\"The source chain ID where the transfer is originated from\",\"_token\":\"The address of the token that comes out of the bridge\"}},\"executeMessageWithTransferRefund(address,uint256,bytes,address)\":{\"params\":{\"_amount\":\"The amount of the original transfer\",\"_executor\":\"Address who called the MessageBus execution function\",\"_message\":\"The same message associated with the original transfer\",\"_token\":\"The token address of the original transfer\"}},\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"transferOwnership(address)\":{\"details\":\"Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.\"}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"executeMessage(address,uint64,bytes,address)\":{\"notice\":\"Called by MessageBus to execute a message\"},\"executeMessageWithTransfer(address,address,uint256,uint64,bytes,address)\":{\"notice\":\"Called by MessageBus to execute a message with an associated token transfer. The contract is guaranteed to have received the right amount of tokens before this function is called.\"},\"executeMessageWithTransferFallback(address,address,uint256,uint64,bytes,address)\":{\"notice\":\"Only called by MessageBus if         1. executeMessageWithTransfer reverts, or         2. executeMessageWithTransfer returns ExecutionStatus.Fail The contract is guaranteed to have received the right amount of tokens before this function is called.\"},\"executeMessageWithTransferRefund(address,uint256,bytes,address)\":{\"notice\":\"Called by MessageBus to process refund of the original transfer from this contract. The contract is guaranteed to have received the refund before this function is called.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/framework/MessageApp.sol\":\"MessageApp\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[]},\"sources\":{\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/interfaces/IBridge.sol\":{\"keccak256\":\"0x4346cb21c9e841e59418826942364ff505e363b29887daeeff303cf31474fbf4\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://65027684694cad4fe6449a6d1f6763201a4f435ab3774ae71e4de1e490c7ecaf\",\"dweb:/ipfs/QmNfJqNzNXgZaqZKHyUtCLMA3zPsoJCK5fqs8MCHTQmC7y\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/interfaces/IOriginalTokenVault.sol\":{\"keccak256\":\"0xa8a542d10c8a00966d3600baf8c83f012c276b9b71f3bbb79aad2d39969e5ac0\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://d3dfb89c82deb7cf2b217dac2d13a66406913726ac08a6ca4d4f2254bef1f6bb\",\"dweb:/ipfs/QmRB7g2HfwB67WKB2tcMLa9CnxsLrG3H7pN5NUSD46NFwv\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/interfaces/IOriginalTokenVaultV2.sol\":{\"keccak256\":\"0x51ff4f74faea32f007464041b3faa0b4f0f159504b7c17d3277e9567a8bcf9bc\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://d278d1e166789719d38aacc406bbb784d9edff0a064bed4d3f78701ec23cebea\",\"dweb:/ipfs/QmZvq7qPD3LfEVK6YzvcuCAmNGMaap3e8uBzkFNvvPsC6k\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/interfaces/IPeggedTokenBridge.sol\":{\"keccak256\":\"0x5adc3e5f1c8767c9f4580b499b16aba25f41934a2f945e9f0227b28d4b0405ae\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://80ce687b3dc2c7fadd8a80ba9c1b294933024804350a3a8738560b8673167d4f\",\"dweb:/ipfs/QmZCxmecdD88Z6WMvjkzguzHHcf9EuHuaAsKn98q4XDStu\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/interfaces/IPeggedTokenBridgeV2.sol\":{\"keccak256\":\"0xea5828630c131a1c7017360d4c1729c71bdeb5eaf366a30c9637c82795cea9d5\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://32ffeb0f76e0f7fb028b92f170133a8198b8a1512144ee7bb3a18c8d6ffd872e\",\"dweb:/ipfs/QmVYVHgcXaG1yKUuurvoCQzxeMRXHkbRKXmyS8WT9i2uBa\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/interfaces/ISigsVerifier.sol\":{\"keccak256\":\"0x0d0b090d078a5f50ea7b751331614785e536fc09bcff28bfe08a60613ebca1ae\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://6d9e8ca6b6067f49026cd917fd2618bd2bdd11ccc72eb1a8c06204d8c2890add\",\"dweb:/ipfs/QmcQKVBmbMk2oF1ckoA1gQ4UXZhh8dV1bqu1H65hsB7UAe\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/framework/MessageApp.sol\":{\"keccak256\":\"0x13929de3e6f40ad8f6c9430a8b1667ff3fe3595c9246b1fcbf82176730778a78\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://7a9803981242bdf7cd13846cc4d0d2bb8e15fa987d0c7b5bff6d921dff940968\",\"dweb:/ipfs/QmS6MozQAMT5TfLNQrLYMFXbg8pc9WHdVBnqeKP1iuihHB\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/framework/MessageBusAddress.sol\":{\"keccak256\":\"0xa5ba122d7b4f48d89cdb79b3678e392651457720ed52732f433ca7eca1ff182a\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://970f9e4bc347d76f00b93d0c050c9439a10a22d3a7ecfc2491771b28e9d91218\",\"dweb:/ipfs/QmYAjU6owh79hLZw3FuTJ8QgmTz5X4ezmAY8EwsqGzRFn6\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/framework/MessageReceiverApp.sol\":{\"keccak256\":\"0x423490a21ed2b5f25c387d97f28420faa64058b7d500ddbe4052bd7b00704920\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://88b56703c97a7df2bc4a1892a650f814795b1c2452113ca0cd4ce3f07129e7e2\",\"dweb:/ipfs/QmZc7i5HcLDZkEJWxY4FAV3zAvCro1RB9mhWjhrYQeMcvf\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/framework/MessageSenderApp.sol\":{\"keccak256\":\"0x1a5e902950810bfc9128e47f6bd0d96e7903e349a3fb820fae3b6a7281891a44\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://2b3c60853c853a005ee0db372dce2ca1713a203370e0d5944c86692e7bfd8209\",\"dweb:/ipfs/QmQu1M2JMbNPS7og82jphzEknARrEiYUziJxWkmdwgWzoT\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/interfaces/IMessageBus.sol\":{\"keccak256\":\"0x68747982fe77157a371e44ef21546f0eef7ef3d4ca0c3803b44044891e090ab9\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://4add531e480ccd83e2786e4455ac787d2d1ab73fee53f299b03594644ab70170\",\"dweb:/ipfs/QmPDkZFa7KrkJ9Pt7bmjodtFcYwaMDDi4kTzYLedznWE9c\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/interfaces/IMessageReceiverApp.sol\":{\"keccak256\":\"0x11f3d44aa2212ae89f4a6078c62248681deb0daa1592a482943e0f466d532498\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://61b9b78aa6308a7094b58302f72deaad62f03979d99ff60ade8044552df2b19b\",\"dweb:/ipfs/QmeGhEYqJvxA3i5U6ZXkQSsmYXw3adc2MDGmiB7hCKsSKW\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/libraries/MessageSenderLib.sol\":{\"keccak256\":\"0x71fe16095ee2b2df49ee2352d6f4a1c71442a1fd7597da1d2e207a32fdb9af4e\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://66173e6e05852c4ceb257a4100c5d7a363fe31678a2f770b09c0429977ea0cc9\",\"dweb:/ipfs/QmNTFahFf43j2qLZhw4ZtXMFfs8iYpaB4S6t32uFnWP2gM\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/libraries/MsgDataTypes.sol\":{\"keccak256\":\"0x72702f5ea90c12d59a96dd1660f1588b35bcca83bbe11a5ebe88868327291543\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://f173b9177b060fe4a4cb1e52e38d095480f1df968ab72261dac2eae8e2aca9e1\",\"dweb:/ipfs/QmYqF6dLLHXZQMmJWPSVRm3rknYgFbpBRm1uMmBaVMVm6R\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/messagebus/MessageBus.sol\":{\"keccak256\":\"0x53f186341ed503c54f70ef9ca96a405b1d221721590ea611463fe88477a325a9\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://698f1b25ef886b64d2106ce25f3ce9ba2f6ad395dce6d3a54ab73e6f65727d22\",\"dweb:/ipfs/QmR2JAMqM2wyC4cgSed4H9DsJGN7soaCxjxXrTRKiYTyMT\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/messagebus/MessageBusReceiver.sol\":{\"keccak256\":\"0xfdc6738d9e7c6575b3e91a2fea1807b4c61371c2e11f65b1ea0775927d77b5d4\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://eebd71b20c23bd5d701e47d4a0d8073d654d698c4415353b7ac093b652619d04\",\"dweb:/ipfs/QmZdBu1AU37KhZ4hjAZjxZ34RP4GDFt7ARmMHBko9kCvH2\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/messagebus/MessageBusSender.sol\":{\"keccak256\":\"0xb1d1c8466690041c7408c4c500fdf68e0d5702a3ed856ffc28fb856ef6f5ad4e\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://e5bec8c0911ed81ff28c5dc7a357a1bee7478361b9d1471c9765ed4586760be3\",\"dweb:/ipfs/QmSypisg9TTTTaxuttDVSxiGFYjMVk6pfnBpBDHQs4GU2R\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/safeguard/Ownable.sol\":{\"keccak256\":\"0x2a92103195b8dce0f34fdf9bf7f94ddf38bf8edf0c0fd4be21323c47016687e9\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://9bb9e6752d4d44e1586c36bdeaff9f7c0bd9026f2b33f3f506f7bdfbccf3166f\",\"dweb:/ipfs/QmXLwLdty7CaCMeunSR6nEg4ftQ7E2K6kHDUJawDA56s6P\"]},\"/Users/danielblacker/Documents/LiFi/contracts/node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol\":{\"keccak256\":\"0x9750c6b834f7b43000631af5cc30001c5f547b3ceb3635488f140f60e897ea6b\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://5a7d5b1ef5d8d5889ad2ed89d8619c09383b80b72ab226e0fe7bde1636481e34\",\"dweb:/ipfs/QmebXWgtEfumQGBdVeM6c71McLixYXQP5Bk6kKXuoY4Bmr\"]},\"/Users/danielblacker/Documents/LiFi/contracts/node_modules/@openzeppelin/contracts/token/ERC20/extensions/draft-IERC20Permit.sol\":{\"keccak256\":\"0xf41ca991f30855bf80ffd11e9347856a517b977f0a6c2d52e6421a99b7840329\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://b2717fd2bdac99daa960a6de500754ea1b932093c946388c381da48658234b95\",\"dweb:/ipfs/QmP6QVMn6UeA3ByahyJbYQr5M6coHKBKsf3ySZSfbyA8R7\"]},\"/Users/danielblacker/Documents/LiFi/contracts/node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol\":{\"keccak256\":\"0x032807210d1d7d218963d7355d62e021a84bf1b3339f4f50be2f63b53cccaf29\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://11756f42121f6541a35a8339ea899ee7514cfaa2e6d740625fcc844419296aa6\",\"dweb:/ipfs/QmekMuk6BY4DAjzeXr4MSbKdgoqqsZnA8JPtuyWc6CwXHf\"]},\"/Users/danielblacker/Documents/LiFi/contracts/node_modules/@openzeppelin/contracts/utils/Address.sol\":{\"keccak256\":\"0xd6153ce99bcdcce22b124f755e72553295be6abcd63804cfdffceb188b8bef10\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://35c47bece3c03caaa07fab37dd2bb3413bfbca20db7bd9895024390e0a469487\",\"dweb:/ipfs/QmPGWT2x3QHcKxqe6gRmAkdakhbaRgx3DLzcakHz5M4eXG\"]}},\"version\":1}",
+    "bytecode": "",
+    "deployedBytecode": "",
+    "sourceMap": "",
+    "deployedSourceMap": "",
+    "sourcePath": "/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/framework/MessageApp.sol",
+    "compiler": {
+        "name": "solc",
+        "version": "0.8.9+commit.e5eed63a"
+    },
+    "ast": {
+        "absolutePath": "/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/framework/MessageApp.sol",
+        "exportedSymbols": {
+            "Address": [
+                4553
+            ],
+            "IBridge": [
+                87
+            ],
+            "IERC20": [
+                3941
+            ],
+            "IERC20Permit": [
+                3977
+            ],
+            "IMessageBus": [
+                755
+            ],
+            "IMessageReceiverApp": [
+                844
+            ],
+            "IOriginalTokenVault": [
+                138
+            ],
+            "IOriginalTokenVaultV2": [
+                195
+            ],
+            "IPeggedTokenBridge": [
+                232
+            ],
+            "IPeggedTokenBridgeV2": [
+                290
+            ],
+            "ISigsVerifier": [
+                308
+            ],
+            "MessageApp": [
+                327
+            ],
+            "MessageBus": [
+                1539
+            ],
+            "MessageBusAddress": [
+                355
+            ],
+            "MessageBusReceiver": [
+                3407
+            ],
+            "MessageBusSender": [
+                3756
+            ],
+            "MessageReceiverApp": [
+                478
+            ],
+            "MessageSenderApp": [
+                614
+            ],
+            "MessageSenderLib": [
+                1374
+            ],
+            "MsgDataTypes": [
+                1478
+            ],
+            "Ownable": [
+                3863
+            ],
+            "SafeERC20": [
+                4258
+            ]
+        },
+        "id": 328,
+        "license": "GPL-3.0-only",
+        "nodeType": "SourceUnit",
+        "nodes": [
+            {
+                "id": 310,
+                "literals": [
+                    "solidity",
+                    "0.8",
+                    ".9"
+                ],
+                "nodeType": "PragmaDirective",
+                "src": "42:22:6"
+            },
+            {
+                "absolutePath": "/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/framework/MessageSenderApp.sol",
+                "file": "./MessageSenderApp.sol",
+                "id": 311,
+                "nameLocation": "-1:-1:-1",
+                "nodeType": "ImportDirective",
+                "scope": 328,
+                "sourceUnit": 615,
+                "src": "66:32:6",
+                "symbolAliases": [],
+                "unitAlias": ""
+            },
+            {
+                "absolutePath": "/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/framework/MessageReceiverApp.sol",
+                "file": "./MessageReceiverApp.sol",
+                "id": 312,
+                "nameLocation": "-1:-1:-1",
+                "nodeType": "ImportDirective",
+                "scope": 328,
+                "sourceUnit": 479,
+                "src": "99:34:6",
+                "symbolAliases": [],
+                "unitAlias": ""
+            },
+            {
+                "abstract": true,
+                "baseContracts": [
+                    {
+                        "baseName": {
+                            "id": 313,
+                            "name": "MessageSenderApp",
+                            "nodeType": "IdentifierPath",
+                            "referencedDeclaration": 614,
+                            "src": "167:16:6"
+                        },
+                        "id": 314,
+                        "nodeType": "InheritanceSpecifier",
+                        "src": "167:16:6"
+                    },
+                    {
+                        "baseName": {
+                            "id": 315,
+                            "name": "MessageReceiverApp",
+                            "nodeType": "IdentifierPath",
+                            "referencedDeclaration": 478,
+                            "src": "185:18:6"
+                        },
+                        "id": 316,
+                        "nodeType": "InheritanceSpecifier",
+                        "src": "185:18:6"
+                    }
+                ],
+                "canonicalName": "MessageApp",
+                "contractDependencies": [],
+                "contractKind": "contract",
+                "fullyImplemented": true,
+                "id": 327,
+                "linearizedBaseContracts": [
+                    327,
+                    478,
+                    614,
+                    355,
+                    3863,
+                    844
+                ],
+                "name": "MessageApp",
+                "nameLocation": "153:10:6",
+                "nodeType": "ContractDefinition",
+                "nodes": [
+                    {
+                        "body": {
+                            "id": 325,
+                            "nodeType": "Block",
+                            "src": "243:41:6",
+                            "statements": [
+                                {
+                                    "expression": {
+                                        "id": 323,
+                                        "isConstant": false,
+                                        "isLValue": false,
+                                        "isPure": false,
+                                        "lValueRequested": false,
+                                        "leftHandSide": {
+                                            "id": 321,
+                                            "name": "messageBus",
+                                            "nodeType": "Identifier",
+                                            "overloadedDeclarations": [],
+                                            "referencedDeclaration": 338,
+                                            "src": "253:10:6",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_address",
+                                                "typeString": "address"
+                                            }
+                                        },
+                                        "nodeType": "Assignment",
+                                        "operator": "=",
+                                        "rightHandSide": {
+                                            "id": 322,
+                                            "name": "_messageBus",
+                                            "nodeType": "Identifier",
+                                            "overloadedDeclarations": [],
+                                            "referencedDeclaration": 318,
+                                            "src": "266:11:6",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_address",
+                                                "typeString": "address"
+                                            }
+                                        },
+                                        "src": "253:24:6",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_address",
+                                            "typeString": "address"
+                                        }
+                                    },
+                                    "id": 324,
+                                    "nodeType": "ExpressionStatement",
+                                    "src": "253:24:6"
+                                }
+                            ]
+                        },
+                        "id": 326,
+                        "implemented": true,
+                        "kind": "constructor",
+                        "modifiers": [],
+                        "name": "",
+                        "nameLocation": "-1:-1:-1",
+                        "nodeType": "FunctionDefinition",
+                        "parameters": {
+                            "id": 319,
+                            "nodeType": "ParameterList",
+                            "parameters": [
+                                {
+                                    "constant": false,
+                                    "id": 318,
+                                    "mutability": "mutable",
+                                    "name": "_messageBus",
+                                    "nameLocation": "230:11:6",
+                                    "nodeType": "VariableDeclaration",
+                                    "scope": 326,
+                                    "src": "222:19:6",
+                                    "stateVariable": false,
+                                    "storageLocation": "default",
+                                    "typeDescriptions": {
+                                        "typeIdentifier": "t_address",
+                                        "typeString": "address"
+                                    },
+                                    "typeName": {
+                                        "id": 317,
+                                        "name": "address",
+                                        "nodeType": "ElementaryTypeName",
+                                        "src": "222:7:6",
+                                        "stateMutability": "nonpayable",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_address",
+                                            "typeString": "address"
+                                        }
+                                    },
+                                    "visibility": "internal"
+                                }
+                            ],
+                            "src": "221:21:6"
+                        },
+                        "returnParameters": {
+                            "id": 320,
+                            "nodeType": "ParameterList",
+                            "parameters": [],
+                            "src": "243:0:6"
+                        },
+                        "scope": 327,
+                        "src": "210:74:6",
+                        "stateMutability": "nonpayable",
+                        "virtual": false,
+                        "visibility": "internal"
+                    }
+                ],
+                "scope": 328,
+                "src": "135:151:6",
+                "usedErrors": []
+            }
+        ],
+        "src": "42:245:6"
+    },
+    "functionHashes": {
+        "executeMessage(address,uint64,bytes,address)": "9c649fdf",
+        "executeMessage(bytes,uint64,bytes,address)": "063ce4e5",
+        "executeMessageWithTransfer(address,address,uint256,uint64,bytes,address)": "7cd2bffc",
+        "executeMessageWithTransferFallback(address,address,uint256,uint64,bytes,address)": "5ab7afc6",
+        "executeMessageWithTransferRefund(address,uint256,bytes,address)": "0bcb4982",
+        "messageBus()": "a1a227fa",
+        "owner()": "8da5cb5b",
+        "setMessageBus(address)": "547cad12",
+        "transferOwnership(address)": "f2fde38b"
+    },
+    "gasEstimates": null
+}

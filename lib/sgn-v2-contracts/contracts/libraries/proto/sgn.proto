@@ -1,0 +1,16 @@
+syntax = "proto3";
+option go_package = "github.com/celer-network/sgn-v2/proto/eth";
+
+import "google/protobuf/descriptor.proto";
+
+package sgn;
+
+extend google.protobuf.FieldOptions {
+  string soltype = 1004;
+}
+
+message Withdrawal {
+  bytes account = 1 [(soltype) = "address"];
+  bytes token = 2 [(soltype) = "address"];
+  bytes cumulative_amount = 3 [(soltype) = "uint256"];
+}

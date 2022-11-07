@@ -46,5 +46,6 @@ contract ReceiverTest is DSTest, DiamondTest {
         receiver = TestReceiverContract(address(diamond));
     }
 
+    //TODO create test cases 
 
 }

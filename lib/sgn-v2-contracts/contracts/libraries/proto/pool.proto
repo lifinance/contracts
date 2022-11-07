@@ -1,0 +1,23 @@
+syntax = "proto3";
+option go_package = "github.com/celer-network/sgn-v2/proto/eth";
+
+import "google/protobuf/descriptor.proto";
+
+package pool;
+
+extend google.protobuf.FieldOptions {
+  string soltype = 1004;
+}
+
+message WithdrawMsg {
+  uint64 chainid = 1;
+  uint64 seqnum = 2;  // global unique across chains
+  bytes receiver = 3 [(soltype) = "address"];
+  bytes token = 4 [(soltype) = "address"];
+  bytes amount = 5 [(soltype) = "uint256"];
+  // reference id
+  // 1. if refund, set as xfer_id
+  // 2. if claim fee, set as 0x1
+  // 3. if LP withdraw liquidity, set as 0x0
+  bytes refid = 6 [(soltype) = "bytes32"];
+}

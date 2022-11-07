@@ -1,0 +1,21 @@
+# run pb gen sol if proto files change
+
+name: pb-gen-sol
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pbsol.yml'
+      - 'hardhat.config.ts'
+      - 'contracts/libraries/proto/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.head_ref }} # so we get the topic branch to push to same PR, only available if triggered by pull request
+      - name: run pb-gen-sol and push to same PR if Pbxxx.sol files are different
+        run: |
+          source scripts/pb_gen_sol.sh
+          prepare_tools && gen_sol && add_to_pr

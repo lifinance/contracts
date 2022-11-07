@@ -1,6 +1,6 @@
 @axelar-network/=node_modules/@axelar-network/
 @connext/=node_modules/@connext/
-@eth-optimism/=node_modules/@hop-protocol/sdk/node_modules/@eth-optimism/
+@eth-optimism/=node_modules/@eth-optimism/
 @openzeppelin/=node_modules/@openzeppelin/
 @uniswap/=node_modules/@uniswap/
 create3-factory/=lib/create3-factory/src/
@@ -11,3 +11,4 @@ hardhat-deploy/=node_modules/hardhat-deploy/
 hardhat/=node_modules/hardhat/
 solmate/=lib/solmate/src/
 lifi/=src/
+celer-network/=lib/sgn-v2-contracts/

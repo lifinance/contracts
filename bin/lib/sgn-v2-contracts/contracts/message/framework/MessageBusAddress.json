@@ -1,0 +1,426 @@
+{
+    "contractName": "MessageBusAddress",
+    "abi": [
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": false,
+                    "internalType": "address",
+                    "name": "messageBus",
+                    "type": "address"
+                }
+            ],
+            "name": "MessageBusUpdated",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "previousOwner",
+                    "type": "address"
+                },
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "newOwner",
+                    "type": "address"
+                }
+            ],
+            "name": "OwnershipTransferred",
+            "type": "event"
+        },
+        {
+            "inputs": [],
+            "name": "messageBus",
+            "outputs": [
+                {
+                    "internalType": "address",
+                    "name": "",
+                    "type": "address"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "owner",
+            "outputs": [
+                {
+                    "internalType": "address",
+                    "name": "",
+                    "type": "address"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "_messageBus",
+                    "type": "address"
+                }
+            ],
+            "name": "setMessageBus",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "newOwner",
+                    "type": "address"
+                }
+            ],
+            "name": "transferOwnership",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        }
+    ],
+    "metadata": "{\"compiler\":{\"version\":\"0.8.9+commit.e5eed63a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"messageBus\",\"type\":\"address\"}],\"name\":\"MessageBusUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"messageBus\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_messageBus\",\"type\":\"address\"}],\"name\":\"setMessageBus\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"transferOwnership(address)\":{\"details\":\"Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.\"}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/framework/MessageBusAddress.sol\":\"MessageBusAddress\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[]},\"sources\":{\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/framework/MessageBusAddress.sol\":{\"keccak256\":\"0xa5ba122d7b4f48d89cdb79b3678e392651457720ed52732f433ca7eca1ff182a\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://970f9e4bc347d76f00b93d0c050c9439a10a22d3a7ecfc2491771b28e9d91218\",\"dweb:/ipfs/QmYAjU6owh79hLZw3FuTJ8QgmTz5X4ezmAY8EwsqGzRFn6\"]},\"/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/safeguard/Ownable.sol\":{\"keccak256\":\"0x2a92103195b8dce0f34fdf9bf7f94ddf38bf8edf0c0fd4be21323c47016687e9\",\"license\":\"GPL-3.0-only\",\"urls\":[\"bzz-raw://9bb9e6752d4d44e1586c36bdeaff9f7c0bd9026f2b33f3f506f7bdfbccf3166f\",\"dweb:/ipfs/QmXLwLdty7CaCMeunSR6nEg4ftQ7E2K6kHDUJawDA56s6P\"]}},\"version\":1}",
+    "bytecode": "",
+    "deployedBytecode": "",
+    "sourceMap": "",
+    "deployedSourceMap": "",
+    "sourcePath": "/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/framework/MessageBusAddress.sol",
+    "compiler": {
+        "name": "solc",
+        "version": "0.8.9+commit.e5eed63a"
+    },
+    "ast": {
+        "absolutePath": "/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/message/framework/MessageBusAddress.sol",
+        "exportedSymbols": {
+            "MessageBusAddress": [
+                27
+            ],
+            "Ownable": [
+                134
+            ]
+        },
+        "id": 28,
+        "license": "GPL-3.0-only",
+        "nodeType": "SourceUnit",
+        "nodes": [
+            {
+                "id": 1,
+                "literals": [
+                    "solidity",
+                    ">=",
+                    "0.8",
+                    ".0"
+                ],
+                "nodeType": "PragmaDirective",
+                "src": "42:24:0"
+            },
+            {
+                "absolutePath": "/Users/danielblacker/Documents/LiFi/contracts/lib/sgn-v2-contracts/contracts/safeguard/Ownable.sol",
+                "file": "../../safeguard/Ownable.sol",
+                "id": 2,
+                "nameLocation": "-1:-1:-1",
+                "nodeType": "ImportDirective",
+                "scope": 28,
+                "sourceUnit": 135,
+                "src": "68:37:0",
+                "symbolAliases": [],
+                "unitAlias": ""
+            },
+            {
+                "abstract": true,
+                "baseContracts": [
+                    {
+                        "baseName": {
+                            "id": 3,
+                            "name": "Ownable",
+                            "nodeType": "IdentifierPath",
+                            "referencedDeclaration": 134,
+                            "src": "146:7:0"
+                        },
+                        "id": 4,
+                        "nodeType": "InheritanceSpecifier",
+                        "src": "146:7:0"
+                    }
+                ],
+                "canonicalName": "MessageBusAddress",
+                "contractDependencies": [],
+                "contractKind": "contract",
+                "fullyImplemented": true,
+                "id": 27,
+                "linearizedBaseContracts": [
+                    27,
+                    134
+                ],
+                "name": "MessageBusAddress",
+                "nameLocation": "125:17:0",
+                "nodeType": "ContractDefinition",
+                "nodes": [
+                    {
+                        "anonymous": false,
+                        "id": 8,
+                        "name": "MessageBusUpdated",
+                        "nameLocation": "166:17:0",
+                        "nodeType": "EventDefinition",
+                        "parameters": {
+                            "id": 7,
+                            "nodeType": "ParameterList",
+                            "parameters": [
+                                {
+                                    "constant": false,
+                                    "id": 6,
+                                    "indexed": false,
+                                    "mutability": "mutable",
+                                    "name": "messageBus",
+                                    "nameLocation": "192:10:0",
+                                    "nodeType": "VariableDeclaration",
+                                    "scope": 8,
+                                    "src": "184:18:0",
+                                    "stateVariable": false,
+                                    "storageLocation": "default",
+                                    "typeDescriptions": {
+                                        "typeIdentifier": "t_address",
+                                        "typeString": "address"
+                                    },
+                                    "typeName": {
+                                        "id": 5,
+                                        "name": "address",
+                                        "nodeType": "ElementaryTypeName",
+                                        "src": "184:7:0",
+                                        "stateMutability": "nonpayable",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_address",
+                                            "typeString": "address"
+                                        }
+                                    },
+                                    "visibility": "internal"
+                                }
+                            ],
+                            "src": "183:20:0"
+                        },
+                        "src": "160:44:0"
+                    },
+                    {
+                        "constant": false,
+                        "functionSelector": "a1a227fa",
+                        "id": 10,
+                        "mutability": "mutable",
+                        "name": "messageBus",
+                        "nameLocation": "225:10:0",
+                        "nodeType": "VariableDeclaration",
+                        "scope": 27,
+                        "src": "210:25:0",
+                        "stateVariable": true,
+                        "storageLocation": "default",
+                        "typeDescriptions": {
+                            "typeIdentifier": "t_address",
+                            "typeString": "address"
+                        },
+                        "typeName": {
+                            "id": 9,
+                            "name": "address",
+                            "nodeType": "ElementaryTypeName",
+                            "src": "210:7:0",
+                            "stateMutability": "nonpayable",
+                            "typeDescriptions": {
+                                "typeIdentifier": "t_address",
+                                "typeString": "address"
+                            }
+                        },
+                        "visibility": "public"
+                    },
+                    {
+                        "body": {
+                            "id": 25,
+                            "nodeType": "Block",
+                            "src": "303:85:0",
+                            "statements": [
+                                {
+                                    "expression": {
+                                        "id": 19,
+                                        "isConstant": false,
+                                        "isLValue": false,
+                                        "isPure": false,
+                                        "lValueRequested": false,
+                                        "leftHandSide": {
+                                            "id": 17,
+                                            "name": "messageBus",
+                                            "nodeType": "Identifier",
+                                            "overloadedDeclarations": [],
+                                            "referencedDeclaration": 10,
+                                            "src": "313:10:0",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_address",
+                                                "typeString": "address"
+                                            }
+                                        },
+                                        "nodeType": "Assignment",
+                                        "operator": "=",
+                                        "rightHandSide": {
+                                            "id": 18,
+                                            "name": "_messageBus",
+                                            "nodeType": "Identifier",
+                                            "overloadedDeclarations": [],
+                                            "referencedDeclaration": 12,
+                                            "src": "326:11:0",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_address",
+                                                "typeString": "address"
+                                            }
+                                        },
+                                        "src": "313:24:0",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_address",
+                                            "typeString": "address"
+                                        }
+                                    },
+                                    "id": 20,
+                                    "nodeType": "ExpressionStatement",
+                                    "src": "313:24:0"
+                                },
+                                {
+                                    "eventCall": {
+                                        "arguments": [
+                                            {
+                                                "id": 22,
+                                                "name": "messageBus",
+                                                "nodeType": "Identifier",
+                                                "overloadedDeclarations": [],
+                                                "referencedDeclaration": 10,
+                                                "src": "370:10:0",
+                                                "typeDescriptions": {
+                                                    "typeIdentifier": "t_address",
+                                                    "typeString": "address"
+                                                }
+                                            }
+                                        ],
+                                        "expression": {
+                                            "argumentTypes": [
+                                                {
+                                                    "typeIdentifier": "t_address",
+                                                    "typeString": "address"
+                                                }
+                                            ],
+                                            "id": 21,
+                                            "name": "MessageBusUpdated",
+                                            "nodeType": "Identifier",
+                                            "overloadedDeclarations": [],
+                                            "referencedDeclaration": 8,
+                                            "src": "352:17:0",
+                                            "typeDescriptions": {
+                                                "typeIdentifier": "t_function_event_nonpayable$_t_address_$returns$__$",
+                                                "typeString": "function (address)"
+                                            }
+                                        },
+                                        "id": 23,
+                                        "isConstant": false,
+                                        "isLValue": false,
+                                        "isPure": false,
+                                        "kind": "functionCall",
+                                        "lValueRequested": false,
+                                        "names": [],
+                                        "nodeType": "FunctionCall",
+                                        "src": "352:29:0",
+                                        "tryCall": false,
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_tuple$__$",
+                                            "typeString": "tuple()"
+                                        }
+                                    },
+                                    "id": 24,
+                                    "nodeType": "EmitStatement",
+                                    "src": "347:34:0"
+                                }
+                            ]
+                        },
+                        "functionSelector": "547cad12",
+                        "id": 26,
+                        "implemented": true,
+                        "kind": "function",
+                        "modifiers": [
+                            {
+                                "id": 15,
+                                "kind": "modifierInvocation",
+                                "modifierName": {
+                                    "id": 14,
+                                    "name": "onlyOwner",
+                                    "nodeType": "IdentifierPath",
+                                    "referencedDeclaration": 91,
+                                    "src": "293:9:0"
+                                },
+                                "nodeType": "ModifierInvocation",
+                                "src": "293:9:0"
+                            }
+                        ],
+                        "name": "setMessageBus",
+                        "nameLocation": "251:13:0",
+                        "nodeType": "FunctionDefinition",
+                        "parameters": {
+                            "id": 13,
+                            "nodeType": "ParameterList",
+                            "parameters": [
+                                {
+                                    "constant": false,
+                                    "id": 12,
+                                    "mutability": "mutable",
+                                    "name": "_messageBus",
+                                    "nameLocation": "273:11:0",
+                                    "nodeType": "VariableDeclaration",
+                                    "scope": 26,
+                                    "src": "265:19:0",
+                                    "stateVariable": false,
+                                    "storageLocation": "default",
+                                    "typeDescriptions": {
+                                        "typeIdentifier": "t_address",
+                                        "typeString": "address"
+                                    },
+                                    "typeName": {
+                                        "id": 11,
+                                        "name": "address",
+                                        "nodeType": "ElementaryTypeName",
+                                        "src": "265:7:0",
+                                        "stateMutability": "nonpayable",
+                                        "typeDescriptions": {
+                                            "typeIdentifier": "t_address",
+                                            "typeString": "address"
+                                        }
+                                    },
+                                    "visibility": "internal"
+                                }
+                            ],
+                            "src": "264:21:0"
+                        },
+                        "returnParameters": {
+                            "id": 16,
+                            "nodeType": "ParameterList",
+                            "parameters": [],
+                            "src": "303:0:0"
+                        },
+                        "scope": 27,
+                        "src": "242:146:0",
+                        "stateMutability": "nonpayable",
+                        "virtual": false,
+                        "visibility": "public"
+                    }
+                ],
+                "scope": 28,
+                "src": "107:283:0",
+                "usedErrors": []
+            }
+        ],
+        "src": "42:349:0"
+    },
+    "functionHashes": {
+        "messageBus()": "a1a227fa",
+        "owner()": "8da5cb5b",
+        "setMessageBus(address)": "547cad12",
+        "transferOwnership(address)": "f2fde38b"
+    },
+    "gasEstimates": null
+}

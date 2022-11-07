@@ -1,0 +1,59 @@
+{
+  "name": "sgn-v2-contracts",
+  "version": "0.2.0",
+  "description": "SGN V2 Contracts",
+  "scripts": {
+    "clean": "hardhat clean",
+    "compile": "hardhat compile",
+    "generate:typechain": "rm -rf typechain && hardhat typechain",
+    "report-gas:summary": "REPORT_GAS=true hardhat test",
+    "report-gas:benchmark": "hardhat test benchmark/*.ts",
+    "size-contracts": "hardhat size-contracts | sed -r 's/[[:cntrl:]]\\[[0-9]{1,3}m//g' > reports/contract_sizes.txt",
+    "test": "hardhat compile && hardhat test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/celer-network/sgn-v2-contracts.git"
+  },
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/celer-network/sgn-v2-contracts/issues"
+  },
+  "homepage": "https://github.com/celer-network/sgn-v2-contracts#readme",
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers",
+    "@nomiclabs/hardhat-waffle": "^2.0.3",
+    "@nomiclabs/hardhat-etherscan": "^3.0.3",
+    "@openzeppelin/contracts": "4.5.0",
+    "@typechain/ethers-v5": "^9.0.0",
+    "@typechain/hardhat": "^4.0.0",
+    "@types/chai": "^4.3.0",
+    "@types/mocha": "^9.1.0",
+    "@types/node": "^17.0.21",
+    "@types/sinon-chai": "^3.2.8",
+    "@typescript-eslint/eslint-plugin": "^5.13.0",
+    "@typescript-eslint/parser": "^5.13.0",
+    "chai": "^4.3.6",
+    "eslint": "^8.10.0",
+    "eslint-config-prettier": "^8.4.0",
+    "eslint-plugin-import": "^2.25.4",
+    "ethereum-waffle": "^3.4.0",
+    "ethers": "^5.5.4",
+    "fs-extra": "^10.0.1",
+    "hardhat": "^2.9.0",
+    "hardhat-contract-sizer": "^2.5.0",
+    "hardhat-deploy": "^0.11.4",
+    "hardhat-gas-reporter": "^1.0.8",
+    "husky": "^7.0.4",
+    "prettier": "^2.5.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.19",
+    "protobufjs": "^6.11.2",
+    "solc": "0.8.9",
+    "ts-node": "^10.6.0",
+    "typechain": "^7.0.0",
+    "typescript": "^4.6.2"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0"
+  }
+}
