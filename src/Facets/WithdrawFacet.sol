@@ -8,7 +8,6 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
 import { NotAContract } from "../Errors/GenericErrors.sol";
-import { console } from "../../test/solidity/utils/Console.sol";
 
 
 /// @title Withdraw Facet
@@ -48,7 +47,6 @@ contract WithdrawFacet {
         (success, ) = _callTo.call(_callData);
 
         if (success) {
-
             _withdrawAsset(_assetAddress, _to, _amount);
         } else {
             revert WithdrawFailed();

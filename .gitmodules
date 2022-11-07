@@ -7,6 +7,6 @@
 [submodule "lib/forge-std"]
 	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
-[submodule "lib/cate3-factory"]
+[submodule "lib/create3-factory"]
 	path = lib/create3-factory
 	url = https://github.com/lifinance/create3-factory
