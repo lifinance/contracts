@@ -7,10 +7,6 @@
 [submodule "lib/forge-std"]
 	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
-[submodule "lib/create3-factory"]
+[submodule "lib/cate3-factory"]
 	path = lib/create3-factory
 	url = https://github.com/lifinance/create3-factory
-[submodule "sgn-v2-contracts"]
-	path = lib/sgn-v2-contracts
-	url = https://github.com/celer-network/sgn-v2-contracts/
-

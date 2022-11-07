@@ -124,7 +124,6 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         nonReentrant
     {
-        if (!LibAsset.isNativeAsset(address(_bridgeData.sendingAssetId)) && msg.value != 0) revert NativeValueWithERC();
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,

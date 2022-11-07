@@ -155,7 +155,7 @@ contract SwapperV2 is ILiFi {
     /// @param _leftoverReceiver The address to send leftover funds to
     /// @param _nativeReserve Amount of native token to prevent from being swept back to the caller
     function _depositAndSwap(
-        bytes32 _transactionId,     //TODO tx of which operation exactly?
+        bytes32 _transactionId,
         uint256 _minAmount,
         LibSwap.SwapData[] calldata _swaps,
         address payable _leftoverReceiver,
@@ -163,44 +163,29 @@ contract SwapperV2 is ILiFi {
     ) internal returns (uint256) {
         uint256 numSwaps = _swaps.length;
 
-        //! make sure that at least one swap data set was passed into the function
         if (numSwaps == 0) {
             revert NoSwapDataProvided();
         }
 
-        //! store address of final token contract
         address finalTokenId = _swaps[numSwaps - 1].receivingAssetId;
-        //! get our current balance of final token
         uint256 initialBalance = LibAsset.getOwnBalance(finalTokenId);
 
-        //! if final token is native asset then subtract msg.value from initial balance to
-        //! make sure that the msg.value of this tx is not included in the calculation
         if (LibAsset.isNativeAsset(finalTokenId)) {
             initialBalance -= msg.value;
         }
 
-        //! fetch initial balances of this contract for all receiving assets (=swap dest) 
         uint256[] memory initialBalances = _fetchBalances(_swaps);
 
-        //! make deposits, if required
-        //TODO find out how to use the flag depositRequired correctly (in which cases)
         LibAsset.depositAssets(_swaps);
-
-        //! prepare a struct variable in order to avoid stack too deep errors 
         ReserveData memory rd = ReserveData(_transactionId, _leftoverReceiver, _nativeReserve);
-        
-        //! execute all swaps that were passed in as parameter  
         _executeSwaps(rd, _swaps, initialBalances);
 
-        //! check by how much this contract's balance has increased in the final token (=swap output)
-        uint256 newBalance = LibAsset.getOwnBalance(finalTokenId) - initialBalance; 
+        uint256 newBalance = LibAsset.getOwnBalance(finalTokenId) - initialBalance;
 
-        //! make sure that the swap output is larger or equal than the defined minAmountOut for this swap
         if (newBalance < _minAmount) {
             revert CumulativeSlippageTooHigh(_minAmount, newBalance);
         }
 
-        //! return the amountOut of swaps in final token
         return newBalance;
     }
 
