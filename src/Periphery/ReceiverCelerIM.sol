@@ -4,12 +4,15 @@ pragma solidity 0.8.17;
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap, InsufficientBalance } from "../Libraries/LibSwap.sol";
-import { InvalidCaller, InsufficientBalance } from "../Errors/GenericErrors.sol";
+import { InvalidCaller, InsufficientBalance, NotAContract, ContractCallNotAllowed } from "../Errors/GenericErrors.sol";
+import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
+import { LibBytes } from "../Libraries/LibBytes.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
+import { ExcessivelySafeCall } from "../Helpers/ExcessivelySafeCall.sol";
 
 //tmp
 import { console } from "../../test/solidity/utils/Console.sol"; //TODO: remove
@@ -20,15 +23,25 @@ import { DSTest } from "ds-test/test.sol"; //TODO: remove
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
 contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
+    using LibBytes for bytes;
+    using ExcessivelySafeCall for address;
 
     /// Storage ///
     address public cBridgeMessageBusAddress;
     IExecutor public executor;
 
     /// Errors ///
+    error MessageExecutionFailed();
 
     /// Events ///
     event CBridgeMessageBusAddressSet(address indexed messageBusAddress);
+    event CelerIMMessageExecuted(address indexed callTo, bytes4 selector);
+    event CelerIMMessageWithTransferExecuted(bytes32 indexed transactionId, address indexed receiver);
+    event CelerIMMessageWithTransferFailed(
+        bytes32 indexed transactionId,
+        address indexed receiver,
+        address indexed refundAddress
+    );
 
     /// Modifiers ///
     modifier onlyCBridgeMessageBus() {
@@ -74,7 +87,7 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
         bytes calldata _message,
         address _executor
     ) external payable returns (IMessageReceiverApp.ExecutionStatus) {
-        address sender = _bytesToAddress(_sender); //! is this OK?
+        address sender = _bytesToAddress(_sender); //TODO QUESTION: is this OK?
         return _executeMessage(sender, _srcChainId, _message, _executor);
     }
 
@@ -101,9 +114,11 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
         (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = abi
             .decode(_message, (bytes32, LibSwap.SwapData[], address, address));
 
-        //TODO how to validate if data was correctly coded and decoded?
+        //TODO QUESTION: should we and how to validate if data was correctly coded and decoded?
 
         _swapAndCompleteBridgeTokens(transactionId, swapData, _token, payable(receiver), _amount);
+
+        emit CelerIMMessageWithTransferExecuted(transactionId, receiver);
 
         return IMessageReceiverApp.ExecutionStatus.Success;
     }
@@ -131,19 +146,15 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
         (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = abi
             .decode(_message, (bytes32, LibSwap.SwapData[], address, address));
 
-        // make sure contract has sufficient balance    //TODO could be removed - should we trust?
-        uint256 balance = IERC20(_token).balanceOf(address(this));
-        if (balance < _amount) revert InsufficientBalance(_amount, balance);
-
         // transfer tokens back to refundAddress
         LibAsset.transferAsset(_token, payable(refundAddress), _amount);
 
-        //? any events to be emitted here ??
+        emit CelerIMMessageWithTransferFailed(transactionId, receiver, refundAddress);
 
         return IMessageReceiverApp.ExecutionStatus.Success;
     }
 
-    /// @notice set CBridge MessageBus address
+    /// @notice sets the CBridge MessageBus address
     /// @param _messageBusAddress the MessageBus address
     function setCBridgeMessageBus(address _messageBusAddress) external onlyOwner {
         cBridgeMessageBusAddress = _messageBusAddress;
@@ -202,18 +213,28 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
         bytes calldata _message,
         address _executor
     ) private returns (IMessageReceiverApp.ExecutionStatus) {
+        emit log_string("_executeMessage");
+        emit log_named_bytes("message", _message);
+        ("_executeMessage");
         // decode message
-        (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = abi
-            .decode(_message, (bytes32, LibSwap.SwapData[], address, address));
+        // The first 20 bytes of the _message are the callee address
+        address callTo = _message.toAddress(0);
+        // The remaining bytes should be calldata
+        bytes memory callData = _message.slice(40, _message.length - 40);
 
-        //TODO how do we send/receive data packages that dont include token transfers?
-        _swapAndCompleteBridgeTokens(
-            transactionId,
-            swapData,
-            swapData[0].sendingAssetId,
-            payable(receiver),
-            swapData[0].fromAmount
-        );
+        if (!LibAsset.isContract(callTo)) revert NotAContract();
+
+        //TODO any other checks to do here?
+        if (LibAllowList.contractIsAllowed(callTo)) revert ContractCallNotAllowed();
+
+        //! this call fails, I dont know why
+        (bool success, ) = callTo.excessivelySafeCall(gasleft(), 0, 0, callData);
+        if (!success) {
+            revert MessageExecutionFailed();
+        }
+
+        // first 4 bytes of callData should be the function selector
+        emit CelerIMMessageExecuted(callTo, bytes4(callData));
 
         return IMessageReceiverApp.ExecutionStatus.Success;
     }

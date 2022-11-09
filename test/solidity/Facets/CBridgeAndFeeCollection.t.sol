@@ -86,17 +86,6 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         uint256 lifiFee = 5 * 10**usdc.decimals();
         address integrator = address(0xb33f);
 
-        console.log("address(cBridge):                               ", address(cBridge));
-        console.log("address(feeCollector):                          ", address(feeCollector));
-        console.log("address(0xb33f):                                ", address(0xb33f));
-        console.log(
-            "feecollector USDC balance bef:                  ",
-            feeCollector.getTokenBalance(address(feeCollector), USDC_ADDRESS)
-        );
-        console.log("usdc.balanceOf(address(cBridge)):               ", usdc.balanceOf(address(cBridge)));
-        console.log("usdc.balanceOf(WHALE):                          ", usdc.balanceOf(WHALE));
-        console.log("feeCollector.getLifiTokenBalance(USDC_ADDRESS): ", feeCollector.getLifiTokenBalance(USDC_ADDRESS));
-
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
             "",
             "cbridge",
@@ -116,8 +105,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             address(feeCollector),
             USDC_ADDRESS,
             USDC_ADDRESS,
-            amount + fee + lifiFee,
-            // amount, //! is this correction OK? Makes sense to me but was different before ^^
+            amount,
             abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, integrator),
             true
         );
@@ -133,28 +121,11 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
 
         // Approve USDC
         usdc.approve(address(cBridge), amount + fee + lifiFee);
-
-        console.log("\n******** CALL **********\n");
-
         cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
         vm.stopPrank();
 
-        console.log(
-            "feeCollector.getLifiTokenBalance(USDC_ADDRESS):            ",
-            feeCollector.getLifiTokenBalance(USDC_ADDRESS)
-        );
-        console.log("fee:                                                       ", fee);
-        console.log("lifiFee:                                                   ", lifiFee);
-        console.log(
-            "feeCollector.getTokenBalance(integrator, USDC_ADDRESS):    ",
-            feeCollector.getTokenBalance(integrator, USDC_ADDRESS)
-        );
-        console.log("usdc.balanceOf(address(cBridge)):                          ", usdc.balanceOf(address(cBridge)));
-        console.log("usdc.balanceOf(WHALE):                                     ", usdc.balanceOf(WHALE));
-
         assertEq(feeCollector.getTokenBalance(integrator, USDC_ADDRESS), fee);
         assertEq(feeCollector.getLifiTokenBalance(USDC_ADDRESS), lifiFee);
-
         assertEq(usdc.balanceOf(address(cBridge)), 0); // !!
     }
 
@@ -385,8 +356,6 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         path[1] = DAI_ADDRESS;
         uint256[] memory amounts = uniswap.getAmountsIn(amountToBridge + fee + lifiFee, path);
         uint256 amountIn = amounts[0];
-        emit log_named_uint("*** amountIn", amountIn);
-        emit log_named_uint("*** amountToBridge", amountToBridge);
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
 
@@ -417,19 +386,9 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             false
         );
         // Approve USDC
-        console.log(
-            "## balance cBridge Router USDC bef: %s",
-            usdc.balanceOf(0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820)
-        );
-
         usdc.approve(address(cBridge), amountIn + fee + lifiFee);
         cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
         vm.stopPrank();
-
-        console.log(
-            "## balance cBridge Router USDC aft: %s",
-            usdc.balanceOf(0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820)
-        );
 
         assertEq(feeCollector.getTokenBalance(address(0xb33f), DAI_ADDRESS), fee);
         assertEq(feeCollector.getLifiTokenBalance(DAI_ADDRESS), lifiFee);

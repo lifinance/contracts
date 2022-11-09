@@ -5,7 +5,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { SwapperV2, LibSwap, DSTest } from "../Helpers/SwapperV2.sol";
+import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { InvalidReceiver, InvalidAmount, InvalidCaller, InvalidConfig, InformationMismatch, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -13,9 +13,6 @@ import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contr
 import { console } from "forge-std/console.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
-
-//  tmp
-import { Vm } from "forge-std/Vm.sol";
 
 interface IOriginalTokenVault {
     function deposit(
@@ -81,7 +78,9 @@ interface IPeggedTokenBridgeV2 {
 /// @title CBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
-contract CBridgeFacet is ILiFi, DSTest, ReentrancyGuard, SwapperV2, Validatable {
+contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    event CelerIMMessageWithTransferRefunded(bytes32 indexed transactionId, address indexed refundAddress);
+
     /// Storage ///
 
     /// @notice The contract address of the cbridge on the source chain.
@@ -125,9 +124,9 @@ contract CBridgeFacet is ILiFi, DSTest, ReentrancyGuard, SwapperV2, Validatable 
     function startBridgeTokensViaCBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData calldata _cBridgeData)
         external
         payable
-        refundExcessNative(payable(msg.sender)) //! returns remaining gas to sender after function
-        doesNotContainSourceSwaps(_bridgeData) //! makes sure that BridgeData does not contains swap info
-        validateBridgeData(_bridgeData) //! prevents usage of native asset as sendingAssetId
+        refundExcessNative(payable(msg.sender))
+        doesNotContainSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
         nonReentrant
     {
         validateDestinationCallFlag(_bridgeData, _cBridgeData);
@@ -385,15 +384,8 @@ contract CBridgeFacet is ILiFi, DSTest, ReentrancyGuard, SwapperV2, Validatable 
         // return funds to cBridgeData.refundAddress
         LibAsset.transferAsset(_token, payable(refundAddress), _amount);
 
-        //TODO any events to be emitted here ??
+        emit CelerIMMessageWithTransferRefunded(transactionId, refundAddress);
 
         return IMessageReceiverApp.ExecutionStatus.Success;
     }
 }
-
-/// RESOURCES
-// CBRIDGE DOCS for IM
-// https://github.com/celer-network/sgn-v2-contracts/tree/1c65d5538ff8509c7e2626bb1a857683db775231/contracts/message
-
-// SAMPLE CONTRACT
-// https://github.com/celer-network/sgn-v2-contracts/blob/1c65d5538ff8509c7e2626bb1a857683db775231/contracts/message/apps/examples/TransferSwap.sol
