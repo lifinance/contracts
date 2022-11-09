@@ -9,12 +9,11 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
-import { IMessageReceiverApp } from"celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
+import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 
 //tmp
-import { console } from "../../test/solidity/utils/Console.sol";      //TODO: remove
-import { DSTest } from "ds-test/test.sol";      //TODO: remove
-
+import { console } from "../../test/solidity/utils/Console.sol"; //TODO: remove
+import { DSTest } from "ds-test/test.sol"; //TODO: remove
 
 /// @title Executor
 /// @author LI.FI (https://li.fi)
@@ -32,7 +31,7 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
     event CBridgeMessageBusAddressSet(address indexed messageBusAddress);
 
     /// Modifiers ///
-    modifier onlyCBridgeMessageBus {
+    modifier onlyCBridgeMessageBus() {
         if (msg.sender != cBridgeMessageBusAddress) revert InvalidCaller();
         _;
     }
@@ -50,7 +49,6 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
     }
 
     /// External Methods ///
-
 
     /**
      * @notice Called by MessageBus to execute a message
@@ -76,7 +74,7 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
         bytes calldata _message,
         address _executor
     ) external payable returns (IMessageReceiverApp.ExecutionStatus) {
-        address sender = _bytesToAddress(_sender);      //! is this OK?
+        address sender = _bytesToAddress(_sender); //! is this OK?
         return _executeMessage(sender, _srcChainId, _message, _executor);
     }
 
@@ -100,9 +98,8 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
     ) external payable returns (IMessageReceiverApp.ExecutionStatus) {
         // decode message
         //! will this revert if data does not match the structure? >> NO
-        (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = 
-            abi.decode(_message,(bytes32, LibSwap.SwapData[], address, address)
-        );
+        (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = abi
+            .decode(_message, (bytes32, LibSwap.SwapData[], address, address));
 
         //TODO how to validate if data was correctly coded and decoded?
 
@@ -131,20 +128,19 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
         bytes calldata _message,
         address _executor
     ) external payable returns (IMessageReceiverApp.ExecutionStatus) {
-            (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = 
-                abi.decode(_message,(bytes32, LibSwap.SwapData[], address, address)
-            );
-           
-            // make sure contract has sufficient balance    //TODO could be removed - should we trust?
-            uint256 balance = IERC20(_token).balanceOf(address(this));
-            if (balance < _amount) revert InsufficientBalance(_amount, balance);
+        (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = abi
+            .decode(_message, (bytes32, LibSwap.SwapData[], address, address));
 
-            // transfer tokens back to refundAddress
-            LibAsset.transferAsset(_token, payable(refundAddress), _amount);
+        // make sure contract has sufficient balance    //TODO could be removed - should we trust?
+        uint256 balance = IERC20(_token).balanceOf(address(this));
+        if (balance < _amount) revert InsufficientBalance(_amount, balance);
 
-            //? any events to be emitted here ??
+        // transfer tokens back to refundAddress
+        LibAsset.transferAsset(_token, payable(refundAddress), _amount);
 
-            return IMessageReceiverApp.ExecutionStatus.Success;
+        //? any events to be emitted here ??
+
+        return IMessageReceiverApp.ExecutionStatus.Success;
     }
 
     /// @notice set CBridge MessageBus address
@@ -170,7 +166,7 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
         address assetId,
         address payable receiver,
         uint256 amount
-    ) private  {
+    ) private {
         bool success;
         if (LibAsset.isNativeAsset(assetId)) {
             try executor.swapAndCompleteBridgeTokens{ value: amount }(_transactionId, _swapData, assetId, receiver) {
@@ -178,7 +174,7 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
             } catch {
                 //? removed the following to not break CBridge refund flow. pls confirmÙ
                 // receiver.call{ value: amount }("");
-                revert("DB: Call to Executor not successful");  //TODO remove
+                revert("DB: Call to Executor not successful"); //TODO remove
             }
         } else {
             IERC20 token = IERC20(assetId);
@@ -190,7 +186,7 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
             } catch {
                 // token.safeTransfer(receiver, amount);
                 //? removed the following to not break CBridge refund flow. pls confirmÙ
-                revert("DB: Call to Executor not successful");  //TODO remove
+                revert("DB: Call to Executor not successful"); //TODO remove
             }
             token.safeApprove(address(executor), 0);
         }
@@ -200,28 +196,32 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
         }
     }
 
-    function _executeMessage(        
+    function _executeMessage(
         address _sender,
         uint64 _srcChainId,
         bytes calldata _message,
         address _executor
     ) private returns (IMessageReceiverApp.ExecutionStatus) {
         // decode message
-        (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = 
-            abi.decode(_message,(bytes32, LibSwap.SwapData[], address, address)
-        );
+        (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = abi
+            .decode(_message, (bytes32, LibSwap.SwapData[], address, address));
 
         //TODO how do we send/receive data packages that dont include token transfers?
-        _swapAndCompleteBridgeTokens(transactionId, swapData, swapData[0].sendingAssetId, payable(receiver), swapData[0].fromAmount);
+        _swapAndCompleteBridgeTokens(
+            transactionId,
+            swapData,
+            swapData[0].sendingAssetId,
+            payable(receiver),
+            swapData[0].fromAmount
+        );
 
         return IMessageReceiverApp.ExecutionStatus.Success;
     }
 
-    function _bytesToAddress(bytes memory b) private pure returns(address payable a) {
+    function _bytesToAddress(bytes memory b) private pure returns (address payable a) {
         require(b.length == 20);
         assembly {
             a := div(mload(add(b, 32)), exp(256, 12))
         }
     }
-
 }

@@ -13,10 +13,11 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
+import { MsgDataTypes, IMessageBus } from "celer-network/contracts/message/interfaces/IMessageBus.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
-    constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
+    constructor(ICBridge _cBridge, IMessageBus _msgBus) CBridgeFacet(_cBridge, _msgBus) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -34,6 +35,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
     address internal constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address internal constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
+    address internal constant CBRIDGE_MESSAGE_BUS_ETH = 0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
@@ -53,7 +55,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         fork();
 
         diamond = createDiamond();
-        cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
+        cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER), IMessageBus(CBRIDGE_MESSAGE_BUS_ETH));
         usdc = ERC20(USDC_ADDRESS);
         dai = ERC20(DAI_ADDRESS);
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
@@ -76,22 +78,24 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         cBridge.setFunctionApprovalBySignature(bytes4(uniswap.swapETHForExactTokens.selector));
     }
 
-    // struct CILiFi.BridgeData {
-    //     address cBridge;
-    //     uint32 maxSlippage;
-    //     uint64 dstChainId;
-    //     uint64 nonce;
-    //     uint256 amount;
-    //     address receiver;
-    //     address token;
-    // }
-
     function testCanCollectTokenFeesAndBridgeTokens() public {
         vm.startPrank(WHALE);
 
         uint256 amount = 1_000 * 10**usdc.decimals();
         uint256 fee = 10 * 10**usdc.decimals();
         uint256 lifiFee = 5 * 10**usdc.decimals();
+        address integrator = address(0xb33f);
+
+        console.log("address(cBridge):                               ", address(cBridge));
+        console.log("address(feeCollector):                          ", address(feeCollector));
+        console.log("address(0xb33f):                                ", address(0xb33f));
+        console.log(
+            "feecollector USDC balance bef:                  ",
+            feeCollector.getTokenBalance(address(feeCollector), USDC_ADDRESS)
+        );
+        console.log("usdc.balanceOf(address(cBridge)):               ", usdc.balanceOf(address(cBridge)));
+        console.log("usdc.balanceOf(WHALE):                          ", usdc.balanceOf(WHALE));
+        console.log("feeCollector.getLifiTokenBalance(USDC_ADDRESS): ", feeCollector.getLifiTokenBalance(USDC_ADDRESS));
 
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
             "",
@@ -105,7 +109,6 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             true,
             false
         );
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(
@@ -114,17 +117,45 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             USDC_ADDRESS,
             USDC_ADDRESS,
             amount + fee + lifiFee,
-            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, address(0xb33f)),
+            // amount, //! is this correction OK? Makes sense to me but was different before ^^
+            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, integrator),
             true
         );
+
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData({
+            maxSlippage: 5000,
+            nonce: 1,
+            callTo: abi.encodePacked(address(0)),
+            callData: "",
+            messageBusFee: 0,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
+
         // Approve USDC
         usdc.approve(address(cBridge), amount + fee + lifiFee);
+
+        console.log("\n******** CALL **********\n");
+
         cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
         vm.stopPrank();
 
-        assertEq(feeCollector.getTokenBalance(address(0xb33f), USDC_ADDRESS), fee);
+        console.log(
+            "feeCollector.getLifiTokenBalance(USDC_ADDRESS):            ",
+            feeCollector.getLifiTokenBalance(USDC_ADDRESS)
+        );
+        console.log("fee:                                                       ", fee);
+        console.log("lifiFee:                                                   ", lifiFee);
+        console.log(
+            "feeCollector.getTokenBalance(integrator, USDC_ADDRESS):    ",
+            feeCollector.getTokenBalance(integrator, USDC_ADDRESS)
+        );
+        console.log("usdc.balanceOf(address(cBridge)):                          ", usdc.balanceOf(address(cBridge)));
+        console.log("usdc.balanceOf(WHALE):                                     ", usdc.balanceOf(WHALE));
+
+        assertEq(feeCollector.getTokenBalance(integrator, USDC_ADDRESS), fee);
         assertEq(feeCollector.getLifiTokenBalance(USDC_ADDRESS), lifiFee);
-        assertEq(usdc.balanceOf(address(cBridge)), 0);
+
+        assertEq(usdc.balanceOf(address(cBridge)), 0); // !!
     }
 
     function testCanCollectNativeFeesAndBridgeTokens() public {
@@ -141,13 +172,20 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             address(0),
             address(0),
             WHALE,
-            amount - fee - lifiFee,
+            amount,
             100,
             true,
             false
         );
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData({
+            maxSlippage: 5000,
+            nonce: 1,
+            callTo: abi.encodePacked(address(0)),
+            callData: "",
+            messageBusFee: 0,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(
@@ -187,7 +225,14 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             false
         );
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData({
+            maxSlippage: 5000,
+            nonce: 1,
+            callTo: abi.encodePacked(address(0)),
+            callData: "",
+            messageBusFee: 0,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
 
         // Calculate USDC amount
         address[] memory path = new address[](2);
@@ -254,7 +299,14 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             false
         );
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData({
+            maxSlippage: 5000,
+            nonce: 1,
+            callTo: abi.encodePacked(address(0)),
+            callData: "",
+            messageBusFee: 0,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
 
         // Calculate USDC amount
         address[] memory path = new address[](2);
@@ -318,7 +370,14 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             false
         );
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData({
+            maxSlippage: 5000,
+            nonce: 1,
+            callTo: abi.encodePacked(address(0)),
+            callData: "",
+            messageBusFee: 0,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
 
         // Calculate USDC amount
         address[] memory path = new address[](2);
@@ -326,6 +385,8 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         path[1] = DAI_ADDRESS;
         uint256[] memory amounts = uniswap.getAmountsIn(amountToBridge + fee + lifiFee, path);
         uint256 amountIn = amounts[0];
+        emit log_named_uint("*** amountIn", amountIn);
+        emit log_named_uint("*** amountToBridge", amountToBridge);
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
 
@@ -356,9 +417,19 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             false
         );
         // Approve USDC
+        console.log(
+            "## balance cBridge Router USDC bef: %s",
+            usdc.balanceOf(0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820)
+        );
+
         usdc.approve(address(cBridge), amountIn + fee + lifiFee);
         cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
         vm.stopPrank();
+
+        console.log(
+            "## balance cBridge Router USDC aft: %s",
+            usdc.balanceOf(0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820)
+        );
 
         assertEq(feeCollector.getTokenBalance(address(0xb33f), DAI_ADDRESS), fee);
         assertEq(feeCollector.getLifiTokenBalance(DAI_ADDRESS), lifiFee);
@@ -386,7 +457,14 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             false
         );
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData({
+            maxSlippage: 5000,
+            nonce: 1,
+            callTo: abi.encodePacked(address(0)),
+            callData: "",
+            messageBusFee: 0,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
 
         // Calculate USDC amount
         address[] memory path = new address[](2);
