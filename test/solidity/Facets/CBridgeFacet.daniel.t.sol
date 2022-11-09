@@ -49,15 +49,15 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
         uint256 timestamp
     );
 
-        address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
-        address internal constant UNISWAP_V2_ROUTER_ETH = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
-        address internal constant UNISWAP_V2_ROUTER_POLY = 0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506;
-        address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-        address internal constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-        address internal constant USDC_WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
-        address internal constant DAI_WHALE = 0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
-        address internal constant CBRIDGE_MESSAGE_BUS_ETH = 0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
-        address internal constant CBRIDGE_MESSAGE_BUS_POLY = 0xaFDb9C40C7144022811F034EE07Ce2E110093fe6;
+    address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
+    address internal constant UNISWAP_V2_ROUTER_ETH = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    address internal constant UNISWAP_V2_ROUTER_POLY = 0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506;
+    address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address internal constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address internal constant USDC_WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
+    address internal constant DAI_WHALE = 0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
+    address internal constant CBRIDGE_MESSAGE_BUS_ETH = 0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
+    address internal constant CBRIDGE_MESSAGE_BUS_POLY = 0xaFDb9C40C7144022811F034EE07Ce2E110093fe6;
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
@@ -67,8 +67,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     UniswapV2Router02 internal uniswap;
     UniswapV2Router02 internal uniswap_poly;
 
-
-    // tokenAddress > user > balance 
+    // tokenAddress > user > balance
     mapping(address => mapping(AddressTypes => uint256)) public initialBalances;
 
     enum AddressTypes {
@@ -87,18 +86,18 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     }
 
     struct CurrentAccounts {
-        address daiWhale; 
+        address daiWhale;
         address usdcWhale;
         UniswapV2Router02 dex;
-        ERC20 daiToken;     //TODO change to address
-        ERC20 usdcToken; 
+        ERC20 daiToken; //TODO change to address
+        ERC20 usdcToken;
         address deployer;
         address user1;
         address user2;
         address receiver;
         address executor;
     }
-    
+
     // chainId => forkId
     mapping(uint256 => uint256) public forkIds;
 
@@ -108,11 +107,10 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     mapping(uint256 => string) public chainNames;
 
     // accounts per Chain
-    mapping(uint256 => CurrentAccounts) _accounts2;     //! not used yet
+    mapping(uint256 => CurrentAccounts) _accounts2; //! not used yet
 
     CurrentAccounts public _accounts;
     uint256 activeChainId;
-
 
     // functionality ideas
     // - deploy to various chains
@@ -123,10 +121,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     // - set up users with initial balance
     // -  modifier that re-activates current fork after function execution
 
-
-
     function setUp() public {
-
         initTestHelper();
         selectForkWithAccounts(1);
 
@@ -141,7 +136,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
         functionSelectors[1] = cBridge.swapAndStartBridgeTokensViaCBridge.selector;
         functionSelectors[2] = cBridge.addDex.selector;
         functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
-        functionSelectors[4] = cBridge.cBridgeMessageBus.selector;  //TODO remove
+        functionSelectors[4] = cBridge.cBridgeMessageBus.selector; //TODO remove
 
         addFacet(diamond, address(cBridge), functionSelectors);
         cBridge = TestCBridgeFacet(address(diamond));
@@ -151,7 +146,6 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     }
 
     //#region functions testFramework contract
-
 
     function initTestHelper() internal {
         // create forks
@@ -174,7 +168,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
         addressesPerChain[1][AddressTypes.USER_1] = 0x288e1bB700d73e5FeA070a4C90Fec6CD5ef42D29;
         addressesPerChain[1][AddressTypes.USER_2] = 0x75cfB84cf6A92Cc41007A94028D0B2D8beb7ccEf;
 
-        // todo bsc 
+        // todo bsc
         // addressesPerChain[56][AddressTypes.DAI_WHALE] = ;
         // addressesPerChain[56][AddressTypes.USDC_WHALE] = ;
         // addressesPerChain[56][AddressTypes.DEX] = ;
@@ -182,7 +176,6 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
         // addressesPerChain[56][AddressTypes.DAI_TOKEN] = ;
         // addressesPerChain[56][AddressTypes.EXECUTOR] = 0x4F6a9cACA8cd1e6025972Bcaf6BFD8504de69B52;
         // addressesPerChain[56][AddressTypes.RECEIVER] = 0x1b107DfdD93B8A8D305F043543766Eaa160E0A0B;
-
 
         // polygon
         addressesPerChain[137][AddressTypes.DAI_WHALE] = 0xd7052EC0Fe1fe25b20B7D65F6f3d490fCE58804f;
@@ -194,17 +187,21 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
         addressesPerChain[137][AddressTypes.RECEIVER] = 0x1b107DfdD93B8A8D305F043543766Eaa160E0A0B;
         addressesPerChain[137][AddressTypes.USER_1] = 0x288e1bB700d73e5FeA070a4C90Fec6CD5ef42D29;
         addressesPerChain[137][AddressTypes.USER_2] = 0x75cfB84cf6A92Cc41007A94028D0B2D8beb7ccEf;
-
     }
 
     function _selectForkWithChainId(uint256 chainId) private {
         // chainId 1 will be the first fork and has forkId 0
-        if(chainId != 1 && forkIds[chainId] == 0) revert("DB: fork does not exist");
+        if (chainId != 1 && forkIds[chainId] == 0) revert("DB: fork does not exist");
         vm.selectFork(forkIds[chainId]);
         activeChainId = chainId;
         console.log("");
         console.log("-------------------------");
-        console.log("%s fork (chainId: %s) with forkID %s selected", chainNames[forkIds[chainId]], chainId, forkIds[chainId]);
+        console.log(
+            "%s fork (chainId: %s) with forkID %s selected",
+            chainNames[forkIds[chainId]],
+            chainId,
+            forkIds[chainId]
+        );
     }
 
     // activates fork with given ID and updates all accounts with chainId-specific addresses
@@ -221,7 +218,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
         _accounts.receiver = addressesPerChain[chainId][AddressTypes.RECEIVER];
     }
 
-    function printAllAccounts() internal  {
+    function printAllAccounts() internal {
         console.log("-------------------------");
         console.log("Current addresses for %s fork with id %s", chainNames[vm.activeFork()], vm.activeFork());
         console.log("DAI Whale      :", addressesPerChain[activeChainId][AddressTypes.DAI_WHALE]);
@@ -238,7 +235,9 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
 
     function setInitialBalances() internal {
         //TODO use for loop
-        initialBalances[address(address(_accounts.usdcToken))][AddressTypes.DAI_WHALE] = getBalanceUSDC(_accounts.daiWhale);
+        initialBalances[address(address(_accounts.usdcToken))][AddressTypes.DAI_WHALE] = getBalanceUSDC(
+            _accounts.daiWhale
+        );
         initialBalances[address(_accounts.daiToken)][AddressTypes.DAI_WHALE] = getBalanceDAI(_accounts.daiWhale);
         initialBalances[address(_accounts.usdcToken)][AddressTypes.USDC_WHALE] = getBalanceUSDC(_accounts.usdcWhale);
         initialBalances[address(_accounts.daiToken)][AddressTypes.USDC_WHALE] = getBalanceDAI(_accounts.usdcWhale);
@@ -271,7 +270,9 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     function deployReceiverAndExecutor() internal {
         _accounts.executor = address(new Executor(address(_accounts.usdcWhale), address(0)));
         // _accounts.receiver = address(new Receiver(address(_accounts.usdcWhale), address(0), address(_accounts.executor)));
-        _accounts.receiver = address(new ReceiverCelerIM(address(_accounts.usdcWhale), CBRIDGE_MESSAGE_BUS_POLY, address(_accounts.executor)));
+        _accounts.receiver = address(
+            new ReceiverCelerIM(address(_accounts.usdcWhale), CBRIDGE_MESSAGE_BUS_POLY, address(_accounts.executor))
+        );
     }
 
     function assertNoBalanceChangeInDAI(AddressTypes user) internal returns (bool) {
@@ -289,7 +290,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     usdc.approve(address(cBridge), 10_000 * 10**usdc.decimals());
     //     uint256 initialBalance = usdc.balanceOf(DAI_WHALE);
 
-    //     uint256 amountOut = 50 * 10**usdc.decimals();   
+    //     uint256 amountOut = 50 * 10**usdc.decimals();
     //     // uint256 amountOut = amount * 10**usdc.decimals(); //TODO why tests run so long?
 
     //     // prepare bridge data
@@ -314,7 +315,6 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //             block.number
     //     ))));
 
-
     //     // prepare cBridgeData
     //     CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet.CBridgeData({
     //         maxSlippage:    5000,
@@ -323,8 +323,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //         callData:       "",
     //         messageBusFee:  0,
     //         bridgeType:     MsgDataTypes.BridgeSendType.Liquidity
-    //     });   
-
+    //     });
 
     //     // check if LiFiTransferStarted event will be emitted by our contract with correct data
     //     vm.expectEmit(true, true, true, true, address(cBridge));
@@ -340,7 +339,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     vm.startPrank(DAI_WHALE);
     //     vm.assume(amount < 10000 && amount > 50);
 
-    //     uint256 amountOut = 50 * 10**18;   
+    //     uint256 amountOut = 50 * 10**18;
     //     // uint256 amountOut = amount * 10**18; //TODO why tests run so long?
 
     //     vm.deal(DAI_WHALE, amountOut);
@@ -368,7 +367,6 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //             block.number
     //     ))));
 
-
     //     // prepare cBridgeData
     //     CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet.CBridgeData({
     //         maxSlippage:    5000,
@@ -377,8 +375,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //         callData:       "",
     //         messageBusFee:  0,
     //         bridgeType:     MsgDataTypes.BridgeSendType.Liquidity
-    //     });   
-
+    //     });
 
     //     // check if LiFiTransferStarted event will be emitted by our contract with correct data
     //     vm.expectEmit(true, true, true, true, address(cBridge));
@@ -394,8 +391,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     vm.startPrank(DAI_WHALE);
     //     vm.assume(amount < 10000 && amount > 50);
 
-
-    //     uint256 amountOut = 50 * 10**18;   
+    //     uint256 amountOut = 50 * 10**18;
     //     // uint256 amountOut = amount * 10**18; //TODO why tests run so long?
 
     //     dai.approve(address(cBridge), 10_000 * 10**dai.decimals());
@@ -424,7 +420,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     ))));
 
     //     // prepare callData for dest call
-    //     // Swap USDC > DAI at dest 
+    //     // Swap USDC > DAI at dest
     //     //! (should use dest chain addresses here)
     //     address[] memory pathDest = new address[](2);
     //     pathDest[0] = USDC_ADDRESS;
@@ -450,7 +446,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //         callData:       destCallData,
     //         messageBusFee:  messageBusFee,
     //         bridgeType:     MsgDataTypes.BridgeSendType.Liquidity
-    //     });   
+    //     });
 
     //     // check if function call emits events
     //         // calculate transferId as it will be produced during bridging
@@ -461,7 +457,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //                 bridgeData.sendingAssetId,
     //                 bridgeData.minAmount,
     //                 uint64(bridgeData.destinationChainId),
-    //                 cBridgeData.nonce, 
+    //                 cBridgeData.nonce,
     //                 uint64(block.chainid)
     //             )
     //     );
@@ -476,7 +472,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //         transferId,
     //         destCallData,
     //         messageBusFee
-    //     );  
+    //     );
 
     //     // check if LiFiTransferStarted event will be emitted by our contract with correct data
     //     vm.expectEmit(true, true, true, true, address(cBridge));
@@ -492,7 +488,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     vm.startPrank(DAI_WHALE);
     //     vm.assume(amount < 10000 && amount > 50);
 
-    //     uint256 amountOut = 50 * 10**18;   
+    //     uint256 amountOut = 50 * 10**18;
     //     // uint256 amountOut = amount * 10**18; //TODO why tests run so long?
 
     //     vm.deal(DAI_WHALE, 1000000 ether);
@@ -521,7 +517,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     ))));
 
     //     // prepare callData for dest call
-    //     // Swap USDC > DAI at dest 
+    //     // Swap USDC > DAI at dest
     //     //! (should use dest chain addresses here)
     //     address[] memory pathDest = new address[](2);
     //     pathDest[0] = USDC_ADDRESS;
@@ -546,7 +542,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //         callData:       destCallData,
     //         messageBusFee:  messageBusFee,
     //         bridgeType:     MsgDataTypes.BridgeSendType.Liquidity
-    //     });   
+    //     });
 
     //     // check if function call emits events
     //         // calculate transferId as it will be produced during bridging
@@ -557,7 +553,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //                 bridgeData.sendingAssetId,
     //                 bridgeData.minAmount,
     //                 uint64(bridgeData.destinationChainId),
-    //                 cBridgeData.nonce, 
+    //                 cBridgeData.nonce,
     //                 uint64(block.chainid)
     //             )
     //     );
@@ -572,7 +568,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //         transferId,
     //         destCallData,
     //         messageBusFee
-    //     );  
+    //     );
 
     //     // check if LiFiTransferStarted event will be emitted by our contract with correct data
     //     vm.expectEmit(true, true, true, true, address(cBridge));
@@ -596,7 +592,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     pathSrc[0] = DAI_ADDRESS;
     //     pathSrc[1] = USDC_ADDRESS;
 
-    //     uint256 amountOut = 50 * 10**usdc.decimals();   
+    //     uint256 amountOut = 50 * 10**usdc.decimals();
     //     // uint256 amountOut = amount * 10**usdc.decimals(); //TODO why tests run so long?
 
     //     // Calculate DAI amount
@@ -652,7 +648,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //         callData:       "",
     //         messageBusFee:  0,
     //         bridgeType:     MsgDataTypes.BridgeSendType.Liquidity
-    //     });   
+    //     });
 
     //     // check if LiFiTransferStarted event will be emitted by our contract with correct data
     //     vm.expectEmit(true, true, true, true, address(cBridge));
@@ -675,7 +671,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     pathSrc[0] = DAI_ADDRESS;
     //     pathSrc[1] = USDC_ADDRESS;
 
-    //     uint256 amountOut = 50 * 10**usdc.decimals();   
+    //     uint256 amountOut = 50 * 10**usdc.decimals();
     //     // uint256 amountOut = amount * 10**usdc.decimals(); //TODO why tests run so long?
 
     //     // Calculate DAI amount
@@ -717,7 +713,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     });
 
     //     // prepare callData for dest call
-    //     // Swap USDC > DAI at dest 
+    //     // Swap USDC > DAI at dest
     //     //! (should use dest chain addresses here)
     //     address[] memory pathDest = new address[](2);
     //     pathDest[0] = USDC_ADDRESS;
@@ -733,7 +729,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
 
     //     // Calculate messageBusFee based on message length
     //     uint256 messageBusFee = IMessageBus(CBRIDGE_MESSAGE_BUS_ETH).calcFee(destCallData);
-        
+
     //     // calculate nonce as recommended by CBridge
     //     uint64 nonce = uint64(uint(keccak256(abi.encodePacked(
     //             block.timestamp,
@@ -750,7 +746,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //         callData:       destCallData,
     //         messageBusFee:  messageBusFee,
     //         bridgeType:     MsgDataTypes.BridgeSendType.Liquidity
-    //     });   
+    //     });
 
     //     // check if function call emits events
     //         // calculate transferId as it will be produced during bridging
@@ -761,7 +757,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //                 bridgeData.sendingAssetId,
     //                 bridgeData.minAmount,
     //                 uint64(bridgeData.destinationChainId),
-    //                 cBridgeData.nonce, 
+    //                 cBridgeData.nonce,
     //                 uint64(block.chainid)
     //             )
     //     );
@@ -789,14 +785,14 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
 
     //#endregion
 
-    //#region cross-chain tests 
-        // describe and prepare scenario
-        // SOURCE (chainId 1 - Ethereum mainnet):
-        //  1) swap USDC to 100 DAI
-        //  2) bridge DAI 
-        // DEST (chainId 137 - POLYGON):
-        //  3) receive DAI from bridging
-        //  4) swap DAI to USDC
+    //#region cross-chain tests
+    // describe and prepare scenario
+    // SOURCE (chainId 1 - Ethereum mainnet):
+    //  1) swap USDC to 100 DAI
+    //  2) bridge DAI
+    // DEST (chainId 137 - POLYGON):
+    //  3) receive DAI from bridging
+    //  4) swap DAI to USDC
 
     // function testCrossChainTestCaseSrc(uint32 amount) public {
     //     console.log("in testCrossChainTestCase");
@@ -807,7 +803,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     pathSrc[0] = address(_accounts.usdcToken);
     //     pathSrc[1] = address(_accounts.daiToken);
 
-    //     uint256 amountOut = 100 * 10**dai.decimals();   
+    //     uint256 amountOut = 100 * 10**dai.decimals();
 
     //     // Calculate USDC amount
     //     uint256[] memory amounts = _accounts.dex.getAmountsIn(amountOut, pathSrc);
@@ -861,7 +857,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     _accounts.usdcToken.approve(_accounts.receiver, amountInDest);
     //     console.log("5");
 
-    //     //! this needs to be updated to match the actual 
+    //     //! this needs to be updated to match the actual
 
     //     // prepare swap data for swap at dest chain  (DAI -> USDC)
     //     LibSwap.SwapData[] memory swapDataDest = new LibSwap.SwapData[](1);
@@ -894,7 +890,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
 
     //     // Calculate messageBusFee based on message length
     //     uint256 messageBusFee = IMessageBus(CBRIDGE_MESSAGE_BUS_ETH).calcFee(destCallData);
-        
+
     //     // calculate nonce as recommended by CBridge
     //     uint64 nonce = uint64(uint(keccak256(abi.encodePacked(
     //             block.timestamp,
@@ -910,7 +906,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //         callData:       destCallData,
     //         messageBusFee:  messageBusFee,
     //         bridgeType:     MsgDataTypes.BridgeSendType.Liquidity
-    //     });   
+    //     });
 
     //     // prepare check for events
     //         // calculate transferId as it will be produced during bridging
@@ -925,7 +921,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //                 uint64(block.chainid)
     //             )
     //     );
- 
+
     //     // event MessageWithTransfer:
     //     //     address indexed sender,
     //     //     address receiver,
@@ -952,10 +948,6 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     emit log_bytes(destCallData);
     //     console.log("*************************************");
 
-
-
-
-
     //     // check if MessageWithTransfer event will be emitted by MessageBus with correct data
     //     //! TODO TransferId does not match
     //     //! will be difficult to set up with varying bridges used (transferId computation differs)
@@ -973,14 +965,12 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     vm.expectEmit(true, true, true, true, address(cBridge));
     //     emit LiFiTransferStarted(bridgeData);
 
-
     //     // initiate transaction on src side
     //     //TODO FA
     //     cBridge.swapAndStartBridgeTokensViaCBridge{value:messageBusFee}(bridgeData, swapDataSrc, cBridgeData);
 
     //     // check  balances and make assertions
     //     // TODO
-
 
     //     //! src side done (src swap & events checked)
 
@@ -990,11 +980,9 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     //! ###########################################
     //     //! ---- now check release on dest side -------
 
-
     //     vm.stopPrank();
-    //     selectForkWithAccounts(137);     
+    //     selectForkWithAccounts(137);
     //     vm.startPrank(_accounts.daiWhale);
-        
 
     //     // prepare check for events
     //     // TODO
@@ -1005,8 +993,6 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     setInitialBalances();
 
     //     assertEq(_accounts.daiToken.balanceOf(_accounts.receiver), 100 * 10**_accounts.daiToken.decimals());
-
-
 
     //     // call testReceive function in Receiver
     //     ReceiverCelerIM cReceiver = ReceiverCelerIM(_accounts.receiver);
@@ -1019,7 +1005,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     console.log("bridgeData.minAmount: %s", bridgeData.minAmount);
 
     //     emit log_bytes(cBridgeData.callData);
-        
+
     //     cReceiver.executeMessageWithTransfer(
     //         USDC_WHALE,
     //         bridgeData.sendingAssetId,
@@ -1029,16 +1015,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //         address(this)
     //     );
 
-                
-
     //     console.log("hier2");
-
-
-
-
-
-
-
 
     //     vm.stopPrank();
     // }
@@ -1072,13 +1049,12 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
 
     //     // console.log("balance receiver DAI:    %s", _accounts.daiToken.balanceOf(_accounts.receiver));
     //     // console.log("balance receiver USDC:   %s", _accounts.usdcToken.balanceOf(_accounts.receiver));
-        
+
     //     // console.log("balance USDC_WHALE DAI:  %s", _accounts.daiToken.balanceOf(_accounts.usdcWhale));
     //     // console.log("balance USDC_WHALE USDC: %s", _accounts.usdcToken.balanceOf(_accounts.usdcWhale));
-        
+
     //     // console.log("balance executor DAI:    %s", _accounts.daiToken.balanceOf(_accounts.executor));
     //     // console.log("balance executor USDC:   %s", _accounts.usdcToken.balanceOf(_accounts.executor));
-
 
     //     // prepare dest swap data
     //     deployReceiverAndExecutor();
@@ -1133,7 +1109,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     setInitialBalances();
 
     //     // trigger dest side swap and bridging
-    //     // (mock) send "bridged" tokens to Receiver 
+    //     // (mock) send "bridged" tokens to Receiver
     //     vm.startPrank(_accounts.daiWhale);
     //     _accounts.daiToken.transfer(_accounts.receiver, amountOut);
 
@@ -1147,24 +1123,23 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //         destCallData,
     //         address(this)
     //     );
-        
+
     //     // console.log("balance receiver DAI:    %s", _accounts.daiToken.balanceOf(address(cReceiver)));
     //     // console.log("balance receiver USDC:   %s", _accounts.usdcToken.balanceOf(address(cReceiver)));
-        
+
     //     // console.log("balance USDC_WHALE DAI:  %s", _accounts.daiToken.balanceOf(_accounts.usdcWhale));
     //     // console.log("balance USDC_WHALE USDC: %s", _accounts.usdcToken.balanceOf(_accounts.usdcWhale));
-        
+
     //     // console.log("balance executor DAI:    %s", _accounts.daiToken.balanceOf(_accounts.executor));
     //     // console.log("balance executor USDC:   %s", _accounts.usdcToken.balanceOf(_accounts.executor));
-        
+
     //     //TODO check balances with assertions
     //     // assertEq(initialBalances[_accounts.daiToken][AddressTypes.DAI_WHALE], getBalanceDAI());
 
     //     vm.stopPrank();
     // }
 
-
-    // //! works but needs to be finalized (assertions) 
+    // //! works but needs to be finalized (assertions)
     // function testExecuteMessageWithTransfer(uint32 amount) public {
     //     console.log("in testExecutesMessageWithTransferOnDest");
     //     // switch to src to get correct token address for bridgeData
@@ -1190,13 +1165,12 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
 
     //     // console.log("balance receiver DAI:    %s", _accounts.daiToken.balanceOf(_accounts.receiver));
     //     // console.log("balance receiver USDC:   %s", _accounts.usdcToken.balanceOf(_accounts.receiver));
-        
+
     //     // console.log("balance USDC_WHALE DAI:  %s", _accounts.daiToken.balanceOf(_accounts.usdcWhale));
     //     // console.log("balance USDC_WHALE USDC: %s", _accounts.usdcToken.balanceOf(_accounts.usdcWhale));
-        
+
     //     // console.log("balance executor DAI:    %s", _accounts.daiToken.balanceOf(_accounts.executor));
     //     // console.log("balance executor USDC:   %s", _accounts.usdcToken.balanceOf(_accounts.executor));
-
 
     //     // prepare dest swap data
     //     deployReceiverAndExecutor();
@@ -1251,7 +1225,7 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //     setInitialBalances();
 
     //     // trigger dest side swap and bridging
-    //     // (mock) send "bridged" tokens to Receiver 
+    //     // (mock) send "bridged" tokens to Receiver
     //     vm.startPrank(_accounts.daiWhale);
     //     _accounts.daiToken.transfer(_accounts.receiver, amountOut);
 
@@ -1265,16 +1239,16 @@ contract CBridgeFacetTestDaniel is DSTest, DiamondTest {
     //         destCallData,
     //         address(this)
     //     );
-        
+
     //     // console.log("balance receiver DAI:    %s", _accounts.daiToken.balanceOf(address(cReceiver)));
     //     // console.log("balance receiver USDC:   %s", _accounts.usdcToken.balanceOf(address(cReceiver)));
-        
+
     //     // console.log("balance USDC_WHALE DAI:  %s", _accounts.daiToken.balanceOf(_accounts.usdcWhale));
     //     // console.log("balance USDC_WHALE USDC: %s", _accounts.usdcToken.balanceOf(_accounts.usdcWhale));
-        
+
     //     // console.log("balance executor DAI:    %s", _accounts.daiToken.balanceOf(_accounts.executor));
     //     // console.log("balance executor USDC:   %s", _accounts.usdcToken.balanceOf(_accounts.executor));
-        
+
     //     //TODO check balances with assertions
     //     // assertEq(initialBalances[_accounts.daiToken][AddressTypes.DAI_WHALE], getBalanceDAI());
 

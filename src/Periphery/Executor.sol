@@ -9,9 +9,6 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IERC20Proxy } from "../Interfaces/IERC20Proxy.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 
-import { DSTest } from "ds-test/test.sol";      //TODO: remove
-
-
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
@@ -129,16 +126,12 @@ contract Executor is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 finalAssetStartingBalance;
         address finalAssetId = _swapData[_swapData.length - 1].receivingAssetId;
 
-        emit log_string("in _processSwaps");
-        emit log_uint(11);
         if (!LibAsset.isNativeAsset(finalAssetId)) {
             finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId);
         } else {
             finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId) - msg.value;
         }
 
-        emit log_uint(12);
-        emit log_named_uint("IERC20(_transferredAssetId).allowance(msg.sender, address(this)", IERC20(_transferredAssetId).allowance(msg.sender, address(this)));
         if (!LibAsset.isNativeAsset(_transferredAssetId)) {
             startingBalance = LibAsset.getOwnBalance(_transferredAssetId);
             if (_depositAllowance) {
@@ -151,47 +144,18 @@ contract Executor is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnership {
             startingBalance = LibAsset.getOwnBalance(_transferredAssetId) - msg.value;
         }
 
-        emit log_named_uint("IERC20(_transferredAssetId).allowance(msg.sender, address(this)", IERC20(_transferredAssetId).allowance(msg.sender, address(this)));
-
-
-        emit log_named_uint("balanceDaiExecutor", IERC20(_transferredAssetId).balanceOf(address(this)));
-        emit log_named_uint("balanceUSDCExecutor", IERC20(finalAssetId).balanceOf(address(this)));
-        emit log_named_uint("startingBalance", startingBalance);    // should be the same?
-        emit log_named_uint("balanceUSDCExecutor33", IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48).balanceOf(address(this)));
-
-        emit log_string("\n\n now executing swaps");
         _executeSwaps(_transactionId, _swapData, _receiver);
-        emit log_uint(14);
-
-        emit log_named_uint("balanceUSDCExecutor34", IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48).balanceOf(address(this)));
-        emit log_named_uint("balanceDaiExecutor", IERC20(_transferredAssetId).balanceOf(address(this)));
-        emit log_named_uint("balanceUSDCExecutor", IERC20(finalAssetId).balanceOf(address(this)));
-
-        
 
         uint256 postSwapBalance = LibAsset.getOwnBalance(_transferredAssetId);
         if (postSwapBalance > startingBalance) {
-            emit log_string("in postSwapBalance");
             LibAsset.transferAsset(_transferredAssetId, _receiver, postSwapBalance - startingBalance);
         }
-        emit log_named_uint("balanceUSDCExecutor35", IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48).balanceOf(address(this)));
 
-
-        emit log_uint(15);
         uint256 finalAssetPostSwapBalance = LibAsset.getOwnBalance(finalAssetId);
 
         if (finalAssetPostSwapBalance > finalAssetStartingBalance) {
-            emit log_string("in finalAssetPostSwapBalance");
             LibAsset.transferAsset(finalAssetId, _receiver, finalAssetPostSwapBalance - finalAssetStartingBalance);
         }
-        emit log_named_uint("finalAssetStartingBalance", finalAssetStartingBalance);
-        emit log_named_uint("finalAssetPostSwapBalance", finalAssetPostSwapBalance);
-        emit log_named_uint("balanceUSDCExecutor36", IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48).balanceOf(address(this)));
-
-        emit log_uint(16);
-
-        emit log_named_uint("balanceUSDCExecutor", IERC20(finalAssetId).balanceOf(address(this)));
-
 
         emit LiFiTransferCompleted(
             _transactionId,
@@ -212,20 +176,16 @@ contract Executor is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnership {
         address payable _leftoverReceiver
     ) private noLeftovers(_swapData, _leftoverReceiver) {
         uint256 numSwaps = _swapData.length;
-        emit log_uint(22);
         for (uint256 i = 0; i < numSwaps; ) {
             if (_swapData[i].callTo == address(erc20Proxy)) {
-                emit log_uint(2222);
                 revert UnAuthorized(); // Prevent calling ERC20 Proxy directly
             }
 
-            emit log_uint(23);
             LibSwap.SwapData calldata currentSwapData = _swapData[i];
             LibSwap.swap(_transactionId, currentSwapData);
             unchecked {
                 ++i;
             }
-            emit log_uint(i);
         }
     }
 

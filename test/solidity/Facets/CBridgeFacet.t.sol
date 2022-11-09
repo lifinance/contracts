@@ -14,10 +14,8 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { Executor, IERC20Proxy } from "lifi/Periphery/Executor.sol";
 import { ReceiverCelerIM } from "lifi/Periphery/ReceiverCelerIM.sol";
-import { IMessageReceiverApp } from"celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
-import { MsgDataTypes} from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
-
-
+import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
+import { MsgDataTypes } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
@@ -33,7 +31,6 @@ contract TestCBridgeFacet is CBridgeFacet {
 }
 
 contract CBridgeFacetTest is DSTest, DiamondTest {
-
     event LiFiTransferCompleted(
         bytes32 indexed transactionId,
         address receivingAssetId,
@@ -53,14 +50,12 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
     address internal constant CBRIDGE_MESSAGE_BUS_POLY = 0xaFDb9C40C7144022811F034EE07Ce2E110093fe6;
     address internal constant EXECUTOR = 0x4F6a9cACA8cd1e6025972Bcaf6BFD8504de69B52;
 
-
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
     TestCBridgeFacet internal cBridge;
     ERC20 internal usdc;
     ERC20 internal dai;
     UniswapV2Router02 internal uniswap;
-    
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
@@ -91,18 +86,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
     }
 
-    function getDefaultCBridgeData() public returns (CBridgeFacet.CBridgeData memory data) {
-        data = CBridgeFacet.CBridgeData({
-            maxSlippage:    5000,
-            nonce:          1,
-            callTo:         abi.encodePacked(address(0)),
-            callData:       "",
-            messageBusFee:  0,
-            bridgeType:     MsgDataTypes.BridgeSendType.Liquidity
-        }); 
-    }  
-
-    //#region existing tests 
+    //#region existing tests
     function testCanBridgeTokens() public {
         vm.startPrank(WHALE);
         usdc.approve(address(cBridge), 10_000 * 10**usdc.decimals());
@@ -118,7 +102,14 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             false,
             false
         );
-        CBridgeFacet.CBridgeData memory data = getDefaultCBridgeData();
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData({
+            maxSlippage: 5000,
+            nonce: 1,
+            callTo: abi.encodePacked(address(0)),
+            callData: "",
+            messageBusFee: 0,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
 
         cBridge.startBridgeTokensViaCBridge(bridgeData, data);
         vm.stopPrank();
@@ -152,11 +143,11 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         );
 
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            5000, 
-            1, 
+            5000,
+            1,
             abi.encode(address(0)),
-            "", 
-            0, 
+            "",
+            0,
             MsgDataTypes.BridgeSendType.Liquidity
         );
 
@@ -182,6 +173,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
         vm.stopPrank();
     }
+
     //#endregion
 
     //#region new working tests
@@ -189,21 +181,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
     function testCanExecuteMessageWithTransfer() public {
         address finalReceiver = address(0x12345678);
 
-        uint256 amountOut = 100 * 10 ** usdc.decimals();
-
-        // prepare bridge data
-        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
-            transactionId:          "",
-            bridge:                 "cbridge",
-            integrator:             "",
-            referrer:               address(0),
-            sendingAssetId:         address(dai),
-            receiver:               finalReceiver,
-            minAmount:              amountOut,
-            destinationChainId:     137,
-            hasSourceSwaps:         false,
-            hasDestinationCall:     true
-        });
+        uint256 amountOut = 100 * 10**usdc.decimals();
 
         // prepare dest swap data
         address executorAddress = address(new Executor(address(WHALE), address(0)));
@@ -218,65 +196,66 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
 
         LibSwap.SwapData[] memory swapDataDest = new LibSwap.SwapData[](1);
         swapDataDest[0] = LibSwap.SwapData({
-            callTo:             address(uniswap),
-            approveTo:          address(uniswap),
-            sendingAssetId:     address(dai),
-            receivingAssetId:   address(usdc),
-            fromAmount:         amountOut,
-            callData:           abi.encodeWithSelector(
-                                    uniswap.swapExactTokensForTokens.selector,
-                                    amountIn,
-                                    amountOut,
-                                    path,
-                                    executorAddress,     // has same address across networks
-                                    block.timestamp + 20 minutes
-                                ),
-            requiresDeposit:    false
+            callTo: address(uniswap),
+            approveTo: address(uniswap),
+            sendingAssetId: address(dai),
+            receivingAssetId: address(usdc),
+            fromAmount: amountOut,
+            callData: abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                amountIn,
+                amountOut,
+                path,
+                executorAddress, // has same address across networks
+                block.timestamp + 20 minutes
+            ),
+            requiresDeposit: false
         });
 
         bytes32 txId = "txId";
         bytes memory destCallData = abi.encode(
-            txId,                   // transactionId
-            swapDataDest,           // swapData
-            finalReceiver,          // receiver
-            finalReceiver           // refundAddress
+            txId, // transactionId
+            swapDataDest, // swapData
+            finalReceiver, // receiver
+            finalReceiver // refundAddress
         );
 
         // prepare check for events
         vm.expectEmit(true, true, true, true, executorAddress);
         emit LiFiTransferCompleted(
             txId,
-            address(dai),   //! is this correct to be DAI here (bridge DAI, swap to USDC)
+            address(dai), //! is this correct to be DAI here (bridge DAI, swap to USDC)
             finalReceiver,
             amountOut,
             block.timestamp
         );
 
         // trigger dest side swap and bridging
-        // (mock) send "bridged" tokens to Receiver 
+        // (mock) send "bridged" tokens to Receiver
         vm.startPrank(DAI_WHALE);
         dai.transfer(address(receiver), amountIn);
 
-        if(receiver.executeMessageWithTransfer(
-            address(cBridge),
-            address(dai),
-            amountIn,
-            1,      //srcChainId
-            destCallData,
-            address(this)
-        )  != IMessageReceiverApp.ExecutionStatus.Success) revert("DB: Wrong return value");
+        if (
+            receiver.executeMessageWithTransfer(
+                address(cBridge),
+                address(dai),
+                amountIn,
+                1, //srcChainId
+                destCallData,
+                address(this)
+            ) != IMessageReceiverApp.ExecutionStatus.Success
+        ) revert("DB: Wrong return value");
 
         // check finalReceiver balance
         assertEq(usdc.balanceOf(finalReceiver), amountOut);
         vm.stopPrank();
-        // revert();
     }
 
     function testCanExecuteMessageWithTransferFallBack() public {
         address finalReceiver = address(0x12345678);
         address refundAddress = address(0x65745345);
 
-        uint256 amountOut = 100 * 10 ** usdc.decimals();
+        uint256 amountOut = 100 * 10**usdc.decimals();
 
         // prepare dest swap data
         address executorAddress = address(new Executor(address(WHALE), address(0)));
@@ -291,27 +270,29 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
 
         bytes32 txId = "txId";
         bytes memory destCallData = abi.encode(
-            txId,                   // transactionId
-            "",                     // swapData
-            finalReceiver,          // receiver
-            refundAddress           // refundAddress
+            txId, // transactionId
+            "", // swapData
+            finalReceiver, // receiver
+            refundAddress // refundAddress
         );
 
         //? prepare check for events
 
         // trigger dest side swap and bridging
-        // (mock) send "bridged" tokens to Receiver 
+        // (mock) send "bridged" tokens to Receiver
         vm.startPrank(DAI_WHALE);
         dai.transfer(address(receiver), amountIn);
 
-        if(receiver.executeMessageWithTransferFallback(
-            address(cBridge),
-            address(dai),
-            amountIn,
-            1,      //srcChainId
-            destCallData,
-            address(this)
-        )  != IMessageReceiverApp.ExecutionStatus.Success) revert("DB: Wrong return value");
+        if (
+            receiver.executeMessageWithTransferFallback(
+                address(cBridge),
+                address(dai),
+                amountIn,
+                1, //srcChainId
+                destCallData,
+                address(this)
+            ) != IMessageReceiverApp.ExecutionStatus.Success
+        ) revert("DB: Wrong return value returned by executeMessageWithTransferFallback()");
 
         // check balance
         assertEq(dai.balanceOf(refundAddress), amountIn);
@@ -322,7 +303,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         address finalReceiver = address(0x12345678);
         address refundAddress = address(0x65745345);
 
-        uint256 amountOut = 100 * 10 ** usdc.decimals();
+        uint256 amountOut = 100 * 10**usdc.decimals();
 
         // prepare dest swap data
         address executorAddress = address(new Executor(address(WHALE), address(0)));
@@ -337,16 +318,16 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
 
         bytes32 txId = "txId";
         bytes memory destCallData = abi.encode(
-            txId,                   // transactionId
-            "",           // swapData
-            finalReceiver,          // receiver
-            refundAddress           // refundAddress
+            txId, // transactionId
+            "", // swapData
+            finalReceiver, // receiver
+            refundAddress // refundAddress
         );
 
         //? prepare check for events
 
         // trigger dest side swap and bridging
-        // (mock) send "bridged" tokens to Receiver 
+        // (mock) send "bridged" tokens to Receiver
         vm.startPrank(DAI_WHALE);
         dai.transfer(address(cBridge), amountIn);
         vm.stopPrank();
@@ -354,12 +335,10 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         // call refund function from CBridge messageBus address
         vm.startPrank(CBRIDGE_MESSAGE_BUS_ETH);
 
-        if(cBridge.executeMessageWithTransferRefund(
-            address(dai),
-            amountIn,
-            destCallData,
-            address(this)
-        )  != IMessageReceiverApp.ExecutionStatus.Success) revert("DB: Wrong return value");
+        if (
+            cBridge.executeMessageWithTransferRefund(address(dai), amountIn, destCallData, address(this)) !=
+            IMessageReceiverApp.ExecutionStatus.Success
+        ) revert("DB: Wrong return value");
 
         // check balance
         assertEq(dai.balanceOf(refundAddress), amountIn);
@@ -426,7 +405,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
     //     // );
 
     //     // trigger dest side swap and bridging
-    //     // (mock) send "bridged" tokens to Receiver 
+    //     // (mock) send "bridged" tokens to Receiver
     //     vm.startPrank(WHALE);
     //     usdc.approve(address(receiver), amountOut);
 

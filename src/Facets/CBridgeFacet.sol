@@ -5,7 +5,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { SwapperV2, LibSwap, DSTest } from "../Helpers/SwapperV2.sol";
 import { InvalidReceiver, InvalidAmount, InvalidCaller, InvalidConfig, InformationMismatch, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -16,7 +16,6 @@ import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/
 
 //  tmp
 import { Vm } from "forge-std/Vm.sol";
-import { DSTest } from "ds-test/test.sol";
 
 interface IOriginalTokenVault {
     function deposit(
@@ -153,8 +152,6 @@ contract CBridgeFacet is ILiFi, DSTest, ReentrancyGuard, SwapperV2, Validatable 
         nonReentrant
     {
         validateDestinationCallFlag(_bridgeData, _cBridgeData);
-        emit log_int(20);
-        emit log_named_uint("balance bef", ERC20(_bridgeData.sendingAssetId).balanceOf(address(this)));
 
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -162,11 +159,8 @@ contract CBridgeFacet is ILiFi, DSTest, ReentrancyGuard, SwapperV2, Validatable 
             _swapData,
             payable(msg.sender)
         );
-        emit log_named_uint("balance aft", ERC20(_bridgeData.sendingAssetId).balanceOf(address(this)));
 
-        emit log_int(21);
         _startBridge(_bridgeData, _cBridgeData);
-        emit log_int(22);
     }
 
     /// Private Methods ///
@@ -196,9 +190,7 @@ contract CBridgeFacet is ILiFi, DSTest, ReentrancyGuard, SwapperV2, Validatable 
         }
 
         // emit LiFi event
-        emit log_named_uint("here", 1);
         emit LiFiTransferStarted(_bridgeData);
-        emit log_named_uint("here", 2);
     }
 
     function validateDestinationCallFlag(ILiFi.BridgeData memory _bridgeData, CBridgeData memory _cBridgeData)
@@ -245,14 +237,8 @@ contract CBridgeFacet is ILiFi, DSTest, ReentrancyGuard, SwapperV2, Validatable 
         // approve to and call correct bridge depending on BridgeSendType
         // @dev copied and slightly adapted from Celer MessageSenderLib
         if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.Liquidity) {
-            emit log_named_uint("here", 11);
-            emit log_address(address(this));
-
             bridgeAddress = cBridgeMessageBus.liquidityBridge();
-            emit log_address(bridgeAddress);
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-                emit log_named_uint("is native", 11);
-
                 // native asset
                 if (msg.value < _bridgeData.minAmount) revert InformationMismatch(); //TODO add correct error
                 ICBridge(bridgeAddress).sendNative{ value: _bridgeData.minAmount }(
@@ -264,10 +250,6 @@ contract CBridgeFacet is ILiFi, DSTest, ReentrancyGuard, SwapperV2, Validatable 
                 );
             } else {
                 // ERC20 asset
-                emit log_named_uint("erc20", 11);
-                emit log_named_uint("balance diamond bef", ERC20(_bridgeData.sendingAssetId).balanceOf(address(this)));
-                emit log_named_uint("balance cbridge bef", ERC20(_bridgeData.sendingAssetId).balanceOf(bridgeAddress));
-
                 LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
                 ICBridge(bridgeAddress).send(
                     _bridgeData.receiver,
@@ -277,8 +259,6 @@ contract CBridgeFacet is ILiFi, DSTest, ReentrancyGuard, SwapperV2, Validatable 
                     _cBridgeData.nonce,
                     _cBridgeData.maxSlippage
                 );
-                emit log_named_uint("balance diamond aft", ERC20(_bridgeData.sendingAssetId).balanceOf(address(this)));
-                emit log_named_uint("balance cbridge aft", ERC20(_bridgeData.sendingAssetId).balanceOf(bridgeAddress));
             }
             transferId = MessageSenderLib.computeLiqBridgeTransferId(
                 _bridgeData.receiver,
@@ -361,7 +341,6 @@ contract CBridgeFacet is ILiFi, DSTest, ReentrancyGuard, SwapperV2, Validatable 
         } else {
             revert InvalidConfig();
         }
-        emit log_int(2);
     }
 
     function _computeSwapRequestId(
