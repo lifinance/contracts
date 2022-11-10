@@ -46,4 +46,10 @@ export default [
   '0xce8d3bde', // swapOKTForExactTokens(uint,address[],address,uint)
   '0xa5669eae', // swapExactTokensForOKT(uint,uint,address[],address,uint)
   '0x3cdf133f', // swapTokensForExactOKT(uint,uint,address[],address,uint)
+  '0x38ed1739', // swapExactTokensForTokens(uint256,uint256,address[],address,uint256)
+  '0x8803dbee', // swapTokensForExactTokens(uint256,uint256,address[],address,uint256)
+  '0xa2a1623d', // swapExactAVAXForTokens(uint256,address[],address,uint256)
+  '0x7a42416a', // swapTokensForExactAVAX(uint256,uint256,address[],address,uint256)
+  '0x676528d1', // swapExactTokensForAVAX(uint256,uint256,address[],address,uint256)
+  '0x8a657e67', // swapAVAXForExactTokens(uint256,address[],address,uint256)
 ]
