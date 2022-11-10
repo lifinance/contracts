@@ -84,7 +84,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     /// @notice The contract address of the cbridge on the source chain.
-    ICBridge private immutable cBridge;
+    ICBridge private immutable cBridge; //TODO QUESTION safe to remove since this address is obtained on-chain by _sendTokenTransfer()
     IMessageBus public immutable cBridgeMessageBus;
 
     /// Types ///
@@ -182,7 +182,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             cBridgeMessageBus.sendMessageWithTransfer{ value: _cBridgeData.messageBusFee }(
                 _bridgeData.receiver,
                 uint64(_bridgeData.destinationChainId),
-                address(cBridge),
+                bridgeAddress,
                 transferId,
                 _cBridgeData.callData
             );
@@ -235,6 +235,12 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         //!------------ new implementation for all bridge types
         // approve to and call correct bridge depending on BridgeSendType
         // @dev copied and slightly adapted from Celer MessageSenderLib
+
+        //TODO check if code adjustment is needed to support native deposit on other bridge
+        //TODO types (not only Liquidity)
+        //TODO e.g. PegV2Deposit has depositNative function
+        //TODO https://etherscan.io/tx/0x2f14332b8d1eb83ae616340274a1edfaf2a2f4330c8f40c6decfa9c2ff01a799
+
         if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.Liquidity) {
             bridgeAddress = cBridgeMessageBus.liquidityBridge();
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {

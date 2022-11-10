@@ -215,7 +215,6 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
     ) private returns (IMessageReceiverApp.ExecutionStatus) {
         emit log_string("_executeMessage");
         emit log_named_bytes("message", _message);
-        ("_executeMessage");
         // decode message
         // The first 20 bytes of the _message are the callee address
         address callTo = _message.toAddress(0);
