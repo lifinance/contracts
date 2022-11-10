@@ -8,9 +8,14 @@ import {
 } from 'ethers'
 import { L1ToL2MessageGasEstimator } from '@arbitrum/sdk/dist/lib/message/L1ToL2MessageGasEstimator'
 import { RetryableDataTools } from '@arbitrum/sdk'
-import { ArbitrumBridgeFacet__factory, ERC20__factory } from '../typechain'
+import {
+  ArbitrumBridgeFacet__factory,
+  ERC20__factory,
+  IGatewayRouter__factory,
+} from '../typechain'
 import { node_url } from '../utils/network'
 import chalk from 'chalk'
+import config from '../config/arbitrum'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))
@@ -38,11 +43,6 @@ const {
   gasLimit: errorTriggerGasLimit,
   maxFeePerGas: errorTriggerMaxFeePerGas,
 } = RetryableDataTools.ErrorTriggeringParams
-const errorTriggerArbitrumData = {
-  maxSubmissionCost: 1,
-  maxGas: errorTriggerGasLimit,
-  maxGasPrice: errorTriggerMaxFeePerGas,
-}
 const errorTriggerCost = BigNumber.from(1).add(
   errorTriggerGasLimit.mul(errorTriggerMaxFeePerGas)
 )
@@ -63,9 +63,19 @@ async function main() {
 
   const lifi = ArbitrumBridgeFacet__factory.connect(LIFI_ADDRESS, wallet)
 
+  const l1GatewayRouter = IGatewayRouter__factory.connect(
+    config['goerli'].gatewayRouter,
+    l1Provider
+  )
+  const l2GatewayRouter = IGatewayRouter__factory.connect(
+    config['goerli'].l2GatewayRouter,
+    l2Provider
+  )
+
   // Bridge Non-Native Asset
   {
     const token = ERC20__factory.connect(TEST_TOKEN_ADDRESS, wallet)
+    const usdc = ERC20__factory.connect(USDC_ADDRESS, wallet)
 
     // Setting Swap Data
     const uniswap = new Contract(UNISWAP_ADDRESS, [
@@ -111,41 +121,69 @@ async function main() {
       hasDestinationCall: false,
     }
 
-    const depositFunc = (_: any) => {
-      return {
-        data: ArbitrumBridgeFacet__factory.createInterface().encodeFunctionData(
-          'swapAndStartBridgeTokensViaArbitrumBridge',
-          [bridgeData, swapData, errorTriggerArbitrumData]
+    // =================== Calculate estimations ===================
+
+    // Encode data of token name, symbol, decimals
+    const deployData = utils.defaultAbiCoder.encode(
+      ['bytes', 'bytes', 'bytes'],
+      [
+        utils.hexlify(utils.toUtf8Bytes(await usdc.name())),
+        utils.hexlify(utils.toUtf8Bytes(await usdc.symbol())),
+        utils.hexlify(await usdc.decimals()),
+      ]
+    )
+    const ABI = [
+      'function finalizeInboundTransfer(address,address,address,uint256,bytes)',
+    ]
+    const iface = new utils.Interface(ABI)
+    const outboundCalldata = iface.encodeFunctionData(
+      'finalizeInboundTransfer',
+      [
+        USDC_ADDRESS, // L1 Token address
+        LIFI_ADDRESS,
+        walletAddress, // Receiver address
+        amountOut, // Sending amount
+        utils.defaultAbiCoder.encode(['bytes', 'bytes'], [deployData, '0x']),
+      ]
+    )
+
+    const estimates = await gasEstimator.estimateAll(
+      {
+        from: await l1GatewayRouter.getGateway(USDC_ADDRESS),
+        to: await l2GatewayRouter.getGateway(
+          await l1GatewayRouter.calculateL2TokenAddress(USDC_ADDRESS)
         ),
-        to: lifi.address,
-        from: walletAddress,
-        value: errorTriggerCost,
-      }
+        data: outboundCalldata,
+        l2CallValue: errorTriggerCost,
+        excessFeeRefundAddress: walletAddress,
+        callValueRefundAddress: walletAddress,
+      },
+      (await l1JsonProvider.getBlock('latest')).baseFeePerGas ||
+        BigNumber.from(0),
+      l1Provider
+    )
+
+    // =============================================================
+
+    const { maxSubmissionCost, gasLimit, maxFeePerGas } = estimates
+    const maxGasLimit = gasLimit.add(64 * 12)
+
+    // Total cost
+    const cost = maxSubmissionCost.add(maxFeePerGas.mul(maxGasLimit))
+
+    // Bridge Data
+    const arbitrumData = {
+      maxSubmissionCost: maxSubmissionCost,
+      maxGas: maxGasLimit,
+      maxGasPrice: maxFeePerGas,
     }
 
-    // Approve ERC20 for swapping -- USDC -> USDC
+    // Approve ERC20 for swapping -- TOKEN -> USDC
     const allowance = await token.allowance(walletAddress, LIFI_ADDRESS)
     if (amountIn.gt(allowance)) {
       await token.approve(LIFI_ADDRESS, amountIn)
 
       msg('Token approved for swapping')
-    }
-
-    const estimates = await gasEstimator.populateFunctionParams(
-      depositFunc,
-      l1Provider
-    )
-
-    const { maxSubmissionCost, gasLimit, maxFeePerGas } = estimates.estimates
-
-    // Total cost
-    const cost = maxSubmissionCost.add(maxFeePerGas.mul(gasLimit))
-
-    // Bridge Data
-    const arbitrumData = {
-      maxSubmissionCost: maxSubmissionCost,
-      maxGas: gasLimit,
-      maxGasPrice: maxFeePerGas,
     }
 
     // Call LiFi smart contract to start the bridge process -- WITH SWAP
@@ -179,40 +217,38 @@ async function main() {
       hasDestinationCall: false,
     }
 
-    const depositFunc = (_: any) => {
-      return {
-        data: ArbitrumBridgeFacet__factory.createInterface().encodeFunctionData(
-          'startBridgeTokensViaArbitrumBridge',
-          [bridgeData, errorTriggerArbitrumData]
-        ),
-        to: lifi.address,
-        from: walletAddress,
-        value: amount.add(errorTriggerCost),
-      }
-    }
+    // =================== Calculate estimations ===================
 
-    const estimates = await gasEstimator.populateFunctionParams(
-      depositFunc,
+    const estimates = await gasEstimator.estimateAll(
+      {
+        from: LIFI_ADDRESS,
+        to: walletAddress,
+        data: '0x',
+        l2CallValue: errorTriggerCost,
+        excessFeeRefundAddress: walletAddress,
+        callValueRefundAddress: walletAddress,
+      },
+      (await l1JsonProvider.getBlock('latest')).baseFeePerGas ||
+        BigNumber.from(0),
       l1Provider
     )
 
-    const {
-      maxSubmissionCost,
-      gasLimit: gasLimit,
-      maxFeePerGas: maxGasPrice,
-    } = estimates.estimates
+    // =============================================================
+
+    const { maxSubmissionCost, gasLimit, maxFeePerGas } = estimates
+    const maxGasLimit = gasLimit
 
     // Bridge Data
     const arbitrumData = {
       maxSubmissionCost: maxSubmissionCost,
-      maxGas: gasLimit,
-      maxGasPrice: maxGasPrice,
+      maxGas: maxGasLimit,
+      maxGasPrice: maxFeePerGas,
     }
 
     // Total cost
-    const cost = maxSubmissionCost.add(maxGasPrice.mul(gasLimit))
+    const cost = maxSubmissionCost.add(maxFeePerGas.mul(maxGasLimit))
 
-    // Call LiFi smart contract to start the bridge process -- WITH SWAP
+    // Call LiFi smart contract to start the bridge process
     await lifi.startBridgeTokensViaArbitrumBridge(bridgeData, arbitrumData, {
       gasLimit: '500000',
       value: amount.add(cost),
