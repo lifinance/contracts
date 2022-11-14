@@ -6,7 +6,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { InvalidReceiver, InvalidAmount, InvalidCaller, InvalidConfig, InformationMismatch, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
+import { InvalidReceiver, InvalidAmount, InvalidCaller, InvalidConfig, InformationMismatch, InsufficientMessageValue, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
@@ -55,6 +55,8 @@ interface IOriginalTokenVaultV2 {
         address _mintAccount,
         uint64 _nonce
     ) external payable returns (bytes32);
+
+    function nativeWrap() external returns (address);
 }
 
 interface IPeggedTokenBridgeV2 {
@@ -73,6 +75,10 @@ interface IPeggedTokenBridgeV2 {
         address _toAccount,
         uint64 _nonce
     ) external returns (bytes32);
+}
+
+interface CelerToken {
+    function canonical() external returns (address);
 }
 
 /// @title CBridge Facet
@@ -130,7 +136,17 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
     {
         validateDestinationCallFlag(_bridgeData, _cBridgeData);
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        // special flow for cfUSDC
+        if (_bridgeData.sendingAssetId != address(0)) {
+            if (
+                keccak256(abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())) ==
+                keccak256(abi.encodePacked(("cfUSDC")))
+            ) {
+                LibAsset.depositAsset(CelerToken(_bridgeData.sendingAssetId).canonical(), _bridgeData.minAmount);
+            } else {
+                LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+            }
+        }
         _startBridge(_bridgeData, _cBridgeData);
     }
 
@@ -206,46 +222,13 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         private
         returns (bytes32 transferId, address bridgeAddress)
     {
-        // !------------ new implementation for bridge type 1 (=LIQUIDITY) only
-        // if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-        //     // TODO make sure that native transfers can only be sent via xLiquidity bridge
-        //     if (_cBridgeData.bridgeType != MsgDataTypes.BridgeSendType.Liquidity) revert InvalidConfig();
-        //     if (msg.value < _bridgeData.minAmount) revert InformationMismatch(); //TODO add correct error
-        //     cBridge.sendNative{value: _bridgeData.minAmount}(
-        //         _bridgeData.receiver,
-        //         _bridgeData.minAmount,
-        //         uint64(_bridgeData.destinationChainId),
-        //         _cBridgeData.nonce,
-        //         _cBridgeData.maxSlippage
-        //     );
-        // } else {
-        //     // Give CBridge approval to bridge tokens
-        //     LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(cBridge), _bridgeData.minAmount);
-        //     // solhint-disable check-send-result
-        //     cBridge.send(
-        //         _bridgeData.receiver,
-        //         _bridgeData.sendingAssetId,
-        //         _bridgeData.minAmount,
-        //         uint64(_bridgeData.destinationChainId),
-        //         _cBridgeData.nonce,
-        //         _cBridgeData.maxSlippage
-        //     );
-        // }
-
-        //!------------ new implementation for all bridge types
         // approve to and call correct bridge depending on BridgeSendType
         // @dev copied and slightly adapted from Celer MessageSenderLib
-
-        //TODO check if code adjustment is needed to support native deposit on other bridge
-        //TODO types (not only Liquidity)
-        //TODO e.g. PegV2Deposit has depositNative function
-        //TODO https://etherscan.io/tx/0x2f14332b8d1eb83ae616340274a1edfaf2a2f4330c8f40c6decfa9c2ff01a799
-
         if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.Liquidity) {
             bridgeAddress = cBridgeMessageBus.liquidityBridge();
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
                 // native asset
-                if (msg.value < _bridgeData.minAmount) revert InformationMismatch(); //TODO add correct error
+                if (msg.value < _bridgeData.minAmount) revert InsufficientMessageValue();
                 ICBridge(bridgeAddress).sendNative{ value: _bridgeData.minAmount }(
                     _bridgeData.receiver,
                     _bridgeData.minAmount,
@@ -273,6 +256,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _cBridgeData.nonce
             );
         } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegDeposit) {
+            // does not have a depositNative function
             bridgeAddress = cBridgeMessageBus.pegVault();
             LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
             IOriginalTokenVault(bridgeAddress).deposit(
@@ -290,6 +274,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _cBridgeData.nonce
             );
         } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegBurn) {
+            // does not have a depositNative function
             bridgeAddress = cBridgeMessageBus.pegBridge();
             LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
             IPeggedTokenBridge(bridgeAddress).burn(
@@ -309,21 +294,44 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Deposit) {
             // bridgeAddress = cBridgeMessageBus.pegVaultV2(); // TODO to be changed once CBridge updated their messageBus
             bridgeAddress = 0x7510792A3B1969F9307F3845CE88e39578f2bAE1;
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
-            transferId = IOriginalTokenVaultV2(bridgeAddress).deposit(
-                _bridgeData.sendingAssetId,
-                _bridgeData.minAmount,
-                uint64(_bridgeData.destinationChainId),
-                _bridgeData.receiver,
-                _cBridgeData.nonce
-            );
+            if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+                // native asset
+                if (msg.value < _bridgeData.minAmount) revert InformationMismatch();
+                transferId = IOriginalTokenVaultV2(bridgeAddress).depositNative{ value: _bridgeData.minAmount }(
+                    _bridgeData.minAmount,
+                    uint64(_bridgeData.destinationChainId),
+                    _bridgeData.receiver,
+                    _cBridgeData.nonce
+                );
+            } else {
+                // ERC20 asset
+                LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+                transferId = IOriginalTokenVaultV2(bridgeAddress).deposit(
+                    _bridgeData.sendingAssetId,
+                    _bridgeData.minAmount,
+                    uint64(_bridgeData.destinationChainId),
+                    _bridgeData.receiver,
+                    _cBridgeData.nonce
+                );
+            }
         } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Burn) {
+            // does not support native assets
             // bridgeAddress = cBridgeMessageBus.pegBridgeV2(); // TODO to be changed once CBridge updated their messageBus
             bridgeAddress = 0x52E4f244f380f8fA51816c8a10A63105dd4De084;
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+
+            // if token has symbol "cfUSDC" then apply custom flow, otherwise normal flow
+            if (
+                keccak256(abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())) ==
+                keccak256(abi.encodePacked(("cfUSDC")))
+            ) {
+                IERC20 canonical = IERC20(CelerToken(_bridgeData.sendingAssetId).canonical());
+                LibAsset.maxApproveERC20(canonical, _bridgeData.sendingAssetId, _bridgeData.minAmount);
+            } else {
+                LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+            }
+
             transferId = IPeggedTokenBridgeV2(bridgeAddress).burn(
-                // _bridgeData.sendingAssetId,
-                0x317F8d18FB16E49a958Becd0EA72f8E153d25654,
+                _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 uint64(_bridgeData.destinationChainId),
                 _bridgeData.receiver,
@@ -334,7 +342,19 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2BurnFrom) {
             // bridgeAddress = cBridgeMessageBus.pegBridgeV2(); // TODO to be changed once CBridge updated their messageBus
             bridgeAddress = 0x52E4f244f380f8fA51816c8a10A63105dd4De084;
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+            // if token has symbol "cfUSDC" then apply custom flow, otherwise normal flow
+            if (
+                keccak256(abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())) ==
+                keccak256(abi.encodePacked(("cfUSDC")))
+            ) {
+                LibAsset.maxApproveERC20(
+                    IERC20(CelerToken(_bridgeData.sendingAssetId).canonical()),
+                    _bridgeData.sendingAssetId,
+                    _bridgeData.minAmount
+                );
+            } else {
+                LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+            }
             transferId = IPeggedTokenBridgeV2(bridgeAddress).burnFrom(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,

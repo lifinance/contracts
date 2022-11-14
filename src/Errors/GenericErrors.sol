@@ -39,3 +39,4 @@ error InvalidFee();
 error InformationMismatch();
 error NotAContract();
 error NotEnoughBalance(uint256 requested, uint256 available);
+error InsufficientMessageValue();

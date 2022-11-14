@@ -4,7 +4,7 @@ pragma solidity 0.8.17;
 import { console } from "../utils/Console.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { CBridgeFacet, IMessageBus } from "lifi/Facets/CBridgeFacet.sol";
+import { CBridgeFacet, IMessageBus, IOriginalTokenVaultV2 } from "lifi/Facets/CBridgeFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
@@ -284,7 +284,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             address(testToken),
             receiver,
             amountToBeBridged,
-            targetChainId, //! ??
+            targetChainId,
             false,
             false
         );
@@ -326,14 +326,59 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    //TODO needs fixing
-    function testCanBridgeTokens_PegV2BurnUSDC() internal {
-        // 0x52E4f244f380f8fA51816c8a10A63105dd4De084 >> CBRIDGE_5_PEG_V2_BURN
-        // 0x317F8d18FB16E49a958Becd0EA72f8E153d25654 >> TestToken (cfUSDC)
-        // 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 >> USDC (TokenProxy)
-        // 0xa2327a938Febf5FEC13baCFb16Ae10EcBc4cbDCF >> Implementation for USDC TokenProxy
-        // canonical == usdc
+    function testCanBridgeTokens_PegV2DepositNative() public {
+        // related transaction: https://etherscan.io/tx/0x14cdddcf56c7efe3eeef8a63089732e60bc59f4095cf1c63bd527bbe3280e9bd
+        address receiver = address(0x1234);
+        uint256 amountToBeBridged = 100 * 10**18;
+        uint64 targetChainId = 9001;
 
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
+            "",
+            "cbridge",
+            "",
+            address(0),
+            address(0),
+            receiver,
+            amountToBeBridged,
+            targetChainId,
+            false,
+            false
+        );
+
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData({
+            maxSlippage: 5000,
+            nonce: 1,
+            callTo: abi.encodePacked(address(0)),
+            callData: "",
+            messageBusFee: 0,
+            bridgeType: MsgDataTypes.BridgeSendType.PegV2Deposit
+        });
+
+        // only works with ETH fork
+        address nativeWrap = IOriginalTokenVaultV2(0x7510792A3B1969F9307F3845CE88e39578f2bAE1).nativeWrap();
+
+        // calculate depId to check event
+        bytes32 depId = keccak256(
+            abi.encodePacked(
+                address(cBridge),
+                nativeWrap,
+                amountToBeBridged,
+                targetChainId,
+                bridgeData.receiver,
+                data.nonce,
+                uint64(block.chainid),
+                CBRIDGE_4_PEG_V2_DEPOSIT
+            )
+        );
+
+        vm.expectEmit(true, true, true, true, CBRIDGE_4_PEG_V2_DEPOSIT);
+        emit Deposited(depId, address(cBridge), nativeWrap, amountToBeBridged, targetChainId, receiver, data.nonce);
+
+        cBridge.startBridgeTokensViaCBridge{ value: amountToBeBridged }(bridgeData, data);
+        vm.stopPrank();
+    }
+
+    function testCanBridgeTokens_PegV2BurnUSDC() public {
         // related transaction:https://etherscan.io/tx/0x6af78a9bc2b8c8bdb99fa2d141264832c4496a69e64dc6294213eaae66daa57a
         ERC20 testToken = ERC20(0x317F8d18FB16E49a958Becd0EA72f8E153d25654); // cfUSDC
         address receiver = address(0x1234);
@@ -347,7 +392,6 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
 
         // approve cfUSDC contract to pull USDC token from bridge
-        //! how do we know in which cases we have such a weird setup where approval for another token is required in order to "burn" this one
         vm.startPrank(address(cBridge));
         usdc.approve(0x317F8d18FB16E49a958Becd0EA72f8E153d25654, amountToBeBridged); //! this must be done in our facet somehow
         vm.stopPrank();
@@ -360,7 +404,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             "cbridge",
             "",
             address(0),
-            address(usdc),
+            address(testToken),
             receiver,
             amountToBeBridged,
             targetChainId,
@@ -405,20 +449,14 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    //TODO needs fixing
-    function testCanBridgeTokens_PegV2BurnSEAN() public {
-        // 0x52E4f244f380f8fA51816c8a10A63105dd4De084 >> CBRIDGE_5_PEG_V2_BURN
-        // 0xA719CB79Af39A9C10eDA2755E0938bCE35e9DE24 >> TestToken (SEAN)
-        // related transaction: https://etherscan.io/tx/0x04e1406e3d39cf8a9a0bbef322c27eaac1dadb9aa054ff3e73b7d4973b29dfc1
-        ERC20 testToken = ERC20(0xA719CB79Af39A9C10eDA2755E0938bCE35e9DE24); // SEAN
+    function testCanBridgeTokens_PegV2BurnOTHER() public {
+        ERC20 testToken = ERC20(0xb3833Ecd19D4Ff964fA7bc3f8aC070ad5e360E56); // WAGMIv3
         address receiver = address(0x1234);
-        console.log("here");
-        console.log(testToken.symbol());
 
         uint256 amountToBeBridged = 100 * 10**testToken.decimals();
         console.log(amountToBeBridged);
         uint64 targetChainId = 12340001;
-        address testTokenWhale = 0xD004AdB98DdcdD65c7B7d7cBA9579E2e1eD3129F;
+        address testTokenWhale = 0x61f85fF2a2f4289Be4bb9B72Fc7010B3142B5f41; //WAGMIv3
 
         // make sure user has test token
         vm.startPrank(testTokenWhale);
@@ -479,47 +517,33 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    //TODO needs fixing - missing approval
-    function testCanBridgeTokens_PegV2Burn_BEFOREFIX() internal {
-        // 0x52E4f244f380f8fA51816c8a10A63105dd4De084 >> CBRIDGE_5_PEG_V2_BURN
-        // 0x317F8d18FB16E49a958Becd0EA72f8E153d25654 >> TestToken (cfUSDC)
-        // 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 >> USDC (TokenProxy)
-        // 0xa2327a938Febf5FEC13baCFb16Ae10EcBc4cbDCF >> Implementation for USDC TokenProxy
-        // canonical == usdc
-
-        // related transaction:https://etherscan.io/tx/0x6af78a9bc2b8c8bdb99fa2d141264832c4496a69e64dc6294213eaae66daa57a
-        ERC20 testToken = ERC20(0x317F8d18FB16E49a958Becd0EA72f8E153d25654); // cfUSDC
+    function testCanBridgeTokens_PegV2BurnFromOTHER() public {
+        ERC20 testToken = ERC20(0xb3833Ecd19D4Ff964fA7bc3f8aC070ad5e360E56); // WAGMIv3
         address receiver = address(0x1234);
-        uint256 amountToBeBridged = 100 * 10**testToken.decimals();
-        uint64 targetChainId = 12340001;
-        address testTokenWhale = 0x317F8d18FB16E49a958Becd0EA72f8E153d25654; // only holder of cfUSDC
 
+        uint256 amountToBeBridged = 100 * 10**testToken.decimals();
+        console.log(amountToBeBridged);
+        uint64 targetChainId = 12340001;
+        address testTokenWhale = 0x61f85fF2a2f4289Be4bb9B72Fc7010B3142B5f41; //WAGMIv3
+
+        // make sure user has test token
         vm.startPrank(testTokenWhale);
         testToken.transfer(receiver, amountToBeBridged);
         vm.stopPrank();
-        vm.startPrank(USDC_WHALE);
-        usdc.transfer(receiver, amountToBeBridged);
-        usdc.transfer(address(cBridge), amountToBeBridged);
-        vm.stopPrank();
-        vm.startPrank(address(cBridge));
-        usdc.approve(0x317F8d18FB16E49a958Becd0EA72f8E153d25654, amountToBeBridged);
-        vm.stopPrank();
-        vm.startPrank(receiver);
-        // testToken.approve(address(cBridge), amountToBeBridged);
-        usdc.approve(address(cBridge), amountToBeBridged); // this one is not right
-        usdc.approve(0x317F8d18FB16E49a958Becd0EA72f8E153d25654, amountToBeBridged); // this one is not right
-        usdc.approve(0x52E4f244f380f8fA51816c8a10A63105dd4De084, amountToBeBridged); // this one is not right
 
-        //TODO we are missing some approval here but which one?
+        // approve bridge to spend testToken and initiate tx
+        vm.startPrank(receiver);
+        testToken.approve(address(cBridge), amountToBeBridged);
+
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
             "",
             "cbridge",
             "",
             address(0),
-            address(usdc),
+            address(testToken),
             receiver,
             amountToBeBridged,
-            targetChainId, //! ??
+            targetChainId,
             false,
             false
         );
@@ -529,10 +553,10 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             callTo: abi.encodePacked(address(0)),
             callData: "",
             messageBusFee: 0,
-            bridgeType: MsgDataTypes.BridgeSendType.PegV2Burn
+            bridgeType: MsgDataTypes.BridgeSendType.PegV2BurnFrom
         });
 
-        // calculate depId to check event
+        // calculate burnId to check event
         bytes32 burnId = keccak256(
             abi.encodePacked(
                 address(cBridge),
@@ -562,7 +586,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
     }
 
     //TODO needs fixing - missing approval
-    function testCanBridgeTokens_PegV2BurnFrom() internal {
+    function testCanBridgeTokens_PegV2BurnFromUSDC() internal {
         // related transaction:https://etherscan.io/tx/0x6af78a9bc2b8c8bdb99fa2d141264832c4496a69e64dc6294213eaae66daa57a
         ERC20 testToken = ERC20(0x317F8d18FB16E49a958Becd0EA72f8E153d25654); // cfUSDC
         address receiver = address(0x1234);
@@ -570,13 +594,18 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         uint64 targetChainId = 12340001;
         address testTokenWhale = 0x317F8d18FB16E49a958Becd0EA72f8E153d25654; // only holder of cfUSDC
 
-        vm.startPrank(testTokenWhale);
-        testToken.transfer(receiver, amountToBeBridged);
+        // make sure user has USDC
+        vm.startPrank(USDC_WHALE);
+        usdc.transfer(receiver, amountToBeBridged);
         vm.stopPrank();
-        vm.startPrank(receiver);
 
-        testToken.approve(address(cBridge), amountToBeBridged);
-        //TODO we are missing some approval here but which one?
+        // approve cfUSDC contract to pull USDC token from bridge
+        vm.startPrank(address(cBridge));
+        usdc.approve(0x317F8d18FB16E49a958Becd0EA72f8E153d25654, amountToBeBridged); //! this must be done in our facet somehow
+        vm.stopPrank();
+
+        vm.startPrank(receiver);
+        usdc.approve(address(cBridge), amountToBeBridged);
 
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
             "",
@@ -586,7 +615,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             address(testToken),
             receiver,
             amountToBeBridged,
-            targetChainId, //! ??
+            targetChainId,
             false,
             false
         );
@@ -613,16 +642,16 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             )
         );
 
-        vm.expectEmit(true, true, true, true, CBRIDGE_6_PEG_V2_BURNFROM);
-        emit Burn(
-            burnId,
-            address(testToken),
-            address(cBridge),
-            amountToBeBridged,
-            targetChainId,
-            bridgeData.receiver,
-            data.nonce
-        );
+        // vm.expectEmit(true, true, true, true, CBRIDGE_6_PEG_V2_BURNFROM);
+        // emit Burn(
+        //     burnId,
+        //     address(testToken),
+        //     address(cBridge),
+        //     amountToBeBridged,
+        //     targetChainId,
+        //     bridgeData.receiver,
+        //     data.nonce
+        // );
 
         cBridge.startBridgeTokensViaCBridge(bridgeData, data);
         vm.stopPrank();
