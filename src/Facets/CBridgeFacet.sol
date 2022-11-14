@@ -322,7 +322,8 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             bridgeAddress = 0x52E4f244f380f8fA51816c8a10A63105dd4De084;
             LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
             transferId = IPeggedTokenBridgeV2(bridgeAddress).burn(
-                _bridgeData.sendingAssetId,
+                // _bridgeData.sendingAssetId,
+                0x317F8d18FB16E49a958Becd0EA72f8E153d25654,
                 _bridgeData.minAmount,
                 uint64(_bridgeData.destinationChainId),
                 _bridgeData.receiver,
@@ -384,6 +385,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes calldata _message,
         address _executor
     ) external payable onlyCBridgeMessageBus returns (IMessageReceiverApp.ExecutionStatus) {
+        //TODO get review by Ed/Max
         (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = abi
             .decode(_message, (bytes32, LibSwap.SwapData[], address, address));
 
