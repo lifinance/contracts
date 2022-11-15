@@ -11,3 +11,4 @@ hardhat-deploy/=node_modules/hardhat-deploy/
 hardhat/=node_modules/hardhat/
 solmate/=lib/solmate/src/
 lifi/=src/
+test/=test/
