@@ -10,6 +10,7 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { TestAMM } from "../utils/TestAMM.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 
 // Stub Vault Contract
 contract Vault {
@@ -67,10 +68,17 @@ contract ExecutorTest is DSTest {
         gw = new MockGateway();
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(this), address(erc20Proxy));
+        vm.makePersistent(address(executor));
         erc20Proxy.setAuthorizedCaller(address(executor), true);
         amm = new TestAMM();
         vault = new Vault();
         setter = new Setter();
+    }
+
+    function fork() internal {
+        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
+        uint256 blockNumber = vm.envUint("FORK_NUMBER");
+        vm.createSelectFork(rpcUrl, blockNumber);
     }
 
     function testCanPerformComplexSwap() public {
@@ -161,6 +169,53 @@ contract ExecutorTest is DSTest {
         assertEq(tokenC.balanceOf(address(vault)), 100 ether);
         assertEq(tokenD.balanceOf(address(vault)), 100 ether);
 
+        vm.stopPrank();
+    }
+
+    function testCanReceiveNativeTokensFromDestinationSwap() public {
+        fork();
+        address DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+        address payable DAI_WHALE = payable(address(0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD));
+        address WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+        address UNISWAP_V2_ROUTER_ADDRESS = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+        ERC20 dai = ERC20(DAI_ADDRESS);
+        ERC20 weth = ERC20(WETH_ADDRESS);
+        UniswapV2Router02 uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER_ADDRESS);
+
+        vm.startPrank(DAI_WHALE);
+        // Swap DAI -> WETH
+        address[] memory path = new address[](2);
+        path[0] = DAI_ADDRESS;
+        path[1] = WETH_ADDRESS;
+
+        uint256 amountOut = 1_000 * 10**weth.decimals();
+
+        // Calculate DAI amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            DAI_ADDRESS,
+            WETH_ADDRESS,
+            amountIn,
+            abi.encodeWithSelector(
+                uniswap.swapExactTokensForETH.selector,
+                amountIn,
+                amountOut,
+                path,
+                address(executor),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        // Approve DAI
+        dai.approve(address(executor), amountIn);
+
+        executor.swapAndCompleteBridgeTokens("txId", swapData, DAI_ADDRESS, DAI_WHALE);
         vm.stopPrank();
     }
 

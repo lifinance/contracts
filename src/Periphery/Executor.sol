@@ -8,6 +8,7 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IERC20Proxy } from "../Interfaces/IERC20Proxy.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { console } from "../../test/solidity//utils/Console.sol";
 
 /// @title Executor
 /// @author LI.FI (https://li.fi)
@@ -125,13 +126,14 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 startingBalance;
         uint256 finalAssetStartingBalance;
         address finalAssetId = _swapData[_swapData.length - 1].receivingAssetId;
-
+        console.log(1);
         if (!LibAsset.isNativeAsset(finalAssetId)) {
             finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId);
         } else {
             finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId) - msg.value;
         }
 
+        console.log(2);
         if (!LibAsset.isNativeAsset(_transferredAssetId)) {
             startingBalance = LibAsset.getOwnBalance(_transferredAssetId);
             if (_depositAllowance) {
@@ -143,13 +145,16 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         } else {
             startingBalance = LibAsset.getOwnBalance(_transferredAssetId) - msg.value;
         }
+        console.log(3);
 
         _executeSwaps(_transactionId, _swapData, _receiver);
 
+        console.log(4);
         uint256 postSwapBalance = LibAsset.getOwnBalance(_transferredAssetId);
         if (postSwapBalance > startingBalance) {
             LibAsset.transferAsset(_transferredAssetId, _receiver, postSwapBalance - startingBalance);
         }
+        console.log(5);
 
         uint256 finalAssetPostSwapBalance = LibAsset.getOwnBalance(finalAssetId);
 
@@ -211,4 +216,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
         return balances;
     }
+
+    /// @dev required for receiving native assets from destination swaps
+    receive() external payable {}
 }
