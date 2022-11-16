@@ -167,6 +167,8 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         if (LibAsset.isNativeAsset(assetId)) {
             if (gasleft() < _recoverGas) {
                 receiver.call{ value: amount }("");
+                emit LiFiTransferCompleted(_transactionId, assetId, receiver, amount, block.timestamp);
+                return
             }
 
             try executor.swapAndCompleteBridgeTokens{ value: amount, gas: gasleft() - _recoverGas }(_transactionId, _swapData, assetId, receiver) {
@@ -181,6 +183,8 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             
             if (gasleft() < _recoverGas) {
                 token.safeTransfer(receiver, amount);
+                emit LiFiTransferCompleted(_transactionId, assetId, receiver, amount, block.timestamp);
+                return
             }
 
             try executor.swapAndCompleteBridgeTokens{ gas: gasleft() - _recoverGas }(_transactionId, _swapData, assetId, receiver) {
