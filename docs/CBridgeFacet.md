@@ -2,7 +2,10 @@
 
 ## How it works
 
-The CBridge Facet works by forwarding CBridge specific calls to the [CBridge contract](https://github.com/celer-network/sgn-v2-contracts/blob/main/contracts/Bridge.sol). All bridging is done by calling the `send` method or `sendNative` method if you using a native token like **ETH** or **MATIC**.
+The CBridge Facet works by forwarding CBridge specific calls to the [CBridge contract].
+Supports various bridging types (e.g. xAsset bridge as well as xLiquidity bridge). For more info about these bridge types:
+[cBridge Pool-Based Transfer / xLiquidity](https://cbridge-docs.celer.network/developer/cbridge-pool-based-transfer-xliquidity).
+[cBridge Canonical Mapping Transfer / xAsset](https://cbridge-docs.celer.network/developer/cbridge-canonical-mapping-transfer-xasset).
 
 ```mermaid
 graph LR;
@@ -24,9 +27,18 @@ Some of the methods listed above take a variable labeled `_cBridgeData`. This da
 ```solidity
 /// @param maxSlippage The max slippage accepted, given as percentage in point (pip).
 /// @param nonce A number input to guarantee uniqueness of transferId. Can be timestamp in practice.
+/// @param callTo the address of the contract to be called at destination
+/// @param callData the encoded calldata (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress)
+/// @param messageBusFee the fee to be paid to CBridge message bus for relaying the message
+/// @param bridgeType defines the bridge operation type (must be one of the values of CBridge library MsgDataTypes.BridgeSendType)
+
 struct CBridgeData {
-    uint32 maxSlippage;
-    uint64 nonce;
+  uint32 maxSlippage;
+  uint64 nonce;
+  bytes callTo;
+  bytes callData;
+  uint256 messageBusFee;
+  MsgDataTypes.BridgeSendType bridgeType;
 }
 
 ```
@@ -35,7 +47,7 @@ struct CBridgeData {
 
 Some methods accept a `SwapData _swapData` parameter.
 
-Swapping is performed by a swap specific library that expects an array of calldata to can be run on variaous DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
+Swapping is performed by a swap specific library that expects an array of calldata to can be run on various DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
 
 The swap library can be found [here](../src/Libraries/LibSwap.sol).
 

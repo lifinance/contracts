@@ -366,7 +366,8 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testCanExecuteMessageOnly() public {
+    //TODO remove or fix, depending on discussion with Ed
+    function testCanExecuteMessageOnly() internal {
         setter = new Setter();
         address executorAddress = address(new Executor(address(WHALE), address(0)));
         ReceiverCelerIM receiver = new ReceiverCelerIM(address(WHALE), CBRIDGE_MESSAGE_BUS_ETH, executorAddress);
@@ -386,77 +387,77 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         assertEq(setter.message(), "lifi");
     }
 
-    //!  TODO clarify implementation
-    // function testCanExecuteArbitraryMessage() public {
-    //     address finalReceiver = address(0x12345678);
-    //     FeeCollector feeCollector = new FeeCollector(address(this));
+    //TODO clarify implementation or remove
+    function testCanExecuteArbitraryMessage() internal {
+        address finalReceiver = address(0x12345678);
+        FeeCollector feeCollector = new FeeCollector(address(this));
 
-    //     uint256 amountOut = 150 * 10**usdc.decimals();
+        uint256 amountOut = 150 * 10**usdc.decimals();
 
-    //     // prepare bridge data
-    //     ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
-    //         transactionId: "",
-    //         bridge: "cbridge",
-    //         integrator: "",
-    //         referrer: address(0),
-    //         sendingAssetId: address(dai),
-    //         receiver: finalReceiver,
-    //         minAmount: amountOut,
-    //         destinationChainId: 137,
-    //         hasSourceSwaps: false,
-    //         hasDestinationCall: true
-    //     });
+        // prepare bridge data
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
+            transactionId: "",
+            bridge: "cbridge",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: address(dai),
+            receiver: finalReceiver,
+            minAmount: amountOut,
+            destinationChainId: 137,
+            hasSourceSwaps: false,
+            hasDestinationCall: true
+        });
 
-    //     // prepare dest swap data
-    //     address executorAddress = address(new Executor(address(WHALE), address(0)));
-    //     ReceiverCelerIM receiver = new ReceiverCelerIM(address(WHALE), CBRIDGE_MESSAGE_BUS_POLY, executorAddress);
+        // prepare dest swap data
+        address executorAddress = address(new Executor(address(WHALE), address(0)));
+        ReceiverCelerIM receiver = new ReceiverCelerIM(address(WHALE), CBRIDGE_MESSAGE_BUS_POLY, executorAddress);
 
-    //     LibSwap.SwapData[] memory swapDataDest = new LibSwap.SwapData[](1);
-    //     swapDataDest[0] = LibSwap.SwapData({
-    //         callTo: USDC_ADDRESS,
-    //         approveTo: USDC_ADDRESS, //! ?
-    //         sendingAssetId: USDC_ADDRESS,
-    //         receivingAssetId: USDC_ADDRESS,
-    //         fromAmount: amountOut,
-    //         callData: abi.encodeWithSelector(usdc.transferFrom.selector, WHALE, finalReceiver, amountOut),
-    //         requiresDeposit: false
-    //     });
+        LibSwap.SwapData[] memory swapDataDest = new LibSwap.SwapData[](1);
+        swapDataDest[0] = LibSwap.SwapData({
+            callTo: USDC_ADDRESS,
+            approveTo: USDC_ADDRESS, //! ?
+            sendingAssetId: USDC_ADDRESS,
+            receivingAssetId: USDC_ADDRESS,
+            fromAmount: amountOut,
+            callData: abi.encodeWithSelector(usdc.transferFrom.selector, WHALE, finalReceiver, amountOut),
+            requiresDeposit: false
+        });
 
-    //     bytes32 txId = "txId";
-    //     bytes memory destCallData = abi.encode(
-    //         txId, // transactionId
-    //         swapDataDest, // swapData
-    //         finalReceiver, // receiver
-    //         finalReceiver // refundAddress
-    //     );
+        bytes32 txId = "txId";
+        bytes memory destCallData = abi.encode(
+            txId, // transactionId
+            swapDataDest, // swapData
+            finalReceiver, // receiver
+            finalReceiver // refundAddress
+        );
 
-    //     // prepare check for events
-    //     // vm.expectEmit(true, true, true, true, executorAddress);
-    //     // emit LiFiTransferCompleted(
-    //     //     txId,
-    //     //     address(dai),   //! is this correct to be DAI here (bridge DAI, swap to USDC)
-    //     //     finalReceiver,
-    //     //     amountOut,
-    //     //     block.timestamp
-    //     // );
+        // prepare check for events
+        // vm.expectEmit(true, true, true, true, executorAddress);
+        // emit LiFiTransferCompleted(
+        //     txId,
+        //     address(dai),
+        //     finalReceiver,
+        //     amountOut,
+        //     block.timestamp
+        // );
 
-    //     // trigger dest side swap and bridging
-    //     // (mock) send "bridged" tokens to Receiver
-    //     vm.startPrank(WHALE);
-    //     usdc.approve(address(receiver), amountOut);
+        // trigger dest side swap and bridging
+        // (mock) send "bridged" tokens to Receiver
+        vm.startPrank(WHALE);
+        usdc.approve(address(receiver), amountOut);
 
-    //     if (
-    //         receiver.executeMessage(
-    //             WHALE,
-    //             1, //srcChainId
-    //             destCallData,
-    //             address(this)
-    //         ) != IMessageReceiverApp.ExecutionStatus.Success
-    //     ) revert("DB: Wrong return value");
+        if (
+            receiver.executeMessage(
+                WHALE,
+                1, //srcChainId
+                destCallData,
+                address(this)
+            ) != IMessageReceiverApp.ExecutionStatus.Success
+        ) revert("DB: Wrong return value");
 
-    //     // check finalReceiver balance
-    //     assertEq(usdc.balanceOf(finalReceiver), amountOut);
-    //     vm.stopPrank();
-    //     // revert();
-    // }
+        // check finalReceiver balance
+        assertEq(usdc.balanceOf(finalReceiver), amountOut);
+        vm.stopPrank();
+        // revert();
+    }
 }

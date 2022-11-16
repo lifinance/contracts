@@ -10,7 +10,6 @@ import { InvalidReceiver, InvalidAmount, InvalidCaller, InvalidConfig, Informati
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
-import { console } from "forge-std/console.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 
@@ -91,10 +90,13 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @param maxSlippage The max slippage accepted, given as percentage in point (pip).
     /// @param nonce A number input to guarantee uniqueness of transferId. Can be timestamp in practice.
+    /// @param callTo the address of the contract to be called at destination
+    /// @param callData the encoded calldata (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress)
+    /// @param messageBusFee the fee to be paid to CBridge message bus for relaying the message
+    /// @param bridgeType defines the bridge operation type (must be one of the values of CBridge library MsgDataTypes.BridgeSendType)
     struct CBridgeData {
         uint32 maxSlippage;
         uint64 nonce;
-        //added from here
         bytes callTo;
         bytes callData;
         uint256 messageBusFee;
@@ -172,9 +174,9 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (uint64(block.chainid) == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
 
         // transfer tokens
-        (bytes32 transferId, address bridgeAddress) = _sendTokenTransfer(_bridgeData, _cBridgeData);
+        (bytes32 transferId, ) = _sendTokenTransfer(_bridgeData, _cBridgeData);
 
-        // assuming messageBusFee is pre-calculated off-chain
+        // assuming messageBusFee is pre-calculated off-chain and available in _cBridgeData
 
         // check if transaction contains a destination call
         if (_bridgeData.hasDestinationCall) {
@@ -206,40 +208,13 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         private
         returns (bytes32 transferId, address bridgeAddress)
     {
-        // !------------ new implementation for bridge type 1 (=LIQUIDITY) only
-        // if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-        //     // TODO make sure that native transfers can only be sent via xLiquidity bridge
-        //     if (_cBridgeData.bridgeType != MsgDataTypes.BridgeSendType.Liquidity) revert InvalidConfig();
-        //     if (msg.value < _bridgeData.minAmount) revert InformationMismatch(); //TODO add correct error
-        //     cBridge.sendNative{value: _bridgeData.minAmount}(
-        //         _bridgeData.receiver,
-        //         _bridgeData.minAmount,
-        //         uint64(_bridgeData.destinationChainId),
-        //         _cBridgeData.nonce,
-        //         _cBridgeData.maxSlippage
-        //     );
-        // } else {
-        //     // Give CBridge approval to bridge tokens
-        //     LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(cBridge), _bridgeData.minAmount);
-        //     // solhint-disable check-send-result
-        //     cBridge.send(
-        //         _bridgeData.receiver,
-        //         _bridgeData.sendingAssetId,
-        //         _bridgeData.minAmount,
-        //         uint64(_bridgeData.destinationChainId),
-        //         _cBridgeData.nonce,
-        //         _cBridgeData.maxSlippage
-        //     );
-        // }
-
-        //!------------ new implementation for all bridge types
         // approve to and call correct bridge depending on BridgeSendType
         // @dev copied and slightly adapted from Celer MessageSenderLib
         if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.Liquidity) {
             bridgeAddress = cBridgeMessageBus.liquidityBridge();
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
                 // native asset
-                if (msg.value < _bridgeData.minAmount) revert InformationMismatch(); //TODO add correct error
+                if (msg.value < _bridgeData.minAmount) revert InformationMismatch();
                 ICBridge(bridgeAddress).sendNative{ value: _bridgeData.minAmount }(
                     _bridgeData.receiver,
                     _bridgeData.minAmount,
@@ -292,8 +267,6 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.receiver,
                 _cBridgeData.nonce
             );
-            // handle cases where certain tokens do not spend allowance for role-based burn
-            // IERC20(_bridgeData.sendingAssetId).safeApprove(bridgeAddress, 0); //! do we need this?
             transferId = MessageSenderLib.computePegV1BurnId(
                 _bridgeData.receiver,
                 _bridgeData.sendingAssetId,
@@ -322,8 +295,6 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.receiver,
                 _cBridgeData.nonce
             );
-            // handle cases where certain tokens do not spend allowance for role-based burn
-            // IERC20(_bridgeData.sendingAssetId).safeApprove(bridgeAddress, 0);  //! do we need this?
         } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2BurnFrom) {
             // bridgeAddress = cBridgeMessageBus.pegBridgeV2(); // TODO to be changed once CBridge updated their messageBus
             bridgeAddress = 0x52E4f244f380f8fA51816c8a10A63105dd4De084;
@@ -335,33 +306,9 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.receiver,
                 _cBridgeData.nonce
             );
-            // handle cases where certain tokens do not spend allowance for role-based burn
-            // IERC20(_bridgeData.sendingAssetId).safeApprove(bridgeAddress, 0);  //! do we need this?
         } else {
             revert InvalidConfig();
         }
-    }
-
-    function _computeSwapRequestId(
-        address _sender,
-        uint64 _srcChainId,
-        uint64 _dstChainId,
-        bytes memory _message
-    ) private pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_sender, _srcChainId, _dstChainId, _message));
-    }
-
-    function _computeTransferId(
-        address _receiver,
-        address _token,
-        uint256 _amount,
-        uint64 _dstChainId,
-        uint64 _nonce
-    ) private view returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked(address(this), _receiver, _token, _amount, _dstChainId, _nonce, uint64(block.chainid))
-            );
     }
 
     /**
@@ -370,16 +317,18 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
      * @param _token The token address of the original transfer
      * @param _amount The amount of the original transfer
      * @param _message The same message associated with the original transfer
-     * @param _executor Address who called the MessageBus execution function
+     * @param * (unused) Address who called the MessageBus execution function
      */
     function executeMessageWithTransferRefund(
         address _token,
         uint256 _amount,
         bytes calldata _message,
-        address _executor
+        address
     ) external payable onlyCBridgeMessageBus returns (IMessageReceiverApp.ExecutionStatus) {
-        (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = abi
-            .decode(_message, (bytes32, LibSwap.SwapData[], address, address));
+        (bytes32 transactionId, , , address refundAddress) = abi.decode(
+            _message,
+            (bytes32, LibSwap.SwapData[], address, address)
+        );
 
         // return funds to cBridgeData.refundAddress
         LibAsset.transferAsset(_token, payable(refundAddress), _amount);

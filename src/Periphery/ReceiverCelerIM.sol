@@ -94,20 +94,20 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
     /**
      * @notice Called by MessageBus to execute a message with an associated token transfer.
      * The Receiver is guaranteed to have received the right amount of tokens before this function is called.
-     * @param _sender The address of the source app contract
+     * @param * (unused) The address of the source app contract
      * @param _token The address of the token that comes out of the bridge
      * @param _amount The amount of tokens received at this contract through the cross-chain bridge.
-     * @param _srcChainId The source chain ID where the transfer is originated from
+     * @param * (unused)  The source chain ID where the transfer is originated from
      * @param _message Arbitrary message bytes originated from and encoded by the source app contract
-     * @param _executor Address who called the MessageBus execution function
+     * @param * (unused)  Address who called the MessageBus execution function
      */
     function executeMessageWithTransfer(
-        address _sender,
+        address,
         address _token,
         uint256 _amount,
-        uint64 _srcChainId,
+        uint64,
         bytes calldata _message,
-        address _executor
+        address
     ) external payable returns (IMessageReceiverApp.ExecutionStatus) {
         // decode message
         //! will this revert if data does not match the structure? >> NO
@@ -128,23 +128,25 @@ contract ReceiverCelerIM is DSTest, ILiFi, ReentrancyGuard, TransferrableOwnersh
      *         1. executeMessageWithTransfer reverts, or
      *         2. executeMessageWithTransfer returns IMessageReceiverApp.ExecutionStatus.Fail
      * The contract is guaranteed to have received the right amount of tokens before this function is called.
-     * @param _sender The address of the source app contract
+     * @param * (unused) The address of the source app contract
      * @param _token The address of the token that comes out of the bridge
      * @param _amount The amount of tokens received at this contract through the cross-chain bridge.
-     * @param _srcChainId The source chain ID where the transfer is originated from
+     * @param * (unused) The source chain ID where the transfer is originated from
      * @param _message Arbitrary message bytes originated from and encoded by the source app contract
-     * @param _executor Address who called the MessageBus execution function
+     * @param * (unused) Address who called the MessageBus execution function
      */
     function executeMessageWithTransferFallback(
-        address _sender,
+        address,
         address _token,
         uint256 _amount,
-        uint64 _srcChainId,
+        uint64,
         bytes calldata _message,
-        address _executor
+        address
     ) external payable returns (IMessageReceiverApp.ExecutionStatus) {
-        (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = abi
-            .decode(_message, (bytes32, LibSwap.SwapData[], address, address));
+        (bytes32 transactionId, , address receiver, address refundAddress) = abi.decode(
+            _message,
+            (bytes32, LibSwap.SwapData[], address, address)
+        );
 
         // transfer tokens back to refundAddress
         LibAsset.transferAsset(_token, payable(refundAddress), _amount);
