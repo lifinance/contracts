@@ -15,15 +15,11 @@ contract DeployScript is DeployScriptBase {
         string memory json = vm.readFile(path);
         address stargateRouter = json.readAddress(string.concat(".routers.", network));
 
-        path = string.concat(vm.projectRoot(), "/config/gelato.json");
-        json = vm.readFile(path);
-        address gelato = json.readAddress(string.concat(".", network));
-
         path = string.concat(vm.projectRoot(), "/deployments/", network, ".json");
         json = vm.readFile(path);
         address executor = json.readAddress(".Executor");
 
-        constructorArgs = abi.encode(deployerAddress, stargateRouter, gelato, executor, 100000);
+        constructorArgs = abi.encode(deployerAddress, stargateRouter, executor, 100000);
 
         vm.startBroadcast(deployerPrivateKey);
 

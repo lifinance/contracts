@@ -17,17 +17,14 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
     /// Storage ///
     address public sgRouter;
-    address public gelato;
     IExecutor public executor;
     uint256 recoverGas;
 
     /// Errors ///
     error InvalidStargateRouter();
-    error InvalidGelatoAddress();
 
     /// Events ///
     event StargateRouterSet(address indexed router);
-    event GelatoAddressSet(address indexed gelato);
     event RecoverGasSet(uint256 indexed recoverGas);
 
     /// Modifiers ///
@@ -38,28 +35,18 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         _;
     }
 
-    modifier onlyGelato() {
-        if (msg.sender != gelato) {
-            revert InvalidGelatoAddress();
-        }
-        _;
-    }
-
     /// Constructor
     constructor(
         address _owner,
         address _sgRouter,
-        address _gelato,
         address _executor,
         uint256 _recoverGas
     ) TransferrableOwnership(_owner) {
         owner = _owner;
         sgRouter = _sgRouter;
-        gelato = _gelato;
         executor = IExecutor(_executor);
         recoverGas = _recoverGas;
         emit StargateRouterSet(_sgRouter);
-        emit GelatoAddressSet(_gelato);
         emit RecoverGasSet(_recoverGas);
     }
 
@@ -70,13 +57,6 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     function setStargateRouter(address _sgRouter) external onlyOwner {
         sgRouter = _sgRouter;
         emit StargateRouterSet(_sgRouter);
-    }
-
-    /// @notice set gelato address
-    /// @param _gelato the gelato address
-    function setGelatoAddress(address _gelato) external onlyOwner {
-        gelato = _gelato;
-        emit GelatoAddressSet(_gelato);
     }
     
     /// @notice set execution recoverGas
@@ -120,7 +100,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         LibSwap.SwapData[] memory _swapData,
         address assetId,
         address payable receiver
-    ) external payable nonReentrant onlyGelato {
+    ) external payable nonReentrant {
         if (LibAsset.isNativeAsset(assetId)) {
             _swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver, msg.value);
         } else {
@@ -168,7 +148,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             if (gasleft() < _recoverGas) {
                 receiver.call{ value: amount }("");
                 emit LiFiTransferCompleted(_transactionId, assetId, receiver, amount, block.timestamp);
-                return
+                return;
             }
 
             try executor.swapAndCompleteBridgeTokens{ value: amount, gas: gasleft() - _recoverGas }(_transactionId, _swapData, assetId, receiver) {
@@ -184,7 +164,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             if (gasleft() < _recoverGas) {
                 token.safeTransfer(receiver, amount);
                 emit LiFiTransferCompleted(_transactionId, assetId, receiver, amount, block.timestamp);
-                return
+                return;
             }
 
             try executor.swapAndCompleteBridgeTokens{ gas: gasleft() - _recoverGas }(_transactionId, _swapData, assetId, receiver) {
