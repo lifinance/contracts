@@ -87,14 +87,14 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             (bytes32, LibSwap.SwapData[], address, address)
         );
 
-        if (gasleft() < _recoverGas) {
+        if (gasleft() < recoverGas) {
             if (LibAsset.isNativeAsset(_token)) {
-                receiver.call{ value: amount }("");
+                receiver.call{ value: _amountLD }("");
             } else {
-                IERC20(_token).safeTransfer(receiver, amount);
+                IERC20(_token).safeTransfer(receiver, _amountLD);
             }
 
-            emit LiFiTransferCompleted(_transactionId, assetId, receiver, amount, block.timestamp);
+            emit LiFiTransferCompleted(transactionId, _token, receiver, _amountLD, block.timestamp);
             return;
         }
 
