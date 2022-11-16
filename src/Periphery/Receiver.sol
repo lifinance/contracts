@@ -162,13 +162,14 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 amount
     ) private {
         bool success;
+        uint256 _recoverGas = recoverGas;
 
         if (LibAsset.isNativeAsset(assetId)) {
-            if (gasleft() < recoverGas) {
+            if (gasleft() < _recoverGas) {
                 receiver.call{ value: amount }("");
             }
 
-            try executor.swapAndCompleteBridgeTokens{ value: amount, gas: gasleft() - recoverGas }(_transactionId, _swapData, assetId, receiver) {
+            try executor.swapAndCompleteBridgeTokens{ value: amount, gas: gasleft() - _recoverGas }(_transactionId, _swapData, assetId, receiver) {
                 success = true;
             } catch {
                 receiver.call{ value: amount }("");
@@ -178,11 +179,11 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             token.safeApprove(address(executor), 0);
             token.safeIncreaseAllowance(address(executor), amount);
             
-            if (gasleft() < recoverGas) {
+            if (gasleft() < _recoverGas) {
                 token.safeTransfer(receiver, amount);
             }
 
-            try executor.swapAndCompleteBridgeTokens{ gas: gasleft() - recoverGas }(_transactionId, _swapData, assetId, receiver) {
+            try executor.swapAndCompleteBridgeTokens{ gas: gasleft() - _recoverGas }(_transactionId, _swapData, assetId, receiver) {
                 success = true;
             } catch {
                 token.safeTransfer(receiver, amount);
