@@ -66,7 +66,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// External Methods ///
 
     /// @notice set stargate router
-    /// @param _router the stargate router address
+    /// @param _sgRouter the stargate router address
     function setStargateRouter(address _sgRouter) external onlyOwner {
         sgRouter = _sgRouter;
         emit StargateRouterSet(_sgRouter);
@@ -164,6 +164,10 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         bool success;
 
         if (LibAsset.isNativeAsset(assetId)) {
+            if (gasleft() < recoverGas) {
+                receiver.call{ value: amount }("");
+            }
+
             try executor.swapAndCompleteBridgeTokens{ value: amount, gas: gasleft() - recoverGas }(_transactionId, _swapData, assetId, receiver) {
                 success = true;
             } catch {
@@ -173,6 +177,10 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             IERC20 token = IERC20(assetId);
             token.safeApprove(address(executor), 0);
             token.safeIncreaseAllowance(address(executor), amount);
+            
+            if (gasleft() < recoverGas) {
+                token.safeTransfer(receiver, amount);
+            }
 
             try executor.swapAndCompleteBridgeTokens{ gas: gasleft() - recoverGas }(_transactionId, _swapData, assetId, receiver) {
                 success = true;
