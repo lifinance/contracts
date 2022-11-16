@@ -58,7 +58,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         sgRouter = _sgRouter;
         emit StargateRouterSet(_sgRouter);
     }
-    
+
     /// @notice set execution recoverGas
     /// @param _recoverGas recoverGas
     function setRecoverGas(uint256 _recoverGas) external onlyOwner {
@@ -86,6 +86,17 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             _payload,
             (bytes32, LibSwap.SwapData[], address, address)
         );
+
+        if (gasleft() < _recoverGas) {
+            if (LibAsset.isNativeAsset(_token)) {
+                receiver.call{ value: amount }("");
+            } else {
+                IERC20(_token).safeTransfer(receiver, amount);
+            }
+
+            emit LiFiTransferCompleted(_transactionId, assetId, receiver, amount, block.timestamp);
+            return;
+        }
 
         _swapAndCompleteBridgeTokens(transactionId, swapData, _token, payable(receiver), _amountLD);
     }
@@ -145,13 +156,14 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 _recoverGas = recoverGas;
 
         if (LibAsset.isNativeAsset(assetId)) {
-            if (gasleft() < _recoverGas) {
-                receiver.call{ value: amount }("");
-                emit LiFiTransferCompleted(_transactionId, assetId, receiver, amount, block.timestamp);
-                return;
-            }
-
-            try executor.swapAndCompleteBridgeTokens{ value: amount, gas: gasleft() - _recoverGas }(_transactionId, _swapData, assetId, receiver) {
+            try
+                executor.swapAndCompleteBridgeTokens{ value: amount, gas: gasleft() - _recoverGas }(
+                    _transactionId,
+                    _swapData,
+                    assetId,
+                    receiver
+                )
+            {
                 success = true;
             } catch {
                 receiver.call{ value: amount }("");
@@ -160,14 +172,15 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             IERC20 token = IERC20(assetId);
             token.safeApprove(address(executor), 0);
             token.safeIncreaseAllowance(address(executor), amount);
-            
-            if (gasleft() < _recoverGas) {
-                token.safeTransfer(receiver, amount);
-                emit LiFiTransferCompleted(_transactionId, assetId, receiver, amount, block.timestamp);
-                return;
-            }
 
-            try executor.swapAndCompleteBridgeTokens{ gas: gasleft() - _recoverGas }(_transactionId, _swapData, assetId, receiver) {
+            try
+                executor.swapAndCompleteBridgeTokens{ gas: gasleft() - _recoverGas }(
+                    _transactionId,
+                    _swapData,
+                    assetId,
+                    receiver
+                )
+            {
                 success = true;
             } catch {
                 token.safeTransfer(receiver, amount);
