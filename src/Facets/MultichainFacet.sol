@@ -11,8 +11,6 @@ import { TokenAddressIsZero, CannotBridgeToSameNetwork, InvalidConfig, AlreadyIn
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
-import { console } from "test/solidity/utils/Console.sol"; // TODO
-
 interface IMultichainERC20 {
     function Swapout(uint256 amount, address bindaddr) external returns (bool);
 }
@@ -146,15 +144,11 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         bool isNative;
         // check if sendingAsset is Multichain token (> special flow)
         if (_multichainData.router != _bridgeData.sendingAssetId) {
-            console.log("1a");
             (underlyingToken, isNative) = _getUnderlyingToken(_bridgeData.sendingAssetId, _multichainData.router);
         } else {
-            console.log("1b");
             underlyingToken = _bridgeData.sendingAssetId;
         }
         if (!isNative) LibAsset.depositAsset(underlyingToken, _bridgeData.minAmount);
-        console.log("isNative:", isNative);
-        console.log("2");
         _startBridge(_bridgeData, _multichainData, underlyingToken, isNative);
     }
 
@@ -177,7 +171,6 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     {
         Storage storage s = getStorage();
 
-        //TODO QUESTION:  why do we not have this check in startBridgeTokensViaMultichain() ?
         if (!s.allowedRouters[_multichainData.router]) revert InvalidRouter();
 
         _bridgeData.minAmount = _depositAndSwap(
@@ -186,6 +179,7 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             _swapData,
             payable(msg.sender)
         );
+
         address underlyingToken;
         bool isNative;
         // check if sendingAsset is Multichain token (> special flow)
@@ -208,19 +202,13 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     {
         // Token must implement IMultichainToken interface
         if (LibAsset.isNativeAsset(token)) revert TokenAddressIsZero();
-        console.log(10);
-        //! should this call be in a try/catch?
         underlyingToken = IMultichainToken(token).underlying();
-        console.log(11);
         // The native token does not use the standard null address ID
         isNative = IMultichainRouter(router).wNATIVE() == underlyingToken;
         // Some Multichain complying tokens may wrap nothing
-        console.log(12);
         if (!isNative && LibAsset.isNativeAsset(underlyingToken)) {
             underlyingToken = token;
         }
-        console.log("isNative: ", isNative);
-        console.log(13);
     }
 
     /// @dev Contains the business logic for the bridge via Multichain
