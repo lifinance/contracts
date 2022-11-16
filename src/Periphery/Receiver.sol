@@ -17,17 +17,14 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
     /// Storage ///
     address public sgRouter;
-    address public gelato;
     IExecutor public executor;
     uint256 recoverGas;
 
     /// Errors ///
     error InvalidStargateRouter();
-    error InvalidGelatoAddress();
 
     /// Events ///
     event StargateRouterSet(address indexed router);
-    event GelatoAddressSet(address indexed gelato);
     event RecoverGasSet(uint256 indexed recoverGas);
 
     /// Modifiers ///
@@ -38,28 +35,18 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         _;
     }
 
-    modifier onlyGelato() {
-        if (msg.sender != gelato) {
-            revert InvalidGelatoAddress();
-        }
-        _;
-    }
-
     /// Constructor
     constructor(
         address _owner,
         address _sgRouter,
-        address _gelato,
         address _executor,
         uint256 _recoverGas
     ) TransferrableOwnership(_owner) {
         owner = _owner;
         sgRouter = _sgRouter;
-        gelato = _gelato;
         executor = IExecutor(_executor);
         recoverGas = _recoverGas;
         emit StargateRouterSet(_sgRouter);
-        emit GelatoAddressSet(_gelato);
         emit RecoverGasSet(_recoverGas);
     }
 
@@ -72,13 +59,6 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         emit StargateRouterSet(_sgRouter);
     }
 
-    /// @notice set gelato address
-    /// @param _gelato the gelato address
-    function setGelatoAddress(address _gelato) external onlyOwner {
-        gelato = _gelato;
-        emit GelatoAddressSet(_gelato);
-    }
-    
     /// @notice set execution recoverGas
     /// @param _recoverGas recoverGas
     function setRecoverGas(uint256 _recoverGas) external onlyOwner {
@@ -107,6 +87,17 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             (bytes32, LibSwap.SwapData[], address, address)
         );
 
+        if (gasleft() < recoverGas) {
+            if (LibAsset.isNativeAsset(_token)) {
+                receiver.call{ value: _amountLD }("");
+            } else {
+                IERC20(_token).safeTransfer(receiver, _amountLD);
+            }
+
+            emit LiFiTransferCompleted(transactionId, _token, receiver, _amountLD, block.timestamp);
+            return;
+        }
+
         _swapAndCompleteBridgeTokens(transactionId, swapData, _token, payable(receiver), _amountLD);
     }
 
@@ -120,7 +111,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         LibSwap.SwapData[] memory _swapData,
         address assetId,
         address payable receiver
-    ) external payable nonReentrant onlyGelato {
+    ) external payable nonReentrant {
         if (LibAsset.isNativeAsset(assetId)) {
             _swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver, msg.value);
         } else {
@@ -165,11 +156,14 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 _recoverGas = recoverGas;
 
         if (LibAsset.isNativeAsset(assetId)) {
-            if (gasleft() < _recoverGas) {
-                receiver.call{ value: amount }("");
-            }
-
-            try executor.swapAndCompleteBridgeTokens{ value: amount, gas: gasleft() - _recoverGas }(_transactionId, _swapData, assetId, receiver) {
+            try
+                executor.swapAndCompleteBridgeTokens{ value: amount, gas: gasleft() - _recoverGas }(
+                    _transactionId,
+                    _swapData,
+                    assetId,
+                    receiver
+                )
+            {
                 success = true;
             } catch {
                 receiver.call{ value: amount }("");
@@ -178,12 +172,15 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             IERC20 token = IERC20(assetId);
             token.safeApprove(address(executor), 0);
             token.safeIncreaseAllowance(address(executor), amount);
-            
-            if (gasleft() < _recoverGas) {
-                token.safeTransfer(receiver, amount);
-            }
 
-            try executor.swapAndCompleteBridgeTokens{ gas: gasleft() - _recoverGas }(_transactionId, _swapData, assetId, receiver) {
+            try
+                executor.swapAndCompleteBridgeTokens{ gas: gasleft() - _recoverGas }(
+                    _transactionId,
+                    _swapData,
+                    assetId,
+                    receiver
+                )
+            {
                 success = true;
             } catch {
                 token.safeTransfer(receiver, amount);
