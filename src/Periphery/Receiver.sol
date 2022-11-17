@@ -113,7 +113,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         address payable receiver
     ) external payable nonReentrant {
         if (LibAsset.isNativeAsset(assetId)) {
-            _swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver, msg.value);
+            _swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver, msg.value, false);
         } else {
             uint256 allowance = IERC20(assetId).allowance(msg.sender, address(this));
             LibAsset.depositAsset(assetId, allowance);
