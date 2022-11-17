@@ -24,22 +24,17 @@ contract CBridgeFacetTestOptimized is TestBase {
 
     function initiateBridgeTxWithFacet() internal override {
         // a) prepare the facet-specific data
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, currentTxId++);
+
         // b) call the correct function selectors (as they differ for each facet)
         cBridge.startBridgeTokensViaCBridge(bridgeData, data);
     }
 
     function initiateSwapAndBridgeTxWithFacet() internal override {
         // a) prepare the facet-specific data
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 2);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, currentTxId);
 
-        //! would like to move this to testBase but getting weird error
-        //! Type struct LibSwap.SwapData[] memory is not implicitly convertible to expected type struct LibSwap.SwapData[] storage pointer.
-        //! cant store swapData in testBase variable
-        // b) prepara swap data
-        LibSwap.SwapData[] memory swapData = getDefaultSwapDataSingleDAItoUSDC();
-
-        // c) call the correct function selectors (as they differ for each facet)
+        // b) call the correct function selectors (as they differ for each facet)
         cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
     }
 
@@ -60,27 +55,7 @@ contract CBridgeFacetTestOptimized is TestBase {
         setFacetAddressInTestBase(address(cBridge));
     }
 
-    // function testCanBridgeTokens() internal {
-    //     vm.startPrank(USER_USDC_WHALE);
-    //     usdc.approve(address(cBridge), 10_000 * 10**usdc.decimals());
-    //     ILiFi.BridgeData memory bridgeData = getDefaultBridgeData();
-
-    //     CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
-
-    //     cBridge.startBridgeTokensViaCBridge(bridgeData, data);
-    //     vm.stopPrank();
-    // }
-
-    function testRunDefaultTests() public {
+    function testRunDefaultTests() public override {
         runDefaultTests();
     }
-
-    // function testCanSwapAndBridgeTokens() internal {
-    //     // vm.startPrank(USER_DAI_WHALE);
-
-    //     CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
-
-    //     cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, getDefaultSwapDataSingleDAItoUSDC(), data);
-    //     vm.stopPrank();
-    // }
 }

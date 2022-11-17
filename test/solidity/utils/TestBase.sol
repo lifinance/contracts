@@ -26,6 +26,7 @@ contract TestFacet {
 //common utilities for forge tests
 abstract contract TestBase is DSTest, DiamondTest {
     address private _facetAddress;
+    uint64 internal currentTxId;
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));
     UniswapV2Router02 internal uniswap;
@@ -33,7 +34,7 @@ abstract contract TestBase is DSTest, DiamondTest {
     ERC20 internal dai;
     LiFiDiamond internal diamond;
     ILiFi.BridgeData internal bridgeData;
-    LibSwap.SwapData[] internal defaultSwapData;
+    LibSwap.SwapData[] internal swapData;
 
     // Contract addresses (ETH only)
     address internal constant ADDRESS_UNISWAP = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
@@ -108,7 +109,7 @@ abstract contract TestBase is DSTest, DiamondTest {
         );
     }
 
-    function getDefaultSwapDataSingleDAItoUSDC() internal returns (LibSwap.SwapData[] memory) {
+    function setDefaultSwapDataSingleDAItoUSDC() internal {
         // Swap DAI -> USDC
         address[] memory path = new address[](2);
         path[0] = ADDRESS_DAI;
@@ -120,51 +121,24 @@ abstract contract TestBase is DSTest, DiamondTest {
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
         uint256 amountIn = amounts[0];
 
-        // LibSwap.SwapData storage tmp = swapData.push();
-
-        // tmp.callTo = address(uniswap);
-
-        // console.log("Result: ", swapData[0].callTo);
-
-        // // swapData = swapData[.push()];
-
-        LibSwap.SwapData[] memory array = new LibSwap.SwapData[](1);
-
-        array[0] = LibSwap.SwapData({
-            callTo: address(uniswap),
-            approveTo: address(uniswap),
-            sendingAssetId: ADDRESS_DAI,
-            receivingAssetId: ADDRESS_USDC,
-            fromAmount: amountIn,
-            callData: abi.encodeWithSelector(
-                uniswap.swapExactTokensForTokens.selector,
-                amountIn,
-                amountOut,
-                path,
-                _facetAddress,
-                block.timestamp + 20 minutes
-            ),
-            requiresDeposit: true
-        });
-        return array;
-
-        // LibSwap.SwapData[] storage tmp = new LibSwap.SwapData[](1);
-        // tmp[0] = LibSwap.SwapData({
-        //     callTo: address(uniswap),
-        //     approveTo: address(uniswap),
-        //     sendingAssetId: ADDRESS_DAI,
-        //     receivingAssetId: ADDRESS_USDC,
-        //     fromAmount: amountIn,
-        //     callData: abi.encodeWithSelector(
-        //         uniswap.swapExactTokensForTokens.selector,
-        //         amountIn,
-        //         amountOut,
-        //         path,
-        //         _facetAddress,
-        //         block.timestamp + 20 minutes
-        //     ),
-        //     requiresDeposit: true
-        // });
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForTokens.selector,
+                    amountIn,
+                    amountOut,
+                    path,
+                    _facetAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
     }
 
     function runDefaultTests() internal {
@@ -191,13 +165,20 @@ abstract contract TestBase is DSTest, DiamondTest {
         bridgeData.hasSourceSwaps = true;
 
         // prepare swap data
-        LibSwap.SwapData[] memory tmp = getDefaultSwapDataSingleDAItoUSDC();
+        setDefaultSwapDataSingleDAItoUSDC();
 
         // approval
-        dai.approve(_facetAddress, tmp[0].fromAmount);
+        dai.approve(_facetAddress, swapData[0].fromAmount);
 
         initiateSwapAndBridgeTxWithFacet();
     }
+
+    //! NEXT STEPS
+    //! - add native test cases and support in Facet
+    //! - add balance checks in standard test cases (needed due to event check?)
+    //! - can we check more events?
+
+    //#region abstract functions
 
     // this function must be implemented by the facet test contract
     // it will contain the logic to:
@@ -207,7 +188,12 @@ abstract contract TestBase is DSTest, DiamondTest {
 
     function initiateSwapAndBridgeTxWithFacet() internal virtual;
 
+    function testRunDefaultTests() public virtual;
+
+    //#endregion
+
     //#region existing
+
     function getNextUserAddress() external returns (address payable) {
         //bytes32 to address conversion
         address payable user = payable(address(uint160(uint256(nextUser))));
