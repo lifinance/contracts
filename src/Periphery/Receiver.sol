@@ -98,7 +98,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             return;
         }
 
-        _swapAndCompleteBridgeTokens(transactionId, swapData, _token, payable(receiver), _amountLD);
+        _swapAndCompleteBridgeTokens(transactionId, swapData, _token, payable(receiver), _amountLD, true);
     }
 
     /// @notice Performs a swap before completing a cross-chain transaction
@@ -117,7 +117,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         } else {
             uint256 allowance = IERC20(assetId).allowance(msg.sender, address(this));
             LibAsset.depositAsset(assetId, allowance);
-            _swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver, allowance);
+            _swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver, allowance, false);
         }
     }
 
@@ -150,10 +150,11 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         LibSwap.SwapData[] memory _swapData,
         address assetId,
         address payable receiver,
-        uint256 amount
+        uint256 amount,
+        bool recoverGasNeeded
     ) private {
         bool success;
-        uint256 _recoverGas = recoverGas;
+        uint256 _recoverGas = recoverGasNeeded ? recoverGas : 0;
 
         if (LibAsset.isNativeAsset(assetId)) {
             try
