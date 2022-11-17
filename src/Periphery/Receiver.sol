@@ -145,6 +145,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @param assetId token received from the other chain
     /// @param receiver address that will receive tokens in the end
     /// @param amount amount of token
+    /// @param recoverGasNeeded whether we need a gas buffer to recover
     function _swapAndCompleteBridgeTokens(
         bytes32 _transactionId,
         LibSwap.SwapData[] memory _swapData,
