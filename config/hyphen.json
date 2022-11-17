@@ -26,7 +26,7 @@
   "goerli": {
     "hyphenRouter": "0xE61d38cC9B3eF1d223b177090f3FD02b0B3412e7"
   },
-  "polygonMumbai": {
+  "mumbai": {
     "hyphenRouter": "0xb831F0848A055b146a0b13D54cfFa6C1FE201b83"
   },
   "avalancheFujiTestnet": {

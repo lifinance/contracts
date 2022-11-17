@@ -12,42 +12,10 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaOmniBridge(BridgeData calldata _lifiData, BridgeData calldata _bridgeData)`
+- `function startBridgeTokensViaOmniBridge(BridgeData calldata _bridgeData)`
   - Simply bridges tokens using Omni Native Bridge
-- `function swapAndStartBridgeTokensViaOmniBridge(BridgeData calldata, LibSwap.SwapData[] calldata _swapData, BridgeData calldata _bridgeData)`
+- `function swapAndStartBridgeTokensViaOmniBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
   - Performs swap(s) before bridging tokens using Omni Native Bridge
-
-## Omni Bridge Specific Parameters
-
-Some of the methods listed above take a variable labeled `_bridgeData`.
-
-To populate `_bridgeData` you will need to get the `l2Token` and `bridge`.
-- `l2Token`
-  Address of token on L2.
-  It can be get from the HomeOmniBridge contract on L2 by calling `bridgedTokenAddress` function.
-  For native asset, the param should be WETH address.
-- `bridge`
-  Omni Native Bridge has several bridges such as `ForeignOmniBridge`, `WETHOmniBridge`, `HomeOmniBridge`, etc.
-  The bridges for bridging asset can be get from the configuration. `HomeOmniBridge` is deployed on L2.
-
-This data is specific to Omni Bridge and is represented as the following struct type:
-
-```solidity
-/**
- * @param assetId The contract address of the token being bridged on L1.
- * @param amount The amount of tokens to bridge. Amount should be in limit.
- *               It can be checked with `withinLimit` function of `ForeignOmniBridge` contract.
- * @param receiver The address of the token recipient after bridging.
- * @param bridge The contract address of bridge for token.
- */
-struct BridgeData {
-  address assetId;
-  uint256 amount;
-  address receiver;
-  address bridge;
-}
-
-```
 
 ## Swap Data
 
@@ -59,7 +27,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `BridgeData _lifiData` parameter.
+Some methods accept a `BridgeData _bridgeData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 

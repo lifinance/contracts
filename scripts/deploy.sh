@@ -24,11 +24,17 @@ deploy() {
 }
 
 saveContract() {
+	source .env
+
+	if [[ -z "$PRODUCTION" ]]; then
+		FILE_SUFFIX="staging."
+	fi
+
 	NETWORK=$1
 	CONTRACT=$2
 	ADDRESS=$3
 
-	ADDRESSES_FILE=./deployments/$NETWORK.json
+	ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
 
 	# create an empty json if it does not exist
 	if [[ ! -e $ADDRESSES_FILE ]]; then

@@ -19,7 +19,7 @@ contract DeployScript is DeployScriptBase {
         json = vm.readFile(path);
         address executor = json.readAddress(".Executor");
 
-        constructorArgs = abi.encode(deployerAddress, stargateRouter, executor);
+        constructorArgs = abi.encode(deployerAddress, stargateRouter, executor, 100000);
 
         vm.startBroadcast(deployerPrivateKey);
 

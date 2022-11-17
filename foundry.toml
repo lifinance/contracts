@@ -35,10 +35,10 @@ boba = "${ETH_NODE_URI_BOBA}"
 
 # testnets
 goerli = "${ETH_NODE_URI_GOERLI}"
-sepolia = "${ETH_NODE_URI_SEPOLIA}"
+mumbai = "${ETH_NODE_URI_MUMBAI}"
 
 [etherscan]
-mainnet = { key = "${ETHERSCAN_API_KEY}" }
+mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
 polygon = { key = "${POLYGON_ETHERSCAN_API_KEY}", url = "https://api.polygonscan.com/api" }
 bsc = { key = "${BSC_ETHERSCAN_API_KEY}", url = "https://api.bscscan.com/api" }
 gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://blockscout.com/poa/xdai/api" }
@@ -51,7 +51,9 @@ moonbeam = { key = "${MOONBEAM_ETHERSCAN_API_KEY}", url = "https://api-moonbeam.
 celo = { key = "${CELO_ETHERSCAN_API_KEY}", url = "https://explorer.celo.org/api" }
 fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api" }
 cronos = { key = "${CRONOS_ETHERSCAN_API_KEY}", url = "https://api.cronoscan.com/api" }
+aurora = { key = "${AURORA_ETHERSCAN_API_KEY}", url = "https://api.aurorascan.dev/api" }
+boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.bobascan.com/api" }
 
 #testnets
-goerli = { key = "${ETHERSCAN_API_KEY}" }
-sepolia = { key = "${ETHERSCAN_API_KEY}" }
+goerli = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
+mumbai = { key = "${MUMBAI_ETHERSCAN_API_KEY}", url = "https://api-testnet.polygonscan.com/api" }

@@ -40,7 +40,7 @@ contract DeployScript is UpdateScriptBase {
             Bridge memory b;
             Config memory c = configs[i];
             b.assetId = c.token;
-            b.bridge = chainId == 1 ? c.bridge : c.ammWrapper;
+            b.bridge = c.ammWrapper == address(0) ? c.bridge : c.ammWrapper;
             bridges.push(b);
         }
 
