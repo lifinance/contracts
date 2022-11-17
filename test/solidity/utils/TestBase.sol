@@ -9,6 +9,7 @@ import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
+import { console } from "../utils/Console.sol";
 
 contract TestFacet {
     constructor() {}
@@ -23,14 +24,16 @@ contract TestFacet {
 }
 
 //common utilities for forge tests
-contract TestBase is DSTest, DiamondTest {
+abstract contract TestBase is DSTest, DiamondTest {
+    address private _facetAddress;
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));
-    address constant deployer = 0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84;
     UniswapV2Router02 internal uniswap;
     ERC20 internal usdc;
     ERC20 internal dai;
     LiFiDiamond internal diamond;
+    ILiFi.BridgeData internal bridgeData;
+    LibSwap.SwapData[] internal defaultSwapData;
 
     // Contract addresses (ETH only)
     address internal constant ADDRESS_UNISWAP = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
@@ -39,6 +42,7 @@ contract TestBase is DSTest, DiamondTest {
     address internal constant ADDRESS_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     // User accounts (Whales: ETH only)
+    address internal constant USER_DEPLOYER = 0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84;
     address internal constant USER_SENDER = address(0xabc123456);
     address internal constant USER_RECEIVER = address(0xabc654321); //! required?
     address internal constant USER_REFUND = address(0xabc654321); //! required?
@@ -46,14 +50,15 @@ contract TestBase is DSTest, DiamondTest {
     address internal constant USER_DAI_WHALE = 0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
 
     modifier executeAsDeployer() {
-        vm.prank(deployer);
+        vm.prank(USER_DEPLOYER);
         _;
     }
 
-    function initTestBase() internal // bytes4 startBridgeSelector,
-    // bytes4 swapAndStartBridgeSelector,
-    // address facetAddress
-    {
+    function setFacetAddressInTestBase(address facetAddress) internal {
+        _facetAddress = facetAddress;
+    }
+
+    function initTestBase() internal {
         // activate fork
         fork();
 
@@ -78,13 +83,17 @@ contract TestBase is DSTest, DiamondTest {
         // cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
     }
 
+    //! CHALLENGES FOR LEVEL2 (Standard tests that can easily be executed from test contracts):
+    //! - move setup of diamond into TestBase (issue: dont have the contract type and its selectors of the TestBridgeFace)
+    //! - move swapData preparation into TestBase
+
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
         uint256 blockNumber = vm.envUint("FORK_NUMBER");
         vm.createSelectFork(rpcUrl, blockNumber);
     }
 
-    function getDefaultBridgeData() internal view returns (ILiFi.BridgeData memory bridgeData) {
+    function setDefaultBridgeData() internal {
         bridgeData = ILiFi.BridgeData(
             "",
             "cbridge",
@@ -99,11 +108,7 @@ contract TestBase is DSTest, DiamondTest {
         );
     }
 
-    function getDefaultSwapDataSingleDAItoUSDC(address bridgeAddress)
-        internal
-        view
-        returns (LibSwap.SwapData[] memory swapData)
-    {
+    function getDefaultSwapDataSingleDAItoUSDC() internal returns (LibSwap.SwapData[] memory) {
         // Swap DAI -> USDC
         address[] memory path = new address[](2);
         path[0] = ADDRESS_DAI;
@@ -115,24 +120,92 @@ contract TestBase is DSTest, DiamondTest {
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
         uint256 amountIn = amounts[0];
 
-        swapData = new LibSwap.SwapData[](1);
-        swapData[0] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
-            ADDRESS_DAI,
-            ADDRESS_USDC,
-            amountIn,
-            abi.encodeWithSelector(
+        // LibSwap.SwapData storage tmp = swapData.push();
+
+        // tmp.callTo = address(uniswap);
+
+        // console.log("Result: ", swapData[0].callTo);
+
+        // // swapData = swapData[.push()];
+
+        LibSwap.SwapData[] memory array = new LibSwap.SwapData[](1);
+
+        array[0] = LibSwap.SwapData({
+            callTo: address(uniswap),
+            approveTo: address(uniswap),
+            sendingAssetId: ADDRESS_DAI,
+            receivingAssetId: ADDRESS_USDC,
+            fromAmount: amountIn,
+            callData: abi.encodeWithSelector(
                 uniswap.swapExactTokensForTokens.selector,
                 amountIn,
                 amountOut,
                 path,
-                bridgeAddress,
+                _facetAddress,
                 block.timestamp + 20 minutes
             ),
-            true
-        );
+            requiresDeposit: true
+        });
+        return array;
+
+        // LibSwap.SwapData[] storage tmp = new LibSwap.SwapData[](1);
+        // tmp[0] = LibSwap.SwapData({
+        //     callTo: address(uniswap),
+        //     approveTo: address(uniswap),
+        //     sendingAssetId: ADDRESS_DAI,
+        //     receivingAssetId: ADDRESS_USDC,
+        //     fromAmount: amountIn,
+        //     callData: abi.encodeWithSelector(
+        //         uniswap.swapExactTokensForTokens.selector,
+        //         amountIn,
+        //         amountOut,
+        //         path,
+        //         _facetAddress,
+        //         block.timestamp + 20 minutes
+        //     ),
+        //     requiresDeposit: true
+        // });
     }
+
+    function runDefaultTests() internal {
+        testBaseCanBridgeTokens();
+        testBaseCanSwapAndBridgeTokens();
+    }
+
+    function testBaseCanBridgeTokens() internal {
+        vm.startPrank(USER_USDC_WHALE);
+        // prepare bridgeData
+        setDefaultBridgeData();
+
+        // approval
+        usdc.approve(_facetAddress, bridgeData.minAmount);
+        initiateBridgeTxWithFacet();
+        vm.stopPrank();
+    }
+
+    function testBaseCanSwapAndBridgeTokens() internal {
+        vm.startPrank(USER_DAI_WHALE);
+
+        // prepare bridgeData
+        setDefaultBridgeData();
+        bridgeData.hasSourceSwaps = true;
+
+        // prepare swap data
+        LibSwap.SwapData[] memory tmp = getDefaultSwapDataSingleDAItoUSDC();
+
+        // approval
+        dai.approve(_facetAddress, tmp[0].fromAmount);
+
+        initiateSwapAndBridgeTxWithFacet();
+    }
+
+    // this function must be implemented by the facet test contract
+    // it will contain the logic to:
+    // a) prepare the facet-specific data
+    // b) call the correct function selectors (as they differ for each facet)
+    function initiateBridgeTxWithFacet() internal virtual;
+
+    function initiateSwapAndBridgeTxWithFacet() internal virtual;
 
     //#region existing
     function getNextUserAddress() external returns (address payable) {
