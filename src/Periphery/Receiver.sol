@@ -18,7 +18,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// Storage ///
     address public sgRouter;
     IExecutor public executor;
-    uint256 recoverGas;
+    uint256 public recoverGas;
 
     /// Errors ///
     error InvalidStargateRouter();
@@ -145,17 +145,17 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @param assetId token received from the other chain
     /// @param receiver address that will receive tokens in the end
     /// @param amount amount of token
-    /// @param recoverGasNeeded whether we need a gas buffer to recover
+    /// @param reserveRecoverGas whether we need a gas buffer to recover
     function _swapAndCompleteBridgeTokens(
         bytes32 _transactionId,
         LibSwap.SwapData[] memory _swapData,
         address assetId,
         address payable receiver,
         uint256 amount,
-        bool recoverGasNeeded
+        bool reserveRecoverGas
     ) private {
         bool success;
-        uint256 _recoverGas = recoverGasNeeded ? recoverGas : 0;
+        uint256 _recoverGas = reserveRecoverGas ? recoverGas : 0;
 
         if (LibAsset.isNativeAsset(assetId)) {
             try
