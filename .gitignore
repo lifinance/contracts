@@ -1,6 +1,7 @@
 cache/
 artifacts/
 out/
+broadcast/
 
 coverage*
 typechain/
@@ -19,6 +20,5 @@ node_modules/
 yalc.lock
 
 contractsInfo.json
-deployments/
 
 yarn-error.log

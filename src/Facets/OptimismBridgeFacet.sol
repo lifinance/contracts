@@ -74,7 +74,7 @@ contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Register token and bridge
     /// @param assetId Address of token
     /// @param bridge Address of bridge for asset
-    function registerBridge(address assetId, address bridge) external {
+    function registerOptimismBridge(address assetId, address bridge) external {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
