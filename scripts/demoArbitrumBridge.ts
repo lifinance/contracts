@@ -35,6 +35,8 @@ const LIFI_ADDRESS = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE' // LiFiDiamond
 const USDC_ADDRESS = '0x98339D8C260052B7ad81c28c16C0b98420f2B46a' // USDC address on Goerli
 const TEST_TOKEN_ADDRESS = '0x7ea6eA49B0b0Ae9c5db7907d139D9Cd3439862a1' // TEST Token address on Goerli
 const UNISWAP_ADDRESS = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D' // Uniswap router address on Goerli
+const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'; // WETH address
+const ZERO_ADDRESS = constants.AddressZero;
 const destinationChainId = 421613 // Arbitrum Goerli chain id
 const amountIn = utils.parseEther('1050')
 const amountOut = utils.parseUnits('1000', 6)
@@ -112,7 +114,7 @@ async function main() {
       transactionId: utils.randomBytes(32),
       bridge: 'arbitrum',
       integrator: 'ACME Devs',
-      referrer: constants.AddressZero,
+      referrer: ZERO_ADDRESS,
       sendingAssetId: USDC_ADDRESS,
       receiver: walletAddress,
       minAmount: amountOut,
@@ -150,9 +152,7 @@ async function main() {
     const estimates = await gasEstimator.estimateAll(
       {
         from: await l1GatewayRouter.getGateway(USDC_ADDRESS),
-        to: await l2GatewayRouter.getGateway(
-          await l1GatewayRouter.calculateL2TokenAddress(USDC_ADDRESS)
-        ),
+        to: await l2GatewayRouter.getGateway(USDC_ADDRESS),
         data: outboundCalldata,
         l2CallValue: errorTriggerCost,
         excessFeeRefundAddress: walletAddress,
@@ -168,15 +168,15 @@ async function main() {
     const { maxSubmissionCost, gasLimit, maxFeePerGas } = estimates
     const maxGasLimit = gasLimit.add(64 * 12)
 
-    // Total cost
-    const cost = maxSubmissionCost.add(maxFeePerGas.mul(maxGasLimit))
-
     // Bridge Data
     const arbitrumData = {
       maxSubmissionCost: maxSubmissionCost,
       maxGas: maxGasLimit,
       maxGasPrice: maxFeePerGas,
     }
+
+    // Total cost
+    const cost = maxSubmissionCost.add(maxFeePerGas.mul(maxGasLimit))
 
     // Approve ERC20 for swapping -- TOKEN -> USDC
     const allowance = await token.allowance(walletAddress, LIFI_ADDRESS)
@@ -208,8 +208,8 @@ async function main() {
       transactionId: utils.randomBytes(32),
       bridge: 'arbitrum',
       integrator: 'ACME Devs',
-      referrer: constants.AddressZero,
-      sendingAssetId: constants.AddressZero,
+      referrer: ZERO_ADDRESS,
+      sendingAssetId: ZERO_ADDRESS,
       receiver: walletAddress,
       minAmount: amount,
       destinationChainId: destinationChainId,
@@ -253,6 +253,111 @@ async function main() {
       gasLimit: '500000',
       value: amount.add(cost),
     })
+  }
+
+  // Swap Non-Native Asset into Native Asset and Bridge Native Asset
+  {
+    // Swap amount
+    const erc20AmountIn = utils.parseUnits('1.5', 6);
+
+    // Bridge amount
+    const ethAmountOut = utils.parseEther('0.001');
+
+    const usdc = ERC20__factory.connect(USDC_ADDRESS, wallet)
+
+    // Setting Swap Data
+    const uniswap = new Contract(UNISWAP_ADDRESS, [
+      'function swapTokensForExactETH(uint256,uint256,address[],address,uint256)',
+    ])
+
+    const path = [USDC_ADDRESS, WETH_ADDRESS]
+    const to = lifi.address // should be a checksummed recipient address
+    const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
+
+    const dexSwapData =
+      await uniswap.populateTransaction.swapTokensForExactETH(
+        ethAmountOut,
+        erc20AmountIn,
+        path,
+        to,
+        deadline
+      )
+
+    const swapData = [
+      {
+        callTo: <string>dexSwapData.to,
+        approveTo: <string>dexSwapData.to,
+        sendingAssetId: USDC_ADDRESS,
+        receivingAssetId: ZERO_ADDRESS,
+        fromAmount: erc20AmountIn,
+        callData: <string>dexSwapData?.data,
+        requiresDeposit: true,
+      },
+    ]
+
+    // LIFI Data
+    const bridgeData = {
+      transactionId: utils.randomBytes(32),
+      bridge: 'arbitrum',
+      integrator: 'ACME Devs',
+      referrer: ZERO_ADDRESS,
+      sendingAssetId: ZERO_ADDRESS,
+      receiver: walletAddress,
+      minAmount: ethAmountOut,
+      destinationChainId: destinationChainId,
+      hasSourceSwaps: true,
+      hasDestinationCall: false,
+    }
+
+    // =================== Calculate estimations ===================
+
+    const estimates = await gasEstimator.estimateAll(
+      {
+        from: LIFI_ADDRESS,
+        to: walletAddress,
+        data: '0x',
+        l2CallValue: errorTriggerCost,
+        excessFeeRefundAddress: walletAddress,
+        callValueRefundAddress: walletAddress,
+      },
+      (await l1JsonProvider.getBlock('latest')).baseFeePerGas ||
+        BigNumber.from(0),
+      l1Provider
+    )
+
+    // =============================================================
+
+    const { maxSubmissionCost, gasLimit, maxFeePerGas } = estimates
+    const maxGasLimit = gasLimit;
+
+    // Bridge Data
+    const arbitrumData = {
+      maxSubmissionCost: maxSubmissionCost,
+      maxGas: maxGasLimit,
+      maxGasPrice: maxFeePerGas,
+    }
+
+    // Total cost
+    const cost = maxSubmissionCost.add(maxFeePerGas.mul(maxGasLimit))
+
+    // Approve ERC20 for swapping -- USDC -> ETH
+    const allowance = await usdc.allowance(walletAddress, LIFI_ADDRESS)
+    if (erc20AmountIn.gt(allowance)) {
+      await usdc.approve(LIFI_ADDRESS, erc20AmountIn)
+
+      msg('Token approved for swapping')
+    }
+
+    // Call LiFi smart contract to start the bridge process -- WITH SWAP
+    await lifi.swapAndStartBridgeTokensViaArbitrumBridge(
+      bridgeData,
+      swapData,
+      arbitrumData,
+      {
+        gasLimit: '500000',
+        value: cost,
+      }
+    )
   }
 }
 
