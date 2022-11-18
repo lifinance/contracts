@@ -125,7 +125,6 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 startingBalance;
         uint256 finalAssetStartingBalance;
         address finalAssetId = _swapData[_swapData.length - 1].receivingAssetId;
-
         if (!LibAsset.isNativeAsset(finalAssetId)) {
             finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId);
         } else {
@@ -154,7 +153,6 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 finalAssetPostSwapBalance = LibAsset.getOwnBalance(finalAssetId);
 
         if (finalAssetPostSwapBalance > finalAssetStartingBalance) {
-            finalAssetPostSwapBalance = finalAssetPostSwapBalance - finalAssetStartingBalance;
             LibAsset.transferAsset(finalAssetId, _receiver, finalAssetPostSwapBalance - finalAssetStartingBalance);
         }
 
@@ -212,4 +210,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
         return balances;
     }
+
+    /// @dev required for receiving native assets from destination swaps
+    receive() external payable {}
 }

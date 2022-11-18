@@ -1,0 +1,136 @@
+{
+  "routers": {
+    "mainnet": "0x8731d54E9D02c286767d56ac03e8037C07e01e98",
+    "bsc": "0x4a364f8c717cAAD9A442737Eb7b8A55cc6cf18D8",
+    "polygon": "0x45A01E4e04F14f7A4a6702c74187c5F6222033cd",
+    "arbitrum": "0x53Bf833A5d6c4ddA888F69c22C88C9f356a41614",
+    "optimism": "0xB0D502E938ed5f4df2E681fE6E419ff29631d62b",
+    "fantom": "0xAf5191B0De278C7286d6C7CC6ab6BB8A73bA2Cd6",
+    "avalanche": "0x45A01E4e04F14f7A4a6702c74187c5F6222033cd",
+    "mumbai": "0x817436a076060D158204d955E5403b6Ed0A5fac0"
+  },
+  "chains": [
+    {
+      "chainId": 1,
+      "lzChainId": 101
+    },
+    {
+      "chainId": 137,
+      "lzChainId": 109
+    },
+    {
+      "chainId": 56,
+      "lzChainId": 102
+    },
+    {
+      "chainId": 43114,
+      "lzChainId": 106
+    },
+    {
+      "chainId": 42161,
+      "lzChainId": 110
+    },
+    {
+      "chainId": 250,
+      "lzChainId": 112
+    },
+    {
+      "chainId": 10,
+      "lzChainId": 111
+    }
+  ],
+  "pools": {
+    "mainnet": [
+      {
+        "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "id": 1
+      },
+      {
+        "address": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+        "id": 2
+      },
+      {
+        "address": "0x4Fabb145d64652a948d72533023f6E7A623C7C53",
+        "id": 5
+      }
+    ],
+    "polygon": [
+      {
+        "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+        "id": 1
+      },
+      {
+        "address": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+        "id": 2
+      },
+      {
+        "address": "0x9fB83c0635De2E815fd1c21b3a292277540C2e8d",
+        "id": 5
+      }
+    ],
+    "bsc": [
+      {
+        "address": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+        "id": 1
+      },
+      {
+        "address": "0x55d398326f99059fF775485246999027B3197955",
+        "id": 2
+      },
+      {
+        "address": "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56",
+        "id": 5
+      }
+    ],
+    "arbitrum": [
+      {
+        "address": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+        "id": 1
+      },
+      {
+        "address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+        "id": 2
+      }
+    ],
+    "optimism": [
+      {
+        "address": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+        "id": 1
+      },
+      {
+        "address": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
+        "id": 2
+      }
+    ],
+    "fantom": [
+      {
+        "address": "0x04068DA6C83AFCFA0e13ba15A6696662335D5B75",
+        "id": 1
+      },
+      {
+        "address": "0x049d68029688eAbF473097a2fC38ef61633A3C7A",
+        "id": 2
+      }
+    ],
+    "avalanche": [
+      {
+        "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+        "id": 1
+      },
+      {
+        "address": "0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7",
+        "id": 2
+      },
+      {
+        "address": "0x19860CCB0A68fd4213aB9D8266F7bBf05A8dDe98",
+        "id": 5
+      }
+    ],
+    "mumbai": [
+      {
+        "address": "0x742DfA5Aa70a8212857966D491D67B09Ce7D6ec7",
+        "id": 1
+      }
+    ]
+  }
+}

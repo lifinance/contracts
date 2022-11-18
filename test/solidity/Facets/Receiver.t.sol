@@ -12,17 +12,17 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
-import { Receiver } from 'lifi/Periphery/Receiver.sol';
-import { LibSwap } from 'lifi/Libraries/LibSwap.sol';
+import { Receiver } from "lifi/Periphery/Receiver.sol";
+import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 
 // Stub CBridgeFacet Contract
 contract TestReceiverContract is Receiver {
-        constructor(address owner) Receiver(owner, 0x4a364f8c717cAAD9A442737Eb7b8A55cc6cf18D8, 0xaF15c6a1a23300b2cEdc24bdfFB8f810bb4DfC63) {}
-
+    constructor(address owner)
+        Receiver(owner, 0x4a364f8c717cAAD9A442737Eb7b8A55cc6cf18D8, 0xaF15c6a1a23300b2cEdc24bdfFB8f810bb4DfC63, 100000)
+    {}
 }
 
 contract ReceiverTest is DSTest, DiamondTest {
-
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
     TestReceiverContract internal receiver;
@@ -45,6 +45,4 @@ contract ReceiverTest is DSTest, DiamondTest {
 
         receiver = TestReceiverContract(address(diamond));
     }
-
-
 }

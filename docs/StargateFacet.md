@@ -12,11 +12,13 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaStargate(BridgeData calldata _lifiData, StargateData calldata _stargateData)`
+- `function initStargate(PoolIdConfig[] calldata poolIdConfigs, ChainIdConfig[] calldata chainIdConfigs)`
+  - Initializer method. Sets pool ids for the specific assets and layerzero chain ids for chains.
+- `function startBridgeTokensViaStargate(BridgeData calldata _bridgeData, StargateData calldata _stargateData)`
   - Simply bridges tokens using Stargate
-- `function swapAndStartBridgeTokensViaStargate(BridgeData calldata _lifiData, LibSwap.SwapData[] calldata _swapData, StargateData memory _stargateData)`
+- `function swapAndStartBridgeTokensViaStargate(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, StargateData calldata _stargateData)`
   - Performs swap(s) before bridging tokens using Stargate
-- `function quoteLayerZeroFee(StargateData calldata _stargateData)`
+- `function quoteLayerZeroFee(uint256 _destinationChainId, StargateData calldata _stargateData)`
   - Returns a required amount for native gass fee
 
 You need to send native gas fee that the Stargate needs to pay for the cross chain message.
@@ -31,27 +33,21 @@ To populate `_stargateData` you will need to get the chain ID and pool ID you ar
 This data is specific to Stargate and is represented as the following struct type:
 
 ```solidity
-/**
- * @param router Address of the router contract for the token being bridged.
- * @param dstChainId Chain ID of the chain to bridge tokens to.
- * @param srcPoolId Pool ID of the token being bridged.
- * @param dstPoolId Pool ID of the token being bridged to.
- * @param amountLD Amount of the token being bridged.
- * @param minAmountLD Mininum amount of the token being bridged to.
- * @param dstGasForCall Extra gas, if calling smart contract.
- * @param callTo Recipient address or contract with sgReceive implementation.
- * @param callData Call data for sgReceive process.
- */
+/// @param dstPoolId Dest pool id.
+/// @param minAmountLD The min qty you would accept on the destination.
+/// @param dstGasForCall Additional gas fee for extral call on the destination.
+/// @param refundAddress Refund adddress. Extra gas (if any) is returned to this address
+/// @param lzFee Estimated message fee.
+/// @param callTo The address to send the tokens to on the destination.
+/// @param callData Additional payload.
 struct StargateData {
-  address router;
-  uint16 dstChainId;
-  uint256 srcPoolId;
-  uint256 dstPoolId;
-  uint256 amountLD;
-  uint256 minAmountLD;
-  uint256 dstGasForCall;
-  bytes callTo;
-  bytes callData;
+    uint256 dstPoolId;
+    uint256 minAmountLD;
+    uint256 dstGasForCall;
+    uint256 lzFee;
+    address payable refundAddress;
+    bytes callTo;
+    bytes callData;
 }
 
 ```
@@ -66,7 +62,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `BridgeData _lifiData` parameter.
+Some methods accept a `BridgeData _bridgeData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 

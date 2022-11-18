@@ -12,23 +12,16 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaArbitrumBridge(BridgeData calldata _lifiData, BridgeData calldata _bridgeData)`
+- `function startBridgeTokensViaArbitrumBridge(BridgeData calldata _bridgeData, BridgeData calldata _arbitrumData)`
   - Simply bridges tokens using Arbitrum Native Bridge
-- `function swapAndStartBridgeTokensViaArbitrumBridge(BridgeData calldata, LibSwap.SwapData[] calldata _swapData, BridgeData calldata _bridgeData)`
+- `function swapAndStartBridgeTokensViaArbitrumBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, BridgeData calldata _arbitrumData)`
   - Performs swap(s) before bridging tokens using Arbitrum Native Bridge
 
 ## Arbitrum Native Bridge Specific Parameters
 
-Some of the methods listed above take a variable labeled `_bridgeData`.
+Some of the methods listed above take a variable labeled `_arbitrumData`.
 
-To populate `_bridgeData` you will need to get the `gatewayRouter` and `tokenRouter`. Also you should get `maxSubmissionCost`, `maxGas`, `maxGasPrice` from the Arbitrum chain.
-- `gatewayRouter`
-  Address of Gateway Router of Arbitrum Native Bridge.
-  It can be get from the configuration.
-  For native asset bridge, you need to use Inbox address from the configuration.
-- `tokenRouter`
-  Arbitrum Native Bridge has several child routers such as `L1ERC20Gateway`, `L1ArbCustomGateway`, `L1WethGateway`, `L1DaiGateway`.
-  The child router for bridging asset can be get from `gatewayRouter.getGateway(assetId)`. For native asset, it will return zero address.
+To populate `_arbitrumData` you will need to get the `gatewayRouter` and `tokenRouter`. Also you should get `maxSubmissionCost`, `maxGas`, `maxGasPrice` from the Arbitrum chain.
 - `maxSubmissionCost`
   Maximum amount of ETH allocated to pay for the base submission fee. The base submission fee is a parameter unique to retryable transactions; the user is charged the base submission fee to cover the storage costs of keeping their ticket’s calldata in the retry buffer.
   Base submission fee is querable via `ArbRetryableTx.getSubmissionPrice`.
@@ -49,25 +42,13 @@ If you do not desire immediate redemption, you should provide a DepositValue of 
 This data is specific to Arbitrum Native Bridge and is represented as the following struct type:
 
 ```solidity
-/**
- * @param assetId The contract address of the token being bridged.
- * @param amount The amount of tokens to bridge.
- * @param receiver The address of the token recipient after bridging.
- * @param gatewayRouter The contract address of Gateway Router.
- * @param tokenRouter The address of specific Router for token to be bridged.
- * @param maxSubmissionCost Amount of ETH allocated to pay for the base submission fee.
- * @param maxGas Gas limit for immediate L2 execution attempt.
- * @param maxGasPrice L2 Gas price bid for immediate L2 execution attempt.
- */
-struct BridgeData {
-  address assetId;
-  uint256 amount;
-  address receiver;
-  address gatewayRouter;
-  address tokenRouter;
-  uint256 maxSubmissionCost;
-  uint256 maxGas;
-  uint256 maxGasPrice;
+/// @param maxSubmissionCost Max gas deducted from user's L2 balance to cover base submission fee.
+/// @param maxGas Max gas deducted from user's L2 balance to cover L2 execution.
+/// @param maxGasPrice price bid for L2 execution.
+struct ArbitrumData {
+    uint256 maxSubmissionCost;
+    uint256 maxGas;
+    uint256 maxGasPrice;
 }
 
 ```
@@ -82,7 +63,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Some methods accept a `BridgeData _lifiData` parameter.
+Some methods accept a `BridgeData _bridgeData` parameter.
 
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
