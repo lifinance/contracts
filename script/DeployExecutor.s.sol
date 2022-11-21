@@ -20,10 +20,12 @@ contract DeployScript is DeployScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return (Executor(predicted), constructorArgs);
+            return (Executor(payable(address(predicted))), constructorArgs);
         }
 
-        deployed = Executor(factory.deploy(salt, bytes.concat(type(Executor).creationCode, constructorArgs)));
+        deployed = Executor(
+            payable(address(factory.deploy(salt, bytes.concat(type(Executor).creationCode, constructorArgs))))
+        );
 
         vm.stopBroadcast();
     }

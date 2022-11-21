@@ -18,32 +18,52 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// Storage ///
     address public sgRouter;
     IExecutor public executor;
+    uint256 public recoverGas;
 
     /// Errors ///
     error InvalidStargateRouter();
 
     /// Events ///
     event StargateRouterSet(address indexed router);
+    event RecoverGasSet(uint256 indexed recoverGas);
+
+    /// Modifiers ///
+    modifier onlySGRouter() {
+        if (msg.sender != sgRouter) {
+            revert InvalidStargateRouter();
+        }
+        _;
+    }
 
     /// Constructor
     constructor(
         address _owner,
         address _sgRouter,
-        address _executor
+        address _executor,
+        uint256 _recoverGas
     ) TransferrableOwnership(_owner) {
         owner = _owner;
         sgRouter = _sgRouter;
         executor = IExecutor(_executor);
+        recoverGas = _recoverGas;
         emit StargateRouterSet(_sgRouter);
+        emit RecoverGasSet(_recoverGas);
     }
 
     /// External Methods ///
 
-    /// @notice set Stargate Router
-    /// @param _router the Stargate router address
-    function setStargateRouter(address _router) external onlyOwner {
-        sgRouter = _router;
-        emit StargateRouterSet(_router);
+    /// @notice set stargate router
+    /// @param _sgRouter the stargate router address
+    function setStargateRouter(address _sgRouter) external onlyOwner {
+        sgRouter = _sgRouter;
+        emit StargateRouterSet(_sgRouter);
+    }
+
+    /// @notice set execution recoverGas
+    /// @param _recoverGas recoverGas
+    function setRecoverGas(uint256 _recoverGas) external onlyOwner {
+        recoverGas = _recoverGas;
+        emit RecoverGasSet(_recoverGas);
     }
 
     /// @notice Completes a cross-chain transaction on the receiving chain.
@@ -61,13 +81,24 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         address _token,
         uint256 _amountLD,
         bytes memory _payload
-    ) external nonReentrant {
+    ) external nonReentrant onlySGRouter {
         (bytes32 transactionId, LibSwap.SwapData[] memory swapData, , address receiver) = abi.decode(
             _payload,
             (bytes32, LibSwap.SwapData[], address, address)
         );
 
-        _swapAndCompleteBridgeTokens(transactionId, swapData, _token, payable(receiver), _amountLD);
+        if (gasleft() < recoverGas) {
+            if (LibAsset.isNativeAsset(_token)) {
+                receiver.call{ value: _amountLD }("");
+            } else {
+                IERC20(_token).safeTransfer(receiver, _amountLD);
+            }
+
+            emit LiFiTransferCompleted(transactionId, _token, receiver, _amountLD, block.timestamp);
+            return;
+        }
+
+        _swapAndCompleteBridgeTokens(transactionId, swapData, _token, payable(receiver), _amountLD, true);
     }
 
     /// @notice Performs a swap before completing a cross-chain transaction
@@ -82,11 +113,11 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         address payable receiver
     ) external payable nonReentrant {
         if (LibAsset.isNativeAsset(assetId)) {
-            _swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver, msg.value);
+            _swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver, msg.value, false);
         } else {
             uint256 allowance = IERC20(assetId).allowance(msg.sender, address(this));
             LibAsset.depositAsset(assetId, allowance);
-            _swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver, allowance);
+            _swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver, allowance, false);
         }
     }
 
@@ -114,17 +145,27 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @param assetId token received from the other chain
     /// @param receiver address that will receive tokens in the end
     /// @param amount amount of token
+    /// @param reserveRecoverGas whether we need a gas buffer to recover
     function _swapAndCompleteBridgeTokens(
         bytes32 _transactionId,
         LibSwap.SwapData[] memory _swapData,
         address assetId,
         address payable receiver,
-        uint256 amount
+        uint256 amount,
+        bool reserveRecoverGas
     ) private {
         bool success;
+        uint256 _recoverGas = reserveRecoverGas ? recoverGas : 0;
 
         if (LibAsset.isNativeAsset(assetId)) {
-            try executor.swapAndCompleteBridgeTokens{ value: amount }(_transactionId, _swapData, assetId, receiver) {
+            try
+                executor.swapAndCompleteBridgeTokens{ value: amount, gas: gasleft() - _recoverGas }(
+                    _transactionId,
+                    _swapData,
+                    assetId,
+                    receiver
+                )
+            {
                 success = true;
             } catch {
                 receiver.call{ value: amount }("");
@@ -134,7 +175,14 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             token.safeApprove(address(executor), 0);
             token.safeIncreaseAllowance(address(executor), amount);
 
-            try executor.swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver) {
+            try
+                executor.swapAndCompleteBridgeTokens{ gas: gasleft() - _recoverGas }(
+                    _transactionId,
+                    _swapData,
+                    assetId,
+                    receiver
+                )
+            {
                 success = true;
             } catch {
                 token.safeTransfer(receiver, amount);
