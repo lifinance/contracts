@@ -24,8 +24,8 @@ contract TestFacet {
 }
 
 //common utilities for forge tests
-abstract contract TestBase is DSTest, DiamondTest {
-    address private _facetAddress;
+abstract contract TestBase is DSTest, DiamondTest, ILiFi {
+    address private _facetTestContractAddress;
     uint64 internal currentTxId;
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));
@@ -35,6 +35,18 @@ abstract contract TestBase is DSTest, DiamondTest {
     LiFiDiamond internal diamond;
     ILiFi.BridgeData internal bridgeData;
     LibSwap.SwapData[] internal swapData;
+    address internal bridgeRouterAddress;
+
+    // Events
+    event AssetSwapped(
+        bytes32 transactionId,
+        address dex,
+        address fromAssetId,
+        address toAssetId,
+        uint256 fromAmount,
+        uint256 toAmount,
+        uint256 timestamp
+    );
 
     // Contract addresses (ETH only)
     address internal constant ADDRESS_UNISWAP = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
@@ -45,8 +57,8 @@ abstract contract TestBase is DSTest, DiamondTest {
     // User accounts (Whales: ETH only)
     address internal constant USER_DEPLOYER = 0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84;
     address internal constant USER_SENDER = address(0xabc123456);
-    address internal constant USER_RECEIVER = address(0xabc654321); //! required?
-    address internal constant USER_REFUND = address(0xabc654321); //! required?
+    address internal constant USER_RECEIVER = address(0xabc654321);
+    address internal constant USER_REFUND = address(0xabc654321);
     address internal constant USER_USDC_WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
     address internal constant USER_DAI_WHALE = 0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
 
@@ -56,7 +68,7 @@ abstract contract TestBase is DSTest, DiamondTest {
     }
 
     function setFacetAddressInTestBase(address facetAddress) internal {
-        _facetAddress = facetAddress;
+        _facetTestContractAddress = facetAddress;
     }
 
     function initTestBase() internal {
@@ -86,7 +98,6 @@ abstract contract TestBase is DSTest, DiamondTest {
 
     //! CHALLENGES FOR LEVEL2 (Standard tests that can easily be executed from test contracts):
     //! - move setup of diamond into TestBase (issue: dont have the contract type and its selectors of the TestBridgeFace)
-    //! - move swapData preparation into TestBase
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
@@ -133,7 +144,7 @@ abstract contract TestBase is DSTest, DiamondTest {
                     amountIn,
                     amountOut,
                     path,
-                    _facetAddress,
+                    _facetTestContractAddress,
                     block.timestamp + 20 minutes
                 ),
                 requiresDeposit: true
@@ -142,7 +153,7 @@ abstract contract TestBase is DSTest, DiamondTest {
     }
 
     function runDefaultTests() internal {
-        testBaseCanBridgeTokens();
+        // testBaseCanBridgeTokens();
         testBaseCanSwapAndBridgeTokens();
     }
 
@@ -152,13 +163,21 @@ abstract contract TestBase is DSTest, DiamondTest {
         setDefaultBridgeData();
 
         // approval
-        usdc.approve(_facetAddress, bridgeData.minAmount);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
         initiateBridgeTxWithFacet();
         vm.stopPrank();
     }
 
     function testBaseCanSwapAndBridgeTokens() internal {
         vm.startPrank(USER_DAI_WHALE);
+
+        // store initial balances
+        uint256 initialDAIBalance = dai.balanceOf(USER_DAI_WHALE);
 
         // prepare bridgeData
         setDefaultBridgeData();
@@ -167,10 +186,29 @@ abstract contract TestBase is DSTest, DiamondTest {
         // prepare swap data
         setDefaultSwapDataSingleDAItoUSDC();
 
-        // approval
-        dai.approve(_facetAddress, swapData[0].fromAmount);
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+        //! why this one cause trouble?
+        // vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        // emit AssetSwapped(
+        //     bridgeData.transactionId,
+        //     ADDRESS_UNISWAP,
+        //     ADDRESS_DAI,
+        //     ADDRESS_USDC,
+        //     swapData[0].fromAmount,
+        //     bridgeData.minAmount,
+        //     block.timestamp
+        // );
 
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        // execute call in child contract
         initiateSwapAndBridgeTxWithFacet();
+
+        // check balances after call
+        assertEq(dai.balanceOf(USER_DAI_WHALE), initialDAIBalance - swapData[0].fromAmount);
     }
 
     //! NEXT STEPS
