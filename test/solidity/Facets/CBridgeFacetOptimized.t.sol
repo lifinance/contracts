@@ -18,24 +18,36 @@ contract TestCBridgeFacet is CBridgeFacet {
     }
 }
 
+interface Ownable {
+    function owner() external returns (address);
+}
+
 contract CBridgeFacetTestOptimized is TestBase {
     address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
     TestCBridgeFacet internal cBridge;
 
-    function initiateBridgeTxWithFacet() internal override {
+    function initiateBridgeTxWithFacet(bool isNative) internal override {
         // a) prepare the facet-specific data
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, currentTxId++);
 
         // b) call the correct function selectors (as they differ for each facet)
-        cBridge.startBridgeTokensViaCBridge(bridgeData, data);
+        if (isNative) {
+            cBridge.startBridgeTokensViaCBridge{ value: bridgeData.minAmount }(bridgeData, data);
+        } else {
+            cBridge.startBridgeTokensViaCBridge(bridgeData, data);
+        }
     }
 
-    function initiateSwapAndBridgeTxWithFacet() internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
         // a) prepare the facet-specific data
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, currentTxId);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, currentTxId++);
 
         // b) call the correct function selectors (as they differ for each facet)
-        cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
+        if (isNative) {
+            cBridge.swapAndStartBridgeTokensViaCBridge{ value: bridgeData.minAmount }(bridgeData, swapData, data);
+        } else {
+            cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
+        }
     }
 
     function setUp() public {
@@ -52,10 +64,56 @@ contract CBridgeFacetTestOptimized is TestBase {
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addDex(address(uniswap));
         cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
+        cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
         setFacetAddressInTestBase(address(cBridge));
     }
 
-    function testRunDefaultTests() public override {
-        runDefaultTests();
+    function testFailReentrantCallBridge() public {
+        // prepare facet-specific data
+        CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet.CBridgeData(5000, currentTxId++);
+
+        // prepare bridge data for native bridging
+        setDefaultBridgeData();
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        // call testcase with correct call data (i.e. function selector) for this facet
+        super.failReentrantCall(
+            abi.encodeWithSelector(cBridge.startBridgeTokensViaCBridge.selector, bridgeData, cBridgeData)
+        );
+    }
+
+    function testFailReentrantCallBridgeAndSwap() internal {
+        // prepare facet-specific data
+        CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet.CBridgeData(5000, currentTxId++);
+        // prepare bridge data for native bridging
+
+        setDefaultBridgeData();
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        // call testcase with correct call data (i.e. function selector) for this facet
+        super.failReentrantCall(
+            abi.encodeWithSelector(
+                cBridge.swapAndStartBridgeTokensViaCBridge.selector,
+                bridgeData,
+                swapData,
+                cBridgeData
+            )
+        );
+    }
+
+    function testFailWillRevertIfnNotEnoughMsgValue() public {
+        vm.startPrank(USER_USDC_WHALE);
+        // prepare bridgeData
+        setDefaultBridgeData();
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, currentTxId++);
+
+        cBridge.swapAndStartBridgeTokensViaCBridge{ value: bridgeData.minAmount - 1 }(bridgeData, swapData, data);
+
+        vm.stopPrank();
     }
 }
