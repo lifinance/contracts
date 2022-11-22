@@ -47,15 +47,17 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         uint256 amount,
         uint256 timestamp
     );
+    event LiFiRecovered(bytes32 transactionId, address indexed callTo, uint256 amount);
     event CBridgeMessageBusAddressSet(address indexed messageBusAddress);
-    event CelerIMMessageExecuted(address indexed callTo, bytes4 selector);
-    event CelerIMMessageWithTransferExecuted(bytes32 indexed transactionId, address indexed receiver);
-    event CelerIMMessageWithTransferFailed(
-        bytes32 indexed transactionId,
-        address indexed receiver,
-        address indexed refundAddress
+    event AssetSwapped(
+        bytes32 transactionId,
+        address dex,
+        address fromAssetId,
+        address toAssetId,
+        uint256 fromAmount,
+        uint256 toAmount,
+        uint256 timestamp
     );
-    event CelerIMMessageWithTransferRefunded(bytes32 indexed transactionId, address indexed refundAddress);
 
     address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
     address internal constant UNISWAP_V2_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
@@ -215,13 +217,13 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             approveTo: address(uniswap),
             sendingAssetId: address(dai),
             receivingAssetId: address(usdc),
-            fromAmount: amountOut,
+            fromAmount: amountIn,
             callData: abi.encodeWithSelector(
                 uniswap.swapExactTokensForTokens.selector,
                 amountIn,
                 amountOut,
                 path,
-                executorAddress, // has same address across networks
+                executorAddress,
                 block.timestamp + 20 minutes
             ),
             requiresDeposit: false
@@ -235,23 +237,19 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             finalReceiver // refundAddress
         );
 
-        // prepare check for events
-        vm.expectEmit(true, true, true, true, executorAddress);
-        emit LiFiTransferCompleted(
-            txId,
-            address(dai), //! is this correct to be DAI here (bridge DAI, swap to USDC)
-            finalReceiver,
-            amountOut,
-            block.timestamp
-        );
-        vm.expectEmit(true, true, true, true, address(receiver));
-        emit CelerIMMessageWithTransferExecuted(txId, finalReceiver);
-
-        // trigger dest side swap and bridging
         // (mock) send "bridged" tokens to Receiver
         vm.startPrank(DAI_WHALE);
         dai.transfer(address(receiver), amountIn);
 
+        // prepare check for events
+        vm.expectEmit(true, true, true, true, executorAddress);
+        emit LiFiTransferCompleted(txId, address(dai), finalReceiver, amountOut, block.timestamp);
+
+        //TODO: why does this fail when combined with event above but works standalone?
+        // vm.expectEmit(true, true, true, true, executorAddress);
+        // emit AssetSwapped(txId, address(uniswap), address(dai), address(usdc), amountIn, amountOut, block.timestamp);
+
+        // trigger dest side swap and bridging
         if (
             receiver.executeMessageWithTransfer(
                 address(cBridge),
@@ -268,7 +266,7 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testCanExecuteMessageWithTransferFallBack() public {
+    function testWillForwardBridgedFundsToUserIfDestSwapFails() public {
         address finalReceiver = address(0x12345678);
         address refundAddress = address(0x65745345);
 
@@ -292,8 +290,6 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
             finalReceiver, // receiver
             refundAddress // refundAddress
         );
-
-        //? prepare check for events
 
         // trigger dest side swap and bridging
         // (mock) send "bridged" tokens to Receiver
@@ -301,10 +297,13 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         dai.transfer(address(receiver), amountIn);
 
         vm.expectEmit(true, true, true, true, address(receiver));
-        emit CelerIMMessageWithTransferFailed(txId, finalReceiver, refundAddress);
+        emit LiFiRecovered(txId, refundAddress, amountIn);
+
+        vm.expectEmit(true, true, true, true, address(receiver));
+        emit LiFiTransferCompleted(txId, address(dai), refundAddress, amountIn, block.timestamp);
 
         if (
-            receiver.executeMessageWithTransferFallback(
+            receiver.executeMessageWithTransfer(
                 address(cBridge),
                 address(dai),
                 amountIn,
@@ -312,152 +311,10 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
                 destCallData,
                 address(this)
             ) != IMessageReceiverApp.ExecutionStatus.Success
-        ) revert("DB: Wrong return value returned by executeMessageWithTransferFallback()");
+        ) revert("DB: Wrong return value returned by executeMessageWithTransfer()");
 
         // check balance
         assertEq(dai.balanceOf(refundAddress), amountIn);
         vm.stopPrank();
-    }
-
-    function testCanExecuteMessageWithTransferRefund() public {
-        address finalReceiver = address(0x12345678);
-        address refundAddress = address(0x65745345);
-
-        uint256 amountOut = 100 * 10**usdc.decimals();
-
-        // prepare dest swap data
-        address executorAddress = address(new Executor(address(WHALE), address(0)));
-        ReceiverCelerIM receiver = new ReceiverCelerIM(address(WHALE), CBRIDGE_MESSAGE_BUS_POLY, executorAddress);
-
-        address[] memory path = new address[](2);
-        path[0] = address(dai);
-        path[1] = address(usdc);
-
-        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
-        uint256 amountIn = amounts[0];
-
-        bytes32 txId = "txId";
-        bytes memory destCallData = abi.encode(
-            txId, // transactionId
-            "", // swapData
-            finalReceiver, // receiver
-            refundAddress // refundAddress
-        );
-
-        vm.expectEmit(true, true, true, true, address(cBridge));
-        emit CelerIMMessageWithTransferRefunded(txId, refundAddress);
-
-        // trigger dest side swap and bridging
-        // (mock) send "bridged" tokens to Receiver
-        vm.startPrank(DAI_WHALE);
-        dai.transfer(address(cBridge), amountIn);
-        vm.stopPrank();
-
-        // call refund function from CBridge messageBus address
-        vm.startPrank(CBRIDGE_MESSAGE_BUS_ETH);
-
-        if (
-            cBridge.executeMessageWithTransferRefund(address(dai), amountIn, destCallData, address(this)) !=
-            IMessageReceiverApp.ExecutionStatus.Success
-        ) revert("DB: Wrong return value");
-
-        // check balance
-        assertEq(dai.balanceOf(refundAddress), amountIn);
-        vm.stopPrank();
-    }
-
-    //TODO remove or fix, depending on discussion with Ed
-    function testCanExecuteMessageOnly() internal {
-        setter = new Setter();
-        address executorAddress = address(new Executor(address(WHALE), address(0)));
-        ReceiverCelerIM receiver = new ReceiverCelerIM(address(WHALE), CBRIDGE_MESSAGE_BUS_ETH, executorAddress);
-
-        emit log_named_address("address setter: ", address(setter));
-
-        address sender = address(0x110011);
-        uint64 srcChainId = 1;
-        bytes memory callData = abi.encodePacked(
-            address(setter),
-            abi.encodeWithSignature("setMessage(string)", "lifi")
-        );
-
-        emit log_named_bytes("message in test", callData);
-        receiver.executeMessage(address(this), srcChainId, callData, sender);
-
-        assertEq(setter.message(), "lifi");
-    }
-
-    //TODO clarify implementation or remove
-    function testCanExecuteArbitraryMessage() internal {
-        address finalReceiver = address(0x12345678);
-        FeeCollector feeCollector = new FeeCollector(address(this));
-
-        uint256 amountOut = 150 * 10**usdc.decimals();
-
-        // prepare bridge data
-        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
-            transactionId: "",
-            bridge: "cbridge",
-            integrator: "",
-            referrer: address(0),
-            sendingAssetId: address(dai),
-            receiver: finalReceiver,
-            minAmount: amountOut,
-            destinationChainId: 137,
-            hasSourceSwaps: false,
-            hasDestinationCall: true
-        });
-
-        // prepare dest swap data
-        address executorAddress = address(new Executor(address(WHALE), address(0)));
-        ReceiverCelerIM receiver = new ReceiverCelerIM(address(WHALE), CBRIDGE_MESSAGE_BUS_POLY, executorAddress);
-
-        LibSwap.SwapData[] memory swapDataDest = new LibSwap.SwapData[](1);
-        swapDataDest[0] = LibSwap.SwapData({
-            callTo: USDC_ADDRESS,
-            approveTo: USDC_ADDRESS, //! ?
-            sendingAssetId: USDC_ADDRESS,
-            receivingAssetId: USDC_ADDRESS,
-            fromAmount: amountOut,
-            callData: abi.encodeWithSelector(usdc.transferFrom.selector, WHALE, finalReceiver, amountOut),
-            requiresDeposit: false
-        });
-
-        bytes32 txId = "txId";
-        bytes memory destCallData = abi.encode(
-            txId, // transactionId
-            swapDataDest, // swapData
-            finalReceiver, // receiver
-            finalReceiver // refundAddress
-        );
-
-        // prepare check for events
-        // vm.expectEmit(true, true, true, true, executorAddress);
-        // emit LiFiTransferCompleted(
-        //     txId,
-        //     address(dai),
-        //     finalReceiver,
-        //     amountOut,
-        //     block.timestamp
-        // );
-
-        // trigger dest side swap and bridging
-        // (mock) send "bridged" tokens to Receiver
-        vm.startPrank(WHALE);
-        usdc.approve(address(receiver), amountOut);
-
-        if (
-            receiver.executeMessage(
-                WHALE,
-                1, //srcChainId
-                destCallData,
-                address(this)
-            ) != IMessageReceiverApp.ExecutionStatus.Success
-        ) revert("DB: Wrong return value");
-
-        // check finalReceiver balance
-        assertEq(usdc.balanceOf(finalReceiver), amountOut);
-        vm.stopPrank();
-        // revert();
     }
 }
