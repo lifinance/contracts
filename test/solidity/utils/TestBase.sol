@@ -9,7 +9,9 @@ import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
+import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { console } from "../utils/Console.sol";
+import { NoSwapDataProvided, InformationMismatch, NativeAssetTransferFailed, ReentrancyError, InsufficientBalance, CannotBridgeToSameNetwork, NativeValueWithERC, InvalidReceiver, InvalidAmount, InvalidConfig, InvalidSendingToken, AlreadyInitialized, NotInitialized } from "src/Errors/GenericErrors.sol";
 
 contract TestFacet {
     constructor() {}
@@ -23,12 +25,14 @@ contract TestFacet {
     }
 }
 
-contract ReentrancyChecker {
+contract ReentrancyChecker is DSTest {
     address private _facetAddress;
     bytes private _callData;
 
     constructor(address facetAddress) {
         _facetAddress = facetAddress;
+        ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48).approve(_facetAddress, type(uint256).max); // approve USDC max to facet
+        ERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F).approve(_facetAddress, type(uint256).max); // approve DAI max to facet
     }
 
     // must be called with abi.encodePacked(selector, someParam)
@@ -36,16 +40,24 @@ contract ReentrancyChecker {
     // someParam = valid arguments for the function call
     function callFacet(bytes calldata callData) public {
         _callData = callData;
-        (bool success, ) = _facetAddress.call{ value: 10 ether }(callData);
+        (bool success, bytes memory data) = _facetAddress.call{ value: 10 ether }(callData);
         if (!success) {
-            revert("Reentrancy Attack Test: initial call failed");
+            if (keccak256(data) == keccak256(abi.encodePacked(NativeAssetTransferFailed.selector))) {
+                revert ReentrancyError();
+            } else {
+                revert("Reentrancy Attack Test: initial call failed");
+            }
         }
     }
 
     receive() external payable {
-        (bool success, ) = _facetAddress.call{ value: 10 ether }(_callData);
+        (bool success, bytes memory data) = _facetAddress.call{ value: 10 ether }(_callData);
         if (!success) {
-            revert("Reentrancy Attack Test: reentrant call failed");
+            if (keccak256(data) == keccak256(abi.encodePacked(ReentrancyError.selector))) {
+                revert ReentrancyError();
+            } else {
+                revert("Reentrancy Attack Test: reentrant call failed");
+            }
         }
     }
 }
@@ -213,7 +225,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     //@dev in case you want to exclude any of these test cases, you must override test case in child contract with empty body:
     //@dev e.g. "function testBaseCanBridgeTokens() public override {}"
 
-    function testBaseCanBridgeTokens()
+    function testBase_CanBridgeTokens()
         public
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, -int256(defaultUSDCAmount))
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
@@ -235,7 +247,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.stopPrank();
     }
 
-    function testBaseCanBridgeNativeTokens()
+    function testBase_CanBridgeNativeTokens()
         public
         assertBalanceChange(address(0), USER_SENDER, -(1 ether))
         assertBalanceChange(address(0), USER_RECEIVER, 0)
@@ -256,7 +268,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.stopPrank();
     }
 
-    function testBaseCanSwapAndBridgeTokens()
+    function testBase_CanSwapAndBridgeTokens()
         public
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, -int256(swapData[0].fromAmount))
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
@@ -293,7 +305,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         initiateSwapAndBridgeTxWithFacet(false);
     }
 
-    function testBaseCanSwapAndBridgeNativeTokens()
+    function testBase_CanSwapAndBridgeNativeTokens()
         public
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
@@ -366,71 +378,73 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         assertEq(dai.balanceOf(USER_SENDER), initialDAIBalance - swapData[0].fromAmount);
     }
 
-    function testFailBridgeWithInvalidDestinationCallFlag() public virtual {
+    function testBase_Revert_BridgeWithInvalidDestinationCallFlag() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
         setDefaultBridgeData();
         bridgeData.hasDestinationCall = true;
 
+        vm.expectRevert(InformationMismatch.selector);
+
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
 
-    function testFailBridgeAndSwapWithoutCalldata() public virtual {
-        vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.hasDestinationCall = true;
-
-        initiateSwapAndBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
-    function testFailBridgeWithInvalidReceiverAddress() public virtual {
+    function testBase_Revert_BridgeWithInvalidReceiverAddress() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
         setDefaultBridgeData();
         bridgeData.receiver = address(0);
 
+        vm.expectRevert(InvalidReceiver.selector);
+
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
 
-    function testFailBridgeAndSwapWithInvalidReceiverAddress() public virtual {
+    function testBase_Revert_BridgeAndSwapWithInvalidReceiverAddress() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
         setDefaultBridgeData();
         bridgeData.receiver = address(0);
+        bridgeData.hasSourceSwaps = true;
 
         setDefaultSwapDataSingleDAItoUSDC();
+
+        vm.expectRevert(InvalidReceiver.selector);
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
     }
 
-    function testFailBridgeWithInvalidAmount() public virtual {
+    function testBase_Revert_BridgeWithInvalidAmount() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
         setDefaultBridgeData();
         bridgeData.minAmount = 0;
+
+        vm.expectRevert(InvalidAmount.selector);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
 
-    function testFailBridgeAndSwapWithInvalidAmount() public virtual {
+    function testBase_Revert_BridgeAndSwapWithInvalidAmount() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
         setDefaultBridgeData();
+        bridgeData.hasSourceSwaps = true;
         bridgeData.minAmount = 0;
 
         setDefaultSwapDataSingleDAItoUSDC();
+
+        vm.expectRevert(InvalidAmount.selector);
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
     }
 
-    function testFailBridgeToSameChainId() public virtual {
+    function testBase_Revert_BridgeToSameChainId() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
         setDefaultBridgeData();
@@ -438,11 +452,13 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
+        vm.expectRevert(CannotBridgeToSameNetwork.selector);
+
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
 
-    function testFailBridgeAndSwapToSameChainId() public virtual {
+    function testBase_Revert_BridgeAndSwapToSameChainId() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
         setDefaultBridgeData();
@@ -452,11 +468,13 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         setDefaultSwapDataSingleDAItoUSDC();
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
+        vm.expectRevert(CannotBridgeToSameNetwork.selector);
+
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
     }
 
-    function testFailSwapAndBridgeWithInvalidSwapData() public virtual {
+    function testBase_Revert_SwapAndBridgeWithInvalidSwapData() public virtual {
         vm.startPrank(USER_SENDER);
 
         // prepare bridgeData
@@ -466,8 +484,35 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         // reset swap data
         delete swapData;
 
+        vm.expectRevert(NoSwapDataProvided.selector);
+
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
+    }
+
+    function testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        setDefaultBridgeData();
+        bridgeData.hasSourceSwaps = true;
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        // execute call in child contract
+        initiateBridgeTxWithFacet(false);
+    }
+
+    function testBase_Revert_CallerHasInsufficientFunds() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(_facetTestContractAddress), 10_000 * 10**usdc.decimals());
+
+        usdc.transfer(USER_RECEIVER, usdc.balanceOf(USER_SENDER));
+
+        vm.expectRevert(abi.encodeWithSelector(InsufficientBalance.selector, bridgeData.minAmount, 0));
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 
     //#endregion
@@ -479,7 +524,9 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     function failReentrantCall(bytes memory callData) internal virtual {
         // deploy and call attacker contract
         ReentrancyChecker attacker = new ReentrancyChecker(_facetTestContractAddress);
+        dai.transfer(address(attacker), dai.balanceOf(USER_SENDER));
         vm.deal(address(attacker), 10000 ether);
+        vm.expectRevert(ReentrancyError.selector);
         attacker.callFacet(callData);
     }
 
