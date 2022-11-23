@@ -41,13 +41,13 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function startBridgeTokensViaXDaiBridge(ILiFi.BridgeData memory _bridgeData)
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         onlyAllowDestinationChain(_bridgeData, GNOSIS_CHAIN_ID)
         onlyAllowSourceToken(_bridgeData, DAI)
-        nonReentrant
     {
         LibAsset.depositAsset(DAI, _bridgeData.minAmount);
         _startBridge(_bridgeData);
@@ -62,12 +62,12 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     )
         external
         payable
+        nonReentrant
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         onlyAllowDestinationChain(_bridgeData, GNOSIS_CHAIN_ID)
         onlyAllowSourceToken(_bridgeData, DAI)
-        nonReentrant
     {
         if (_swapData[_swapData.length - 1].receivingAssetId != DAI) {
             revert InvalidSendingToken();
