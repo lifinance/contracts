@@ -66,11 +66,11 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     )
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        nonReentrant
     {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
