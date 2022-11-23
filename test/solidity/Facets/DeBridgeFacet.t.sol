@@ -46,7 +46,6 @@ contract DeBridgeFacetTest is DSTest, DiamondTest {
     ERC20 internal dai;
     ILiFi.BridgeData internal validBridgeData;
     DeBridgeFacet.DeBridgeData internal validDeBridgeData;
-    IDeBridgeGate.SubmissionAutoParamsTo internal autoparam;
     uint256 internal nativeFee;
 
     function fork() internal {
@@ -90,18 +89,21 @@ contract DeBridgeFacetTest is DSTest, DiamondTest {
             hasSourceSwaps: false,
             hasDestinationCall: false
         });
-        autoparam = IDeBridgeGate.SubmissionAutoParamsTo({
-            executionFee: 0,
-            flags: REVERT_IF_EXTERNAL_FAIL,
-            fallbackAddress: DAI_HOLDER,
-            data: ""
-        });
 
         IDeBridgeGate.ChainSupportInfo memory chainConfig = IDeBridgeGate(DEBRIDGE_GATE).getChainToConfig(DSTCHAIN_ID);
         nativeFee = chainConfig.fixedNativeFee == 0
             ? IDeBridgeGate(DEBRIDGE_GATE).globalFixedNativeFee()
             : chainConfig.fixedNativeFee;
-        validDeBridgeData = DeBridgeFacet.DeBridgeData("", false, nativeFee, 0, autoparam);
+        validDeBridgeData = DeBridgeFacet.DeBridgeData(
+            "",
+            false,
+            nativeFee,
+            0,
+            0,
+            REVERT_IF_EXTERNAL_FAIL,
+            DAI_HOLDER,
+            ""
+        );
     }
 
     function testRevertToBridgeTokensWhenSendingAmountIsZero() public {

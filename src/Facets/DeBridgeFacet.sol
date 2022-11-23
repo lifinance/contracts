@@ -26,16 +26,23 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @param permit deadline + signature for approving the spender by signature.
-    /// @param useAssetFee use assets fee for pay protocol fix (work only for specials token)
-    /// @param referralCode Referral code
-    /// @param autoParams Auto params for external call in target network
-    //chainFees.fixedNativeFee == 0 ? globalFixedNativeFee : chainFees.fixedNativeFee;
+    /// @param useAssetFee Use assets fee for pay protocol fix (work only for specials token)
+    /// @param nativeFee Native fee for the bridging when useAssetFee is false.
+    /// @param referralCode Referral code.
+    /// @param executionFee Fee paid to the transaction executor.
+    /// @param flags Flags set specific flows for call data execution.
+    /// @param fallbackAddress Receiver of the tokens if the call fails.
+    /// @param data Message/Call data to be passed to the receiver
+    ///             on the destination chain during the external call execution.
     struct DeBridgeData {
         bytes permit;
         bool useAssetFee;
         uint256 nativeFee;
         uint32 referralCode;
-        IDeBridgeGate.SubmissionAutoParamsTo autoParams;
+        uint256 executionFee;
+        uint256 flags;
+        address fallbackAddress;
+        bytes data;
     }
 
     /// Constructor ///
@@ -120,10 +127,10 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _deBridgeData.useAssetFee,
             _deBridgeData.referralCode,
             abi.encode(
-                _deBridgeData.autoParams.executionFee,
-                _deBridgeData.autoParams.flags,
-                abi.encodePacked(_deBridgeData.autoParams.fallbackAddress),
-                _deBridgeData.autoParams.data
+                _deBridgeData.executionFee,
+                _deBridgeData.flags,
+                abi.encodePacked(_deBridgeData.fallbackAddress),
+                _deBridgeData.data
             )
         );
 
