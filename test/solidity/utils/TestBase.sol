@@ -77,6 +77,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         uint256 toAmount,
         uint256 timestamp
     );
+    event Transfer(address from, address to, uint256 amount);
 
     // CONSTANTS
     // Contract addresses (ETH only)
@@ -84,7 +85,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     address internal constant ADDRESS_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant ADDRESS_DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address internal constant ADDRESS_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-
     // User accounts (Whales: ETH only)
     address internal constant USER_SENDER = address(0xabc123456); // initially funded with 100,000 DAI, USDC & ETHER
     address internal constant USER_RECEIVER = address(0xabc654321);
@@ -147,19 +147,8 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         defaultDAIAmount = 100 * 10**dai.decimals();
         defaultUSDCAmount = 100 * 10**usdc.decimals();
 
+        setDefaultBridgeData();
         setDefaultSwapDataSingleDAItoUSDC();
-
-        //! this part cannot be moved to testhelper contract since it requires the custom
-        //! contract type of the to-be-created test case....any ideas how to move this here?
-        // bytes4[] memory functionSelectors = new bytes4[](4);
-        // functionSelectors[0] = startBridgeSelector;
-        // functionSelectors[1] = swapAndStartBridgeSelector;
-        // functionSelectors[2] = TestFacet.addDex.selector;
-        // functionSelectors[3] = TestFacet.setFunctionApprovalBySignature.selector;
-
-        // cBridge = TestCBridgeFacet(address(diamond));
-        // cBridge.addDex(address(uniswap));
-        // cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
     }
 
     function setFacetAddressInTestBase(address facetAddress) internal {
@@ -230,7 +219,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
-    // TODO add balance check for bridge (to make sure funds arrive where they should)?
     {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
@@ -250,6 +238,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     function testBaseCanBridgeNativeTokens()
         public
         assertBalanceChange(address(0), USER_SENDER, -(1 ether))
+        assertBalanceChange(address(0), USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
     {
@@ -377,7 +366,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         assertEq(dai.balanceOf(USER_SENDER), initialDAIBalance - swapData[0].fromAmount);
     }
 
-    // checks if bridge tx reverts if called with destinationCall flag == true
     function testFailBridgeWithInvalidDestinationCallFlag() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
@@ -388,7 +376,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.stopPrank();
     }
 
-    // checks if bridge&swap tx reverts if called without callData
     function testFailBridgeAndSwapWithoutCalldata() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
@@ -399,7 +386,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.stopPrank();
     }
 
-    // checks if bridge tx reverts if called with receiver == zero address
     function testFailBridgeWithInvalidReceiverAddress() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
@@ -410,7 +396,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.stopPrank();
     }
 
-    // checks if bridge&swap tx reverts if called with receiver == zero address
     function testFailBridgeAndSwapWithInvalidReceiverAddress() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
@@ -423,7 +408,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.stopPrank();
     }
 
-    // checks if bridge function reverts if called  with amount == 0
     function testFailBridgeWithInvalidAmount() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
@@ -434,7 +418,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.stopPrank();
     }
 
-    // checks if bridge&swap function reverts if called with amount == 0
     function testFailBridgeAndSwapWithInvalidAmount() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
@@ -447,28 +430,44 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.stopPrank();
     }
 
-    // checks if function reverts when trying to bridge to same chainId
     function testFailBridgeToSameChainId() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
         setDefaultBridgeData();
         bridgeData.destinationChainId = 1;
 
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
 
-    // checks if function reverts when trying to bridge to same chainId
     function testFailBridgeAndSwapToSameChainId() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
         setDefaultBridgeData();
         bridgeData.destinationChainId = 1;
+        bridgeData.hasSourceSwaps = true;
 
         setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
+    }
+
+    function testFailSwapAndBridgeWithInvalidSwapData() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        setDefaultBridgeData();
+        bridgeData.hasSourceSwaps = true;
+
+        // reset swap data
+        delete swapData;
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
     }
 
     //#endregion

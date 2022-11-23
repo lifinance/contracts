@@ -87,7 +87,6 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _cBridgeData data specific to CBridge
     function _startBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData memory _cBridgeData) private {
-        // Do CBridge stuff
         if (uint64(block.chainid) == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {

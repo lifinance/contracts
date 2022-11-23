@@ -83,11 +83,11 @@ contract CBridgeFacetTestOptimized is TestBase {
         );
     }
 
-    function testFailReentrantCallBridgeAndSwap() internal {
+    function testFailReentrantCallBridgeAndSwap() public {
         // prepare facet-specific data
         CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet.CBridgeData(5000, currentTxId++);
-        // prepare bridge data for native bridging
 
+        // prepare bridge data for native bridging
         setDefaultBridgeData();
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = 1 ether;
@@ -103,7 +103,7 @@ contract CBridgeFacetTestOptimized is TestBase {
         );
     }
 
-    function testFailWillRevertIfnNotEnoughMsgValue() public {
+    function testFailWillRevertIfNotEnoughMsgValue() public {
         vm.startPrank(USER_USDC_WHALE);
         // prepare bridgeData
         setDefaultBridgeData();
@@ -112,7 +112,7 @@ contract CBridgeFacetTestOptimized is TestBase {
 
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, currentTxId++);
 
-        cBridge.swapAndStartBridgeTokensViaCBridge{ value: bridgeData.minAmount - 1 }(bridgeData, swapData, data);
+        cBridge.startBridgeTokensViaCBridge{ value: bridgeData.minAmount - 1 }(bridgeData, data);
 
         vm.stopPrank();
     }
