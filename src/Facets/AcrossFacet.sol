@@ -56,11 +56,11 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function startBridgeTokensViaAcross(ILiFi.BridgeData memory _bridgeData, AcrossData calldata _acrossData)
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
-        nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _acrossData);
@@ -77,11 +77,11 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     )
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        nonReentrant
     {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
