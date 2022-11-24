@@ -175,18 +175,18 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     }
 
     function setDefaultBridgeData() internal {
-        bridgeData = ILiFi.BridgeData(
-            "",
-            "<UpdateWithYourBridgeName>",
-            "",
-            address(0),
-            ADDRESS_USDC,
-            USER_RECEIVER,
-            defaultUSDCAmount,
-            137,
-            false,
-            false
-        );
+        bridgeData = ILiFi.BridgeData({
+            transactionId: "",
+            bridge: "<UpdateWithYourBridgeName>",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: ADDRESS_USDC,
+            receiver: USER_RECEIVER,
+            minAmount: defaultUSDCAmount,
+            destinationChainId: 137,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
     }
 
     function setDefaultSwapDataSingleDAItoUSDC() internal {
@@ -259,7 +259,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
-        setDefaultBridgeData();
+        // setDefaultBridgeData();
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = 1 ether;
 
@@ -336,8 +336,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         uint256 amountIn = amounts[0];
 
         bridgeData.minAmount = amountOut;
-
-        console.log("amountIn: ", amountIn);
 
         delete swapData;
         swapData.push(
@@ -433,7 +431,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.stopPrank();
     }
 
-    function testBase_Revert_BridgeAndSwapWithInvalidAmount() public virtual {
+    function testBase_Revert_SwapAndBridgeWithInvalidAmount() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
         setDefaultBridgeData();
@@ -462,7 +460,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.stopPrank();
     }
 
-    function testBase_Revert_BridgeAndSwapToSameChainId() public virtual {
+    function testBase_Revert_SwapAndBridgeToSameChainId() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
         setDefaultBridgeData();
