@@ -120,6 +120,7 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         external
         payable
         nonReentrant
+        refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
@@ -176,7 +177,6 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _hopData.destinationDeadline
             );
         }
-
         emit LiFiTransferStarted(_bridgeData);
     }
 
