@@ -15,13 +15,13 @@
     "wormholeRouter": ""
   },
   "polygon": {
-    "wormholeRouter": ""
+    "wormholeRouter": "0x5a58505a96D1dbf8dF91cB21B54419FC36e93fdE"
   },
   "xdai": {
     "wormholeRouter": ""
   },
   "bsc": {
-    "wormholeRouter": ""
+    "wormholeRouter": "0xB6F6D86a8f9879A9c87f643768d9efc38c1Da6E7"
   },
   "opera": {
     "wormholeRouter": ""
