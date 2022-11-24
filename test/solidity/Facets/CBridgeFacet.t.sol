@@ -44,7 +44,7 @@ contract CBridgeFacetTest is TestBase {
 
         // b) call the correct function selectors (as they differ for each facet)
         if (isNative) {
-            cBridge.swapAndStartBridgeTokensViaCBridge{ value: bridgeData.minAmount }(bridgeData, swapData, data);
+            cBridge.swapAndStartBridgeTokensViaCBridge{ value: swapData[0].fromAmount }(bridgeData, swapData, data);
         } else {
             cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
         }

@@ -10,7 +10,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
-import { console } from "../utils/Console.sol";
+import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
 import { NoSwapDataProvided, InformationMismatch, NativeAssetTransferFailed, ReentrancyError, InsufficientBalance, CannotBridgeToSameNetwork, NativeValueWithERC, InvalidReceiver, InvalidAmount, InvalidConfig, InvalidSendingToken, AlreadyInitialized, NotInitialized } from "src/Errors/GenericErrors.sol";
 
 contract TestFacet {
@@ -101,6 +101,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     address internal constant USER_SENDER = address(0xabc123456); // initially funded with 100,000 DAI, USDC & ETHER
     address internal constant USER_RECEIVER = address(0xabc654321);
     address internal constant USER_REFUND = address(0xabcdef281);
+    address internal constant USER_DIAMOND_OWNER = 0x5042255A3F3FD7727e419CeA387cAFDfad3C3aF8;
     address internal constant USER_USDC_WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
     address internal constant USER_DAI_WHALE = 0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
 
@@ -176,13 +177,13 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     function setDefaultBridgeData() internal {
         bridgeData = ILiFi.BridgeData(
             "",
-            "cbridge",
+            "<UpdateWithYourBridgeName>",
             "",
             address(0),
             ADDRESS_USDC,
             USER_RECEIVER,
             defaultUSDCAmount,
-            100,
+            137,
             false,
             false
         );
@@ -227,6 +228,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
 
     function testBase_CanBridgeTokens()
         public
+        virtual
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, -int256(defaultUSDCAmount))
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -249,6 +251,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
 
     function testBase_CanBridgeNativeTokens()
         public
+        virtual
         assertBalanceChange(address(0), USER_SENDER, -(1 ether))
         assertBalanceChange(address(0), USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
@@ -313,20 +316,20 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     {
         vm.startPrank(USER_SENDER);
         // store initial balances
-        uint256 initialDAIBalance = dai.balanceOf(USER_SENDER);
+        // uint256 initialDAIBalance = dai.balanceOf(USER_SENDER);
 
         // prepare bridgeData
         setDefaultBridgeData();
         bridgeData.hasSourceSwaps = true;
-        bridgeData.sendingAssetId = address(0);
+        bridgeData.sendingAssetId = ADDRESS_USDC;
 
         // prepare swap data
         setDefaultSwapDataSingleDAItoUSDC();
         address[] memory path = new address[](2);
-        path[0] = ADDRESS_DAI;
-        path[1] = ADDRESS_WETH;
+        path[0] = ADDRESS_WETH;
+        path[1] = ADDRESS_USDC;
 
-        uint256 amountOut = 1 ether;
+        uint256 amountOut = defaultUSDCAmount;
 
         // Calculate DAI amount
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
@@ -334,18 +337,19 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
 
         bridgeData.minAmount = amountOut;
 
+        console.log("amountIn: ", amountIn);
+
         delete swapData;
         swapData.push(
             LibSwap.SwapData({
                 callTo: address(uniswap),
                 approveTo: address(uniswap),
-                sendingAssetId: ADDRESS_DAI,
-                receivingAssetId: address(0),
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
                 fromAmount: amountIn,
                 callData: abi.encodeWithSelector(
-                    uniswap.swapExactTokensForETH.selector,
-                    amountIn,
-                    amountOut, // swap to as much native as possible
+                    uniswap.swapETHForExactTokens.selector,
+                    amountOut,
                     path,
                     _facetTestContractAddress,
                     block.timestamp + 20 minutes
@@ -359,8 +363,8 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         emit AssetSwapped(
             bridgeData.transactionId,
             ADDRESS_UNISWAP,
-            ADDRESS_DAI,
             address(0),
+            ADDRESS_USDC,
             swapData[0].fromAmount,
             bridgeData.minAmount,
             block.timestamp
@@ -372,10 +376,10 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         dai.approve(_facetTestContractAddress, amountIn);
 
         // execute call in child contract
-        initiateSwapAndBridgeTxWithFacet(false);
+        initiateSwapAndBridgeTxWithFacet(true);
 
         // check balances after call
-        assertEq(dai.balanceOf(USER_SENDER), initialDAIBalance - swapData[0].fromAmount);
+        // assertEq(dai.balanceOf(USER_SENDER), initialDAIBalance - swapData[0].fromAmount);
     }
 
     function testBase_Revert_BridgeWithInvalidDestinationCallFlag() public virtual {
