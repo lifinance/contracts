@@ -2,6 +2,12 @@
 
 
 update() {
+	source .env
+
+	if [[ -z "$PRODUCTION" ]]; then
+		FILE_SUFFIX="staging."
+	fi
+
 	NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
 	SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Diamond Update Script")
 	echo $SCRIPT

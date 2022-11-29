@@ -16,8 +16,7 @@ contract DeployScript is UpdateScriptBase {
     }
 
     function run() public returns (address[] memory facets) {
-        string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/deployments/", network, ".json");
+        string memory path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
         string memory json = vm.readFile(path);
         address facet = json.readAddress(".OptimismBridgeFacet");
 
