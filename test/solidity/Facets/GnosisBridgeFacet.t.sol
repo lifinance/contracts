@@ -30,14 +30,6 @@ contract GnosisBridgeFacetTest is TestBase {
 
     TestGnosisBridgeFacet internal gnosisBridgeFacet;
 
-    // -----
-
-    // function fork() internal {
-    //     string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-    //     uint256 blockNumber = 15876510;
-    //     vm.createSelectFork(rpcUrl, blockNumber);
-    // }
-
     function setUp() public {
         initTestBase();
 
