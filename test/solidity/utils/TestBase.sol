@@ -189,7 +189,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         });
     }
 
-    function setDefaultSwapDataSingleDAItoUSDC() internal {
+    function setDefaultSwapDataSingleDAItoUSDC() internal virtual {
         delete swapData;
         // Swap DAI -> USDC
         address[] memory path = new address[](2);
@@ -235,8 +235,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
         vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        setDefaultBridgeData();
 
         // approval
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -258,8 +256,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
     {
         vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        // setDefaultBridgeData();
+        // customize bridgeData
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = 1 ether;
 
@@ -273,6 +270,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
 
     function testBase_CanSwapAndBridgeTokens()
         public
+        virtual
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, -int256(swapData[0].fromAmount))
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
@@ -281,7 +279,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.startPrank(USER_SENDER);
 
         // prepare bridgeData
-        setDefaultBridgeData();
         bridgeData.hasSourceSwaps = true;
 
         // reset swap data
@@ -310,6 +307,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
 
     function testBase_CanSwapAndBridgeNativeTokens()
         public
+        virtual
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
@@ -319,7 +317,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         // uint256 initialDAIBalance = dai.balanceOf(USER_SENDER);
 
         // prepare bridgeData
-        setDefaultBridgeData();
         bridgeData.hasSourceSwaps = true;
         bridgeData.sendingAssetId = ADDRESS_USDC;
 
@@ -383,7 +380,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     function testBase_Revert_BridgeWithInvalidDestinationCallFlag() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
-        setDefaultBridgeData();
         bridgeData.hasDestinationCall = true;
 
         vm.expectRevert(InformationMismatch.selector);
@@ -395,7 +391,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     function testBase_Revert_BridgeWithInvalidReceiverAddress() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
-        setDefaultBridgeData();
         bridgeData.receiver = address(0);
 
         vm.expectRevert(InvalidReceiver.selector);
@@ -407,7 +402,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     function testBase_Revert_BridgeAndSwapWithInvalidReceiverAddress() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
-        setDefaultBridgeData();
         bridgeData.receiver = address(0);
         bridgeData.hasSourceSwaps = true;
 
@@ -422,7 +416,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     function testBase_Revert_BridgeWithInvalidAmount() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
-        setDefaultBridgeData();
         bridgeData.minAmount = 0;
 
         vm.expectRevert(InvalidAmount.selector);
@@ -434,7 +427,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     function testBase_Revert_SwapAndBridgeWithInvalidAmount() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
-        setDefaultBridgeData();
         bridgeData.hasSourceSwaps = true;
         bridgeData.minAmount = 0;
 
@@ -449,7 +441,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     function testBase_Revert_BridgeToSameChainId() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
-        setDefaultBridgeData();
         bridgeData.destinationChainId = 1;
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -463,7 +454,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     function testBase_Revert_SwapAndBridgeToSameChainId() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
-        setDefaultBridgeData();
         bridgeData.destinationChainId = 1;
         bridgeData.hasSourceSwaps = true;
 
@@ -480,7 +470,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.startPrank(USER_SENDER);
 
         // prepare bridgeData
-        setDefaultBridgeData();
         bridgeData.hasSourceSwaps = true;
 
         // reset swap data
@@ -496,7 +485,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.startPrank(USER_SENDER);
 
         // prepare bridgeData
-        setDefaultBridgeData();
         bridgeData.hasSourceSwaps = true;
 
         vm.expectRevert(InformationMismatch.selector);
@@ -505,10 +493,10 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         initiateBridgeTxWithFacet(false);
     }
 
-    function testBase_Revert_CallerHasInsufficientFunds() public {
+    function testBase_Revert_CallerHasInsufficientFunds() public virtual {
         vm.startPrank(USER_SENDER);
 
-        usdc.approve(address(_facetTestContractAddress), 10_000 * 10**usdc.decimals());
+        usdc.approve(address(_facetTestContractAddress), defaultUSDCAmount);
 
         usdc.transfer(USER_RECEIVER, usdc.balanceOf(USER_SENDER));
 
