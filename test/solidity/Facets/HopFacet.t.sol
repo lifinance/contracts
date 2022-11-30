@@ -57,7 +57,7 @@ contract HopFacetTest is TestBase {
 
         hopFacet.addDex(address(uniswap));
         hopFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        hopFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
+        hopFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
         hopFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
         setFacetAddressInTestBase(address(hopFacet));
 
