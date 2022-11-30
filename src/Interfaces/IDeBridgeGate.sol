@@ -25,10 +25,10 @@ interface IDeBridgeGate {
     }
 
     /// @dev Fallback fixed fee in native asset, used if a chain fixed fee is set to 0
-    function globalFixedNativeFee() external returns (uint256);
+    function globalFixedNativeFee() external view returns (uint256);
 
     /// @dev Whether the chain for the asset is supported to send
-    function getChainToConfig(uint256) external returns (ChainSupportInfo memory);
+    function getChainToConfig(uint256) external view returns (ChainSupportInfo memory);
 
     /// @dev This method is used for the transfer of assets.
     ///      It locks an asset in the smart contract in the native chain
