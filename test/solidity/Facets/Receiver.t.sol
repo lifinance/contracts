@@ -43,6 +43,6 @@ contract ReceiverTest is DSTest, DiamondTest {
 
         addFacet(diamond, address(receiver), functionSelectors);
 
-        receiver = TestReceiverContract(address(diamond));
+        receiver = TestReceiverContract(payable(address(diamond)));
     }
 }

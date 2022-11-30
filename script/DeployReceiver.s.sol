@@ -24,10 +24,10 @@ contract DeployScript is DeployScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return (Receiver(predicted), constructorArgs);
+            return (Receiver(payable(predicted)), constructorArgs);
         }
 
-        deployed = Receiver(factory.deploy(salt, bytes.concat(type(Receiver).creationCode, constructorArgs)));
+        deployed = Receiver(payable(factory.deploy(salt, bytes.concat(type(Receiver).creationCode, constructorArgs))));
 
         vm.stopBroadcast();
     }
