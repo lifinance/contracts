@@ -1,16 +1,10 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBase, console, ERC20, UniswapV2Router02 } from "../utils/TestBase.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { UniswapV2Router02 } from "../utils/Interfaces.sol";
-import "lifi/Errors/GenericErrors.sol";
+import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InvalidAmount } from "src/Errors/GenericErrors.sol";
+import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 
 // Stub HopFacet Contract
 contract TestHopFacet is HopFacet {
@@ -23,43 +17,26 @@ contract TestHopFacet is HopFacet {
     }
 }
 
-contract HopFacetTest is DSTest, DiamondTest {
+contract HopFacetTest is TestBase {
+    // EVENTS
+    event HopBridgeRegistered(address indexed assetId, address bridge);
+    event HopInitialized(HopFacet.Config[] configs);
+
     // These values are for Mainnet
-    address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant USDC_BRIDGE = 0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a;
-    address internal constant USDC_HOLDER = 0xaD0135AF20fa82E106607257143d0060A7eB5cBf;
-    address internal constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address internal constant DAI_BRIDGE = 0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1;
-    address internal constant DAI_HOLDER = 0x4943b0C9959dcf58871A799dfB71becE0D97c9f4;
+    address internal constant NATIVE_BRIDGE = 0xb8901acB165ed027E32754E0FFe830802919727f;
     address internal constant CONNEXT_HANDLER = 0xB4C1340434920d70aD774309C75f9a4B679d801e;
-    address internal constant UNISWAP_V2_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
     uint256 internal constant DSTCHAIN_ID = 137;
     // -----
 
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
-    LiFiDiamond internal diamond;
     TestHopFacet internal hopFacet;
-    UniswapV2Router02 internal uniswap;
-    ERC20 internal usdc;
-    ERC20 internal dai;
     ILiFi.BridgeData internal validBridgeData;
     HopFacet.HopData internal validHopData;
 
-    function fork() internal {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = 15876510;
-        vm.createSelectFork(rpcUrl, blockNumber);
-    }
-
     function setUp() public {
-        fork();
-
-        diamond = createDiamond();
+        initTestBase();
         hopFacet = new TestHopFacet();
-        usdc = ERC20(USDC_ADDRESS);
-        dai = ERC20(DAI_ADDRESS);
-        uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
-
         bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = hopFacet.startBridgeTokensViaHop.selector;
         functionSelectors[1] = hopFacet.swapAndStartBridgeTokensViaHop.selector;
@@ -70,139 +47,254 @@ contract HopFacetTest is DSTest, DiamondTest {
 
         addFacet(diamond, address(hopFacet), functionSelectors);
 
-        HopFacet.Config[] memory configs = new HopFacet.Config[](2);
-        configs[0] = HopFacet.Config(USDC_ADDRESS, USDC_BRIDGE);
-        configs[1] = HopFacet.Config(DAI_ADDRESS, DAI_BRIDGE);
+        HopFacet.Config[] memory configs = new HopFacet.Config[](3);
+        configs[0] = HopFacet.Config(ADDRESS_USDC, USDC_BRIDGE);
+        configs[1] = HopFacet.Config(ADDRESS_DAI, DAI_BRIDGE);
+        configs[2] = HopFacet.Config(address(0), NATIVE_BRIDGE);
 
         hopFacet = TestHopFacet(address(diamond));
         hopFacet.initHop(configs);
 
         hopFacet.addDex(address(uniswap));
         hopFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
+        hopFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
         hopFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
+        setFacetAddressInTestBase(address(hopFacet));
 
-        validBridgeData = ILiFi.BridgeData({
-            transactionId: "",
-            bridge: "hop",
-            integrator: "",
-            referrer: address(0),
-            sendingAssetId: DAI_ADDRESS,
-            receiver: DAI_HOLDER,
-            minAmount: 10 * 10**dai.decimals(),
-            destinationChainId: DSTCHAIN_ID,
-            hasSourceSwaps: false,
-            hasDestinationCall: false
+        vm.makePersistent(address(hopFacet));
+
+        // adjust bridgeData
+        bridgeData.integrator = "hop";
+        bridgeData.destinationChainId = 137;
+
+        // produce valid HopData
+        validHopData = HopFacet.HopData({
+            bonderFee: 0,
+            amountOutMin: 0,
+            deadline: block.timestamp + 60 * 20,
+            destinationAmountOutMin: 0,
+            destinationDeadline: block.timestamp + 60 * 20
         });
-        validHopData = HopFacet.HopData(
-            0,
-            0,
-            block.timestamp + 60 * 20,
-            9 * 10**dai.decimals(),
-            block.timestamp + 60 * 20
+    }
+
+    function initiateBridgeTxWithFacet(bool isNative) internal override {
+        if (isNative) {
+            hopFacet.startBridgeTokensViaHop{ value: bridgeData.minAmount }(bridgeData, validHopData);
+        } else {
+            hopFacet.startBridgeTokensViaHop(bridgeData, validHopData);
+        }
+    }
+
+    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+        if (isNative) {
+            hopFacet.swapAndStartBridgeTokensViaHop{ value: swapData[0].fromAmount }(
+                bridgeData,
+                swapData,
+                validHopData
+            );
+        } else {
+            hopFacet.swapAndStartBridgeTokensViaHop(bridgeData, swapData, validHopData);
+        }
+    }
+
+    function testRevert_ReentrantCallBridge() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridge data for native bridging
+        setDefaultBridgeData();
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        // call testcase with correct call data (i.e. function selector) for this facet
+        super.failReentrantCall(
+            abi.encodeWithSelector(hopFacet.startBridgeTokensViaHop.selector, bridgeData, validHopData)
         );
-    }
-
-    function testRevertToBridgeTokensWhenSendingAmountIsZero() public {
-        vm.startPrank(DAI_HOLDER);
-
-        dai.approve(address(hopFacet), 10_000 * 10**dai.decimals());
-
-        ILiFi.BridgeData memory bridgeData = validBridgeData;
-        bridgeData.minAmount = 0;
-
-        vm.expectRevert(InvalidAmount.selector);
-        hopFacet.startBridgeTokensViaHop(bridgeData, validHopData);
-
         vm.stopPrank();
     }
 
-    function testRevertToBridgeTokensWhenReceiverIsZeroAddress() public {
-        vm.startPrank(DAI_HOLDER);
+    function testRevert_ReentrantCallBridgeAndSwap() public {
+        vm.startPrank(USER_SENDER);
 
-        dai.approve(address(hopFacet), 10_000 * 10**dai.decimals());
-
-        ILiFi.BridgeData memory bridgeData = validBridgeData;
-        bridgeData.receiver = address(0);
-
-        vm.expectRevert(InvalidReceiver.selector);
-        hopFacet.startBridgeTokensViaHop(bridgeData, validHopData);
-
-        vm.stopPrank();
-    }
-
-    function testRevertToBridgeTokensWhenSenderHasNoEnoughAmount() public {
-        vm.startPrank(DAI_HOLDER);
-
-        dai.approve(address(hopFacet), 10_000 * 10**dai.decimals());
-
-        dai.transfer(USDC_HOLDER, dai.balanceOf(DAI_HOLDER));
-
-        vm.expectRevert(abi.encodeWithSelector(InsufficientBalance.selector, 10 * 10**dai.decimals(), 0));
-        hopFacet.startBridgeTokensViaHop(validBridgeData, validHopData);
-
-        vm.stopPrank();
-    }
-
-    function testRevertToBridgeTokensWhenInformationMismatch() public {
-        vm.startPrank(DAI_HOLDER);
-
-        dai.approve(address(hopFacet), 10_000 * 10**dai.decimals());
-
-        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        // prepare bridge data for native bridging
+        setDefaultBridgeData();
         bridgeData.hasSourceSwaps = true;
 
-        vm.expectRevert(InformationMismatch.selector);
-        hopFacet.startBridgeTokensViaHop(bridgeData, validHopData);
-
-        vm.stopPrank();
-    }
-
-    function testCanBridgeTokens() public {
-        vm.startPrank(DAI_HOLDER);
-        dai.approve(address(hopFacet), 10_000 * 10**dai.decimals());
-
-        hopFacet.startBridgeTokensViaHop(validBridgeData, validHopData);
-        vm.stopPrank();
-    }
-
-    function testCanSwapAndBridgeTokens() public {
-        vm.startPrank(USDC_HOLDER);
-
-        usdc.approve(address(hopFacet), 10_000 * 10**usdc.decimals());
-
-        // Swap USDC to DAI
+        setDefaultSwapDataSingleDAItoUSDC();
         address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = DAI_ADDRESS;
+        path[0] = ADDRESS_WETH;
+        path[1] = ADDRESS_USDC;
 
-        uint256 amountOut = 10 * 10**dai.decimals();
+        uint256 amountOut = defaultUSDCAmount;
 
         // Calculate DAI amount
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
         uint256 amountIn = amounts[0];
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
-        swapData[0] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
-            USDC_ADDRESS,
-            DAI_ADDRESS,
-            amountIn,
-            abi.encodeWithSelector(
-                uniswap.swapExactTokensForTokens.selector,
-                amountIn,
-                amountOut,
-                path,
-                address(hopFacet),
-                block.timestamp + 20 minutes
-            ),
-            true
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapETHForExactTokens.selector,
+                    amountOut,
+                    path,
+                    address(hopFacet),
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
         );
 
-        ILiFi.BridgeData memory bridgeData = validBridgeData;
-        bridgeData.hasSourceSwaps = true;
+        // call testcase with correct call data (i.e. function selector) for this facet
+        super.failReentrantCall(
+            abi.encodeWithSelector(
+                hopFacet.swapAndStartBridgeTokensViaHop.selector,
+                bridgeData,
+                swapData,
+                validBridgeData
+            )
+        );
+    }
 
-        hopFacet.swapAndStartBridgeTokensViaHop(bridgeData, swapData, validHopData);
+    function testRevert_NotEnoughMsgValue() public {
+        vm.startPrank(USER_USDC_WHALE);
+        // prepare bridgeData
+        setDefaultBridgeData();
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        vm.expectRevert(InvalidAmount.selector);
+
+        hopFacet.startBridgeTokensViaHop{ value: bridgeData.minAmount - 1 }(bridgeData, validHopData);
 
         vm.stopPrank();
+    }
+
+    function test_canRegisterNewBridgeAddresses() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectEmit(true, true, true, true, address(hopFacet));
+        emit HopBridgeRegistered(ADDRESS_USDC, NATIVE_BRIDGE);
+
+        hopFacet.registerBridge(ADDRESS_USDC, NATIVE_BRIDGE);
+    }
+
+    function testRevert_RegisterBridgeNonOwner() public {
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(OnlyContractOwner.selector);
+        hopFacet.registerBridge(ADDRESS_USDC, NATIVE_BRIDGE);
+    }
+
+    function testRevert_RegisterBridgeWithInvalidAddress() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+        vm.expectRevert(InvalidConfig.selector);
+        hopFacet.registerBridge(ADDRESS_USDC, address(0));
+        vm.stopPrank();
+    }
+
+    function testRevert_RegisterBridgeWithUninitializedFacet() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+        LiFiDiamond diamond2 = createDiamond();
+
+        TestHopFacet hopFacet2 = new TestHopFacet();
+        bytes4[] memory functionSelectors = new bytes4[](6);
+        functionSelectors[0] = hopFacet2.startBridgeTokensViaHop.selector;
+        functionSelectors[1] = hopFacet2.swapAndStartBridgeTokensViaHop.selector;
+        functionSelectors[2] = hopFacet2.initHop.selector;
+        functionSelectors[3] = hopFacet2.registerBridge.selector;
+        functionSelectors[4] = hopFacet2.addDex.selector;
+        functionSelectors[5] = hopFacet2.setFunctionApprovalBySignature.selector;
+
+        addFacet(diamond2, address(hopFacet2), functionSelectors);
+        hopFacet2 = TestHopFacet(address(diamond2));
+
+        vm.expectRevert(NotInitialized.selector);
+        hopFacet2.registerBridge(ADDRESS_USDC, address(0));
+    }
+
+    function test_OwnerCanInitializeFacet() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+        LiFiDiamond diamond2 = createDiamond();
+
+        TestHopFacet hopFacet2 = new TestHopFacet();
+        bytes4[] memory functionSelectors = new bytes4[](6);
+        functionSelectors[0] = hopFacet2.startBridgeTokensViaHop.selector;
+        functionSelectors[1] = hopFacet2.swapAndStartBridgeTokensViaHop.selector;
+        functionSelectors[2] = hopFacet2.initHop.selector;
+        functionSelectors[3] = hopFacet2.registerBridge.selector;
+        functionSelectors[4] = hopFacet2.addDex.selector;
+        functionSelectors[5] = hopFacet2.setFunctionApprovalBySignature.selector;
+
+        addFacet(diamond2, address(hopFacet2), functionSelectors);
+
+        HopFacet.Config[] memory configs = new HopFacet.Config[](3);
+        configs[0] = HopFacet.Config(ADDRESS_USDC, USDC_BRIDGE);
+        configs[1] = HopFacet.Config(ADDRESS_DAI, DAI_BRIDGE);
+        configs[2] = HopFacet.Config(address(0), NATIVE_BRIDGE);
+
+        hopFacet2 = TestHopFacet(address(diamond2));
+
+        vm.expectEmit(true, true, true, true, address(hopFacet2));
+        emit HopInitialized(configs);
+        hopFacet2.initHop(configs);
+    }
+
+    function testRevert_CannotInitializeFacetAgain() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        HopFacet.Config[] memory configs = new HopFacet.Config[](3);
+        configs[0] = HopFacet.Config(ADDRESS_USDC, USDC_BRIDGE);
+        configs[1] = HopFacet.Config(ADDRESS_DAI, DAI_BRIDGE);
+        configs[2] = HopFacet.Config(address(0), NATIVE_BRIDGE);
+
+        vm.expectRevert(AlreadyInitialized.selector);
+        hopFacet.initHop(configs);
+    }
+
+    function test_BridgeFromL2ToL1() public {
+        address AMM_WRAPPER_POLYGON = 0x76b22b8C1079A44F1211D867D68b1eda76a635A7;
+        address ADDRESS_USDC_POLYGON = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
+
+        // create polygon fork
+        string memory rpcUrl = vm.envString("ETH_NODE_URI_POLYGON");
+        uint256 blockNumber = vm.envUint("FORK_NUMBER_POLYGON");
+        vm.createSelectFork(rpcUrl, blockNumber);
+
+        // get USDC contract and approve
+        usdc = ERC20(ADDRESS_USDC_POLYGON); // USDC on Polygon
+
+        // update DEX variable to Polygon address
+        uniswap = UniswapV2Router02(ADDRESS_UNISWAP);
+
+        // re-deploy diamond and facet
+        diamond = createDiamond();
+        hopFacet = new TestHopFacet();
+        bytes4[] memory functionSelectors = new bytes4[](6);
+        functionSelectors[0] = hopFacet.startBridgeTokensViaHop.selector;
+        functionSelectors[1] = hopFacet.swapAndStartBridgeTokensViaHop.selector;
+        functionSelectors[2] = hopFacet.initHop.selector;
+        functionSelectors[3] = hopFacet.registerBridge.selector;
+        functionSelectors[4] = hopFacet.addDex.selector;
+        functionSelectors[5] = hopFacet.setFunctionApprovalBySignature.selector;
+
+        addFacet(diamond, address(hopFacet), functionSelectors);
+
+        HopFacet.Config[] memory configs = new HopFacet.Config[](1);
+        configs[0] = HopFacet.Config(ADDRESS_USDC_POLYGON, AMM_WRAPPER_POLYGON);
+
+        hopFacet = TestHopFacet(address(diamond));
+        hopFacet.initHop(configs);
+
+        hopFacet.addDex(address(uniswap));
+        hopFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
+        hopFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
+        hopFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
+        // setFacetAddressInTestBase(address(hopFacet));
     }
 }
