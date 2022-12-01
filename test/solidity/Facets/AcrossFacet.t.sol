@@ -46,7 +46,7 @@ contract AcrossFacetTest is TestBase {
         acrossFacet = TestAcrossFacet(address(diamond));
         acrossFacet.addDex(ADDRESS_UNISWAP);
         acrossFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        acrossFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
+        acrossFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
         acrossFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
 
         setFacetAddressInTestBase(address(acrossFacet));
