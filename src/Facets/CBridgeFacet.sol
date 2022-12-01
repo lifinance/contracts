@@ -45,11 +45,11 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function startBridgeTokensViaCBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData calldata _cBridgeData)
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _cBridgeData);
@@ -66,11 +66,11 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     )
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        nonReentrant
     {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -87,7 +87,6 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _cBridgeData data specific to CBridge
     function _startBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData memory _cBridgeData) private {
-        // Do CBridge stuff
         if (uint64(block.chainid) == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {

@@ -1,7 +1,12 @@
 #!/bin/bash
 
-
 deploy() {
+	source .env
+
+	if [[ -z "$PRODUCTION" ]]; then
+		FILE_SUFFIX="staging."
+	fi
+
 	NETWORK=$(cat ./networks | gum filter --placeholder "Network")
 	SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
 	CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
@@ -10,7 +15,7 @@ deploy() {
 
 	echo $SCRIPT
 
-	RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+	RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
 	echo $RAW_RETURN_DATA | jq 2> /dev/null
 	RETURN_DATA=$(echo $RAW_RETURN_DATA | jq -r '.returns' 2> /dev/null)
 

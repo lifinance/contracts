@@ -125,7 +125,6 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 startingBalance;
         uint256 finalAssetStartingBalance;
         address finalAssetId = _swapData[_swapData.length - 1].receivingAssetId;
-
         if (!LibAsset.isNativeAsset(finalAssetId)) {
             finalAssetStartingBalance = LibAsset.getOwnBalance(finalAssetId);
         } else {
@@ -211,4 +210,8 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
         return balances;
     }
+
+    /// @dev required for receiving native assets from destination swaps
+    // solhint-disable-next-line no-empty-blocks
+    receive() external payable {}
 }

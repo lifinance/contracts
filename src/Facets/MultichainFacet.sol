@@ -130,11 +130,11 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     )
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        nonReentrant
     {
         Storage storage s = getStorage();
         if (!s.allowedRouters[_multichainData.router]) revert InvalidRouter();
@@ -163,11 +163,11 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     )
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        nonReentrant
     {
         Storage storage s = getStorage();
 

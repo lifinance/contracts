@@ -1,35 +1,79 @@
 {
-  "hardhat": {
-    "wormholeRouter": "0x5a58505a96D1dbf8dF91cB21B54419FC36e93fdE"
+  "routers": {
+    "hardhat": "0x5a58505a96D1dbf8dF91cB21B54419FC36e93fdE",
+    "mainnet": "0x3ee18B2214AFF97000D974cf647E7C347E8fa585",
+    "bsc": "0xB6F6D86a8f9879A9c87f643768d9efc38c1Da6E7",
+    "polygon": "0x5a58505a96D1dbf8dF91cB21B54419FC36e93fdE",
+    "avalanche": "0x0e082F06FF657D94310cB8cE8B0D9a04541d8052",
+    "oasis": "0xfE8cD454b4A1CA468B57D79c0cc77Ef5B6f64585",
+    "aurora": "0x51b5123a7b0F9b2bA265f9c4C8de7D78D52f510F",
+    "fantom": "0x7C9Fc5741288cDFdD83CeB07f3ea7e22618D79D2",
+    "karura": "0xae9d7fe007b3327AA64A32824Aaac52C42a6E624",
+    "acala": "0xae9d7fe007b3327AA64A32824Aaac52C42a6E624",
+    "klaytn": "0x5b08ac39EAED75c0439FC750d9FE7E1F9dD0193F",
+    "celo": "0x796Dff6D74F3E27060B71255Fe517BFb23C93eed",
+    "moonbeam": "0xb1731c586ca89a23809861c6103f0b96b3f57d92",
+    "solana": "-",
+    "goerli": "0xF890982f9310df57d00f659cf4fd87e65adEd8d7",
+    "mumbai": "0x377D55a7928c046E18eEbb61977e714d2a76472a",
+    "fuji": "0x61E44E506Ca5659E6c0bba9b678586fA2d729756"
   },
-  "mainnet": {
-    "wormholeRouter": ""
-  },
-  "rinkeby": {
-    "wormholeRouter": ""
-  },
-  "ropsten": {
-    "wormholeRouter": ""
-  },
-  "goerli": {
-    "wormholeRouter": ""
-  },
-  "polygon": {
-    "wormholeRouter": ""
-  },
-  "xdai": {
-    "wormholeRouter": ""
-  },
-  "bsc": {
-    "wormholeRouter": ""
-  },
-  "opera": {
-    "wormholeRouter": ""
-  },
-  "mumbai": {
-    "wormholeRouter": ""
-  },
-  "arbitrumOne_rinkeby": {
-    "wormholeRouter": ""
-  }
+  "chains": [
+    {
+      "chainId": 137,
+      "wormholeChainId": 5
+    },
+    {
+      "chainId": 1,
+      "wormholeChainId": 2
+    },
+    {
+      "chainId": 56,
+      "wormholeChainId": 4
+    },
+    {
+      "chainId": 137,
+      "wormholeChainId": 5
+    },
+    {
+      "chainId": 43114,
+      "wormholeChainId": 6
+    },
+    {
+      "chainId": 4262,
+      "wormholeChainId": 7
+    },
+    {
+      "chainId": 1313161554,
+      "wormholeChainId": 9
+    },
+    {
+      "chainId": 250,
+      "wormholeChainId": 10
+    },
+    {
+      "chainId": 686,
+      "wormholeChainId": 11
+    },
+    {
+      "chainId": 787,
+      "wormholeChainId": 12
+    },
+    {
+      "chainId": 8217,
+      "wormholeChainId": 13
+    },
+    {
+      "chainId": 42220,
+      "wormholeChainId": 14
+    },
+    {
+      "chainId": 1284,
+      "wormholeChainId": 16
+    },
+    {
+      "chainId": 1151111081099710,
+      "wormholeChainId": 1
+    }
+  ]
 }

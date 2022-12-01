@@ -22,6 +22,7 @@ library LibMappings {
 
     struct WormholeMappings {
         mapping(uint256 => uint16) wormholeChainId;
+        bool initialized;
     }
 
     struct AmarokMappings {
