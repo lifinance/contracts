@@ -6,7 +6,7 @@ import { IXDaiBridge } from "../Interfaces/IXDaiBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount } from "../Errors/GenericErrors.sol";
-import { InvalidAmount, InvalidSendingToken, InvalidDestinationChain, InvalidReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidSendingToken, InvalidDestinationChain, InvalidReceiver, NoSwapDataProvided } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -69,6 +69,7 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         onlyAllowDestinationChain(_bridgeData, GNOSIS_CHAIN_ID)
         onlyAllowSourceToken(_bridgeData, DAI)
     {
+        if (_swapData.length == 0) revert NoSwapDataProvided();
         if (_swapData[_swapData.length - 1].receivingAssetId != DAI) {
             revert InvalidSendingToken();
         }

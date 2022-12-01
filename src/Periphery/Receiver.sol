@@ -206,4 +206,9 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             emit LiFiTransferCompleted(_transactionId, assetId, receiver, amount, block.timestamp);
         }
     }
+
+    /// @notice Receive native asset directly.
+    /// @dev Some bridges may send native asset before execute external calls.
+    // solhint-disable-next-line no-empty-blocks
+    receive() external payable {}
 }

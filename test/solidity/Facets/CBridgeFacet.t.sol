@@ -1,17 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount } from "../utils/TestBase.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
-import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
@@ -26,37 +18,41 @@ contract TestCBridgeFacet is CBridgeFacet {
     }
 }
 
-contract CBridgeFacetTest is DSTest, DiamondTest {
+interface Ownable {
+    function owner() external returns (address);
+}
+
+contract CBridgeFacetTest is TestBase {
     address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
-    address internal constant UNISWAP_V2_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
-    address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address internal constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
-
-    address internal constant DAI_WHALE = 0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
-
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
-    LiFiDiamond internal diamond;
     TestCBridgeFacet internal cBridge;
-    ERC20 internal usdc;
-    ERC20 internal dai;
-    UniswapV2Router02 internal uniswap;
 
-    function fork() internal {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = vm.envUint("FORK_NUMBER");
-        vm.createSelectFork(rpcUrl, blockNumber);
+    function initiateBridgeTxWithFacet(bool isNative) internal override {
+        // a) prepare the facet-specific data
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, currentTxId++);
+
+        // b) call the correct function selectors (as they differ for each facet)
+        if (isNative) {
+            cBridge.startBridgeTokensViaCBridge{ value: bridgeData.minAmount }(bridgeData, data);
+        } else {
+            cBridge.startBridgeTokensViaCBridge(bridgeData, data);
+        }
+    }
+
+    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+        // a) prepare the facet-specific data
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, currentTxId++);
+
+        // b) call the correct function selectors (as they differ for each facet)
+        if (isNative) {
+            cBridge.swapAndStartBridgeTokensViaCBridge{ value: swapData[0].fromAmount }(bridgeData, swapData, data);
+        } else {
+            cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
+        }
     }
 
     function setUp() public {
-        fork();
-
-        diamond = createDiamond();
+        initTestBase();
         cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
-        usdc = ERC20(USDC_ADDRESS);
-        dai = ERC20(DAI_ADDRESS);
-        uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
-
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = cBridge.startBridgeTokensViaCBridge.selector;
         functionSelectors[1] = cBridge.swapAndStartBridgeTokensViaCBridge.selector;
@@ -68,78 +64,92 @@ contract CBridgeFacetTest is DSTest, DiamondTest {
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addDex(address(uniswap));
         cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
+        cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
+        cBridge.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
+        setFacetAddressInTestBase(address(cBridge));
     }
 
-    function testCanBridgeTokens() public {
-        vm.startPrank(WHALE);
-        usdc.approve(address(cBridge), 10_000 * 10**usdc.decimals());
-        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
-            "",
-            "cbridge",
-            "",
-            address(0),
-            USDC_ADDRESS,
-            WHALE,
-            10_000 * 10**usdc.decimals(),
-            100,
-            false,
-            false
+    function testFail_ReentrantCallBridge() internal {
+        // prepare facet-specific data
+        CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet.CBridgeData(5000, currentTxId++);
+
+        // prepare bridge data for native bridging
+        setDefaultBridgeData();
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        // call testcase with correct call data (i.e. function selector) for this facet
+        super.failReentrantCall(
+            abi.encodeWithSelector(cBridge.startBridgeTokensViaCBridge.selector, bridgeData, cBridgeData)
         );
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
-
-        cBridge.startBridgeTokensViaCBridge(bridgeData, data);
-        vm.stopPrank();
     }
 
-    function testCanSwapAndBridgeTokens() public {
-        vm.startPrank(DAI_WHALE);
+    function testRevert_ReentrantCallBridgeAndSwap() public {
+        vm.startPrank(USER_SENDER);
 
-        // Swap DAI -> USDC
+        // prepare facet-specific data
+        CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet.CBridgeData(5000, currentTxId++);
+
+        // prepare bridge data for native bridging
+        setDefaultBridgeData();
+        bridgeData.hasSourceSwaps = true;
+
+        setDefaultSwapDataSingleDAItoUSDC();
         address[] memory path = new address[](2);
-        path[0] = DAI_ADDRESS;
-        path[1] = USDC_ADDRESS;
+        path[0] = ADDRESS_WETH;
+        path[1] = ADDRESS_USDC;
 
-        uint256 amountOut = 1_000 * 10**usdc.decimals();
+        uint256 amountOut = defaultUSDCAmount;
 
         // Calculate DAI amount
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
         uint256 amountIn = amounts[0];
 
-        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
-            "",
-            "cbridge",
-            "",
-            address(0),
-            USDC_ADDRESS,
-            DAI_WHALE,
-            amountOut,
-            100,
-            true,
-            false
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapETHForExactTokens.selector,
+                    amountOut,
+                    path,
+                    address(cBridge),
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
         );
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, 1);
-
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
-        swapData[0] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
-            DAI_ADDRESS,
-            USDC_ADDRESS,
-            amountIn,
+        // call testcase with correct call data (i.e. function selector) for this facet
+        super.failReentrantCall(
             abi.encodeWithSelector(
-                uniswap.swapExactTokensForTokens.selector,
-                amountIn,
-                amountOut,
-                path,
-                address(cBridge),
-                block.timestamp + 20 minutes
-            ),
-            true
+                cBridge.swapAndStartBridgeTokensViaCBridge.selector,
+                bridgeData,
+                swapData,
+                cBridgeData
+            )
         );
-        // Approve DAI
-        dai.approve(address(cBridge), amountIn);
-        cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
+    }
+
+    function testRevert_WillRevertIfNotEnoughMsgValue() public {
+        vm.startPrank(USER_USDC_WHALE);
+        // prepare bridgeData
+        setDefaultBridgeData();
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, currentTxId++);
+
+        vm.expectRevert(InvalidAmount.selector);
+
+        cBridge.startBridgeTokensViaCBridge{ value: bridgeData.minAmount - 1 }(bridgeData, data);
+
         vm.stopPrank();
     }
 }

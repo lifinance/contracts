@@ -46,6 +46,7 @@ contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
+        preventBridgingToSameChainId(_bridgeData)
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData);
@@ -65,6 +66,7 @@ contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
+        preventBridgingToSameChainId(_bridgeData)
     {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,

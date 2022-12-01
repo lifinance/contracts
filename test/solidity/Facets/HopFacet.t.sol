@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, ERC20, UniswapV2Router02 } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount } from "../utils/TestBase.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
-import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InvalidAmount } from "src/Errors/GenericErrors.sol";
+import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 
 // Stub HopFacet Contract
@@ -60,8 +60,6 @@ contract HopFacetTest is TestBase {
         hopFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
         hopFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
         setFacetAddressInTestBase(address(hopFacet));
-
-        vm.makePersistent(address(hopFacet));
 
         // adjust bridgeData
         bridgeData.integrator = "hop";
@@ -255,46 +253,5 @@ contract HopFacetTest is TestBase {
 
         vm.expectRevert(AlreadyInitialized.selector);
         hopFacet.initHop(configs);
-    }
-
-    function test_BridgeFromL2ToL1() public {
-        address AMM_WRAPPER_POLYGON = 0x76b22b8C1079A44F1211D867D68b1eda76a635A7;
-        address ADDRESS_USDC_POLYGON = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
-
-        // create polygon fork
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_POLYGON");
-        uint256 blockNumber = vm.envUint("FORK_NUMBER_POLYGON");
-        vm.createSelectFork(rpcUrl, blockNumber);
-
-        // get USDC contract and approve
-        usdc = ERC20(ADDRESS_USDC_POLYGON); // USDC on Polygon
-
-        // update DEX variable to Polygon address
-        uniswap = UniswapV2Router02(ADDRESS_UNISWAP);
-
-        // re-deploy diamond and facet
-        diamond = createDiamond();
-        hopFacet = new TestHopFacet();
-        bytes4[] memory functionSelectors = new bytes4[](6);
-        functionSelectors[0] = hopFacet.startBridgeTokensViaHop.selector;
-        functionSelectors[1] = hopFacet.swapAndStartBridgeTokensViaHop.selector;
-        functionSelectors[2] = hopFacet.initHop.selector;
-        functionSelectors[3] = hopFacet.registerBridge.selector;
-        functionSelectors[4] = hopFacet.addDex.selector;
-        functionSelectors[5] = hopFacet.setFunctionApprovalBySignature.selector;
-
-        addFacet(diamond, address(hopFacet), functionSelectors);
-
-        HopFacet.Config[] memory configs = new HopFacet.Config[](1);
-        configs[0] = HopFacet.Config(ADDRESS_USDC_POLYGON, AMM_WRAPPER_POLYGON);
-
-        hopFacet = TestHopFacet(address(diamond));
-        hopFacet.initHop(configs);
-
-        hopFacet.addDex(address(uniswap));
-        hopFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        hopFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
-        hopFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
-        // setFacetAddressInTestBase(address(hopFacet));
     }
 }
