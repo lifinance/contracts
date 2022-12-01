@@ -78,6 +78,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     uint256 internal defaultUSDCAmount;
     // tokenAddress => userAddress => balance
     mapping(address => mapping(address => uint256)) internal initialBalances;
+    uint256 internal addToMessageValue;
 
     // EVENTS
     event AssetSwapped(
@@ -250,7 +251,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     function testBase_CanBridgeNativeTokens()
         public
         virtual
-        assertBalanceChange(address(0), USER_SENDER, -(1 ether))
+        assertBalanceChange(address(0), USER_SENDER, -int256((1 ether + addToMessageValue)))
         assertBalanceChange(address(0), USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)

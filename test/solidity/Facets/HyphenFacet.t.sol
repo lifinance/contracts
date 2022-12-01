@@ -29,7 +29,6 @@ contract HyphenFacetTest is TestBase {
     function setUp() public {
         initTestBase();
 
-        diamond = createDiamond();
         hyphenFacet = new TestHyphenFacet(IHyphenRouter(HYPHEN_ROUTER));
 
         bytes4[] memory functionSelectors = new bytes4[](4);
