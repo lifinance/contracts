@@ -7,8 +7,6 @@ import { IMultichainRouter } from "lifi/Interfaces/IMultichainRouter.sol";
 import { MultichainFacetNEW, IMultichainToken } from "lifi/Facets/MultichainFacetNEW.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-// import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-
 // Stub MultichainFacet Contract
 contract TestMultichainFacet is MultichainFacetNEW {
     constructor() {}
@@ -81,7 +79,6 @@ contract MultichainFacetNEWTest is TestBase {
         bridgeData.bridge = "multichain";
         bridgeData.sendingAssetId = ADDRESS_ANYUSDC; //anyUSDC
         bridgeData.destinationChainId = 250;
-        // bridgeData.minAmount = 50 * 10**testToken.decimals();
 
         // produce valid HopData
         multichainData = MultichainFacetNEW.MultichainData({ router: ANYSWAPV4ROUTER });

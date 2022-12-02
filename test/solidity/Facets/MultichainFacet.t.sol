@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount, ERC20 } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount, ERC20, LiFiDiamond } from "../utils/TestBase.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
 import { IMultichainRouter } from "lifi/Interfaces/IMultichainRouter.sol";
 import { MultichainFacet, IMultichainToken } from "lifi/Facets/MultichainFacet.sol";
@@ -30,6 +30,8 @@ contract MultichainFacetTest is TestBase {
     address internal constant USER_TESTTOKEN_WHALE = 0x5E583B6a1686f7Bc09A6bBa66E852A7C80d36F00;
 
     // events
+    event MultichainRouterRegistered(address indexed router, bool allowed);
+    event MultichainInitialized();
     event LogSwapout(address indexed account, address indexed bindaddr, uint256 amount);
     event LogAnySwapOut(
         address indexed token,
@@ -68,7 +70,7 @@ contract MultichainFacetTest is TestBase {
         routers = [
             ANYSWAPV4ROUTER,
             0x55aF5865807b196bD0197e0902746F31FBcCFa58, // TestMultichainToken
-            ANYSWAPV6ROUTER // AnyswapV6Router
+            ANYSWAPV6ROUTER
         ];
         multichainFacet.initMultichain(routers);
 
@@ -85,7 +87,6 @@ contract MultichainFacetTest is TestBase {
         bridgeData.bridge = "multichain";
         bridgeData.sendingAssetId = ADDRESS_ANYUSDC; //anyUSDC
         bridgeData.destinationChainId = 250;
-        // bridgeData.minAmount = 50 * 10**testToken.decimals();
 
         // produce valid HopData
         multichainData = MultichainFacet.MultichainData({ router: ANYSWAPV4ROUTER });
@@ -246,7 +247,7 @@ contract MultichainFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testCanBridgeWrappedTokens() public {
+    function test_CanBridgeWrappedTokens() public {
         //reference: https://etherscan.io/tx/0x7c9bea12ec9b6cd2de01830b7037275461fc95d642ed777437cd9f187fe046c4
         ERC20 testToken2 = ERC20(0x22648C12acD87912EA1710357B1302c6a4154Ebc); //anyUSDT
         address testToken2Whale = 0x5754284f345afc66a98fbB0a0Afe71e0F007B949; // USDT Whale
@@ -275,7 +276,7 @@ contract MultichainFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testCanBridgeMultichainTokens() public {
+    function test_CanBridgeMultichainTokens() public {
         // Multichain tokens are specific tokens that are bridged by calling a function in the
         // token contract itself (instead of going through a router contract)
         ERC20 testToken3 = ERC20(0x55aF5865807b196bD0197e0902746F31FBcCFa58); // BOO token
@@ -297,7 +298,7 @@ contract MultichainFacetTest is TestBase {
         vm.stopPrank();
     }
 
-    function testFailWhenUsingNotWhitelistedRouter() public {
+    function testFail_revert_UsingNonWhitelistedRouter() public {
         // re-deploy multichain facet with adjusted router whitelist
         diamond = createDiamond();
         routers = [
@@ -306,21 +307,101 @@ contract MultichainFacetTest is TestBase {
         ];
         multichainFacet = new TestMultichainFacet();
 
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](7);
         functionSelectors[0] = multichainFacet.startBridgeTokensViaMultichain.selector;
         functionSelectors[1] = multichainFacet.swapAndStartBridgeTokensViaMultichain.selector;
-        functionSelectors[2] = multichainFacet.addDex.selector;
-        functionSelectors[3] = multichainFacet.setFunctionApprovalBySignature.selector;
-        functionSelectors[4] = multichainFacet.initMultichain.selector;
+        functionSelectors[2] = bytes4(keccak256("registerBridge(address,bool)"));
+        functionSelectors[3] = bytes4(keccak256("registerBridge(address[],bool[])"));
+        functionSelectors[4] = multichainFacet.addDex.selector;
+        functionSelectors[5] = multichainFacet.initMultichain.selector;
+        functionSelectors[6] = multichainFacet.setFunctionApprovalBySignature.selector;
 
         addFacet(diamond, address(multichainFacet), functionSelectors);
 
         multichainFacet = TestMultichainFacet(address(diamond));
-        multichainFacet.addDex(address(uniswap));
-        multichainFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
+        routers = [
+            0x55aF5865807b196bD0197e0902746F31FBcCFa58, // TestMultichainToken
+            ANYSWAPV6ROUTER
+        ];
         multichainFacet.initMultichain(routers);
 
-        // this test case should fail now since the router is not whitelisted
+        // this one does not work here, not sure why. Therefore test will be renamed to "testFail...."
+        // vm.expectRevert(MultichainFacet.InvalidRouter.selector);
+
+        // this test case should fail now since the ANYSWAPV4ROUTER router is not whitelisted
         testBase_CanBridgeTokens();
+    }
+
+    function test_canRegisterNewBridgeAddresses() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectEmit(true, true, true, true, address(multichainFacet));
+        emit MultichainRouterRegistered(ANYSWAPV4ROUTER, true);
+
+        multichainFacet.registerBridge(ANYSWAPV4ROUTER, true);
+    }
+
+    function test_revert_RegisterBridgeNonOwner() public {
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(OnlyContractOwner.selector);
+        multichainFacet.registerBridge(ANYSWAPV4ROUTER, true);
+    }
+
+    function test_revert_RegisterBridgeWithInvalidAddress() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+        vm.expectRevert(InvalidConfig.selector);
+        multichainFacet.registerBridge(address(0), true);
+        vm.stopPrank();
+    }
+
+    function test_revert_RegisterBridgeWithUninitializedFacet() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+        LiFiDiamond diamond2 = createDiamond();
+
+        TestMultichainFacet multichainFacet2 = new TestMultichainFacet();
+        bytes4[] memory functionSelectors = new bytes4[](7);
+        functionSelectors[0] = multichainFacet.startBridgeTokensViaMultichain.selector;
+        functionSelectors[1] = multichainFacet.swapAndStartBridgeTokensViaMultichain.selector;
+        functionSelectors[2] = bytes4(keccak256("registerBridge(address,bool)"));
+        functionSelectors[3] = bytes4(keccak256("registerBridge(address[],bool[])"));
+        functionSelectors[4] = multichainFacet.addDex.selector;
+        functionSelectors[5] = multichainFacet.initMultichain.selector;
+        functionSelectors[6] = multichainFacet.setFunctionApprovalBySignature.selector;
+
+        addFacet(diamond2, address(multichainFacet2), functionSelectors);
+        multichainFacet2 = TestMultichainFacet(address(diamond2));
+
+        vm.expectRevert(NotInitialized.selector);
+        multichainFacet2.registerBridge(ANYSWAPV4ROUTER, true);
+    }
+
+    function test_OwnerCanInitializeFacet() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+        LiFiDiamond diamond2 = createDiamond();
+
+        TestMultichainFacet multichainFacet2 = new TestMultichainFacet();
+        bytes4[] memory functionSelectors = new bytes4[](7);
+        functionSelectors[0] = multichainFacet.startBridgeTokensViaMultichain.selector;
+        functionSelectors[1] = multichainFacet.swapAndStartBridgeTokensViaMultichain.selector;
+        functionSelectors[2] = bytes4(keccak256("registerBridge(address,bool)"));
+        functionSelectors[3] = bytes4(keccak256("registerBridge(address[],bool[])"));
+        functionSelectors[4] = multichainFacet.addDex.selector;
+        functionSelectors[5] = multichainFacet.initMultichain.selector;
+        functionSelectors[6] = multichainFacet.setFunctionApprovalBySignature.selector;
+
+        addFacet(diamond2, address(multichainFacet2), functionSelectors);
+
+        multichainFacet2 = TestMultichainFacet(address(diamond2));
+
+        vm.expectEmit(true, true, true, true, address(multichainFacet2));
+        emit MultichainInitialized();
+        multichainFacet2.initMultichain(routers);
+    }
+
+    function test_revert_CannotInitializeFacetAgain() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectRevert(AlreadyInitialized.selector);
+        multichainFacet.initMultichain(routers);
     }
 }

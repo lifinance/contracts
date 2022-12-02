@@ -10,7 +10,6 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { TokenAddressIsZero, CannotBridgeToSameNetwork, InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
 
 interface IMultichainERC20 {
     function Swapout(uint256 amount, address bindaddr) external returns (bool);
