@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBase, console, ERC20, UniswapV2Router02 } from "../utils/TestBase.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
-import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
-import { LiFiDiamond } from "../utils/DiamondTest.sol";
+import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InvalidAmount } from "src/Errors/GenericErrors.sol";
+import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 
 // Stub HopFacet Contract
 contract TestHopFacet is HopFacet {
@@ -61,8 +61,10 @@ contract HopFacetTest is TestBase {
         hopFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
         setFacetAddressInTestBase(address(hopFacet));
 
+        vm.makePersistent(address(hopFacet));
+
         // adjust bridgeData
-        bridgeData.integrator = "hop";
+        bridgeData.bridge = "hop";
         bridgeData.destinationChainId = 137;
 
         // produce valid HopData
@@ -254,4 +256,57 @@ contract HopFacetTest is TestBase {
         vm.expectRevert(AlreadyInitialized.selector);
         hopFacet.initHop(configs);
     }
+
+    // function test_BridgeFromL2ToL1() public {
+    //     address AMM_WRAPPER_POLYGON = 0x76b22b8C1079A44F1211D867D68b1eda76a635A7;
+    //     address ADDRESS_USDC_POLYGON = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
+    //     address USER_USDC_WHALE_POLYGON = 0x1a13F4Ca1d028320A707D99520AbFefca3998b7F; //USDC Whale Polygon
+
+    //     // create polygon fork
+    //     string memory rpcUrl = vm.envString("ETH_NODE_URI_POLYGON");
+    //     uint256 blockNumber = vm.envUint("FORK_NUMBER_POLYGON");
+    //     vm.createSelectFork(rpcUrl, blockNumber);
+
+    //     // get USDC contract and approve
+    //     ERC20 usdcPoly = ERC20(ADDRESS_USDC_POLYGON); // USDC on Polygon
+
+    //     // re-deploy diamond and facet
+    //     diamond = createDiamond();
+    //     TestHopFacet hopFacet2 = new TestHopFacet();
+    //     bytes4[] memory functionSelectors = new bytes4[](4);
+    //     functionSelectors[0] = hopFacet2.startBridgeTokensViaHop.selector;
+    //     functionSelectors[2] = hopFacet2.initHop.selector;
+    //     functionSelectors[3] = hopFacet2.registerBridge.selector;
+
+    //     addFacet(diamond, address(hopFacet2), functionSelectors);
+
+    //     HopFacet.Config[] memory configs = new HopFacet.Config[](1);
+    //     configs[0] = HopFacet.Config(ADDRESS_USDC_POLYGON, AMM_WRAPPER_POLYGON);
+
+    //     hopFacet2 = TestHopFacet(address(diamond));
+    //     hopFacet2.initHop(configs);
+
+    //     // adjust bridgeData
+    //     bridgeData.destinationChainId = 1;
+    //     bridgeData.sendingAssetId = ADDRESS_USDC_POLYGON;
+
+    //     // produce valid HopData
+    //     validHopData = HopFacet.HopData({
+    //         bonderFee: 10000000,
+    //         amountOutMin: 0,
+    //         deadline: block.timestamp + 60 * 20,
+    //         destinationAmountOutMin: 0,
+    //         destinationDeadline: block.timestamp + 60 * 20
+    //     });
+
+    //     // activate token whale account and approve USDC
+    //     vm.startPrank(USER_USDC_WHALE_POLYGON);
+    //     usdcPoly.approve(address(hopFacet2), defaultUSDCAmount);
+
+    //     //prepare check for events
+    //     vm.expectEmit(true, true, true, true, address(hopFacet2));
+    //     emit LiFiTransferStarted(bridgeData);
+
+    //     hopFacet2.startBridgeTokensViaHop{ value: bridgeData.minAmount }(bridgeData, validHopData);
+    // }
 }
