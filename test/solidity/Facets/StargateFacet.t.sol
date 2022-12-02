@@ -38,6 +38,9 @@ contract StargateFacetTest is TestBase {
     StargateFacet.StargateData internal stargateData;
 
     function setUp() public {
+        // set custom block number for forking
+        customBlockNumberForForking = 15588208;
+
         initTestBase();
 
         stargateFacet = new TestStargateFacet(IStargateRouter(MAINNET_ROUTER));
@@ -70,7 +73,6 @@ contract StargateFacetTest is TestBase {
         stargateFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
         stargateFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
         stargateFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
-
         stargateFacet.setFunctionApprovalBySignature(feeCollector.collectNativeFees.selector);
         stargateFacet.setFunctionApprovalBySignature(feeCollector.collectTokenFees.selector);
 
@@ -88,7 +90,6 @@ contract StargateFacetTest is TestBase {
             callTo: abi.encodePacked(address(0)),
             callData: ""
         });
-
         (uint256 fees, ) = stargateFacet.quoteLayerZeroFee(DST_CHAIN_ID, stargateData);
         stargateData.lzFee = addToMessageValue = fees;
     }

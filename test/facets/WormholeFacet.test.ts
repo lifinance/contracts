@@ -80,10 +80,19 @@ describe('WormholeFacet', function () {
       }
 
       await usdt.approve(lifi.address, utils.parseUnits('1000', 6))
-      // Gnosis
-      await lifi.setWormholeChainId(100, 25)
-      // Assigning Hardhat to eth mainnet
-      await lifi.setWormholeChainId(1337, 2)
+
+      await lifi.setWormholeChainIds([
+        // Gnosis
+        {
+          chainId: 100,
+          wormholeChainId: 25,
+        },
+        // Assigning Hardhat to eth mainnet
+        {
+          chainId: 1337,
+          wormholeChainId: 2,
+        },
+      ])
     }
   )
 

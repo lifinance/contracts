@@ -48,7 +48,6 @@ contract PolygonBridgeFacetTest is TestBase {
         polygonBridgeFacet.addDex(address(uniswap));
         polygonBridgeFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
         polygonBridgeFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
-        polygonBridgeFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
 
         setFacetAddressInTestBase(address(polygonBridgeFacet));
 

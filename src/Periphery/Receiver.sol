@@ -27,6 +27,14 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     event StargateRouterSet(address indexed router);
     event ExecutorSet(address indexed executor);
     event RecoverGasSet(uint256 indexed recoverGas);
+    event LiFiTransferRecovered(
+        bytes32 indexed transactionId,
+        address receivingAssetId,
+        address receiver,
+        uint256 amount,
+        uint256 timestamp
+    );
+
 
     /// Modifiers ///
     modifier onlySGRouter() {
@@ -182,7 +190,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             if (reserveRecoverGas && gasleft() < _recoverGas) {
                 token.safeTransfer(receiver, amount);
 
-                emit LiFiTransferCompleted(_transactionId, assetId, receiver, amount, block.timestamp);
+                emit LiFiTransferRecovered(_transactionId, assetId, receiver, amount, block.timestamp);
                 return;
             }
 
@@ -197,13 +205,15 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 success = true;
             } catch {
                 token.safeTransfer(receiver, amount);
+                emit LiFiTransferRecovered(_transactionId, assetId, receiver, amount, block.timestamp);
             }
 
             token.safeApprove(address(executor), 0);
         }
-
-        if (!success) {
-            emit LiFiTransferCompleted(_transactionId, assetId, receiver, amount, block.timestamp);
-        }
     }
+
+    /// @notice Receive native asset directly.
+    /// @dev Some bridges may send native asset before execute external calls.
+    // solhint-disable-next-line no-empty-blocks
+    receive() external payable {}
 }

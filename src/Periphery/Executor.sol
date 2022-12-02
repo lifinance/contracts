@@ -212,5 +212,6 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     }
 
     /// @dev required for receiving native assets from destination swaps
+    // solhint-disable-next-line no-empty-blocks
     receive() external payable {}
 }
