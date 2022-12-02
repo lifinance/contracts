@@ -22,7 +22,7 @@ contract TestMultichainFacet is MultichainFacetNEW {
     }
 }
 
-contract MultichainFacetTestNEW is TestBase {
+contract MultichainFacetNEWTest is TestBase {
     address internal constant ANYSWAPV4ROUTER = 0x6b7a87899490EcE95443e979cA9485CBE7E71522;
     address internal constant ADDRESS_ANYUSDC = 0x7EA2be2df7BA6E54B1A9C70676f668455E329d29;
     address internal constant ADDRESS_ANYETH = 0x2AC03BF434db503f6f5F85C3954773731Fc3F056;

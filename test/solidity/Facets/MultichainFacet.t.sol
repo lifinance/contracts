@@ -5,6 +5,7 @@ import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount, ERC20 }
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
 import { IMultichainRouter } from "lifi/Interfaces/IMultichainRouter.sol";
 import { MultichainFacet, IMultichainToken } from "lifi/Facets/MultichainFacet.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 
@@ -23,8 +24,9 @@ contract TestMultichainFacet is MultichainFacet {
 
 contract MultichainFacetTest is TestBase {
     address internal constant ANYSWAPV4ROUTER = 0x6b7a87899490EcE95443e979cA9485CBE7E71522;
+    address internal constant ANYSWAPV6ROUTER = 0x7782046601e7b9B05cA55A3899780CE6EE6B8B2B;
     address internal constant ADDRESS_ANYUSDC = 0x7EA2be2df7BA6E54B1A9C70676f668455E329d29;
-    address internal constant ADDRESS_ANYWETH = 0x2AC03BF434db503f6f5F85C3954773731Fc3F056;
+    address internal constant ADDRESS_ANYETH = 0x2AC03BF434db503f6f5F85C3954773731Fc3F056;
     address internal constant USER_TESTTOKEN_WHALE = 0x5E583B6a1686f7Bc09A6bBa66E852A7C80d36F00;
 
     // events
@@ -66,21 +68,24 @@ contract MultichainFacetTest is TestBase {
         routers = [
             ANYSWAPV4ROUTER,
             0x55aF5865807b196bD0197e0902746F31FBcCFa58, // TestMultichainToken
-            0x7782046601e7b9B05cA55A3899780CE6EE6B8B2B // AnyswapV6Router
+            ANYSWAPV6ROUTER // AnyswapV6Router
         ];
         multichainFacet.initMultichain(routers);
 
         multichainFacet.addDex(address(uniswap));
         multichainFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
         multichainFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        multichainFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
+        multichainFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
         setFacetAddressInTestBase(address(multichainFacet));
 
         // adjust bridgeData
-        bridgeData.integrator = "multichain";
+        // special case for Multichain:
+        // in bridgeData we will store the anyXXX (e.g. anyUSDC) token address as sendingAssetId
+        // instead of the USDC address. This is a workaround.
+        bridgeData.bridge = "multichain";
         bridgeData.sendingAssetId = ADDRESS_ANYUSDC; //anyUSDC
         bridgeData.destinationChainId = 250;
-        bridgeData.minAmount = 50 * 10**testToken.decimals();
+        // bridgeData.minAmount = 50 * 10**testToken.decimals();
 
         // produce valid HopData
         multichainData = MultichainFacet.MultichainData({ router: ANYSWAPV4ROUTER });
@@ -146,14 +151,119 @@ contract MultichainFacetTest is TestBase {
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
     {
         //reference: https://etherscan.io/tx/0x46a6cfe25b91f9795b08ffee39a3230b4a36c2f8fdcd67b14dfa95f2da681d28
-        bridgeData.sendingAssetId = ADDRESS_ANYWETH;
+        bridgeData.sendingAssetId = ADDRESS_ANYETH;
         bridgeData.minAmount = 1 ether;
 
         multichainData = MultichainFacet.MultichainData(routers[2]);
 
         vm.expectEmit(true, true, true, true, multichainData.router);
         emit LogAnySwapOut(
-            ADDRESS_ANYWETH,
+            ADDRESS_ANYETH,
+            address(multichainFacet),
+            bridgeData.receiver,
+            bridgeData.minAmount,
+            1,
+            bridgeData.destinationChainId
+        );
+        vm.expectEmit(true, true, true, true, address(multichainFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        vm.startPrank(USER_SENDER);
+        multichainFacet.startBridgeTokensViaMultichain{ value: bridgeData.minAmount }(bridgeData, multichainData);
+        vm.stopPrank();
+    }
+
+    function testBase_CanSwapAndBridgeTokens() public override {
+        vm.startPrank(USER_SENDER);
+
+        dai.approve(address(multichainFacet), swapData[0].fromAmount);
+
+        bridgeData.hasSourceSwaps = true;
+
+        vm.expectEmit(true, true, true, true, address(multichainFacet));
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_DAI,
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        vm.expectEmit(true, true, true, true, multichainData.router);
+        emit LogAnySwapOut(
+            bridgeData.sendingAssetId,
+            address(multichainFacet),
+            bridgeData.receiver,
+            bridgeData.minAmount,
+            1, //srcChainId
+            bridgeData.destinationChainId
+        );
+        vm.expectEmit(true, true, true, true, address(multichainFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        multichainFacet.swapAndStartBridgeTokensViaMultichain(bridgeData, swapData, multichainData);
+        vm.stopPrank();
+    }
+
+    function testBase_CanSwapAndBridgeNativeTokens() public override {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.sendingAssetId = ADDRESS_ANYETH;
+        bridgeData.minAmount = 1 ether;
+        bridgeData.hasSourceSwaps = true;
+
+        multichainData.router = ANYSWAPV6ROUTER;
+
+        setDefaultSwapDataSingleDAItoETH();
+        dai.approve(address(multichainFacet), swapData[0].fromAmount);
+
+        vm.expectEmit(true, true, true, true, address(multichainFacet));
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_DAI,
+            address(0),
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        vm.expectEmit(true, true, true, true, multichainData.router);
+        emit LogAnySwapOut(
+            bridgeData.sendingAssetId,
+            address(multichainFacet),
+            bridgeData.receiver,
+            bridgeData.minAmount,
+            1, //srcChainId
+            bridgeData.destinationChainId
+        );
+        vm.expectEmit(true, true, true, true, address(multichainFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        multichainFacet.swapAndStartBridgeTokensViaMultichain(bridgeData, swapData, multichainData);
+        vm.stopPrank();
+    }
+
+    function testCanBridgeWrappedTokens() public {
+        //reference: https://etherscan.io/tx/0x7c9bea12ec9b6cd2de01830b7037275461fc95d642ed777437cd9f187fe046c4
+        ERC20 testToken2 = ERC20(0x22648C12acD87912EA1710357B1302c6a4154Ebc); //anyUSDT
+        address testToken2Whale = 0x5754284f345afc66a98fbB0a0Afe71e0F007B949; // USDT Whale
+        uint256 amountToBeBridged = 100 * 10**testToken2.decimals();
+
+        ERC20 underlyingToken2 = ERC20(IMultichainToken(address(testToken2)).underlying());
+        vm.startPrank(testToken2Whale);
+
+        SafeERC20.safeIncreaseAllowance(IERC20(address(underlyingToken2)), address(multichainFacet), amountToBeBridged);
+
+        bridgeData.sendingAssetId = address(testToken2);
+
+        multichainData = MultichainFacet.MultichainData(routers[0]);
+
+        vm.expectEmit(true, true, true, true, multichainData.router);
+        emit LogAnySwapOut(
+            address(testToken2),
             address(multichainFacet),
             bridgeData.receiver,
             bridgeData.minAmount,
@@ -161,211 +271,56 @@ contract MultichainFacetTest is TestBase {
             bridgeData.destinationChainId
         );
 
-        vm.startPrank(USER_SENDER);
-        multichainFacet.startBridgeTokensViaMultichain{ value: bridgeData.minAmount }(bridgeData, multichainData);
+        multichainFacet.startBridgeTokensViaMultichain(bridgeData, multichainData);
         vm.stopPrank();
     }
 
-    // function testCanBridgeNativeTokens2() public {
-    //     vm.startPrank(USER_SENDER);
+    function testCanBridgeMultichainTokens() public {
+        // Multichain tokens are specific tokens that are bridged by calling a function in the
+        // token contract itself (instead of going through a router contract)
+        ERC20 testToken3 = ERC20(0x55aF5865807b196bD0197e0902746F31FBcCFa58); // BOO token
+        address testToken3Whale = 0x27F82c89b5380Da1A39A8f4F2b56145256A98D34;
+        uint256 amountToBeBridged = 10_000 * 10**testToken3.decimals();
 
-    //     //! only works with AnyswapV6Router
-    //     //reference: https://etherscan.io/tx/0x46a6cfe25b91f9795b08ffee39a3230b4a36c2f8fdcd67b14dfa95f2da681d28
-    //     uint256 targetChainId = 250;
-    //     uint256 amountToBeBridged = 100 * 10**18;
+        vm.startPrank(testToken3Whale);
+        testToken3.approve(address(multichainFacet), amountToBeBridged);
 
-    //     ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
-    //         "",
-    //         "multichain",
-    //         "",
-    //         address(0),
-    //         address(testToken),
-    //         USER_RECEIVER,
-    //         amountToBeBridged,
-    //         targetChainId,
-    //         false,
-    //         false
-    //     );
+        bridgeData.sendingAssetId = address(testToken3);
+        bridgeData.minAmount = amountToBeBridged;
 
-    //     MultichainFacet.MultichainData memory data = MultichainFacet.MultichainData(routers[2]);
+        multichainData = MultichainFacet.MultichainData(address(testToken3));
 
-    //     vm.expectEmit(true, true, true, true, data.router);
-    //     emit LogAnySwapOut(
-    //         address(testToken),
-    //         address(multichainFacet),
-    //         bridgeData.receiver,
-    //         bridgeData.minAmount,
-    //         1,
-    //         bridgeData.destinationChainId
-    //     );
+        vm.expectEmit(true, true, true, true, address(testToken3));
+        emit LogSwapout(address(multichainFacet), bridgeData.receiver, bridgeData.minAmount);
 
-    //     multichainFacet.startBridgeTokensViaMultichain{ value: amountToBeBridged }(bridgeData, data);
-    //     vm.stopPrank();
-    // }
+        multichainFacet.startBridgeTokensViaMultichain(bridgeData, multichainData);
+        vm.stopPrank();
+    }
 
-    // function testCanBridgeWrappedTokens() public {
-    //     //reference: https://etherscan.io/tx/0x7c9bea12ec9b6cd2de01830b7037275461fc95d642ed777437cd9f187fe046c4
-    //     ERC20 testToken = ERC20(0x22648C12acD87912EA1710357B1302c6a4154Ebc); //anyUSDT
-    //     address testTokenWhale = 0x5754284f345afc66a98fbB0a0Afe71e0F007B949; // USDT Whale
-    //     uint256 targetChainId = 250;
-    //     uint256 amountToBeBridged = 1000 * 10**testToken.decimals();
+    function testFailWhenUsingNotWhitelistedRouter() public {
+        // re-deploy multichain facet with adjusted router whitelist
+        diamond = createDiamond();
+        routers = [
+            0x55aF5865807b196bD0197e0902746F31FBcCFa58, // TestMultichainToken
+            0x7782046601e7b9B05cA55A3899780CE6EE6B8B2B // AnyswapV6Router
+        ];
+        multichainFacet = new TestMultichainFacet();
 
-    //     ERC20 underlyingToken = ERC20(IMultichainToken(address(testToken)).underlying());
-    //     vm.startPrank(testTokenWhale);
+        bytes4[] memory functionSelectors = new bytes4[](5);
+        functionSelectors[0] = multichainFacet.startBridgeTokensViaMultichain.selector;
+        functionSelectors[1] = multichainFacet.swapAndStartBridgeTokensViaMultichain.selector;
+        functionSelectors[2] = multichainFacet.addDex.selector;
+        functionSelectors[3] = multichainFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[4] = multichainFacet.initMultichain.selector;
 
-    //     SafeERC20.safeIncreaseAllowance(IERC20(address(underlyingToken)), address(multichain), amountToBeBridged);
+        addFacet(diamond, address(multichainFacet), functionSelectors);
 
-    //     ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
-    //         "",
-    //         "multichain",
-    //         "",
-    //         address(0),
-    //         address(testToken),
-    //         USDC_WHALE,
-    //         amountToBeBridged,
-    //         targetChainId,
-    //         false,
-    //         false
-    //     );
+        multichainFacet = TestMultichainFacet(address(diamond));
+        multichainFacet.addDex(address(uniswap));
+        multichainFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
+        multichainFacet.initMultichain(routers);
 
-    //     MultichainFacet.MultichainData memory data = MultichainFacet.MultichainData(routers[0]);
-
-    //     vm.expectEmit(true, true, true, true, data.router);
-    //     emit LogAnySwapOut(
-    //         address(testToken),
-    //         address(multichain),
-    //         bridgeData.receiver,
-    //         bridgeData.minAmount,
-    //         1,
-    //         bridgeData.destinationChainId
-    //     );
-
-    //     multichain.startBridgeTokensViaMultichain(bridgeData, data);
-    //     vm.stopPrank();
-    // }
-
-    // function testCanBridgeMultichainTokens() public {
-    //     // Multichain tokens are specific tokens that are bridged by calling a function in the
-    //     // token contract itself (instead of going through a router contract)
-    //     ERC20 testToken = ERC20(0x55aF5865807b196bD0197e0902746F31FBcCFa58); // BOO token
-    //     address testTokenWhale = 0x27F82c89b5380Da1A39A8f4F2b56145256A98D34;
-
-    //     vm.startPrank(testTokenWhale);
-    //     testToken.approve(address(multichain), 10_000 * 10**testToken.decimals());
-    //     ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
-    //         "",
-    //         "multichain",
-    //         "",
-    //         address(0),
-    //         address(testToken),
-    //         USDC_WHALE,
-    //         10_000 * 10**usdc.decimals(),
-    //         100,
-    //         false,
-    //         false
-    //     );
-    //     MultichainFacet.MultichainData memory data = MultichainFacet.MultichainData(address(testToken));
-
-    //     vm.expectEmit(true, true, true, true, address(testToken));
-    //     emit LogSwapout(address(multichain), bridgeData.receiver, bridgeData.minAmount);
-
-    //     multichain.startBridgeTokensViaMultichain(bridgeData, data);
-    //     vm.stopPrank();
-    // }
-
-    // function testCanSwapAndBridgeTokens() public {
-    //     vm.startPrank(DAI_WHALE);
-    //     address anyUSDC = 0x7EA2be2df7BA6E54B1A9C70676f668455E329d29;
-
-    //     // Swap DAI -> USDC
-    //     address[] memory path = new address[](2);
-    //     path[0] = DAI_ADDRESS;
-    //     path[1] = USDC_ADDRESS;
-
-    //     uint256 amountOut = 1_000 * 10**usdc.decimals();
-
-    //     // Calculate DAI amount
-    //     uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
-    //     uint256 amountIn = amounts[0];
-
-    //     dai.approve(address(multichain), amountIn);
-
-    //     // special case for Multichain:
-    //     // in bridgeData we will store the anyXXX (e.g. anyUSDC) token address as sendingAssetId
-    //     // instead of the USDC address. This is a workaround.
-    //     ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
-    //         "",
-    //         "multichain",
-    //         "",
-    //         address(0),
-    //         anyUSDC,
-    //         DAI_WHALE,
-    //         amountOut,
-    //         100,
-    //         true,
-    //         false
-    //     );
-
-    //     MultichainFacet.MultichainData memory data = MultichainFacet.MultichainData(routers[0]);
-
-    //     LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
-    //     swapData[0] = LibSwap.SwapData(
-    //         address(uniswap),
-    //         address(uniswap),
-    //         DAI_ADDRESS,
-    //         USDC_ADDRESS,
-    //         amountIn,
-    //         abi.encodeWithSelector(
-    //             uniswap.swapExactTokensForTokens.selector,
-    //             amountIn,
-    //             amountOut,
-    //             path,
-    //             address(multichain),
-    //             block.timestamp + 20 minutes
-    //         ),
-    //         true
-    //     );
-
-    //     vm.expectEmit(true, true, true, true, data.router);
-    //     emit LogAnySwapOut(
-    //         bridgeData.sendingAssetId,
-    //         address(multichain),
-    //         bridgeData.receiver,
-    //         bridgeData.minAmount,
-    //         1, //srcChainId
-    //         bridgeData.destinationChainId
-    //     );
-    //     vm.expectEmit(true, true, true, true, address(multichain));
-    //     emit LiFiTransferStarted(bridgeData);
-
-    //     multichain.swapAndStartBridgeTokensViaMultichain(bridgeData, swapData, data);
-    //     vm.stopPrank();
-    // }
-
-    // function testFailWhenUsingNotWhitelistedRouter() public {
-    //     // re-deploy multichain facet with adjusted router whitelist
-    //     diamond = createDiamond();
-    //     routers = [
-    //         0x55aF5865807b196bD0197e0902746F31FBcCFa58, // TestMultichainToken
-    //         0x7782046601e7b9B05cA55A3899780CE6EE6B8B2B // AnyswapV6Router
-    //     ];
-    //     multichain = new TestMultichainFacet();
-
-    //     bytes4[] memory functionSelectors = new bytes4[](5);
-    //     functionSelectors[0] = multichain.startBridgeTokensViaMultichain.selector;
-    //     functionSelectors[1] = multichain.swapAndStartBridgeTokensViaMultichain.selector;
-    //     functionSelectors[2] = multichain.addDex.selector;
-    //     functionSelectors[3] = multichain.setFunctionApprovalBySignature.selector;
-    //     functionSelectors[4] = multichain.initMultichain.selector;
-
-    //     addFacet(diamond, address(multichain), functionSelectors);
-
-    //     multichain = TestMultichainFacet(address(diamond));
-    //     multichain.addDex(address(uniswap));
-    //     multichain.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-    //     multichain.initMultichain(routers);
-
-    //     // this test case should fail now since the router is not whitelisted
-    //     testCanBridgeTokens();
-    // }
+        // this test case should fail now since the router is not whitelisted
+        testBase_CanBridgeTokens();
+    }
 }

@@ -203,9 +203,7 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     {
         // Token must implement IMultichainToken interface
         if (LibAsset.isNativeAsset(token)) revert TokenAddressIsZero();
-        console.log("native1? ", token);
         underlyingToken = IMultichainToken(token).underlying();
-        console.log("native2? ", underlyingToken);
         // The native token does not use the standard null address ID
         isNative = IMultichainRouter(router).wNATIVE() == underlyingToken;
         // Some Multichain complying tokens may wrap nothing

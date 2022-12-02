@@ -161,11 +161,11 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         defaultUSDCAmount = 100 * 10**usdc.decimals();
 
         setDefaultBridgeData();
-        setDefaultSwapDataSingleDAItoUSDC();
     }
 
     function setFacetAddressInTestBase(address facetAddress) internal {
         _facetTestContractAddress = facetAddress;
+        setDefaultSwapDataSingleDAItoUSDC();
     }
 
     function fork() internal virtual {
