@@ -222,6 +222,39 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         );
     }
 
+    function setDefaultSwapDataSingleDAItoETH() internal virtual {
+        delete swapData;
+        // Swap DAI -> USDC
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WETH;
+
+        uint256 amountOut = 1 ether;
+
+        // Calculate DAI amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+    }
+
     //#region defaultTests (will be executed for every contract that inherits this contract)
     //@dev in case you want to exclude any of these test cases, you must override test case in child contract with empty body:
     //@dev e.g. "function testBaseCanBridgeTokens() public override {}"
