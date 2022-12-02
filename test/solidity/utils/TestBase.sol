@@ -78,6 +78,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     uint256 internal defaultUSDCAmount;
     // tokenAddress => userAddress => balance
     mapping(address => mapping(address => uint256)) internal initialBalances;
+    uint256 internal customBlockNumberForForking;
 
     // EVENTS
     event AssetSwapped(
@@ -170,7 +171,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
 
     function fork() internal virtual {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = vm.envUint("FORK_NUMBER");
+        uint256 blockNumber = customBlockNumberForForking > 0 ? customBlockNumberForForking : vm.envUint("FORK_NUMBER");
         vm.createSelectFork(rpcUrl, blockNumber);
     }
 

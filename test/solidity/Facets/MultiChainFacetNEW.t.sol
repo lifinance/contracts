@@ -44,6 +44,9 @@ contract MultichainFacetNEWTest is TestBase {
     ERC20 internal underlyingToken;
 
     function setUp() public {
+        // set custom block number for forking
+        customBlockNumberForForking = 15588208;
+
         initTestBase();
 
         // get test token (cannot just test with USDC or DAI)
