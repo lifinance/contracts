@@ -78,7 +78,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     uint256 internal defaultUSDCAmount;
     // tokenAddress => userAddress => balance
     mapping(address => mapping(address => uint256)) internal initialBalances;
-
     // set these custom values in your test file to
     uint256 internal customBlockNumberForForking;
     string internal customRpcUrlForForking;
@@ -168,18 +167,19 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         defaultUSDCAmount = 100 * 10**usdc.decimals();
 
         setDefaultBridgeData();
-        setDefaultSwapDataSingleDAItoUSDC();
     }
 
     function setFacetAddressInTestBase(address facetAddress) internal {
         _facetTestContractAddress = facetAddress;
+        setDefaultSwapDataSingleDAItoUSDC();
     }
 
     function fork() internal virtual {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = customBlockNumberForForking != 0
-            ? customBlockNumberForForking
-            : vm.envUint("FORK_NUMBER");
+        string memory rpcUrl = bytes(customRpcUrlForForking).length != 0
+            ? customRpcUrlForForking
+            : vm.envString("ETH_NODE_URI_MAINNET");
+        uint256 blockNumber = customBlockNumberForForking > 0 ? customBlockNumberForForking : vm.envUint("FORK_NUMBER");
+
         vm.createSelectFork(rpcUrl, blockNumber);
     }
 
@@ -222,6 +222,39 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
                     uniswap.swapExactTokensForTokens.selector,
                     amountIn,
                     amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+    }
+
+    function setDefaultSwapDataSingleDAItoETH() internal virtual {
+        delete swapData;
+        // Swap DAI -> USDC
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WETH;
+
+        uint256 amountOut = 1 ether;
+
+        // Calculate DAI amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
                     path,
                     _facetTestContractAddress,
                     block.timestamp + 20 minutes
