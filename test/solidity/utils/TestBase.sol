@@ -81,6 +81,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     // set these custom values in your test file to
     uint256 internal customBlockNumberForForking;
     string internal customRpcUrlForForking;
+    uint256 internal addToMessageValue;
 
     // EVENTS
     event AssetSwapped(
@@ -264,6 +265,26 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         );
     }
 
+    //#region Utility Functions (may be used in tests)
+
+    function printBridgeData(ILiFi.BridgeData memory _bridgeData) internal {
+        console.log("----------------------------------");
+        console.log("CURRENT VALUES OF _bridgeData: ");
+        emit log_named_bytes32("transactionId               ", _bridgeData.transactionId);
+        emit log_named_string("bridge                      ", _bridgeData.bridge);
+        emit log_named_string("integrator                  ", _bridgeData.integrator);
+        emit log_named_address("referrer                    ", _bridgeData.referrer);
+        emit log_named_address("sendingAssetId              ", _bridgeData.sendingAssetId);
+        emit log_named_address("receiver                    ", _bridgeData.receiver);
+        emit log_named_uint("minAmount                   ", _bridgeData.minAmount);
+        emit log_named_uint("destinationChainId          ", _bridgeData.destinationChainId);
+        console.log("hasSourceSwaps              :", _bridgeData.hasSourceSwaps);
+        console.log("hasDestinationCall          :", _bridgeData.hasDestinationCall);
+        console.log("------------- END -----------------");
+    }
+
+    //#endregion
+
     //#region defaultTests (will be executed for every contract that inherits this contract)
     //@dev in case you want to exclude any of these test cases, you must override test case in child contract with empty body:
     //@dev e.g. "function testBaseCanBridgeTokens() public override {}"
@@ -351,6 +372,81 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         public
         virtual
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+        // store initial balances
+        uint256 initialUSDCBalance = usdc.balanceOf(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WETH;
+
+        uint256 amountOut = 1 ether;
+
+        // Calculate DAI amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_USDC,
+            address(0),
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
+        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
+        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, amountIn);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(true);
+
+        // check balances after call
+        assertEq(usdc.balanceOf(USER_SENDER), initialUSDCBalance - swapData[0].fromAmount);
+    }
+
+    function testBase_CanSwapAndBridgeNativeTokensOLD()
+        private
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
     {
         vm.startPrank(USER_SENDER);
