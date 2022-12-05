@@ -16,8 +16,10 @@ deploy() {
 	echo $SCRIPT
 
 	RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
-	echo $RAW_RETURN_DATA | jq 2> /dev/null
-	RETURN_DATA=$(echo $RAW_RETURN_DATA | jq -r '.returns' 2> /dev/null)
+	CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+	echo $CLEAN__RETURN_DATA | jq 2> /dev/null
+	checkFailure
+	RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2> /dev/null)
 
 	deployed=$(echo $RETURN_DATA | jq -r '.deployed.value')
 	args=$(echo $RETURN_DATA | jq -r '.constructorArgs.value // "0x"')
@@ -63,4 +65,12 @@ verifyContract() {
 		forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT --constructor-args $ARGS "${!API_KEY}"
 	fi
 }
+
+checkFailure() {
+	if [[ $? -ne 0 ]]; then
+		echo "Failed to deploy $CONTRACT"
+		exit 1
+	fi
+}
+
 deploy
