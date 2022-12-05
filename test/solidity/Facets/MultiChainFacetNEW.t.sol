@@ -353,4 +353,23 @@ contract MultichainFacetNEWTest is TestBase {
         // this test case should fail now since the router is not whitelisted
         testBase_CanBridgeTokens();
     }
+
+    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
+        vm.startPrank(USER_SENDER);
+
+        vm.assume(amount > 0 && amount < 100_000);
+        amount = amount * 10**testToken.decimals();
+
+        // approval
+        underlyingToken.approve(address(multichainFacet), amount);
+
+        bridgeData.minAmount = amount;
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, address(multichainFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
 }

@@ -78,6 +78,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     uint256 internal defaultUSDCAmount;
     // tokenAddress => userAddress => balance
     mapping(address => mapping(address => uint256)) internal initialBalances;
+    uint256 internal addToMessageValue;
     // set these custom values in your test file to
     uint256 internal customBlockNumberForForking;
     string internal customRpcUrlForForking;
@@ -232,6 +233,22 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         );
     }
 
+    function printBridgeData(ILiFi.BridgeData memory _bridgeData) internal {
+        console.log("----------------------------------");
+        console.log("CURRENT VALUES OF _bridgeData: ");
+        emit log_named_bytes32("transactionId               ", _bridgeData.transactionId);
+        emit log_named_string("bridge                      ", _bridgeData.bridge);
+        emit log_named_string("integrator                  ", _bridgeData.integrator);
+        emit log_named_address("referrer                    ", _bridgeData.referrer);
+        emit log_named_address("sendingAssetId              ", _bridgeData.sendingAssetId);
+        emit log_named_address("receiver                    ", _bridgeData.receiver);
+        emit log_named_uint("minAmount                   ", _bridgeData.minAmount);
+        emit log_named_uint("destinationChainId          ", _bridgeData.destinationChainId);
+        console.log("hasSourceSwaps              :", _bridgeData.hasSourceSwaps);
+        console.log("hasDestinationCall          :", _bridgeData.hasDestinationCall);
+        console.log("------------- END -----------------");
+    }
+
     function setDefaultSwapDataSingleDAItoETH() internal virtual {
         delete swapData;
         // Swap DAI -> USDC
@@ -289,6 +306,26 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     //@dev in case you want to exclude any of these test cases, you must override test case in child contract with empty body:
     //@dev e.g. "function testBaseCanBridgeTokens() public override {}"
 
+    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public virtual {
+        vm.startPrank(USER_SENDER);
+
+        vm.assume(amount > 0 && amount < 100_000);
+        amount = amount * 10**usdc.decimals();
+
+        // approval
+        usdc.approve(_facetTestContractAddress, amount);
+
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = amount;
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function testBase_CanBridgeTokens()
         public
         virtual
@@ -304,6 +341,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+
         emit LiFiTransferStarted(bridgeData);
 
         initiateBridgeTxWithFacet(false);
@@ -313,7 +351,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     function testBase_CanBridgeNativeTokens()
         public
         virtual
-        assertBalanceChange(address(0), USER_SENDER, -(1 ether))
+        assertBalanceChange(address(0), USER_SENDER, -int256((1 ether + addToMessageValue)))
         assertBalanceChange(address(0), USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -437,7 +475,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         usdc.approve(_facetTestContractAddress, amountIn);
 
         // execute call in child contract
-        initiateSwapAndBridgeTxWithFacet(true);
+        initiateSwapAndBridgeTxWithFacet(false);
 
         // check balances after call
         assertEq(usdc.balanceOf(USER_SENDER), initialUSDCBalance - swapData[0].fromAmount);

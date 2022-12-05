@@ -208,4 +208,23 @@ contract GnosisBridgeFacetTest is TestBase {
 
         vm.stopPrank();
     }
+
+    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
+        vm.startPrank(USER_SENDER);
+
+        vm.assume(amount > 0 && amount < 100_000);
+        amount = amount * 10**dai.decimals();
+
+        // approval
+        dai.approve(address(gnosisBridgeFacet), amount);
+
+        bridgeData.minAmount = amount;
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, address(gnosisBridgeFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
 }

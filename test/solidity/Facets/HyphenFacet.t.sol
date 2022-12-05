@@ -29,7 +29,6 @@ contract HyphenFacetTest is TestBase {
     function setUp() public {
         initTestBase();
 
-        diamond = createDiamond();
         hyphenFacet = new TestHyphenFacet(IHyphenRouter(HYPHEN_ROUTER));
 
         bytes4[] memory functionSelectors = new bytes4[](4);
@@ -65,5 +64,10 @@ contract HyphenFacetTest is TestBase {
         } else {
             hyphenFacet.swapAndStartBridgeTokensViaHyphen(bridgeData, swapData);
         }
+    }
+
+    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
+        vm.assume(amount > 10 && amount < 100_000);
+        super.testBase_CanBridgeTokens_fuzzed(amount);
     }
 }
