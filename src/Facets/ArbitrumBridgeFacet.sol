@@ -8,7 +8,6 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
 
 /// @title Arbitrum Bridge Facet
 /// @author Li.Finance (https://li.finance)
