@@ -4,7 +4,7 @@ pragma solidity 0.8.17;
 import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount } from "../utils/TestBase.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
+import { LiFiDiamond } from "../utils/DiamondTest.sol";
 
 // Stub HopFacet Contract
 contract TestHopFacet is HopFacet {
@@ -57,7 +57,7 @@ contract HopFacetTest is TestBase {
 
         hopFacet.addDex(address(uniswap));
         hopFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        hopFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
+        hopFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
         hopFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
         setFacetAddressInTestBase(address(hopFacet));
 

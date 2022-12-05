@@ -43,7 +43,7 @@ contract HyphenFacetTest is TestBase {
 
         hyphenFacet.addDex(address(uniswap));
         hyphenFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        hyphenFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
+        hyphenFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
 
         setFacetAddressInTestBase(address(hyphenFacet));
 

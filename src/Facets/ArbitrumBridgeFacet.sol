@@ -8,6 +8,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
 
 /// @title Arbitrum Bridge Facet
 /// @author Li.Finance (https://li.finance)
@@ -86,14 +87,20 @@ contract ArbitrumBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         preventBridgingToSameChainId(_bridgeData)
     {
+        uint256 cost = _arbitrumData.maxSubmissionCost + _arbitrumData.maxGas * _arbitrumData.maxGasPrice;
+
         uint256 ethBalance = address(this).balance - msg.value;
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(msg.sender),
+            cost
         );
-        uint256 cost = _arbitrumData.maxSubmissionCost + _arbitrumData.maxGas * _arbitrumData.maxGasPrice;
+
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            _bridgeData.minAmount -= cost;
+        }
 
         _startBridge(_bridgeData, _arbitrumData, cost, address(this).balance - ethBalance);
     }

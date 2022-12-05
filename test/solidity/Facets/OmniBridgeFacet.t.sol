@@ -48,6 +48,7 @@ contract OmniBridgeFacetTest is TestBase {
         omniBridgeFacet.addDex(address(uniswap));
         omniBridgeFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
         omniBridgeFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
+        omniBridgeFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
 
         setFacetAddressInTestBase(address(omniBridgeFacet));
 

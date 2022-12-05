@@ -64,6 +64,7 @@ contract ArbitrumBridgeFacetTest is TestBase {
         });
 
         cost = addToMessageValue = MAX_SUBMISSION_COST + MAX_GAS_PRICE * MAX_GAS;
+        console.log("cost:            ", cost);
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

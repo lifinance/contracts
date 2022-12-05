@@ -64,7 +64,7 @@ contract CBridgeFacetTest is TestBase {
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addDex(address(uniswap));
         cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
+        cBridge.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
         cBridge.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
         setFacetAddressInTestBase(address(cBridge));
     }
