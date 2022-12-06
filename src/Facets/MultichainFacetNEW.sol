@@ -140,7 +140,6 @@ contract MultichainFacetNEW is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        preventBridgingToSameChainId(_bridgeData)
     {
         Storage storage s = getStorage();
         if (!s.allowedRouters[_multichainData.router]) revert InvalidRouter();
@@ -179,7 +178,6 @@ contract MultichainFacetNEW is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        preventBridgingToSameChainId(_bridgeData)
     {
         Storage storage s = getStorage();
 

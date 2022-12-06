@@ -112,7 +112,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
-        preventBridgingToSameChainId(_bridgeData)
     {
         validateDestinationCallFlag(_bridgeData, _stargateData);
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
@@ -135,7 +134,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
-        preventBridgingToSameChainId(_bridgeData)
     {
         validateDestinationCallFlag(_bridgeData, _stargateData);
         _bridgeData.minAmount = _depositAndSwap(
