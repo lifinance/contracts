@@ -82,7 +82,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     // set these custom values in your test file to
     uint256 internal customBlockNumberForForking;
     string internal customRpcUrlForForking;
-    uint256 internal addToMessageValue;
 
     // EVENTS
     event AssetSwapped(
@@ -231,22 +230,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
                 requiresDeposit: true
             })
         );
-    }
-
-    function printBridgeData(ILiFi.BridgeData memory _bridgeData) internal {
-        console.log("----------------------------------");
-        console.log("CURRENT VALUES OF _bridgeData: ");
-        emit log_named_bytes32("transactionId               ", _bridgeData.transactionId);
-        emit log_named_string("bridge                      ", _bridgeData.bridge);
-        emit log_named_string("integrator                  ", _bridgeData.integrator);
-        emit log_named_address("referrer                    ", _bridgeData.referrer);
-        emit log_named_address("sendingAssetId              ", _bridgeData.sendingAssetId);
-        emit log_named_address("receiver                    ", _bridgeData.receiver);
-        emit log_named_uint("minAmount                   ", _bridgeData.minAmount);
-        emit log_named_uint("destinationChainId          ", _bridgeData.destinationChainId);
-        console.log("hasSourceSwaps              :", _bridgeData.hasSourceSwaps);
-        console.log("hasDestinationCall          :", _bridgeData.hasDestinationCall);
-        console.log("------------- END -----------------");
     }
 
     function setDefaultSwapDataSingleDAItoETH() internal virtual {
