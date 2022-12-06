@@ -33,7 +33,6 @@ contract PolygonBridgeFacetTest is TestBase {
     function setUp() public {
         initTestBase();
 
-        diamond = createDiamond();
         polygonBridgeFacet = new TestPolygonBridgeFacet(IRootChainManager(ROOT_CHAIN_MANAGER), ERC20_PREDICATE);
 
         bytes4[] memory functionSelectors = new bytes4[](4);
