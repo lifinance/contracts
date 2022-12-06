@@ -82,6 +82,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     // set these custom values in your test file to
     uint256 internal customBlockNumberForForking;
     string internal customRpcUrlForForking;
+    string internal logFilePath;
 
     // EVENTS
     event AssetSwapped(
@@ -162,10 +163,32 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         dai.transfer(USER_SENDER, 100_000 * 10**dai.decimals());
         vm.stopPrank();
 
+        // label addresses (for better readability in error traces)
+        vm.label(USER_SENDER, "USER_SENDER");
+        vm.label(USER_RECEIVER, "USER_RECEIVER");
+        vm.label(USER_REFUND, "USER_REFUND");
+        vm.label(USER_DIAMOND_OWNER, "USER_DIAMOND_OWNER");
+        vm.label(USER_USDC_WHALE, "USER_USDC_WHALE");
+        vm.label(USER_DAI_WHALE, "USER_DAI_WHALE");
+        vm.label(ADDRESS_USDC, "ADDRESS_USDC_PROXY");
+        vm.label(0xa2327a938Febf5FEC13baCFb16Ae10EcBc4cbDCF, "ADDRESS_USDC_IMPL");
+        vm.label(ADDRESS_DAI, "ADDRESS_DAI");
+        vm.label(ADDRESS_UNISWAP, "ADDRESS_UNISWAP");
+        vm.label(ADDRESS_WETH, "ADDRESS_WETH_PROXY");
+
+        // fund USER_SENDER with 1000 ether
         vm.deal(USER_SENDER, 1000 ether);
 
+        // initiate variables
         defaultDAIAmount = 100 * 10**dai.decimals();
         defaultUSDCAmount = 100 * 10**usdc.decimals();
+
+        // set path for logfile (esp. interesting for fuzzing tests)
+        logFilePath = "./test/logs/";
+        vm.writeFile(
+            logFilePath,
+            string.concat("\n Logfile created at timestamp: ", string.concat(vm.toString(block.timestamp), "\n"))
+        );
 
         setDefaultBridgeData();
     }
@@ -295,6 +318,10 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.assume(amount > 0 && amount < 100_000);
         amount = amount * 10**usdc.decimals();
 
+        logFilePath = "./test/logs/"; // works but is not really a proper file
+        // logFilePath = "./test/logs/fuzz_test.txt"; // throws error "failed to write to "....../test/logs/fuzz_test.txt": No such file or directory"
+
+        vm.writeLine(logFilePath, vm.toString(amount));
         // approval
         usdc.approve(_facetTestContractAddress, amount);
 

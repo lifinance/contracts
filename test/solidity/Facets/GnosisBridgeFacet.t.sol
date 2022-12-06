@@ -154,36 +154,6 @@ contract GnosisBridgeFacetTest is TestBase {
         // facet does not support native bridging
     }
 
-    function testBase_Revert_BridgeToSameChainId() public override {
-        vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.destinationChainId = 1;
-
-        usdc.approve(address(gnosisBridgeFacet), bridgeData.minAmount);
-
-        vm.expectRevert(InvalidDestinationChain.selector);
-
-        initiateBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
-    function testBase_Revert_SwapAndBridgeToSameChainId() public override {
-        vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.destinationChainId = 1;
-        bridgeData.hasSourceSwaps = true;
-
-        setDefaultSwapDataSingleDAItoUSDC();
-        dai.approve(address(gnosisBridgeFacet), swapData[0].fromAmount);
-
-        vm.expectRevert(InvalidDestinationChain.selector);
-
-        initiateSwapAndBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
     function testBase_Revert_CallerHasInsufficientFunds() public override {
         vm.startPrank(USER_SENDER);
 

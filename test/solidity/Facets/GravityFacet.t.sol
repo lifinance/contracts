@@ -51,7 +51,7 @@ contract GravityFacetTest is TestBase {
 
         bridgeData.bridge = "gravity";
 
-        gravityData = GravityFacet.GravityData({ destination: "canto1f0cukfd8xj368prlpj6x69nyer3fcnus8wy8uf" });
+        gravityData = GravityFacet.GravityData({ destinationAddress: "canto1f0cukfd8xj368prlpj6x69nyer3fcnus8wy8uf" });
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

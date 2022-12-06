@@ -29,7 +29,7 @@ contract GravityFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     struct GravityData {
-        string destination;
+        string destinationAddress;
     }
 
     /// External Methods ///
@@ -45,7 +45,6 @@ contract GravityFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
-        preventBridgingToSameChainId(_bridgeData)
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _gravityData);
@@ -67,7 +66,6 @@ contract GravityFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
-        preventBridgingToSameChainId(_bridgeData)
     {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -86,7 +84,7 @@ contract GravityFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // Give the Gravity router approval to bridge tokens
         LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(router), _bridgeData.minAmount);
 
-        router.sendToCosmos(_bridgeData.sendingAssetId, _gravityData.destination, _bridgeData.minAmount);
+        router.sendToCosmos(_bridgeData.sendingAssetId, _gravityData.destinationAddress, _bridgeData.minAmount);
 
         emit LiFiTransferStarted(_bridgeData);
     }
