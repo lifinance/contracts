@@ -230,4 +230,10 @@ contract StargateFacetTest is TestBase {
         vm.expectRevert(OnlyContractOwner.selector);
         stargateFacet.initStargate(poolIdConfig, chainIdConfig);
     }
+
+    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
+        // fails otherwise with "slippage too high" from Stargate router contract
+        vm.assume(amount > 80);
+        super.testBase_CanBridgeTokens_fuzzed(amount);
+    }
 }

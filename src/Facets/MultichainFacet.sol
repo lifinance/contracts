@@ -221,7 +221,7 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         MultichainData memory _multichainData,
         address underlyingToken,
         bool isNative
-    ) private preventBridgingToSameChainId(_bridgeData) {
+    ) private {
         // check if sendingAsset is a Multichain token that needs to be called directly in order to bridge it
         if (_multichainData.router == _bridgeData.sendingAssetId) {
             IMultichainERC20(_bridgeData.sendingAssetId).Swapout(_bridgeData.minAmount, _bridgeData.receiver);

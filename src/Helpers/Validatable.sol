@@ -15,6 +15,9 @@ contract Validatable {
         if (_bridgeData.minAmount == 0) {
             revert InvalidAmount();
         }
+        if (_bridgeData.destinationChainId == block.chainid) {
+            revert CannotBridgeToSameNetwork();
+        }
         _;
     }
 
@@ -56,13 +59,6 @@ contract Validatable {
     modifier doesNotContainDestinationCalls(ILiFi.BridgeData memory _bridgeData) {
         if (_bridgeData.hasDestinationCall) {
             revert InformationMismatch();
-        }
-        _;
-    }
-
-    modifier preventBridgingToSameChainId(ILiFi.BridgeData memory _bridgeData) {
-        if (_bridgeData.destinationChainId == block.chainid) {
-            revert CannotBridgeToSameNetwork();
         }
         _;
     }
