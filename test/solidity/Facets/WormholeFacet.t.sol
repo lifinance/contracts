@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, ERC20, LiFiDiamond } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20, LiFiDiamond } from "../utils/TestBaseFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InsufficientBalance, InvalidDestinationChain, NoSwapDataProvided, InvalidAmount } from "src/Errors/GenericErrors.sol";
 import { WormholeFacet } from "lifi/Facets/WormholeFacet.sol";
 import { IWormholeRouter } from "lifi/Interfaces/IWormholeRouter.sol";
@@ -21,7 +21,7 @@ contract TestWormholeFacet is WormholeFacet {
     }
 }
 
-contract WormholeFacetTest is TestBase {
+contract WormholeFacetTest is TestBaseFacet {
     // EVENTS
     event WormholeChainIdMapped(uint256 indexed lifiChainId, uint256 indexed wormholeChainId);
 
@@ -54,7 +54,7 @@ contract WormholeFacetTest is TestBase {
         wormholeFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
         wormholeFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
 
-        setFacetAddressInTestBase(address(wormholeFacet));
+        setFacetAddressInTestBase(address(wormholeFacet), "WormholeFacet");
 
         vm.startPrank(USER_DIAMOND_OWNER);
         wormholeFacet.setWormholeChainId(1, 2); // for Mainnet

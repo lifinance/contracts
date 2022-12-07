@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount, ERC20 } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20 } from "../utils/TestBaseFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
 import { IMultichainRouter } from "lifi/Interfaces/IMultichainRouter.sol";
 import { MultichainFacetNEW, IMultichainToken } from "lifi/Facets/MultichainFacetNEW.sol";
@@ -20,7 +20,7 @@ contract TestMultichainFacet is MultichainFacetNEW {
     }
 }
 
-contract MultichainFacetNEWTest is TestBase {
+contract MultichainFacetNEWTest is TestBaseFacet {
     address internal constant ANYSWAPV4ROUTER = 0x6b7a87899490EcE95443e979cA9485CBE7E71522;
     address internal constant ADDRESS_ANYUSDC = 0x7EA2be2df7BA6E54B1A9C70676f668455E329d29;
     address internal constant ADDRESS_ANYETH = 0x2AC03BF434db503f6f5F85C3954773731Fc3F056;
@@ -76,7 +76,7 @@ contract MultichainFacetNEWTest is TestBase {
         multichainFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
         multichainFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
         multichainFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
-        setFacetAddressInTestBase(address(multichainFacet));
+        setFacetAddressInTestBase(address(multichainFacet), "MultichainFacet");
 
         // adjust bridgeData
         bridgeData.bridge = "multichain";

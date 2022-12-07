@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount, ERC20, LiFiDiamond } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20, LiFiDiamond } from "../utils/TestBaseFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InsufficientBalance, InvalidDestinationChain, NoSwapDataProvided } from "src/Errors/GenericErrors.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 import { IStargateRouter } from "lifi/Interfaces/IStargateRouter.sol";
@@ -22,7 +22,7 @@ contract TestStargateFacet is StargateFacet {
     }
 }
 
-contract StargateFacetTest is TestBase {
+contract StargateFacetTest is TestBaseFacet {
     // EVENTS
     event StargatePoolIdSet(address indexed token, uint256 poolId);
     event LayerZeroChainIdSet(uint256 indexed chainId, uint16 layerZeroChainId);
@@ -76,7 +76,7 @@ contract StargateFacetTest is TestBase {
         stargateFacet.setFunctionApprovalBySignature(feeCollector.collectNativeFees.selector);
         stargateFacet.setFunctionApprovalBySignature(feeCollector.collectTokenFees.selector);
 
-        setFacetAddressInTestBase(address(stargateFacet));
+        setFacetAddressInTestBase(address(stargateFacet), "StargateFacet");
 
         bridgeData.bridge = "stargate";
         bridgeData.minAmount = defaultUSDCAmount;

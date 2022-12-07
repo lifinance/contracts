@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, ERC20, UniswapV2Router02 } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20, UniswapV2Router02 } from "../utils/TestBaseFacet.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InvalidAmount } from "src/Errors/GenericErrors.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
@@ -17,7 +17,7 @@ contract TestHopFacet is HopFacet {
     }
 }
 
-contract HopFacetTest is TestBase {
+contract HopFacetTest is TestBaseFacet {
     // EVENTS
     event HopBridgeRegistered(address indexed assetId, address bridge);
     event HopInitialized(HopFacet.Config[] configs);
@@ -59,7 +59,7 @@ contract HopFacetTest is TestBase {
         hopFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
         hopFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
         hopFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
-        setFacetAddressInTestBase(address(hopFacet));
+        setFacetAddressInTestBase(address(hopFacet), "HopFacet");
 
         vm.makePersistent(address(hopFacet));
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount, ERC20 } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20 } from "../utils/TestBaseFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InsufficientBalance, InvalidDestinationChain, NoSwapDataProvided } from "src/Errors/GenericErrors.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 import { IRootChainManager } from "lifi/Interfaces/IRootChainManager.sol";
@@ -21,7 +21,7 @@ contract TestPolygonBridgeFacet is PolygonBridgeFacet {
     }
 }
 
-contract PolygonBridgeFacetTest is TestBase {
+contract PolygonBridgeFacetTest is TestBaseFacet {
     // These values are for Mainnet
     address internal constant ROOT_CHAIN_MANAGER = 0xA0c68C638235ee32657e8f720a23ceC1bFc77C77;
     address internal constant ERC20_PREDICATE = 0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf;
@@ -49,7 +49,7 @@ contract PolygonBridgeFacetTest is TestBase {
         polygonBridgeFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
         polygonBridgeFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
 
-        setFacetAddressInTestBase(address(polygonBridgeFacet));
+        setFacetAddressInTestBase(address(polygonBridgeFacet), "PolygonBridgeFacet");
 
         bridgeData.bridge = "polygon";
     }
