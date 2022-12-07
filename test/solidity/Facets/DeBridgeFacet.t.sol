@@ -34,7 +34,7 @@ contract DeBridgeFacetTest is DSTest, DiamondTest {
     address internal constant DAI_HOLDER = 0x4943b0C9959dcf58871A799dfB71becE0D97c9f4;
     address internal constant DEBRIDGE_GATE = 0x43dE2d77BF8027e25dBD179B491e8d64f38398aA;
     address internal constant UNISWAP_V2_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
-    uint256 internal constant DSTCHAIN_ID = 42161;
+    uint256 internal constant DSTCHAIN_ID = 56;
     uint256 public constant REVERT_IF_EXTERNAL_FAIL = 1;
     // -----
 
@@ -47,6 +47,7 @@ contract DeBridgeFacetTest is DSTest, DiamondTest {
     ILiFi.BridgeData internal validBridgeData;
     DeBridgeFacet.DeBridgeData internal validDeBridgeData;
     uint256 internal nativeFee;
+    uint256 internal executionFee;
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
@@ -94,15 +95,19 @@ contract DeBridgeFacetTest is DSTest, DiamondTest {
         nativeFee = chainConfig.fixedNativeFee == 0
             ? IDeBridgeGate(DEBRIDGE_GATE).globalFixedNativeFee()
             : chainConfig.fixedNativeFee;
+        executionFee = 10**usdc.decimals();
+
         validDeBridgeData = DeBridgeFacet.DeBridgeData(
             "",
             false,
             nativeFee,
             0,
-            0,
-            REVERT_IF_EXTERNAL_FAIL,
-            DAI_HOLDER,
-            ""
+            DeBridgeFacet.SubmissionAutoParamsTo(
+                executionFee,
+                REVERT_IF_EXTERNAL_FAIL,
+                abi.encodePacked(DAI_HOLDER),
+                ""
+            )
         );
     }
 
