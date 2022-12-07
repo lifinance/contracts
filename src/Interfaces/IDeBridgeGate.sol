@@ -2,18 +2,6 @@
 pragma solidity 0.8.17;
 
 interface IDeBridgeGate {
-    /// @param executionFee Fee paid to the transaction executor.
-    /// @param flags Flags set specific flows for call data execution.
-    /// @param fallbackAddress Receiver of the tokens if the call fails.
-    /// @param data Message/Call data to be passed to the receiver
-    ///             on the destination chain during the external call execution.
-    struct SubmissionAutoParamsTo {
-        uint256 executionFee;
-        uint256 flags;
-        address fallbackAddress;
-        bytes data;
-    }
-
     /// @param fixedNativeFee Transfer fixed fee.
     /// @param isSupported Whether the chain for the asset is supported.
     /// @param transferFeeBps Transfer fee rate nominated in basis points (1/10000)
