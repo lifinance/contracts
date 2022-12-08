@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount, ERC20 } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20 } from "../utils/TestBaseFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InsufficientBalance, InvalidDestinationChain, NoSwapDataProvided } from "src/Errors/GenericErrors.sol";
 import { GnosisBridgeFacet } from "lifi/Facets/GnosisBridgeFacet.sol";
 import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
@@ -21,7 +21,7 @@ contract TestGnosisBridgeFacet is GnosisBridgeFacet {
     }
 }
 
-contract GnosisBridgeFacetTest is TestBase {
+contract GnosisBridgeFacetTest is TestBaseFacet {
     // EVENTS
 
     // These values are for Mainnet
@@ -50,7 +50,7 @@ contract GnosisBridgeFacetTest is TestBase {
         gnosisBridgeFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
         gnosisBridgeFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
 
-        setFacetAddressInTestBase(address(gnosisBridgeFacet));
+        setFacetAddressInTestBase(address(gnosisBridgeFacet), "GnosisFacet");
 
         bridgeData.bridge = "gnosis";
         bridgeData.sendingAssetId = ADDRESS_DAI;

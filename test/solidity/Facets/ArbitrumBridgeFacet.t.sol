@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount, ERC20 } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20 } from "../utils/TestBaseFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InsufficientBalance, InvalidDestinationChain, NoSwapDataProvided } from "src/Errors/GenericErrors.sol";
 import { ArbitrumBridgeFacet } from "lifi/Facets/ArbitrumBridgeFacet.sol";
 import { IGatewayRouter } from "lifi/Interfaces/IGatewayRouter.sol";
@@ -19,7 +19,7 @@ contract TestArbitrumBridgeFacet is ArbitrumBridgeFacet {
     }
 }
 
-contract ArbitrumBridgeFacetTest is TestBase {
+contract ArbitrumBridgeFacetTest is TestBaseFacet {
     // These values are for Mainnet
     address internal constant GATEWAY_ROUTER = 0x72Ce9c846789fdB6fC1f34aC4AD25Dd9ef7031ef;
     address internal constant INBOX = 0x4Dbd4fc535Ac27206064B68FfCf827b0A60BAB3f;
@@ -52,7 +52,7 @@ contract ArbitrumBridgeFacetTest is TestBase {
         arbitrumBridgeFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
         arbitrumBridgeFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
 
-        setFacetAddressInTestBase(address(arbitrumBridgeFacet));
+        setFacetAddressInTestBase(address(arbitrumBridgeFacet), "ArbitrumFacet");
 
         bridgeData.bridge = "arbitrum";
         bridgeData.destinationChainId = 42161;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount, ERC20 } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20 } from "../utils/TestBaseFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InsufficientBalance, InvalidDestinationChain, NoSwapDataProvided } from "src/Errors/GenericErrors.sol";
 import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
 import { IHyphenRouter } from "lifi/Interfaces/IHyphenRouter.sol";
@@ -19,7 +19,7 @@ contract TestHyphenFacet is HyphenFacet {
     }
 }
 
-contract HyphenFacetTest is TestBase {
+contract HyphenFacetTest is TestBaseFacet {
     // These values are for Polygon
     address internal constant HYPHEN_ROUTER = 0x2A5c2568b10A0E826BfA892Cf21BA7218310180b;
     // -----
@@ -45,7 +45,7 @@ contract HyphenFacetTest is TestBase {
         hyphenFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
         hyphenFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
 
-        setFacetAddressInTestBase(address(hyphenFacet));
+        setFacetAddressInTestBase(address(hyphenFacet), "HyphenFacet");
 
         bridgeData.bridge = "hyphen";
     }

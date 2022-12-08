@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount, ERC20 } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20 } from "../utils/TestBaseFacet.sol";
 import { AcrossFacet } from "lifi/Facets/AcrossFacet.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
@@ -23,7 +23,7 @@ contract TestAcrossFacet is AcrossFacet {
     }
 }
 
-contract AcrossFacetTest is TestBase {
+contract AcrossFacetTest is TestBaseFacet {
     // These values are for Optimism_Kovan
     address internal constant ETH_HOLDER = 0xb5d85CBf7cB3EE0D56b3bB207D5Fc4B82f43F511;
     address internal constant WETH_HOLDER = 0xD022510A3414f255150Aa54b2e42DB6129a20d9E;
@@ -49,7 +49,7 @@ contract AcrossFacetTest is TestBase {
         acrossFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
         acrossFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
 
-        setFacetAddressInTestBase(address(acrossFacet));
+        setFacetAddressInTestBase(address(acrossFacet), "AcrossFacet");
 
         // adjust bridgeData
         bridgeData.bridge = "across";

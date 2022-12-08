@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount, ERC20 } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20 } from "../utils/TestBaseFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InsufficientBalance, InvalidDestinationChain, NoSwapDataProvided } from "src/Errors/GenericErrors.sol";
 import { NXTPFacet } from "lifi/Facets/NXTPFacet.sol";
 import { ITransactionManager } from "lifi/Interfaces/ITransactionManager.sol";
@@ -19,7 +19,7 @@ contract TestNXTPFacet is NXTPFacet {
     }
 }
 
-contract NXTPFacetTest is TestBase {
+contract NXTPFacetTest is TestBaseFacet {
     // These values are for Polygon
     address internal constant TRANSACTION_MANAGER_ETH = 0x31eFc4AeAA7c39e54A33FDc3C46ee2Bd70ae0A09;
     address internal constant TRANSACTION_MANAGER_POLYGON = 0x6090De2EC76eb1Dc3B5d632734415c93c44Fd113;
@@ -51,7 +51,7 @@ contract NXTPFacetTest is TestBase {
         nxtpFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
         nxtpFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
 
-        setFacetAddressInTestBase(address(nxtpFacet));
+        setFacetAddressInTestBase(address(nxtpFacet), "NXTPFacet");
 
         bridgeData.bridge = "connext";
 

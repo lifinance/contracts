@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount, ERC20 } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20 } from "../utils/TestBaseFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InsufficientBalance, InvalidDestinationChain, NoSwapDataProvided } from "src/Errors/GenericErrors.sol";
 import { OmniBridgeFacet } from "lifi/Facets/OmniBridgeFacet.sol";
 import { IOmniBridge } from "lifi/Interfaces/IOmniBridge.sol";
@@ -21,7 +21,7 @@ contract TestOmniBridgeFacet is OmniBridgeFacet {
     }
 }
 
-contract OmniBridgeFacetTest is TestBase {
+contract OmniBridgeFacetTest is TestBaseFacet {
     // These values are for Mainnet
     address internal constant FOREIGN_BRIDGE = 0x88ad09518695c6c3712AC10a214bE5109a655671;
     address internal constant WETH_BRIDGE = 0xa6439Ca0FCbA1d0F80df0bE6A17220feD9c9038a;
@@ -50,7 +50,7 @@ contract OmniBridgeFacetTest is TestBase {
         omniBridgeFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
         omniBridgeFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
 
-        setFacetAddressInTestBase(address(omniBridgeFacet));
+        setFacetAddressInTestBase(address(omniBridgeFacet), "OmniBridgeFacet");
 
         bridgeData.bridge = "omni";
     }
