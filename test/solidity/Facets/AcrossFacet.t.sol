@@ -6,9 +6,7 @@ import { AcrossFacet } from "lifi/Facets/AcrossFacet.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
 
-// import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-
-// Stub CBridgeFacet Contract
+// Stub AcrossFacet Contract
 contract TestAcrossFacet is AcrossFacet {
     address internal constant ADDRESS_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
