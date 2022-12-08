@@ -15,14 +15,17 @@ contract UpdateScriptBase is Script {
     DiamondCutFacet internal cutter;
     DiamondLoupeFacet internal loupe;
     uint256 internal deployerPrivateKey;
+    string internal root;
     string internal network;
+    string internal fileSuffix;
 
     constructor() {
         deployerPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY"));
+        root = vm.projectRoot();
         network = vm.envString("NETWORK");
+        fileSuffix = vm.envString("FILE_SUFFIX");
 
-        string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/deployments/", network, ".json");
+        string memory path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
         string memory json = vm.readFile(path);
         diamond = json.readAddress(".LiFiDiamond");
         cutter = DiamondCutFacet(diamond);

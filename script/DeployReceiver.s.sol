@@ -15,7 +15,7 @@ contract DeployScript is DeployScriptBase {
         string memory json = vm.readFile(path);
         address stargateRouter = json.readAddress(string.concat(".routers.", network));
 
-        path = string.concat(vm.projectRoot(), "/deployments/", network, ".json");
+        path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
         json = vm.readFile(path);
         address executor = json.readAddress(".Executor");
 
@@ -24,10 +24,10 @@ contract DeployScript is DeployScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return (Receiver(predicted), constructorArgs);
+            return (Receiver(payable(predicted)), constructorArgs);
         }
 
-        deployed = Receiver(factory.deploy(salt, bytes.concat(type(Receiver).creationCode, constructorArgs)));
+        deployed = Receiver(payable(factory.deploy(salt, bytes.concat(type(Receiver).creationCode, constructorArgs))));
 
         vm.stopBroadcast();
     }

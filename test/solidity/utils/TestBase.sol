@@ -64,7 +64,7 @@ contract ReentrancyChecker is DSTest {
 
 //common utilities for forge tests
 abstract contract TestBase is DSTest, DiamondTest, ILiFi {
-    address private _facetTestContractAddress;
+    address internal _facetTestContractAddress;
     uint64 internal currentTxId;
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));
@@ -78,6 +78,11 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     uint256 internal defaultUSDCAmount;
     // tokenAddress => userAddress => balance
     mapping(address => mapping(address => uint256)) internal initialBalances;
+    uint256 internal addToMessageValue;
+    // set these custom values in your test file to
+    uint256 internal customBlockNumberForForking;
+    string internal customRpcUrlForForking;
+    string internal logFilePath;
 
     // EVENTS
     event AssetSwapped(
@@ -92,6 +97,9 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     event Transfer(address from, address to, uint256 amount);
 
     // CONSTANTS
+    // Forking
+    uint256 internal constant DEFAULT_BLOCK_NUMBER_MAINNET = 15588208;
+
     // Contract addresses (ETH only)
     address internal constant ADDRESS_UNISWAP = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
     address internal constant ADDRESS_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -155,22 +163,48 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         dai.transfer(USER_SENDER, 100_000 * 10**dai.decimals());
         vm.stopPrank();
 
+        // label addresses (for better readability in error traces)
+        vm.label(USER_SENDER, "USER_SENDER");
+        vm.label(USER_RECEIVER, "USER_RECEIVER");
+        vm.label(USER_REFUND, "USER_REFUND");
+        vm.label(USER_DIAMOND_OWNER, "USER_DIAMOND_OWNER");
+        vm.label(USER_USDC_WHALE, "USER_USDC_WHALE");
+        vm.label(USER_DAI_WHALE, "USER_DAI_WHALE");
+        vm.label(ADDRESS_USDC, "ADDRESS_USDC_PROXY");
+        vm.label(0xa2327a938Febf5FEC13baCFb16Ae10EcBc4cbDCF, "ADDRESS_USDC_IMPL");
+        vm.label(ADDRESS_DAI, "ADDRESS_DAI");
+        vm.label(ADDRESS_UNISWAP, "ADDRESS_UNISWAP");
+        vm.label(ADDRESS_WETH, "ADDRESS_WETH_PROXY");
+
+        // fund USER_SENDER with 1000 ether
         vm.deal(USER_SENDER, 1000 ether);
 
+        // initiate variables
         defaultDAIAmount = 100 * 10**dai.decimals();
         defaultUSDCAmount = 100 * 10**usdc.decimals();
 
+        // set path for logfile (esp. interesting for fuzzing tests)
+        logFilePath = "./test/logs/";
+        vm.writeFile(
+            logFilePath,
+            string.concat("\n Logfile created at timestamp: ", string.concat(vm.toString(block.timestamp), "\n"))
+        );
+
         setDefaultBridgeData();
-        setDefaultSwapDataSingleDAItoUSDC();
     }
 
-    function setFacetAddressInTestBase(address facetAddress) internal {
+    function setFacetAddressInTestBase(address facetAddress, string memory facetName) internal {
         _facetTestContractAddress = facetAddress;
+        setDefaultSwapDataSingleDAItoUSDC();
+        vm.label(facetAddress, facetName);
     }
 
-    function fork() internal {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = vm.envUint("FORK_NUMBER");
+    function fork() internal virtual {
+        string memory rpcUrl = bytes(customRpcUrlForForking).length != 0
+            ? customRpcUrlForForking
+            : vm.envString("ETH_NODE_URI_MAINNET");
+        uint256 blockNumber = customBlockNumberForForking > 0 ? customBlockNumberForForking : vm.envUint("FORK_NUMBER");
+
         vm.createSelectFork(rpcUrl, blockNumber);
     }
 
@@ -189,7 +223,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         });
     }
 
-    function setDefaultSwapDataSingleDAItoUSDC() internal {
+    function setDefaultSwapDataSingleDAItoUSDC() internal virtual {
         delete swapData;
         // Swap DAI -> USDC
         address[] memory path = new address[](2);
@@ -222,132 +256,30 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         );
     }
 
-    //#region defaultTests (will be executed for every contract that inherits this contract)
-    //@dev in case you want to exclude any of these test cases, you must override test case in child contract with empty body:
-    //@dev e.g. "function testBaseCanBridgeTokens() public override {}"
-
-    function testBase_CanBridgeTokens()
-        public
-        virtual
-        assertBalanceChange(ADDRESS_USDC, USER_SENDER, -int256(defaultUSDCAmount))
-        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
-        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
-        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
-    {
-        vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        setDefaultBridgeData();
-
-        // approval
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        //prepare check for events
-        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit LiFiTransferStarted(bridgeData);
-
-        initiateBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
-    function testBase_CanBridgeNativeTokens()
-        public
-        virtual
-        assertBalanceChange(address(0), USER_SENDER, -(1 ether))
-        assertBalanceChange(address(0), USER_RECEIVER, 0)
-        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
-        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
-    {
-        vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        // setDefaultBridgeData();
-        bridgeData.sendingAssetId = address(0);
-        bridgeData.minAmount = 1 ether;
-
-        //prepare check for events
-        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit LiFiTransferStarted(bridgeData);
-
-        initiateBridgeTxWithFacet(true);
-        vm.stopPrank();
-    }
-
-    function testBase_CanSwapAndBridgeTokens()
-        public
-        assertBalanceChange(ADDRESS_DAI, USER_SENDER, -int256(swapData[0].fromAmount))
-        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
-        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
-        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
-    {
-        vm.startPrank(USER_SENDER);
-
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.hasSourceSwaps = true;
-
-        // reset swap data
-        setDefaultSwapDataSingleDAItoUSDC();
-
-        //prepare check for events
-        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit AssetSwapped(
-            bridgeData.transactionId,
-            ADDRESS_UNISWAP,
-            ADDRESS_DAI,
-            ADDRESS_USDC,
-            swapData[0].fromAmount,
-            bridgeData.minAmount,
-            block.timestamp
-        );
-        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit LiFiTransferStarted(bridgeData);
-
-        // approval
-        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
-
-        // execute call in child contract
-        initiateSwapAndBridgeTxWithFacet(false);
-    }
-
-    function testBase_CanSwapAndBridgeNativeTokens()
-        public
-        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
-        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
-        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
-    {
-        vm.startPrank(USER_SENDER);
-        // store initial balances
-        // uint256 initialDAIBalance = dai.balanceOf(USER_SENDER);
-
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.hasSourceSwaps = true;
-        bridgeData.sendingAssetId = ADDRESS_USDC;
-
-        // prepare swap data
-        setDefaultSwapDataSingleDAItoUSDC();
+    function setDefaultSwapDataSingleDAItoETH() internal virtual {
+        delete swapData;
+        // Swap DAI -> USDC
         address[] memory path = new address[](2);
-        path[0] = ADDRESS_WETH;
-        path[1] = ADDRESS_USDC;
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WETH;
 
-        uint256 amountOut = defaultUSDCAmount;
+        uint256 amountOut = 1 ether;
 
         // Calculate DAI amount
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
         uint256 amountIn = amounts[0];
 
-        bridgeData.minAmount = amountOut;
-
-        delete swapData;
         swapData.push(
             LibSwap.SwapData({
                 callTo: address(uniswap),
                 approveTo: address(uniswap),
-                sendingAssetId: address(0),
-                receivingAssetId: ADDRESS_USDC,
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: address(0),
                 fromAmount: amountIn,
                 callData: abi.encodeWithSelector(
-                    uniswap.swapETHForExactTokens.selector,
+                    uniswap.swapTokensForExactETH.selector,
                     amountOut,
+                    amountIn,
                     path,
                     _facetTestContractAddress,
                     block.timestamp + 20 minutes
@@ -355,194 +287,25 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
                 requiresDeposit: true
             })
         );
-
-        //prepare check for events
-        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit AssetSwapped(
-            bridgeData.transactionId,
-            ADDRESS_UNISWAP,
-            address(0),
-            ADDRESS_USDC,
-            swapData[0].fromAmount,
-            bridgeData.minAmount,
-            block.timestamp
-        );
-        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit LiFiTransferStarted(bridgeData);
-
-        // approval
-        dai.approve(_facetTestContractAddress, amountIn);
-
-        // execute call in child contract
-        initiateSwapAndBridgeTxWithFacet(true);
-
-        // check balances after call
-        // assertEq(dai.balanceOf(USER_SENDER), initialDAIBalance - swapData[0].fromAmount);
     }
 
-    function testBase_Revert_BridgeWithInvalidDestinationCallFlag() public virtual {
-        vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.hasDestinationCall = true;
+    //#region Utility Functions (may be used in tests)
 
-        vm.expectRevert(InformationMismatch.selector);
-
-        initiateBridgeTxWithFacet(false);
-        vm.stopPrank();
+    function printBridgeData(ILiFi.BridgeData memory _bridgeData) internal {
+        console.log("----------------------------------");
+        console.log("CURRENT VALUES OF _bridgeData: ");
+        emit log_named_bytes32("transactionId               ", _bridgeData.transactionId);
+        emit log_named_string("bridge                      ", _bridgeData.bridge);
+        emit log_named_string("integrator                  ", _bridgeData.integrator);
+        emit log_named_address("referrer                    ", _bridgeData.referrer);
+        emit log_named_address("sendingAssetId              ", _bridgeData.sendingAssetId);
+        emit log_named_address("receiver                    ", _bridgeData.receiver);
+        emit log_named_uint("minAmount                   ", _bridgeData.minAmount);
+        emit log_named_uint("destinationChainId          ", _bridgeData.destinationChainId);
+        console.log("hasSourceSwaps              :", _bridgeData.hasSourceSwaps);
+        console.log("hasDestinationCall          :", _bridgeData.hasDestinationCall);
+        console.log("------------- END -----------------");
     }
-
-    function testBase_Revert_BridgeWithInvalidReceiverAddress() public virtual {
-        vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.receiver = address(0);
-
-        vm.expectRevert(InvalidReceiver.selector);
-
-        initiateBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
-    function testBase_Revert_BridgeAndSwapWithInvalidReceiverAddress() public virtual {
-        vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.receiver = address(0);
-        bridgeData.hasSourceSwaps = true;
-
-        setDefaultSwapDataSingleDAItoUSDC();
-
-        vm.expectRevert(InvalidReceiver.selector);
-
-        initiateSwapAndBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
-    function testBase_Revert_BridgeWithInvalidAmount() public virtual {
-        vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.minAmount = 0;
-
-        vm.expectRevert(InvalidAmount.selector);
-
-        initiateBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
-    function testBase_Revert_SwapAndBridgeWithInvalidAmount() public virtual {
-        vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.hasSourceSwaps = true;
-        bridgeData.minAmount = 0;
-
-        setDefaultSwapDataSingleDAItoUSDC();
-
-        vm.expectRevert(InvalidAmount.selector);
-
-        initiateSwapAndBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
-    function testBase_Revert_BridgeToSameChainId() public virtual {
-        vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.destinationChainId = 1;
-
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        vm.expectRevert(CannotBridgeToSameNetwork.selector);
-
-        initiateBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
-    function testBase_Revert_SwapAndBridgeToSameChainId() public virtual {
-        vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.destinationChainId = 1;
-        bridgeData.hasSourceSwaps = true;
-
-        setDefaultSwapDataSingleDAItoUSDC();
-        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
-
-        vm.expectRevert(CannotBridgeToSameNetwork.selector);
-
-        initiateSwapAndBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
-    function testBase_Revert_SwapAndBridgeWithInvalidSwapData() public virtual {
-        vm.startPrank(USER_SENDER);
-
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.hasSourceSwaps = true;
-
-        // reset swap data
-        delete swapData;
-
-        vm.expectRevert(NoSwapDataProvided.selector);
-
-        // execute call in child contract
-        initiateSwapAndBridgeTxWithFacet(false);
-    }
-
-    function testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag() public virtual {
-        vm.startPrank(USER_SENDER);
-
-        // prepare bridgeData
-        setDefaultBridgeData();
-        bridgeData.hasSourceSwaps = true;
-
-        vm.expectRevert(InformationMismatch.selector);
-
-        // execute call in child contract
-        initiateBridgeTxWithFacet(false);
-    }
-
-    function testBase_Revert_CallerHasInsufficientFunds() public {
-        vm.startPrank(USER_SENDER);
-
-        usdc.approve(address(_facetTestContractAddress), 10_000 * 10**usdc.decimals());
-
-        usdc.transfer(USER_RECEIVER, usdc.balanceOf(USER_SENDER));
-
-        vm.expectRevert(abi.encodeWithSelector(InsufficientBalance.selector, bridgeData.minAmount, 0));
-        initiateBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
-    //#endregion
-
-    //#region optionalTests (must be called explicitly from inheriting contract)
-
-    // checks if function is protected by nonReentrant modifier
-    //! only works if function is also protected with "refundExcessiveGas" modifier
-    function failReentrantCall(bytes memory callData) internal virtual {
-        // deploy and call attacker contract
-        ReentrancyChecker attacker = new ReentrancyChecker(_facetTestContractAddress);
-        dai.transfer(address(attacker), dai.balanceOf(USER_SENDER));
-        vm.deal(address(attacker), 10000 ether);
-        vm.expectRevert(ReentrancyError.selector);
-        attacker.callFacet(callData);
-    }
-
-    //#endregion
-
-    //#region abstract functions
-
-    // this function must be implemented by the facet test contract
-    // it will contain the logic to:
-    // a) prepare the facet-specific data
-    // b) call the correct function selectors (as they differ for each facet)
-    function initiateBridgeTxWithFacet(bool isNative) internal virtual;
-
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal virtual;
 
     //#endregion
 

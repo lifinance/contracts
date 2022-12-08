@@ -25,14 +25,12 @@ contract DeployScript is UpdateScriptBase {
     Bridge[] internal bridges;
 
     function run() public returns (address[] memory facets) {
-        string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/deployments/", network, ".json");
+        string memory path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
         string memory json = vm.readFile(path);
         address facet = json.readAddress(".HopFacet");
 
         path = string.concat(root, "/config/hop.json");
         json = vm.readFile(path);
-        uint256 chainId = json.readUint(string.concat(".", network, ".chainId"));
         bytes memory rawConfig = json.parseRaw(string.concat(".", network, ".tokens"));
         Config[] memory configs = abi.decode(rawConfig, (Config[]));
 

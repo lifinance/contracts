@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 
@@ -22,7 +22,7 @@ interface Ownable {
     function owner() external returns (address);
 }
 
-contract CBridgeFacetTest is TestBase {
+contract CBridgeFacetTest is TestBaseFacet {
     address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
     TestCBridgeFacet internal cBridge;
 
@@ -64,9 +64,9 @@ contract CBridgeFacetTest is TestBase {
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addDex(address(uniswap));
         cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
+        cBridge.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
         cBridge.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
-        setFacetAddressInTestBase(address(cBridge));
+        setFacetAddressInTestBase(address(cBridge), "cBridgeFacet");
     }
 
     function testFail_ReentrantCallBridge() internal {
@@ -151,5 +151,10 @@ contract CBridgeFacetTest is TestBase {
         cBridge.startBridgeTokensViaCBridge{ value: bridgeData.minAmount - 1 }(bridgeData, data);
 
         vm.stopPrank();
+    }
+
+    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
+        vm.assume(amount > 100 && amount < 100_000);
+        super.testBase_CanBridgeTokens_fuzzed(amount);
     }
 }

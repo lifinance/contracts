@@ -11,13 +11,13 @@ import { node_url } from '../../utils/network'
 import { expect } from '../chai-setup'
 import approvedFunctionSelectors from '../../utils/approvedFunctions'
 
-const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
-const DAI_L1_ADDRESS = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
-const UNISWAP_ADDRESS = '0xE592427A0AEce92De3Edee1F18E0157C05861564'
+const USDC_ADDRESS = '0x98339D8C260052B7ad81c28c16C0b98420f2B46a'
+const TEST_TOKEN_ADDRESS = '0x7ea6eA49B0b0Ae9c5db7907d139D9Cd3439862a1'
+const UNISWAP_ADDRESS = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
 const ZERO_ADDRESS = constants.AddressZero
-const SEND_AMOUNT = utils.parseEther('1000')
-const SWAP_AMOUNT_IN = utils.parseUnits('1020', 6)
-const SWAP_AMOUNT_OUT = utils.parseEther('1000')
+const SEND_AMOUNT = utils.parseUnits('1000', 6)
+const SWAP_AMOUNT_IN = utils.parseEther('1200')
+const SWAP_AMOUNT_OUT = utils.parseUnits('1000', 6)
 const MAX_SUBMISSION_COST = utils.parseEther('0.01')
 const MAX_GAS = 100000
 const MAX_GAS_PRICE = utils.parseUnits('10', 9)
@@ -26,7 +26,7 @@ describe('ArbitrumBridgeFacet', function () {
   let alice: SignerWithAddress
   let lifi: ArbitrumBridgeFacet
   let dexMgr: DexManagerFacet
-  let dai: ERC20
+  let token: ERC20
   let usdc: ERC20
   /* eslint-disable @typescript-eslint/no-explicit-any */
   let owner: any
@@ -57,14 +57,14 @@ describe('ArbitrumBridgeFacet', function () {
 
       await network.provider.request({
         method: 'hardhat_impersonateAccount',
-        params: ['0xaD0135AF20fa82E106607257143d0060A7eB5cBf'],
+        params: ['0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0'],
       })
 
       alice = await ethers.getSigner(
-        '0xaD0135AF20fa82E106607257143d0060A7eB5cBf'
+        '0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0'
       )
 
-      dai = ERC20__factory.connect(DAI_L1_ADDRESS, alice)
+      token = ERC20__factory.connect(TEST_TOKEN_ADDRESS, alice)
       usdc = ERC20__factory.connect(USDC_ADDRESS, alice)
 
       validBridgeData = {
@@ -72,10 +72,10 @@ describe('ArbitrumBridgeFacet', function () {
         bridge: 'arbitrum',
         integrator: 'ACME Devs',
         referrer: ZERO_ADDRESS,
-        sendingAssetId: DAI_L1_ADDRESS,
+        sendingAssetId: USDC_ADDRESS,
         receiver: alice.address,
         minAmount: SEND_AMOUNT,
-        destinationChainId: 42161,
+        destinationChainId: 421613,
         hasSourceSwaps: false,
         hasDestinationCall: false,
       }
@@ -91,29 +91,27 @@ describe('ArbitrumBridgeFacet', function () {
       const uniswap = new Contract(
         UNISWAP_ADDRESS,
         [
-          'function exactOutputSingle(tuple(address,address,uint24,address,uint256,uint256,uint256,uint160)) external payable returns (uint256)',
+          'function swapTokensForExactTokens(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
         ],
         alice
       )
 
       // Generate swap calldata
-      const swapCallData = await uniswap.populateTransaction.exactOutputSingle([
-        USDC_ADDRESS,
-        DAI_L1_ADDRESS,
-        3000,
-        lifi.address,
-        deadline,
-        SWAP_AMOUNT_OUT,
-        SWAP_AMOUNT_IN,
-        0,
-      ])
+      const swapCallData =
+        await uniswap.populateTransaction.swapTokensForExactTokens(
+          SWAP_AMOUNT_OUT,
+          SWAP_AMOUNT_IN,
+          [TEST_TOKEN_ADDRESS, USDC_ADDRESS],
+          lifi.address,
+          deadline
+        )
 
       swapData = [
         {
           callTo: <string>swapCallData.to,
           approveTo: <string>swapCallData.to,
-          sendingAssetId: USDC_ADDRESS,
-          receivingAssetId: DAI_L1_ADDRESS,
+          sendingAssetId: TEST_TOKEN_ADDRESS,
+          receivingAssetId: USDC_ADDRESS,
           callData: <string>swapCallData?.data,
           fromAmount: SWAP_AMOUNT_IN,
           requiresDeposit: true,
@@ -121,8 +119,8 @@ describe('ArbitrumBridgeFacet', function () {
       ]
 
       // Approve ERC20 for swapping
-      await usdc.approve(lifi.address, SWAP_AMOUNT_IN)
-      await dai.approve(lifi.address, SEND_AMOUNT)
+      await token.approve(lifi.address, SWAP_AMOUNT_IN)
+      await usdc.approve(lifi.address, SEND_AMOUNT)
     }
   )
 
@@ -133,8 +131,8 @@ describe('ArbitrumBridgeFacet', function () {
       params: [
         {
           forking: {
-            jsonRpcUrl: node_url('mainnet'),
-            blockNumber: 15573750,
+            jsonRpcUrl: node_url('goerli'),
+            blockNumber: 7842360,
           },
         },
       ],
@@ -175,14 +173,14 @@ describe('ArbitrumBridgeFacet', function () {
       })
 
       it('when the user does not have enough amount', async () => {
-        const daiBalance = await dai.balanceOf(alice.address)
-        await dai.transfer(lifi.address, daiBalance)
+        const tokenBalance = await token.balanceOf(alice.address)
+        await token.transfer(lifi.address, tokenBalance)
 
         await expect(
           lifi
             .connect(alice)
             .startBridgeTokensViaArbitrumBridge(validBridgeData, arbitrumData)
-        ).to.be.revertedWith('InsufficientBalance')
+        ).to.be.revertedWith('InvalidAmount')
       })
 
       it('when the user sent no enough gas', async () => {
@@ -201,13 +199,13 @@ describe('ArbitrumBridgeFacet', function () {
         const bridgeData = {
           ...validBridgeData,
           sendingAssetId: ZERO_ADDRESS,
-          minAmount: utils.parseEther('10'),
+          minAmount: utils.parseEther('3'),
         }
         await expect(
           lifi
             .connect(alice)
             .startBridgeTokensViaArbitrumBridge(bridgeData, arbitrumData, {
-              value: utils.parseEther('9'),
+              value: utils.parseEther('2'),
             })
         ).to.be.revertedWith('InvalidAmount()')
       })
@@ -232,14 +230,14 @@ describe('ArbitrumBridgeFacet', function () {
         const bridgeData = {
           ...validBridgeData,
           sendingAssetId: ZERO_ADDRESS,
-          minAmount: utils.parseEther('10'),
+          minAmount: utils.parseEther('3'),
         }
 
         await expect(
           lifi
             .connect(alice)
             .startBridgeTokensViaArbitrumBridge(bridgeData, arbitrumData, {
-              value: utils.parseEther('10').add(cost),
+              value: utils.parseEther('3').add(cost),
             })
         ).to.emit(lifi, 'LiFiTransferStarted')
       })
@@ -268,7 +266,7 @@ describe('ArbitrumBridgeFacet', function () {
 
       it('when the user does not have enough amount', async () => {
         const usdcBalance = await usdc.balanceOf(alice.address)
-        await usdc.transfer(dai.address, usdcBalance)
+        await usdc.transfer(token.address, usdcBalance)
 
         const bridgeData = {
           ...validBridgeData,
@@ -283,7 +281,7 @@ describe('ArbitrumBridgeFacet', function () {
               swapData,
               arbitrumData
             )
-        ).to.be.revertedWith('InsufficientBalance')
+        ).to.be.revertedWith('InvalidAmount')
       })
 
       it('when the dex is not approved', async function () {

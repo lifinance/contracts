@@ -13,7 +13,7 @@ contract DeployScript is DeployScriptBase {
     function run() public returns (WormholeFacet deployed, bytes memory constructorArgs) {
         string memory path = string.concat(vm.projectRoot(), "/config/wormhole.json");
         string memory json = vm.readFile(path);
-        address wormholeRouter = json.readAddress(string.concat(".", network, ".wormholeRouter"));
+        address wormholeRouter = json.readAddress(string.concat(".routers.", network));
 
         constructorArgs = abi.encode(wormholeRouter);
 
