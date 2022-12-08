@@ -13,7 +13,7 @@ contract DeployScript is DeployScriptBase {
     function run() public returns (GravityFacet deployed, bytes memory constructorArgs) {
         string memory path = string.concat(vm.projectRoot(), "/config/gravity.json");
         string memory json = vm.readFile(path);
-        address gravity = json.readAddress(string.concat(".", network, ".gravity"));
+        address gravity = json.readAddress(string.concat(".", network, ".gravityRouter"));
 
         constructorArgs = abi.encode(gravity);
 

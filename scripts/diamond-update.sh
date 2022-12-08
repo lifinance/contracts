@@ -12,13 +12,16 @@ update() {
 	SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Diamond Update Script")
 	echo $SCRIPT
 	RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy)
+  #echo $RAW_RETURN_DATA
 	RETURN_DATA=$(echo $RAW_RETURN_DATA | jq -r '.returns' 2> /dev/null)
+  #echo $RETURN_DATA
 	echo $RAW_RETURN_DATA | jq 2> /dev/null
-	
+
 	facets=$(echo $RETURN_DATA | jq -r '.facets.value')
 
 	saveDiamond $NETWORK "$facets"
 
+  echo "$SCRIPT successfully executed on network $NETWORK"
 }
 
 saveDiamond() {

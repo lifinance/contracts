@@ -88,4 +88,8 @@ contract GravityFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         emit LiFiTransferStarted(_bridgeData);
     }
+
+    function fakeFunction3() external pure returns (uint256) {
+        return 5;
+    }
 }
