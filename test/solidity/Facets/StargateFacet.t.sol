@@ -233,7 +233,7 @@ contract StargateFacetTest is TestBaseFacet {
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
         // fails otherwise with "slippage too high" from Stargate router contract
-        vm.assume(amount > 80);
+        vm.assume(amount > 100);
         super.testBase_CanBridgeTokens_fuzzed(amount);
     }
 }

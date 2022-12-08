@@ -25,4 +25,5 @@ yarn-error.log
 
 lcov.info
 
-test/logs
+test/logs/*
+test/logs/

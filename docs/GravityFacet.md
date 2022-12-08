@@ -1,40 +1,28 @@
-# Multichain Facet
+# Gravity Facet
 
 ## How it works
 
-The Multichain Facet works by forwarding Multichain specific calls to a token specific [router contract](https://github.com/anyswap/anyswap-v1-core/blob/master/contracts/AnyswapV5Router.sol). Multichain works by locking tokens into a router contract on a base chain before bridging. Tokens can then be minted by a router contract on the receiving chain. This is handled by a decentralized network of [MPC nodes](https://docs.multichain.org/how-it-works) under the hood.
-
-```mermaid
-graph LR;
-    D{LiFiDiamond}-- DELEGATECALL -->A[MultichainFacet]
-    A -- CALL --> USDC(USDC Router)
-    A -- CALL --> DAI(DAI Router)
-    A -- CALL --> WETH(WETH Router)
-```
+The Gravity Facet works by forwarding Gravity specific calls to the Gravity router contract which is called [Gravity.sol](https://github.com/Gravity-Bridge/Gravity-Bridge/blob/main/solidity/contracts/Gravity.sol). This contract will pull and lock tokens in the given amount and emit an event. This event will be noticed by a backend service that triggers the release on the destination chain. For more information about how Gravity bridge works please [click here](https://github.com/Gravity-Bridge/Gravity-Docs).
 
 ## Public Methods
 
-- `function initMultichain(address[] calldata routers)`
-  - Initializer method. Allow routers.
-- `function registerBridge(address router, bool allowed)`
-  - Register method. Allow or disallow router.
-- `function startBridgeTokensViaMultichain(BridgeData memory _bridgeData, MultichainData calldata _multichainData)`
-  - Simply bridges tokens using Multichain
-- `function swapAndStartBridgeTokensViaMultichain( BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, MultichainData memory _multichainData)`
-  - Performs swap(s) before bridging tokens using Multichain
+- `function startBridgeTokensViaGravity(BridgeData memory _bridgeData, GravityData calldata _gravityData)`
+  - Simply bridges tokens using Gravity
+- `function swapAndStartBridgeTokensViaGravity( BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, GravityData memory _gravityData)`
+  - Performs one or multiple swap(s) and bridges tokens using Gravity
 
-## Multichain Specific Parameters
+## Gravity Specific Parameters
 
-Some of the methods listed above take a variable labeled `_multichainData`.
+Some of the methods listed above take a variable labeled `_gravityData`.
 
-To populate `_multichainData` you will need to fetch the router address for the chain ID you are bridging from. You can use the [Multichain API](https://github.com/anyswap/CrossChain-Router/wiki/How-to-integrate-AnySwap-Router) to do this.
+To populate `_gravityData` you will provide the address you are bridging to in string format. String format is used since Gravity can bridge to non-EVM networks and their address format may differ from the EVM address format.
 
-This data is specific to Multichain and is represented as the following struct type:
+This data is specific to Gravity and is represented as the following struct type:
 
 ```solidity
-/// @param router Address of the router contract for the token being bridged.
-struct MultichainData {
-  address router;
+/// @param destinationAddress the address of the receiver on the destination chain (in string format for non-EVM compatibility)
+struct GravityData {
+  string destinationAddress;
 }
 
 ```
@@ -65,7 +53,7 @@ The quote result looks like the following:
 const quoteResult = {
   id: '0x...', // quote id
   type: 'lifi', // the type of the quote (all lifi contract calls have the type "lifi")
-  tool: 'multichain', // the bridge tool used for the transaction
+  tool: 'gravity', // the bridge tool used for the transaction
   action: {}, // information about what is going to happen
   estimate: {}, // information about the estimated outcome of the call
   includedSteps: [], // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step
