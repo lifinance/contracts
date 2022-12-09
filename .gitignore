@@ -22,3 +22,7 @@ yalc.lock
 contractsInfo.json
 
 yarn-error.log
+
+lcov.info
+
+test/logs

@@ -19,7 +19,7 @@
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
-    "@openzeppelin/contracts": "4.7.3",
+    "@openzeppelin/contracts": "4.8.0",
     "@typechain/ethers-v5": "^10.0.0",
     "@typechain/hardhat": "^6.0.0",
     "@types/chai": "^4.3.0",
@@ -87,6 +87,7 @@
     "fork:test": "node ./_scripts.js fork:test"
   },
   "dependencies": {
+    "@arbitrum/sdk": "^3.0.0",
     "@axelar-network/axelar-cgp-solidity": "git+https://github.com/axelarnetwork/axelar-cgp-solidity.git",
     "@axelar-network/axelarjs-sdk": "^0.6.11-alpha.8",
     "@connext/nxtp-contracts": "^0.1.31",

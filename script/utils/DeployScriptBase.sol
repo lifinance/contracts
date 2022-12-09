@@ -12,14 +12,18 @@ contract DeployScriptBase is Script {
     address internal predicted;
     CREATE3Factory internal factory;
     bytes32 internal salt;
+    string internal root;
     string internal network;
+    string internal fileSuffix;
 
     constructor(string memory contractName) {
         deployerPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY"));
         deployerAddress = vm.addr(deployerPrivateKey);
         address factoryAddress = vm.envAddress("CREATE3_FACTORY_ADDRESS");
         string memory saltPrefix = vm.envString("SALT");
+        root = vm.projectRoot();
         network = vm.envString("NETWORK");
+        fileSuffix = vm.envString("FILE_SUFFIX");
         salt = keccak256(abi.encodePacked(saltPrefix, contractName));
         factory = CREATE3Factory(factoryAddress);
         predicted = factory.getDeployed(deployerAddress, salt);
