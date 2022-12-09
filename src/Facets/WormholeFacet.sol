@@ -21,6 +21,8 @@ import { LibMappings } from "../Libraries/LibMappings.sol";
 contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.wormhole");
 
+    address internal constant NON_EVM_ADDRESS = 0x11f111f111f111F111f111f111F111f111f111F1;
+
     /// @notice The contract address of the wormhole router on the source chain.
     IWormholeRouter private immutable router;
 
@@ -31,13 +33,11 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint16 wormholeChainId;
     }
 
-    /// @param assetId The contract address of the token being bridged.
-    /// @param amount The amount of tokens to bridge.
     /// @param receiver The address of the token receiver after bridging.
-    /// @param toChainId The chainId of the chain to bridge to.
     /// @param arbiterFee The amount of token to pay a relayer (can be zero if no relayer is used).
     /// @param nonce A random nonce to associate with the tx.
     struct WormholeData {
+        bytes32 receiver;
         uint256 arbiterFee;
         uint32 nonce;
     }
@@ -47,6 +47,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     event WormholeInitialized(Config[] configs);
     event WormholeChainIdMapped(uint256 indexed lifiChainId, uint256 indexed wormholeChainId);
     event WormholeChainIdsMapped(Config[] configs);
+    event BridgeToNonEVMChain(bytes32 indexed transactionId, uint256 indexed wormholeChainId, bytes32 receiver);
 
     /// Constructor ///
 
@@ -173,7 +174,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             router.wrapAndTransferETH{ value: _bridgeData.minAmount }(
                 toWormholeChainId,
-                bytes32(uint256(uint160(_bridgeData.receiver))),
+                _wormholeData.receiver,
                 _wormholeData.arbiterFee,
                 _wormholeData.nonce
             );
@@ -182,11 +183,16 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 toWormholeChainId,
-                bytes32(uint256(uint160(_bridgeData.receiver))),
+                _wormholeData.receiver,
                 _wormholeData.arbiterFee,
                 _wormholeData.nonce
             );
         }
+
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            emit BridgeToNonEVMChain(_bridgeData.transactionId, toWormholeChainId, _wormholeData.receiver);
+        }
+
         emit LiFiTransferStarted(_bridgeData);
     }
 
