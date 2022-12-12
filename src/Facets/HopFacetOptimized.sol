@@ -130,8 +130,6 @@ contract HopFacetOptimized is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _hopData data specific to Hop Protocol
     function _startBridge(ILiFi.BridgeData memory _bridgeData, HopData memory _hopData) private {
         // Do HOP stuff
-        if (block.chainid == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
-
         address sendingAssetId = _bridgeData.sendingAssetId;
         Storage storage s = getStorage();
         IHopBridge bridge = s.bridges[sendingAssetId];
