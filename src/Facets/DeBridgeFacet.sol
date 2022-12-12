@@ -66,10 +66,10 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function startBridgeTokensViaDeBridge(ILiFi.BridgeData calldata _bridgeData, DeBridgeData calldata _deBridgeData)
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
-        nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _deBridgeData);
