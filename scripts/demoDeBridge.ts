@@ -93,8 +93,8 @@ async function main() {
 
     const deBridgeData = {
       permit: '0x',
-      useAssetFee: false,
       nativeFee: nativeFee,
+      useAssetFee: false,
       referralCode: 0,
       autoParams: {
         executionFee: utils.parseUnits('1', 6),
@@ -148,8 +148,8 @@ async function main() {
 
     const deBridgeData = {
       permit: '0x',
-      useAssetFee: false,
       nativeFee: nativeFee,
+      useAssetFee: false,
       referralCode: 0,
       autoParams: {
         executionFee: utils.parseEther('0.8'),

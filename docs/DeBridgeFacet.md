@@ -47,14 +47,14 @@ struct SubmissionAutoParamsTo {
 }
 
 /// @param permit deadline + signature for approving the spender by signature.
-/// @param useAssetFee Use assets fee for pay protocol fix (work only for specials token)
 /// @param nativeFee Native fee for the bridging when useAssetFee is false.
+/// @param useAssetFee Use assets fee for pay protocol fix (work only for specials token)
 /// @param referralCode Referral code.
 /// @param autoParams Structure that enables passing arbitrary messages and call data.
 struct DeBridgeData {
     bytes permit;
-    bool useAssetFee;
     uint256 nativeFee;
+    bool useAssetFee;
     uint32 referralCode;
     SubmissionAutoParamsTo autoParams;
 }

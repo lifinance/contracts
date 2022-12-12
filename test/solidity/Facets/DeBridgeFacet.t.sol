@@ -99,8 +99,8 @@ contract DeBridgeFacetTest is DSTest, DiamondTest {
 
         validDeBridgeData = DeBridgeFacet.DeBridgeData(
             "",
-            false,
             nativeFee,
+            false,
             0,
             DeBridgeFacet.SubmissionAutoParamsTo(
                 executionFee,
