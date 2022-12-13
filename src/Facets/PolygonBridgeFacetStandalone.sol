@@ -8,6 +8,17 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+//! applied measures to save gas (not exhaustive):
+//! - removed unnecessary validity checks => ca. 200 gas saved
+//! - replaced Library calls by internal (reduced) code
+//!     - replaced LibAsset.depositAsset(..) => ca. 1500 gas saved
+//! - if we remove nonReentrant modifier => ca. 23000 gas saved (!!!!!!!!)
+//!
+//! Base:               194047 gas used (100%)
+//! current status:     192119 gas used ( 99%)
+//! without reentrant:  169878 gas used ( 87%)
 
 /// @title Polygon Bridge Facet
 /// @author Li.Finance (https://li.finance)
@@ -41,13 +52,13 @@ contract PolygonBridgeFacetStandalone is ILiFi, ReentrancyGuard, SwapperV2, Vali
     function startBridgeTokensViaPolygonBridge(ILiFi.BridgeData memory _bridgeData)
         external
         payable
-        nonReentrant
         refundExcessNative(payable(msg.sender))
-        doesNotContainSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
-        validateBridgeData(_bridgeData)
     {
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        // LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        IERC20 asset = IERC20(_bridgeData.sendingAssetId);
+        uint256 prevBalance = asset.balanceOf(address(this));
+        SafeERC20.safeTransferFrom(asset, msg.sender, address(this), _bridgeData.minAmount);
+        if (asset.balanceOf(address(this)) - prevBalance != _bridgeData.minAmount) revert InvalidAmount(); //! required for to exclude tokens that take fees
         _startBridge(_bridgeData);
     }
 
@@ -57,15 +68,7 @@ contract PolygonBridgeFacetStandalone is ILiFi, ReentrancyGuard, SwapperV2, Vali
     function swapAndStartBridgeTokensViaPolygonBridge(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData
-    )
-        external
-        payable
-        nonReentrant
-        refundExcessNative(payable(msg.sender))
-        containsSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
-        validateBridgeData(_bridgeData)
-    {
+    ) external payable nonReentrant refundExcessNative(payable(msg.sender)) {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -80,17 +83,25 @@ contract PolygonBridgeFacetStandalone is ILiFi, ReentrancyGuard, SwapperV2, Vali
     /// @dev Contains the business logic for the bridge via Polygon Bridge
     /// @param _bridgeData Data containing core information for bridging
     function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
-        address childToken;
-
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             rootChainManager.depositEtherFor{ value: _bridgeData.minAmount }(_bridgeData.receiver);
         } else {
-            childToken = rootChainManager.rootToChildToken(_bridgeData.sendingAssetId);
+            rootChainManager.rootToChildToken(_bridgeData.sendingAssetId);
 
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), erc20Predicate, _bridgeData.minAmount);
+            // get max approval
+            uint256 allowance = IERC20(_bridgeData.sendingAssetId).allowance(address(this), erc20Predicate);
+            if (allowance < _bridgeData.minAmount)
+                SafeERC20.safeIncreaseAllowance(
+                    IERC20(_bridgeData.sendingAssetId),
+                    erc20Predicate,
+                    type(uint256).max - allowance
+                );
 
-            bytes memory depositData = abi.encode(_bridgeData.minAmount);
-            rootChainManager.depositFor(_bridgeData.receiver, _bridgeData.sendingAssetId, depositData);
+            rootChainManager.depositFor(
+                _bridgeData.receiver,
+                _bridgeData.sendingAssetId,
+                abi.encode(_bridgeData.minAmount)
+            );
         }
 
         emit LiFiTransferStarted(_bridgeData);

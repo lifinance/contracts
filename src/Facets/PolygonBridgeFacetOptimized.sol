@@ -14,7 +14,14 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 //! - removed unnecessary validity checks => ca. 200 gas saved
 //! - replaced Library calls by internal (reduced) code
 //!     - replaced LibAsset.depositAsset(..) => ca. 1500 gas saved
-//! - if we remove nonReentrant modifier => ca. 23000 gas saved (!!!!!!!!)
+//!
+//! Base:                       194047 gas used (100%)
+//!    optimized:               192119 gas used ( 99%)
+//!    standalone:              186849 gas used ( 96%)
+
+//! FURTHER OPTIONS (remove modifiers)
+//! remove nonReentrant:        - 22200 gas (11,5%)
+//! remove refundExcessNative:  -   170 gas (<0.1%)
 
 /// @title Polygon Bridge Facet
 /// @author Li.Finance (https://li.finance)
