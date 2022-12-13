@@ -8,6 +8,13 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+//! applied measures to save gas (not exhaustive):
+//! - removed unnecessary validity checks => ca. 200 gas saved
+//! - replaced Library calls by internal (reduced) code
+//!     - replaced LibAsset.depositAsset(..) => ca. 1500 gas saved
+//! - if we remove nonReentrant modifier => ca. 23000 gas saved (!!!!!!!!)
 
 /// @title Polygon Bridge Facet
 /// @author Li.Finance (https://li.finance)
@@ -44,7 +51,11 @@ contract PolygonBridgeFacetOptimized is ILiFi, ReentrancyGuard, SwapperV2, Valid
         nonReentrant
         refundExcessNative(payable(msg.sender))
     {
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        // LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        IERC20 asset = IERC20(_bridgeData.sendingAssetId);
+        uint256 prevBalance = asset.balanceOf(address(this));
+        SafeERC20.safeTransferFrom(asset, msg.sender, address(this), _bridgeData.minAmount);
+        if (asset.balanceOf(address(this)) - prevBalance != _bridgeData.minAmount) revert InvalidAmount(); //! required for to exclude tokens that take fees
         _startBridge(_bridgeData);
     }
 
@@ -69,17 +80,25 @@ contract PolygonBridgeFacetOptimized is ILiFi, ReentrancyGuard, SwapperV2, Valid
     /// @dev Contains the business logic for the bridge via Polygon Bridge
     /// @param _bridgeData Data containing core information for bridging
     function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
-        address childToken;
-
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             rootChainManager.depositEtherFor{ value: _bridgeData.minAmount }(_bridgeData.receiver);
         } else {
-            childToken = rootChainManager.rootToChildToken(_bridgeData.sendingAssetId);
+            rootChainManager.rootToChildToken(_bridgeData.sendingAssetId);
 
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), erc20Predicate, _bridgeData.minAmount);
+            // get max approval
+            uint256 allowance = IERC20(_bridgeData.sendingAssetId).allowance(address(this), erc20Predicate);
+            if (allowance < _bridgeData.minAmount)
+                SafeERC20.safeIncreaseAllowance(
+                    IERC20(_bridgeData.sendingAssetId),
+                    erc20Predicate,
+                    type(uint256).max - allowance
+                );
 
-            bytes memory depositData = abi.encode(_bridgeData.minAmount);
-            rootChainManager.depositFor(_bridgeData.receiver, _bridgeData.sendingAssetId, depositData);
+            rootChainManager.depositFor(
+                _bridgeData.receiver,
+                _bridgeData.sendingAssetId,
+                abi.encode(_bridgeData.minAmount)
+            );
         }
 
         emit LiFiTransferStarted(_bridgeData);

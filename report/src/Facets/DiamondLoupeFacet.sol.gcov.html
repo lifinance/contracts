@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/Facets/DiamondLoupeFacet.sol</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">src/Facets</a> - DiamondLoupeFacet.sol<span style="font-size: 80%;"> (source / <a href="DiamondLoupeFacet.sol.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">16</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2022-12-13 10:33:29</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">5</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td class="headerItem">Branches:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntryHi">-</td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">           Branch data     Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>                :            : // SPDX-License-Identifier: MIT</a>
+<a name="2"><span class="lineNum">       2 </span>                :            : pragma solidity 0.8.17;</a>
+<a name="3"><span class="lineNum">       3 </span>                :            : </a>
+<a name="4"><span class="lineNum">       4 </span>                :            : import { LibDiamond } from &quot;../Libraries/LibDiamond.sol&quot;;</a>
+<a name="5"><span class="lineNum">       5 </span>                :            : import { IDiamondLoupe } from &quot;../Interfaces/IDiamondLoupe.sol&quot;;</a>
+<a name="6"><span class="lineNum">       6 </span>                :            : import { IERC165 } from &quot;../Interfaces/IERC165.sol&quot;;</a>
+<a name="7"><span class="lineNum">       7 </span>                :            : </a>
+<a name="8"><span class="lineNum">       8 </span>                :            : contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {</a>
+<a name="9"><span class="lineNum">       9 </span>                :            :     // Diamond Loupe Functions</a>
+<a name="10"><span class="lineNum">      10 </span>                :            :     ////////////////////////////////////////////////////////////////////</a>
+<a name="11"><span class="lineNum">      11 </span>                :            :     /// These functions are expected to be called frequently by tools.</a>
+<a name="12"><span class="lineNum">      12 </span>                :            :     //</a>
+<a name="13"><span class="lineNum">      13 </span>                :            :     // struct Facet {</a>
+<a name="14"><span class="lineNum">      14 </span>                :            :     //     address facetAddress;</a>
+<a name="15"><span class="lineNum">      15 </span>                :            :     //     bytes4[] functionSelectors;</a>
+<a name="16"><span class="lineNum">      16 </span>                :            :     // }</a>
+<a name="17"><span class="lineNum">      17 </span>                :            : </a>
+<a name="18"><span class="lineNum">      18 </span>                :            :     /// @notice Gets all facets and their selectors.</a>
+<a name="19"><span class="lineNum">      19 </span>                :            :     /// @return facets_ Facet</a>
+<a name="20"><span class="lineNum">      20 </span>                :            :     function facets() external view override returns (Facet[] memory facets_) {</a>
+<a name="21"><span class="lineNum">      21 </span>                :<span class="lineNoCov">          0 :         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();</span></a>
+<a name="22"><span class="lineNum">      22 </span>                :<span class="lineNoCov">          0 :         uint256 numFacets = ds.facetAddresses.length;</span></a>
+<a name="23"><span class="lineNum">      23 </span>                :<span class="lineNoCov">          0 :         facets_ = new Facet[](numFacets);</span></a>
+<a name="24"><span class="lineNum">      24 </span>                :<span class="lineNoCov">          0 :         for (uint256 i = 0; i &lt; numFacets; ) {</span></a>
+<a name="25"><span class="lineNum">      25 </span>                :<span class="lineNoCov">          0 :             address facetAddress_ = ds.facetAddresses[i];</span></a>
+<a name="26"><span class="lineNum">      26 </span>                :<span class="lineNoCov">          0 :             facets_[i].facetAddress = facetAddress_;</span></a>
+<a name="27"><span class="lineNum">      27 </span>                :<span class="lineNoCov">          0 :             facets_[i].functionSelectors = ds.facetFunctionSelectors[facetAddress_].functionSelectors;</span></a>
+<a name="28"><span class="lineNum">      28 </span>                :            :             unchecked {</a>
+<a name="29"><span class="lineNum">      29 </span>                :<span class="lineNoCov">          0 :                 ++i;</span></a>
+<a name="30"><span class="lineNum">      30 </span>                :            :             }</a>
+<a name="31"><span class="lineNum">      31 </span>                :            :         }</a>
+<a name="32"><span class="lineNum">      32 </span>                :            :     }</a>
+<a name="33"><span class="lineNum">      33 </span>                :            : </a>
+<a name="34"><span class="lineNum">      34 </span>                :            :     /// @notice Gets all the function selectors provided by a facet.</a>
+<a name="35"><span class="lineNum">      35 </span>                :            :     /// @param _facet The facet address.</a>
+<a name="36"><span class="lineNum">      36 </span>                :            :     /// @return facetFunctionSelectors_</a>
+<a name="37"><span class="lineNum">      37 </span>                :            :     function facetFunctionSelectors(address _facet)</a>
+<a name="38"><span class="lineNum">      38 </span>                :            :         external</a>
+<a name="39"><span class="lineNum">      39 </span>                :            :         view</a>
+<a name="40"><span class="lineNum">      40 </span>                :            :         override</a>
+<a name="41"><span class="lineNum">      41 </span>                :            :         returns (bytes4[] memory facetFunctionSelectors_)</a>
+<a name="42"><span class="lineNum">      42 </span>                :            :     {</a>
+<a name="43"><span class="lineNum">      43 </span>                :<span class="lineNoCov">          0 :         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();</span></a>
+<a name="44"><span class="lineNum">      44 </span>                :<span class="lineNoCov">          0 :         facetFunctionSelectors_ = ds.facetFunctionSelectors[_facet].functionSelectors;</span></a>
+<a name="45"><span class="lineNum">      45 </span>                :            :     }</a>
+<a name="46"><span class="lineNum">      46 </span>                :            : </a>
+<a name="47"><span class="lineNum">      47 </span>                :            :     /// @notice Get all the facet addresses used by a diamond.</a>
+<a name="48"><span class="lineNum">      48 </span>                :            :     /// @return facetAddresses_</a>
+<a name="49"><span class="lineNum">      49 </span>                :            :     function facetAddresses() external view override returns (address[] memory facetAddresses_) {</a>
+<a name="50"><span class="lineNum">      50 </span>                :<span class="lineNoCov">          0 :         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();</span></a>
+<a name="51"><span class="lineNum">      51 </span>                :<span class="lineNoCov">          0 :         facetAddresses_ = ds.facetAddresses;</span></a>
+<a name="52"><span class="lineNum">      52 </span>                :            :     }</a>
+<a name="53"><span class="lineNum">      53 </span>                :            : </a>
+<a name="54"><span class="lineNum">      54 </span>                :            :     /// @notice Gets the facet that supports the given selector.</a>
+<a name="55"><span class="lineNum">      55 </span>                :            :     /// @dev If facet is not found return address(0).</a>
+<a name="56"><span class="lineNum">      56 </span>                :            :     /// @param _functionSelector The function selector.</a>
+<a name="57"><span class="lineNum">      57 </span>                :            :     /// @return facetAddress_ The facet address.</a>
+<a name="58"><span class="lineNum">      58 </span>                :            :     function facetAddress(bytes4 _functionSelector) external view override returns (address facetAddress_) {</a>
+<a name="59"><span class="lineNum">      59 </span>                :<span class="lineNoCov">          0 :         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();</span></a>
+<a name="60"><span class="lineNum">      60 </span>                :<span class="lineNoCov">          0 :         facetAddress_ = ds.selectorToFacetAndPosition[_functionSelector].facetAddress;</span></a>
+<a name="61"><span class="lineNum">      61 </span>                :            :     }</a>
+<a name="62"><span class="lineNum">      62 </span>                :            : </a>
+<a name="63"><span class="lineNum">      63 </span>                :            :     // This implements ERC-165.</a>
+<a name="64"><span class="lineNum">      64 </span>                :            :     function supportsInterface(bytes4 _interfaceId) external view override returns (bool) {</a>
+<a name="65"><span class="lineNum">      65 </span>                :<span class="lineNoCov">          0 :         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();</span></a>
+<a name="66"><span class="lineNum">      66 </span>                :<span class="lineNoCov">          0 :         return ds.supportedInterfaces[_interfaceId];</span></a>
+<a name="67"><span class="lineNum">      67 </span>                :            :     }</a>
+<a name="68"><span class="lineNum">      68 </span>                :            : }</a>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="https://github.com/linux-test-project/lcov" target="_parent">LCOV version 1.16</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,460 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - test/solidity/Facets/MultiChainFacetNEW.t.sol</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">test/solidity/Facets</a> - MultiChainFacetNEW.t.sol<span style="font-size: 80%;"> (source / <a href="MultiChainFacetNEW.t.sol.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2022-12-13 10:33:29</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td class="headerItem">Branches:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntryHi">-</td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">           Branch data     Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>                :            : // SPDX-License-Identifier: Unlicense</a>
+<a name="2"><span class="lineNum">       2 </span>                :            : pragma solidity 0.8.17;</a>
+<a name="3"><span class="lineNum">       3 </span>                :            : </a>
+<a name="4"><span class="lineNum">       4 </span>                :            : import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20 } from &quot;../utils/TestBaseFacet.sol&quot;;</a>
+<a name="5"><span class="lineNum">       5 </span>                :            : import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized } from &quot;src/Errors/GenericErrors.sol&quot;;</a>
+<a name="6"><span class="lineNum">       6 </span>                :            : import { IMultichainRouter } from &quot;lifi/Interfaces/IMultichainRouter.sol&quot;;</a>
+<a name="7"><span class="lineNum">       7 </span>                :            : import { MultichainFacetNEW, IMultichainToken } from &quot;lifi/Facets/MultichainFacetNEW.sol&quot;;</a>
+<a name="8"><span class="lineNum">       8 </span>                :            : import &quot;@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol&quot;;</a>
+<a name="9"><span class="lineNum">       9 </span>                :            : </a>
+<a name="10"><span class="lineNum">      10 </span>                :            : // Stub MultichainFacet Contract</a>
+<a name="11"><span class="lineNum">      11 </span>                :            : contract TestMultichainFacet is MultichainFacetNEW {</a>
+<a name="12"><span class="lineNum">      12 </span>                :            :     constructor() {}</a>
+<a name="13"><span class="lineNum">      13 </span>                :            : </a>
+<a name="14"><span class="lineNum">      14 </span>                :            :     function addDex(address _dex) external {</a>
+<a name="15"><span class="lineNum">      15 </span>                :<span class="lineNoCov">          0 :         LibAllowList.addAllowedContract(_dex);</span></a>
+<a name="16"><span class="lineNum">      16 </span>                :            :     }</a>
+<a name="17"><span class="lineNum">      17 </span>                :            : </a>
+<a name="18"><span class="lineNum">      18 </span>                :            :     function setFunctionApprovalBySignature(bytes4 _signature) external {</a>
+<a name="19"><span class="lineNum">      19 </span>                :<span class="lineNoCov">          0 :         LibAllowList.addAllowedSelector(_signature);</span></a>
+<a name="20"><span class="lineNum">      20 </span>                :            :     }</a>
+<a name="21"><span class="lineNum">      21 </span>                :            : }</a>
+<a name="22"><span class="lineNum">      22 </span>                :            : </a>
+<a name="23"><span class="lineNum">      23 </span>                :            : contract MultichainFacetNEWTest is TestBaseFacet {</a>
+<a name="24"><span class="lineNum">      24 </span>                :            :     address internal constant ANYSWAPV4ROUTER = 0x6b7a87899490EcE95443e979cA9485CBE7E71522;</a>
+<a name="25"><span class="lineNum">      25 </span>                :            :     address internal constant ADDRESS_ANYUSDC = 0x7EA2be2df7BA6E54B1A9C70676f668455E329d29;</a>
+<a name="26"><span class="lineNum">      26 </span>                :            :     address internal constant ADDRESS_ANYETH = 0x2AC03BF434db503f6f5F85C3954773731Fc3F056;</a>
+<a name="27"><span class="lineNum">      27 </span>                :            :     address internal constant USER_TESTTOKEN_WHALE = 0x5E583B6a1686f7Bc09A6bBa66E852A7C80d36F00;</a>
+<a name="28"><span class="lineNum">      28 </span>                :            : </a>
+<a name="29"><span class="lineNum">      29 </span>                :            :     // events</a>
+<a name="30"><span class="lineNum">      30 </span>                :            :     event LogSwapout(address indexed account, address indexed bindaddr, uint256 amount);</a>
+<a name="31"><span class="lineNum">      31 </span>                :            :     event LogAnySwapOut(</a>
+<a name="32"><span class="lineNum">      32 </span>                :            :         address indexed token,</a>
+<a name="33"><span class="lineNum">      33 </span>                :            :         address indexed from,</a>
+<a name="34"><span class="lineNum">      34 </span>                :            :         address indexed to,</a>
+<a name="35"><span class="lineNum">      35 </span>                :            :         uint256 amount,</a>
+<a name="36"><span class="lineNum">      36 </span>                :            :         uint256 fromChainID,</a>
+<a name="37"><span class="lineNum">      37 </span>                :            :         uint256 toChainID</a>
+<a name="38"><span class="lineNum">      38 </span>                :            :     );</a>
+<a name="39"><span class="lineNum">      39 </span>                :            : </a>
+<a name="40"><span class="lineNum">      40 </span>                :            :     TestMultichainFacet internal multichainFacet;</a>
+<a name="41"><span class="lineNum">      41 </span>                :            :     address[] public routers;</a>
+<a name="42"><span class="lineNum">      42 </span>                :            :     MultichainFacetNEW.MultichainData internal multichainData;</a>
+<a name="43"><span class="lineNum">      43 </span>                :            :     ERC20 internal testToken;</a>
+<a name="44"><span class="lineNum">      44 </span>                :            :     ERC20 internal underlyingToken;</a>
+<a name="45"><span class="lineNum">      45 </span>                :            : </a>
+<a name="46"><span class="lineNum">      46 </span>                :            :     function setUp() public {</a>
+<a name="47"><span class="lineNum">      47 </span>                :            :         // set custom block number for forking</a>
+<a name="48"><span class="lineNum">      48 </span>                :            :         customBlockNumberForForking = 15588208;</a>
+<a name="49"><span class="lineNum">      49 </span>                :            : </a>
+<a name="50"><span class="lineNum">      50 </span>                :            :         initTestBase();</a>
+<a name="51"><span class="lineNum">      51 </span>                :            : </a>
+<a name="52"><span class="lineNum">      52 </span>                :            :         // get test token (cannot just test with USDC or DAI)</a>
+<a name="53"><span class="lineNum">      53 </span>                :            :         testToken = ERC20(ADDRESS_ANYUSDC);</a>
+<a name="54"><span class="lineNum">      54 </span>                :            : </a>
+<a name="55"><span class="lineNum">      55 </span>                :            :         multichainFacet = new TestMultichainFacet();</a>
+<a name="56"><span class="lineNum">      56 </span>                :            : </a>
+<a name="57"><span class="lineNum">      57 </span>                :            :         bytes4[] memory functionSelectors = new bytes4[](7);</a>
+<a name="58"><span class="lineNum">      58 </span>                :            :         functionSelectors[0] = multichainFacet.startBridgeTokensViaMultichain.selector;</a>
+<a name="59"><span class="lineNum">      59 </span>                :            :         functionSelectors[1] = multichainFacet.swapAndStartBridgeTokensViaMultichain.selector;</a>
+<a name="60"><span class="lineNum">      60 </span>                :            :         functionSelectors[2] = bytes4(keccak256(&quot;registerBridge(address,bool)&quot;));</a>
+<a name="61"><span class="lineNum">      61 </span>                :            :         functionSelectors[3] = bytes4(keccak256(&quot;registerBridge(address[],bool[])&quot;));</a>
+<a name="62"><span class="lineNum">      62 </span>                :            :         functionSelectors[4] = multichainFacet.addDex.selector;</a>
+<a name="63"><span class="lineNum">      63 </span>                :            :         functionSelectors[5] = multichainFacet.initMultichain.selector;</a>
+<a name="64"><span class="lineNum">      64 </span>                :            :         functionSelectors[6] = multichainFacet.setFunctionApprovalBySignature.selector;</a>
+<a name="65"><span class="lineNum">      65 </span>                :            : </a>
+<a name="66"><span class="lineNum">      66 </span>                :            :         addFacet(diamond, address(multichainFacet), functionSelectors);</a>
+<a name="67"><span class="lineNum">      67 </span>                :            :         multichainFacet = TestMultichainFacet(address(diamond));</a>
+<a name="68"><span class="lineNum">      68 </span>                :            :         routers = [</a>
+<a name="69"><span class="lineNum">      69 </span>                :            :             ANYSWAPV4ROUTER,</a>
+<a name="70"><span class="lineNum">      70 </span>                :            :             0x55aF5865807b196bD0197e0902746F31FBcCFa58, // TestMultichainToken</a>
+<a name="71"><span class="lineNum">      71 </span>                :            :             0x7782046601e7b9B05cA55A3899780CE6EE6B8B2B // AnyswapV6Router</a>
+<a name="72"><span class="lineNum">      72 </span>                :            :         ];</a>
+<a name="73"><span class="lineNum">      73 </span>                :            :         multichainFacet.initMultichain(ADDRESS_ANYETH, routers);</a>
+<a name="74"><span class="lineNum">      74 </span>                :            : </a>
+<a name="75"><span class="lineNum">      75 </span>                :            :         multichainFacet.addDex(address(uniswap));</a>
+<a name="76"><span class="lineNum">      76 </span>                :            :         multichainFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);</a>
+<a name="77"><span class="lineNum">      77 </span>                :            :         multichainFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);</a>
+<a name="78"><span class="lineNum">      78 </span>                :            :         multichainFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);</a>
+<a name="79"><span class="lineNum">      79 </span>                :            :         setFacetAddressInTestBase(address(multichainFacet), &quot;MultichainFacet&quot;);</a>
+<a name="80"><span class="lineNum">      80 </span>                :            : </a>
+<a name="81"><span class="lineNum">      81 </span>                :            :         // adjust bridgeData</a>
+<a name="82"><span class="lineNum">      82 </span>                :            :         bridgeData.bridge = &quot;multichain&quot;;</a>
+<a name="83"><span class="lineNum">      83 </span>                :            :         bridgeData.sendingAssetId = ADDRESS_ANYUSDC; //anyUSDC</a>
+<a name="84"><span class="lineNum">      84 </span>                :            :         bridgeData.destinationChainId = 250;</a>
+<a name="85"><span class="lineNum">      85 </span>                :            : </a>
+<a name="86"><span class="lineNum">      86 </span>                :            :         // produce valid HopData</a>
+<a name="87"><span class="lineNum">      87 </span>                :            :         multichainData = MultichainFacetNEW.MultichainData({ router: ANYSWAPV4ROUTER });</a>
+<a name="88"><span class="lineNum">      88 </span>                :            : </a>
+<a name="89"><span class="lineNum">      89 </span>                :            :         // get underlying token and approve</a>
+<a name="90"><span class="lineNum">      90 </span>                :            :         vm.startPrank(USER_TESTTOKEN_WHALE);</a>
+<a name="91"><span class="lineNum">      91 </span>                :            :         underlyingToken = ERC20(IMultichainToken(ADDRESS_ANYUSDC).underlying());</a>
+<a name="92"><span class="lineNum">      92 </span>                :            :         underlyingToken.approve(address(multichainFacet), bridgeData.minAmount);</a>
+<a name="93"><span class="lineNum">      93 </span>                :            :         vm.stopPrank();</a>
+<a name="94"><span class="lineNum">      94 </span>                :            :     }</a>
+<a name="95"><span class="lineNum">      95 </span>                :            : </a>
+<a name="96"><span class="lineNum">      96 </span>                :            :     function initiateBridgeTxWithFacet(bool isNative) internal override {</a>
+<a name="97"><span class="lineNum">      97 </span>                :            :         if (isNative) {</a>
+<a name="98"><span class="lineNum">      98 </span>                :            :             multichainFacet.startBridgeTokensViaMultichain{ value: bridgeData.minAmount }(bridgeData, multichainData);</a>
+<a name="99"><span class="lineNum">      99 </span>                :            :         } else {</a>
+<a name="100"><span class="lineNum">     100 </span>                :            :             multichainFacet.startBridgeTokensViaMultichain(bridgeData, multichainData);</a>
+<a name="101"><span class="lineNum">     101 </span>                :            :         }</a>
+<a name="102"><span class="lineNum">     102 </span>                :            :     }</a>
+<a name="103"><span class="lineNum">     103 </span>                :            : </a>
+<a name="104"><span class="lineNum">     104 </span>                :            :     function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {</a>
+<a name="105"><span class="lineNum">     105 </span>                :            :         if (isNative) {</a>
+<a name="106"><span class="lineNum">     106 </span>                :            :             multichainFacet.swapAndStartBridgeTokensViaMultichain{ value: swapData[0].fromAmount }(</a>
+<a name="107"><span class="lineNum">     107 </span>                :            :                 bridgeData,</a>
+<a name="108"><span class="lineNum">     108 </span>                :            :                 swapData,</a>
+<a name="109"><span class="lineNum">     109 </span>                :            :                 multichainData</a>
+<a name="110"><span class="lineNum">     110 </span>                :            :             );</a>
+<a name="111"><span class="lineNum">     111 </span>                :            :         } else {</a>
+<a name="112"><span class="lineNum">     112 </span>                :            :             multichainFacet.swapAndStartBridgeTokensViaMultichain(bridgeData, swapData, multichainData);</a>
+<a name="113"><span class="lineNum">     113 </span>                :            :         }</a>
+<a name="114"><span class="lineNum">     114 </span>                :            :     }</a>
+<a name="115"><span class="lineNum">     115 </span>                :            : </a>
+<a name="116"><span class="lineNum">     116 </span>                :            :     function testBase_CanBridgeTokens()</a>
+<a name="117"><span class="lineNum">     117 </span>                :            :         public</a>
+<a name="118"><span class="lineNum">     118 </span>                :            :         override</a>
+<a name="119"><span class="lineNum">     119 </span>                :            :         assertBalanceChange(ADDRESS_ANYUSDC, USER_SENDER, 0)</a>
+<a name="120"><span class="lineNum">     120 </span>                :            :         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)</a>
+<a name="121"><span class="lineNum">     121 </span>                :            :         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)</a>
+<a name="122"><span class="lineNum">     122 </span>                :            :         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)</a>
+<a name="123"><span class="lineNum">     123 </span>                :            :         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)</a>
+<a name="124"><span class="lineNum">     124 </span>                :            :     {</a>
+<a name="125"><span class="lineNum">     125 </span>                :            :         //reference: https://etherscan.io/tx/0x46a6cfe25b91f9795b08ffee39a3230b4a36c2f8fdcd67b14dfa95f2da681d28</a>
+<a name="126"><span class="lineNum">     126 </span>                :            :         vm.expectEmit(true, true, true, true, multichainData.router);</a>
+<a name="127"><span class="lineNum">     127 </span>                :            :         emit LogAnySwapOut(</a>
+<a name="128"><span class="lineNum">     128 </span>                :            :             address(testToken),</a>
+<a name="129"><span class="lineNum">     129 </span>                :            :             address(multichainFacet),</a>
+<a name="130"><span class="lineNum">     130 </span>                :            :             bridgeData.receiver,</a>
+<a name="131"><span class="lineNum">     131 </span>                :            :             bridgeData.minAmount,</a>
+<a name="132"><span class="lineNum">     132 </span>                :            :             1,</a>
+<a name="133"><span class="lineNum">     133 </span>                :            :             bridgeData.destinationChainId</a>
+<a name="134"><span class="lineNum">     134 </span>                :            :         );</a>
+<a name="135"><span class="lineNum">     135 </span>                :            : </a>
+<a name="136"><span class="lineNum">     136 </span>                :            :         vm.startPrank(USER_TESTTOKEN_WHALE);</a>
+<a name="137"><span class="lineNum">     137 </span>                :            :         multichainFacet.startBridgeTokensViaMultichain(bridgeData, multichainData);</a>
+<a name="138"><span class="lineNum">     138 </span>                :            :         vm.stopPrank();</a>
+<a name="139"><span class="lineNum">     139 </span>                :            :     }</a>
+<a name="140"><span class="lineNum">     140 </span>                :            : </a>
+<a name="141"><span class="lineNum">     141 </span>                :            :     function testBase_CanBridgeNativeTokens()</a>
+<a name="142"><span class="lineNum">     142 </span>                :            :         public</a>
+<a name="143"><span class="lineNum">     143 </span>                :            :         override</a>
+<a name="144"><span class="lineNum">     144 </span>                :            :         assertBalanceChange(address(0), USER_SENDER, -(1 ether))</a>
+<a name="145"><span class="lineNum">     145 </span>                :            :         assertBalanceChange(address(0), USER_RECEIVER, 0)</a>
+<a name="146"><span class="lineNum">     146 </span>                :            :         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)</a>
+<a name="147"><span class="lineNum">     147 </span>                :            :         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)</a>
+<a name="148"><span class="lineNum">     148 </span>                :            :     {</a>
+<a name="149"><span class="lineNum">     149 </span>                :            :         // only works with AnyswapV6Router</a>
+<a name="150"><span class="lineNum">     150 </span>                :            :         //reference: https://etherscan.io/tx/0x46a6cfe25b91f9795b08ffee39a3230b4a36c2f8fdcd67b14dfa95f2da681d28</a>
+<a name="151"><span class="lineNum">     151 </span>                :            :         bridgeData.sendingAssetId = address(0);</a>
+<a name="152"><span class="lineNum">     152 </span>                :            :         bridgeData.minAmount = 1 ether;</a>
+<a name="153"><span class="lineNum">     153 </span>                :            : </a>
+<a name="154"><span class="lineNum">     154 </span>                :            :         multichainData = MultichainFacetNEW.MultichainData(routers[2]);</a>
+<a name="155"><span class="lineNum">     155 </span>                :            : </a>
+<a name="156"><span class="lineNum">     156 </span>                :            :         //prepare check for events</a>
+<a name="157"><span class="lineNum">     157 </span>                :            :         vm.expectEmit(true, true, true, true, multichainData.router);</a>
+<a name="158"><span class="lineNum">     158 </span>                :            :         emit LogAnySwapOut(</a>
+<a name="159"><span class="lineNum">     159 </span>                :            :             address(ADDRESS_ANYETH),</a>
+<a name="160"><span class="lineNum">     160 </span>                :            :             address(multichainFacet),</a>
+<a name="161"><span class="lineNum">     161 </span>                :            :             bridgeData.receiver,</a>
+<a name="162"><span class="lineNum">     162 </span>                :            :             bridgeData.minAmount,</a>
+<a name="163"><span class="lineNum">     163 </span>                :            :             1,</a>
+<a name="164"><span class="lineNum">     164 </span>                :            :             bridgeData.destinationChainId</a>
+<a name="165"><span class="lineNum">     165 </span>                :            :         );</a>
+<a name="166"><span class="lineNum">     166 </span>                :            :         vm.expectEmit(true, true, true, true, address(multichainFacet));</a>
+<a name="167"><span class="lineNum">     167 </span>                :            :         emit LiFiTransferStarted(bridgeData);</a>
+<a name="168"><span class="lineNum">     168 </span>                :            : </a>
+<a name="169"><span class="lineNum">     169 </span>                :            :         vm.startPrank(USER_SENDER);</a>
+<a name="170"><span class="lineNum">     170 </span>                :            :         multichainFacet.startBridgeTokensViaMultichain{ value: bridgeData.minAmount }(bridgeData, multichainData);</a>
+<a name="171"><span class="lineNum">     171 </span>                :            :         vm.stopPrank();</a>
+<a name="172"><span class="lineNum">     172 </span>                :            :     }</a>
+<a name="173"><span class="lineNum">     173 </span>                :            : </a>
+<a name="174"><span class="lineNum">     174 </span>                :            :     function testBase_CanSwapAndBridgeTokens()</a>
+<a name="175"><span class="lineNum">     175 </span>                :            :         public</a>
+<a name="176"><span class="lineNum">     176 </span>                :            :         override</a>
+<a name="177"><span class="lineNum">     177 </span>                :            :         assertBalanceChange(ADDRESS_DAI, USER_SENDER, -int256(swapData[0].fromAmount))</a>
+<a name="178"><span class="lineNum">     178 </span>                :            :     {</a>
+<a name="179"><span class="lineNum">     179 </span>                :            :         vm.startPrank(USER_SENDER);</a>
+<a name="180"><span class="lineNum">     180 </span>                :            : </a>
+<a name="181"><span class="lineNum">     181 </span>                :            :         // prepare bridgeData</a>
+<a name="182"><span class="lineNum">     182 </span>                :            :         // special case for Multichain:</a>
+<a name="183"><span class="lineNum">     183 </span>                :            :         // in bridgeData we will store the anyXXX (e.g. anyUSDC) token address as sendingAssetId</a>
+<a name="184"><span class="lineNum">     184 </span>                :            :         // instead of the to-be-bridged token address. This is a workaround.</a>
+<a name="185"><span class="lineNum">     185 </span>                :            :         bridgeData.hasSourceSwaps = true;</a>
+<a name="186"><span class="lineNum">     186 </span>                :            :         bridgeData.sendingAssetId = ADDRESS_ANYUSDC;</a>
+<a name="187"><span class="lineNum">     187 </span>                :            : </a>
+<a name="188"><span class="lineNum">     188 </span>                :            :         // reset swap data</a>
+<a name="189"><span class="lineNum">     189 </span>                :            :         setDefaultSwapDataSingleDAItoUSDC();</a>
+<a name="190"><span class="lineNum">     190 </span>                :            : </a>
+<a name="191"><span class="lineNum">     191 </span>                :            :         dai.approve(address(multichainFacet), swapData[0].fromAmount);</a>
+<a name="192"><span class="lineNum">     192 </span>                :            : </a>
+<a name="193"><span class="lineNum">     193 </span>                :            :         // prepare multichainData</a>
+<a name="194"><span class="lineNum">     194 </span>                :            :         multichainData = MultichainFacetNEW.MultichainData(routers[0]);</a>
+<a name="195"><span class="lineNum">     195 </span>                :            : </a>
+<a name="196"><span class="lineNum">     196 </span>                :            :         //prepare check for events</a>
+<a name="197"><span class="lineNum">     197 </span>                :            :         vm.expectEmit(true, true, true, true, address(multichainFacet));</a>
+<a name="198"><span class="lineNum">     198 </span>                :            :         emit AssetSwapped(</a>
+<a name="199"><span class="lineNum">     199 </span>                :            :             bridgeData.transactionId,</a>
+<a name="200"><span class="lineNum">     200 </span>                :            :             ADDRESS_UNISWAP,</a>
+<a name="201"><span class="lineNum">     201 </span>                :            :             ADDRESS_DAI,</a>
+<a name="202"><span class="lineNum">     202 </span>                :            :             ADDRESS_USDC,</a>
+<a name="203"><span class="lineNum">     203 </span>                :            :             swapData[0].fromAmount,</a>
+<a name="204"><span class="lineNum">     204 </span>                :            :             bridgeData.minAmount,</a>
+<a name="205"><span class="lineNum">     205 </span>                :            :             block.timestamp</a>
+<a name="206"><span class="lineNum">     206 </span>                :            :         );</a>
+<a name="207"><span class="lineNum">     207 </span>                :            : </a>
+<a name="208"><span class="lineNum">     208 </span>                :            :         vm.expectEmit(true, true, true, true, multichainData.router);</a>
+<a name="209"><span class="lineNum">     209 </span>                :            :         emit LogAnySwapOut(</a>
+<a name="210"><span class="lineNum">     210 </span>                :            :             bridgeData.sendingAssetId,</a>
+<a name="211"><span class="lineNum">     211 </span>                :            :             address(multichainFacet),</a>
+<a name="212"><span class="lineNum">     212 </span>                :            :             bridgeData.receiver,</a>
+<a name="213"><span class="lineNum">     213 </span>                :            :             bridgeData.minAmount,</a>
+<a name="214"><span class="lineNum">     214 </span>                :            :             1, //srcChainId</a>
+<a name="215"><span class="lineNum">     215 </span>                :            :             bridgeData.destinationChainId</a>
+<a name="216"><span class="lineNum">     216 </span>                :            :         );</a>
+<a name="217"><span class="lineNum">     217 </span>                :            : </a>
+<a name="218"><span class="lineNum">     218 </span>                :            :         vm.expectEmit(true, true, true, true, address(multichainFacet));</a>
+<a name="219"><span class="lineNum">     219 </span>                :            :         emit LiFiTransferStarted(bridgeData);</a>
+<a name="220"><span class="lineNum">     220 </span>                :            : </a>
+<a name="221"><span class="lineNum">     221 </span>                :            :         // approval</a>
+<a name="222"><span class="lineNum">     222 </span>                :            :         dai.approve(address(multichainFacet), swapData[0].fromAmount);</a>
+<a name="223"><span class="lineNum">     223 </span>                :            : </a>
+<a name="224"><span class="lineNum">     224 </span>                :            :         // execute call in child contract</a>
+<a name="225"><span class="lineNum">     225 </span>                :            :         initiateSwapAndBridgeTxWithFacet(false);</a>
+<a name="226"><span class="lineNum">     226 </span>                :            :     }</a>
+<a name="227"><span class="lineNum">     227 </span>                :            : </a>
+<a name="228"><span class="lineNum">     228 </span>                :            :     function testBase_CanSwapAndBridgeNativeTokens() public override {</a>
+<a name="229"><span class="lineNum">     229 </span>                :            :         vm.startPrank(USER_SENDER);</a>
+<a name="230"><span class="lineNum">     230 </span>                :            : </a>
+<a name="231"><span class="lineNum">     231 </span>                :            :         // prepare bridgeData</a>
+<a name="232"><span class="lineNum">     232 </span>                :            :         // special case for Multichain:</a>
+<a name="233"><span class="lineNum">     233 </span>                :            :         // in bridgeData we will store the anyXXX (e.g. anyUSDC) token address as sendingAssetId</a>
+<a name="234"><span class="lineNum">     234 </span>                :            :         // instead of the to-be-bridged token address. This is a workaround.</a>
+<a name="235"><span class="lineNum">     235 </span>                :            :         bridgeData.hasSourceSwaps = true;</a>
+<a name="236"><span class="lineNum">     236 </span>                :            :         bridgeData.sendingAssetId = address(0);</a>
+<a name="237"><span class="lineNum">     237 </span>                :            :         bridgeData.minAmount = 1 ether;</a>
+<a name="238"><span class="lineNum">     238 </span>                :            : </a>
+<a name="239"><span class="lineNum">     239 </span>                :            :         // reset and adjust swap data</a>
+<a name="240"><span class="lineNum">     240 </span>                :            :         setDefaultSwapDataSingleDAItoETH();</a>
+<a name="241"><span class="lineNum">     241 </span>                :            : </a>
+<a name="242"><span class="lineNum">     242 </span>                :            :         dai.approve(address(multichainFacet), swapData[0].fromAmount);</a>
+<a name="243"><span class="lineNum">     243 </span>                :            : </a>
+<a name="244"><span class="lineNum">     244 </span>                :            :         // prepare multichainData</a>
+<a name="245"><span class="lineNum">     245 </span>                :            :         multichainData = MultichainFacetNEW.MultichainData(routers[2]);</a>
+<a name="246"><span class="lineNum">     246 </span>                :            : </a>
+<a name="247"><span class="lineNum">     247 </span>                :            :         //prepare check for events</a>
+<a name="248"><span class="lineNum">     248 </span>                :            :         vm.expectEmit(true, true, true, true, address(multichainFacet));</a>
+<a name="249"><span class="lineNum">     249 </span>                :            :         emit AssetSwapped(</a>
+<a name="250"><span class="lineNum">     250 </span>                :            :             bridgeData.transactionId,</a>
+<a name="251"><span class="lineNum">     251 </span>                :            :             ADDRESS_UNISWAP,</a>
+<a name="252"><span class="lineNum">     252 </span>                :            :             ADDRESS_DAI,</a>
+<a name="253"><span class="lineNum">     253 </span>                :            :             address(0),</a>
+<a name="254"><span class="lineNum">     254 </span>                :            :             swapData[0].fromAmount,</a>
+<a name="255"><span class="lineNum">     255 </span>                :            :             bridgeData.minAmount,</a>
+<a name="256"><span class="lineNum">     256 </span>                :            :             block.timestamp</a>
+<a name="257"><span class="lineNum">     257 </span>                :            :         );</a>
+<a name="258"><span class="lineNum">     258 </span>                :            : </a>
+<a name="259"><span class="lineNum">     259 </span>                :            :         vm.expectEmit(true, true, true, true, multichainData.router);</a>
+<a name="260"><span class="lineNum">     260 </span>                :            :         emit LogAnySwapOut(</a>
+<a name="261"><span class="lineNum">     261 </span>                :            :             ADDRESS_ANYETH,</a>
+<a name="262"><span class="lineNum">     262 </span>                :            :             address(multichainFacet),</a>
+<a name="263"><span class="lineNum">     263 </span>                :            :             bridgeData.receiver,</a>
+<a name="264"><span class="lineNum">     264 </span>                :            :             bridgeData.minAmount,</a>
+<a name="265"><span class="lineNum">     265 </span>                :            :             1, //srcChainId</a>
+<a name="266"><span class="lineNum">     266 </span>                :            :             bridgeData.destinationChainId</a>
+<a name="267"><span class="lineNum">     267 </span>                :            :         );</a>
+<a name="268"><span class="lineNum">     268 </span>                :            : </a>
+<a name="269"><span class="lineNum">     269 </span>                :            :         vm.expectEmit(true, true, true, true, address(multichainFacet));</a>
+<a name="270"><span class="lineNum">     270 </span>                :            :         emit LiFiTransferStarted(bridgeData);</a>
+<a name="271"><span class="lineNum">     271 </span>                :            : </a>
+<a name="272"><span class="lineNum">     272 </span>                :            :         // approval</a>
+<a name="273"><span class="lineNum">     273 </span>                :            :         dai.approve(address(multichainFacet), swapData[0].fromAmount);</a>
+<a name="274"><span class="lineNum">     274 </span>                :            : </a>
+<a name="275"><span class="lineNum">     275 </span>                :            :         // execute call in child contract</a>
+<a name="276"><span class="lineNum">     276 </span>                :            :         initiateSwapAndBridgeTxWithFacet(false);</a>
+<a name="277"><span class="lineNum">     277 </span>                :            :     }</a>
+<a name="278"><span class="lineNum">     278 </span>                :            : </a>
+<a name="279"><span class="lineNum">     279 </span>                :            :     function testCanBridgeWrappedTokens() public {</a>
+<a name="280"><span class="lineNum">     280 </span>                :            :         //reference: https://etherscan.io/tx/0x7c9bea12ec9b6cd2de01830b7037275461fc95d642ed777437cd9f187fe046c4</a>
+<a name="281"><span class="lineNum">     281 </span>                :            :         ERC20 testToken2 = ERC20(0x22648C12acD87912EA1710357B1302c6a4154Ebc); //anyUSDT</a>
+<a name="282"><span class="lineNum">     282 </span>                :            :         address testToken2Whale = 0x5754284f345afc66a98fbB0a0Afe71e0F007B949; // USDT Whale</a>
+<a name="283"><span class="lineNum">     283 </span>                :            :         uint256 amountToBeBridged = 100 * 10**testToken2.decimals();</a>
+<a name="284"><span class="lineNum">     284 </span>                :            : </a>
+<a name="285"><span class="lineNum">     285 </span>                :            :         ERC20 underlyingToken2 = ERC20(IMultichainToken(address(testToken2)).underlying());</a>
+<a name="286"><span class="lineNum">     286 </span>                :            :         vm.startPrank(testToken2Whale);</a>
+<a name="287"><span class="lineNum">     287 </span>                :            : </a>
+<a name="288"><span class="lineNum">     288 </span>                :            :         SafeERC20.safeIncreaseAllowance(IERC20(address(underlyingToken2)), address(multichainFacet), amountToBeBridged);</a>
+<a name="289"><span class="lineNum">     289 </span>                :            : </a>
+<a name="290"><span class="lineNum">     290 </span>                :            :         bridgeData.sendingAssetId = address(testToken2);</a>
+<a name="291"><span class="lineNum">     291 </span>                :            : </a>
+<a name="292"><span class="lineNum">     292 </span>                :            :         multichainData = MultichainFacetNEW.MultichainData(routers[0]);</a>
+<a name="293"><span class="lineNum">     293 </span>                :            : </a>
+<a name="294"><span class="lineNum">     294 </span>                :            :         vm.expectEmit(true, true, true, true, multichainData.router);</a>
+<a name="295"><span class="lineNum">     295 </span>                :            :         emit LogAnySwapOut(</a>
+<a name="296"><span class="lineNum">     296 </span>                :            :             address(testToken2),</a>
+<a name="297"><span class="lineNum">     297 </span>                :            :             address(multichainFacet),</a>
+<a name="298"><span class="lineNum">     298 </span>                :            :             bridgeData.receiver,</a>
+<a name="299"><span class="lineNum">     299 </span>                :            :             bridgeData.minAmount,</a>
+<a name="300"><span class="lineNum">     300 </span>                :            :             1,</a>
+<a name="301"><span class="lineNum">     301 </span>                :            :             bridgeData.destinationChainId</a>
+<a name="302"><span class="lineNum">     302 </span>                :            :         );</a>
+<a name="303"><span class="lineNum">     303 </span>                :            : </a>
+<a name="304"><span class="lineNum">     304 </span>                :            :         multichainFacet.startBridgeTokensViaMultichain(bridgeData, multichainData);</a>
+<a name="305"><span class="lineNum">     305 </span>                :            :         vm.stopPrank();</a>
+<a name="306"><span class="lineNum">     306 </span>                :            :     }</a>
+<a name="307"><span class="lineNum">     307 </span>                :            : </a>
+<a name="308"><span class="lineNum">     308 </span>                :            :     function testCanBridgeMultichainTokens() public {</a>
+<a name="309"><span class="lineNum">     309 </span>                :            :         // Multichain tokens are specific tokens that are bridged by calling a function in the</a>
+<a name="310"><span class="lineNum">     310 </span>                :            :         // token contract itself (instead of going through a router contract)</a>
+<a name="311"><span class="lineNum">     311 </span>                :            :         ERC20 testToken3 = ERC20(0x55aF5865807b196bD0197e0902746F31FBcCFa58); // BOO token</a>
+<a name="312"><span class="lineNum">     312 </span>                :            :         address testToken3Whale = 0x27F82c89b5380Da1A39A8f4F2b56145256A98D34;</a>
+<a name="313"><span class="lineNum">     313 </span>                :            :         uint256 amountToBeBridged = 10_000 * 10**testToken3.decimals();</a>
+<a name="314"><span class="lineNum">     314 </span>                :            : </a>
+<a name="315"><span class="lineNum">     315 </span>                :            :         vm.startPrank(testToken3Whale);</a>
+<a name="316"><span class="lineNum">     316 </span>                :            :         testToken3.approve(address(multichainFacet), amountToBeBridged);</a>
+<a name="317"><span class="lineNum">     317 </span>                :            : </a>
+<a name="318"><span class="lineNum">     318 </span>                :            :         bridgeData.sendingAssetId = address(testToken3);</a>
+<a name="319"><span class="lineNum">     319 </span>                :            :         bridgeData.minAmount = amountToBeBridged;</a>
+<a name="320"><span class="lineNum">     320 </span>                :            : </a>
+<a name="321"><span class="lineNum">     321 </span>                :            :         multichainData = MultichainFacetNEW.MultichainData(address(testToken3));</a>
+<a name="322"><span class="lineNum">     322 </span>                :            : </a>
+<a name="323"><span class="lineNum">     323 </span>                :            :         vm.expectEmit(true, true, true, true, address(testToken3));</a>
+<a name="324"><span class="lineNum">     324 </span>                :            :         emit LogSwapout(address(multichainFacet), bridgeData.receiver, bridgeData.minAmount);</a>
+<a name="325"><span class="lineNum">     325 </span>                :            : </a>
+<a name="326"><span class="lineNum">     326 </span>                :            :         multichainFacet.startBridgeTokensViaMultichain(bridgeData, multichainData);</a>
+<a name="327"><span class="lineNum">     327 </span>                :            :         vm.stopPrank();</a>
+<a name="328"><span class="lineNum">     328 </span>                :            :     }</a>
+<a name="329"><span class="lineNum">     329 </span>                :            : </a>
+<a name="330"><span class="lineNum">     330 </span>                :            :     function testFailWhenUsingNotWhitelistedRouter() public {</a>
+<a name="331"><span class="lineNum">     331 </span>                :            :         // re-deploy multichain facet with adjusted router whitelist</a>
+<a name="332"><span class="lineNum">     332 </span>                :            :         diamond = createDiamond();</a>
+<a name="333"><span class="lineNum">     333 </span>                :            :         routers = [</a>
+<a name="334"><span class="lineNum">     334 </span>                :            :             0x55aF5865807b196bD0197e0902746F31FBcCFa58, // TestMultichainToken</a>
+<a name="335"><span class="lineNum">     335 </span>                :            :             0x7782046601e7b9B05cA55A3899780CE6EE6B8B2B // AnyswapV6Router</a>
+<a name="336"><span class="lineNum">     336 </span>                :            :         ];</a>
+<a name="337"><span class="lineNum">     337 </span>                :            :         multichainFacet = new TestMultichainFacet();</a>
+<a name="338"><span class="lineNum">     338 </span>                :            : </a>
+<a name="339"><span class="lineNum">     339 </span>                :            :         bytes4[] memory functionSelectors = new bytes4[](5);</a>
+<a name="340"><span class="lineNum">     340 </span>                :            :         functionSelectors[0] = multichainFacet.startBridgeTokensViaMultichain.selector;</a>
+<a name="341"><span class="lineNum">     341 </span>                :            :         functionSelectors[1] = multichainFacet.swapAndStartBridgeTokensViaMultichain.selector;</a>
+<a name="342"><span class="lineNum">     342 </span>                :            :         functionSelectors[2] = multichainFacet.addDex.selector;</a>
+<a name="343"><span class="lineNum">     343 </span>                :            :         functionSelectors[3] = multichainFacet.setFunctionApprovalBySignature.selector;</a>
+<a name="344"><span class="lineNum">     344 </span>                :            :         functionSelectors[4] = multichainFacet.initMultichain.selector;</a>
+<a name="345"><span class="lineNum">     345 </span>                :            : </a>
+<a name="346"><span class="lineNum">     346 </span>                :            :         addFacet(diamond, address(multichainFacet), functionSelectors);</a>
+<a name="347"><span class="lineNum">     347 </span>                :            : </a>
+<a name="348"><span class="lineNum">     348 </span>                :            :         multichainFacet = TestMultichainFacet(address(diamond));</a>
+<a name="349"><span class="lineNum">     349 </span>                :            :         multichainFacet.addDex(address(uniswap));</a>
+<a name="350"><span class="lineNum">     350 </span>                :            :         multichainFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);</a>
+<a name="351"><span class="lineNum">     351 </span>                :            :         multichainFacet.initMultichain(ADDRESS_ANYETH, routers);</a>
+<a name="352"><span class="lineNum">     352 </span>                :            : </a>
+<a name="353"><span class="lineNum">     353 </span>                :            :         // this test case should fail now since the router is not whitelisted</a>
+<a name="354"><span class="lineNum">     354 </span>                :            :         testBase_CanBridgeTokens();</a>
+<a name="355"><span class="lineNum">     355 </span>                :            :     }</a>
+<a name="356"><span class="lineNum">     356 </span>                :            : </a>
+<a name="357"><span class="lineNum">     357 </span>                :            :     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {</a>
+<a name="358"><span class="lineNum">     358 </span>                :            :         vm.startPrank(USER_SENDER);</a>
+<a name="359"><span class="lineNum">     359 </span>                :            : </a>
+<a name="360"><span class="lineNum">     360 </span>                :            :         vm.assume(amount &gt; 0 &amp;&amp; amount &lt; 100_000);</a>
+<a name="361"><span class="lineNum">     361 </span>                :            :         amount = amount * 10**testToken.decimals();</a>
+<a name="362"><span class="lineNum">     362 </span>                :            : </a>
+<a name="363"><span class="lineNum">     363 </span>                :            :         // approval</a>
+<a name="364"><span class="lineNum">     364 </span>                :            :         underlyingToken.approve(address(multichainFacet), amount);</a>
+<a name="365"><span class="lineNum">     365 </span>                :            : </a>
+<a name="366"><span class="lineNum">     366 </span>                :            :         bridgeData.minAmount = amount;</a>
+<a name="367"><span class="lineNum">     367 </span>                :            : </a>
+<a name="368"><span class="lineNum">     368 </span>                :            :         //prepare check for events</a>
+<a name="369"><span class="lineNum">     369 </span>                :            :         vm.expectEmit(true, true, true, true, address(multichainFacet));</a>
+<a name="370"><span class="lineNum">     370 </span>                :            :         emit LiFiTransferStarted(bridgeData);</a>
+<a name="371"><span class="lineNum">     371 </span>                :            : </a>
+<a name="372"><span class="lineNum">     372 </span>                :            :         initiateBridgeTxWithFacet(false);</a>
+<a name="373"><span class="lineNum">     373 </span>                :            :         vm.stopPrank();</a>
+<a name="374"><span class="lineNum">     374 </span>                :            :     }</a>
+<a name="375"><span class="lineNum">     375 </span>                :            : }</a>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="https://github.com/linux-test-project/lcov" target="_parent">LCOV version 1.16</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>
