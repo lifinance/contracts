@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBase, console, InvalidAmount, ERC20 } from "../utils/TestBase.sol";
+import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20 } from "../utils/TestBaseFacet.sol";
 import { NativeAssetNotSupported } from "src/Errors/GenericErrors.sol";
 import { GravityFacet } from "lifi/Facets/GravityFacet.sol";
 import { IGravityRouter } from "lifi/Interfaces/IGravityRouter.sol";
@@ -19,7 +19,7 @@ contract TestGravityFacet is GravityFacet {
     }
 }
 
-contract GravityFacetTest is TestBase {
+contract GravityFacetTest is TestBaseFacet {
     // These values are for mainnet
     address internal constant GRAVITY_ROUTER = 0xa4108aA1Ec4967F8b52220a4f7e94A8201F2D906;
     // -----
@@ -47,7 +47,7 @@ contract GravityFacetTest is TestBase {
         gravityFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
         gravityFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
 
-        setFacetAddressInTestBase(address(gravityFacet));
+        setFacetAddressInTestBase(address(gravityFacet), "GravityFacet");
 
         bridgeData.bridge = "gravity";
 
