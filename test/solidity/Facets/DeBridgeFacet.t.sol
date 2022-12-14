@@ -100,32 +100,9 @@ contract DeBridgeFacetTest is TestBaseFacet {
         );
     }
 
-    function testBase_Revert_BridgeWithInvalidDestinationCallFlag() public override {
-        // facet supports destination call
-    }
-
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
-        vm.startPrank(USER_SENDER);
-
         // amount should be greater than execution fee
-        vm.assume(amount > 1 && amount < 100_000);
-        amount = amount * 10**usdc.decimals();
-
-        logFilePath = "./test/logs/"; // works but is not really a proper file
-        // logFilePath = "./test/logs/fuzz_test.txt"; // throws error "failed to write to "....../test/logs/fuzz_test.txt": No such file or directory"
-
-        vm.writeLine(logFilePath, vm.toString(amount));
-        // approval
-        usdc.approve(_facetTestContractAddress, amount);
-
-        bridgeData.sendingAssetId = ADDRESS_USDC;
-        bridgeData.minAmount = amount;
-
-        //prepare check for events
-        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit LiFiTransferStarted(bridgeData);
-
-        initiateBridgeTxWithFacet(false);
-        vm.stopPrank();
+        vm.assume(amount > 1);
+        super.testBase_CanBridgeTokens_fuzzed(amount);
     }
 }
