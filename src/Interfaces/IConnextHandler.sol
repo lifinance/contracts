@@ -55,6 +55,6 @@ interface IConnextHandler {
         address delegate,
         uint256 amount,
         uint256 slippage,
-        bytes32 callData
+        bytes memory callData
     ) external payable returns (bytes32);
 }
