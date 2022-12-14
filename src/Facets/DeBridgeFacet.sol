@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IDeBridgeGate } from "../Interfaces/IDeBridgeGate.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
-import { LibSwap } from "../Libraries/LibSwap.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { SwapperV2 } from "../Helpers/SwapperV2.sol";
+import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { InformationMismatch } from "../Errors/GenericErrors.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 
 /// @title DeBridge Facet
 /// @author LI.FI (https://li.fi)
@@ -71,6 +68,8 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
     {
+        validateDestinationCallFlag(_bridgeData, _deBridgeData);
+
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _deBridgeData);
     }
@@ -82,7 +81,7 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaDeBridge(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        DeBridgeData memory _deBridgeData
+        DeBridgeData calldata _deBridgeData
     )
         external
         payable
@@ -91,6 +90,8 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        validateDestinationCallFlag(_bridgeData, _deBridgeData);
+
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -111,7 +112,7 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via DeBridge
     /// @param _bridgeData the core information needed for bridging
     /// @param _deBridgeData data specific to DeBridge
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, DeBridgeData memory _deBridgeData) internal {
+    function _startBridge(ILiFi.BridgeData memory _bridgeData, DeBridgeData calldata _deBridgeData) internal {
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
         uint256 nativeAssetAmount = _deBridgeData.nativeFee;
 
@@ -133,5 +134,14 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function validateDestinationCallFlag(ILiFi.BridgeData memory _bridgeData, DeBridgeData calldata _deBridgeData)
+        private
+        pure
+    {
+        if ((_deBridgeData.autoParams.data.length > 0) != _bridgeData.hasDestinationCall) {
+            revert InformationMismatch();
+        }
     }
 }
