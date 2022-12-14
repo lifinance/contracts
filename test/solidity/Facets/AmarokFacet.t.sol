@@ -32,6 +32,9 @@ contract AmarokFacetTest is TestBaseFacet {
     AmarokFacet.AmarokData internal amarokData;
 
     function setUp() public {
+        // set custom block no for mainnet forking
+        customBlockNumberForForking = 16176320;
+
         initTestBase();
 
         amarokFacet = new TestAmarokFacet(IConnextHandler(CONNEXT_HANDLER), DSTCHAIN_DOMAIN_MAINNET);
@@ -68,13 +71,10 @@ contract AmarokFacetTest is TestBaseFacet {
             receiveLocal: false,
             callback: address(0),
             callbackFee: 0,
-            relayerFee: 1 ether,
-            slippageTol: 300,
+            relayerFee: 0,
+            slippageTol: 9995,
             originMinOut: 0
         });
-
-        // set custom block no for mainnet forking
-        customBlockNumberForForking = 16176320;
 
         // make sure relayerFee is sent with every transaction
         addToMessageValue = 1 * 10**15;
@@ -106,7 +106,7 @@ contract AmarokFacetTest is TestBaseFacet {
 
         // update bridgeData
         bridgeData.sendingAssetId = ADDRESS_WETH;
-        bridgeData.minAmount = 100 * 10 * weth.decimals();
+        bridgeData.minAmount = 100 * 10**weth.decimals();
 
         // approval
         weth.approve(address(amarokFacet), bridgeData.minAmount);
