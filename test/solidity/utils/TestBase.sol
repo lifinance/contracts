@@ -71,6 +71,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     UniswapV2Router02 internal uniswap;
     ERC20 internal usdc;
     ERC20 internal dai;
+    ERC20 internal weth;
     LiFiDiamond internal diamond;
     ILiFi.BridgeData internal bridgeData;
     LibSwap.SwapData[] internal swapData;
@@ -112,6 +113,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     address internal constant USER_DIAMOND_OWNER = 0x5042255A3F3FD7727e419CeA387cAFDfad3C3aF8;
     address internal constant USER_USDC_WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
     address internal constant USER_DAI_WHALE = 0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
+    address internal constant USER_WETH_WHALE = 0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E;
 
     // MODIFIERS
 
@@ -144,25 +146,6 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
 
     // FUNCTIONS
     function initTestBase() internal {
-        // activate fork
-        fork();
-
-        // fill user accounts with starting balance
-        uniswap = UniswapV2Router02(ADDRESS_UNISWAP);
-        usdc = ERC20(ADDRESS_USDC);
-        dai = ERC20(ADDRESS_DAI);
-
-        // deploy & configure diamond
-        diamond = createDiamond();
-
-        // transfer initial DAI/USDC balance to USER_SENDER
-        vm.startPrank(USER_USDC_WHALE);
-        usdc.transfer(USER_SENDER, 100_000 * 10**usdc.decimals());
-        vm.stopPrank();
-        vm.startPrank(USER_DAI_WHALE);
-        dai.transfer(USER_SENDER, 100_000 * 10**dai.decimals());
-        vm.stopPrank();
-
         // label addresses (for better readability in error traces)
         vm.label(USER_SENDER, "USER_SENDER");
         vm.label(USER_RECEIVER, "USER_RECEIVER");
@@ -175,6 +158,29 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         vm.label(ADDRESS_DAI, "ADDRESS_DAI");
         vm.label(ADDRESS_UNISWAP, "ADDRESS_UNISWAP");
         vm.label(ADDRESS_WETH, "ADDRESS_WETH_PROXY");
+
+        // activate fork
+        fork();
+
+        // fill user accounts with starting balance
+        uniswap = UniswapV2Router02(ADDRESS_UNISWAP);
+        usdc = ERC20(ADDRESS_USDC);
+        dai = ERC20(ADDRESS_DAI);
+        weth = ERC20(ADDRESS_WETH);
+
+        // deploy & configure diamond
+        diamond = createDiamond();
+
+        // transfer initial DAI/USDC/WETH balance to USER_SENDER
+        vm.startPrank(USER_USDC_WHALE);
+        usdc.transfer(USER_SENDER, 100_000 * 10**usdc.decimals());
+        vm.stopPrank();
+        vm.startPrank(USER_DAI_WHALE);
+        dai.transfer(USER_SENDER, 100_000 * 10**dai.decimals());
+        vm.stopPrank();
+        vm.startPrank(USER_WETH_WHALE);
+        weth.transfer(USER_SENDER, 100_000 * 10**weth.decimals());
+        vm.stopPrank();
 
         // fund USER_SENDER with 1000 ether
         vm.deal(USER_SENDER, 1000 ether);

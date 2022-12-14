@@ -11,6 +11,8 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibMappings } from "../Libraries/LibMappings.sol";
 
+import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
+
 /// @title Amarok Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Connext Amarok
@@ -129,28 +131,58 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function _startBridge(BridgeData memory _bridgeData, AmarokData calldata _amarokData) private {
         uint32 dstChainDomain = getAmarokDomain(_bridgeData.destinationChainId);
 
-        IConnextHandler.XCallArgs memory xcallArgs = IConnextHandler.XCallArgs({
-            params: IConnextHandler.CallParams({
-                to: _bridgeData.receiver,
-                callData: _amarokData.callData,
-                originDomain: srcChainDomain,
-                destinationDomain: dstChainDomain,
-                agent: _bridgeData.receiver,
-                recovery: msg.sender,
-                forceSlow: _amarokData.forceSlow,
-                receiveLocal: _amarokData.receiveLocal,
-                callback: _amarokData.callback,
-                callbackFee: _amarokData.callbackFee,
-                relayerFee: _amarokData.relayerFee,
-                slippageTol: _amarokData.slippageTol
-            }),
-            transactingAsset: _bridgeData.sendingAssetId,
-            transactingAmount: _bridgeData.minAmount,
-            originMinOut: _amarokData.originMinOut
-        });
+        console.log("dstChainDomain: ", dstChainDomain);
+        console.log("_bridgeData.receiver: ", _bridgeData.receiver);
+        console.log("_bridgeData.sendingAssetId: ", _bridgeData.sendingAssetId);
+        console.log("_bridgeData.receiver: ", _bridgeData.receiver);
+        console.log("_bridgeData.minAmount: ", _bridgeData.minAmount);
+        console.log("_amarokData.slippageTol: ", _amarokData.slippageTol);
+        console.log("_amarokData.relayerFee: ", _amarokData.relayerFee);
+
+        // IConnextHandler.XCallArgs memory xcallArgs = IConnextHandler.XCallArgs({
+        //     params: IConnextHandler.CallParams({
+        //         to: _bridgeData.receiver,
+        //         callData: _amarokData.callData,
+        //         originDomain: srcChainDomain,
+        //         destinationDomain: dstChainDomain,
+        //         agent: _bridgeData.receiver,
+        //         recovery: msg.sender,
+        //         forceSlow: _amarokData.forceSlow,
+        //         receiveLocal: _amarokData.receiveLocal,
+        //         callback: _amarokData.callback,
+        //         callbackFee: _amarokData.callbackFee,
+        //         relayerFee: _amarokData.relayerFee,
+        //         slippageTol: _amarokData.slippageTol
+        //     }),
+        //     transactingAsset: _bridgeData.sendingAssetId,
+        //     transactingAmount: _bridgeData.minAmount,
+        //     originMinOut: _amarokData.originMinOut
+        // });
 
         LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(connextHandler), _bridgeData.minAmount);
-        connextHandler.xcall(xcallArgs);
+        // connextHandler.xcall(xcallArgs);
+
+        connextHandler.xcall{ value: _amarokData.relayerFee }(
+            dstChainDomain,
+            _bridgeData.receiver,
+            _bridgeData.sendingAssetId,
+            _bridgeData.receiver,
+            _bridgeData.minAmount,
+            _amarokData.slippageTol,
+            ""
+        );
+
+        // _destination:               1886350457   // polygon
+        // _to:                        0x0000000000000000000000000000000abC654321
+        // _asset:                     0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 // USDC
+        // _delegate:                  0x0000000000000000000000000000000abC654321
+        // _amount:                    100000000 // 100 USDC
+        // _slippage:                  300  // also tried with 9995, 10000 but fails
+        // _call:                      ""
+
+        // + relayerFee
+
+        console.log("here");
 
         emit LiFiTransferStarted(_bridgeData);
     }

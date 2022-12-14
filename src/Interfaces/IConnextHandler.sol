@@ -46,5 +46,15 @@ interface IConnextHandler {
         uint256 originMinOut;
     }
 
-    function xcall(XCallArgs calldata _args) external payable returns (bytes32);
+    // function xcall(XCallArgs calldata _args) external payable returns (bytes32);
+
+    function xcall(
+        uint32 destination,
+        address recipient,
+        address tokenAddress,
+        address delegate,
+        uint256 amount,
+        uint256 slippage,
+        bytes32 callData
+    ) external payable returns (bytes32);
 }
