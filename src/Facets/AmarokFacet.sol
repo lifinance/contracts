@@ -123,45 +123,36 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit AmarokDomainSet(_chainId, _domain);
     }
 
+    /// @dev Called on destination chain to execute messages
+    /// @param _bridgeData Data used purely for tracking and analytics
+    /// @param _amarokData Data specific to Amarok
+    function xReceive(
+        bytes32 _transferId,
+        uint256 _amount,
+        address _asset,
+        address _originSender,
+        uint32 _origin,
+        bytes memory _callData
+    ) external onlySource(_originSender, _origin) returns (bytes memory) {
+        // Unpack the _callData
+        string memory newGreeting = abi.decode(_callData, (string));
+
+        _updateGreeting(newGreeting);
+    }
+
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Amarok
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _amarokData Data specific to Amarok
     function _startBridge(BridgeData memory _bridgeData, AmarokData calldata _amarokData) private {
+        // get Amarok-specific domain for destination chain
         uint32 dstChainDomain = getAmarokDomain(_bridgeData.destinationChainId);
 
-        console.log("dstChainDomain: ", dstChainDomain);
-        console.log("_bridgeData.receiver: ", _bridgeData.receiver);
-        console.log("_bridgeData.sendingAssetId: ", _bridgeData.sendingAssetId);
-        console.log("_bridgeData.receiver: ", _bridgeData.receiver);
-        console.log("_bridgeData.minAmount: ", _bridgeData.minAmount);
-        console.log("_amarokData.slippageTol: ", _amarokData.slippageTol);
-        console.log("_amarokData.relayerFee: ", _amarokData.relayerFee);
-
-        // IConnextHandler.XCallArgs memory xcallArgs = IConnextHandler.XCallArgs({
-        //     params: IConnextHandler.CallParams({
-        //         to: _bridgeData.receiver,
-        //         callData: _amarokData.callData,
-        //         originDomain: srcChainDomain,
-        //         destinationDomain: dstChainDomain,
-        //         agent: _bridgeData.receiver,
-        //         recovery: msg.sender,
-        //         forceSlow: _amarokData.forceSlow,
-        //         receiveLocal: _amarokData.receiveLocal,
-        //         callback: _amarokData.callback,
-        //         callbackFee: _amarokData.callbackFee,
-        //         relayerFee: _amarokData.relayerFee,
-        //         slippageTol: _amarokData.slippageTol
-        //     }),
-        //     transactingAsset: _bridgeData.sendingAssetId,
-        //     transactingAmount: _bridgeData.minAmount,
-        //     originMinOut: _amarokData.originMinOut
-        // });
-
+        // give max approval for token to Amarok bridge, if not already
         LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(connextHandler), _bridgeData.minAmount);
-        // connextHandler.xcall(xcallArgs);
 
+        // initiate bridge transaction
         connextHandler.xcall{ value: _amarokData.relayerFee }(
             dstChainDomain,
             _bridgeData.receiver,
@@ -171,18 +162,6 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _amarokData.slippageTol,
             ""
         );
-
-        // _destination:               1886350457   // polygon
-        // _to:                        0x0000000000000000000000000000000abC654321
-        // _asset:                     0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 // USDC
-        // _delegate:                  0x0000000000000000000000000000000abC654321
-        // _amount:                    100000000 // 100 USDC
-        // _slippage:                  300  // also tried with 9995, 10000 but fails
-        // _call:                      ""
-
-        // + relayerFee
-
-        console.log("here");
 
         emit LiFiTransferStarted(_bridgeData);
     }
