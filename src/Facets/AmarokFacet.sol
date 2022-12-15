@@ -11,8 +11,6 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibMappings } from "../Libraries/LibMappings.sol";
 
-import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
-
 /// @title Amarok Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Connext Amarok

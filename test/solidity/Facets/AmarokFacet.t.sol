@@ -22,6 +22,8 @@ contract TestAmarokFacet is AmarokFacet {
 }
 
 contract AmarokFacetTest is TestBaseFacet {
+    using stdJson for string;
+
     address internal constant CONNEXT_HANDLER = 0x01EdE4Fdf8CF7Ef9942a935305C3145f8dAa180A;
     address internal constant CONNEXT_HANDLER2 = 0x2b501381c6d6aFf9238526352b1c7560Aa35A7C5;
     uint32 internal constant DSTCHAIN_DOMAIN_GOERLI = 1735356532;
