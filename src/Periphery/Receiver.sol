@@ -23,7 +23,6 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     address public amarokRouter;
 
     /// Errors ///
-    error InvalidStargateRouter();
 
     /// Events ///
     event StargateRouterSet(address indexed router);
@@ -41,7 +40,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// Modifiers ///
     modifier onlySGRouter() {
         if (msg.sender != sgRouter) {
-            revert InvalidStargateRouter();
+            revert UnAuthorized();
         }
         _;
     }
@@ -79,6 +78,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         emit StargateRouterSet(_sgRouter);
     }
 
+    /// @notice Sets the address of the Amarok router
     /// @param _amarokRouter the Amarok router address
     function setAmarokRouter(address _amarokRouter) external onlyOwner {
         amarokRouter = _amarokRouter;
@@ -126,7 +126,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @param * (unused) The remote Bridge address
     /// @param * (unused) Nonce
     /// @param * (unused) The token contract on the local chain
-    /// @param _amountLD The amount of local _token contract tokens
+    /// @param _amountLD The amount of tokens received through bridging
     /// @param _payload The data to execute
     function sgReceive(
         uint16, // _srcChainId unused

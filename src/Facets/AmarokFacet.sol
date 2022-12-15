@@ -36,22 +36,12 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @param callData The data to execute on the receiving chain. If no crosschain call is needed, then leave empty.
-    /// @param forceSlow If true, will take slow liquidity path even if it is not a permissioned call
-    /// @param receiveLocal If true, will use the local nomad asset on the destination instead of adopted.
-    /// @param callback The address on the origin domain of the callback contract
-    /// @param callbackFee The relayer fee to execute the callback
     /// @param relayerFee The amount of relayer fee the tx called xcall with
     /// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
-    /// @param originMinOut Minimum amount received on swaps for adopted <> local on origin chain
     struct AmarokData {
         bytes callData;
-        bool forceSlow;
-        bool receiveLocal;
-        address callback;
-        uint256 callbackFee;
         uint256 relayerFee;
         uint256 slippageTol;
-        uint256 originMinOut;
     }
 
     /// Constructor ///
@@ -123,23 +113,6 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit AmarokDomainSet(_chainId, _domain);
     }
 
-    /// @dev Called on destination chain to execute messages
-    /// @param _bridgeData Data used purely for tracking and analytics
-    /// @param _amarokData Data specific to Amarok
-    function xReceive(
-        bytes32 _transferId,
-        uint256 _amount,
-        address _asset,
-        address _originSender,
-        uint32 _origin,
-        bytes memory _callData
-    ) external onlySource(_originSender, _origin) returns (bytes memory) {
-        // Unpack the _callData
-        string memory newGreeting = abi.decode(_callData, (string));
-
-        _updateGreeting(newGreeting);
-    }
-
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Amarok
@@ -160,7 +133,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.receiver,
             _bridgeData.minAmount,
             _amarokData.slippageTol,
-            ""
+            _amarokData.callData
         );
 
         emit LiFiTransferStarted(_bridgeData);

@@ -66,16 +66,7 @@ contract AmarokFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 137;
 
         // produce valid AcrossData
-        amarokData = AmarokFacet.AmarokData({
-            callData: "",
-            forceSlow: false,
-            receiveLocal: false,
-            callback: address(0),
-            callbackFee: 0,
-            relayerFee: 0,
-            slippageTol: 9995,
-            originMinOut: 0
-        });
+        amarokData = AmarokFacet.AmarokData({ callData: "", relayerFee: 0, slippageTol: 9995 });
 
         // make sure relayerFee is sent with every transaction
         addToMessageValue = 1 * 10**15;

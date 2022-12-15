@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import { DSTest } from "ds-test/test.sol";
+import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
@@ -25,7 +26,7 @@ contract TestFacet {
     }
 }
 
-contract ReentrancyChecker is DSTest {
+contract ReentrancyChecker is Test {
     address private _facetAddress;
     bytes private _callData;
 
@@ -112,7 +113,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
     address internal constant USER_REFUND = address(0xabcdef281);
     address internal constant USER_DIAMOND_OWNER = 0x5042255A3F3FD7727e419CeA387cAFDfad3C3aF8;
     address internal constant USER_USDC_WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
-    address internal constant USER_DAI_WHALE = 0x66F62574ab04989737228D18C3624f7FC1edAe14;
+    address internal constant USER_DAI_WHALE = 0x4aa42145Aa6Ebf72e164C9bBC74fbD3788045016;
     address internal constant USER_WETH_WHALE = 0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E;
 
     // MODIFIERS
@@ -229,6 +230,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         });
     }
 
+    //@dev: be careful that _facetTestContractAddress is set before calling this function
     function setDefaultSwapDataSingleDAItoUSDC() internal virtual {
         delete swapData;
         // Swap DAI -> USDC
@@ -262,6 +264,7 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         );
     }
 
+    //@dev: be careful that _facetTestContractAddress is set before calling this function
     function setDefaultSwapDataSingleDAItoETH() internal virtual {
         delete swapData;
         // Swap DAI -> USDC
@@ -311,6 +314,17 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         console.log("hasSourceSwaps              :", _bridgeData.hasSourceSwaps);
         console.log("hasDestinationCall          :", _bridgeData.hasDestinationCall);
         console.log("------------- END -----------------");
+    }
+
+    function fuelAccountWithERC20(
+        address tokenAddress,
+        address to,
+        address tokenWhale,
+        uint256 amount
+    ) internal {
+        vm.startPrank(tokenWhale);
+        ERC20(tokenAddress).transfer(to, amount);
+        vm.stopPrank();
     }
 
     //#endregion
