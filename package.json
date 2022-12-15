@@ -101,6 +101,7 @@
     "hardhat-ethers": "^1.0.1",
     "inquirer": "^8.2.1",
     "light-spinner": "^1.0.4",
-    "pino": "^7.9.2"
+    "pino": "^7.9.2",
+    "yarn": "^1.22.19"
   }
 }

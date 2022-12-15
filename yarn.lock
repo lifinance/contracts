@@ -2,6 +2,16 @@
 # yarn lockfile v1
 
 
+"@arbitrum/sdk@^3.0.0":
+  "integrity" "sha512-Mws5WAxxirp3vk8JH3vyQ5H6q1NNUIAAGEd9oEnQYDMyTBHLKU293GA3s9w4w6ZfIq/RZq8YCexhy4D1R+mQng=="
+  "resolved" "https://registry.npmjs.org/@arbitrum/sdk/-/sdk-3.0.0.tgz"
+  "version" "3.0.0"
+  dependencies:
+    "@ethersproject/address" "^5.0.8"
+    "@ethersproject/bignumber" "^5.1.1"
+    "@ethersproject/bytes" "^5.0.8"
+    "ethers" "^5.1.0"
+
 "@axelar-network/axelar-cgp-solidity@git+https://github.com/axelarnetwork/axelar-cgp-solidity.git":
   "integrity" "sha512-X8OnOLLav2ubH8yZ2ONc6sxnIRqwo4G5MWzwLOkgJv6yMeCxWqFfI5n2d4VVq+k9zD0vr3vDH2ZHSbqJJaaXRA=="
   "resolved" "git+ssh://git@github.com/axelarnetwork/axelar-cgp-solidity.git"
@@ -413,7 +423,7 @@
     "@ethersproject/logger" "^5.7.0"
     "@ethersproject/properties" "^5.7.0"
 
-"@ethersproject/address@^5.0.0-beta", "@ethersproject/address@^5.0.2", "@ethersproject/address@^5.0.4", "@ethersproject/address@^5.4.0", "@ethersproject/address@^5.7.0", "@ethersproject/address@5.7.0":
+"@ethersproject/address@^5.0.0-beta", "@ethersproject/address@^5.0.2", "@ethersproject/address@^5.0.4", "@ethersproject/address@^5.0.8", "@ethersproject/address@^5.4.0", "@ethersproject/address@^5.7.0", "@ethersproject/address@5.7.0":
   "integrity" "sha512-9wYhYt7aghVGo758POM5nqcOMaE168Q6aRLJZwUmiqSrAungkG74gSSeKEIR7ukixesdRZGPgVqme6vmxs1fkA=="
   "resolved" "https://registry.npmjs.org/@ethersproject/address/-/address-5.7.0.tgz"
   "version" "5.7.0"
@@ -439,7 +449,7 @@
     "@ethersproject/bytes" "^5.7.0"
     "@ethersproject/properties" "^5.7.0"
 
-"@ethersproject/bignumber@^5.0.7", "@ethersproject/bignumber@^5.4.1", "@ethersproject/bignumber@^5.7.0", "@ethersproject/bignumber@5.7.0":
+"@ethersproject/bignumber@^5.0.7", "@ethersproject/bignumber@^5.1.1", "@ethersproject/bignumber@^5.4.1", "@ethersproject/bignumber@^5.7.0", "@ethersproject/bignumber@5.7.0":
   "integrity" "sha512-n1CAdIHRWjSucQO3MC1zPSVgV/6dy/fjL9pMrPP9peL+QxEg9wOsVqwD4+818B6LUEtaXzVHQiuivzRoxPxUGw=="
   "resolved" "https://registry.npmjs.org/@ethersproject/bignumber/-/bignumber-5.7.0.tgz"
   "version" "5.7.0"
@@ -448,7 +458,7 @@
     "@ethersproject/logger" "^5.7.0"
     "bn.js" "^5.2.1"
 
-"@ethersproject/bytes@^5.0.0", "@ethersproject/bytes@^5.0.4", "@ethersproject/bytes@^5.4.0", "@ethersproject/bytes@^5.5.0", "@ethersproject/bytes@^5.7.0", "@ethersproject/bytes@5.7.0":
+"@ethersproject/bytes@^5.0.0", "@ethersproject/bytes@^5.0.4", "@ethersproject/bytes@^5.0.8", "@ethersproject/bytes@^5.4.0", "@ethersproject/bytes@^5.5.0", "@ethersproject/bytes@^5.7.0", "@ethersproject/bytes@5.7.0":
   "integrity" "sha512-nsbxwgFXWh9NyYWo+U8atvmMsSdKJprTcICAkvbBffT75qDocbuggBU0SJiVK2MuTrp0q+xvLkTnGMPK1+uA9A=="
   "resolved" "https://registry.npmjs.org/@ethersproject/bytes/-/bytes-5.7.0.tgz"
   "version" "5.7.0"
@@ -4327,7 +4337,7 @@
     "uuid" "2.0.1"
     "xmlhttprequest" "1.8.0"
 
-"ethers@^5", "ethers@^5.0.0", "ethers@^5.1.3", "ethers@^5.4.2", "ethers@^5.4.6", "ethers@^5.4.7", "ethers@^5.5.1", "ethers@^5.5.3", "ethers@^5.5.4", "ethers@^5.7.0", "ethers@^5.7.1", "ethers@~5.7.0":
+"ethers@^5", "ethers@^5.0.0", "ethers@^5.1.0", "ethers@^5.1.3", "ethers@^5.4.2", "ethers@^5.4.6", "ethers@^5.4.7", "ethers@^5.5.1", "ethers@^5.5.3", "ethers@^5.5.4", "ethers@^5.7.0", "ethers@^5.7.1", "ethers@~5.7.0":
   "integrity" "sha512-5krze4dRLITX7FpU8J4WscXqADiKmyeNlylmmDLbS95DaZpBhDe2YSwRQwKXWNyXcox7a3gBgm/MkGXV1O1S/Q=="
   "resolved" "https://registry.npmjs.org/ethers/-/ethers-5.7.1.tgz"
   "version" "5.7.1"
@@ -10639,6 +10649,11 @@
     "string-width" "^4.2.0"
     "y18n" "^5.0.5"
     "yargs-parser" "^20.2.2"
+
+"yarn@^1.22.19":
+  "integrity" "sha512-/0V5q0WbslqnwP91tirOvldvYISzaqhClxzyUKXYxs07yUILIs5jx/k6CFe8bvKSkds5w+eiOqta39Wk3WxdcQ=="
+  "resolved" "https://registry.npmjs.org/yarn/-/yarn-1.22.19.tgz"
+  "version" "1.22.19"
 
 "yn@3.1.1":
   "integrity" "sha512-Ux4ygGWsu2c7isFWe8Yu1YluJmqVhxqK2cLXNQA5AcC3QfbGNpM7fu0Y8b/z16pXLnFxZYvWhd3fhBY9DLmC6Q=="
