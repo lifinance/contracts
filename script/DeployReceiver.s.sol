@@ -4,7 +4,6 @@ pragma solidity ^0.8.17;
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { Receiver } from "lifi/Periphery/Receiver.sol";
-import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;

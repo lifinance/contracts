@@ -39,10 +39,14 @@ contract ReceiverTest is TestBase {
     function setUp() public {
         initTestBase();
 
+        // obtain address of Stargate router in current network from config file
         path = string.concat(vm.projectRoot(), "/config/stargate.json");
         json = vm.readFile(path);
         stargateRouter = json.readAddress(string.concat(".routers.mainnet"));
-        amarokRouter = json.readAddress(string.concat(".routers.polygon")); //! update
+
+        path = string.concat(vm.projectRoot(), "/config/amarok.json");
+        json = vm.readFile(path);
+        amarokRouter = json.readAddress(string.concat(".mainnet.connextHandler"));
 
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(this), address(erc20Proxy));
@@ -330,6 +334,7 @@ contract ReceiverTest is TestBase {
         emit LiFiTransferRecovered(keccak256("123"), ADDRESS_USDC, address(1), defaultUSDCAmount, block.timestamp);
 
         receiver.sgReceive{ gas: 100000 }(0, "", 0, ADDRESS_USDC, defaultUSDCAmount, payload);
+        revert();
     }
 
     function test_stargate_OwnerCanUpdateRouterAddress() public {
