@@ -148,9 +148,7 @@ contract ReceiverTest is TestBase {
         bytes memory payload = abi.encode(swapData, USER_RECEIVER);
 
         // fund receiver with sufficient DAI to execute swap
-        vm.startPrank(USER_DAI_WHALE);
-        dai.transfer(address(receiver), swapData[0].fromAmount);
-        vm.stopPrank();
+        deal(ADDRESS_DAI, address(receiver), swapData[0].fromAmount);
 
         // call xReceive function as Amarok router
         vm.startPrank(amarokRouter);
@@ -334,7 +332,6 @@ contract ReceiverTest is TestBase {
         emit LiFiTransferRecovered(keccak256("123"), ADDRESS_USDC, address(1), defaultUSDCAmount, block.timestamp);
 
         receiver.sgReceive{ gas: 100000 }(0, "", 0, ADDRESS_USDC, defaultUSDCAmount, payload);
-        revert();
     }
 
     function test_stargate_OwnerCanUpdateRouterAddress() public {

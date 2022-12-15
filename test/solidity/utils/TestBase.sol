@@ -26,7 +26,7 @@ contract TestFacet {
     }
 }
 
-contract ReentrancyChecker is Test {
+contract ReentrancyChecker {
     address private _facetAddress;
     bytes private _callData;
 
@@ -64,10 +64,9 @@ contract ReentrancyChecker is Test {
 }
 
 //common utilities for forge tests
-abstract contract TestBase is DSTest, DiamondTest, ILiFi {
+abstract contract TestBase is Test, DiamondTest, ILiFi {
     address internal _facetTestContractAddress;
     uint64 internal currentTxId;
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
     bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));
     UniswapV2Router02 internal uniswap;
     ERC20 internal usdc;
@@ -173,15 +172,9 @@ abstract contract TestBase is DSTest, DiamondTest, ILiFi {
         diamond = createDiamond();
 
         // transfer initial DAI/USDC/WETH balance to USER_SENDER
-        vm.startPrank(USER_USDC_WHALE);
-        usdc.transfer(USER_SENDER, 100_000 * 10**usdc.decimals());
-        vm.stopPrank();
-        vm.startPrank(USER_DAI_WHALE);
-        dai.transfer(USER_SENDER, 100_000 * 10**dai.decimals());
-        vm.stopPrank();
-        vm.startPrank(USER_WETH_WHALE);
-        weth.transfer(USER_SENDER, 100_000 * 10**weth.decimals());
-        vm.stopPrank();
+        deal(ADDRESS_USDC, USER_SENDER, 100_000 * 10**usdc.decimals());
+        deal(ADDRESS_DAI, USER_SENDER, 100_000 * 10**dai.decimals());
+        deal(ADDRESS_WETH, USER_SENDER, 100_000 * 10**weth.decimals());
 
         // fund USER_SENDER with 1000 ether
         vm.deal(USER_SENDER, 1000 ether);
