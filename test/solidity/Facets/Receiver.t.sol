@@ -89,7 +89,7 @@ contract ReceiverTest is TestBase {
         receiver.setRecoverGas(1000);
     }
 
-    function test_revert_amarok_UpdateRecoverGasNonOwner() public {
+    function test_revert_UpdateRecoverGasNonOwner() public {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
         receiver.setRecoverGas(1000);
@@ -104,7 +104,7 @@ contract ReceiverTest is TestBase {
         receiver.setExecutor(stargateRouter);
     }
 
-    function test_revert_amarok_UpdateExecutorAddressNonOwner() public {
+    function test_revert_UpdateExecutorAddressNonOwner() public {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
         receiver.setExecutor(stargateRouter);
