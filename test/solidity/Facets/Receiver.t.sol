@@ -4,11 +4,9 @@ pragma solidity 0.8.17;
 import { Test } from "forge-std/Test.sol";
 import { console } from "../utils/Console.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { Receiver } from "lifi/Periphery/Receiver.sol";
-import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { stdJson } from "forge-std/Script.sol";
 
 contract ReceiverTest is Test {

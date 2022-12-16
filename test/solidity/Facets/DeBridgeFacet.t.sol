@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibAllowList, LibSwap, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
 import { DeBridgeFacet } from "lifi/Facets/DeBridgeFacet.sol";
 import { IDeBridgeGate } from "lifi/Interfaces/IDeBridgeGate.sol";
 

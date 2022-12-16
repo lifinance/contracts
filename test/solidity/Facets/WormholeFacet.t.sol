@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20, LiFiDiamond } from "../utils/TestBaseFacet.sol";
-import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InsufficientBalance, InvalidDestinationChain, NoSwapDataProvided, InvalidAmount } from "src/Errors/GenericErrors.sol";
+import { LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
+import { OnlyContractOwner } from "src/Errors/GenericErrors.sol";
 import { WormholeFacet } from "lifi/Facets/WormholeFacet.sol";
 import { IWormholeRouter } from "lifi/Interfaces/IWormholeRouter.sol";
 
