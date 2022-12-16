@@ -65,7 +65,11 @@ contract WormholeFacetTest is TestBaseFacet {
 
         bridgeData.bridge = "wormhole";
 
-        wormholeData = WormholeFacet.WormholeData({ arbiterFee: 0, nonce: nonce++, receiver: bytes32(uint256(uint160(bridgeData.receiver))) });
+        wormholeData = WormholeFacet.WormholeData({
+            arbiterFee: 0,
+            nonce: nonce++,
+            receiver: bytes32(uint256(uint160(bridgeData.receiver)))
+        });
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -100,7 +104,7 @@ contract WormholeFacetTest is TestBaseFacet {
         emit WormholeChainIdMapped(123, 456);
         wormholeFacet.setWormholeChainId(123, 456);
     }
-    
+
     function test_CanBridgeTokensToNonEVMChain()
         public
         virtual
@@ -109,11 +113,10 @@ contract WormholeFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
-
         bridgeData.destinationChainId = 1000000001; // Solana
         bridgeData.receiver = 0x11f111f111f111F111f111f111F111f111f111F1;
         wormholeData.receiver = 0x06a81d66f356889562097bf36b786f2e8deaa6f50175fc6cf12f6891820f96a1;
-        
+
         vm.startPrank(USER_SENDER);
 
         // approval
@@ -151,5 +154,4 @@ contract WormholeFacetTest is TestBaseFacet {
         wormholeFacet.startBridgeTokensViaWormhole{ value: bridgeData.minAmount }(bridgeData, wormholeData);
         vm.stopPrank();
     }
-
 }

@@ -10,7 +10,6 @@ import { Receiver } from "lifi/Periphery/Receiver.sol";
 import { stdJson } from "forge-std/Script.sol";
 
 contract ReceiverTest is Test {
-
     using stdJson for string;
 
     Receiver internal receiver;
