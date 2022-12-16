@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20 } from "../utils/TestBaseFacet.sol";
-import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InsufficientBalance, InvalidDestinationChain, NoSwapDataProvided } from "src/Errors/GenericErrors.sol";
+import { LibSwap, LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
+import { InsufficientBalance } from "src/Errors/GenericErrors.sol";
 import { GnosisBridgeFacet } from "lifi/Facets/GnosisBridgeFacet.sol";
 import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
 
