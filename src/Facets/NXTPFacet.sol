@@ -50,10 +50,10 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function startBridgeTokensViaNXTP(ILiFi.BridgeData memory _bridgeData, NXTPData calldata _nxtpData)
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
-        nonReentrant
     {
         if (hasDestinationCall(_nxtpData) != _bridgeData.hasDestinationCall) {
             revert InformationMismatch();
@@ -75,10 +75,10 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     )
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
-        nonReentrant
     {
         if (hasDestinationCall(_nxtpData) != _bridgeData.hasDestinationCall) {
             revert InformationMismatch();

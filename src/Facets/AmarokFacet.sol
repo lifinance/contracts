@@ -70,11 +70,11 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function startBridgeTokensViaAmarok(BridgeData calldata _bridgeData, AmarokData calldata _amarokData)
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
-        nonReentrant
     {
         if (hasDestinationCall(_amarokData) != _bridgeData.hasDestinationCall) {
             revert InformationMismatch();
@@ -95,11 +95,11 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     )
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
-        nonReentrant
     {
         if (hasDestinationCall(_amarokData) != _bridgeData.hasDestinationCall) {
             revert InformationMismatch();

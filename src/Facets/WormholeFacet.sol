@@ -9,7 +9,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, CannotBridgeToSameNetwork, InvalidConfig, UnsupportedChainId } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, CannotBridgeToSameNetwork, InvalidConfig, UnsupportedChainId, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -21,32 +21,33 @@ import { LibMappings } from "../Libraries/LibMappings.sol";
 contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.wormhole");
 
+    address internal constant NON_EVM_ADDRESS = 0x11f111f111f111F111f111f111F111f111f111F1;
+
     /// @notice The contract address of the wormhole router on the source chain.
     IWormholeRouter private immutable router;
 
     /// Types ///
 
-    struct Storage {
-        // Mapping between lifi chain id and wormhole chain id
-        mapping(uint256 => uint16) wormholeChainId;
+    struct Config {
+        uint256 chainId;
+        uint16 wormholeChainId;
+    }
+
+    /// @param receiver The address of the token receiver after bridging.
+    /// @param arbiterFee The amount of token to pay a relayer (can be zero if no relayer is used).
+    /// @param nonce A random nonce to associate with the tx.
+    struct WormholeData {
+        bytes32 receiver;
+        uint256 arbiterFee;
+        uint32 nonce;
     }
 
     /// Events ///
 
+    event WormholeInitialized(Config[] configs);
     event WormholeChainIdMapped(uint256 indexed lifiChainId, uint256 indexed wormholeChainId);
-
-    /// Types ///
-
-    /// @param assetId The contract address of the token being bridged.
-    /// @param amount The amount of tokens to bridge.
-    /// @param receiver The address of the token receiver after bridging.
-    /// @param toChainId The chainId of the chain to bridge to.
-    /// @param arbiterFee The amount of token to pay a relayer (can be zero if no relayer is used).
-    /// @param nonce A random nonce to associate with the tx.
-    struct WormholeData {
-        uint256 arbiterFee;
-        uint32 nonce;
-    }
+    event WormholeChainIdsMapped(Config[] configs);
+    event BridgeToNonEVMChain(bytes32 indexed transactionId, uint256 indexed wormholeChainId, bytes32 receiver);
 
     /// Constructor ///
 
@@ -54,6 +55,29 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _router The contract address of the wormhole router on the source chain.
     constructor(IWormholeRouter _router) {
         router = _router;
+    }
+
+    /// Init ///
+
+    /// @notice Initialize local variables for the Wormhole Facet
+    /// @param configs Bridge configuration data
+    function initWormhole(Config[] calldata configs) external {
+        LibDiamond.enforceIsContractOwner();
+
+        LibMappings.WormholeMappings storage sm = LibMappings.getWormholeMappings();
+
+        if (sm.initialized) {
+            revert AlreadyInitialized();
+        }
+
+        uint256 numConfigs = configs.length;
+        for (uint256 i = 0; i < numConfigs; i++) {
+            sm.wormholeChainId[configs[i].chainId] = configs[i].wormholeChainId;
+        }
+
+        sm.initialized = true;
+
+        emit WormholeInitialized(configs);
     }
 
     /// External Methods ///
@@ -64,11 +88,11 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function startBridgeTokensViaWormhole(ILiFi.BridgeData memory _bridgeData, WormholeData calldata _wormholeData)
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _wormholeData);
@@ -85,11 +109,11 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     )
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        nonReentrant
     {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -108,6 +132,25 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibMappings.WormholeMappings storage sm = LibMappings.getWormholeMappings();
         sm.wormholeChainId[_lifiChainId] = _wormholeChainId;
         emit WormholeChainIdMapped(_lifiChainId, _wormholeChainId);
+    }
+
+    /// @notice Creates mappings between chain ids and wormhole chain ids
+    /// @param configs Bridge configuration data
+    function setWormholeChainIds(Config[] calldata configs) external {
+        LibDiamond.enforceIsContractOwner();
+
+        LibMappings.WormholeMappings storage sm = LibMappings.getWormholeMappings();
+
+        if (!sm.initialized) {
+            revert NotInitialized();
+        }
+
+        uint256 numConfigs = configs.length;
+        for (uint256 i = 0; i < numConfigs; i++) {
+            sm.wormholeChainId[configs[i].chainId] = configs[i].wormholeChainId;
+        }
+
+        emit WormholeChainIdsMapped(configs);
     }
 
     /// Private Methods ///
@@ -131,7 +174,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             router.wrapAndTransferETH{ value: _bridgeData.minAmount }(
                 toWormholeChainId,
-                bytes32(uint256(uint160(_bridgeData.receiver))),
+                _wormholeData.receiver,
                 _wormholeData.arbiterFee,
                 _wormholeData.nonce
             );
@@ -140,11 +183,16 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 toWormholeChainId,
-                bytes32(uint256(uint160(_bridgeData.receiver))),
+                _wormholeData.receiver,
                 _wormholeData.arbiterFee,
                 _wormholeData.nonce
             );
         }
+
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            emit BridgeToNonEVMChain(_bridgeData.transactionId, toWormholeChainId, _wormholeData.receiver);
+        }
+
         emit LiFiTransferStarted(_bridgeData);
     }
 

@@ -42,7 +42,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address payable _receiver,
         uint256 _minAmount,
         LibSwap.SwapData[] calldata _swapData
-    ) external payable refundExcessNative(_receiver) nonReentrant {
+    ) external payable nonReentrant refundExcessNative(_receiver) {
         if (LibUtil.isZeroAddress(_receiver)) {
             revert InvalidReceiver();
         }

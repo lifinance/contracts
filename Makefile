@@ -8,7 +8,8 @@
 update:; forge update
 
 # Build & test
-build         		:; forge build
+build         		: clean 
+	forge build
 test          		:; forge test -vvv
 coverage      		:; forge coverage
 trace         		:; forge test -vvvv

@@ -6,7 +6,7 @@ import { IXDaiBridge } from "../Interfaces/IXDaiBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidAmount } from "../Errors/GenericErrors.sol";
-import { InvalidAmount, InvalidSendingToken, InvalidDestinationChain, InvalidReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidSendingToken, InvalidDestinationChain, InvalidReceiver, NoSwapDataProvided } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -41,13 +41,13 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function startBridgeTokensViaXDaiBridge(ILiFi.BridgeData memory _bridgeData)
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         onlyAllowDestinationChain(_bridgeData, GNOSIS_CHAIN_ID)
         onlyAllowSourceToken(_bridgeData, DAI)
-        nonReentrant
     {
         LibAsset.depositAsset(DAI, _bridgeData.minAmount);
         _startBridge(_bridgeData);
@@ -62,13 +62,14 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     )
         external
         payable
+        nonReentrant
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         onlyAllowDestinationChain(_bridgeData, GNOSIS_CHAIN_ID)
         onlyAllowSourceToken(_bridgeData, DAI)
-        nonReentrant
     {
+        if (_swapData.length == 0) revert NoSwapDataProvided();
         if (_swapData[_swapData.length - 1].receivingAssetId != DAI) {
             revert InvalidSendingToken();
         }

@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
-import { InvalidReceiver, InformationMismatch, InvalidSendingToken, InvalidAmount, NativeAssetNotSupported, InvalidDestinationChain } from "../Errors/GenericErrors.sol";
+import { InvalidReceiver, InformationMismatch, InvalidSendingToken, InvalidAmount, NativeAssetNotSupported, InvalidDestinationChain, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 
@@ -14,6 +14,9 @@ contract Validatable {
         }
         if (_bridgeData.minAmount == 0) {
             revert InvalidAmount();
+        }
+        if (_bridgeData.destinationChainId == block.chainid) {
+            revert CannotBridgeToSameNetwork();
         }
         _;
     }
