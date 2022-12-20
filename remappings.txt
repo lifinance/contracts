@@ -10,5 +10,7 @@ forge-std/=lib/forge-std/src/
 hardhat-deploy/=node_modules/hardhat-deploy/
 hardhat/=node_modules/hardhat/
 solmate/=lib/solmate/src/
+
 lifi/=src/
-celer-network/=lib/sgn-v2-contracts/
+celer-network/=lib/sgn-v2-contracts
+test/=test/

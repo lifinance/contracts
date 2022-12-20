@@ -11,7 +11,7 @@ contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("LiFiDiamond") {}
 
     function run() public returns (LiFiDiamond deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(vm.projectRoot(), "/deployments/", network, ".json");
+        string memory path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
         string memory json = vm.readFile(path);
         address diamondCut = json.readAddress(".DiamondCutFacet");
 

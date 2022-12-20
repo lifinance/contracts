@@ -11,6 +11,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { CannotBridgeToSameNetwork } from "src/Errors/GenericErrors.sol";
 
 /// @title Across Facet
 /// @author LI.FI (https://li.fi)
@@ -24,7 +25,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     IAcrossSpokePool private immutable spokePool;
 
     /// @notice The WETH address on the current chain.
-    address private immutable weth;
+    address private immutable wrappedNative;
 
     /// Errors
     error QuoteTimeout();
@@ -42,10 +43,10 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize the contract.
     /// @param _spokePool The contract address of the spoke pool on the source chain.
-    /// @param _weth The address of the WETH token on the source chain.
-    constructor(IAcrossSpokePool _spokePool, address _weth) {
+    /// @param _wrappedNative The address of the wrapped native token on the source chain.
+    constructor(IAcrossSpokePool _spokePool, address _wrappedNative) {
         spokePool = _spokePool;
-        weth = _weth;
+        wrappedNative = _wrappedNative;
     }
 
     /// External Methods ///
@@ -56,11 +57,11 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function startBridgeTokensViaAcross(ILiFi.BridgeData memory _bridgeData, AcrossData calldata _acrossData)
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
-        nonReentrant
     {
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
         _startBridge(_bridgeData, _acrossData);
@@ -77,11 +78,11 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     )
         external
         payable
+        nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        nonReentrant
     {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -98,13 +99,15 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
     function _startBridge(ILiFi.BridgeData memory _bridgeData, AcrossData memory _acrossData) internal {
+        if (block.chainid == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
         bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
-        if (isNative) _bridgeData.sendingAssetId = weth;
+        address sendingAsset = _bridgeData.sendingAssetId;
+        if (isNative) sendingAsset = wrappedNative;
         else LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(spokePool), _bridgeData.minAmount);
 
         spokePool.deposit{ value: isNative ? _bridgeData.minAmount : 0 }(
             _bridgeData.receiver,
-            _bridgeData.sendingAssetId,
+            sendingAsset,
             _bridgeData.minAmount,
             _bridgeData.destinationChainId,
             _acrossData.relayerFeePct,

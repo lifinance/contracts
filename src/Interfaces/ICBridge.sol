@@ -39,3 +39,68 @@ interface ICBridge {
         uint32 _maxSlippage
     ) external payable;
 }
+
+interface IOriginalTokenVault {
+    function deposit(
+        address _token,
+        uint256 _amount,
+        uint64 _mintChainId,
+        address _mintAccount,
+        uint64 _nonce
+    ) external;
+
+    function depositNative(
+        uint256 _amount,
+        uint64 _mintChainId,
+        address _mintAccount,
+        uint64 _nonce
+    ) external payable;
+}
+
+interface IPeggedTokenBridge {
+    function burn(
+        address _token,
+        uint256 _amount,
+        address _withdrawAccount,
+        uint64 _nonce
+    ) external;
+}
+
+interface IOriginalTokenVaultV2 {
+    function deposit(
+        address _token,
+        uint256 _amount,
+        uint64 _mintChainId,
+        address _mintAccount,
+        uint64 _nonce
+    ) external returns (bytes32);
+
+    function depositNative(
+        uint256 _amount,
+        uint64 _mintChainId,
+        address _mintAccount,
+        uint64 _nonce
+    ) external payable returns (bytes32);
+}
+
+interface IPeggedTokenBridgeV2 {
+    function burn(
+        address _token,
+        uint256 _amount,
+        uint64 _toChainId,
+        address _toAccount,
+        uint64 _nonce
+    ) external returns (bytes32);
+
+    function burnFrom(
+        address _token,
+        uint256 _amount,
+        uint64 _toChainId,
+        address _toAccount,
+        uint64 _nonce
+    ) external returns (bytes32);
+}
+
+interface CelerToken {
+    function canonical() external returns (address);
+}
