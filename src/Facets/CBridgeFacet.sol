@@ -80,7 +80,6 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             SafeERC20.safeTransferFrom(asset, msg.sender, address(relayer), _bridgeData.minAmount);
             if (asset.balanceOf(address(relayer)) - prevBalance != _bridgeData.minAmount) revert InvalidAmount();
         }
-        // LibAsset.transferAsset(_bridgeData.sendingAssetId, payable(address(relayer)), _bridgeData.minAmount);
         _startBridge(_bridgeData, _cBridgeData);
     }
 
