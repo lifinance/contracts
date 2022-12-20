@@ -14,10 +14,17 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { MsgDataTypes, IMessageBus } from "celer-network/contracts/message/interfaces/IMessageBus.sol";
+import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
+import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
+import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
-    constructor(ICBridge _cBridge, IMessageBus _msgBus) CBridgeFacet(_cBridge, _msgBus) {}
+    constructor(
+        ICBridge _cBridge,
+        IMessageBus _messageBus,
+        RelayerCelerIM _relayer
+    ) CBridgeFacet(_cBridge, _messageBus, _relayer) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -44,6 +51,9 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
     ERC20 internal dai;
     UniswapV2Router02 internal uniswap;
     FeeCollector internal feeCollector;
+    Executor internal executor;
+    ERC20Proxy internal erc20Proxy;
+    RelayerCelerIM internal relayer;
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
@@ -55,7 +65,11 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         fork();
 
         diamond = createDiamond();
-        cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER), IMessageBus(CBRIDGE_MESSAGE_BUS_ETH));
+        erc20Proxy = new ERC20Proxy(address(this));
+        executor = new Executor(address(this), address(erc20Proxy));
+        relayer = new RelayerCelerIM(address(this), CBRIDGE_MESSAGE_BUS_ETH, address(diamond), address(executor));
+
+        cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER), IMessageBus(CBRIDGE_MESSAGE_BUS_ETH), relayer);
         usdc = ERC20(USDC_ADDRESS);
         dai = ERC20(DAI_ADDRESS);
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);

@@ -18,7 +18,7 @@ contract RelayerCelerIMTest is TestBase {
     CBridgeFacet.CBridgeData internal cBridgeData;
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
-    RelayerCelerIM internal receiver;
+    RelayerCelerIM internal relayer;
 
     function setUp() public {
         initTestBase();
@@ -28,7 +28,7 @@ contract RelayerCelerIMTest is TestBase {
         // deploy CelerIM Receiver
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(this), address(erc20Proxy));
-        receiver = new RelayerCelerIM(address(this), CBRIDGE_MESSAGEBUS_ETH, address(executor));
+        relayer = new RelayerCelerIM(address(this), CBRIDGE_MESSAGEBUS_ETH, address(diamond), address(executor));
 
         cBridgeData = CBridgeFacet.CBridgeData({
             maxSlippage: 5000,
@@ -79,8 +79,8 @@ contract RelayerCelerIMTest is TestBase {
         bytes32 transactionId = 0x7472616e73616374696f6e496400000000000000000000000000000000000000;
         bytes memory payload = abi.encode(transactionId, swapData, USER_RECEIVER, USER_REFUND);
 
-        // fund receiver with sufficient DAI to execute swap
-        deal(ADDRESS_DAI, address(receiver), swapData[0].fromAmount);
+        // fund relayer with sufficient DAI to execute swap
+        deal(ADDRESS_DAI, address(relayer), swapData[0].fromAmount);
 
         // call executeMessageWithTransfer function as CBridge MessageBus router
         vm.startPrank(CBRIDGE_MESSAGEBUS_ETH);
@@ -101,7 +101,7 @@ contract RelayerCelerIMTest is TestBase {
         emit LiFiTransferCompleted(transactionId, ADDRESS_DAI, USER_RECEIVER, defaultUSDCAmount, block.timestamp);
 
         // call function in RelayerCelerIM to complete transaction
-        receiver.executeMessageWithTransfer(
+        relayer.executeMessageWithTransfer(
             address(this),
             ADDRESS_DAI,
             swapData[0].fromAmount,
@@ -150,18 +150,18 @@ contract RelayerCelerIMTest is TestBase {
         bytes32 transactionId = 0x7472616e73616374696f6e496400000000000000000000000000000000000000;
         bytes memory payload = abi.encode(transactionId, swapData, USER_RECEIVER, USER_REFUND);
 
-        // fund receiver with sufficient DAI to execute swap
-        deal(ADDRESS_DAI, address(receiver), swapData[0].fromAmount);
+        // fund relayer with sufficient DAI to execute swap
+        deal(ADDRESS_DAI, address(relayer), swapData[0].fromAmount);
 
         // call executeMessageWithTransfer function as CBridge MessageBus router
         vm.startPrank(CBRIDGE_MESSAGEBUS_ETH);
 
         // prepare check for events
-        vm.expectEmit(true, true, true, true, address(receiver));
+        vm.expectEmit(true, true, true, true, address(relayer));
         emit LiFiTransferRecovered(transactionId, ADDRESS_DAI, USER_REFUND, swapData[0].fromAmount, block.timestamp);
 
         // call function in RelayerCelerIM to complete transaction
-        receiver.executeMessageWithTransfer(
+        relayer.executeMessageWithTransfer(
             address(this),
             ADDRESS_DAI,
             swapData[0].fromAmount,

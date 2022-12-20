@@ -4,7 +4,7 @@ pragma solidity 0.8.17;
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap, InsufficientBalance } from "../Libraries/LibSwap.sol";
-import { InvalidCaller, InsufficientBalance, NotAContract, ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErrors.sol";
+import { InvalidCaller, InvalidConfig, InsufficientBalance, NotAContract, ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErrors.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
@@ -13,8 +13,72 @@ import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { ExcessivelySafeCall } from "../Helpers/ExcessivelySafeCall.sol";
+import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
+import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
+import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 
 import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
+
+interface IOriginalTokenVault {
+    function deposit(
+        address _token,
+        uint256 _amount,
+        uint64 _mintChainId,
+        address _mintAccount,
+        uint64 _nonce
+    ) external;
+
+    function depositNative(
+        uint256 _amount,
+        uint64 _mintChainId,
+        address _mintAccount,
+        uint64 _nonce
+    ) external payable;
+}
+
+interface IPeggedTokenBridge {
+    function burn(
+        address _token,
+        uint256 _amount,
+        address _withdrawAccount,
+        uint64 _nonce
+    ) external;
+}
+
+interface IOriginalTokenVaultV2 {
+    function deposit(
+        address _token,
+        uint256 _amount,
+        uint64 _mintChainId,
+        address _mintAccount,
+        uint64 _nonce
+    ) external returns (bytes32);
+
+    function depositNative(
+        uint256 _amount,
+        uint64 _mintChainId,
+        address _mintAccount,
+        uint64 _nonce
+    ) external payable returns (bytes32);
+}
+
+interface IPeggedTokenBridgeV2 {
+    function burn(
+        address _token,
+        uint256 _amount,
+        uint64 _toChainId,
+        address _toAccount,
+        uint64 _nonce
+    ) external returns (bytes32);
+
+    function burnFrom(
+        address _token,
+        uint256 _amount,
+        uint64 _toChainId,
+        address _toAccount,
+        uint64 _nonce
+    ) external returns (bytes32);
+}
 
 /// @title Executor
 /// @author LI.FI (https://li.fi)
@@ -25,7 +89,8 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     using ExcessivelySafeCall for address;
 
     /// Storage ///
-    address public cBridgeMessageBusAddress;
+    IMessageBus public cBridgeMessageBus;
+    address public diamondAddress;
     IExecutor public executor;
 
     /// Errors ///
@@ -33,11 +98,17 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
     /// Events ///
     event CBridgeMessageBusAddressSet(address indexed messageBusAddress);
+    event DiamondAddressSet(address indexed diamondAddress);
+    event ExecutorAddressSet(address indexed executorAddress);
     event LiFiRecovered(bytes32 transactionId, address indexed callTo, uint256 amount);
 
     /// Modifiers ///
     modifier onlyCBridgeMessageBus() {
-        if (msg.sender != cBridgeMessageBusAddress) revert InvalidCaller();
+        if (msg.sender != address(cBridgeMessageBus)) revert InvalidCaller();
+        _;
+    }
+    modifier onlyDiamond() {
+        if (msg.sender != diamondAddress) revert InvalidCaller();
         _;
     }
 
@@ -45,12 +116,16 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     constructor(
         address _owner,
         address _cBridgeMessageBusAddress,
-        address _executor
+        address _diamondAddress,
+        address _executorAddress
     ) TransferrableOwnership(_owner) {
         owner = _owner;
-        cBridgeMessageBusAddress = _cBridgeMessageBusAddress;
-        executor = IExecutor(_executor);
+        cBridgeMessageBus = IMessageBus(_cBridgeMessageBusAddress);
+        diamondAddress = _diamondAddress;
+        executor = IExecutor(_executorAddress);
         emit CBridgeMessageBusAddressSet(_cBridgeMessageBusAddress);
+        emit DiamondAddressSet(_diamondAddress);
+        emit ExecutorAddressSet(_executorAddress);
     }
 
     /// External Methods ///
@@ -109,11 +184,159 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
         return IMessageReceiverApp.ExecutionStatus.Success;
     }
 
+    // initiates a cross-chain token transfer using cBridge
+    function sendTokenTransfer(ILiFi.BridgeData memory _bridgeData, CBridgeFacet.CBridgeData memory _cBridgeData)
+        external
+        payable
+        onlyDiamond
+        returns (bytes32 transferId, address bridgeAddress)
+    {
+        // approve to and call correct bridge depending on BridgeSendType
+        // @dev copied and slightly adapted from Celer MessageSenderLib
+        if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.Liquidity) {
+            bridgeAddress = cBridgeMessageBus.liquidityBridge();
+            if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+                // native asset
+                ICBridge(bridgeAddress).sendNative{ value: _bridgeData.minAmount }(
+                    _bridgeData.receiver,
+                    _bridgeData.minAmount,
+                    uint64(_bridgeData.destinationChainId),
+                    _cBridgeData.nonce,
+                    _cBridgeData.maxSlippage
+                );
+            } else {
+                // ERC20 asset
+                LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+                ICBridge(bridgeAddress).send(
+                    _bridgeData.receiver,
+                    _bridgeData.sendingAssetId,
+                    _bridgeData.minAmount,
+                    uint64(_bridgeData.destinationChainId),
+                    _cBridgeData.nonce,
+                    _cBridgeData.maxSlippage
+                );
+            }
+            transferId = MessageSenderLib.computeLiqBridgeTransferId(
+                _bridgeData.receiver,
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                uint64(_bridgeData.destinationChainId),
+                _cBridgeData.nonce
+            );
+        } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegDeposit) {
+            bridgeAddress = cBridgeMessageBus.pegVault();
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+            IOriginalTokenVault(bridgeAddress).deposit(
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                uint64(_bridgeData.destinationChainId),
+                _bridgeData.receiver,
+                _cBridgeData.nonce
+            );
+            transferId = MessageSenderLib.computePegV1DepositId(
+                _bridgeData.receiver,
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                uint64(_bridgeData.destinationChainId),
+                _cBridgeData.nonce
+            );
+        } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegBurn) {
+            bridgeAddress = cBridgeMessageBus.pegBridge();
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+            IPeggedTokenBridge(bridgeAddress).burn(
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                _bridgeData.receiver,
+                _cBridgeData.nonce
+            );
+            transferId = MessageSenderLib.computePegV1BurnId(
+                _bridgeData.receiver,
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                _cBridgeData.nonce
+            );
+        } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Deposit) {
+            // bridgeAddress = cBridgeMessageBus.pegVaultV2(); // TODO to be changed once CBridge updated their messageBus
+            bridgeAddress = 0x7510792A3B1969F9307F3845CE88e39578f2bAE1;
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+            transferId = IOriginalTokenVaultV2(bridgeAddress).deposit(
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                uint64(_bridgeData.destinationChainId),
+                _bridgeData.receiver,
+                _cBridgeData.nonce
+            );
+        } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Burn) {
+            // bridgeAddress = cBridgeMessageBus.pegBridgeV2(); // TODO to be changed once CBridge updated their messageBus
+            bridgeAddress = 0x52E4f244f380f8fA51816c8a10A63105dd4De084;
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+            transferId = IPeggedTokenBridgeV2(bridgeAddress).burn(
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                uint64(_bridgeData.destinationChainId),
+                _bridgeData.receiver,
+                _cBridgeData.nonce
+            );
+        } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2BurnFrom) {
+            // bridgeAddress = cBridgeMessageBus.pegBridgeV2(); // TODO to be changed once CBridge updated their messageBus
+            bridgeAddress = 0x52E4f244f380f8fA51816c8a10A63105dd4De084;
+            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+            transferId = IPeggedTokenBridgeV2(bridgeAddress).burnFrom(
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                uint64(_bridgeData.destinationChainId),
+                _bridgeData.receiver,
+                _cBridgeData.nonce
+            );
+        } else {
+            revert InvalidConfig();
+        }
+    }
+
+    /**
+     * @notice Forwards a call to the CBridge Messagebus
+     * @param _receiver The address of the destination app contract.
+     * @param _dstChainId The destination chain ID.
+     * @param _srcBridge The bridge contract to send the transfer with.
+     * @param _srcTransferId The transfer ID.
+     * @param _dstChainId The destination chain ID.
+     * @param _message Arbitrary message bytes to be decoded by the destination app contract.
+     */
+    function sendMessageWithTransfer(
+        address _receiver,
+        uint256 _dstChainId,
+        address _srcBridge,
+        bytes32 _srcTransferId,
+        bytes calldata _message
+    ) external payable onlyDiamond {
+        cBridgeMessageBus.sendMessageWithTransfer{ value: msg.value }(
+            _receiver,
+            _dstChainId,
+            _srcBridge,
+            _srcTransferId,
+            _message
+        );
+    }
+
     /// @notice sets the CBridge MessageBus address
     /// @param _messageBusAddress the MessageBus address
-    function setCBridgeMessageBus(address _messageBusAddress) external onlyOwner {
-        cBridgeMessageBusAddress = _messageBusAddress;
+    function setCBridgeMessageBusAddress(address _messageBusAddress) external onlyOwner {
+        cBridgeMessageBus = IMessageBus(_messageBusAddress);
         emit CBridgeMessageBusAddressSet(_messageBusAddress);
+    }
+
+    /// @notice sets the executor address
+    /// @param _executorAddress the address of the executor contract
+    function setExecutorAddress(address _executorAddress) external onlyOwner {
+        executor = IExecutor(_executorAddress);
+        emit ExecutorAddressSet(_executorAddress);
+    }
+
+    /// @notice sets the address of our diamond contract
+    /// @param _diamondAddress the address of our diamond contract
+    function setDiamondAddress(address _diamondAddress) external onlyOwner {
+        diamondAddress = _diamondAddress;
+        emit DiamondAddressSet(_diamondAddress);
     }
 
     // ------------------------------------------------------------------------------------------------
@@ -160,5 +383,5 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
         }
     }
 
-    triggergr
+    receive() external payable {}
 }

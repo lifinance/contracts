@@ -4,13 +4,17 @@ pragma solidity 0.8.17;
 import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
 import { CBridgeFacet, IMessageBus, MsgDataTypes } from "lifi/Facets/CBridgeFacet.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
-import { ReceiverCelerIM } from "lifi/Periphery/ReceiverCelerIM.sol";
+import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
-    constructor(ICBridge _cBridge, IMessageBus _messageBus) CBridgeFacet(_cBridge, _messageBus) {}
+    constructor(
+        ICBridge _cBridge,
+        IMessageBus _messageBus,
+        RelayerCelerIM _relayer
+    ) CBridgeFacet(_cBridge, _messageBus, _relayer) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -32,7 +36,7 @@ contract CBridgeFacetTest is TestBaseFacet {
     CBridgeFacet.CBridgeData internal cBridgeData;
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
-    ReceiverCelerIM internal receiver;
+    RelayerCelerIM internal relayer;
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
@@ -56,13 +60,18 @@ contract CBridgeFacetTest is TestBaseFacet {
 
     function setUp() public {
         initTestBase();
-        cBridgeFacet = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER), IMessageBus(CBRIDGE_MESSAGEBUS_ETH));
-        bytes4[] memory functionSelectors = new bytes4[](5);
+
+        // deploy periphery
+        erc20Proxy = new ERC20Proxy(address(this));
+        executor = new Executor(address(this), address(erc20Proxy));
+        relayer = new RelayerCelerIM(address(this), CBRIDGE_MESSAGEBUS_ETH, address(diamond), address(executor));
+
+        cBridgeFacet = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER), IMessageBus(CBRIDGE_MESSAGEBUS_ETH), relayer);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = cBridgeFacet.startBridgeTokensViaCBridge.selector;
         functionSelectors[1] = cBridgeFacet.swapAndStartBridgeTokensViaCBridge.selector;
         functionSelectors[2] = cBridgeFacet.addDex.selector;
         functionSelectors[3] = cBridgeFacet.setFunctionApprovalBySignature.selector;
-        functionSelectors[4] = cBridgeFacet.executeMessageWithTransferRefund.selector;
 
         addFacet(diamond, address(cBridgeFacet), functionSelectors);
 
@@ -83,6 +92,18 @@ contract CBridgeFacetTest is TestBaseFacet {
             messageBusFee: 0,
             bridgeType: MsgDataTypes.BridgeSendType.Liquidity
         });
+    }
+
+    function testBase_Revert_CallerHasInsufficientFunds() public override {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(_facetTestContractAddress), defaultUSDCAmount);
+
+        usdc.transfer(USER_RECEIVER, usdc.balanceOf(USER_SENDER));
+
+        vm.expectRevert();
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 
     function test_Revert_ReentrantCallBridge() internal {
@@ -150,7 +171,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         // prepare bridgeData
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = 1 ether;
-        vm.expectRevert(InvalidAmount.selector);
+        vm.expectRevert();
 
         cBridgeFacet.startBridgeTokensViaCBridge{ value: bridgeData.minAmount - 1 }(bridgeData, cBridgeData);
 
@@ -206,7 +227,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         bytes memory payload = abi.encode(transactionId, swapData, USER_RECEIVER, USER_REFUND);
 
         // fund diamond with sufficient DAI to execute swap
-        deal(ADDRESS_DAI, address(receiver), swapData[0].fromAmount);
+        deal(ADDRESS_DAI, address(relayer), swapData[0].fromAmount);
 
         // call executeMessageWithTransfer function as CBridge MessageBus router
         vm.startPrank(CBRIDGE_MESSAGEBUS_ETH);
@@ -227,7 +248,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         emit LiFiTransferCompleted(transactionId, ADDRESS_DAI, USER_RECEIVER, defaultUSDCAmount, block.timestamp);
 
         // call function in ReceiverCelerIM to complete transaction
-        receiver.executeMessageWithTransfer(
+        relayer.executeMessageWithTransfer(
             address(this),
             ADDRESS_DAI,
             swapData[0].fromAmount,

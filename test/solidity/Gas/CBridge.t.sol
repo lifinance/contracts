@@ -9,7 +9,9 @@ import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { IMessageBus } from "celer-network/contracts/message/interfaces/IMessageBus.sol";
-
+import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
+import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
+import { Executor } from "lifi/Periphery/Executor.sol";
 
 contract CBridgeGasTest is DSTest, DiamondTest {
     address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
@@ -17,13 +19,15 @@ contract CBridgeGasTest is DSTest, DiamondTest {
     address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
     address internal constant CBRIDGE_MESSAGE_BUS_ETH = 0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
 
-
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     ICBridge internal immutable cBridgeRouter = ICBridge(CBRIDGE_ROUTER);
     LiFiDiamond internal diamond;
     CBridgeFacet internal cBridge;
     ERC20 internal usdc;
     ERC20 internal dai;
+    Executor internal executor;
+    ERC20Proxy internal erc20Proxy;
+    RelayerCelerIM internal relayer;
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
@@ -33,9 +37,20 @@ contract CBridgeGasTest is DSTest, DiamondTest {
 
     function setUp() public {
         fork();
-
         diamond = createDiamond();
-        cBridge = new CBridgeFacet(cBridgeRouter, IMessageBus(CBRIDGE_MESSAGE_BUS_ETH));
+
+        // deploy periphery
+        erc20Proxy = new ERC20Proxy(address(this));
+        executor = new Executor(address(this), address(erc20Proxy));
+        relayer = new RelayerCelerIM(address(this), CBRIDGE_MESSAGE_BUS_ETH, address(diamond), address(executor));
+
+        vm.label(address(relayer), "RelayerCelerIM");
+        vm.label(address(executor), "Executor");
+        vm.label(address(erc20Proxy), "ERC20Proxy");
+        vm.label(CBRIDGE_ROUTER, "CBRIDGE_ROUTER");
+        vm.label(CBRIDGE_MESSAGE_BUS_ETH, "CBRIDGE_MESSAGE_BUS_ETH");
+
+        cBridge = new CBridgeFacet(cBridgeRouter, IMessageBus(CBRIDGE_MESSAGE_BUS_ETH), relayer);
         usdc = ERC20(USDC_ADDRESS);
 
         bytes4[] memory functionSelectors = new bytes4[](1);
@@ -75,9 +90,13 @@ contract CBridgeGasTest is DSTest, DiamondTest {
         );
 
         CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
-            5000, 1, abi.encode(address(0)),"", 0, MsgDataTypes.BridgeSendType.Liquidity
+            5000,
+            1,
+            abi.encode(address(0)),
+            "",
+            0,
+            MsgDataTypes.BridgeSendType.Liquidity
         );
-        // CBridgeFacet.CBridgeData memory data = cBridge.getCBridgeData();
 
         cBridge.startBridgeTokensViaCBridge(bridgeData, data);
         vm.stopPrank();
