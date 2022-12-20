@@ -12,7 +12,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
-import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
+import { RelayerCBridge } from "lifi/Periphery/RelayerCBridge.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
@@ -28,7 +28,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The contract address of the cbridge on the source chain.
     ICBridge private immutable cBridge;
     IMessageBus private immutable cBridgeMessageBus;
-    RelayerCelerIM private immutable relayer;
+    RelayerCBridge private immutable relayer;
 
     /// Types ///
 
@@ -54,11 +54,11 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Initialize the contract.
     /// @param _cBridge The contract address of the cbridge on the source chain.
     /// @param _messageBus The contract address of the cBridge Message Bus on the source chain.
-    /// @param _relayer The contract address of the RelayerCelerIM on the source chain.
+    /// @param _relayer The contract address of the RelayerCBridge on the source chain.
     constructor(
         ICBridge _cBridge,
         IMessageBus _messageBus,
-        RelayerCelerIM _relayer
+        RelayerCBridge _relayer
     ) {
         cBridge = _cBridge;
         cBridgeMessageBus = _messageBus;

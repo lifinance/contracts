@@ -9,7 +9,7 @@ import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { IMessageBus } from "celer-network/contracts/message/interfaces/IMessageBus.sol";
-import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
+import { RelayerCBridge } from "lifi/Periphery/RelayerCBridge.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 
@@ -27,7 +27,7 @@ contract CBridgeGasTest is DSTest, DiamondTest {
     ERC20 internal dai;
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
-    RelayerCelerIM internal relayer;
+    RelayerCBridge internal relayer;
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
@@ -42,9 +42,9 @@ contract CBridgeGasTest is DSTest, DiamondTest {
         // deploy periphery
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(this), address(erc20Proxy));
-        relayer = new RelayerCelerIM(address(this), CBRIDGE_MESSAGE_BUS_ETH, address(diamond), address(executor));
+        relayer = new RelayerCBridge(address(this), CBRIDGE_MESSAGE_BUS_ETH, address(diamond), address(executor));
 
-        vm.label(address(relayer), "RelayerCelerIM");
+        vm.label(address(relayer), "RelayerCBridge");
         vm.label(address(executor), "Executor");
         vm.label(address(erc20Proxy), "ERC20Proxy");
         vm.label(CBRIDGE_ROUTER, "CBRIDGE_ROUTER");

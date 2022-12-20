@@ -16,10 +16,10 @@ import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contr
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ICBridge, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "lifi/Interfaces/ICBridge.sol";
 
-/// @title RelayerCelerIM
+/// @title RelayerCBridge
 /// @author LI.FI (https://li.fi)
 /// @notice Relayer contract for CBridge/CelerIM that forwards calls to cBridge and handles refunds
-contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
+contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
     /// Storage ///
@@ -114,7 +114,11 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
         return IMessageReceiverApp.ExecutionStatus.Success;
     }
 
-    // initiates a cross-chain token transfer using cBridge
+    /**
+     * @notice Forwards a call to transfer tokens to cBridge (sent via this contract to ensure that potential refunds are sent here)
+     * @param _bridgeData the core information needed for bridging
+     * @param _cBridgeData data specific to CBridge
+     */
     function sendTokenTransfer(ILiFi.BridgeData memory _bridgeData, CBridgeFacet.CBridgeData memory _cBridgeData)
         external
         payable

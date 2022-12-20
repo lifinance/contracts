@@ -4,7 +4,7 @@ pragma solidity 0.8.17;
 import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
 import { CBridgeFacet, IMessageBus, MsgDataTypes } from "lifi/Facets/CBridgeFacet.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
-import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
+import { RelayerCBridge } from "lifi/Periphery/RelayerCBridge.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 
@@ -13,7 +13,7 @@ contract TestCBridgeFacet is CBridgeFacet {
     constructor(
         ICBridge _cBridge,
         IMessageBus _messageBus,
-        RelayerCelerIM _relayer
+        RelayerCBridge _relayer
     ) CBridgeFacet(_cBridge, _messageBus, _relayer) {}
 
     function addDex(address _dex) external {
@@ -36,7 +36,7 @@ contract CBridgeFacetTest is TestBaseFacet {
     CBridgeFacet.CBridgeData internal cBridgeData;
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
-    RelayerCelerIM internal relayer;
+    RelayerCBridge internal relayer;
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
@@ -64,7 +64,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         // deploy periphery
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(this), address(erc20Proxy));
-        relayer = new RelayerCelerIM(address(this), CBRIDGE_MESSAGEBUS_ETH, address(diamond), address(executor));
+        relayer = new RelayerCBridge(address(this), CBRIDGE_MESSAGEBUS_ETH, address(diamond), address(executor));
 
         cBridgeFacet = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER), IMessageBus(CBRIDGE_MESSAGEBUS_ETH), relayer);
         bytes4[] memory functionSelectors = new bytes4[](4);
