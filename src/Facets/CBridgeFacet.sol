@@ -139,7 +139,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // check if transaction contains a destination call
         if (_bridgeData.hasDestinationCall) {
             // call message bus via relayer incl messageBusFee
-            relayer.sendMessageWithTransfer{ value: _cBridgeData.messageBusFee }(
+            relayer.forwardSendMessageWithTransfer{ value: _cBridgeData.messageBusFee }(
                 _bridgeData.receiver,
                 uint64(_bridgeData.destinationChainId),
                 address(cBridge),

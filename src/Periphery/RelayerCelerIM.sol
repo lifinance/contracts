@@ -3,8 +3,8 @@ pragma solidity 0.8.17;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { LibSwap, InsufficientBalance } from "../Libraries/LibSwap.sol";
-import { InvalidCaller, InvalidConfig, InsufficientBalance, NotAContract, ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErrors.sol";
+import { LibSwap } from "../Libraries/LibSwap.sol";
+import { UnAuthorized, InvalidConfig, InsufficientBalance, NotAContract, ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErrors.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
@@ -12,81 +12,15 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
-import { ExcessivelySafeCall } from "../Helpers/ExcessivelySafeCall.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
-import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
+import { ICBridge, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "lifi/Interfaces/ICBridge.sol";
 
-import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
-
-interface IOriginalTokenVault {
-    function deposit(
-        address _token,
-        uint256 _amount,
-        uint64 _mintChainId,
-        address _mintAccount,
-        uint64 _nonce
-    ) external;
-
-    function depositNative(
-        uint256 _amount,
-        uint64 _mintChainId,
-        address _mintAccount,
-        uint64 _nonce
-    ) external payable;
-}
-
-interface IPeggedTokenBridge {
-    function burn(
-        address _token,
-        uint256 _amount,
-        address _withdrawAccount,
-        uint64 _nonce
-    ) external;
-}
-
-interface IOriginalTokenVaultV2 {
-    function deposit(
-        address _token,
-        uint256 _amount,
-        uint64 _mintChainId,
-        address _mintAccount,
-        uint64 _nonce
-    ) external returns (bytes32);
-
-    function depositNative(
-        uint256 _amount,
-        uint64 _mintChainId,
-        address _mintAccount,
-        uint64 _nonce
-    ) external payable returns (bytes32);
-}
-
-interface IPeggedTokenBridgeV2 {
-    function burn(
-        address _token,
-        uint256 _amount,
-        uint64 _toChainId,
-        address _toAccount,
-        uint64 _nonce
-    ) external returns (bytes32);
-
-    function burnFrom(
-        address _token,
-        uint256 _amount,
-        uint64 _toChainId,
-        address _toAccount,
-        uint64 _nonce
-    ) external returns (bytes32);
-}
-
-/// @title Executor
+/// @title RelayerCelerIM
 /// @author LI.FI (https://li.fi)
-/// @notice Arbitrary execution contract used for cross-chain swaps and message passing
+/// @notice Relayer contract for CBridge/CelerIM that forwards calls to cBridge and handles refunds
 contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
-    using LibBytes for bytes;
-    using ExcessivelySafeCall for address;
 
     /// Storage ///
     IMessageBus public cBridgeMessageBus;
@@ -97,18 +31,17 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     error MessageExecutionFailed();
 
     /// Events ///
-    event CBridgeMessageBusAddressSet(address indexed messageBusAddress);
+    event CBridgeMessageBusSet(address indexed messageBusAddress);
     event DiamondAddressSet(address indexed diamondAddress);
-    event ExecutorAddressSet(address indexed executorAddress);
-    event LiFiRecovered(bytes32 transactionId, address indexed callTo, uint256 amount);
+    event ExecutorSet(address indexed executorAddress);
 
     /// Modifiers ///
     modifier onlyCBridgeMessageBus() {
-        if (msg.sender != address(cBridgeMessageBus)) revert InvalidCaller();
+        if (msg.sender != address(cBridgeMessageBus)) revert UnAuthorized();
         _;
     }
     modifier onlyDiamond() {
-        if (msg.sender != diamondAddress) revert InvalidCaller();
+        if (msg.sender != diamondAddress) revert UnAuthorized();
         _;
     }
 
@@ -123,9 +56,6 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
         cBridgeMessageBus = IMessageBus(_cBridgeMessageBusAddress);
         diamondAddress = _diamondAddress;
         executor = IExecutor(_executorAddress);
-        emit CBridgeMessageBusAddressSet(_cBridgeMessageBusAddress);
-        emit DiamondAddressSet(_diamondAddress);
-        emit ExecutorAddressSet(_executorAddress);
     }
 
     /// External Methods ///
@@ -147,7 +77,7 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint64,
         bytes calldata _message,
         address
-    ) external payable returns (IMessageReceiverApp.ExecutionStatus) {
+    ) external payable onlyCBridgeMessageBus returns (IMessageReceiverApp.ExecutionStatus) {
         // decode message
         (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = abi
             .decode(_message, (bytes32, LibSwap.SwapData[], address, address));
@@ -302,7 +232,7 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
      * @param _dstChainId The destination chain ID.
      * @param _message Arbitrary message bytes to be decoded by the destination app contract.
      */
-    function sendMessageWithTransfer(
+    function forwardSendMessageWithTransfer(
         address _receiver,
         uint256 _dstChainId,
         address _srcBridge,
@@ -320,16 +250,16 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
     /// @notice sets the CBridge MessageBus address
     /// @param _messageBusAddress the MessageBus address
-    function setCBridgeMessageBusAddress(address _messageBusAddress) external onlyOwner {
+    function setCBridgeMessageBus(address _messageBusAddress) external onlyOwner {
         cBridgeMessageBus = IMessageBus(_messageBusAddress);
-        emit CBridgeMessageBusAddressSet(_messageBusAddress);
+        emit CBridgeMessageBusSet(_messageBusAddress);
     }
 
     /// @notice sets the executor address
     /// @param _executorAddress the address of the executor contract
-    function setExecutorAddress(address _executorAddress) external onlyOwner {
+    function setExecutor(address _executorAddress) external onlyOwner {
         executor = IExecutor(_executorAddress);
-        emit ExecutorAddressSet(_executorAddress);
+        emit ExecutorSet(_executorAddress);
     }
 
     /// @notice sets the address of our diamond contract
@@ -383,5 +313,6 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
         }
     }
 
+    // required in order to receive native tokens from cBridge facet
     receive() external payable {}
 }
