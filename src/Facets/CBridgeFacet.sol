@@ -85,7 +85,8 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice The contract address of the cbridge on the source chain.
     ICBridge private immutable cBridge;
-    IMessageBus public immutable cBridgeMessageBus;
+    IMessageBus private immutable cBridgeMessageBus;
+    RelayerCelerIM private immutable relayer;
 
     /// Types ///
 
@@ -105,18 +106,21 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// Modifiers ///
-    modifier onlyCBridgeMessageBus() {
-        if (msg.sender != address(cBridgeMessageBus)) revert InvalidCaller();
-        _;
-    }
 
     /// Constructor ///
 
     /// @notice Initialize the contract.
     /// @param _cBridge The contract address of the cbridge on the source chain.
-    constructor(ICBridge _cBridge, IMessageBus _messageBus) {
+    /// @param _messageBus The contract address of the cBridge Message Bus on the source chain.
+    /// @param _relayer The contract address of the RelayerCelerIM on the source chain.
+    constructor(
+        ICBridge _cBridge,
+        IMessageBus _messageBus,
+        RelayerCelerIM _relayer
+    ) {
         cBridge = _cBridge;
         cBridgeMessageBus = _messageBus;
+        relayer = _relayer;
     }
 
     /// External Methods ///
@@ -212,8 +216,6 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             bridgeAddress = cBridgeMessageBus.liquidityBridge();
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
                 // native asset
-                //! remove?
-                // if (msg.value + address(this).balance < _bridgeData.minAmount) revert InformationMismatch();
                 ICBridge(bridgeAddress).sendNative{ value: _bridgeData.minAmount }(
                     _bridgeData.receiver,
                     _bridgeData.minAmount,
@@ -308,32 +310,5 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         } else {
             revert InvalidConfig();
         }
-    }
-
-    /**
-     * @notice Called by MessageBus to process refund of the original transfer from this contract.
-     * The contract is guaranteed to have received the refund before this function is called.
-     * @param _token The token address of the original transfer
-     * @param _amount The amount of the original transfer
-     * @param _message The same message associated with the original transfer
-     * @param * (unused) Address who called the MessageBus execution function
-     */
-    function executeMessageWithTransferRefund(
-        address _token,
-        uint256 _amount,
-        bytes calldata _message,
-        address
-    ) external payable onlyCBridgeMessageBus returns (IMessageReceiverApp.ExecutionStatus) {
-        (bytes32 transactionId, , , address refundAddress) = abi.decode(
-            _message,
-            (bytes32, LibSwap.SwapData[], address, address)
-        );
-
-        // return funds to cBridgeData.refundAddress
-        LibAsset.transferAsset(_token, payable(refundAddress), _amount);
-
-        emit CelerIMMessageWithTransferRefunded(transactionId, refundAddress);
-
-        return IMessageReceiverApp.ExecutionStatus.Success;
     }
 }

@@ -27,14 +27,6 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     event StargateRouterSet(address indexed router);
     event ExecutorSet(address indexed executor);
     event RecoverGasSet(uint256 indexed recoverGas);
-    event LiFiTransferRecovered(
-        bytes32 indexed transactionId,
-        address receivingAssetId,
-        address receiver,
-        uint256 amount,
-        uint256 timestamp
-    );
-
 
     /// Modifiers ///
     modifier onlySGRouter() {

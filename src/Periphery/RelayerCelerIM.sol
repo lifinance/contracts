@@ -14,10 +14,12 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { ExcessivelySafeCall } from "../Helpers/ExcessivelySafeCall.sol";
 
+import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
+
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-contract ReceiverCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
+contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
     using LibBytes for bytes;
     using ExcessivelySafeCall for address;
@@ -80,6 +82,33 @@ contract ReceiverCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
         return IMessageReceiverApp.ExecutionStatus.Success;
     }
 
+    /**
+     * @notice Called by MessageBus to process refund of the original transfer from this contract.
+     * The contract is guaranteed to have received the refund before this function is called.
+     * @param _token The token address of the original transfer
+     * @param _amount The amount of the original transfer
+     * @param _message The same message associated with the original transfer
+     * @param * (unused) Address who called the MessageBus execution function
+     */
+    function executeMessageWithTransferRefund(
+        address _token,
+        uint256 _amount,
+        bytes calldata _message,
+        address
+    ) external payable onlyCBridgeMessageBus returns (IMessageReceiverApp.ExecutionStatus) {
+        (bytes32 transactionId, , , address refundAddress) = abi.decode(
+            _message,
+            (bytes32, LibSwap.SwapData[], address, address)
+        );
+
+        // return funds to cBridgeData.refundAddress
+        LibAsset.transferAsset(_token, payable(refundAddress), _amount);
+
+        emit LiFiTransferRecovered(transactionId, _token, refundAddress, _amount, block.timestamp);
+
+        return IMessageReceiverApp.ExecutionStatus.Success;
+    }
+
     /// @notice sets the CBridge MessageBus address
     /// @param _messageBusAddress the MessageBus address
     function setCBridgeMessageBus(address _messageBusAddress) external onlyOwner {
@@ -127,8 +156,9 @@ contract ReceiverCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
         }
 
         if (!success) {
-            emit LiFiRecovered(_transactionId, refundAddress, amount);
-            emit LiFiTransferCompleted(_transactionId, assetId, refundAddress, amount, block.timestamp);
+            emit LiFiTransferRecovered(_transactionId, assetId, refundAddress, amount, block.timestamp);
         }
     }
+
+    triggergr
 }
