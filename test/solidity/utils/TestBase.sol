@@ -70,6 +70,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     UniswapV2Router02 internal uniswap;
     ERC20 internal usdc;
     ERC20 internal dai;
+    ERC20 internal weth;
     LiFiDiamond internal diamond;
     ILiFi.BridgeData internal bridgeData;
     LibSwap.SwapData[] internal swapData;
@@ -110,7 +111,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     address internal constant USER_REFUND = address(0xabcdef281);
     address internal constant USER_DIAMOND_OWNER = 0x5042255A3F3FD7727e419CeA387cAFDfad3C3aF8;
     address internal constant USER_USDC_WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
-    address internal constant USER_DAI_WHALE = 0x5D38B4e4783E34e2301A2a36c39a03c45798C4dD;
+    address internal constant USER_DAI_WHALE = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
 
     // MODIFIERS
 
@@ -150,6 +151,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         uniswap = UniswapV2Router02(ADDRESS_UNISWAP);
         usdc = ERC20(ADDRESS_USDC);
         dai = ERC20(ADDRESS_DAI);
+        weth = ERC20(ADDRESS_WETH);
 
         // deploy & configure diamond
         diamond = createDiamond();
@@ -160,6 +162,9 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         vm.stopPrank();
         vm.startPrank(USER_DAI_WHALE);
         dai.transfer(USER_SENDER, 100_000 * 10**dai.decimals());
+        vm.stopPrank();
+        vm.startPrank(ADDRESS_WETH);
+        weth.transfer(USER_SENDER, 100 * 10**weth.decimals());
         vm.stopPrank();
 
         // label addresses (for better readability in error traces)
