@@ -7,22 +7,16 @@ import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { ExternalCallFailed, InvalidReceiver, InvalidAmount, InvalidCaller, InvalidConfig, InformationMismatch, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
-import { LibUtil } from "../Libraries/LibUtil.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { RelayerCBridge } from "lifi/Periphery/RelayerCBridge.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
-import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
 
 /// @title CBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
 contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    event CelerIMMessageWithTransferRefunded(bytes32 indexed transactionId, address indexed refundAddress);
-
     /// Storage ///
 
     /// @notice The contract address of the cbridge on the source chain.

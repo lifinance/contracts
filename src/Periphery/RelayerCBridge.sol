@@ -11,8 +11,8 @@ import { LibBytes } from "../Libraries/LibBytes.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
-import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
+import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ICBridge, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "lifi/Interfaces/ICBridge.sol";
 
@@ -28,7 +28,6 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
     IExecutor public executor;
 
     /// Errors ///
-    error MessageExecutionFailed();
 
     /// Events ///
     event CBridgeMessageBusSet(address indexed messageBusAddress);
