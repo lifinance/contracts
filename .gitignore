@@ -26,3 +26,4 @@ yarn-error.log
 lcov.info
 
 test/logs
+.DS_Store
