@@ -50,7 +50,7 @@ contract CBridgeGasTest is DSTest, DiamondTest {
         vm.label(CBRIDGE_ROUTER, "CBRIDGE_ROUTER");
         vm.label(CBRIDGE_MESSAGE_BUS_ETH, "CBRIDGE_MESSAGE_BUS_ETH");
 
-        cBridge = new CBridgeFacet(cBridgeRouter, IMessageBus(CBRIDGE_MESSAGE_BUS_ETH), relayer);
+        cBridge = new CBridgeFacet(IMessageBus(CBRIDGE_MESSAGE_BUS_ETH), relayer);
         usdc = ERC20(USDC_ADDRESS);
 
         bytes4[] memory functionSelectors = new bytes4[](1);

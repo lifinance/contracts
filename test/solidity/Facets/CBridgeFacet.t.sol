@@ -10,11 +10,7 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
-    constructor(
-        ICBridge _cBridge,
-        IMessageBus _messageBus,
-        RelayerCBridge _relayer
-    ) CBridgeFacet(_cBridge, _messageBus, _relayer) {}
+    constructor(IMessageBus _messageBus, RelayerCBridge _relayer) CBridgeFacet(_messageBus, _relayer) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -66,7 +62,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         executor = new Executor(address(this), address(erc20Proxy));
         relayer = new RelayerCBridge(address(this), CBRIDGE_MESSAGEBUS_ETH, address(diamond), address(executor));
 
-        cBridgeFacet = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER), IMessageBus(CBRIDGE_MESSAGEBUS_ETH), relayer);
+        cBridgeFacet = new TestCBridgeFacet(IMessageBus(CBRIDGE_MESSAGEBUS_ETH), relayer);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = cBridgeFacet.startBridgeTokensViaCBridge.selector;
         functionSelectors[1] = cBridgeFacet.swapAndStartBridgeTokensViaCBridge.selector;
