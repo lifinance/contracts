@@ -20,8 +20,7 @@ contract DeployScript is DeployScriptBase {
             revert(string.concat("MessageBus address not found in deployment file for network ", network));
         console.log("messageBus address: ", messageBus);
         // get relayer address
-        path = string.concat(vm.projectRoot(), "/deployments/", network, ".json");
-        //! add fileSuffix
+        path = string.concat(vm.projectRoot(), "/deployments/", network, ".", fileSuffix, "json");
         json = vm.readFile(path);
         address relayer = json.readAddress(".RelayerCBridge");
         console.log("Relayer address: ", relayer);
