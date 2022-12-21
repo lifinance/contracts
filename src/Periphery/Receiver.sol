@@ -35,7 +35,6 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 timestamp
     );
 
-
     /// Modifiers ///
     modifier onlySGRouter() {
         if (msg.sender != sgRouter) {
@@ -159,17 +158,19 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 amount,
         bool reserveRecoverGas
     ) private {
-        bool success;
         uint256 _recoverGas = reserveRecoverGas ? recoverGas : 0;
 
         if (LibAsset.isNativeAsset(assetId)) {
+            // case 1: native asset
             if (reserveRecoverGas && gasleft() < _recoverGas) {
+                // case 1a: not enough gas left to execute calls
                 receiver.call{ value: amount }("");
 
-                emit LiFiTransferCompleted(_transactionId, assetId, receiver, amount, block.timestamp);
+                emit LiFiTransferRecovered(_transactionId, assetId, receiver, amount, block.timestamp);
                 return;
             }
 
+            // case 1b: enough gas left to execute calls
             try
                 executor.swapAndCompleteBridgeTokens{ value: amount, gas: gasleft() - _recoverGas }(
                     _transactionId,
@@ -177,23 +178,24 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     assetId,
                     receiver
                 )
-            {
-                success = true;
-            } catch {
+            {} catch {
                 receiver.call{ value: amount }("");
             }
         } else {
+            // case 2: ERC20 asset
             IERC20 token = IERC20(assetId);
             token.safeApprove(address(executor), 0);
             token.safeIncreaseAllowance(address(executor), amount);
 
             if (reserveRecoverGas && gasleft() < _recoverGas) {
+                // case 2a: not enough gas left to execute calls
                 token.safeTransfer(receiver, amount);
 
                 emit LiFiTransferRecovered(_transactionId, assetId, receiver, amount, block.timestamp);
                 return;
             }
 
+            // case 2b: enough gas left to execute calls
             try
                 executor.swapAndCompleteBridgeTokens{ gas: gasleft() - _recoverGas }(
                     _transactionId,
@@ -201,9 +203,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     assetId,
                     receiver
                 )
-            {
-                success = true;
-            } catch {
+            {} catch {
                 token.safeTransfer(receiver, amount);
                 emit LiFiTransferRecovered(_transactionId, assetId, receiver, amount, block.timestamp);
             }
