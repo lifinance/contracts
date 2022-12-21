@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount, ERC20, LiFiDiamond } from "../utils/TestBaseFacet.sol";
-import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
-import { IMultichainRouter } from "lifi/Interfaces/IMultichainRouter.sol";
+import { LibAllowList, TestBaseFacet, console, ERC20, LiFiDiamond } from "../utils/TestBaseFacet.sol";
+import { OnlyContractOwner, NotInitialized, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
 import { MultichainFacet, IMultichainToken } from "lifi/Facets/MultichainFacet.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // Stub MultichainFacet Contract
 contract TestMultichainFacet is MultichainFacet {
