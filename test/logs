@@ -1,5 +1,8 @@
 
  Logfile created at timestamp: 1653561975
-Gas used OPTIMIZED:  192119
-Gas used STANDALONE: 164608
-Gas used STANDARD:   194047
+test_bridgeTokens_COMPARE_Native 
+
+Gas used STANDARD:          133686
+Gas used OPTIMIZED:         85830
+Gas used STANDALONE:        80398
+Gas used STANDALONE_NATIVE: 80086

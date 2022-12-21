@@ -67,7 +67,8 @@
         "token": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
         "ammWrapper": "0xc315239cFb05F1E130E7E28E603CEa4C014c57f0"
       }
-    ]
+    ],
+    "nativeBridge": ""
   },
   "gnosis": {
     "chainId": 100,

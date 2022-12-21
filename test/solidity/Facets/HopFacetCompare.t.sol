@@ -5,6 +5,9 @@ import { ILiFi, LibSwap, LibAllowList, TestBase, console, ERC20, UniswapV2Router
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 import { HopFacetStandalone } from "lifi/Facets/HopFacetStandalone.sol";
+import { HopFacetStandaloneNative } from "lifi/Facets/HopFacetStandaloneNative.sol";
+import { HopFacetStandaloneERC20 } from "lifi/Facets/HopFacetStandaloneERC20.sol";
+import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InvalidAmount } from "src/Errors/GenericErrors.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 
@@ -45,10 +48,14 @@ contract HopFacetTestCompare is TestBase {
     TestHopFacet internal hopFacet;
     TestHopFacetOptimized internal hopFacetOptimized;
     HopFacetStandalone internal hopFacetStandalone;
+    HopFacetStandaloneNative internal hopFacetStandaloneNative;
+    HopFacetStandaloneERC20 internal hopFacetStandaloneERC20;
     ILiFi.BridgeData internal validBridgeData;
     HopFacet.HopData internal validHopData;
     HopFacetOptimized.HopData internal validHopDataOptimized;
     HopFacetStandalone.HopData internal validHopDataStandalone;
+    HopFacetStandaloneNative.HopData internal validHopDataStandaloneNative;
+    HopFacetStandaloneERC20.HopData internal validHopDataStandaloneERC20;
 
     function setUp() public {
         //! 1) set up original facet with diamond
@@ -143,37 +150,98 @@ contract HopFacetTestCompare is TestBase {
             destinationAmountOutMin: 0,
             destinationDeadline: block.timestamp + 60 * 20
         });
+
+        //! 4) deploy gas-optimized standalone hop facet - for native assets only
+        hopFacetStandaloneNative = new HopFacetStandaloneNative(IHopBridge(NATIVE_BRIDGE));
+        // produce valid HopData
+        validHopDataStandaloneNative = HopFacetStandaloneNative.HopData({
+            bonderFee: 0,
+            amountOutMin: 0,
+            deadline: block.timestamp + 60 * 20,
+            destinationAmountOutMin: 0,
+            destinationDeadline: block.timestamp + 60 * 20
+        });
+
+        //! 5) deploy gas-optimized standalone hop facet - for ERC20 assets only
+        hopFacetStandaloneERC20 = new HopFacetStandaloneERC20();
+        // produce valid HopData
+        validHopDataStandaloneERC20 = HopFacetStandaloneERC20.HopData({
+            bonderFee: 0,
+            amountOutMin: 0,
+            deadline: block.timestamp + 60 * 20,
+            destinationAmountOutMin: 0,
+            destinationDeadline: block.timestamp + 60 * 20
+        });
+
+        HopFacetStandaloneERC20.Config[] memory configs5 = new HopFacetStandaloneERC20.Config[](1);
+        configs5[0] = HopFacetStandaloneERC20.Config(ADDRESS_USDC, USDC_BRIDGE);
+        hopFacetStandaloneERC20.initHop(configs5);
     }
 
-    function test_bridgeTokens_1_STANDARD() public {
-        vm.startPrank(USER_SENDER);
-
+    function test_bridgeTokens_1_STANDARD() private {
         usdc.approve(address(hopFacet), bridgeData.minAmount);
-
         uint256 startGas = gasleft();
-        hopFacet.startBridgeTokensViaHop(bridgeData, validHopData);
-        vm.writeLine(logFilePath, string.concat("Gas used STANDARD:   ", vm.toString(startGas - gasleft())));
-
-        vm.stopPrank();
+        hopFacet.startBridgeTokensViaHop{ value: bridgeData.minAmount }(bridgeData, validHopData);
+        vm.writeLine(logFilePath, string.concat("Gas used STANDARD:          ", vm.toString(startGas - gasleft())));
     }
 
-    function test_bridgeTokens_2_OPTIMIZED() public {
-        vm.startPrank(USER_SENDER);
-
+    function test_bridgeTokens_2_OPTIMIZED() private {
         usdc.approve(address(hopFacetOptimized), bridgeData.minAmount);
         uint256 startGas = gasleft();
-        hopFacetOptimized.startBridgeTokensViaHop(bridgeData, validHopDataOptimized);
-        vm.writeLine(logFilePath, string.concat("Gas used OPTIMIZED:  ", vm.toString(startGas - gasleft())));
+        hopFacetOptimized.startBridgeTokensViaHop{ value: bridgeData.minAmount }(bridgeData, validHopDataOptimized);
+        vm.writeLine(logFilePath, string.concat("Gas used OPTIMIZED:         ", vm.toString(startGas - gasleft())));
+    }
+
+    function test_bridgeTokens_3_STANDALONE() private {
+        usdc.approve(address(hopFacetStandalone), bridgeData.minAmount);
+        uint256 startGas = gasleft();
+        hopFacetStandalone.startBridgeTokensViaHop{ value: bridgeData.minAmount }(bridgeData, validHopDataStandalone);
+        vm.writeLine(logFilePath, string.concat("Gas used STANDALONE:        ", vm.toString(startGas - gasleft())));
+    }
+
+    function test_bridgeTokens_4a_STANDALONE_NATIVE() private {
+        uint256 startGas = gasleft();
+        hopFacetStandaloneNative.startBridgeTokensViaHop{ value: bridgeData.minAmount }(
+            bridgeData,
+            validHopDataStandaloneNative
+        );
+        vm.writeLine(logFilePath, string.concat("Gas used STANDALONE_NATIVE: ", vm.toString(startGas - gasleft())));
+    }
+
+    function test_bridgeTokens_4b_STANDALONE_ERC20() private {
+        usdc.approve(address(hopFacetStandaloneERC20), bridgeData.minAmount);
+
+        uint256 startGas = gasleft();
+        hopFacetStandaloneERC20.startBridgeTokensViaHop(bridgeData, validHopDataStandaloneERC20);
+        vm.writeLine(logFilePath, string.concat("Gas used STANDALONE_ERC20:  ", vm.toString(startGas - gasleft())));
+    }
+
+    function test_bridgeTokens_COMPARE_Native() public {
+        vm.writeLine(logFilePath, "test_bridgeTokens_COMPARE_Native \n");
+        // adjust bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        vm.startPrank(USER_SENDER);
+
+        test_bridgeTokens_1_STANDARD();
+        test_bridgeTokens_2_OPTIMIZED();
+        test_bridgeTokens_3_STANDALONE();
+        test_bridgeTokens_4a_STANDALONE_NATIVE();
+
         vm.stopPrank();
     }
 
-    function test_bridgeTokens_3_STANDALONE() public {
+    function test_bridgeTokens_COMPARE_ERC20() internal {
+        vm.writeLine(logFilePath, "test_bridgeTokens_COMPARE_ERC20 \n");
+
         vm.startPrank(USER_SENDER);
 
-        usdc.approve(address(hopFacetStandalone), bridgeData.minAmount);
-        uint256 startGas = gasleft();
-        hopFacetStandalone.startBridgeTokensViaHop(bridgeData, validHopDataStandalone);
-        vm.writeLine(logFilePath, string.concat("Gas used STANDALONE: ", vm.toString(startGas - gasleft())));
+        test_bridgeTokens_1_STANDARD();
+        test_bridgeTokens_2_OPTIMIZED();
+        test_bridgeTokens_3_STANDALONE();
+        test_bridgeTokens_4b_STANDALONE_ERC20();
+
         vm.stopPrank();
     }
 }
