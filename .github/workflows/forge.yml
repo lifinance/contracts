@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: '16'
       - name: Install dev dependencies
-        run: npm install
+        run: yarn install
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
