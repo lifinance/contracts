@@ -24,13 +24,6 @@ contract ReceiverTest is TestBase {
     Executor executor;
     ERC20Proxy erc20Proxy;
 
-    event LiFiTransferRecovered(
-        bytes32 indexed transactionId,
-        address receivingAssetId,
-        address receiver,
-        uint256 amount,
-        uint256 timestamp
-    );
     event StargateRouterSet(address indexed router);
     event AmarokRouterSet(address indexed router);
     event ExecutorSet(address indexed executor);
