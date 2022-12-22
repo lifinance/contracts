@@ -129,7 +129,7 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
         if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.Liquidity) {
             bridgeAddress = cBridgeMessageBus.liquidityBridge();
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-                // native asset
+                // case: native asset bridging
                 ICBridge(bridgeAddress).sendNative{ value: _bridgeData.minAmount }(
                     _bridgeData.receiver,
                     _bridgeData.minAmount,
@@ -138,7 +138,7 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     _cBridgeData.maxSlippage
                 );
             } else {
-                // ERC20 asset
+                // case: ERC20 asset bridging
                 LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
                 ICBridge(bridgeAddress).send(
                     _bridgeData.receiver,
@@ -189,19 +189,28 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _cBridgeData.nonce
             );
         } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Deposit) {
-            // bridgeAddress = cBridgeMessageBus.pegVaultV2(); // TODO to be changed once CBridge updated their messageBus
-            bridgeAddress = 0x7510792A3B1969F9307F3845CE88e39578f2bAE1;
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
-            transferId = IOriginalTokenVaultV2(bridgeAddress).deposit(
-                _bridgeData.sendingAssetId,
-                _bridgeData.minAmount,
-                uint64(_bridgeData.destinationChainId),
-                _bridgeData.receiver,
-                _cBridgeData.nonce
-            );
+            bridgeAddress = cBridgeMessageBus.pegVaultV2();
+            if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+                // case: native asset bridging
+                transferId = IOriginalTokenVaultV2(bridgeAddress).depositNative{ value: _bridgeData.minAmount }(
+                    _bridgeData.minAmount,
+                    uint64(_bridgeData.destinationChainId),
+                    _bridgeData.receiver,
+                    _cBridgeData.nonce
+                );
+            } else {
+                // case: ERC20 bridging
+                LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+                transferId = IOriginalTokenVaultV2(bridgeAddress).deposit(
+                    _bridgeData.sendingAssetId,
+                    _bridgeData.minAmount,
+                    uint64(_bridgeData.destinationChainId),
+                    _bridgeData.receiver,
+                    _cBridgeData.nonce
+                );
+            }
         } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Burn) {
-            // bridgeAddress = cBridgeMessageBus.pegBridgeV2(); // TODO to be changed once CBridge updated their messageBus
-            bridgeAddress = 0x52E4f244f380f8fA51816c8a10A63105dd4De084;
+            bridgeAddress = cBridgeMessageBus.pegBridgeV2();
             LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
             transferId = IPeggedTokenBridgeV2(bridgeAddress).burn(
                 _bridgeData.sendingAssetId,
@@ -211,8 +220,7 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _cBridgeData.nonce
             );
         } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2BurnFrom) {
-            // bridgeAddress = cBridgeMessageBus.pegBridgeV2(); // TODO to be changed once CBridge updated their messageBus
-            bridgeAddress = 0x52E4f244f380f8fA51816c8a10A63105dd4De084;
+            bridgeAddress = cBridgeMessageBus.pegBridgeV2();
             LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
             transferId = IPeggedTokenBridgeV2(bridgeAddress).burnFrom(
                 _bridgeData.sendingAssetId,

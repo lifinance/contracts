@@ -145,6 +145,29 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
 
     // FUNCTIONS
     function initTestBase() internal {
+        // activate fork
+        fork();
+
+        // fill user accounts with starting balance
+        uniswap = UniswapV2Router02(ADDRESS_UNISWAP);
+        usdc = ERC20(ADDRESS_USDC);
+        dai = ERC20(ADDRESS_DAI);
+        weth = ERC20(ADDRESS_WETH);
+
+        // deploy & configure diamond
+        diamond = createDiamond();
+
+        // transfer initial DAI/USDC balance to USER_SENDER
+        vm.startPrank(USER_USDC_WHALE);
+        usdc.transfer(USER_SENDER, 100_000 * 10**usdc.decimals());
+        vm.stopPrank();
+        vm.startPrank(USER_DAI_WHALE);
+        dai.transfer(USER_SENDER, 100_000 * 10**dai.decimals());
+        vm.stopPrank();
+        vm.startPrank(ADDRESS_WETH);
+        weth.transfer(USER_SENDER, 100 * 10**weth.decimals());
+        vm.stopPrank();
+
         // label addresses (for better readability in error traces)
         vm.label(USER_SENDER, "USER_SENDER");
         vm.label(USER_RECEIVER, "USER_RECEIVER");

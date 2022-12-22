@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
-import { CBridgeFacet, IMessageBus, MsgDataTypes } from "lifi/Facets/CBridgeFacet.sol";
+import { CBridgeFacet, IMessageBus, MsgDataTypes, IERC20 } from "lifi/Facets/CBridgeFacet.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { RelayerCBridge } from "lifi/Periphery/RelayerCBridge.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
@@ -26,35 +26,51 @@ interface Ownable {
 }
 
 contract CBridgeFacetTest is TestBaseFacet {
+    /// EVENTS
+    event Deposited(
+        bytes32 depositId,
+        address depositor,
+        address token,
+        uint256 amount,
+        uint64 mintChainId,
+        address mintAccount,
+        uint64 nonce
+    );
+    event Mint(
+        bytes32 mintId,
+        address token,
+        address account,
+        uint256 amount,
+        uint64 refChainId,
+        bytes32 refId,
+        address depositor
+    );
+    event Burn(bytes32 burnId, address token, address account, uint256 amount, address withdrawAccount);
+    event Burn(
+        bytes32 burnId,
+        address token,
+        address account,
+        uint256 amount,
+        uint64 toChainId,
+        address toAccount,
+        uint64 nonce
+    );
+
     address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
     address internal constant CBRIDGE_MESSAGEBUS_ETH = 0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
+    address internal constant CBRIDGE_PEG_VAULT = 0xB37D31b2A74029B5951a2778F959282E2D518595;
+    address internal constant CBRIDGE_PEG_VAULT_V2 = 0x7510792A3B1969F9307F3845CE88e39578f2bAE1;
+    address internal constant CBRIDGE_PEG_BRIDGE = 0x16365b45EB269B5B5dACB34B4a15399Ec79b95eB;
+    address internal constant CBRIDGE_PEG_BRIDGE_V2 = 0x52E4f244f380f8fA51816c8a10A63105dd4De084;
+
     TestCBridgeFacet internal cBridgeFacet;
     CBridgeFacet.CBridgeData internal cBridgeData;
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
     RelayerCBridge internal relayer;
 
-    function initiateBridgeTxWithFacet(bool isNative) internal override {
-        if (isNative) {
-            cBridgeFacet.startBridgeTokensViaCBridge{ value: bridgeData.minAmount }(bridgeData, cBridgeData);
-        } else {
-            cBridgeFacet.startBridgeTokensViaCBridge(bridgeData, cBridgeData);
-        }
-    }
-
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
-        if (isNative) {
-            cBridgeFacet.swapAndStartBridgeTokensViaCBridge{ value: swapData[0].fromAmount }(
-                bridgeData,
-                swapData,
-                cBridgeData
-            );
-        } else {
-            cBridgeFacet.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, cBridgeData);
-        }
-    }
-
     function setUp() public {
+        customBlockNumberForForking = 16227237;
         initTestBase();
 
         // deploy periphery
@@ -79,6 +95,10 @@ contract CBridgeFacetTest is TestBaseFacet {
         setFacetAddressInTestBase(address(cBridgeFacet), "cBridgeFacet");
         vm.label(CBRIDGE_ROUTER, "CBRIDGE_ROUTER");
         vm.label(CBRIDGE_MESSAGEBUS_ETH, "CBRIDGE_MESSAGEBUS_ETH");
+        vm.label(CBRIDGE_PEG_VAULT, "CBRIDGE_PEG_VAULT");
+        vm.label(CBRIDGE_PEG_VAULT_V2, "CBRIDGE_PEG_VAULT_V2");
+        vm.label(CBRIDGE_PEG_BRIDGE, "CBRIDGE_PEG_BRIDGE");
+        vm.label(CBRIDGE_PEG_BRIDGE_V2, "CBRIDGE_PEG_BRIDGE_V2");
 
         cBridgeData = CBridgeFacet.CBridgeData({
             maxSlippage: 5000,
@@ -88,6 +108,26 @@ contract CBridgeFacetTest is TestBaseFacet {
             messageBusFee: 0,
             bridgeType: MsgDataTypes.BridgeSendType.Liquidity
         });
+    }
+
+    function initiateBridgeTxWithFacet(bool isNative) internal override {
+        if (isNative) {
+            cBridgeFacet.startBridgeTokensViaCBridge{ value: bridgeData.minAmount }(bridgeData, cBridgeData);
+        } else {
+            cBridgeFacet.startBridgeTokensViaCBridge(bridgeData, cBridgeData);
+        }
+    }
+
+    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+        if (isNative) {
+            cBridgeFacet.swapAndStartBridgeTokensViaCBridge{ value: swapData[0].fromAmount }(
+                bridgeData,
+                swapData,
+                cBridgeData
+            );
+        } else {
+            cBridgeFacet.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, cBridgeData);
+        }
     }
 
     function testBase_Revert_CallerHasInsufficientFunds() public override {
@@ -177,5 +217,165 @@ contract CBridgeFacetTest is TestBaseFacet {
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
         vm.assume(amount > 100 && amount < 100_000);
         super.testBase_CanBridgeTokens_fuzzed(amount);
+    }
+
+    function test_canBridgeTokens_PegDeposit() public {
+        vm.startPrank(USER_SENDER);
+        // reference tx: https://etherscan.io/tx/0xa91fd8a0b703bfec29c6682dcf2fc022db82b250e3d8544ad5efcef5dd245cb5
+
+        // adjust cBridgeData
+        cBridgeData.bridgeType = MsgDataTypes.BridgeSendType.PegDeposit;
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_canBridgeTokens_PegBurn() public {
+        vm.startPrank(USER_SENDER);
+        IERC20 testToken = IERC20(0xe593F3509eb2a620DC61078bcdEDbA355F083E8B);
+        // reference tx: https://etherscan.io/tx/0x4c1482748b174892ca7dcb90f882afb6355dcb8f26d527b763a780c23163f235
+
+        // transfer testToken to USER_SENDER
+        deal(address(testToken), USER_SENDER, 10_000e18);
+
+        // adjust cBridgeData
+        bridgeData.sendingAssetId = address(testToken);
+        bridgeData.minAmount = defaultDAIAmount;
+
+        // adjust cBridgeData
+        cBridgeData.bridgeType = MsgDataTypes.BridgeSendType.PegBurn;
+
+        // approval
+        testToken.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(false, false, false, false, CBRIDGE_PEG_BRIDGE);
+        emit Burn(
+            0xe3d9751d87739cd7f22c724ec6d301d415e6281c82b0fad26e9df280d57ccce8,
+            address(testToken),
+            address(relayer),
+            bridgeData.minAmount,
+            USER_RECEIVER
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_canBridgeTokens_PegV2Deposit() public {
+        vm.startPrank(USER_SENDER);
+        // reference tx: https://etherscan.io/tx/0x254df9e7b55e1c2fa2eee9ebd772f13eeb235fa8852d2fbd04ca3855e8b8435c
+
+        // adjust cBridgeData
+        bridgeData.sendingAssetId = ADDRESS_WETH;
+        bridgeData.minAmount = defaultDAIAmount;
+
+        // adjust cBridgeData
+        cBridgeData.bridgeType = MsgDataTypes.BridgeSendType.PegV2Deposit;
+
+        // approval
+        weth.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(false, false, false, false, CBRIDGE_PEG_VAULT_V2);
+        emit Deposited(
+            0x4d1740ad079e2cae12e52778c379c75aa39ea6fc3e45ab1263966bd3ea6c031c,
+            address(relayer),
+            ADDRESS_WETH,
+            bridgeData.minAmount,
+            uint64(bridgeData.destinationChainId),
+            USER_RECEIVER,
+            1
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_canBridgeNativeTokens_PegV2Deposit() public {
+        vm.startPrank(USER_SENDER);
+        // reference tx: https://etherscan.io/tx/0x0b1bf1fbde35cd11a103fae96045e1d14a2cdba9c06f1c557c20140920251bcd
+
+        // adjust cBridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultDAIAmount;
+
+        // adjust cBridgeData
+        cBridgeData.bridgeType = MsgDataTypes.BridgeSendType.PegV2Deposit;
+
+        //prepare check for events
+        vm.expectEmit(false, false, false, false, CBRIDGE_PEG_VAULT_V2);
+        emit Deposited(
+            0x9e3e2a8aae04ccdd70d83859e3914bf003eef7f022f3259194af9bb551a48cd3,
+            address(relayer),
+            ADDRESS_WETH,
+            bridgeData.minAmount,
+            uint64(bridgeData.destinationChainId),
+            USER_RECEIVER,
+            1
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function test_canBridgeTokens_PegV2Burn() public {
+        vm.startPrank(USER_SENDER);
+        IERC20 testToken = IERC20(0xA719CB79Af39A9C10eDA2755E0938bCE35e9DE24); // Starfish Token
+        // reference tx: https://etherscan.io/tx/0xa32470a629b419069dfe62035193a8dd90f050b4773fe23b2f754d610eae04d0
+
+        // transfer testToken to USER_SENDER
+        deal(address(testToken), USER_SENDER, 10_000e18);
+
+        // adjust cBridgeData
+        bridgeData.sendingAssetId = address(testToken);
+        bridgeData.minAmount = defaultDAIAmount;
+
+        // adjust cBridgeData
+        cBridgeData.bridgeType = MsgDataTypes.BridgeSendType.PegV2Burn;
+
+        // approval
+        testToken.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(false, false, false, false, CBRIDGE_PEG_BRIDGE_V2);
+        emit Burn(
+            0x906377c64da8ed8374879c2f56b5c47fc148ab77f157d1267e52dd6a4a885434,
+            address(testToken),
+            address(relayer),
+            bridgeData.minAmount,
+            uint64(bridgeData.destinationChainId),
+            USER_RECEIVER,
+            1
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_canBridgeTokens_PegV2BurnFrom() public {
+        // reference: https://explorer.swimmer.network/tx/0x14c3a392d2fbceacc6e48316249efdd80fbe5511c17cffd8806a276333d48cdd/token-transfers
+        // no reference tx on ETH
+        // highly unlikely we will encounter this case, therefore chose to not implement this test case
     }
 }

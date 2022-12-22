@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { ICBridge } from "../Interfaces/ICBridge.sol";
+import { ICBridge, CelerToken } from "../Interfaces/ICBridge.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { ExternalCallFailed, InvalidReceiver, InvalidAmount, InvalidCaller, InvalidConfig, InformationMismatch, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
@@ -12,6 +12,7 @@ import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contr
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { RelayerCBridge } from "lifi/Periphery/RelayerCBridge.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
 
 /// @title CBridge Facet
 /// @author LI.FI (https://li.fi)
@@ -68,7 +69,18 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateDestinationCallFlag(_bridgeData, _cBridgeData);
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // transfer ERC20 tokens directly to relayer
-            IERC20 asset = IERC20(_bridgeData.sendingAssetId);
+            IERC20 asset;
+            if (
+                keccak256(abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())) ==
+                keccak256(abi.encodePacked(("cfUSDC")))
+            ) {
+                // special case for cfUSDC token
+                asset = IERC20(CelerToken(_bridgeData.sendingAssetId).canonical());
+            } else {
+                // any other ERC20 token
+                asset = IERC20(_bridgeData.sendingAssetId);
+            }
+            // deposit ERC20 token
             uint256 prevBalance = asset.balanceOf(address(relayer));
             SafeERC20.safeTransferFrom(asset, msg.sender, address(relayer), _bridgeData.minAmount);
             if (asset.balanceOf(address(relayer)) - prevBalance != _bridgeData.minAmount) revert InvalidAmount();

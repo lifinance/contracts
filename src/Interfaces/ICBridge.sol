@@ -100,3 +100,7 @@ interface IPeggedTokenBridgeV2 {
         uint64 _nonce
     ) external returns (bytes32);
 }
+
+interface CelerToken {
+    function canonical() external returns (address);
+}
