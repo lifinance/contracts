@@ -2,7 +2,7 @@
 
 ## Description
 
-Periphery contract used for aribitrary cross-chain execution using Axelar
+Periphery contract used for arbitrary cross-chain execution using Axelar
 
 ## How To Use
 
@@ -18,4 +18,4 @@ The contract has one utility method for updating the Axelar gateway
 function setAxelarGateway(address _gateway)
 ```
 
-Upon failed destination call or partial token usage by the called contract, leftover tokens will be transferred to the specified recoveryAddress. 
+Upon failed destination call or partial token usage by the called contract, leftover tokens will be transferred to the specified recoveryAddress.

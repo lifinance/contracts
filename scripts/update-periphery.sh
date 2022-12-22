@@ -4,10 +4,14 @@ source .env
 
 load() {
 
-NETWORK=$(cat ./networks | gum filter --placeholder "Network")
-CONTRACTS=$(gum choose --no-limit erc20Proxy axelarExecutor executor receiver feeCollector)
+  	if [[ -z "$PRODUCTION" ]]; then
+		FILE_SUFFIX=".staging"
+	fi
 
-ADDRS="deployments/$NETWORK.json"
+NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+CONTRACTS=$(gum choose --no-limit erc20Proxy axelarExecutor executor receiver feeCollector relayerCBridge)
+
+ADDRS="deployments/$NETWORK$FILE_SUFFIX.json"
 
 DIAMOND=$(jq -r '.LiFiDiamond' $ADDRS)
 ERC20PROXY=$(jq -r '.ERC20Proxy // "0x"' $ADDRS)
@@ -15,6 +19,7 @@ AXELAREXECUTOR=$(jq -r '.AxelarExecutor // "0x"' $ADDRS)
 EXECUTOR=$(jq -r '.Executor // "0x"' $ADDRS)
 RECEIVER=$(jq -r '.Receiver // "0x"' $ADDRS)
 FEECOLLECTOR=$(jq -r '.FeeCollector // "0x"' $ADDRS)
+RELAYERCBRIDGE=$(jq -r '.RelayerCBridge // "0x"' $ADDRS)
 
 echo "Diamond: $DIAMOND"
 
@@ -41,6 +46,11 @@ fi
 if [[ "$FEECOLLECTOR" != "0x" && " ${CONTRACTS[*]}" =~ "feeCollector" ]]; then
   echo "Updating FeeCollector $FEECOLLECTOR"
   register $NETWORK $DIAMOND 'FeeCollector' $FEECOLLECTOR
+fi
+
+if [[ "$RELAYERCBRIDGE" != "0x" && " ${CONTRACTS[*]}" =~ "relayerCBridge" ]]; then
+  echo "Updating RelayerCBridge $RELAYERCBRIDGE"
+  register $NETWORK $DIAMOND 'RelayerCBridge' $RELAYERCBRIDGE
 fi
 }
 

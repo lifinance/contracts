@@ -28,4 +28,12 @@ interface ILiFi {
         uint256 amount,
         uint256 timestamp
     );
+
+    event LiFiTransferRecovered(
+        bytes32 indexed transactionId,
+        address receivingAssetId,
+        address receiver,
+        uint256 amount,
+        uint256 timestamp
+    );
 }

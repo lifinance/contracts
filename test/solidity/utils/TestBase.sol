@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity >=0.8.0;
 
-import { DSTest } from "ds-test/test.sol";
+import { Test, DSTest } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
@@ -11,7 +11,7 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
-import { NoSwapDataProvided, InformationMismatch, NativeAssetTransferFailed, ReentrancyError, InsufficientBalance, CannotBridgeToSameNetwork, NativeValueWithERC, InvalidReceiver, InvalidAmount, InvalidConfig, InvalidSendingToken, AlreadyInitialized, NotInitialized } from "src/Errors/GenericErrors.sol";
+import { NoSwapDataProvided, InformationMismatch, NativeAssetTransferFailed, ReentrancyError, InsufficientBalance, CannotBridgeToSameNetwork, NativeValueWithERC, InvalidReceiver, InvalidAmount, InvalidConfig, InvalidSendingToken, AlreadyInitialized, NotInitialized, UnAuthorized } from "src/Errors/GenericErrors.sol";
 
 contract TestFacet {
     constructor() {}
@@ -25,7 +25,7 @@ contract TestFacet {
     }
 }
 
-contract ReentrancyChecker is DSTest {
+contract ReentrancyChecker is Test {
     address private _facetAddress;
     bytes private _callData;
 
@@ -63,10 +63,9 @@ contract ReentrancyChecker is DSTest {
 }
 
 //common utilities for forge tests
-abstract contract TestBase is DSTest, DiamondTest, ILiFi {
+abstract contract TestBase is Test, DiamondTest, ILiFi {
     address internal _facetTestContractAddress;
     uint64 internal currentTxId;
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
     bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));
     UniswapV2Router02 internal uniswap;
     ERC20 internal usdc;
