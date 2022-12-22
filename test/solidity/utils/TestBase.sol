@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity >=0.8.0;
 
-import { Test, DSTest } from "forge-std/test.sol";
+import { Test, DSTest } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
