@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity >=0.8.0;
 
-import { Test, DSTest } from "forge-std/test.sol";
+import { Test, DSTest } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
@@ -25,7 +25,7 @@ contract TestFacet {
     }
 }
 
-contract ReentrancyChecker is Test {
+contract ReentrancyChecker {
     address private _facetAddress;
     bytes private _callData;
 
@@ -111,7 +111,8 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     address internal constant USER_REFUND = address(0xabcdef281);
     address internal constant USER_DIAMOND_OWNER = 0x5042255A3F3FD7727e419CeA387cAFDfad3C3aF8;
     address internal constant USER_USDC_WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
-    address internal constant USER_DAI_WHALE = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address internal constant USER_DAI_WHALE = 0x4aa42145Aa6Ebf72e164C9bBC74fbD3788045016;
+    address internal constant USER_WETH_WHALE = 0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E;
 
     // MODIFIERS
 
@@ -180,6 +181,23 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         vm.label(ADDRESS_UNISWAP, "ADDRESS_UNISWAP");
         vm.label(ADDRESS_WETH, "ADDRESS_WETH_PROXY");
 
+        // activate fork
+        fork();
+
+        // fill user accounts with starting balance
+        uniswap = UniswapV2Router02(ADDRESS_UNISWAP);
+        usdc = ERC20(ADDRESS_USDC);
+        dai = ERC20(ADDRESS_DAI);
+        weth = ERC20(ADDRESS_WETH);
+
+        // deploy & configure diamond
+        diamond = createDiamond();
+
+        // transfer initial DAI/USDC/WETH balance to USER_SENDER
+        deal(ADDRESS_USDC, USER_SENDER, 100_000 * 10**usdc.decimals());
+        deal(ADDRESS_DAI, USER_SENDER, 100_000 * 10**dai.decimals());
+        deal(ADDRESS_WETH, USER_SENDER, 100_000 * 10**weth.decimals());
+
         // fund USER_SENDER with 1000 ether
         vm.deal(USER_SENDER, 1000 ether);
 
@@ -227,6 +245,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         });
     }
 
+    //@dev: be careful that _facetTestContractAddress is set before calling this function
     function setDefaultSwapDataSingleDAItoUSDC() internal virtual {
         delete swapData;
         // Swap DAI -> USDC
@@ -260,6 +279,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         );
     }
 
+    //@dev: be careful that _facetTestContractAddress is set before calling this function
     function setDefaultSwapDataSingleDAItoETH() internal virtual {
         delete swapData;
         // Swap DAI -> USDC
@@ -309,6 +329,17 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         console.log("hasSourceSwaps              :", _bridgeData.hasSourceSwaps);
         console.log("hasDestinationCall          :", _bridgeData.hasDestinationCall);
         console.log("------------- END -----------------");
+    }
+
+    function fuelAccountWithERC20(
+        address tokenAddress,
+        address to,
+        address tokenWhale,
+        uint256 amount
+    ) internal {
+        vm.startPrank(tokenWhale);
+        ERC20(tokenAddress).transfer(to, amount);
+        vm.stopPrank();
     }
 
     //#endregion

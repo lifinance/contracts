@@ -1,0 +1,34 @@
+{
+  "goerli": {
+    "connextHandler": "0xB4C1340434920d70aD774309C75f9a4B679d801e",
+    "domain": "1735353714"
+  },
+  "mainnet": {
+    "connextHandler": "0x01EdE4Fdf8CF7Ef9942a935305C3145f8dAa180A",
+    "domain": "6648936"
+  },
+  "optimism": {
+    "connextHandler": "tbd",
+    "domain": "1869640809"
+  },
+  "bsc": {
+    "connextHandler": "tbd",
+    "domain": "6450786"
+  },
+  "gnosis": {
+    "connextHandler": "tbd",
+    "domain": "6778479"
+  },
+  "polygon": {
+    "connextHandler": "tbd",
+    "domain": "1886350457"
+  },
+  "moonbeam": {
+    "connextHandler": "tbd",
+    "domain": "1650811245"
+  },
+  "arbitrum": {
+    "connextHandler": "tbd",
+    "domain": "1634886255"
+  }
+}

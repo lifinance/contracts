@@ -20,10 +20,12 @@ node_modules/
 yalc.lock
 
 contractsInfo.json
-
+.DS_Store
 yarn-error.log
 
 .DS_Store*
 lcov.info
 
 test/logs
+
+.DS_Store

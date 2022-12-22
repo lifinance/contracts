@@ -20,11 +20,7 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
-    constructor(
-        ICBridge _cBridge,
-        IMessageBus _messageBus,
-        RelayerCBridge _relayer
-    ) CBridgeFacet(_cBridge, _messageBus, _relayer) {}
+    constructor(IMessageBus _messageBus, RelayerCBridge _relayer) CBridgeFacet(_messageBus, _relayer) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -69,7 +65,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         executor = new Executor(address(this), address(erc20Proxy));
         relayer = new RelayerCBridge(address(this), CBRIDGE_MESSAGE_BUS_ETH, address(diamond), address(executor));
 
-        cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER), IMessageBus(CBRIDGE_MESSAGE_BUS_ETH), relayer);
+        cBridge = new TestCBridgeFacet(IMessageBus(CBRIDGE_MESSAGE_BUS_ETH), relayer);
         usdc = ERC20(USDC_ADDRESS);
         dai = ERC20(DAI_ADDRESS);
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);

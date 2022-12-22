@@ -5,9 +5,7 @@ import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFa
 import { AcrossFacet } from "lifi/Facets/AcrossFacet.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 
-// import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-
-// Stub CBridgeFacet Contract
+// Stub AcrossFacet Contract
 contract TestAcrossFacet is AcrossFacet {
     address internal constant ADDRESS_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 

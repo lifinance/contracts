@@ -10,11 +10,7 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
-    constructor(
-        ICBridge _cBridge,
-        IMessageBus _messageBus,
-        RelayerCBridge _relayer
-    ) CBridgeFacet(_cBridge, _messageBus, _relayer) {}
+    constructor(IMessageBus _messageBus, RelayerCBridge _relayer) CBridgeFacet(_messageBus, _relayer) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -82,7 +78,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         executor = new Executor(address(this), address(erc20Proxy));
         relayer = new RelayerCBridge(address(this), CBRIDGE_MESSAGEBUS_ETH, address(diamond), address(executor));
 
-        cBridgeFacet = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER), IMessageBus(CBRIDGE_MESSAGEBUS_ETH), relayer);
+        cBridgeFacet = new TestCBridgeFacet(IMessageBus(CBRIDGE_MESSAGEBUS_ETH), relayer);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = cBridgeFacet.startBridgeTokensViaCBridge.selector;
         functionSelectors[1] = cBridgeFacet.swapAndStartBridgeTokensViaCBridge.selector;
@@ -261,7 +257,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         testToken.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         //prepare check for events
-        vm.expectEmit(true, true, true, true, CBRIDGE_PEG_BRIDGE);
+        vm.expectEmit(false, false, false, false, CBRIDGE_PEG_BRIDGE);
         emit Burn(
             0xe3d9751d87739cd7f22c724ec6d301d415e6281c82b0fad26e9df280d57ccce8,
             address(testToken),
@@ -292,7 +288,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         weth.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         //prepare check for events
-        vm.expectEmit(true, true, true, true, CBRIDGE_PEG_VAULT_V2);
+        vm.expectEmit(false, false, false, false, CBRIDGE_PEG_VAULT_V2);
         emit Deposited(
             0x4d1740ad079e2cae12e52778c379c75aa39ea6fc3e45ab1263966bd3ea6c031c,
             address(relayer),
@@ -322,9 +318,9 @@ contract CBridgeFacetTest is TestBaseFacet {
         cBridgeData.bridgeType = MsgDataTypes.BridgeSendType.PegV2Deposit;
 
         //prepare check for events
-        vm.expectEmit(true, true, true, true, CBRIDGE_PEG_VAULT_V2);
+        vm.expectEmit(false, false, false, false, CBRIDGE_PEG_VAULT_V2);
         emit Deposited(
-            0x4d1740ad079e2cae12e52778c379c75aa39ea6fc3e45ab1263966bd3ea6c031c,
+            0x9e3e2a8aae04ccdd70d83859e3914bf003eef7f022f3259194af9bb551a48cd3,
             address(relayer),
             ADDRESS_WETH,
             bridgeData.minAmount,
@@ -359,7 +355,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         testToken.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         //prepare check for events
-        vm.expectEmit(true, true, true, true, CBRIDGE_PEG_BRIDGE_V2);
+        vm.expectEmit(false, false, false, false, CBRIDGE_PEG_BRIDGE_V2);
         emit Burn(
             0x906377c64da8ed8374879c2f56b5c47fc148ab77f157d1267e52dd6a4a885434,
             address(testToken),

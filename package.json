@@ -17,7 +17,7 @@
     "solidity"
   ],
   "devDependencies": {
-    "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers",
+    "@nomiclabs/hardhat-ethers": "^2.2.1",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "@openzeppelin/contracts": "4.8.0",
     "@typechain/ethers-v5": "^10.0.0",
@@ -52,7 +52,6 @@
   },
   "scripts": {
     "postinstall": "patch-package",
-    "prepare": "node ./.setup.js && hardhat typechain",
     "prepare:husky": "husky install",
     "lint": "eslint \"**/*.{js,ts}\" && solhint src/**/*.sol",
     "lint:fix": "eslint --fix \"**/*.{js,ts}\" && solhint --fix src/**/*.sol",
@@ -81,6 +80,7 @@
     "hardhat-ethers": "^1.0.1",
     "inquirer": "^8.2.1",
     "light-spinner": "^1.0.4",
-    "pino": "^7.9.2"
+    "pino": "^7.9.2",
+    "yarn": "^1.22.19"
   }
 }

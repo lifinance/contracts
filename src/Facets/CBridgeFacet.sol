@@ -21,7 +21,6 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     /// @notice The contract address of the cbridge on the source chain.
-    ICBridge private immutable cBridge;
     IMessageBus private immutable cBridgeMessageBus;
     RelayerCBridge private immutable relayer;
 
@@ -47,15 +46,9 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Constructor ///
 
     /// @notice Initialize the contract.
-    /// @param _cBridge The contract address of the cbridge on the source chain.
     /// @param _messageBus The contract address of the cBridge Message Bus on the source chain.
     /// @param _relayer The contract address of the RelayerCBridge on the source chain.
-    constructor(
-        ICBridge _cBridge,
-        IMessageBus _messageBus,
-        RelayerCBridge _relayer
-    ) {
-        cBridge = _cBridge;
+    constructor(IMessageBus _messageBus, RelayerCBridge _relayer) {
         cBridgeMessageBus = _messageBus;
         relayer = _relayer;
     }
@@ -139,7 +132,10 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // assuming messageBusFee is pre-calculated off-chain and available in _cBridgeData
         // determine correct native asset amount to be forwarded (if so) and send funds to relayer
         uint256 msgValue = LibAsset.isNativeAsset(_bridgeData.sendingAssetId) ? _bridgeData.minAmount : 0;
-        (bytes32 transferId, ) = relayer.sendTokenTransfer{ value: msgValue }(_bridgeData, _cBridgeData);
+        (bytes32 transferId, address bridgeAddress) = relayer.sendTokenTransfer{ value: msgValue }(
+            _bridgeData,
+            _cBridgeData
+        );
 
         // check if transaction contains a destination call
         if (_bridgeData.hasDestinationCall) {
@@ -147,7 +143,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             relayer.forwardSendMessageWithTransfer{ value: _cBridgeData.messageBusFee }(
                 _bridgeData.receiver,
                 uint64(_bridgeData.destinationChainId),
-                address(cBridge),
+                bridgeAddress,
                 transferId,
                 _cBridgeData.callData
             );
