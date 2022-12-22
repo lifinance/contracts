@@ -9,7 +9,7 @@ load() {
 	fi
 
 NETWORK=$(cat ./networks | gum filter --placeholder "Network")
-CONTRACTS=$(gum choose --no-limit erc20Proxy axelarExecutor executor receiver feeCollector, relayerCBridge)
+CONTRACTS=$(gum choose --no-limit erc20Proxy axelarExecutor executor receiver feeCollector relayerCBridge)
 
 ADDRS="deployments/$NETWORK$FILE_SUFFIX.json"
 
