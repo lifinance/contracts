@@ -25,22 +25,12 @@ This data is specific to Amarok BridgeFacet and is represented as the following 
 
 ```solidity
 /// @param callData The data to execute on the receiving chain. If no crosschain call is needed, then leave empty.
-/// @param forceSlow If true, will take slow liquidity path even if it is not a permissioned call
-/// @param receiveLocal If true, will use the local nomad asset on the destination instead of adopted.
-/// @param callback The address on the origin domain of the callback contract
-/// @param callbackFee The relayer fee to execute the callback
 /// @param relayerFee The amount of relayer fee the tx called xcall with
 /// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
-/// @param originMinOut Minimum amount received on swaps for adopted <> local on origin chain
 struct AmarokData {
-    bytes callData;
-    bool forceSlow;
-    bool receiveLocal;
-    address callback;
-    uint256 callbackFee;
-    uint256 relayerFee;
-    uint256 slippageTol;
-    uint256 originMinOut;
+  bytes callData;
+  uint256 relayerFee;
+  uint256 slippageTol;
 }
 
 ```

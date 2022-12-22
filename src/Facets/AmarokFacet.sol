@@ -34,22 +34,12 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @param callData The data to execute on the receiving chain. If no crosschain call is needed, then leave empty.
-    /// @param forceSlow If true, will take slow liquidity path even if it is not a permissioned call
-    /// @param receiveLocal If true, will use the local nomad asset on the destination instead of adopted.
-    /// @param callback The address on the origin domain of the callback contract
-    /// @param callbackFee The relayer fee to execute the callback
     /// @param relayerFee The amount of relayer fee the tx called xcall with
     /// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
-    /// @param originMinOut Minimum amount received on swaps for adopted <> local on origin chain
     struct AmarokData {
         bytes callData;
-        bool forceSlow;
-        bool receiveLocal;
-        address callback;
-        uint256 callbackFee;
         uint256 relayerFee;
         uint256 slippageTol;
-        uint256 originMinOut;
     }
 
     /// Constructor ///
@@ -127,30 +117,22 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _amarokData Data specific to Amarok
     function _startBridge(BridgeData memory _bridgeData, AmarokData calldata _amarokData) private {
+        // get Amarok-specific domain for destination chain
         uint32 dstChainDomain = getAmarokDomain(_bridgeData.destinationChainId);
 
-        IConnextHandler.XCallArgs memory xcallArgs = IConnextHandler.XCallArgs({
-            params: IConnextHandler.CallParams({
-                to: _bridgeData.receiver,
-                callData: _amarokData.callData,
-                originDomain: srcChainDomain,
-                destinationDomain: dstChainDomain,
-                agent: _bridgeData.receiver,
-                recovery: msg.sender,
-                forceSlow: _amarokData.forceSlow,
-                receiveLocal: _amarokData.receiveLocal,
-                callback: _amarokData.callback,
-                callbackFee: _amarokData.callbackFee,
-                relayerFee: _amarokData.relayerFee,
-                slippageTol: _amarokData.slippageTol
-            }),
-            transactingAsset: _bridgeData.sendingAssetId,
-            transactingAmount: _bridgeData.minAmount,
-            originMinOut: _amarokData.originMinOut
-        });
-
+        // give max approval for token to Amarok bridge, if not already
         LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(connextHandler), _bridgeData.minAmount);
-        connextHandler.xcall(xcallArgs);
+
+        // initiate bridge transaction
+        connextHandler.xcall{ value: _amarokData.relayerFee }(
+            dstChainDomain,
+            _bridgeData.receiver,
+            _bridgeData.sendingAssetId,
+            _bridgeData.receiver,
+            _bridgeData.minAmount,
+            _amarokData.slippageTol,
+            _amarokData.callData
+        );
 
         emit LiFiTransferStarted(_bridgeData);
     }

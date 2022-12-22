@@ -1,5 +1,6 @@
 {
   "routers": {
+    "goerli": "0x7612aE2a34E5A363E137De748801FB4c86499152",
     "mainnet": "0x8731d54E9D02c286767d56ac03e8037C07e01e98",
     "bsc": "0x4a364f8c717cAAD9A442737Eb7b8A55cc6cf18D8",
     "polygon": "0x45A01E4e04F14f7A4a6702c74187c5F6222033cd",
