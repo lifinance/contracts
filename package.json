@@ -63,7 +63,8 @@
     "gas": "make snapshot",
     "coverage": "make coverage",
     "execute": "node ./_scripts.js run",
-    "abi:generate": "make clean && hardhat compile && hardhat diamondABI"
+    "abi:generate": "make clean && hardhat compile && hardhat diamondABI",
+    "typechain": "make clean && forge build --skip script --skip test --skip Base --skip Test && typechain --target ethers-v5 'out/**/*.json' --out-dir typechain"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
