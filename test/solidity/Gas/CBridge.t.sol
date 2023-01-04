@@ -5,7 +5,7 @@ import { console } from "../utils/Console.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { CBridgeFacet, MsgDataTypes } from "lifi/Facets/CBridgeFacet.sol";
-import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
+import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { IMessageBus } from "celer-network/contracts/message/interfaces/IMessageBus.sol";

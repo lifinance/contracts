@@ -11,10 +11,10 @@ import { LibBytes } from "../Libraries/LibBytes.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
-import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
-import { ICBridge, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "lifi/Interfaces/ICBridge.sol";
+import { MessageSenderLib, MsgDataTypes, IMessageBus, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
+import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 
 /// @title RelayerCBridge
 /// @author LI.FI (https://li.fi)
