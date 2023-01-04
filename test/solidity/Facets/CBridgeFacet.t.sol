@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
 import { CBridgeFacet, IMessageBus, MsgDataTypes, IERC20 } from "lifi/Facets/CBridgeFacet.sol";
-import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
+import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 import { RelayerCBridge } from "lifi/Periphery/RelayerCBridge.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
