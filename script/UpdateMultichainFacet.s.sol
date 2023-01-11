@@ -16,9 +16,10 @@ contract DeployScript is UpdateScriptBase {
 
         path = string.concat(root, "/config/multichain.json");
         json = vm.readFile(path);
-        address[] memory routers = json.readAddressArray(string.concat(".", network));
+        address[] memory routers = json.readAddressArray(string.concat(".", network, ".routers"));
+        address anyNative = json.readAddress(string.concat(".", network, ".anyNative"));
 
-        bytes memory callData = abi.encodeWithSelector(MultichainFacet.initMultichain.selector, routers);
+        bytes memory callData = abi.encodeWithSelector(MultichainFacet.initMultichain.selector, anyNative, routers);
 
         vm.startBroadcast(deployerPrivateKey);
 
