@@ -1074,5 +1074,11 @@
     "0x2c78f1b70ccf63cdee49f9233e9faa99d43aa07e",
     "0xc9baa8cfdde8e328787e29b4b078abf2dadc2055",
     "0xc9baa8cfdde8e328787e29b4b078abf2dadc2055"
-  ]
+  ],
+  "nova": {
+    "routers": [
+      "0x818ec0A7Fe18Ff94269904fCED6AE3DaE6d6dC0b"
+    ],
+    "anyNative": "0x765277EebeCA2e31912C9946eAe1021199B39C61"
+  }
 }

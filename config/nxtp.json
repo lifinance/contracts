@@ -70,5 +70,8 @@
   },
   "bscTestnet": {
     "txManagerAddress": "0xBCdFdEd0F6CfAbaECdDb6Bd3866BeA42DdE7D31c"
+  },
+  "nova": {
+    "txManagerAddress": "0x31eFc4AeAA7c39e54A33FDc3C46ee2Bd70ae0A09"
   }
 }

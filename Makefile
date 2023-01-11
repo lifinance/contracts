@@ -14,5 +14,5 @@ test          		:; forge test -vvv
 coverage      		:; forge coverage
 trace         		:; forge test -vvvv
 watch         		:; forge test --watch src test -vvv
-clean         		:; forge clean
+clean         		:; forge clean; rm -rf typechain/*
 snapshot      		:; forge snapshot --match-path "test/solidity/Gas/**/*"
