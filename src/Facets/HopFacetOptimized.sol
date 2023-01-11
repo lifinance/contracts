@@ -41,56 +41,76 @@ contract HopFacetoptimized is ILiFi, SwapperV2, Validatable {
         }
     }
 
-    // TODO: startBridgeTokensViaHopL1ERC20
+    /// @notice Bridges ERC20 tokens via Hop Protocol from L1
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _hopData data specific to Hop Protocol
     function startBridgeTokensViaHopL1ERC20(ILiFi.BridgeData calldata _bridgeData, HopData calldata _hopData)
         external
         payable
         validateBridgeData(_bridgeData)
     {}
 
-    // TODO: startBridgeTokensViaHopL1Native
+    /// @notice Bridges Native tokens via Hop Protocol from L1
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _hopData data specific to Hop Protocol
     function startBridgeTokensViaHopL1Native(ILiFi.BridgeData calldata _bridgeData, HopData calldata _hopData)
         external
         payable
         validateBridgeData(_bridgeData)
     {}
 
-    // TODO: swapAndStartBridgeTokensViaHopL1ERC20
+    /// @notice Performs a swap before bridging ERC20 tokens via Hop Protocol from L1
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _swapData an array of swap related data for performing swaps before bridging
+    /// @param _hopData data specific to Hop Protocol
     function swapAndStartBridgeTokensViaHopL1ERC20(
         ILiFi.BridgeData calldata _bridgeData,
         LibSwap.SwapData calldata _swapData,
         HopData calldata _hopData
     ) external payable validateBridgeData(_bridgeData) {}
 
-    // TODO: swapAndStartBridgeTokensViaHopL1Native
+    /// @notice Performs a swap before bridging Native tokens via Hop Protocol from L1
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _swapData an array of swap related data for performing swaps before bridging
+    /// @param _hopData data specific to Hop Protocol
     function swapAndStartBridgeTokensViaHopL1Native(
         ILiFi.BridgeData calldata _bridgeData,
         LibSwap.SwapData calldata _swapData,
         HopData calldata _hopData
     ) external payable validateBridgeData(_bridgeData) {}
 
-    // TODO: startBridgeTokensViaHopL2ERC20
+    /// @notice Bridges ERC20 tokens via Hop Protocol from L2
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _hopData data specific to Hop Protocol
     function startBridgeTokensViaHopL2ERC20(ILiFi.BridgeData calldata _bridgeData, HopData calldata _hopData)
         external
         payable
         validateBridgeData(_bridgeData)
     {}
 
-    // TODO: startBridgeTokensViaHopL2Native
+    /// @notice Bridges Native tokens via Hop Protocol from L2
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _hopData data specific to Hop Protocol
     function startBridgeTokensViaHopL2Native(ILiFi.BridgeData calldata _bridgeData, HopData calldata _hopData)
         external
         payable
         validateBridgeData(_bridgeData)
     {}
 
-    // TODO: swapAndStartBridgeTokensViaHopL2ERC20
+    /// @notice Performs a swap before bridging ERC20 tokens via Hop Protocol from L2
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _swapData an array of swap related data for performing swaps before bridging
+    /// @param _hopData data specific to Hop Protocol
     function swapAndStartBridgeTokensViaHopL2ERC20(
         ILiFi.BridgeData calldata _bridgeData,
         LibSwap.SwapData calldata _swapData,
         HopData calldata _hopData
     ) external payable validateBridgeData(_bridgeData) {}
 
-    // TODO: swapAndStartBridgeTokensViaHopL2Native
+    /// @notice Performs a swap before bridging Native tokens via Hop Protocol from L2
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _swapData an array of swap related data for performing swaps before bridging
+    /// @param _hopData data specific to Hop Protocol
     function swapAndStartBridgeTokensViaHopL2Native(
         ILiFi.BridgeData calldata _bridgeData,
         LibSwap.SwapData calldata _swapData,
