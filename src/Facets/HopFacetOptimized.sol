@@ -11,7 +11,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Hop Facet (Optimized)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-contract HopFacetoptimized is ILiFi, SwapperV2, Validatable {
+contract HopFacetOptimized is ILiFi, SwapperV2, Validatable {
     /// Types ///
 
     struct HopData {
@@ -46,7 +46,9 @@ contract HopFacetoptimized is ILiFi, SwapperV2, Validatable {
         external
         validateBridgeData(_bridgeData)
     {
+        // Deposit assets
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        // Bridge assets
         _hopData.hopBridge.sendToL2(
             _bridgeData.destinationChainId,
             _bridgeData.receiver,
@@ -67,7 +69,9 @@ contract HopFacetoptimized is ILiFi, SwapperV2, Validatable {
         payable
         validateBridgeData(_bridgeData)
     {
+        // Deposit assets
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        // Bridge assets
         _hopData.hopBridge.sendToL2{ value: _bridgeData.minAmount }(
             _bridgeData.destinationChainId,
             _bridgeData.receiver,
@@ -86,15 +90,22 @@ contract HopFacetoptimized is ILiFi, SwapperV2, Validatable {
     /// @param _hopData data specific to Hop Protocol
     function swapAndStartBridgeTokensViaHopL1ERC20(
         ILiFi.BridgeData memory _bridgeData,
-        LibSwap.SwapData calldata _swapData,
+        LibSwap.SwapData[] calldata _swapData,
         HopData calldata _hopData
     ) external validateBridgeData(_bridgeData) {
-        // _bridgeData.minAmount = _depositAndSwap(
-        //     _bridgeData.transactionId,
-        //     _bridgeData.minAmount,
-        //     _swapData,
-        //     payable(msg.sender)
-        // );
+        // Deposit and swap assets
+        _depositAndSwap(_bridgeData.transactionId, _bridgeData.minAmount, _swapData, payable(msg.sender));
+        // Bridge assets
+        _hopData.hopBridge.sendToL2(
+            _bridgeData.destinationChainId,
+            _bridgeData.receiver,
+            _bridgeData.minAmount,
+            _hopData.destinationAmountOutMin,
+            _hopData.destinationDeadline,
+            address(0),
+            0
+        );
+        emit LiFiTransferStarted(_bridgeData);
     }
 
     /// @notice Performs a swap before bridging Native tokens via Hop Protocol from L1
@@ -103,15 +114,28 @@ contract HopFacetoptimized is ILiFi, SwapperV2, Validatable {
     /// @param _hopData data specific to Hop Protocol
     function swapAndStartBridgeTokensViaHopL1Native(
         ILiFi.BridgeData memory _bridgeData,
-        LibSwap.SwapData calldata _swapData,
+        LibSwap.SwapData[] calldata _swapData,
         HopData calldata _hopData
     ) external payable validateBridgeData(_bridgeData) {
-        // _bridgeData.minAmount = _depositAndSwap(
-        //     _bridgeData.transactionId,
-        //     _bridgeData.minAmount,
-        //     _swapData,
-        //     payable(msg.sender)
-        // );
+        // Deposit and swap assets
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        // Bridge assets
+        _hopData.hopBridge.sendToL2{ value: _bridgeData.minAmount }(
+            _bridgeData.destinationChainId,
+            _bridgeData.receiver,
+            _bridgeData.minAmount,
+            _hopData.destinationAmountOutMin,
+            _hopData.destinationDeadline,
+            address(0),
+            0
+        );
+
+        emit LiFiTransferStarted(_bridgeData);
     }
 
     /// @notice Bridges ERC20 tokens via Hop Protocol from L2
@@ -121,7 +145,9 @@ contract HopFacetoptimized is ILiFi, SwapperV2, Validatable {
         external
         validateBridgeData(_bridgeData)
     {
+        // Deposit assets
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        // Bridge assets
         _hopData.hopBridge.swapAndSend(
             _bridgeData.destinationChainId,
             _bridgeData.receiver,
@@ -143,7 +169,9 @@ contract HopFacetoptimized is ILiFi, SwapperV2, Validatable {
         payable
         validateBridgeData(_bridgeData)
     {
+        // Deposit assets
         LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        // Bridge assets
         _hopData.hopBridge.swapAndSend{ value: _bridgeData.minAmount }(
             _bridgeData.destinationChainId,
             _bridgeData.receiver,
@@ -163,15 +191,28 @@ contract HopFacetoptimized is ILiFi, SwapperV2, Validatable {
     /// @param _hopData data specific to Hop Protocol
     function swapAndStartBridgeTokensViaHopL2ERC20(
         ILiFi.BridgeData memory _bridgeData,
-        LibSwap.SwapData calldata _swapData,
+        LibSwap.SwapData[] calldata _swapData,
         HopData calldata _hopData
     ) external validateBridgeData(_bridgeData) {
-        // _bridgeData.minAmount = _depositAndSwap(
-        //     _bridgeData.transactionId,
-        //     _bridgeData.minAmount,
-        //     _swapData,
-        //     payable(msg.sender)
-        // );
+        // Deposit and swap assets
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        // Bridge assets
+        _hopData.hopBridge.swapAndSend(
+            _bridgeData.destinationChainId,
+            _bridgeData.receiver,
+            _bridgeData.minAmount,
+            _hopData.bonderFee,
+            _hopData.amountOutMin,
+            _hopData.deadline,
+            _hopData.destinationAmountOutMin,
+            _hopData.destinationDeadline
+        );
+        emit LiFiTransferStarted(_bridgeData);
     }
 
     /// @notice Performs a swap before bridging Native tokens via Hop Protocol from L2
@@ -180,14 +221,27 @@ contract HopFacetoptimized is ILiFi, SwapperV2, Validatable {
     /// @param _hopData data specific to Hop Protocol
     function swapAndStartBridgeTokensViaHopL2Native(
         ILiFi.BridgeData memory _bridgeData,
-        LibSwap.SwapData calldata _swapData,
+        LibSwap.SwapData[] calldata _swapData,
         HopData calldata _hopData
     ) external payable validateBridgeData(_bridgeData) {
-        // _bridgeData.minAmount = _depositAndSwap(
-        //     _bridgeData.transactionId,
-        //     _bridgeData.minAmount,
-        //     _swapData,
-        //     payable(msg.sender)
-        // );
+        // Deposit and swap assets
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        // Bridge assets
+        _hopData.hopBridge.swapAndSend{ value: _bridgeData.minAmount }(
+            _bridgeData.destinationChainId,
+            _bridgeData.receiver,
+            _bridgeData.minAmount,
+            _hopData.bonderFee,
+            _hopData.amountOutMin,
+            _hopData.deadline,
+            _hopData.destinationAmountOutMin,
+            _hopData.destinationDeadline
+        );
+        emit LiFiTransferStarted(_bridgeData);
     }
 }
