@@ -31,11 +31,11 @@ contract HopFacetOptimized is ILiFi, SwapperV2, Validatable {
 
     /// @notice Sets approval for the Hop Bridge to spend the specified token
     /// @param bridges The Hop Bridges to approve
-    /// @param tokenToApprove The token to approve
-    function setApprovalForBridges(address[] calldata bridges, address tokenToApprove) external {
+    /// @param tokensToApprove The tokens to approve to approve to the Hop Bridges
+    function setApprovalForBridges(address[] calldata bridges, address[] calldata tokensToApprove) external {
         for (uint256 i; i < bridges.length; i++) {
             // Give Hop approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(tokenToApprove), address(bridges[i]), type(uint256).max);
+            LibAsset.maxApproveERC20(IERC20(tokensToApprove[i]), address(bridges[i]), type(uint256).max);
         }
     }
 
@@ -95,8 +95,10 @@ contract HopFacetOptimized is ILiFi, SwapperV2, Validatable {
     ) external validateBridgeData(_bridgeData) {
         // Deposit and swap assets
         _depositAndSwap(_bridgeData.transactionId, _bridgeData.minAmount, _swapData, payable(msg.sender));
+
         // Bridge assets
-        _hopData.hopBridge.sendToL2(
+        uint256 value = LibAsset.isNativeAsset(address(_bridgeData.sendingAssetId)) ? _bridgeData.minAmount : 0;
+        _hopData.hopBridge.sendToL2{ value: value }(
             _bridgeData.destinationChainId,
             _bridgeData.receiver,
             _bridgeData.minAmount,
