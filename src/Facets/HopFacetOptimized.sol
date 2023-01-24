@@ -94,7 +94,12 @@ contract HopFacetOptimized is ILiFi, SwapperV2, Validatable {
         HopData calldata _hopData
     ) external validateBridgeData(_bridgeData) {
         // Deposit and swap assets
-        _depositAndSwap(_bridgeData.transactionId, _bridgeData.minAmount, _swapData, payable(msg.sender));
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
 
         // Bridge assets
         uint256 value = LibAsset.isNativeAsset(address(_bridgeData.sendingAssetId)) ? _bridgeData.minAmount : 0;
@@ -204,7 +209,8 @@ contract HopFacetOptimized is ILiFi, SwapperV2, Validatable {
             payable(msg.sender)
         );
         // Bridge assets
-        _hopData.hopBridge.swapAndSend(
+        uint256 value = LibAsset.isNativeAsset(address(_bridgeData.sendingAssetId)) ? _bridgeData.minAmount : 0;
+        _hopData.hopBridge.swapAndSend{ value: value }(
             _bridgeData.destinationChainId,
             _bridgeData.receiver,
             _bridgeData.minAmount,
