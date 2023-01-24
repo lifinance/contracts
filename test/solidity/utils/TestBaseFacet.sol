@@ -290,7 +290,7 @@ abstract contract TestBaseFacet is TestBase {
     function testBase_Revert_BridgeToSameChainId() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
-        bridgeData.destinationChainId = 1;
+        bridgeData.destinationChainId = block.chainid;
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
@@ -303,7 +303,7 @@ abstract contract TestBaseFacet is TestBase {
     function testBase_Revert_SwapAndBridgeToSameChainId() public virtual {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
-        bridgeData.destinationChainId = 1;
+        bridgeData.destinationChainId = block.chainid;
         bridgeData.hasSourceSwaps = true;
 
         setDefaultSwapDataSingleDAItoUSDC();

@@ -18,7 +18,7 @@ contract TestHopFacet is HopFacetOptimized {
     }
 }
 
-contract HopFacetOptimizedTest is TestBaseFacet {
+contract HopFacetOptimizedL1Test is TestBaseFacet {
     // These values are for Mainnet
     address internal constant USDC_BRIDGE = 0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a;
     address internal constant DAI_BRIDGE = 0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1;
@@ -45,13 +45,7 @@ contract HopFacetOptimizedTest is TestBaseFacet {
 
         addFacet(diamond, address(hopFacet), functionSelectors);
 
-        // HopFacet.Config[] memory configs = new HopFacet.Config[](3);
-        // configs[0] = HopFacet.Config(ADDRESS_USDC, USDC_BRIDGE);
-        // configs[1] = HopFacet.Config(ADDRESS_DAI, DAI_BRIDGE);
-        // configs[2] = HopFacet.Config(address(0), NATIVE_BRIDGE);
-
         hopFacet = TestHopFacet(address(diamond));
-        // hopFacet.initHop(configs);
 
         hopFacet.addDex(address(uniswap));
         hopFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
