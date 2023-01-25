@@ -99,7 +99,7 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
 
     function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
         validHopData.bonderFee = (bridgeData.minAmount * 1) / 100;
-        if (isNative) {
+        if (isNative || bridgeData.sendingAssetId == address(0)) {
             validHopData.hopBridge = IHopBridge(NATIVE_BRIDGE);
             hopFacet.swapAndStartBridgeTokensViaHopL2Native{ value: swapData[0].fromAmount }(
                 bridgeData,
@@ -107,11 +107,7 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
                 validHopData
             );
         } else {
-            if (bridgeData.sendingAssetId == address(0)) {
-                validHopData.hopBridge = IHopBridge(NATIVE_BRIDGE);
-            } else {
-                validHopData.hopBridge = IHopBridge(USDC_BRIDGE);
-            }
+            validHopData.hopBridge = IHopBridge(USDC_BRIDGE);
             hopFacet.swapAndStartBridgeTokensViaHopL2ERC20(bridgeData, swapData, validHopData);
         }
     }
