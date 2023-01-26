@@ -47,7 +47,7 @@ contract HopFacetOptimized is ILiFi, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
     {
         // Deposit assets
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.transferFromERC20(_bridgeData.sendingAssetId, msg.sender, address(this), _bridgeData.minAmount);
         // Bridge assets
         _hopData.hopBridge.sendToL2(
             _bridgeData.destinationChainId,
