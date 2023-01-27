@@ -6,9 +6,8 @@ import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { CannotBridgeToSameNetwork, NativeValueWithERC, InvalidReceiver, InvalidAmount, InvalidConfig, InvalidSendingToken, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { LibUtil } from "../Libraries/LibUtil.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Hop Facet
@@ -19,12 +18,12 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.hop");
 
+    /// Types ///
+
     struct Storage {
         mapping(address => IHopBridge) bridges;
         bool initialized;
     }
-
-    /// Types ///
 
     struct Config {
         address assetId;
@@ -149,10 +148,6 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         HopData memory _hopData
     ) private {
-        // Do HOP stuff
-        if (block.chainid == _bridgeData.destinationChainId)
-            revert CannotBridgeToSameNetwork();
-
         address sendingAssetId = _bridgeData.sendingAssetId;
         Storage storage s = getStorage();
         IHopBridge bridge = s.bridges[sendingAssetId];

@@ -6,7 +6,6 @@ import { IGravityRouter } from "../Interfaces/IGravityRouter.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { LibUtil } from "../Libraries/LibUtil.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Gravity Facet
@@ -18,18 +17,18 @@ contract GravityFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The contract address of the router on the source chain.
     IGravityRouter private immutable router;
 
+    /// Types ///
+
+    struct GravityData {
+        string destinationAddress;
+    }
+
     /// Constructor ///
 
     /// @notice Initialize the contract.
     /// @param _router The contract address of the router on the source chain.
     constructor(IGravityRouter _router) {
         router = _router;
-    }
-
-    /// Types ///
-
-    struct GravityData {
-        string destinationAddress;
     }
 
     /// External Methods ///

@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { ExternalCallFailed, InvalidReceiver, InvalidAmount, InvalidCaller, InvalidConfig, InformationMismatch, CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InformationMismatch } from "../Errors/GenericErrors.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
-import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { RelayerCBridge } from "lifi/Periphery/RelayerCBridge.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
 
 interface CelerToken {
     function canonical() external returns (address);
@@ -44,8 +42,6 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 messageBusFee;
         MsgDataTypes.BridgeSendType bridgeType;
     }
-
-    /// Modifiers ///
 
     /// Constructor ///
 

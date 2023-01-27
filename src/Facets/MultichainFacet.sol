@@ -2,12 +2,11 @@
 pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IMultichainToken } from "../Interfaces/IMultichainToken.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { IMultichainRouter } from "../Interfaces/IMultichainRouter.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { TokenAddressIsZero, CannotBridgeToSameNetwork, InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
@@ -24,14 +23,14 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.multichain");
 
+    /// Types ///
+
     struct Storage {
         mapping(address => bool) allowedRouters;
         bool initialized;
         address anyNative;
         mapping(address => address) anyTokenAddresses;
     }
-
-    /// Types ///
 
     struct MultichainData {
         address router;
@@ -43,6 +42,7 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     }
 
     /// Errors ///
+
     error InvalidRouter();
 
     /// Events ///
