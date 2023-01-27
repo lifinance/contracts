@@ -6,7 +6,7 @@ import { IL1StandardBridge } from "../Interfaces/IL1StandardBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, InvalidReceiver, InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
@@ -19,13 +19,13 @@ contract OptimismBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.optimism");
 
+    /// Types ///
+
     struct Storage {
         mapping(address => IL1StandardBridge) bridges;
         IL1StandardBridge standardBridge;
         bool initialized;
     }
-
-    /// Types ///
 
     struct Config {
         address assetId;

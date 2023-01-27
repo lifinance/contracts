@@ -44,13 +44,3 @@ interface IStargateRouter {
         lzTxObj memory lzTxParams
     ) external view returns (uint256 nativeFee, uint256 zroFee);
 }
-
-interface IFactory {
-    /// @notice Returns PoolInfo for poolId
-    function getPool(uint256) external view returns (address);
-}
-
-interface IPool {
-    /// @notice Returns PoolInfo for poolId
-    function token() external view returns (address);
-}
