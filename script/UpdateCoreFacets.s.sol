@@ -14,7 +14,14 @@ contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     function run() public returns (address[] memory facets) {
-        string memory path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
+        string memory path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         string memory json = vm.readFile(path);
         address diamondLoupe = json.readAddress(".DiamondLoupeFacet");
         address ownership = json.readAddress(".OwnershipFacet");
@@ -31,7 +38,10 @@ contract DeployScript is UpdateScriptBase {
             IDiamondCut.FacetCut({
                 facetAddress: address(diamondLoupe),
                 action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: getSelectors("DiamondLoupeFacet", emptyExclude)
+                functionSelectors: getSelectors(
+                    "DiamondLoupeFacet",
+                    emptyExclude
+                )
             })
         );
 
@@ -58,7 +68,10 @@ contract DeployScript is UpdateScriptBase {
             IDiamondCut.FacetCut({
                 facetAddress: dexMgr,
                 action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: getSelectors("DexManagerFacet", emptyExclude)
+                functionSelectors: getSelectors(
+                    "DexManagerFacet",
+                    emptyExclude
+                )
             })
         );
 
@@ -67,7 +80,10 @@ contract DeployScript is UpdateScriptBase {
             IDiamondCut.FacetCut({
                 facetAddress: accessMgr,
                 action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: getSelectors("AccessManagerFacet", emptyExclude)
+                functionSelectors: getSelectors(
+                    "AccessManagerFacet",
+                    emptyExclude
+                )
             })
         );
 

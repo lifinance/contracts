@@ -46,7 +46,9 @@ contract MockGateway {
         return true;
     }
 
-    function setTokenAddress(string memory _symbol, address _tokenAddress) external {
+    function setTokenAddress(string memory _symbol, address _tokenAddress)
+        external
+    {
         tokenAddresses[_symbol] = _tokenAddress;
     }
 }
@@ -70,7 +72,10 @@ contract ExecutorTest is DSTest {
             bytes32("abcde"),
             "polygon",
             "0x1234",
-            abi.encodePacked(address(setter), abi.encodeWithSignature("setMessage(string)", "lifi"))
+            abi.encodePacked(
+                address(setter),
+                abi.encodeWithSignature("setMessage(string)", "lifi")
+            )
         );
 
         assertEq(setter.message(), "lifi");
@@ -90,7 +95,11 @@ contract ExecutorTest is DSTest {
             abi.encodePacked(
                 address(vault),
                 recoveryAddress,
-                abi.encodeWithSignature("deposit(address,uint256)", address(aUSDC), 0.01 ether)
+                abi.encodeWithSignature(
+                    "deposit(address,uint256)",
+                    address(aUSDC),
+                    0.01 ether
+                )
             ),
             "aUSDC",
             0.01 ether

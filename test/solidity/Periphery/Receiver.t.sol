@@ -39,11 +39,19 @@ contract ReceiverTest is TestBase {
 
         path = string.concat(vm.projectRoot(), "/config/amarok.json");
         json = vm.readFile(path);
-        amarokRouter = json.readAddress(string.concat(".mainnet.connextHandler"));
+        amarokRouter = json.readAddress(
+            string.concat(".mainnet.connextHandler")
+        );
 
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(this), address(erc20Proxy));
-        receiver = new Receiver(address(this), stargateRouter, amarokRouter, address(executor), 100000);
+        receiver = new Receiver(
+            address(this),
+            stargateRouter,
+            amarokRouter,
+            address(executor),
+            100000
+        );
         vm.label(address(receiver), "Receiver");
         vm.label(address(executor), "Executor");
         vm.label(address(erc20Proxy), "ERC20Proxy");
@@ -161,10 +169,23 @@ contract ReceiverTest is TestBase {
             block.timestamp
         );
         vm.expectEmit(true, true, true, true, address(executor));
-        emit LiFiTransferCompleted(transferId, ADDRESS_DAI, USER_RECEIVER, defaultUSDCAmount, block.timestamp);
+        emit LiFiTransferCompleted(
+            transferId,
+            ADDRESS_DAI,
+            USER_RECEIVER,
+            defaultUSDCAmount,
+            block.timestamp
+        );
 
         // call xReceive function to complete transaction
-        receiver.xReceive(transferId, swapData[0].fromAmount, ADDRESS_DAI, USER_SENDER, fakeDomain, payload);
+        receiver.xReceive(
+            transferId,
+            swapData[0].fromAmount,
+            ADDRESS_DAI,
+            USER_SENDER,
+            fakeDomain,
+            payload
+        );
     }
 
     function test_amarok_ForwardsFundsToReceiverIfDestCallFails() public {
@@ -220,10 +241,23 @@ contract ReceiverTest is TestBase {
         // emit Transfer(address(receiver), USER_RECEIVER, swapData[0].fromAmount);
 
         vm.expectEmit(true, true, true, true, address(receiver));
-        emit LiFiTransferRecovered(transferId, ADDRESS_DAI, USER_RECEIVER, swapData[0].fromAmount, block.timestamp);
+        emit LiFiTransferRecovered(
+            transferId,
+            ADDRESS_DAI,
+            USER_RECEIVER,
+            swapData[0].fromAmount,
+            block.timestamp
+        );
 
         // call xReceive function to complete transaction
-        receiver.xReceive(transferId, swapData[0].fromAmount, ADDRESS_DAI, USER_SENDER, fakeDomain, payload);
+        receiver.xReceive(
+            transferId,
+            swapData[0].fromAmount,
+            ADDRESS_DAI,
+            USER_SENDER,
+            fakeDomain,
+            payload
+        );
     }
 
     function test_amarok_OwnerCanUpdateRouterAddress() public {
@@ -277,7 +311,12 @@ contract ReceiverTest is TestBase {
 
         // create callData that will be sent to our Receiver
         bytes32 txId = "txId";
-        bytes memory payload = abi.encode(txId, swapData, USER_RECEIVER, USER_RECEIVER);
+        bytes memory payload = abi.encode(
+            txId,
+            swapData,
+            USER_RECEIVER,
+            USER_RECEIVER
+        );
 
         // fund receiver with sufficient DAI to execute swap
         vm.startPrank(USER_DAI_WHALE);
@@ -309,7 +348,14 @@ contract ReceiverTest is TestBase {
         );
 
         // call sgReceive function to complete transaction
-        receiver.sgReceive(0, "", 0, ADDRESS_DAI, swapData[0].fromAmount, payload);
+        receiver.sgReceive(
+            0,
+            "",
+            0,
+            ADDRESS_DAI,
+            swapData[0].fromAmount,
+            payload
+        );
     }
 
     function test_stargate_EmitsCorrectEventOnRecovery() public {
@@ -318,13 +364,31 @@ contract ReceiverTest is TestBase {
         usdc.transfer(address(receiver), defaultUSDCAmount);
         vm.stopPrank();
 
-        bytes memory payload = abi.encode(transferId, swapData, address(1), address(1));
+        bytes memory payload = abi.encode(
+            transferId,
+            swapData,
+            address(1),
+            address(1)
+        );
 
         vm.startPrank(stargateRouter);
         vm.expectEmit(true, true, true, true, address(receiver));
-        emit LiFiTransferRecovered(keccak256("123"), ADDRESS_USDC, address(1), defaultUSDCAmount, block.timestamp);
+        emit LiFiTransferRecovered(
+            keccak256("123"),
+            ADDRESS_USDC,
+            address(1),
+            defaultUSDCAmount,
+            block.timestamp
+        );
 
-        receiver.sgReceive{ gas: 100000 }(0, "", 0, ADDRESS_USDC, defaultUSDCAmount, payload);
+        receiver.sgReceive{ gas: 100000 }(
+            0,
+            "",
+            0,
+            ADDRESS_USDC,
+            defaultUSDCAmount,
+            payload
+        );
     }
 
     function test_stargate_OwnerCanUpdateRouterAddress() public {

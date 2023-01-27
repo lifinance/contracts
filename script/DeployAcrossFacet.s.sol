@@ -10,10 +10,18 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("AcrossFacet") {}
 
-    function run() public returns (AcrossFacet deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(vm.projectRoot(), "/config/across.json");
+    function run()
+        public
+        returns (AcrossFacet deployed, bytes memory constructorArgs)
+    {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/across.json"
+        );
         string memory json = vm.readFile(path);
-        address acrossSpokePool = json.readAddress(string.concat(".", network, ".acrossSpokePool"));
+        address acrossSpokePool = json.readAddress(
+            string.concat(".", network, ".acrossSpokePool")
+        );
         address weth = json.readAddress(string.concat(".", network, ".weth"));
 
         constructorArgs = abi.encode(acrossSpokePool, weth);
@@ -25,7 +33,15 @@ contract DeployScript is DeployScriptBase {
         }
 
         deployed = AcrossFacet(
-            payable(factory.deploy(salt, bytes.concat(type(AcrossFacet).creationCode, constructorArgs)))
+            payable(
+                factory.deploy(
+                    salt,
+                    bytes.concat(
+                        type(AcrossFacet).creationCode,
+                        constructorArgs
+                    )
+                )
+            )
         );
 
         vm.stopBroadcast();

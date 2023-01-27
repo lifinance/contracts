@@ -10,10 +10,18 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("AxelarExecutor") {}
 
-    function run() public returns (AxelarExecutor deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(vm.projectRoot(), "/config/axelar.json");
+    function run()
+        public
+        returns (AxelarExecutor deployed, bytes memory constructorArgs)
+    {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/axelar.json"
+        );
         string memory json = vm.readFile(path);
-        address gateway = json.readAddress(string.concat(".", network, ".gateway"));
+        address gateway = json.readAddress(
+            string.concat(".", network, ".gateway")
+        );
 
         constructorArgs = abi.encode(deployerAddress, gateway);
 
@@ -24,7 +32,13 @@ contract DeployScript is DeployScriptBase {
         }
 
         deployed = AxelarExecutor(
-            factory.deploy(salt, bytes.concat(type(AxelarExecutor).creationCode, constructorArgs))
+            factory.deploy(
+                salt,
+                bytes.concat(
+                    type(AxelarExecutor).creationCode,
+                    constructorArgs
+                )
+            )
         );
 
         vm.stopBroadcast();

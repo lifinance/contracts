@@ -20,7 +20,8 @@ contract TestDeBridgeFacet is DeBridgeFacet {
 
 contract DeBridgeFacetTest is TestBaseFacet {
     // These values are for Mainnet
-    address internal constant DEBRIDGE_GATE = 0x43dE2d77BF8027e25dBD179B491e8d64f38398aA;
+    address internal constant DEBRIDGE_GATE =
+        0x43dE2d77BF8027e25dBD179B491e8d64f38398aA;
     uint256 internal constant DST_CHAIN_ID = 56;
     uint256 public constant REVERT_IF_EXTERNAL_FAIL = 1;
 
@@ -29,28 +30,28 @@ contract DeBridgeFacetTest is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            deBridgeFacet.startBridgeTokensViaDeBridge{ value: bridgeData.minAmount + addToMessageValue }(
-                bridgeData,
-                deBridgeData
-            );
+            deBridgeFacet.startBridgeTokensViaDeBridge{
+                value: bridgeData.minAmount + addToMessageValue
+            }(bridgeData, deBridgeData);
         } else {
-            deBridgeFacet.startBridgeTokensViaDeBridge{ value: addToMessageValue }(bridgeData, deBridgeData);
+            deBridgeFacet.startBridgeTokensViaDeBridge{
+                value: addToMessageValue
+            }(bridgeData, deBridgeData);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
-            deBridgeFacet.swapAndStartBridgeTokensViaDeBridge{ value: swapData[0].fromAmount + addToMessageValue }(
-                bridgeData,
-                swapData,
-                deBridgeData
-            );
+            deBridgeFacet.swapAndStartBridgeTokensViaDeBridge{
+                value: swapData[0].fromAmount + addToMessageValue
+            }(bridgeData, swapData, deBridgeData);
         } else {
-            deBridgeFacet.swapAndStartBridgeTokensViaDeBridge{ value: addToMessageValue }(
-                bridgeData,
-                swapData,
-                deBridgeData
-            );
+            deBridgeFacet.swapAndStartBridgeTokensViaDeBridge{
+                value: addToMessageValue
+            }(bridgeData, swapData, deBridgeData);
         }
     }
 
@@ -60,27 +61,43 @@ contract DeBridgeFacetTest is TestBaseFacet {
         deBridgeFacet = new TestDeBridgeFacet(IDeBridgeGate(DEBRIDGE_GATE));
 
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = deBridgeFacet.startBridgeTokensViaDeBridge.selector;
-        functionSelectors[1] = deBridgeFacet.swapAndStartBridgeTokensViaDeBridge.selector;
+        functionSelectors[0] = deBridgeFacet
+            .startBridgeTokensViaDeBridge
+            .selector;
+        functionSelectors[1] = deBridgeFacet
+            .swapAndStartBridgeTokensViaDeBridge
+            .selector;
         functionSelectors[2] = deBridgeFacet.addDex.selector;
-        functionSelectors[3] = deBridgeFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[3] = deBridgeFacet
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond, address(deBridgeFacet), functionSelectors);
 
         deBridgeFacet = TestDeBridgeFacet(address(diamond));
 
         deBridgeFacet.addDex(address(uniswap));
-        deBridgeFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        deBridgeFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
-        deBridgeFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
-        deBridgeFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
+        deBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        deBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForETH.selector
+        );
+        deBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapETHForExactTokens.selector
+        );
+        deBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
 
         setFacetAddressInTestBase(address(deBridgeFacet), "DeBridgeFacet");
 
         bridgeData.bridge = "debridge";
         bridgeData.minAmount = defaultUSDCAmount;
 
-        IDeBridgeGate.ChainSupportInfo memory chainConfig = IDeBridgeGate(DEBRIDGE_GATE).getChainToConfig(DST_CHAIN_ID);
+        IDeBridgeGate.ChainSupportInfo memory chainConfig = IDeBridgeGate(
+            DEBRIDGE_GATE
+        ).getChainToConfig(DST_CHAIN_ID);
         uint256 nativeFee = addToMessageValue = chainConfig.fixedNativeFee == 0
             ? IDeBridgeGate(DEBRIDGE_GATE).globalFixedNativeFee()
             : chainConfig.fixedNativeFee;

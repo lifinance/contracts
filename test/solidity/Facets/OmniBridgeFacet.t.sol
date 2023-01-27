@@ -22,8 +22,10 @@ contract TestOmniBridgeFacet is OmniBridgeFacet {
 
 contract OmniBridgeFacetTest is TestBaseFacet {
     // These values are for Mainnet
-    address internal constant FOREIGN_BRIDGE = 0x88ad09518695c6c3712AC10a214bE5109a655671;
-    address internal constant WETH_BRIDGE = 0xa6439Ca0FCbA1d0F80df0bE6A17220feD9c9038a;
+    address internal constant FOREIGN_BRIDGE =
+        0x88ad09518695c6c3712AC10a214bE5109a655671;
+    address internal constant WETH_BRIDGE =
+        0xa6439Ca0FCbA1d0F80df0bE6A17220feD9c9038a;
 
     // -----
 
@@ -32,22 +34,37 @@ contract OmniBridgeFacetTest is TestBaseFacet {
     function setUp() public {
         initTestBase();
 
-        omniBridgeFacet = new TestOmniBridgeFacet(IOmniBridge(FOREIGN_BRIDGE), IOmniBridge(WETH_BRIDGE));
+        omniBridgeFacet = new TestOmniBridgeFacet(
+            IOmniBridge(FOREIGN_BRIDGE),
+            IOmniBridge(WETH_BRIDGE)
+        );
 
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = omniBridgeFacet.startBridgeTokensViaOmniBridge.selector;
-        functionSelectors[1] = omniBridgeFacet.swapAndStartBridgeTokensViaOmniBridge.selector;
+        functionSelectors[0] = omniBridgeFacet
+            .startBridgeTokensViaOmniBridge
+            .selector;
+        functionSelectors[1] = omniBridgeFacet
+            .swapAndStartBridgeTokensViaOmniBridge
+            .selector;
         functionSelectors[2] = omniBridgeFacet.addDex.selector;
-        functionSelectors[3] = omniBridgeFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[3] = omniBridgeFacet
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond, address(omniBridgeFacet), functionSelectors);
 
         omniBridgeFacet = TestOmniBridgeFacet(address(diamond));
 
         omniBridgeFacet.addDex(address(uniswap));
-        omniBridgeFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        omniBridgeFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
-        omniBridgeFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
+        omniBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        omniBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapETHForExactTokens.selector
+        );
+        omniBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
 
         setFacetAddressInTestBase(address(omniBridgeFacet), "OmniBridgeFacet");
 
@@ -56,20 +73,27 @@ contract OmniBridgeFacetTest is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            omniBridgeFacet.startBridgeTokensViaOmniBridge{ value: bridgeData.minAmount }(bridgeData);
+            omniBridgeFacet.startBridgeTokensViaOmniBridge{
+                value: bridgeData.minAmount
+            }(bridgeData);
         } else {
             omniBridgeFacet.startBridgeTokensViaOmniBridge(bridgeData);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
-            omniBridgeFacet.swapAndStartBridgeTokensViaOmniBridge{ value: swapData[0].fromAmount }(
+            omniBridgeFacet.swapAndStartBridgeTokensViaOmniBridge{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData);
+        } else {
+            omniBridgeFacet.swapAndStartBridgeTokensViaOmniBridge(
                 bridgeData,
                 swapData
             );
-        } else {
-            omniBridgeFacet.swapAndStartBridgeTokensViaOmniBridge(bridgeData, swapData);
         }
     }
 }

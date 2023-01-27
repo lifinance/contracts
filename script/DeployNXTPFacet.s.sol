@@ -10,10 +10,18 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("NXTPFacet") {}
 
-    function run() public returns (NXTPFacet deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(vm.projectRoot(), "/config/nxtp.json");
+    function run()
+        public
+        returns (NXTPFacet deployed, bytes memory constructorArgs)
+    {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/nxtp.json"
+        );
         string memory json = vm.readFile(path);
-        address txMgrAddress = json.readAddress(string.concat(".", network, ".txManagerAddress"));
+        address txMgrAddress = json.readAddress(
+            string.concat(".", network, ".txManagerAddress")
+        );
 
         constructorArgs = abi.encode(txMgrAddress);
 
@@ -23,7 +31,12 @@ contract DeployScript is DeployScriptBase {
             return (NXTPFacet(predicted), constructorArgs);
         }
 
-        deployed = NXTPFacet(factory.deploy(salt, bytes.concat(type(NXTPFacet).creationCode, constructorArgs)));
+        deployed = NXTPFacet(
+            factory.deploy(
+                salt,
+                bytes.concat(type(NXTPFacet).creationCode, constructorArgs)
+            )
+        );
 
         vm.stopBroadcast();
     }

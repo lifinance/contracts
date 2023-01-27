@@ -47,8 +47,14 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InvalidReceiver();
         }
 
-        uint256 postSwapBalance = _depositAndSwap(_transactionId, _minAmount, _swapData, _receiver);
-        address receivingAssetId = _swapData[_swapData.length - 1].receivingAssetId;
+        uint256 postSwapBalance = _depositAndSwap(
+            _transactionId,
+            _minAmount,
+            _swapData,
+            _receiver
+        );
+        address receivingAssetId = _swapData[_swapData.length - 1]
+            .receivingAssetId;
         LibAsset.transferAsset(receivingAssetId, _receiver, postSwapBalance);
 
         emit LiFiSwappedGeneric(

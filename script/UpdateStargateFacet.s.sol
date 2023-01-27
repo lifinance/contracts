@@ -21,19 +21,35 @@ contract DeployScript is UpdateScriptBase {
     }
 
     function run() public returns (address[] memory facets) {
-        string memory path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
+        string memory path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         string memory json = vm.readFile(path);
         address facet = json.readAddress(".StargateFacet");
 
         path = string.concat(root, "/config/stargate.json");
         json = vm.readFile(path);
         bytes memory rawChains = json.parseRaw(string.concat(".chains"));
-        ChainIdConfig[] memory cidCfg = abi.decode(rawChains, (ChainIdConfig[]));
+        ChainIdConfig[] memory cidCfg = abi.decode(
+            rawChains,
+            (ChainIdConfig[])
+        );
 
-        bytes memory rawPools = json.parseRaw(string.concat(".pools.", network));
+        bytes memory rawPools = json.parseRaw(
+            string.concat(".pools.", network)
+        );
         PoolIdConfig[] memory poolCfg = abi.decode(rawPools, (PoolIdConfig[]));
 
-        bytes memory callData = abi.encodeWithSelector(StargateFacet.initStargate.selector, poolCfg, cidCfg);
+        bytes memory callData = abi.encodeWithSelector(
+            StargateFacet.initStargate.selector,
+            poolCfg,
+            cidCfg
+        );
 
         for (uint256 i = 0; i < poolCfg.length; i++) {
             console.log(poolCfg[i].poolId);

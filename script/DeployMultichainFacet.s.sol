@@ -14,7 +14,9 @@ contract DeployScript is DeployScriptBase {
             return MultichainFacet(predicted);
         }
 
-        deployed = MultichainFacet(factory.deploy(salt, type(MultichainFacet).creationCode));
+        deployed = MultichainFacet(
+            factory.deploy(salt, type(MultichainFacet).creationCode)
+        );
 
         vm.stopBroadcast();
     }

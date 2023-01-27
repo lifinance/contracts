@@ -15,14 +15,25 @@ contract DeployScript is UpdateScriptBase {
     }
 
     function run() public returns (address[] memory facets) {
-        string memory path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
+        string memory path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         string memory json = vm.readFile(path);
         address facet = json.readAddress(".OptimismBridgeFacet");
 
         path = string.concat(root, "/config/optimism.json");
         json = vm.readFile(path);
-        address standardBridge = json.readAddress(string.concat(".", network, ".standardBridge"));
-        bytes memory rawConfig = json.parseRaw(string.concat(".", network, ".tokens"));
+        address standardBridge = json.readAddress(
+            string.concat(".", network, ".standardBridge")
+        );
+        bytes memory rawConfig = json.parseRaw(
+            string.concat(".", network, ".tokens")
+        );
         Config[] memory configs = abi.decode(rawConfig, (Config[]));
 
         bytes memory callData = abi.encodeWithSelector(
@@ -41,7 +52,10 @@ contract DeployScript is UpdateScriptBase {
                 IDiamondCut.FacetCut({
                     facetAddress: address(facet),
                     action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("OptimismBridgeFacet", exclude)
+                    functionSelectors: getSelectors(
+                        "OptimismBridgeFacet",
+                        exclude
+                    )
                 })
             );
             cutter.diamondCut(cut, address(facet), callData);

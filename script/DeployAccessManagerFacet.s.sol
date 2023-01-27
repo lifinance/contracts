@@ -14,7 +14,9 @@ contract DeployScript is DeployScriptBase {
             return AccessManagerFacet(predicted);
         }
 
-        deployed = AccessManagerFacet(factory.deploy(salt, type(AccessManagerFacet).creationCode));
+        deployed = AccessManagerFacet(
+            factory.deploy(salt, type(AccessManagerFacet).creationCode)
+        );
 
         vm.stopBroadcast();
     }

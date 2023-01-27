@@ -10,12 +10,17 @@ contract DeployScript is DeployScriptBase {
     function run() public returns (DiamondLoupeFacet deployed) {
         vm.startBroadcast(deployerPrivateKey);
 
-        address predicted = factory.getDeployed(vm.addr(deployerPrivateKey), salt);
+        address predicted = factory.getDeployed(
+            vm.addr(deployerPrivateKey),
+            salt
+        );
         if (isDeployed()) {
             return DiamondLoupeFacet(predicted);
         }
 
-        deployed = DiamondLoupeFacet(factory.deploy(salt, type(DiamondLoupeFacet).creationCode));
+        deployed = DiamondLoupeFacet(
+            factory.deploy(salt, type(DiamondLoupeFacet).creationCode)
+        );
 
         vm.stopBroadcast();
     }

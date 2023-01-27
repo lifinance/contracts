@@ -41,7 +41,11 @@ contract AxelarFacet is ReentrancyGuard {
 
     /// Events ///
 
-    event LifiXChainTXStarted(uint256 indexed destinationChain, address indexed callTo, bytes callData);
+    event LifiXChainTXStarted(
+        uint256 indexed destinationChain,
+        address indexed callTo,
+        bytes callData
+    );
     event ChainNameRegistered(uint256 indexed chainID, string chainName);
 
     /// Errors
@@ -72,15 +76,26 @@ contract AxelarFacet is ReentrancyGuard {
 
     /// @notice Initiates a cross-chain contract call via Axelar Network
     /// @param params the parameters for the cross-chain call
-    function executeCallViaAxelar(AxelarCallParameters calldata params) external payable nonReentrant {
+    function executeCallViaAxelar(AxelarCallParameters calldata params)
+        external
+        payable
+        nonReentrant
+    {
         Storage storage s = getStorage();
-        bytes memory payload = abi.encodePacked(params.callTo, params.callData);
+        bytes memory payload = abi.encodePacked(
+            params.callTo,
+            params.callData
+        );
 
-        string memory destinationChain = s.chainIdToName[params.destinationChain];
+        string memory destinationChain = s.chainIdToName[
+            params.destinationChain
+        ];
         if (bytes(destinationChain).length == 0) {
             revert InvalidDestinationChain();
         }
-        string memory destinationAddress = Strings.toHexString(params.destinationAddress);
+        string memory destinationAddress = Strings.toHexString(
+            params.destinationAddress
+        );
 
         // Pay gas up front
         gasService.payNativeGasForContractCall{ value: msg.value }(
@@ -93,7 +108,11 @@ contract AxelarFacet is ReentrancyGuard {
 
         gateway.callContract(destinationChain, destinationAddress, payload);
 
-        emit LifiXChainTXStarted(params.destinationChain, params.callTo, params.callData);
+        emit LifiXChainTXStarted(
+            params.destinationChain,
+            params.callTo,
+            params.callData
+        );
     }
 
     /// @notice Initiates a cross-chain contract call while sending a token via Axelar Network
@@ -125,25 +144,58 @@ contract AxelarFacet is ReentrancyGuard {
             if (LibAsset.isNativeAsset(tokenAddress)) {
                 revert TokenNotSupported();
             }
-            LibAsset.transferFromERC20(tokenAddress, msg.sender, address(this), amount);
-            LibAsset.maxApproveERC20(IERC20(tokenAddress), address(gateway), amount);
+            LibAsset.transferFromERC20(
+                tokenAddress,
+                msg.sender,
+                address(this),
+                amount
+            );
+            LibAsset.maxApproveERC20(
+                IERC20(tokenAddress),
+                address(gateway),
+                amount
+            );
         }
 
-        bytes memory payload = abi.encodePacked(params.callTo, recoveryAddress, params.callData);
-        string memory destinationChain = s.chainIdToName[params.destinationChain];
+        bytes memory payload = abi.encodePacked(
+            params.callTo,
+            recoveryAddress,
+            params.callData
+        );
+        string memory destinationChain = s.chainIdToName[
+            params.destinationChain
+        ];
         if (bytes(destinationChain).length == 0) {
             revert InvalidDestinationChain();
         }
-        string memory destinationAddress = Strings.toHexString(params.destinationAddress);
+        string memory destinationAddress = Strings.toHexString(
+            params.destinationAddress
+        );
 
         // Pay gas up front
         if (msg.value > 0) {
-            _payGasWithToken(destinationChain, destinationAddress, tokenSymbol, amount, payload);
+            _payGasWithToken(
+                destinationChain,
+                destinationAddress,
+                tokenSymbol,
+                amount,
+                payload
+            );
         }
 
-        gateway.callContractWithToken(destinationChain, destinationAddress, payload, tokenSymbol, amount);
+        gateway.callContractWithToken(
+            destinationChain,
+            destinationAddress,
+            payload,
+            tokenSymbol,
+            amount
+        );
 
-        emit LifiXChainTXStarted(params.destinationChain, params.callTo, params.callData);
+        emit LifiXChainTXStarted(
+            params.destinationChain,
+            params.callTo,
+            params.callData
+        );
     }
 
     function _payGasWithToken(

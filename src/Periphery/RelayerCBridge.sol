@@ -76,12 +76,31 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint64,
         bytes calldata _message,
         address
-    ) external payable onlyCBridgeMessageBus returns (IMessageReceiverApp.ExecutionStatus) {
+    )
+        external
+        payable
+        onlyCBridgeMessageBus
+        returns (IMessageReceiverApp.ExecutionStatus)
+    {
         // decode message
-        (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress) = abi
-            .decode(_message, (bytes32, LibSwap.SwapData[], address, address));
+        (
+            bytes32 transactionId,
+            LibSwap.SwapData[] memory swapData,
+            address receiver,
+            address refundAddress
+        ) = abi.decode(
+                _message,
+                (bytes32, LibSwap.SwapData[], address, address)
+            );
 
-        _swapAndCompleteBridgeTokens(transactionId, swapData, _token, payable(receiver), _amount, refundAddress);
+        _swapAndCompleteBridgeTokens(
+            transactionId,
+            swapData,
+            _token,
+            payable(receiver),
+            _amount,
+            refundAddress
+        );
 
         return IMessageReceiverApp.ExecutionStatus.Success;
     }
@@ -99,7 +118,12 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 _amount,
         bytes calldata _message,
         address
-    ) external payable onlyCBridgeMessageBus returns (IMessageReceiverApp.ExecutionStatus) {
+    )
+        external
+        payable
+        onlyCBridgeMessageBus
+        returns (IMessageReceiverApp.ExecutionStatus)
+    {
         (bytes32 transactionId, , , address refundAddress) = abi.decode(
             _message,
             (bytes32, LibSwap.SwapData[], address, address)
@@ -108,7 +132,13 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
         // return funds to cBridgeData.refundAddress
         LibAsset.transferAsset(_token, payable(refundAddress), _amount);
 
-        emit LiFiTransferRecovered(transactionId, _token, refundAddress, _amount, block.timestamp);
+        emit LiFiTransferRecovered(
+            transactionId,
+            _token,
+            refundAddress,
+            _amount,
+            block.timestamp
+        );
 
         return IMessageReceiverApp.ExecutionStatus.Success;
     }
@@ -118,7 +148,10 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
      * @param _bridgeData the core information needed for bridging
      * @param _cBridgeData data specific to CBridge
      */
-    function sendTokenTransfer(ILiFi.BridgeData memory _bridgeData, CBridgeFacet.CBridgeData memory _cBridgeData)
+    function sendTokenTransfer(
+        ILiFi.BridgeData memory _bridgeData,
+        CBridgeFacet.CBridgeData memory _cBridgeData
+    )
         external
         payable
         onlyDiamond
@@ -130,7 +163,9 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
             bridgeAddress = cBridgeMessageBus.liquidityBridge();
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
                 // case: native asset bridging
-                ICBridge(bridgeAddress).sendNative{ value: _bridgeData.minAmount }(
+                ICBridge(bridgeAddress).sendNative{
+                    value: _bridgeData.minAmount
+                }(
                     _bridgeData.receiver,
                     _bridgeData.minAmount,
                     uint64(_bridgeData.destinationChainId),
@@ -139,7 +174,11 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 );
             } else {
                 // case: ERC20 asset bridging
-                LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+                LibAsset.maxApproveERC20(
+                    IERC20(_bridgeData.sendingAssetId),
+                    bridgeAddress,
+                    _bridgeData.minAmount
+                );
                 ICBridge(bridgeAddress).send(
                     _bridgeData.receiver,
                     _bridgeData.sendingAssetId,
@@ -156,9 +195,15 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 uint64(_bridgeData.destinationChainId),
                 _cBridgeData.nonce
             );
-        } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegDeposit) {
+        } else if (
+            _cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegDeposit
+        ) {
             bridgeAddress = cBridgeMessageBus.pegVault();
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                bridgeAddress,
+                _bridgeData.minAmount
+            );
             IOriginalTokenVault(bridgeAddress).deposit(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
@@ -173,9 +218,15 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 uint64(_bridgeData.destinationChainId),
                 _cBridgeData.nonce
             );
-        } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegBurn) {
+        } else if (
+            _cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegBurn
+        ) {
             bridgeAddress = cBridgeMessageBus.pegBridge();
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                bridgeAddress,
+                _bridgeData.minAmount
+            );
             IPeggedTokenBridge(bridgeAddress).burn(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
@@ -188,11 +239,14 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _bridgeData.minAmount,
                 _cBridgeData.nonce
             );
-        } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Deposit) {
+        } else if (
+            _cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Deposit
+        ) {
             bridgeAddress = cBridgeMessageBus.pegVaultV2();
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
                 // case: native asset bridging
-                transferId = IOriginalTokenVaultV2(bridgeAddress).depositNative{ value: _bridgeData.minAmount }(
+                transferId = IOriginalTokenVaultV2(bridgeAddress)
+                    .depositNative{ value: _bridgeData.minAmount }(
                     _bridgeData.minAmount,
                     uint64(_bridgeData.destinationChainId),
                     _bridgeData.receiver,
@@ -200,7 +254,11 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 );
             } else {
                 // case: ERC20 bridging
-                LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+                LibAsset.maxApproveERC20(
+                    IERC20(_bridgeData.sendingAssetId),
+                    bridgeAddress,
+                    _bridgeData.minAmount
+                );
                 transferId = IOriginalTokenVaultV2(bridgeAddress).deposit(
                     _bridgeData.sendingAssetId,
                     _bridgeData.minAmount,
@@ -209,9 +267,15 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     _cBridgeData.nonce
                 );
             }
-        } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Burn) {
+        } else if (
+            _cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Burn
+        ) {
             bridgeAddress = cBridgeMessageBus.pegBridgeV2();
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                bridgeAddress,
+                _bridgeData.minAmount
+            );
             transferId = IPeggedTokenBridgeV2(bridgeAddress).burn(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
@@ -219,9 +283,16 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _bridgeData.receiver,
                 _cBridgeData.nonce
             );
-        } else if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2BurnFrom) {
+        } else if (
+            _cBridgeData.bridgeType ==
+            MsgDataTypes.BridgeSendType.PegV2BurnFrom
+        ) {
             bridgeAddress = cBridgeMessageBus.pegBridgeV2();
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), bridgeAddress, _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                bridgeAddress,
+                _bridgeData.minAmount
+            );
             transferId = IPeggedTokenBridgeV2(bridgeAddress).burnFrom(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
@@ -261,7 +332,10 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
     /// @notice sets the CBridge MessageBus address
     /// @param _messageBusAddress the MessageBus address
-    function setCBridgeMessageBus(address _messageBusAddress) external onlyOwner {
+    function setCBridgeMessageBus(address _messageBusAddress)
+        external
+        onlyOwner
+    {
         cBridgeMessageBus = IMessageBus(_messageBusAddress);
         emit CBridgeMessageBusSet(_messageBusAddress);
     }
@@ -300,7 +374,14 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
     ) private {
         bool success;
         if (LibAsset.isNativeAsset(assetId)) {
-            try executor.swapAndCompleteBridgeTokens{ value: amount }(_transactionId, _swapData, assetId, receiver) {
+            try
+                executor.swapAndCompleteBridgeTokens{ value: amount }(
+                    _transactionId,
+                    _swapData,
+                    assetId,
+                    receiver
+                )
+            {
                 success = true;
             } catch {
                 (bool fundsSent, ) = refundAddress.call{ value: amount }("");
@@ -311,7 +392,14 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
             token.safeApprove(address(executor), 0);
             token.safeIncreaseAllowance(address(executor), amount);
 
-            try executor.swapAndCompleteBridgeTokens(_transactionId, _swapData, assetId, receiver) {
+            try
+                executor.swapAndCompleteBridgeTokens(
+                    _transactionId,
+                    _swapData,
+                    assetId,
+                    receiver
+                )
+            {
                 success = true;
             } catch {
                 token.safeTransfer(refundAddress, amount);
@@ -320,7 +408,13 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
         }
 
         if (!success) {
-            emit LiFiTransferRecovered(_transactionId, assetId, refundAddress, amount, block.timestamp);
+            emit LiFiTransferRecovered(
+                _transactionId,
+                assetId,
+                refundAddress,
+                amount,
+                block.timestamp
+            );
         }
     }
 

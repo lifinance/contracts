@@ -24,5 +24,8 @@ interface IRootChainManager {
     /// @notice Returns child token address for root token
     /// @param rootToken Root token address
     /// @return childToken Child token address
-    function rootToChildToken(address rootToken) external view returns (address childToken);
+    function rootToChildToken(address rootToken)
+        external
+        view
+        returns (address childToken);
 }

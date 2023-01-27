@@ -10,10 +10,18 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("WormholeFacet") {}
 
-    function run() public returns (WormholeFacet deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(vm.projectRoot(), "/config/wormhole.json");
+    function run()
+        public
+        returns (WormholeFacet deployed, bytes memory constructorArgs)
+    {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/wormhole.json"
+        );
         string memory json = vm.readFile(path);
-        address wormholeRouter = json.readAddress(string.concat(".routers.", network));
+        address wormholeRouter = json.readAddress(
+            string.concat(".routers.", network)
+        );
 
         constructorArgs = abi.encode(wormholeRouter);
 
@@ -24,7 +32,15 @@ contract DeployScript is DeployScriptBase {
         }
 
         deployed = WormholeFacet(
-            payable(factory.deploy(salt, bytes.concat(type(WormholeFacet).creationCode, constructorArgs)))
+            payable(
+                factory.deploy(
+                    salt,
+                    bytes.concat(
+                        type(WormholeFacet).creationCode,
+                        constructorArgs
+                    )
+                )
+            )
         );
 
         vm.stopBroadcast();

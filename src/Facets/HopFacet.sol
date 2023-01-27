@@ -95,7 +95,10 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via Hop Protocol
     /// @param _bridgeData the core information needed for bridging
     /// @param _hopData data specific to Hop Protocol
-    function startBridgeTokensViaHop(ILiFi.BridgeData memory _bridgeData, HopData calldata _hopData)
+    function startBridgeTokensViaHop(
+        ILiFi.BridgeData memory _bridgeData,
+        HopData calldata _hopData
+    )
         external
         payable
         nonReentrant
@@ -104,7 +107,10 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData, _hopData);
     }
 
@@ -139,18 +145,28 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via Hop Protocol
     /// @param _bridgeData the core information needed for bridging
     /// @param _hopData data specific to Hop Protocol
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, HopData memory _hopData) private {
+    function _startBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        HopData memory _hopData
+    ) private {
         // Do HOP stuff
-        if (block.chainid == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
+        if (block.chainid == _bridgeData.destinationChainId)
+            revert CannotBridgeToSameNetwork();
 
         address sendingAssetId = _bridgeData.sendingAssetId;
         Storage storage s = getStorage();
         IHopBridge bridge = s.bridges[sendingAssetId];
 
         // Give Hop approval to bridge tokens
-        LibAsset.maxApproveERC20(IERC20(sendingAssetId), address(bridge), _bridgeData.minAmount);
+        LibAsset.maxApproveERC20(
+            IERC20(sendingAssetId),
+            address(bridge),
+            _bridgeData.minAmount
+        );
 
-        uint256 value = LibAsset.isNativeAsset(address(sendingAssetId)) ? _bridgeData.minAmount : 0;
+        uint256 value = LibAsset.isNativeAsset(address(sendingAssetId))
+            ? _bridgeData.minAmount
+            : 0;
 
         if (block.chainid == 1) {
             // Ethereum L1

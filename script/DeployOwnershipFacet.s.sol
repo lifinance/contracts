@@ -14,7 +14,9 @@ contract DeployScript is DeployScriptBase {
             return OwnershipFacet(predicted);
         }
 
-        deployed = OwnershipFacet(factory.deploy(salt, type(OwnershipFacet).creationCode));
+        deployed = OwnershipFacet(
+            factory.deploy(salt, type(OwnershipFacet).creationCode)
+        );
 
         vm.stopBroadcast();
     }

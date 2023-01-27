@@ -24,13 +24,22 @@ contract DeployScript is UpdateScriptBase {
     Bridge[] internal bridges;
 
     function run() public returns (address[] memory facets) {
-        string memory path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
+        string memory path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         string memory json = vm.readFile(path);
         address facet = json.readAddress(".HopFacet");
 
         path = string.concat(root, "/config/hop.json");
         json = vm.readFile(path);
-        bytes memory rawConfig = json.parseRaw(string.concat(".", network, ".tokens"));
+        bytes memory rawConfig = json.parseRaw(
+            string.concat(".", network, ".tokens")
+        );
         Config[] memory configs = abi.decode(rawConfig, (Config[]));
 
         for (uint256 i = 0; i < configs.length; i++) {
@@ -41,7 +50,10 @@ contract DeployScript is UpdateScriptBase {
             bridges.push(b);
         }
 
-        bytes memory callData = abi.encodeWithSelector(HopFacet.initHop.selector, bridges);
+        bytes memory callData = abi.encodeWithSelector(
+            HopFacet.initHop.selector,
+            bridges
+        );
 
         vm.startBroadcast(deployerPrivateKey);
 

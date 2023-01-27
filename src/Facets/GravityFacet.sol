@@ -36,7 +36,10 @@ contract GravityFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via Gravity
     /// @param _bridgeData the core information needed for bridging
-    function startBridgeTokensViaGravity(ILiFi.BridgeData memory _bridgeData, GravityData memory _gravityData)
+    function startBridgeTokensViaGravity(
+        ILiFi.BridgeData memory _bridgeData,
+        GravityData memory _gravityData
+    )
         external
         payable
         nonReentrant
@@ -46,7 +49,10 @@ contract GravityFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData, _gravityData);
     }
 
@@ -80,11 +86,22 @@ contract GravityFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @dev Contains the business logic for the bridge via Hyphen
     /// @param _bridgeData the core information needed for bridging
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, GravityData memory _gravityData) private {
+    function _startBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        GravityData memory _gravityData
+    ) private {
         // Give the Gravity router approval to bridge tokens
-        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(router), _bridgeData.minAmount);
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            address(router),
+            _bridgeData.minAmount
+        );
 
-        router.sendToCosmos(_bridgeData.sendingAssetId, _gravityData.destinationAddress, _bridgeData.minAmount);
+        router.sendToCosmos(
+            _bridgeData.sendingAssetId,
+            _gravityData.destinationAddress,
+            _bridgeData.minAmount
+        );
 
         emit LiFiTransferStarted(_bridgeData);
     }

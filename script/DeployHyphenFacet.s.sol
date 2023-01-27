@@ -10,10 +10,18 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("HyphenFacet") {}
 
-    function run() public returns (HyphenFacet deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(vm.projectRoot(), "/config/hyphen.json");
+    function run()
+        public
+        returns (HyphenFacet deployed, bytes memory constructorArgs)
+    {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/hyphen.json"
+        );
         string memory json = vm.readFile(path);
-        address hyphenRouter = json.readAddress(string.concat(".", network, ".hyphenRouter"));
+        address hyphenRouter = json.readAddress(
+            string.concat(".", network, ".hyphenRouter")
+        );
 
         constructorArgs = abi.encode(hyphenRouter);
 
@@ -24,7 +32,15 @@ contract DeployScript is DeployScriptBase {
         }
 
         deployed = HyphenFacet(
-            payable(factory.deploy(salt, bytes.concat(type(HyphenFacet).creationCode, constructorArgs)))
+            payable(
+                factory.deploy(
+                    salt,
+                    bytes.concat(
+                        type(HyphenFacet).creationCode,
+                        constructorArgs
+                    )
+                )
+            )
         );
 
         vm.stopBroadcast();

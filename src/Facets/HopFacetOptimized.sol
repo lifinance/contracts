@@ -31,19 +31,34 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
     /// @notice Sets approval for the Hop Bridge to spend the specified token
     /// @param bridges The Hop Bridges to approve
     /// @param tokensToApprove The tokens to approve to approve to the Hop Bridges
-    function setApprovalForBridges(address[] calldata bridges, address[] calldata tokensToApprove) external {
+    function setApprovalForBridges(
+        address[] calldata bridges,
+        address[] calldata tokensToApprove
+    ) external {
         for (uint256 i; i < bridges.length; i++) {
             // Give Hop approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(tokensToApprove[i]), address(bridges[i]), type(uint256).max);
+            LibAsset.maxApproveERC20(
+                IERC20(tokensToApprove[i]),
+                address(bridges[i]),
+                type(uint256).max
+            );
         }
     }
 
     /// @notice Bridges ERC20 tokens via Hop Protocol from L1
     /// @param _bridgeData the core information needed for bridging
     /// @param _hopData data specific to Hop Protocol
-    function startBridgeTokensViaHopL1ERC20(ILiFi.BridgeData calldata _bridgeData, HopData calldata _hopData) external {
+    function startBridgeTokensViaHopL1ERC20(
+        ILiFi.BridgeData calldata _bridgeData,
+        HopData calldata _hopData
+    ) external {
         // Deposit assets
-        LibAsset.transferFromERC20(_bridgeData.sendingAssetId, msg.sender, address(this), _bridgeData.minAmount);
+        LibAsset.transferFromERC20(
+            _bridgeData.sendingAssetId,
+            msg.sender,
+            address(this),
+            _bridgeData.minAmount
+        );
         // Bridge assets
         _hopData.hopBridge.sendToL2(
             _bridgeData.destinationChainId,
@@ -60,10 +75,10 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
     /// @notice Bridges Native tokens via Hop Protocol from L1
     /// @param _bridgeData the core information needed for bridging
     /// @param _hopData data specific to Hop Protocol
-    function startBridgeTokensViaHopL1Native(ILiFi.BridgeData calldata _bridgeData, HopData calldata _hopData)
-        external
-        payable
-    {
+    function startBridgeTokensViaHopL1Native(
+        ILiFi.BridgeData calldata _bridgeData,
+        HopData calldata _hopData
+    ) external payable {
         // Bridge assets
         _hopData.hopBridge.sendToL2{ value: _bridgeData.minAmount }(
             _bridgeData.destinationChainId,
@@ -140,9 +155,17 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
     /// @notice Bridges ERC20 tokens via Hop Protocol from L2
     /// @param _bridgeData the core information needed for bridging
     /// @param _hopData data specific to Hop Protocol
-    function startBridgeTokensViaHopL2ERC20(ILiFi.BridgeData calldata _bridgeData, HopData calldata _hopData) external {
+    function startBridgeTokensViaHopL2ERC20(
+        ILiFi.BridgeData calldata _bridgeData,
+        HopData calldata _hopData
+    ) external {
         // Deposit assets
-        LibAsset.transferFromERC20(_bridgeData.sendingAssetId, msg.sender, address(this), _bridgeData.minAmount);
+        LibAsset.transferFromERC20(
+            _bridgeData.sendingAssetId,
+            msg.sender,
+            address(this),
+            _bridgeData.minAmount
+        );
         // Bridge assets
         _hopData.hopBridge.swapAndSend(
             _bridgeData.destinationChainId,
@@ -160,10 +183,10 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
     /// @notice Bridges Native tokens via Hop Protocol from L2
     /// @param _bridgeData the core information needed for bridging
     /// @param _hopData data specific to Hop Protocol
-    function startBridgeTokensViaHopL2Native(ILiFi.BridgeData calldata _bridgeData, HopData calldata _hopData)
-        external
-        payable
-    {
+    function startBridgeTokensViaHopL2Native(
+        ILiFi.BridgeData calldata _bridgeData,
+        HopData calldata _hopData
+    ) external payable {
         // Bridge assets
         _hopData.hopBridge.swapAndSend{ value: _bridgeData.minAmount }(
             _bridgeData.destinationChainId,

@@ -15,7 +15,10 @@ contract DexManagerFacet {
 
     event DexAdded(address indexed dexAddress);
     event DexRemoved(address indexed dexAddress);
-    event FunctionSignatureApprovalChanged(bytes4 indexed functionSignature, bool indexed approved);
+    event FunctionSignatureApprovalChanged(
+        bytes4 indexed functionSignature,
+        bool indexed approved
+    );
 
     /// External Methods ///
 
@@ -86,7 +89,9 @@ contract DexManagerFacet {
     /// @notice Adds/removes a specific function signature to/from the allowlist
     /// @param _signature the function signature to allow/disallow
     /// @param _approval whether the function signature should be allowed
-    function setFunctionApprovalBySignature(bytes4 _signature, bool _approval) external {
+    function setFunctionApprovalBySignature(bytes4 _signature, bool _approval)
+        external
+    {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
@@ -103,7 +108,10 @@ contract DexManagerFacet {
     /// @notice Batch Adds/removes a specific function signature to/from the allowlist
     /// @param _signatures the function signatures to allow/disallow
     /// @param _approval whether the function signatures should be allowed
-    function batchSetFunctionApprovalBySignature(bytes4[] calldata _signatures, bool _approval) external {
+    function batchSetFunctionApprovalBySignature(
+        bytes4[] calldata _signatures,
+        bool _approval
+    ) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
@@ -125,13 +133,21 @@ contract DexManagerFacet {
     /// @notice Returns whether a function signature is approved
     /// @param _signature the function signature to query
     /// @return approved Approved or not
-    function isFunctionApproved(bytes4 _signature) public view returns (bool approved) {
+    function isFunctionApproved(bytes4 _signature)
+        public
+        view
+        returns (bool approved)
+    {
         return LibAllowList.selectorIsAllowed(_signature);
     }
 
     /// @notice Returns a list of all approved DEX addresses.
     /// @return addresses List of approved DEX addresses
-    function approvedDexs() external view returns (address[] memory addresses) {
+    function approvedDexs()
+        external
+        view
+        returns (address[] memory addresses)
+    {
         return LibAllowList.getAllowedContracts();
     }
 }

@@ -16,7 +16,10 @@ interface IDeBridgeGate {
     function globalFixedNativeFee() external view returns (uint256);
 
     /// @dev Whether the chain for the asset is supported to send
-    function getChainToConfig(uint256) external view returns (ChainSupportInfo memory);
+    function getChainToConfig(uint256)
+        external
+        view
+        returns (ChainSupportInfo memory);
 
     /// @dev This method is used for the transfer of assets.
     ///      It locks an asset in the smart contract in the native chain

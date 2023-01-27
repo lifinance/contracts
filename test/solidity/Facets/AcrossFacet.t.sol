@@ -7,9 +7,12 @@ import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 
 // Stub AcrossFacet Contract
 contract TestAcrossFacet is AcrossFacet {
-    address internal constant ADDRESS_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address internal constant ADDRESS_WETH =
+        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
-    constructor(IAcrossSpokePool _spokePool) AcrossFacet(_spokePool, ADDRESS_WETH) {}
+    constructor(IAcrossSpokePool _spokePool)
+        AcrossFacet(_spokePool, ADDRESS_WETH)
+    {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -22,9 +25,12 @@ contract TestAcrossFacet is AcrossFacet {
 
 contract AcrossFacetTest is TestBaseFacet {
     // These values are for Optimism_Kovan
-    address internal constant ETH_HOLDER = 0xb5d85CBf7cB3EE0D56b3bB207D5Fc4B82f43F511;
-    address internal constant WETH_HOLDER = 0xD022510A3414f255150Aa54b2e42DB6129a20d9E;
-    address internal constant SPOKE_POOL = 0x4D9079Bb4165aeb4084c526a32695dCfd2F77381;
+    address internal constant ETH_HOLDER =
+        0xb5d85CBf7cB3EE0D56b3bB207D5Fc4B82f43F511;
+    address internal constant WETH_HOLDER =
+        0xD022510A3414f255150Aa54b2e42DB6129a20d9E;
+    address internal constant SPOKE_POOL =
+        0x4D9079Bb4165aeb4084c526a32695dCfd2F77381;
     // -----
     AcrossFacet.AcrossData internal validAcrossData;
     TestAcrossFacet internal acrossFacet;
@@ -35,16 +41,26 @@ contract AcrossFacetTest is TestBaseFacet {
         acrossFacet = new TestAcrossFacet(IAcrossSpokePool(SPOKE_POOL));
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = acrossFacet.startBridgeTokensViaAcross.selector;
-        functionSelectors[1] = acrossFacet.swapAndStartBridgeTokensViaAcross.selector;
+        functionSelectors[1] = acrossFacet
+            .swapAndStartBridgeTokensViaAcross
+            .selector;
         functionSelectors[2] = acrossFacet.addDex.selector;
-        functionSelectors[3] = acrossFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[3] = acrossFacet
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond, address(acrossFacet), functionSelectors);
         acrossFacet = TestAcrossFacet(address(diamond));
         acrossFacet.addDex(ADDRESS_UNISWAP);
-        acrossFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        acrossFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
-        acrossFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
+        acrossFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        acrossFacet.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
+        acrossFacet.setFunctionApprovalBySignature(
+            uniswap.swapETHForExactTokens.selector
+        );
 
         setFacetAddressInTestBase(address(acrossFacet), "AcrossFacet");
 
@@ -53,26 +69,39 @@ contract AcrossFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 137;
 
         // produce valid AcrossData
-        validAcrossData = AcrossFacet.AcrossData({ relayerFeePct: 0, quoteTimestamp: uint32(block.timestamp) });
+        validAcrossData = AcrossFacet.AcrossData({
+            relayerFeePct: 0,
+            quoteTimestamp: uint32(block.timestamp)
+        });
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            acrossFacet.startBridgeTokensViaAcross{ value: bridgeData.minAmount }(bridgeData, validAcrossData);
+            acrossFacet.startBridgeTokensViaAcross{
+                value: bridgeData.minAmount
+            }(bridgeData, validAcrossData);
         } else {
-            acrossFacet.startBridgeTokensViaAcross(bridgeData, validAcrossData);
+            acrossFacet.startBridgeTokensViaAcross(
+                bridgeData,
+                validAcrossData
+            );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
-            acrossFacet.swapAndStartBridgeTokensViaAcross{ value: swapData[0].fromAmount }(
+            acrossFacet.swapAndStartBridgeTokensViaAcross{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData, validAcrossData);
+        } else {
+            acrossFacet.swapAndStartBridgeTokensViaAcross(
                 bridgeData,
                 swapData,
                 validAcrossData
             );
-        } else {
-            acrossFacet.swapAndStartBridgeTokensViaAcross(bridgeData, swapData, validAcrossData);
         }
     }
 

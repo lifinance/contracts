@@ -14,7 +14,9 @@ contract DeployScript is DeployScriptBase {
             return GenericSwapFacet(predicted);
         }
 
-        deployed = GenericSwapFacet(factory.deploy(salt, type(GenericSwapFacet).creationCode));
+        deployed = GenericSwapFacet(
+            factory.deploy(salt, type(GenericSwapFacet).creationCode)
+        );
 
         vm.stopBroadcast();
     }

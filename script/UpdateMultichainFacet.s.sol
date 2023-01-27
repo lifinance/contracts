@@ -10,16 +10,31 @@ contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     function run() public returns (address[] memory facets) {
-        string memory path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
+        string memory path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         string memory json = vm.readFile(path);
         address facet = json.readAddress(".MultichainFacet");
 
         path = string.concat(root, "/config/multichain.json");
         json = vm.readFile(path);
-        address[] memory routers = json.readAddressArray(string.concat(".", network, ".routers"));
-        address anyNative = json.readAddress(string.concat(".", network, ".anyNative"));
+        address[] memory routers = json.readAddressArray(
+            string.concat(".", network, ".routers")
+        );
+        address anyNative = json.readAddress(
+            string.concat(".", network, ".anyNative")
+        );
 
-        bytes memory callData = abi.encodeWithSelector(MultichainFacet.initMultichain.selector, anyNative, routers);
+        bytes memory callData = abi.encodeWithSelector(
+            MultichainFacet.initMultichain.selector,
+            anyNative,
+            routers
+        );
 
         vm.startBroadcast(deployerPrivateKey);
 

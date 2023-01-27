@@ -31,8 +31,14 @@ contract ReentrancyChecker {
 
     constructor(address facetAddress) {
         _facetAddress = facetAddress;
-        ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48).approve(_facetAddress, type(uint256).max); // approve USDC max to facet
-        ERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F).approve(_facetAddress, type(uint256).max); // approve DAI max to facet
+        ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48).approve(
+            _facetAddress,
+            type(uint256).max
+        ); // approve USDC max to facet
+        ERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F).approve(
+            _facetAddress,
+            type(uint256).max
+        ); // approve DAI max to facet
     }
 
     // must be called with abi.encodePacked(selector, someParam)
@@ -40,9 +46,14 @@ contract ReentrancyChecker {
     // someParam = valid arguments for the function call
     function callFacet(bytes calldata callData) public {
         _callData = callData;
-        (bool success, bytes memory data) = _facetAddress.call{ value: 10 ether }(callData);
+        (bool success, bytes memory data) = _facetAddress.call{
+            value: 10 ether
+        }(callData);
         if (!success) {
-            if (keccak256(data) == keccak256(abi.encodePacked(NativeAssetTransferFailed.selector))) {
+            if (
+                keccak256(data) ==
+                keccak256(abi.encodePacked(NativeAssetTransferFailed.selector))
+            ) {
                 revert ReentrancyError();
             } else {
                 revert("Reentrancy Attack Test: initial call failed");
@@ -51,9 +62,14 @@ contract ReentrancyChecker {
     }
 
     receive() external payable {
-        (bool success, bytes memory data) = _facetAddress.call{ value: 10 ether }(_callData);
+        (bool success, bytes memory data) = _facetAddress.call{
+            value: 10 ether
+        }(_callData);
         if (!success) {
-            if (keccak256(data) == keccak256(abi.encodePacked(ReentrancyError.selector))) {
+            if (
+                keccak256(data) ==
+                keccak256(abi.encodePacked(ReentrancyError.selector))
+            ) {
                 revert ReentrancyError();
             } else {
                 revert("Reentrancy Attack Test: reentrant call failed");
@@ -101,7 +117,8 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     uint256 internal constant DEFAULT_BLOCK_NUMBER_MAINNET = 15588208;
 
     // Contract addresses (ETH only)
-    address internal ADDRESS_UNISWAP = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    address internal ADDRESS_UNISWAP =
+        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
     address internal ADDRESS_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal ADDRESS_DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address internal ADDRESS_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
@@ -109,10 +126,14 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     address internal constant USER_SENDER = address(0xabc123456); // initially funded with 100,000 DAI, USDC & ETHER
     address internal constant USER_RECEIVER = address(0xabc654321);
     address internal constant USER_REFUND = address(0xabcdef281);
-    address internal constant USER_DIAMOND_OWNER = 0x5042255A3F3FD7727e419CeA387cAFDfad3C3aF8;
-    address internal constant USER_USDC_WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
-    address internal constant USER_DAI_WHALE = 0x4aa42145Aa6Ebf72e164C9bBC74fbD3788045016;
-    address internal constant USER_WETH_WHALE = 0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E;
+    address internal constant USER_DIAMOND_OWNER =
+        0x5042255A3F3FD7727e419CeA387cAFDfad3C3aF8;
+    address internal constant USER_USDC_WHALE =
+        0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
+    address internal constant USER_DAI_WHALE =
+        0x4aa42145Aa6Ebf72e164C9bBC74fbD3788045016;
+    address internal constant USER_WETH_WHALE =
+        0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E;
 
     // MODIFIERS
 
@@ -139,7 +160,9 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         } else {
             currentBalance = ERC20(token).balanceOf(user);
         }
-        uint256 expectedBalance = uint256(int256(initialBalances[token][user]) + amount);
+        uint256 expectedBalance = uint256(
+            int256(initialBalances[token][user]) + amount
+        );
         assertEq(currentBalance, expectedBalance);
     }
 
@@ -153,7 +176,10 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         vm.label(USER_USDC_WHALE, "USER_USDC_WHALE");
         vm.label(USER_DAI_WHALE, "USER_DAI_WHALE");
         vm.label(ADDRESS_USDC, "ADDRESS_USDC_PROXY");
-        vm.label(0xa2327a938Febf5FEC13baCFb16Ae10EcBc4cbDCF, "ADDRESS_USDC_IMPL");
+        vm.label(
+            0xa2327a938Febf5FEC13baCFb16Ae10EcBc4cbDCF,
+            "ADDRESS_USDC_IMPL"
+        );
         vm.label(ADDRESS_DAI, "ADDRESS_DAI");
         vm.label(ADDRESS_UNISWAP, "ADDRESS_UNISWAP");
         vm.label(ADDRESS_WETH, "ADDRESS_WETH_PROXY");
@@ -186,13 +212,19 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         logFilePath = "./test/logs/";
         vm.writeFile(
             logFilePath,
-            string.concat("\n Logfile created at timestamp: ", string.concat(vm.toString(block.timestamp), "\n"))
+            string.concat(
+                "\n Logfile created at timestamp: ",
+                string.concat(vm.toString(block.timestamp), "\n")
+            )
         );
 
         setDefaultBridgeData();
     }
 
-    function setFacetAddressInTestBase(address facetAddress, string memory facetName) internal {
+    function setFacetAddressInTestBase(
+        address facetAddress,
+        string memory facetName
+    ) internal {
         _facetTestContractAddress = facetAddress;
         setDefaultSwapDataSingleDAItoUSDC();
         vm.label(facetAddress, facetName);
@@ -202,7 +234,9 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         string memory rpcUrl = bytes(customRpcUrlForForking).length != 0
             ? customRpcUrlForForking
             : vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = customBlockNumberForForking > 0 ? customBlockNumberForForking : vm.envUint("FORK_NUMBER");
+        uint256 blockNumber = customBlockNumberForForking > 0
+            ? customBlockNumberForForking
+            : vm.envUint("FORK_NUMBER");
 
         vm.createSelectFork(rpcUrl, blockNumber);
     }
@@ -295,16 +329,46 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     function printBridgeData(ILiFi.BridgeData memory _bridgeData) internal {
         console.log("----------------------------------");
         console.log("CURRENT VALUES OF _bridgeData: ");
-        emit log_named_bytes32("transactionId               ", _bridgeData.transactionId);
-        emit log_named_string("bridge                      ", _bridgeData.bridge);
-        emit log_named_string("integrator                  ", _bridgeData.integrator);
-        emit log_named_address("referrer                    ", _bridgeData.referrer);
-        emit log_named_address("sendingAssetId              ", _bridgeData.sendingAssetId);
-        emit log_named_address("receiver                    ", _bridgeData.receiver);
-        emit log_named_uint("minAmount                   ", _bridgeData.minAmount);
-        emit log_named_uint("destinationChainId          ", _bridgeData.destinationChainId);
-        console.log("hasSourceSwaps              :", _bridgeData.hasSourceSwaps);
-        console.log("hasDestinationCall          :", _bridgeData.hasDestinationCall);
+        emit log_named_bytes32(
+            "transactionId               ",
+            _bridgeData.transactionId
+        );
+        emit log_named_string(
+            "bridge                      ",
+            _bridgeData.bridge
+        );
+        emit log_named_string(
+            "integrator                  ",
+            _bridgeData.integrator
+        );
+        emit log_named_address(
+            "referrer                    ",
+            _bridgeData.referrer
+        );
+        emit log_named_address(
+            "sendingAssetId              ",
+            _bridgeData.sendingAssetId
+        );
+        emit log_named_address(
+            "receiver                    ",
+            _bridgeData.receiver
+        );
+        emit log_named_uint(
+            "minAmount                   ",
+            _bridgeData.minAmount
+        );
+        emit log_named_uint(
+            "destinationChainId          ",
+            _bridgeData.destinationChainId
+        );
+        console.log(
+            "hasSourceSwaps              :",
+            _bridgeData.hasSourceSwaps
+        );
+        console.log(
+            "hasDestinationCall          :",
+            _bridgeData.hasDestinationCall
+        );
         console.log("------------- END -----------------");
     }
 
@@ -330,7 +394,10 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     }
 
     //create users with 100 ether balance
-    function createUsers(uint256 userNum) external returns (address payable[] memory) {
+    function createUsers(uint256 userNum)
+        external
+        returns (address payable[] memory)
+    {
         address payable[] memory users = new address payable[](userNum);
         for (uint256 i = 0; i < userNum; i++) {
             address payable user = this.getNextUserAddress();

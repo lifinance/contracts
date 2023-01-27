@@ -23,10 +23,14 @@ contract HopFacetTest is TestBaseFacet {
     event HopInitialized(HopFacet.Config[] configs);
 
     // These values are for Mainnet
-    address internal constant USDC_BRIDGE = 0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a;
-    address internal constant DAI_BRIDGE = 0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1;
-    address internal constant NATIVE_BRIDGE = 0xb8901acB165ed027E32754E0FFe830802919727f;
-    address internal constant CONNEXT_HANDLER = 0xB4C1340434920d70aD774309C75f9a4B679d801e;
+    address internal constant USDC_BRIDGE =
+        0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a;
+    address internal constant DAI_BRIDGE =
+        0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1;
+    address internal constant NATIVE_BRIDGE =
+        0xb8901acB165ed027E32754E0FFe830802919727f;
+    address internal constant CONNEXT_HANDLER =
+        0xB4C1340434920d70aD774309C75f9a4B679d801e;
     uint256 internal constant DSTCHAIN_ID = 137;
     // -----
 
@@ -39,11 +43,15 @@ contract HopFacetTest is TestBaseFacet {
         hopFacet = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = hopFacet.startBridgeTokensViaHop.selector;
-        functionSelectors[1] = hopFacet.swapAndStartBridgeTokensViaHop.selector;
+        functionSelectors[1] = hopFacet
+            .swapAndStartBridgeTokensViaHop
+            .selector;
         functionSelectors[2] = hopFacet.initHop.selector;
         functionSelectors[3] = hopFacet.registerBridge.selector;
         functionSelectors[4] = hopFacet.addDex.selector;
-        functionSelectors[5] = hopFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[5] = hopFacet
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond, address(hopFacet), functionSelectors);
 
@@ -56,9 +64,15 @@ contract HopFacetTest is TestBaseFacet {
         hopFacet.initHop(configs);
 
         hopFacet.addDex(address(uniswap));
-        hopFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        hopFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
-        hopFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
+        hopFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        hopFacet.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
+        hopFacet.setFunctionApprovalBySignature(
+            uniswap.swapETHForExactTokens.selector
+        );
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
 
         vm.makePersistent(address(hopFacet));
@@ -79,21 +93,29 @@ contract HopFacetTest is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            hopFacet.startBridgeTokensViaHop{ value: bridgeData.minAmount }(bridgeData, validHopData);
+            hopFacet.startBridgeTokensViaHop{ value: bridgeData.minAmount }(
+                bridgeData,
+                validHopData
+            );
         } else {
             hopFacet.startBridgeTokensViaHop(bridgeData, validHopData);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
-            hopFacet.swapAndStartBridgeTokensViaHop{ value: swapData[0].fromAmount }(
+            hopFacet.swapAndStartBridgeTokensViaHop{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData, validHopData);
+        } else {
+            hopFacet.swapAndStartBridgeTokensViaHop(
                 bridgeData,
                 swapData,
                 validHopData
             );
-        } else {
-            hopFacet.swapAndStartBridgeTokensViaHop(bridgeData, swapData, validHopData);
         }
     }
 
@@ -107,7 +129,11 @@ contract HopFacetTest is TestBaseFacet {
 
         // call testcase with correct call data (i.e. function selector) for this facet
         super.failReentrantCall(
-            abi.encodeWithSelector(hopFacet.startBridgeTokensViaHop.selector, bridgeData, validHopData)
+            abi.encodeWithSelector(
+                hopFacet.startBridgeTokensViaHop.selector,
+                bridgeData,
+                validHopData
+            )
         );
         vm.stopPrank();
     }
@@ -171,7 +197,10 @@ contract HopFacetTest is TestBaseFacet {
 
         vm.expectRevert(InvalidAmount.selector);
 
-        hopFacet.startBridgeTokensViaHop{ value: bridgeData.minAmount - 1 }(bridgeData, validHopData);
+        hopFacet.startBridgeTokensViaHop{ value: bridgeData.minAmount - 1 }(
+            bridgeData,
+            validHopData
+        );
 
         vm.stopPrank();
     }
@@ -205,11 +234,15 @@ contract HopFacetTest is TestBaseFacet {
         TestHopFacet hopFacet2 = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = hopFacet2.startBridgeTokensViaHop.selector;
-        functionSelectors[1] = hopFacet2.swapAndStartBridgeTokensViaHop.selector;
+        functionSelectors[1] = hopFacet2
+            .swapAndStartBridgeTokensViaHop
+            .selector;
         functionSelectors[2] = hopFacet2.initHop.selector;
         functionSelectors[3] = hopFacet2.registerBridge.selector;
         functionSelectors[4] = hopFacet2.addDex.selector;
-        functionSelectors[5] = hopFacet2.setFunctionApprovalBySignature.selector;
+        functionSelectors[5] = hopFacet2
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond2, address(hopFacet2), functionSelectors);
         hopFacet2 = TestHopFacet(address(diamond2));
@@ -225,11 +258,15 @@ contract HopFacetTest is TestBaseFacet {
         TestHopFacet hopFacet2 = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = hopFacet2.startBridgeTokensViaHop.selector;
-        functionSelectors[1] = hopFacet2.swapAndStartBridgeTokensViaHop.selector;
+        functionSelectors[1] = hopFacet2
+            .swapAndStartBridgeTokensViaHop
+            .selector;
         functionSelectors[2] = hopFacet2.initHop.selector;
         functionSelectors[3] = hopFacet2.registerBridge.selector;
         functionSelectors[4] = hopFacet2.addDex.selector;
-        functionSelectors[5] = hopFacet2.setFunctionApprovalBySignature.selector;
+        functionSelectors[5] = hopFacet2
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond2, address(hopFacet2), functionSelectors);
 
@@ -281,7 +318,10 @@ contract HopFacetTest is TestBaseFacet {
         addFacet(diamond, address(hopFacet2), functionSelectors);
 
         HopFacet.Config[] memory configs = new HopFacet.Config[](1);
-        configs[0] = HopFacet.Config(ADDRESS_USDC_POLYGON, AMM_WRAPPER_POLYGON);
+        configs[0] = HopFacet.Config(
+            ADDRESS_USDC_POLYGON,
+            AMM_WRAPPER_POLYGON
+        );
 
         hopFacet2 = TestHopFacet(address(diamond));
         hopFacet2.initHop(configs);
