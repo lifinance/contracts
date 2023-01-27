@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
@@ -15,6 +13,7 @@ import { NotAContract } from "../Errors/GenericErrors.sol";
 /// @notice Allows admin to withdraw funds that are kept in the contract by accident
 contract WithdrawFacet {
     /// Errors ///
+
     error WithdrawFailed();
 
     /// Events ///

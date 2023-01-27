@@ -2,7 +2,6 @@
 pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IAcrossSpokePool } from "../Interfaces/IAcrossSpokePool.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
@@ -10,8 +9,6 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import { CannotBridgeToSameNetwork } from "src/Errors/GenericErrors.sol";
 
 /// @title Across Facet
 /// @author LI.FI (https://li.fi)
@@ -99,7 +96,6 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
     function _startBridge(ILiFi.BridgeData memory _bridgeData, AcrossData memory _acrossData) internal {
-        if (block.chainid == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
         bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
         address sendingAsset = _bridgeData.sendingAssetId;
         if (isNative) sendingAsset = wrappedNative;

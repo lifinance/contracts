@@ -10,8 +10,11 @@ import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 /// @notice Provides functionality for managing method level access control
 contract AccessManagerFacet {
     /// Events ///
+
     event ExecutionAllowed(address indexed account, bytes4 indexed method);
     event ExecutionDenied(address indexed account, bytes4 indexed method);
+
+    /// External Methods ///
 
     /// @notice Sets whether a specific address can call a method
     /// @param _selector The method selector to set access for

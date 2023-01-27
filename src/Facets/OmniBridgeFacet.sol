@@ -5,7 +5,6 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IOmniBridge } from "../Interfaces/IOmniBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InvalidAmount, InvalidReceiver } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
@@ -20,8 +19,6 @@ contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice The contract address of the foreign omni bridge on the source chain.
     IOmniBridge private immutable foreignOmniBridge;
-
-    /// Types ///
 
     /// @notice The contract address of the weth omni bridge on the source chain.
     IOmniBridge private immutable wethOmniBridge;

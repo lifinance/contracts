@@ -13,6 +13,9 @@ contract OwnershipFacet is IERC173 {
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.ownership");
+
+    /// Types ///
+
     struct Storage {
         address newOwner;
     }
@@ -68,6 +71,8 @@ contract OwnershipFacet is IERC173 {
     function owner() external view override returns (address owner_) {
         owner_ = LibDiamond.contractOwner();
     }
+
+    /// Private Methods ///
 
     /// @dev fetch local storage
     function getStorage() private pure returns (Storage storage s) {

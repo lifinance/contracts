@@ -8,13 +8,20 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 /// @notice A simple registry to track LIFI periphery contracts
 contract PeripheryRegistryFacet {
     /// Storage ///
+
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.periphery_registry");
+
+    /// Types ///
+
     struct Storage {
         mapping(string => address) contracts;
     }
 
     /// Events ///
+
     event PeripheryContractRegistered(string name, address contractAddress);
+
+    /// External Methods ///
 
     /// @notice Registers a periphery contract address with a specified name
     /// @param _name the name to register the contract address under
@@ -31,6 +38,8 @@ contract PeripheryRegistryFacet {
     function getPeripheryContract(string calldata _name) external view returns (address) {
         return getStorage().contracts[_name];
     }
+
+    /// Private Methods ///
 
     /// @dev fetch local storage
     function getStorage() private pure returns (Storage storage s) {
