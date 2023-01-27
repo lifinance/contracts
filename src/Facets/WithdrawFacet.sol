@@ -7,7 +7,6 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
 import { NotAContract } from "../Errors/GenericErrors.sol";
 
-
 /// @title Withdraw Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Allows admin to withdraw funds that are kept in the contract by accident
@@ -18,7 +17,11 @@ contract WithdrawFacet {
 
     /// Events ///
 
-    event LogWithdraw(address indexed _assetAddress, address _to, uint256 amount);
+    event LogWithdraw(
+        address indexed _assetAddress,
+        address _to,
+        uint256 amount
+    );
 
     /// External Methods ///
 

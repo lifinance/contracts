@@ -58,7 +58,10 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via CBridge
     /// @param _bridgeData the core information needed for bridging
     /// @param _cBridgeData data specific to CBridge
-    function startBridgeTokensViaCBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData calldata _cBridgeData)
+    function startBridgeTokensViaCBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        CBridgeData calldata _cBridgeData
+    )
         external
         payable
         nonReentrant
@@ -71,19 +74,32 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             // transfer ERC20 tokens directly to relayer
             IERC20 asset;
             if (
-                keccak256(abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())) ==
-                keccak256(abi.encodePacked(("cfUSDC")))
+                keccak256(
+                    abi.encodePacked(
+                        ERC20(_bridgeData.sendingAssetId).symbol()
+                    )
+                ) == keccak256(abi.encodePacked(("cfUSDC")))
             ) {
                 // special case for cfUSDC token
-                asset = IERC20(CelerToken(_bridgeData.sendingAssetId).canonical());
+                asset = IERC20(
+                    CelerToken(_bridgeData.sendingAssetId).canonical()
+                );
             } else {
                 // any other ERC20 token
                 asset = IERC20(_bridgeData.sendingAssetId);
             }
             // deposit ERC20 token
             uint256 prevBalance = asset.balanceOf(address(relayer));
-            SafeERC20.safeTransferFrom(asset, msg.sender, address(relayer), _bridgeData.minAmount);
-            if (asset.balanceOf(address(relayer)) - prevBalance != _bridgeData.minAmount) revert InvalidAmount();
+            SafeERC20.safeTransferFrom(
+                asset,
+                msg.sender,
+                address(relayer),
+                _bridgeData.minAmount
+            );
+            if (
+                asset.balanceOf(address(relayer)) - prevBalance !=
+                _bridgeData.minAmount
+            ) revert InvalidAmount();
         }
         _startBridge(_bridgeData, _cBridgeData);
     }
@@ -116,8 +132,15 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             // transfer ERC20 tokens directly to relayer
             IERC20 asset = IERC20(_bridgeData.sendingAssetId);
             uint256 prevBalance = asset.balanceOf(address(relayer));
-            SafeERC20.safeTransfer(asset, address(relayer), _bridgeData.minAmount);
-            if (asset.balanceOf(address(relayer)) - prevBalance != _bridgeData.minAmount) revert InvalidAmount();
+            SafeERC20.safeTransfer(
+                asset,
+                address(relayer),
+                _bridgeData.minAmount
+            );
+            if (
+                asset.balanceOf(address(relayer)) - prevBalance !=
+                _bridgeData.minAmount
+            ) revert InvalidAmount();
         }
 
         _startBridge(_bridgeData, _cBridgeData);
@@ -128,19 +151,24 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via CBridge
     /// @param _bridgeData the core information needed for bridging
     /// @param _cBridgeData data specific to CBridge
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData memory _cBridgeData) private {
+    function _startBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        CBridgeData memory _cBridgeData
+    ) private {
         // assuming messageBusFee is pre-calculated off-chain and available in _cBridgeData
         // determine correct native asset amount to be forwarded (if so) and send funds to relayer
-        uint256 msgValue = LibAsset.isNativeAsset(_bridgeData.sendingAssetId) ? _bridgeData.minAmount : 0;
-        (bytes32 transferId, address bridgeAddress) = relayer.sendTokenTransfer{ value: msgValue }(
-            _bridgeData,
-            _cBridgeData
-        );
+        uint256 msgValue = LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
+            ? _bridgeData.minAmount
+            : 0;
+        (bytes32 transferId, address bridgeAddress) = relayer
+            .sendTokenTransfer{ value: msgValue }(_bridgeData, _cBridgeData);
 
         // check if transaction contains a destination call
         if (_bridgeData.hasDestinationCall) {
             // call message bus via relayer incl messageBusFee
-            relayer.forwardSendMessageWithTransfer{ value: _cBridgeData.messageBusFee }(
+            relayer.forwardSendMessageWithTransfer{
+                value: _cBridgeData.messageBusFee
+            }(
                 _bridgeData.receiver,
                 uint64(_bridgeData.destinationChainId),
                 bridgeAddress,
@@ -153,11 +181,14 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    function validateDestinationCallFlag(ILiFi.BridgeData memory _bridgeData, CBridgeData memory _cBridgeData)
-        private
-        pure
-    {
-        if ((_cBridgeData.callData.length > 0) != _bridgeData.hasDestinationCall) {
+    function validateDestinationCallFlag(
+        ILiFi.BridgeData memory _bridgeData,
+        CBridgeData memory _cBridgeData
+    ) private pure {
+        if (
+            (_cBridgeData.callData.length > 0) !=
+            _bridgeData.hasDestinationCall
+        ) {
             revert InformationMismatch();
         }
     }

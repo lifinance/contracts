@@ -10,11 +10,21 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("AmarokFacet") {}
 
-    function run() public returns (AmarokFacet deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(vm.projectRoot(), "/config/amarok.json");
+    function run()
+        public
+        returns (AmarokFacet deployed, bytes memory constructorArgs)
+    {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/amarok.json"
+        );
         string memory json = vm.readFile(path);
-        address connextHandler = json.readAddress(string.concat(".", network, ".connextHandler"));
-        address srcChainDomain = json.readAddress(string.concat(".", network, ".domain"));
+        address connextHandler = json.readAddress(
+            string.concat(".", network, ".connextHandler")
+        );
+        address srcChainDomain = json.readAddress(
+            string.concat(".", network, ".domain")
+        );
 
         constructorArgs = abi.encode(connextHandler, srcChainDomain);
 
@@ -25,7 +35,15 @@ contract DeployScript is DeployScriptBase {
         }
 
         deployed = AmarokFacet(
-            payable(factory.deploy(salt, bytes.concat(type(AmarokFacet).creationCode, constructorArgs)))
+            payable(
+                factory.deploy(
+                    salt,
+                    bytes.concat(
+                        type(AmarokFacet).creationCode,
+                        constructorArgs
+                    )
+                )
+            )
         );
 
         vm.stopBroadcast();

@@ -20,15 +20,25 @@ contract TestMultichainFacet is MultichainFacet {
 }
 
 contract MultichainFacetTest is TestBaseFacet {
-    address internal constant ANYSWAPV4ROUTER = 0x6b7a87899490EcE95443e979cA9485CBE7E71522;
-    address internal constant ANYSWAPV6ROUTER = 0x7782046601e7b9B05cA55A3899780CE6EE6B8B2B;
-    address internal constant ADDRESS_ANYUSDC = 0x7EA2be2df7BA6E54B1A9C70676f668455E329d29;
-    address internal constant ADDRESS_ANYDAI = 0x739ca6D71365a08f584c8FC4e1029045Fa8ABC4B;
-    address internal constant ADDRESS_ANYETH = 0x2AC03BF434db503f6f5F85C3954773731Fc3F056;
-    address internal constant USER_TESTTOKEN_WHALE = 0x5E583B6a1686f7Bc09A6bBa66E852A7C80d36F00;
+    address internal constant ANYSWAPV4ROUTER =
+        0x6b7a87899490EcE95443e979cA9485CBE7E71522;
+    address internal constant ANYSWAPV6ROUTER =
+        0x7782046601e7b9B05cA55A3899780CE6EE6B8B2B;
+    address internal constant ADDRESS_ANYUSDC =
+        0x7EA2be2df7BA6E54B1A9C70676f668455E329d29;
+    address internal constant ADDRESS_ANYDAI =
+        0x739ca6D71365a08f584c8FC4e1029045Fa8ABC4B;
+    address internal constant ADDRESS_ANYETH =
+        0x2AC03BF434db503f6f5F85C3954773731Fc3F056;
+    address internal constant USER_TESTTOKEN_WHALE =
+        0x5E583B6a1686f7Bc09A6bBa66E852A7C80d36F00;
 
     // events
-    event LogSwapout(address indexed account, address indexed bindaddr, uint256 amount);
+    event LogSwapout(
+        address indexed account,
+        address indexed bindaddr,
+        uint256 amount
+    );
     event LogAnySwapOut(
         address indexed token,
         address indexed from,
@@ -61,12 +71,18 @@ contract MultichainFacetTest is TestBaseFacet {
         multichainFacet = new TestMultichainFacet();
 
         bytes4[] memory functionSelectors = new bytes4[](7);
-        functionSelectors[0] = multichainFacet.startBridgeTokensViaMultichain.selector;
-        functionSelectors[1] = multichainFacet.swapAndStartBridgeTokensViaMultichain.selector;
+        functionSelectors[0] = multichainFacet
+            .startBridgeTokensViaMultichain
+            .selector;
+        functionSelectors[1] = multichainFacet
+            .swapAndStartBridgeTokensViaMultichain
+            .selector;
         functionSelectors[2] = multichainFacet.registerRouters.selector;
         functionSelectors[3] = multichainFacet.addDex.selector;
         functionSelectors[4] = multichainFacet.initMultichain.selector;
-        functionSelectors[5] = multichainFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[5] = multichainFacet
+            .setFunctionApprovalBySignature
+            .selector;
         functionSelectors[6] = multichainFacet.updateAddressMappings.selector;
 
         addFacet(diamond, address(multichainFacet), functionSelectors);
@@ -84,18 +100,30 @@ contract MultichainFacetTest is TestBaseFacet {
 
         // add token address mappings
         addressMappings.push(
-            MultichainFacet.AnyMapping({ tokenAddress: ADDRESS_USDC, anyTokenAddress: ADDRESS_ANYUSDC })
+            MultichainFacet.AnyMapping({
+                tokenAddress: ADDRESS_USDC,
+                anyTokenAddress: ADDRESS_ANYUSDC
+            })
         );
         addressMappings.push(
-            MultichainFacet.AnyMapping({ tokenAddress: ADDRESS_DAI, anyTokenAddress: ADDRESS_ANYDAI })
+            MultichainFacet.AnyMapping({
+                tokenAddress: ADDRESS_DAI,
+                anyTokenAddress: ADDRESS_ANYDAI
+            })
         );
 
         multichainFacet.updateAddressMappings(addressMappings);
 
         multichainFacet.addDex(address(uniswap));
-        multichainFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
-        multichainFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        multichainFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
+        multichainFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForETH.selector
+        );
+        multichainFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        multichainFacet.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
         setFacetAddressInTestBase(address(multichainFacet), "MultichainFacet");
 
         // adjust bridgeData
@@ -104,32 +132,49 @@ contract MultichainFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 56;
 
         // produce valid HopData
-        multichainData = MultichainFacet.MultichainData({ router: ANYSWAPV4ROUTER });
+        multichainData = MultichainFacet.MultichainData({
+            router: ANYSWAPV4ROUTER
+        });
 
         // get underlying token and approve
         vm.startPrank(USER_TESTTOKEN_WHALE);
-        underlyingToken = ERC20(IMultichainToken(ADDRESS_ANYUSDC).underlying());
-        underlyingToken.approve(address(multichainFacet), bridgeData.minAmount);
+        underlyingToken = ERC20(
+            IMultichainToken(ADDRESS_ANYUSDC).underlying()
+        );
+        underlyingToken.approve(
+            address(multichainFacet),
+            bridgeData.minAmount
+        );
         vm.stopPrank();
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            multichainFacet.startBridgeTokensViaMultichain{ value: bridgeData.minAmount }(bridgeData, multichainData);
+            multichainFacet.startBridgeTokensViaMultichain{
+                value: bridgeData.minAmount
+            }(bridgeData, multichainData);
         } else {
-            multichainFacet.startBridgeTokensViaMultichain(bridgeData, multichainData);
+            multichainFacet.startBridgeTokensViaMultichain(
+                bridgeData,
+                multichainData
+            );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
-            multichainFacet.swapAndStartBridgeTokensViaMultichain{ value: swapData[0].fromAmount }(
+            multichainFacet.swapAndStartBridgeTokensViaMultichain{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData, multichainData);
+        } else {
+            multichainFacet.swapAndStartBridgeTokensViaMultichain(
                 bridgeData,
                 swapData,
                 multichainData
             );
-        } else {
-            multichainFacet.swapAndStartBridgeTokensViaMultichain(bridgeData, swapData, multichainData);
         }
     }
 
@@ -166,9 +211,16 @@ contract MultichainFacetTest is TestBaseFacet {
         multichainData = MultichainFacet.MultichainData(address(testToken3));
 
         vm.expectEmit(true, true, true, true, address(testToken3));
-        emit LogSwapout(address(multichainFacet), bridgeData.receiver, bridgeData.minAmount);
+        emit LogSwapout(
+            address(multichainFacet),
+            bridgeData.receiver,
+            bridgeData.minAmount
+        );
 
-        multichainFacet.startBridgeTokensViaMultichain(bridgeData, multichainData);
+        multichainFacet.startBridgeTokensViaMultichain(
+            bridgeData,
+            multichainData
+        );
         vm.stopPrank();
     }
 
@@ -182,17 +234,25 @@ contract MultichainFacetTest is TestBaseFacet {
         multichainFacet = new TestMultichainFacet();
 
         bytes4[] memory functionSelectors = new bytes4[](5);
-        functionSelectors[0] = multichainFacet.startBridgeTokensViaMultichain.selector;
-        functionSelectors[1] = multichainFacet.swapAndStartBridgeTokensViaMultichain.selector;
+        functionSelectors[0] = multichainFacet
+            .startBridgeTokensViaMultichain
+            .selector;
+        functionSelectors[1] = multichainFacet
+            .swapAndStartBridgeTokensViaMultichain
+            .selector;
         functionSelectors[2] = multichainFacet.addDex.selector;
-        functionSelectors[3] = multichainFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[3] = multichainFacet
+            .setFunctionApprovalBySignature
+            .selector;
         functionSelectors[4] = multichainFacet.initMultichain.selector;
 
         addFacet(diamond, address(multichainFacet), functionSelectors);
 
         multichainFacet = TestMultichainFacet(address(diamond));
         multichainFacet.addDex(address(uniswap));
-        multichainFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
+        multichainFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
         multichainFacet.initMultichain(ADDRESS_ANYETH, routers);
 
         // this test case should fail now since the router is not whitelisted
@@ -228,13 +288,23 @@ contract MultichainFacetTest is TestBaseFacet {
         multichainFacet = new TestMultichainFacet();
 
         bytes4[] memory functionSelectors = new bytes4[](7);
-        functionSelectors[0] = multichainFacet.startBridgeTokensViaMultichain.selector;
-        functionSelectors[1] = multichainFacet.swapAndStartBridgeTokensViaMultichain.selector;
-        functionSelectors[2] = bytes4(keccak256("registerBridge(address,bool)"));
-        functionSelectors[3] = bytes4(keccak256("registerBridge(address[],bool[])"));
+        functionSelectors[0] = multichainFacet
+            .startBridgeTokensViaMultichain
+            .selector;
+        functionSelectors[1] = multichainFacet
+            .swapAndStartBridgeTokensViaMultichain
+            .selector;
+        functionSelectors[2] = bytes4(
+            keccak256("registerBridge(address,bool)")
+        );
+        functionSelectors[3] = bytes4(
+            keccak256("registerBridge(address[],bool[])")
+        );
         functionSelectors[4] = multichainFacet.addDex.selector;
         functionSelectors[5] = multichainFacet.initMultichain.selector;
-        functionSelectors[6] = multichainFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[6] = multichainFacet
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond, address(multichainFacet), functionSelectors);
 
@@ -270,12 +340,18 @@ contract MultichainFacetTest is TestBaseFacet {
 
         TestMultichainFacet multichainFacet2 = new TestMultichainFacet();
         bytes4[] memory functionSelectors = new bytes4[](7);
-        functionSelectors[0] = multichainFacet.startBridgeTokensViaMultichain.selector;
-        functionSelectors[1] = multichainFacet.swapAndStartBridgeTokensViaMultichain.selector;
+        functionSelectors[0] = multichainFacet
+            .startBridgeTokensViaMultichain
+            .selector;
+        functionSelectors[1] = multichainFacet
+            .swapAndStartBridgeTokensViaMultichain
+            .selector;
         functionSelectors[2] = multichainFacet.registerRouters.selector;
         functionSelectors[3] = multichainFacet.addDex.selector;
         functionSelectors[4] = multichainFacet.initMultichain.selector;
-        functionSelectors[5] = multichainFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[5] = multichainFacet
+            .setFunctionApprovalBySignature
+            .selector;
         functionSelectors[6] = multichainFacet.updateAddressMappings.selector;
 
         addFacet(diamond2, address(multichainFacet2), functionSelectors);
@@ -291,13 +367,23 @@ contract MultichainFacetTest is TestBaseFacet {
 
         TestMultichainFacet multichainFacet2 = new TestMultichainFacet();
         bytes4[] memory functionSelectors = new bytes4[](7);
-        functionSelectors[0] = multichainFacet.startBridgeTokensViaMultichain.selector;
-        functionSelectors[1] = multichainFacet.swapAndStartBridgeTokensViaMultichain.selector;
-        functionSelectors[2] = bytes4(keccak256("registerBridge(address,bool)"));
-        functionSelectors[3] = bytes4(keccak256("registerBridge(address[],bool[])"));
+        functionSelectors[0] = multichainFacet
+            .startBridgeTokensViaMultichain
+            .selector;
+        functionSelectors[1] = multichainFacet
+            .swapAndStartBridgeTokensViaMultichain
+            .selector;
+        functionSelectors[2] = bytes4(
+            keccak256("registerBridge(address,bool)")
+        );
+        functionSelectors[3] = bytes4(
+            keccak256("registerBridge(address[],bool[])")
+        );
         functionSelectors[4] = multichainFacet.addDex.selector;
         functionSelectors[5] = multichainFacet.initMultichain.selector;
-        functionSelectors[6] = multichainFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[6] = multichainFacet
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond2, address(multichainFacet2), functionSelectors);
 

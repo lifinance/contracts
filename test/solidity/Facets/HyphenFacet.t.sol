@@ -20,7 +20,8 @@ contract TestHyphenFacet is HyphenFacet {
 
 contract HyphenFacetTest is TestBaseFacet {
     // These values are for Polygon
-    address internal constant HYPHEN_ROUTER = 0x2A5c2568b10A0E826BfA892Cf21BA7218310180b;
+    address internal constant HYPHEN_ROUTER =
+        0x2A5c2568b10A0E826BfA892Cf21BA7218310180b;
     // -----
 
     TestHyphenFacet internal hyphenFacet;
@@ -32,17 +33,25 @@ contract HyphenFacetTest is TestBaseFacet {
 
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = hyphenFacet.startBridgeTokensViaHyphen.selector;
-        functionSelectors[1] = hyphenFacet.swapAndStartBridgeTokensViaHyphen.selector;
+        functionSelectors[1] = hyphenFacet
+            .swapAndStartBridgeTokensViaHyphen
+            .selector;
         functionSelectors[2] = hyphenFacet.addDex.selector;
-        functionSelectors[3] = hyphenFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[3] = hyphenFacet
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond, address(hyphenFacet), functionSelectors);
 
         hyphenFacet = TestHyphenFacet(address(diamond));
 
         hyphenFacet.addDex(address(uniswap));
-        hyphenFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        hyphenFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
+        hyphenFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        hyphenFacet.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
 
         setFacetAddressInTestBase(address(hyphenFacet), "HyphenFacet");
 
@@ -51,17 +60,27 @@ contract HyphenFacetTest is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            hyphenFacet.startBridgeTokensViaHyphen{ value: bridgeData.minAmount }(bridgeData);
+            hyphenFacet.startBridgeTokensViaHyphen{
+                value: bridgeData.minAmount
+            }(bridgeData);
         } else {
             hyphenFacet.startBridgeTokensViaHyphen(bridgeData);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
-            hyphenFacet.swapAndStartBridgeTokensViaHyphen{ value: swapData[0].fromAmount }(bridgeData, swapData);
+            hyphenFacet.swapAndStartBridgeTokensViaHyphen{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData);
         } else {
-            hyphenFacet.swapAndStartBridgeTokensViaHyphen(bridgeData, swapData);
+            hyphenFacet.swapAndStartBridgeTokensViaHyphen(
+                bridgeData,
+                swapData
+            );
         }
     }
 

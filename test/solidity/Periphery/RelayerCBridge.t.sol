@@ -20,8 +20,10 @@ contract RelayerCBridgeTest is TestBase {
     event DiamondAddressSet(address indexed diamondAddress);
     event ExecutorSet(address indexed executorAddress);
 
-    address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
-    address internal constant CBRIDGE_MESSAGEBUS_ETH = 0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
+    address internal constant CBRIDGE_ROUTER =
+        0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
+    address internal constant CBRIDGE_MESSAGEBUS_ETH =
+        0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
     CBridgeFacet.CBridgeData internal cBridgeData;
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
@@ -35,7 +37,12 @@ contract RelayerCBridgeTest is TestBase {
         // deploy CelerIM Receiver
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(this), address(erc20Proxy));
-        relayer = new RelayerCBridge(address(this), CBRIDGE_MESSAGEBUS_ETH, address(diamond), address(executor));
+        relayer = new RelayerCBridge(
+            address(this),
+            CBRIDGE_MESSAGEBUS_ETH,
+            address(diamond),
+            address(executor)
+        );
 
         cBridgeData = CBridgeFacet.CBridgeData({
             maxSlippage: 5000,
@@ -84,7 +91,12 @@ contract RelayerCBridgeTest is TestBase {
 
         // create callData that will be sent to our RelayerCBridge (from CBridge MessageBus)
         bytes32 transactionId = 0x7472616e73616374696f6e496400000000000000000000000000000000000000;
-        bytes memory payload = abi.encode(transactionId, swapData, USER_RECEIVER, USER_REFUND);
+        bytes memory payload = abi.encode(
+            transactionId,
+            swapData,
+            USER_RECEIVER,
+            USER_REFUND
+        );
 
         // fund relayer with sufficient DAI to execute swap
         deal(ADDRESS_DAI, address(relayer), swapData[0].fromAmount);
@@ -105,7 +117,13 @@ contract RelayerCBridgeTest is TestBase {
         );
 
         vm.expectEmit(true, true, true, true, address(executor));
-        emit LiFiTransferCompleted(transactionId, ADDRESS_DAI, USER_RECEIVER, defaultUSDCAmount, block.timestamp);
+        emit LiFiTransferCompleted(
+            transactionId,
+            ADDRESS_DAI,
+            USER_RECEIVER,
+            defaultUSDCAmount,
+            block.timestamp
+        );
 
         // call function in RelayerCBridge to complete transaction
         relayer.executeMessageWithTransfer(
@@ -125,7 +143,14 @@ contract RelayerCBridgeTest is TestBase {
         vm.expectRevert(UnAuthorized.selector);
 
         // call function in RelayerCBridge to complete transaction
-        relayer.executeMessageWithTransfer(address(this), ADDRESS_DAI, 0, srcChainId, "", address(this));
+        relayer.executeMessageWithTransfer(
+            address(this),
+            ADDRESS_DAI,
+            0,
+            srcChainId,
+            "",
+            address(this)
+        );
     }
 
     function test_Revert_CallExecuteMessageRefundFromAnyAccount() public {
@@ -134,7 +159,12 @@ contract RelayerCBridgeTest is TestBase {
         vm.expectRevert(UnAuthorized.selector);
 
         // call function in RelayerCBridge to complete transaction
-        relayer.executeMessageWithTransferRefund(ADDRESS_DAI, 0, "", address(this));
+        relayer.executeMessageWithTransferRefund(
+            ADDRESS_DAI,
+            0,
+            "",
+            address(this)
+        );
     }
 
     function test_WillRecoverToRefundAddressIfSwapFails() public {
@@ -174,7 +204,12 @@ contract RelayerCBridgeTest is TestBase {
 
         // create callData that will be sent to our RelayerCBridge (from CBridge MessageBus)
         bytes32 transactionId = 0x7472616e73616374696f6e496400000000000000000000000000000000000000;
-        bytes memory payload = abi.encode(transactionId, swapData, USER_RECEIVER, USER_REFUND);
+        bytes memory payload = abi.encode(
+            transactionId,
+            swapData,
+            USER_RECEIVER,
+            USER_REFUND
+        );
 
         // fund relayer with sufficient DAI to execute swap
         deal(ADDRESS_DAI, address(relayer), swapData[0].fromAmount);
@@ -184,7 +219,13 @@ contract RelayerCBridgeTest is TestBase {
 
         // prepare check for events
         vm.expectEmit(true, true, true, true, address(relayer));
-        emit LiFiTransferRecovered(transactionId, ADDRESS_DAI, USER_REFUND, swapData[0].fromAmount, block.timestamp);
+        emit LiFiTransferRecovered(
+            transactionId,
+            ADDRESS_DAI,
+            USER_REFUND,
+            swapData[0].fromAmount,
+            block.timestamp
+        );
 
         // call function in RelayerCBridge to complete transaction
         relayer.executeMessageWithTransfer(
@@ -232,7 +273,12 @@ contract RelayerCBridgeTest is TestBase {
 
         // create callData that will be sent to our diamond on srcChain (from CBridge MessageBus)
         bytes32 transactionId = 0x7472616e73616374696f6e496400000000000000000000000000000000000000;
-        bytes memory payload = abi.encode(transactionId, swapData, USER_RECEIVER, USER_REFUND);
+        bytes memory payload = abi.encode(
+            transactionId,
+            swapData,
+            USER_RECEIVER,
+            USER_REFUND
+        );
 
         // fund diamond with sufficient DAI to execute swap
         deal(ADDRESS_DAI, address(relayer), swapData[0].fromAmount);
@@ -243,10 +289,21 @@ contract RelayerCBridgeTest is TestBase {
         // prepare check for events
 
         vm.expectEmit(true, true, true, true, address(relayer));
-        emit LiFiTransferRecovered(transactionId, ADDRESS_DAI, USER_REFUND, swapData[0].fromAmount, block.timestamp);
+        emit LiFiTransferRecovered(
+            transactionId,
+            ADDRESS_DAI,
+            USER_REFUND,
+            swapData[0].fromAmount,
+            block.timestamp
+        );
 
         // call function in ReceiverCelerIM to complete transaction
-        relayer.executeMessageWithTransferRefund(ADDRESS_DAI, swapData[0].fromAmount, payload, address(this));
+        relayer.executeMessageWithTransferRefund(
+            ADDRESS_DAI,
+            swapData[0].fromAmount,
+            payload,
+            address(this)
+        );
     }
 
     function test_OwnerCanUpdateExecutorAddress() public {

@@ -10,10 +10,18 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("GravityFacet") {}
 
-    function run() public returns (GravityFacet deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(vm.projectRoot(), "/config/gravity.json");
+    function run()
+        public
+        returns (GravityFacet deployed, bytes memory constructorArgs)
+    {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/gravity.json"
+        );
         string memory json = vm.readFile(path);
-        address gravity = json.readAddress(string.concat(".", network, ".gravityRouter"));
+        address gravity = json.readAddress(
+            string.concat(".", network, ".gravityRouter")
+        );
 
         constructorArgs = abi.encode(gravity);
 
@@ -24,7 +32,15 @@ contract DeployScript is DeployScriptBase {
         }
 
         deployed = GravityFacet(
-            payable(factory.deploy(salt, bytes.concat(type(GravityFacet).creationCode, constructorArgs)))
+            payable(
+                factory.deploy(
+                    salt,
+                    bytes.concat(
+                        type(GravityFacet).creationCode,
+                        constructorArgs
+                    )
+                )
+            )
         );
 
         vm.stopBroadcast();

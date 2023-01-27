@@ -14,7 +14,9 @@ contract DeployScript is DeployScriptBase {
             return DexManagerFacet(predicted);
         }
 
-        deployed = DexManagerFacet(factory.deploy(salt, type(DexManagerFacet).creationCode));
+        deployed = DexManagerFacet(
+            factory.deploy(salt, type(DexManagerFacet).creationCode)
+        );
 
         vm.stopBroadcast();
     }

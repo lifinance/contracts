@@ -37,7 +37,11 @@ abstract contract ReentrancyGuard {
     /// Private Methods ///
 
     /// @dev fetch local storage
-    function reentrancyStorage() private pure returns (ReentrancyStorage storage data) {
+    function reentrancyStorage()
+        private
+        pure
+        returns (ReentrancyStorage storage data)
+    {
         bytes32 position = NAMESPACE;
         // solhint-disable-next-line no-inline-assembly
         assembly {

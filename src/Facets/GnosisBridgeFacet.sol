@@ -36,7 +36,9 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via XDaiBridge
     /// @param _bridgeData the core information needed for bridging
-    function startBridgeTokensViaXDaiBridge(ILiFi.BridgeData memory _bridgeData)
+    function startBridgeTokensViaXDaiBridge(
+        ILiFi.BridgeData memory _bridgeData
+    )
         external
         payable
         nonReentrant
@@ -85,7 +87,11 @@ contract GnosisBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via XDaiBridge
     /// @param _bridgeData the core information needed for bridging
     function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
-        LibAsset.maxApproveERC20(IERC20(DAI), address(xDaiBridge), _bridgeData.minAmount);
+        LibAsset.maxApproveERC20(
+            IERC20(DAI),
+            address(xDaiBridge),
+            _bridgeData.minAmount
+        );
         xDaiBridge.relayTokens(_bridgeData.receiver, _bridgeData.minAmount);
         emit LiFiTransferStarted(_bridgeData);
     }

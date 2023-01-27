@@ -10,22 +10,45 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("Receiver") {}
 
-    function run() public returns (Receiver deployed, bytes memory constructorArgs) {
+    function run()
+        public
+        returns (Receiver deployed, bytes memory constructorArgs)
+    {
         // obtain address of Stargate router in current network from config file
-        string memory path = string.concat(vm.projectRoot(), "/config/stargate.json");
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/stargate.json"
+        );
         string memory json = vm.readFile(path);
-        address stargateRouter = json.readAddress(string.concat(".routers.", network));
+        address stargateRouter = json.readAddress(
+            string.concat(".routers.", network)
+        );
 
         // obtain address of Amarok router in current network from config file
         path = string.concat(vm.projectRoot(), "/config/amarok.json");
         json = vm.readFile(path);
-        address amarokRouter = json.readAddress(string.concat(".", network, ".connextHandler"));
+        address amarokRouter = json.readAddress(
+            string.concat(".", network, ".connextHandler")
+        );
 
-        path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
+        path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         json = vm.readFile(path);
         address executor = json.readAddress(".Executor");
 
-        constructorArgs = abi.encode(deployerAddress, stargateRouter, amarokRouter, executor, 100000);
+        constructorArgs = abi.encode(
+            deployerAddress,
+            stargateRouter,
+            amarokRouter,
+            executor,
+            100000
+        );
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -33,7 +56,14 @@ contract DeployScript is DeployScriptBase {
             return (Receiver(payable(predicted)), constructorArgs);
         }
 
-        deployed = Receiver(payable(factory.deploy(salt, bytes.concat(type(Receiver).creationCode, constructorArgs))));
+        deployed = Receiver(
+            payable(
+                factory.deploy(
+                    salt,
+                    bytes.concat(type(Receiver).creationCode, constructorArgs)
+                )
+            )
+        );
 
         vm.stopBroadcast();
     }

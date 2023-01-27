@@ -7,7 +7,10 @@ import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("FeeCollector") {}
 
-    function run() public returns (FeeCollector deployed, bytes memory constructorArgs) {
+    function run()
+        public
+        returns (FeeCollector deployed, bytes memory constructorArgs)
+    {
         vm.startBroadcast(deployerPrivateKey);
 
         constructorArgs = abi.encode(deployerAddress);
@@ -16,7 +19,12 @@ contract DeployScript is DeployScriptBase {
             return (FeeCollector(predicted), constructorArgs);
         }
 
-        deployed = FeeCollector(factory.deploy(salt, bytes.concat(type(FeeCollector).creationCode, constructorArgs)));
+        deployed = FeeCollector(
+            factory.deploy(
+                salt,
+                bytes.concat(type(FeeCollector).creationCode, constructorArgs)
+            )
+        );
 
         vm.stopBroadcast();
     }

@@ -22,8 +22,10 @@ contract TestPolygonBridgeFacet is PolygonBridgeFacet {
 
 contract PolygonBridgeFacetTest is TestBaseFacet {
     // These values are for Mainnet
-    address internal constant ROOT_CHAIN_MANAGER = 0xA0c68C638235ee32657e8f720a23ceC1bFc77C77;
-    address internal constant ERC20_PREDICATE = 0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf;
+    address internal constant ROOT_CHAIN_MANAGER =
+        0xA0c68C638235ee32657e8f720a23ceC1bFc77C77;
+    address internal constant ERC20_PREDICATE =
+        0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf;
 
     // -----
 
@@ -32,43 +34,66 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
     function setUp() public {
         initTestBase();
 
-        polygonBridgeFacet = new TestPolygonBridgeFacet(IRootChainManager(ROOT_CHAIN_MANAGER), ERC20_PREDICATE);
+        polygonBridgeFacet = new TestPolygonBridgeFacet(
+            IRootChainManager(ROOT_CHAIN_MANAGER),
+            ERC20_PREDICATE
+        );
 
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = polygonBridgeFacet.startBridgeTokensViaPolygonBridge.selector;
-        functionSelectors[1] = polygonBridgeFacet.swapAndStartBridgeTokensViaPolygonBridge.selector;
+        functionSelectors[0] = polygonBridgeFacet
+            .startBridgeTokensViaPolygonBridge
+            .selector;
+        functionSelectors[1] = polygonBridgeFacet
+            .swapAndStartBridgeTokensViaPolygonBridge
+            .selector;
         functionSelectors[2] = polygonBridgeFacet.addDex.selector;
-        functionSelectors[3] = polygonBridgeFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[3] = polygonBridgeFacet
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond, address(polygonBridgeFacet), functionSelectors);
 
         polygonBridgeFacet = TestPolygonBridgeFacet(address(diamond));
 
         polygonBridgeFacet.addDex(address(uniswap));
-        polygonBridgeFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        polygonBridgeFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
+        polygonBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        polygonBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
 
-        setFacetAddressInTestBase(address(polygonBridgeFacet), "PolygonBridgeFacet");
+        setFacetAddressInTestBase(
+            address(polygonBridgeFacet),
+            "PolygonBridgeFacet"
+        );
 
         bridgeData.bridge = "polygon";
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            polygonBridgeFacet.startBridgeTokensViaPolygonBridge{ value: bridgeData.minAmount }(bridgeData);
+            polygonBridgeFacet.startBridgeTokensViaPolygonBridge{
+                value: bridgeData.minAmount
+            }(bridgeData);
         } else {
             polygonBridgeFacet.startBridgeTokensViaPolygonBridge(bridgeData);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
-            polygonBridgeFacet.swapAndStartBridgeTokensViaPolygonBridge{ value: swapData[0].fromAmount }(
+            polygonBridgeFacet.swapAndStartBridgeTokensViaPolygonBridge{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData);
+        } else {
+            polygonBridgeFacet.swapAndStartBridgeTokensViaPolygonBridge(
                 bridgeData,
                 swapData
             );
-        } else {
-            polygonBridgeFacet.swapAndStartBridgeTokensViaPolygonBridge(bridgeData, swapData);
         }
     }
 }

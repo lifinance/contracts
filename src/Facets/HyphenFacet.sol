@@ -38,7 +38,10 @@ contract HyphenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData);
     }
 
@@ -73,7 +76,11 @@ contract HyphenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Give the Hyphen router approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(router), _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(router),
+                _bridgeData.minAmount
+            );
 
             router.depositErc20(
                 _bridgeData.destinationChainId,

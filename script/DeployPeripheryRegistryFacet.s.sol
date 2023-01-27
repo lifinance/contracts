@@ -14,7 +14,9 @@ contract DeployScript is DeployScriptBase {
             return PeripheryRegistryFacet(predicted);
         }
 
-        deployed = PeripheryRegistryFacet(factory.deploy(salt, type(PeripheryRegistryFacet).creationCode));
+        deployed = PeripheryRegistryFacet(
+            factory.deploy(salt, type(PeripheryRegistryFacet).creationCode)
+        );
 
         vm.stopBroadcast();
     }

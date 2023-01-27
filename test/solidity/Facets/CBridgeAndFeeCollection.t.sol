@@ -20,7 +20,9 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
-    constructor(IMessageBus _messageBus, RelayerCBridge _relayer) CBridgeFacet(_messageBus, _relayer) {}
+    constructor(IMessageBus _messageBus, RelayerCBridge _relayer)
+        CBridgeFacet(_messageBus, _relayer)
+    {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -32,13 +34,20 @@ contract TestCBridgeFacet is CBridgeFacet {
 }
 
 contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
-    address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
-    address internal constant UNISWAP_V2_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
-    address internal constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address internal constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    address internal constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address internal constant WHALE = 0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
-    address internal constant CBRIDGE_MESSAGE_BUS_ETH = 0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
+    address internal constant CBRIDGE_ROUTER =
+        0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
+    address internal constant UNISWAP_V2_ROUTER =
+        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    address internal constant USDC_ADDRESS =
+        0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address internal constant DAI_ADDRESS =
+        0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address internal constant WETH_ADDRESS =
+        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address internal constant WHALE =
+        0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
+    address internal constant CBRIDGE_MESSAGE_BUS_ETH =
+        0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
 
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
@@ -63,9 +72,17 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         diamond = createDiamond();
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(this), address(erc20Proxy));
-        relayer = new RelayerCBridge(address(this), CBRIDGE_MESSAGE_BUS_ETH, address(diamond), address(executor));
+        relayer = new RelayerCBridge(
+            address(this),
+            CBRIDGE_MESSAGE_BUS_ETH,
+            address(diamond),
+            address(executor)
+        );
 
-        cBridge = new TestCBridgeFacet(IMessageBus(CBRIDGE_MESSAGE_BUS_ETH), relayer);
+        cBridge = new TestCBridgeFacet(
+            IMessageBus(CBRIDGE_MESSAGE_BUS_ETH),
+            relayer
+        );
         usdc = ERC20(USDC_ADDRESS);
         dai = ERC20(DAI_ADDRESS);
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
@@ -73,7 +90,9 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
 
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = cBridge.startBridgeTokensViaCBridge.selector;
-        functionSelectors[1] = cBridge.swapAndStartBridgeTokensViaCBridge.selector;
+        functionSelectors[1] = cBridge
+            .swapAndStartBridgeTokensViaCBridge
+            .selector;
         functionSelectors[2] = cBridge.addDex.selector;
         functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
 
@@ -82,10 +101,18 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addDex(address(uniswap));
         cBridge.addDex(address(feeCollector));
-        cBridge.setFunctionApprovalBySignature(bytes4(feeCollector.collectTokenFees.selector));
-        cBridge.setFunctionApprovalBySignature(bytes4(feeCollector.collectNativeFees.selector));
-        cBridge.setFunctionApprovalBySignature(bytes4(uniswap.swapExactTokensForTokens.selector));
-        cBridge.setFunctionApprovalBySignature(bytes4(uniswap.swapETHForExactTokens.selector));
+        cBridge.setFunctionApprovalBySignature(
+            bytes4(feeCollector.collectTokenFees.selector)
+        );
+        cBridge.setFunctionApprovalBySignature(
+            bytes4(feeCollector.collectNativeFees.selector)
+        );
+        cBridge.setFunctionApprovalBySignature(
+            bytes4(uniswap.swapExactTokensForTokens.selector)
+        );
+        cBridge.setFunctionApprovalBySignature(
+            bytes4(uniswap.swapETHForExactTokens.selector)
+        );
     }
 
     function testCanCollectTokenFeesAndBridgeTokens() public {
@@ -116,7 +143,13 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             USDC_ADDRESS,
             USDC_ADDRESS,
             amount,
-            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, integrator),
+            abi.encodeWithSelector(
+                feeCollector.collectTokenFees.selector,
+                USDC_ADDRESS,
+                fee,
+                lifiFee,
+                integrator
+            ),
             true
         );
 
@@ -175,14 +208,24 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             address(0),
             address(0),
             amount + fee + lifiFee,
-            abi.encodeWithSelector(feeCollector.collectNativeFees.selector, fee, lifiFee, address(0xb33f)),
+            abi.encodeWithSelector(
+                feeCollector.collectNativeFees.selector,
+                fee,
+                lifiFee,
+                address(0xb33f)
+            ),
             true
         );
 
-        cBridge.swapAndStartBridgeTokensViaCBridge{ value: amount + fee + lifiFee }(bridgeData, swapData, data);
+        cBridge.swapAndStartBridgeTokensViaCBridge{
+            value: amount + fee + lifiFee
+        }(bridgeData, swapData, data);
         vm.stopPrank();
 
-        assertEq(feeCollector.getTokenBalance(address(0xb33f), address(0)), fee);
+        assertEq(
+            feeCollector.getTokenBalance(address(0xb33f), address(0)),
+            fee
+        );
         assertEq(feeCollector.getLifiTokenBalance((address(0))), lifiFee);
     }
 
@@ -229,7 +272,13 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             USDC_ADDRESS,
             USDC_ADDRESS,
             amountIn + fee + lifiFee,
-            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, address(0xb33f)),
+            abi.encodeWithSelector(
+                feeCollector.collectTokenFees.selector,
+                USDC_ADDRESS,
+                fee,
+                lifiFee,
+                address(0xb33f)
+            ),
             true
         );
 
@@ -254,7 +303,10 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
         vm.stopPrank();
 
-        assertEq(feeCollector.getTokenBalance(address(0xb33f), USDC_ADDRESS), fee);
+        assertEq(
+            feeCollector.getTokenBalance(address(0xb33f), USDC_ADDRESS),
+            fee
+        );
         assertEq(feeCollector.getLifiTokenBalance(USDC_ADDRESS), lifiFee);
         assertEq(usdc.balanceOf(address(cBridge)), 0);
         assertEq(dai.balanceOf(address(cBridge)), 0);
@@ -303,7 +355,12 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             address(0),
             address(0),
             fee + lifiFee,
-            abi.encodeWithSelector(feeCollector.collectNativeFees.selector, fee, lifiFee, address(0xb33f)),
+            abi.encodeWithSelector(
+                feeCollector.collectNativeFees.selector,
+                fee,
+                lifiFee,
+                address(0xb33f)
+            ),
             true
         );
 
@@ -322,10 +379,15 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             ),
             false
         );
-        cBridge.swapAndStartBridgeTokensViaCBridge{ value: amountIn + fee + lifiFee }(bridgeData, swapData, data);
+        cBridge.swapAndStartBridgeTokensViaCBridge{
+            value: amountIn + fee + lifiFee
+        }(bridgeData, swapData, data);
         vm.stopPrank();
 
-        assertEq(feeCollector.getTokenBalance(address(0xb33f), address(0)), fee);
+        assertEq(
+            feeCollector.getTokenBalance(address(0xb33f), address(0)),
+            fee
+        );
         assertEq(feeCollector.getLifiTokenBalance(address(0)), lifiFee);
         assertEq(address(cBridge).balance, 0);
         assertEq(usdc.balanceOf(address(cBridge)), 0);
@@ -364,7 +426,10 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         address[] memory path = new address[](2);
         path[0] = USDC_ADDRESS;
         path[1] = DAI_ADDRESS;
-        uint256[] memory amounts = uniswap.getAmountsIn(amountToBridge + fee + lifiFee, path);
+        uint256[] memory amounts = uniswap.getAmountsIn(
+            amountToBridge + fee + lifiFee,
+            path
+        );
         uint256 amountIn = amounts[0];
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
@@ -392,7 +457,13 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             DAI_ADDRESS,
             DAI_ADDRESS,
             fee + lifiFee,
-            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, DAI_ADDRESS, fee, lifiFee, address(0xb33f)),
+            abi.encodeWithSelector(
+                feeCollector.collectTokenFees.selector,
+                DAI_ADDRESS,
+                fee,
+                lifiFee,
+                address(0xb33f)
+            ),
             false
         );
         // Approve USDC
@@ -400,7 +471,10 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
         vm.stopPrank();
 
-        assertEq(feeCollector.getTokenBalance(address(0xb33f), DAI_ADDRESS), fee);
+        assertEq(
+            feeCollector.getTokenBalance(address(0xb33f), DAI_ADDRESS),
+            fee
+        );
         assertEq(feeCollector.getLifiTokenBalance(DAI_ADDRESS), lifiFee);
         assertEq(usdc.balanceOf(address(cBridge)), 0);
         assertEq(dai.balanceOf(address(cBridge)), 0);
@@ -439,7 +513,10 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
         address[] memory path = new address[](2);
         path[0] = WETH_ADDRESS;
         path[1] = USDC_ADDRESS;
-        uint256[] memory amounts = uniswap.getAmountsIn(amountToBridge + fee + lifiFee, path);
+        uint256[] memory amounts = uniswap.getAmountsIn(
+            amountToBridge + fee + lifiFee,
+            path
+        );
         uint256 amountIn = amounts[0];
 
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
@@ -466,13 +543,26 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
             USDC_ADDRESS,
             USDC_ADDRESS,
             fee + lifiFee,
-            abi.encodeWithSelector(feeCollector.collectTokenFees.selector, USDC_ADDRESS, fee, lifiFee, address(0xb33f)),
+            abi.encodeWithSelector(
+                feeCollector.collectTokenFees.selector,
+                USDC_ADDRESS,
+                fee,
+                lifiFee,
+                address(0xb33f)
+            ),
             false
         );
-        cBridge.swapAndStartBridgeTokensViaCBridge{ value: amountIn }(bridgeData, swapData, data);
+        cBridge.swapAndStartBridgeTokensViaCBridge{ value: amountIn }(
+            bridgeData,
+            swapData,
+            data
+        );
         vm.stopPrank();
 
-        assertEq(feeCollector.getTokenBalance(address(0xb33f), USDC_ADDRESS), fee);
+        assertEq(
+            feeCollector.getTokenBalance(address(0xb33f), USDC_ADDRESS),
+            fee
+        );
         assertEq(feeCollector.getLifiTokenBalance(USDC_ADDRESS), lifiFee);
         assertEq(address(cBridge).balance, 0);
         assertEq(usdc.balanceOf(address(cBridge)), 0);

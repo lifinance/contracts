@@ -10,11 +10,21 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("OmniBridgeFacet") {}
 
-    function run() public returns (OmniBridgeFacet deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(vm.projectRoot(), "/config/omni.json");
+    function run()
+        public
+        returns (OmniBridgeFacet deployed, bytes memory constructorArgs)
+    {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/omni.json"
+        );
         string memory json = vm.readFile(path);
-        address foreignOmniBridge = json.readAddress(string.concat(".", network, ".foreignOmniBridge"));
-        address wethOmniBridge = json.readAddress(string.concat(".", network, ".wethOmniBridge"));
+        address foreignOmniBridge = json.readAddress(
+            string.concat(".", network, ".foreignOmniBridge")
+        );
+        address wethOmniBridge = json.readAddress(
+            string.concat(".", network, ".wethOmniBridge")
+        );
 
         constructorArgs = abi.encode(foreignOmniBridge, wethOmniBridge);
 
@@ -25,7 +35,15 @@ contract DeployScript is DeployScriptBase {
         }
 
         deployed = OmniBridgeFacet(
-            payable(factory.deploy(salt, bytes.concat(type(OmniBridgeFacet).creationCode, constructorArgs)))
+            payable(
+                factory.deploy(
+                    salt,
+                    bytes.concat(
+                        type(OmniBridgeFacet).creationCode,
+                        constructorArgs
+                    )
+                )
+            )
         );
 
         vm.stopBroadcast();

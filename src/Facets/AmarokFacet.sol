@@ -61,7 +61,10 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via Amarok
     /// @param _bridgeData Data containing core information for bridging
     /// @param _amarokData Data specific to bridge
-    function startBridgeTokensViaAmarok(BridgeData calldata _bridgeData, AmarokData calldata _amarokData)
+    function startBridgeTokensViaAmarok(
+        BridgeData calldata _bridgeData,
+        AmarokData calldata _amarokData
+    )
         external
         payable
         nonReentrant
@@ -70,11 +73,16 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        if (hasDestinationCall(_amarokData) != _bridgeData.hasDestinationCall) {
+        if (
+            hasDestinationCall(_amarokData) != _bridgeData.hasDestinationCall
+        ) {
             revert InformationMismatch();
         }
 
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData, _amarokData);
     }
 
@@ -95,7 +103,9 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        if (hasDestinationCall(_amarokData) != _bridgeData.hasDestinationCall) {
+        if (
+            hasDestinationCall(_amarokData) != _bridgeData.hasDestinationCall
+        ) {
             revert InformationMismatch();
         }
 
@@ -110,7 +120,8 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     function setAmarokDomain(uint256 _chainId, uint32 _domain) external {
         LibDiamond.enforceIsContractOwner();
-        LibMappings.AmarokMappings storage sm = LibMappings.getAmarokMappings();
+        LibMappings.AmarokMappings storage sm = LibMappings
+            .getAmarokMappings();
         sm.amarokDomain[_chainId] = _domain;
         emit AmarokDomainSet(_chainId, _domain);
     }
@@ -120,12 +131,21 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via Amarok
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _amarokData Data specific to Amarok
-    function _startBridge(BridgeData memory _bridgeData, AmarokData calldata _amarokData) private {
+    function _startBridge(
+        BridgeData memory _bridgeData,
+        AmarokData calldata _amarokData
+    ) private {
         // get Amarok-specific domain for destination chain
-        uint32 dstChainDomain = getAmarokDomain(_bridgeData.destinationChainId);
+        uint32 dstChainDomain = getAmarokDomain(
+            _bridgeData.destinationChainId
+        );
 
         // give max approval for token to Amarok bridge, if not already
-        LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(connextHandler), _bridgeData.minAmount);
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            address(connextHandler),
+            _bridgeData.minAmount
+        );
 
         // initiate bridge transaction
         connextHandler.xcall{ value: _amarokData.relayerFee }(
@@ -142,7 +162,8 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     function getAmarokDomain(uint256 _chainId) private view returns (uint32) {
-        LibMappings.AmarokMappings storage sm = LibMappings.getAmarokMappings();
+        LibMappings.AmarokMappings storage sm = LibMappings
+            .getAmarokMappings();
         uint32 domain = sm.amarokDomain[_chainId];
         if (domain == 0) {
             revert UnknownAmarokDomain(domain);
@@ -150,7 +171,11 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         return domain;
     }
 
-    function hasDestinationCall(AmarokData calldata _amarokData) private pure returns (bool) {
+    function hasDestinationCall(AmarokData calldata _amarokData)
+        private
+        pure
+        returns (bool)
+    {
         return _amarokData.callData.length > 0;
     }
 }

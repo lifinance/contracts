@@ -10,7 +10,14 @@ contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     function run() public returns (address[] memory facets) {
-        string memory path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
+        string memory path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         string memory json = vm.readFile(path);
         address facet = json.readAddress(".PeripheryRegistryFacet");
 
@@ -23,7 +30,10 @@ contract DeployScript is UpdateScriptBase {
                 IDiamondCut.FacetCut({
                     facetAddress: address(facet),
                     action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("PeripheryRegistryFacet", exclude)
+                    functionSelectors: getSelectors(
+                        "PeripheryRegistryFacet",
+                        exclude
+                    )
                 })
             );
             cutter.diamondCut(cut, address(0), "");

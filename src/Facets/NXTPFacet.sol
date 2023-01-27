@@ -47,7 +47,10 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice This function starts a cross-chain transaction using the NXTP protocol
     /// @param _bridgeData the core information needed for bridging
     /// @param _nxtpData data needed to complete an NXTP cross-chain transaction
-    function startBridgeTokensViaNXTP(ILiFi.BridgeData memory _bridgeData, NXTPData calldata _nxtpData)
+    function startBridgeTokensViaNXTP(
+        ILiFi.BridgeData memory _bridgeData,
+        NXTPData calldata _nxtpData
+    )
         external
         payable
         nonReentrant
@@ -59,7 +62,10 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InformationMismatch();
         }
         validateInvariantData(_nxtpData.invariantData, _bridgeData);
-        LibAsset.depositAsset(_nxtpData.invariantData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.depositAsset(
+            _nxtpData.invariantData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData, _nxtpData);
     }
 
@@ -99,14 +105,25 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via NXTP
     /// @param _bridgeData the core information needed for bridging
     /// @param _nxtpData data specific to NXTP
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, NXTPData memory _nxtpData) private {
+    function _startBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        NXTPData memory _nxtpData
+    ) private {
         IERC20 sendingAssetId = IERC20(_nxtpData.invariantData.sendingAssetId);
         // Give Connext approval to bridge tokens
-        LibAsset.maxApproveERC20(IERC20(sendingAssetId), address(txManager), _bridgeData.minAmount);
+        LibAsset.maxApproveERC20(
+            IERC20(sendingAssetId),
+            address(txManager),
+            _bridgeData.minAmount
+        );
 
         {
-            address sendingChainFallback = _nxtpData.invariantData.sendingChainFallback;
-            address receivingAddress = _nxtpData.invariantData.receivingAddress;
+            address sendingChainFallback = _nxtpData
+                .invariantData
+                .sendingChainFallback;
+            address receivingAddress = _nxtpData
+                .invariantData
+                .receivingAddress;
 
             if (LibUtil.isZeroAddress(sendingChainFallback)) {
                 revert InvalidFallbackAddress();
@@ -117,7 +134,11 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         // Initiate bridge transaction on sending chain
-        txManager.prepare{ value: LibAsset.isNativeAsset(address(sendingAssetId)) ? _bridgeData.minAmount : 0 }(
+        txManager.prepare{
+            value: LibAsset.isNativeAsset(address(sendingAssetId))
+                ? _bridgeData.minAmount
+                : 0
+        }(
             ITransactionManager.PrepareArgs(
                 _nxtpData.invariantData,
                 _bridgeData.minAmount,
@@ -142,12 +163,18 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (_invariantData.receivingAddress != _bridgeData.receiver) {
             revert InvariantDataMismatch("receivingAddress");
         }
-        if (_invariantData.receivingChainId != _bridgeData.destinationChainId) {
+        if (
+            _invariantData.receivingChainId != _bridgeData.destinationChainId
+        ) {
             revert InvariantDataMismatch("receivingChainId");
         }
     }
 
-    function hasDestinationCall(NXTPData memory _nxtpData) private pure returns (bool) {
+    function hasDestinationCall(NXTPData memory _nxtpData)
+        private
+        pure
+        returns (bool)
+    {
         return _nxtpData.encryptedCallData.length > 0;
     }
 }

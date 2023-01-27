@@ -10,11 +10,21 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("ArbitrumBridgeFacet") {}
 
-    function run() public returns (ArbitrumBridgeFacet deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(vm.projectRoot(), "/config/arbitrum.json");
+    function run()
+        public
+        returns (ArbitrumBridgeFacet deployed, bytes memory constructorArgs)
+    {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/arbitrum.json"
+        );
         string memory json = vm.readFile(path);
-        address gatewayRouter = json.readAddress(string.concat(".", network, ".gatewayRouter"));
-        address inbox = json.readAddress(string.concat(".", network, ".inbox"));
+        address gatewayRouter = json.readAddress(
+            string.concat(".", network, ".gatewayRouter")
+        );
+        address inbox = json.readAddress(
+            string.concat(".", network, ".inbox")
+        );
 
         constructorArgs = abi.encode(gatewayRouter, inbox);
 
@@ -28,7 +38,10 @@ contract DeployScript is DeployScriptBase {
             payable(
                 factory.deploy(
                     salt,
-                    bytes.concat(type(ArbitrumBridgeFacet).creationCode, constructorArgs)
+                    bytes.concat(
+                        type(ArbitrumBridgeFacet).creationCode,
+                        constructorArgs
+                    )
                 )
             )
         );

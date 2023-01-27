@@ -14,7 +14,9 @@ contract DeployScript is DeployScriptBase {
             return WithdrawFacet(predicted);
         }
 
-        deployed = WithdrawFacet(factory.deploy(salt, type(WithdrawFacet).creationCode));
+        deployed = WithdrawFacet(
+            factory.deploy(salt, type(WithdrawFacet).creationCode)
+        );
 
         vm.stopBroadcast();
     }

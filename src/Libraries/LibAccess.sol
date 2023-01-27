@@ -8,7 +8,8 @@ import { CannotAuthoriseSelf, UnAuthorized } from "../Errors/GenericErrors.sol";
 /// @notice Provides functionality for managing method level access control
 library LibAccess {
     /// Types ///
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.library.access.management");
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.library.access.management");
 
     /// Storage ///
     struct AccessStorage {
@@ -20,7 +21,11 @@ library LibAccess {
     event AccessRevoked(address indexed account, bytes4 indexed method);
 
     /// @dev Fetch local storage
-    function accessStorage() internal pure returns (AccessStorage storage accStor) {
+    function accessStorage()
+        internal
+        pure
+        returns (AccessStorage storage accStor)
+    {
         bytes32 position = NAMESPACE;
         // solhint-disable-next-line no-inline-assembly
         assembly {
@@ -53,6 +58,7 @@ library LibAccess {
     ///     has not been given permission to execute `msg.sig`
     function enforceAccessControl() internal view {
         AccessStorage storage accStor = accessStorage();
-        if (accStor.execAccess[msg.sig][msg.sender] != true) revert UnAuthorized();
+        if (accStor.execAccess[msg.sig][msg.sender] != true)
+            revert UnAuthorized();
     }
 }

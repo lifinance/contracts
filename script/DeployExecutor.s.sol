@@ -10,8 +10,18 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("Executor") {}
 
-    function run() public returns (Executor deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
+    function run()
+        public
+        returns (Executor deployed, bytes memory constructorArgs)
+    {
+        string memory path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         string memory json = vm.readFile(path);
         address erc20Proxy = json.readAddress(".ERC20Proxy");
 
@@ -24,7 +34,17 @@ contract DeployScript is DeployScriptBase {
         }
 
         deployed = Executor(
-            payable(address(factory.deploy(salt, bytes.concat(type(Executor).creationCode, constructorArgs))))
+            payable(
+                address(
+                    factory.deploy(
+                        salt,
+                        bytes.concat(
+                            type(Executor).creationCode,
+                            constructorArgs
+                        )
+                    )
+                )
+            )
         );
 
         vm.stopBroadcast();

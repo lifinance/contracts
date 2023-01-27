@@ -51,7 +51,10 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via Across
     /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
-    function startBridgeTokensViaAcross(ILiFi.BridgeData memory _bridgeData, AcrossData calldata _acrossData)
+    function startBridgeTokensViaAcross(
+        ILiFi.BridgeData memory _bridgeData,
+        AcrossData calldata _acrossData
+    )
         external
         payable
         nonReentrant
@@ -60,7 +63,10 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData, _acrossData);
     }
 
@@ -95,11 +101,19 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via Across
     /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, AcrossData memory _acrossData) internal {
+    function _startBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        AcrossData memory _acrossData
+    ) internal {
         bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
         address sendingAsset = _bridgeData.sendingAssetId;
         if (isNative) sendingAsset = wrappedNative;
-        else LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(spokePool), _bridgeData.minAmount);
+        else
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(spokePool),
+                _bridgeData.minAmount
+            );
 
         spokePool.deposit{ value: isNative ? _bridgeData.minAmount : 0 }(
             _bridgeData.receiver,

@@ -25,7 +25,14 @@ contract UpdateScriptBase is Script {
         network = vm.envString("NETWORK");
         fileSuffix = vm.envString("FILE_SUFFIX");
 
-        string memory path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
+        string memory path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         string memory json = vm.readFile(path);
         diamond = json.readAddress(".LiFiDiamond");
         cutter = DiamondCutFacet(diamond);

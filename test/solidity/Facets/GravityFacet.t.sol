@@ -21,7 +21,8 @@ contract TestGravityFacet is GravityFacet {
 
 contract GravityFacetTest is TestBaseFacet {
     // These values are for mainnet
-    address internal constant GRAVITY_ROUTER = 0xa4108aA1Ec4967F8b52220a4f7e94A8201F2D906;
+    address internal constant GRAVITY_ROUTER =
+        0xa4108aA1Ec4967F8b52220a4f7e94A8201F2D906;
     // -----
 
     TestGravityFacet internal gravityFacet;
@@ -34,24 +35,36 @@ contract GravityFacetTest is TestBaseFacet {
         gravityFacet = new TestGravityFacet(IGravityRouter(GRAVITY_ROUTER));
 
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = gravityFacet.startBridgeTokensViaGravity.selector;
-        functionSelectors[1] = gravityFacet.swapAndStartBridgeTokensViaGravity.selector;
+        functionSelectors[0] = gravityFacet
+            .startBridgeTokensViaGravity
+            .selector;
+        functionSelectors[1] = gravityFacet
+            .swapAndStartBridgeTokensViaGravity
+            .selector;
         functionSelectors[2] = gravityFacet.addDex.selector;
-        functionSelectors[3] = gravityFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[3] = gravityFacet
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond, address(gravityFacet), functionSelectors);
 
         gravityFacet = TestGravityFacet(address(diamond));
 
         gravityFacet.addDex(address(uniswap));
-        gravityFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        gravityFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
+        gravityFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        gravityFacet.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
 
         setFacetAddressInTestBase(address(gravityFacet), "GravityFacet");
 
         bridgeData.bridge = "gravity";
 
-        gravityData = GravityFacet.GravityData({ destinationAddress: "canto1f0cukfd8xj368prlpj6x69nyer3fcnus8wy8uf" });
+        gravityData = GravityFacet.GravityData({
+            destinationAddress: "canto1f0cukfd8xj368prlpj6x69nyer3fcnus8wy8uf"
+        });
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -62,11 +75,18 @@ contract GravityFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             revert NativeAssetNotSupported();
         } else {
-            gravityFacet.swapAndStartBridgeTokensViaGravity(bridgeData, swapData, gravityData);
+            gravityFacet.swapAndStartBridgeTokensViaGravity(
+                bridgeData,
+                swapData,
+                gravityData
+            );
         }
     }
 

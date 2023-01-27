@@ -13,13 +13,18 @@ import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
 // Run `forge test --match-path test\solidity\Facets\CBridgeRefund.t.sol --fork-url POLYGON_RPC_URL --fork-block-number 25085298`
 // or `forge test --match-contract CBridgeRefundTest --fork-url POLYGON_RPC_URL --fork-block-number 25085298`
 contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
-    address internal constant CBRIDGE_ADDRESS = 0x88DCDC47D2f83a99CF0000FDF667A468bB958a78;
-    address internal constant LIFI_ADDRESS = 0x5A9Fd7c39a6C488E715437D7b1f3C823d5596eD1;
-    address internal constant OWNER_ADDRESS = 0xCB1e9fA11Edd27098A6B2Ff23cB6b79183ccf8Ee;
+    address internal constant CBRIDGE_ADDRESS =
+        0x88DCDC47D2f83a99CF0000FDF667A468bB958a78;
+    address internal constant LIFI_ADDRESS =
+        0x5A9Fd7c39a6C488E715437D7b1f3C823d5596eD1;
+    address internal constant OWNER_ADDRESS =
+        0xCB1e9fA11Edd27098A6B2Ff23cB6b79183ccf8Ee;
 
     // Reference to https://polygonscan.com/tx/0x989872993fde04e81e74027047032305201448da4a4b32999d83fdd2b18ad3bd
-    address internal constant REFUND_ASSET = 0x60bB3D364B765C497C8cE50AE0Ae3f0882c5bD05; // IMX Token
-    address internal constant REFUND_ADDRESS = 0x3db00D1334B5faDd2A897D8A702cDCbb6F159D87;
+    address internal constant REFUND_ASSET =
+        0x60bB3D364B765C497C8cE50AE0Ae3f0882c5bD05; // IMX Token
+    address internal constant REFUND_ADDRESS =
+        0x3db00D1334B5faDd2A897D8A702cDCbb6F159D87;
     uint256 internal constant REFUND_AMOUNT = 92734538876076486098;
 
     bytes internal CALLDATA;
@@ -60,7 +65,13 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         POWERS[2] = 150010000000000000000000000;
         POWERS[3] = 150010000000000000000000000;
 
-        CALLDATA = abi.encodeWithSignature("withdraw(bytes,bytes[],address[],uint256[])", MSG, SIGS, SIGNERS, POWERS);
+        CALLDATA = abi.encodeWithSignature(
+            "withdraw(bytes,bytes[],address[],uint256[])",
+            MSG,
+            SIGS,
+            SIGNERS,
+            POWERS
+        );
     }
 
     function fork() internal {
@@ -109,7 +120,9 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
         );
         vm.stopPrank();
 
-        assert(asset.balanceOf(REFUND_ADDRESS) == assetBalance + REFUND_AMOUNT);
+        assert(
+            asset.balanceOf(REFUND_ADDRESS) == assetBalance + REFUND_AMOUNT
+        );
     }
 
     /// @notice Fails to execute extra call and withdraw from non-owner.
@@ -152,7 +165,9 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
             REFUND_ADDRESS,
             REFUND_AMOUNT
         );
-        assert(asset.balanceOf(REFUND_ADDRESS) == assetBalance + REFUND_AMOUNT);
+        assert(
+            asset.balanceOf(REFUND_ADDRESS) == assetBalance + REFUND_AMOUNT
+        );
 
         withdrawFacet.executeCallAndWithdraw(
             payable(CBRIDGE_ADDRESS),

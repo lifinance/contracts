@@ -23,11 +23,19 @@ contract TestWormholeFacet is WormholeFacet {
 
 contract WormholeFacetTest is TestBaseFacet {
     // EVENTS
-    event WormholeChainIdMapped(uint256 indexed lifiChainId, uint256 indexed wormholeChainId);
-    event BridgeToNonEVMChain(bytes32 indexed transactionId, uint256 indexed wormholeChainId, bytes32 receiver);
+    event WormholeChainIdMapped(
+        uint256 indexed lifiChainId,
+        uint256 indexed wormholeChainId
+    );
+    event BridgeToNonEVMChain(
+        bytes32 indexed transactionId,
+        uint256 indexed wormholeChainId,
+        bytes32 receiver
+    );
 
     // These values are for Mainnet
-    address internal constant MAINNET_ROUTER = 0x3ee18B2214AFF97000D974cf647E7C347E8fa585;
+    address internal constant MAINNET_ROUTER =
+        0x3ee18B2214AFF97000D974cf647E7C347E8fa585;
     // -----
 
     TestWormholeFacet internal wormholeFacet;
@@ -40,20 +48,32 @@ contract WormholeFacetTest is TestBaseFacet {
         wormholeFacet = new TestWormholeFacet(IWormholeRouter(MAINNET_ROUTER));
 
         bytes4[] memory functionSelectors = new bytes4[](5);
-        functionSelectors[0] = wormholeFacet.startBridgeTokensViaWormhole.selector;
-        functionSelectors[1] = wormholeFacet.swapAndStartBridgeTokensViaWormhole.selector;
+        functionSelectors[0] = wormholeFacet
+            .startBridgeTokensViaWormhole
+            .selector;
+        functionSelectors[1] = wormholeFacet
+            .swapAndStartBridgeTokensViaWormhole
+            .selector;
         functionSelectors[2] = wormholeFacet.setWormholeChainId.selector;
         functionSelectors[3] = wormholeFacet.addDex.selector;
-        functionSelectors[4] = wormholeFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[4] = wormholeFacet
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond, address(wormholeFacet), functionSelectors);
 
         wormholeFacet = TestWormholeFacet(address(diamond));
 
         wormholeFacet.addDex(address(uniswap));
-        wormholeFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        wormholeFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
-        wormholeFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
+        wormholeFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        wormholeFacet.setFunctionApprovalBySignature(
+            uniswap.swapETHForExactTokens.selector
+        );
+        wormholeFacet.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
 
         setFacetAddressInTestBase(address(wormholeFacet), "WormholeFacet");
 
@@ -74,21 +94,31 @@ contract WormholeFacetTest is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            wormholeFacet.startBridgeTokensViaWormhole{ value: bridgeData.minAmount }(bridgeData, wormholeData);
+            wormholeFacet.startBridgeTokensViaWormhole{
+                value: bridgeData.minAmount
+            }(bridgeData, wormholeData);
         } else {
-            wormholeFacet.startBridgeTokensViaWormhole(bridgeData, wormholeData);
+            wormholeFacet.startBridgeTokensViaWormhole(
+                bridgeData,
+                wormholeData
+            );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
-            wormholeFacet.swapAndStartBridgeTokensViaWormhole{ value: swapData[0].fromAmount }(
+            wormholeFacet.swapAndStartBridgeTokensViaWormhole{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData, wormholeData);
+        } else {
+            wormholeFacet.swapAndStartBridgeTokensViaWormhole(
                 bridgeData,
                 swapData,
                 wormholeData
             );
-        } else {
-            wormholeFacet.swapAndStartBridgeTokensViaWormhole(bridgeData, swapData, wormholeData);
         }
     }
 
@@ -108,14 +138,19 @@ contract WormholeFacetTest is TestBaseFacet {
     function test_CanBridgeTokensToNonEVMChain()
         public
         virtual
-        assertBalanceChange(ADDRESS_USDC, USER_SENDER, -int256(defaultUSDCAmount))
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
         bridgeData.destinationChainId = 1000000001; // Solana
         bridgeData.receiver = 0x11f111f111f111F111f111f111F111f111f111F1;
-        wormholeData.receiver = 0x06a81d66f356889562097bf36b786f2e8deaa6f50175fc6cf12f6891820f96a1;
+        wormholeData
+            .receiver = 0x06a81d66f356889562097bf36b786f2e8deaa6f50175fc6cf12f6891820f96a1;
 
         vm.startPrank(USER_SENDER);
 
@@ -124,7 +159,11 @@ contract WormholeFacetTest is TestBaseFacet {
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit BridgeToNonEVMChain(bridgeData.transactionId, 1, wormholeData.receiver);
+        emit BridgeToNonEVMChain(
+            bridgeData.transactionId,
+            1,
+            wormholeData.receiver
+        );
 
         wormholeFacet.startBridgeTokensViaWormhole(bridgeData, wormholeData);
         vm.stopPrank();
@@ -133,14 +172,19 @@ contract WormholeFacetTest is TestBaseFacet {
     function test_CanBridgeNativeTokensToNonEVMChain()
         public
         virtual
-        assertBalanceChange(address(0), USER_SENDER, -int256((1 ether + addToMessageValue)))
+        assertBalanceChange(
+            address(0),
+            USER_SENDER,
+            -int256((1 ether + addToMessageValue))
+        )
         assertBalanceChange(address(0), USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
     {
         bridgeData.destinationChainId = 1000000001; // Solana
         bridgeData.receiver = 0x11f111f111f111F111f111f111F111f111f111F1;
-        wormholeData.receiver = 0x06a81d66f356889562097bf36b786f2e8deaa6f50175fc6cf12f6891820f96a1;
+        wormholeData
+            .receiver = 0x06a81d66f356889562097bf36b786f2e8deaa6f50175fc6cf12f6891820f96a1;
 
         vm.startPrank(USER_SENDER);
         // customize bridgeData
@@ -149,9 +193,15 @@ contract WormholeFacetTest is TestBaseFacet {
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit BridgeToNonEVMChain(bridgeData.transactionId, 1, wormholeData.receiver);
+        emit BridgeToNonEVMChain(
+            bridgeData.transactionId,
+            1,
+            wormholeData.receiver
+        );
 
-        wormholeFacet.startBridgeTokensViaWormhole{ value: bridgeData.minAmount }(bridgeData, wormholeData);
+        wormholeFacet.startBridgeTokensViaWormhole{
+            value: bridgeData.minAmount
+        }(bridgeData, wormholeData);
         vm.stopPrank();
     }
 }

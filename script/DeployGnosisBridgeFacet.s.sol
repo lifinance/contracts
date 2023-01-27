@@ -10,10 +10,18 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("GnosisBridgeFacet") {}
 
-    function run() public returns (GnosisBridgeFacet deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(vm.projectRoot(), "/config/gnosis.json");
+    function run()
+        public
+        returns (GnosisBridgeFacet deployed, bytes memory constructorArgs)
+    {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/gnosis.json"
+        );
         string memory json = vm.readFile(path);
-        address xDaiBridge = json.readAddress(string.concat(".", network, ".xDaiBridge"));
+        address xDaiBridge = json.readAddress(
+            string.concat(".", network, ".xDaiBridge")
+        );
 
         constructorArgs = abi.encode(xDaiBridge);
 
@@ -24,7 +32,15 @@ contract DeployScript is DeployScriptBase {
         }
 
         deployed = GnosisBridgeFacet(
-            payable(factory.deploy(salt, bytes.concat(type(GnosisBridgeFacet).creationCode, constructorArgs)))
+            payable(
+                factory.deploy(
+                    salt,
+                    bytes.concat(
+                        type(GnosisBridgeFacet).creationCode,
+                        constructorArgs
+                    )
+                )
+            )
         );
 
         vm.stopBroadcast();

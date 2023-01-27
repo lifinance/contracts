@@ -10,7 +10,9 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet {
-    constructor(IMessageBus _messageBus, RelayerCBridge _relayer) CBridgeFacet(_messageBus, _relayer) {}
+    constructor(IMessageBus _messageBus, RelayerCBridge _relayer)
+        CBridgeFacet(_messageBus, _relayer)
+    {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -45,7 +47,13 @@ contract CBridgeFacetTest is TestBaseFacet {
         bytes32 refId,
         address depositor
     );
-    event Burn(bytes32 burnId, address token, address account, uint256 amount, address withdrawAccount);
+    event Burn(
+        bytes32 burnId,
+        address token,
+        address account,
+        uint256 amount,
+        address withdrawAccount
+    );
     event Burn(
         bytes32 burnId,
         address token,
@@ -56,12 +64,18 @@ contract CBridgeFacetTest is TestBaseFacet {
         uint64 nonce
     );
 
-    address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
-    address internal constant CBRIDGE_MESSAGEBUS_ETH = 0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
-    address internal constant CBRIDGE_PEG_VAULT = 0xB37D31b2A74029B5951a2778F959282E2D518595;
-    address internal constant CBRIDGE_PEG_VAULT_V2 = 0x7510792A3B1969F9307F3845CE88e39578f2bAE1;
-    address internal constant CBRIDGE_PEG_BRIDGE = 0x16365b45EB269B5B5dACB34B4a15399Ec79b95eB;
-    address internal constant CBRIDGE_PEG_BRIDGE_V2 = 0x52E4f244f380f8fA51816c8a10A63105dd4De084;
+    address internal constant CBRIDGE_ROUTER =
+        0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
+    address internal constant CBRIDGE_MESSAGEBUS_ETH =
+        0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
+    address internal constant CBRIDGE_PEG_VAULT =
+        0xB37D31b2A74029B5951a2778F959282E2D518595;
+    address internal constant CBRIDGE_PEG_VAULT_V2 =
+        0x7510792A3B1969F9307F3845CE88e39578f2bAE1;
+    address internal constant CBRIDGE_PEG_BRIDGE =
+        0x16365b45EB269B5B5dACB34B4a15399Ec79b95eB;
+    address internal constant CBRIDGE_PEG_BRIDGE_V2 =
+        0x52E4f244f380f8fA51816c8a10A63105dd4De084;
 
     TestCBridgeFacet internal cBridgeFacet;
     CBridgeFacet.CBridgeData internal cBridgeData;
@@ -76,22 +90,42 @@ contract CBridgeFacetTest is TestBaseFacet {
         // deploy periphery
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(this), address(erc20Proxy));
-        relayer = new RelayerCBridge(address(this), CBRIDGE_MESSAGEBUS_ETH, address(diamond), address(executor));
+        relayer = new RelayerCBridge(
+            address(this),
+            CBRIDGE_MESSAGEBUS_ETH,
+            address(diamond),
+            address(executor)
+        );
 
-        cBridgeFacet = new TestCBridgeFacet(IMessageBus(CBRIDGE_MESSAGEBUS_ETH), relayer);
+        cBridgeFacet = new TestCBridgeFacet(
+            IMessageBus(CBRIDGE_MESSAGEBUS_ETH),
+            relayer
+        );
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = cBridgeFacet.startBridgeTokensViaCBridge.selector;
-        functionSelectors[1] = cBridgeFacet.swapAndStartBridgeTokensViaCBridge.selector;
+        functionSelectors[0] = cBridgeFacet
+            .startBridgeTokensViaCBridge
+            .selector;
+        functionSelectors[1] = cBridgeFacet
+            .swapAndStartBridgeTokensViaCBridge
+            .selector;
         functionSelectors[2] = cBridgeFacet.addDex.selector;
-        functionSelectors[3] = cBridgeFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[3] = cBridgeFacet
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond, address(cBridgeFacet), functionSelectors);
 
         cBridgeFacet = TestCBridgeFacet(address(diamond));
         cBridgeFacet.addDex(address(uniswap));
-        cBridgeFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        cBridgeFacet.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
-        cBridgeFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
+        cBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        cBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
+        cBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapETHForExactTokens.selector
+        );
         setFacetAddressInTestBase(address(cBridgeFacet), "cBridgeFacet");
         vm.label(CBRIDGE_ROUTER, "CBRIDGE_ROUTER");
         vm.label(CBRIDGE_MESSAGEBUS_ETH, "CBRIDGE_MESSAGEBUS_ETH");
@@ -112,21 +146,28 @@ contract CBridgeFacetTest is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            cBridgeFacet.startBridgeTokensViaCBridge{ value: bridgeData.minAmount }(bridgeData, cBridgeData);
+            cBridgeFacet.startBridgeTokensViaCBridge{
+                value: bridgeData.minAmount
+            }(bridgeData, cBridgeData);
         } else {
             cBridgeFacet.startBridgeTokensViaCBridge(bridgeData, cBridgeData);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
-            cBridgeFacet.swapAndStartBridgeTokensViaCBridge{ value: swapData[0].fromAmount }(
+            cBridgeFacet.swapAndStartBridgeTokensViaCBridge{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData, cBridgeData);
+        } else {
+            cBridgeFacet.swapAndStartBridgeTokensViaCBridge(
                 bridgeData,
                 swapData,
                 cBridgeData
             );
-        } else {
-            cBridgeFacet.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, cBridgeData);
         }
     }
 
@@ -149,7 +190,11 @@ contract CBridgeFacetTest is TestBaseFacet {
 
         // call testcase with correct call data (i.e. function selector) for this facet
         super.failReentrantCall(
-            abi.encodeWithSelector(cBridgeFacet.startBridgeTokensViaCBridge.selector, bridgeData, cBridgeData)
+            abi.encodeWithSelector(
+                cBridgeFacet.startBridgeTokensViaCBridge.selector,
+                bridgeData,
+                cBridgeData
+            )
         );
     }
 
@@ -209,7 +254,9 @@ contract CBridgeFacetTest is TestBaseFacet {
         bridgeData.minAmount = 1 ether;
         vm.expectRevert();
 
-        cBridgeFacet.startBridgeTokensViaCBridge{ value: bridgeData.minAmount - 1 }(bridgeData, cBridgeData);
+        cBridgeFacet.startBridgeTokensViaCBridge{
+            value: bridgeData.minAmount - 1
+        }(bridgeData, cBridgeData);
 
         vm.stopPrank();
     }

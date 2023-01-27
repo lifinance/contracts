@@ -15,7 +15,8 @@ import { Validatable } from "../Helpers/Validatable.sol";
 contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.debridge");
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.debridge");
 
     /// @notice The contract address of the spoke pool on the source chain.
     IDeBridgeGate private immutable deBridgeGate;
@@ -60,7 +61,10 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via DeBridge
     /// @param _bridgeData the core information needed for bridging
     /// @param _deBridgeData data specific to DeBridge
-    function startBridgeTokensViaDeBridge(ILiFi.BridgeData calldata _bridgeData, DeBridgeData calldata _deBridgeData)
+    function startBridgeTokensViaDeBridge(
+        ILiFi.BridgeData calldata _bridgeData,
+        DeBridgeData calldata _deBridgeData
+    )
         external
         payable
         nonReentrant
@@ -70,7 +74,10 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     {
         validateDestinationCallFlag(_bridgeData, _deBridgeData);
 
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData, _deBridgeData);
     }
 
@@ -112,14 +119,21 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via DeBridge
     /// @param _bridgeData the core information needed for bridging
     /// @param _deBridgeData data specific to DeBridge
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, DeBridgeData calldata _deBridgeData) internal {
+    function _startBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        DeBridgeData calldata _deBridgeData
+    ) internal {
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
         uint256 nativeAssetAmount = _deBridgeData.nativeFee;
 
         if (isNative) {
             nativeAssetAmount += _bridgeData.minAmount;
         } else {
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(deBridgeGate), _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(deBridgeGate),
+                _bridgeData.minAmount
+            );
         }
 
         deBridgeGate.send{ value: nativeAssetAmount }(
@@ -136,11 +150,14 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    function validateDestinationCallFlag(ILiFi.BridgeData memory _bridgeData, DeBridgeData calldata _deBridgeData)
-        private
-        pure
-    {
-        if ((_deBridgeData.autoParams.data.length > 0) != _bridgeData.hasDestinationCall) {
+    function validateDestinationCallFlag(
+        ILiFi.BridgeData memory _bridgeData,
+        DeBridgeData calldata _deBridgeData
+    ) private pure {
+        if (
+            (_deBridgeData.autoParams.data.length > 0) !=
+            _bridgeData.hasDestinationCall
+        ) {
             revert InformationMismatch();
         }
     }

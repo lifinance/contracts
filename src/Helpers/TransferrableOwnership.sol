@@ -16,7 +16,10 @@ contract TransferrableOwnership is IERC173 {
     error NotPendingOwner();
 
     /// Events ///
-    event OwnershipTransferRequested(address indexed _from, address indexed _to);
+    event OwnershipTransferRequested(
+        address indexed _from,
+        address indexed _to
+    );
 
     constructor(address initialOwner) {
         owner = initialOwner;
@@ -38,7 +41,8 @@ contract TransferrableOwnership is IERC173 {
 
     /// @notice Cancel transfer of ownership
     function cancelOwnershipTransfer() external onlyOwner {
-        if (pendingOwner == LibAsset.NULL_ADDRESS) revert NoPendingOwnershipTransfer();
+        if (pendingOwner == LibAsset.NULL_ADDRESS)
+            revert NoPendingOwnershipTransfer();
         pendingOwner = LibAsset.NULL_ADDRESS;
     }
 

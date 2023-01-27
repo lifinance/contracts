@@ -14,14 +14,19 @@ contract DiamondTest {
         DiamondCutFacet diamondCut = new DiamondCutFacet();
         DiamondLoupeFacet diamondLoupe = new DiamondLoupeFacet();
         OwnershipFacet ownership = new OwnershipFacet();
-        LiFiDiamond diamond = new LiFiDiamond(address(this), address(diamondCut));
+        LiFiDiamond diamond = new LiFiDiamond(
+            address(this),
+            address(diamondCut)
+        );
 
         bytes4[] memory functionSelectors;
 
         // Diamond Loupe
 
         functionSelectors = new bytes4[](5);
-        functionSelectors[0] = DiamondLoupeFacet.facetFunctionSelectors.selector;
+        functionSelectors[0] = DiamondLoupeFacet
+            .facetFunctionSelectors
+            .selector;
         functionSelectors[1] = DiamondLoupeFacet.facets.selector;
         functionSelectors[2] = DiamondLoupeFacet.facetAddress.selector;
         functionSelectors[3] = DiamondLoupeFacet.facetAddresses.selector;
@@ -39,7 +44,9 @@ contract DiamondTest {
         functionSelectors = new bytes4[](4);
         functionSelectors[0] = OwnershipFacet.transferOwnership.selector;
         functionSelectors[1] = OwnershipFacet.cancelOwnershipTransfer.selector;
-        functionSelectors[2] = OwnershipFacet.confirmOwnershipTransfer.selector;
+        functionSelectors[2] = OwnershipFacet
+            .confirmOwnershipTransfer
+            .selector;
         functionSelectors[3] = OwnershipFacet.owner.selector;
 
         cut.push(

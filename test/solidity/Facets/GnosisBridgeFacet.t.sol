@@ -25,7 +25,8 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
     // EVENTS
 
     // These values are for Mainnet
-    address internal constant XDAI_BRIDGE = 0x4aa42145Aa6Ebf72e164C9bBC74fbD3788045016;
+    address internal constant XDAI_BRIDGE =
+        0x4aa42145Aa6Ebf72e164C9bBC74fbD3788045016;
     // -----
 
     TestGnosisBridgeFacet internal gnosisBridgeFacet;
@@ -33,22 +34,36 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
     function setUp() public {
         initTestBase();
 
-        gnosisBridgeFacet = new TestGnosisBridgeFacet(IXDaiBridge(XDAI_BRIDGE));
+        gnosisBridgeFacet = new TestGnosisBridgeFacet(
+            IXDaiBridge(XDAI_BRIDGE)
+        );
 
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = gnosisBridgeFacet.startBridgeTokensViaXDaiBridge.selector;
-        functionSelectors[1] = gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge.selector;
+        functionSelectors[0] = gnosisBridgeFacet
+            .startBridgeTokensViaXDaiBridge
+            .selector;
+        functionSelectors[1] = gnosisBridgeFacet
+            .swapAndStartBridgeTokensViaXDaiBridge
+            .selector;
         functionSelectors[2] = gnosisBridgeFacet.addDex.selector;
-        functionSelectors[3] = gnosisBridgeFacet.setFunctionApprovalBySignature.selector;
+        functionSelectors[3] = gnosisBridgeFacet
+            .setFunctionApprovalBySignature
+            .selector;
 
         addFacet(diamond, address(gnosisBridgeFacet), functionSelectors);
 
         gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 
         gnosisBridgeFacet.addDex(address(uniswap));
-        gnosisBridgeFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        gnosisBridgeFacet.setFunctionApprovalBySignature(uniswap.swapExactTokensForETH.selector);
-        gnosisBridgeFacet.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
+        gnosisBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        gnosisBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForETH.selector
+        );
+        gnosisBridgeFacet.setFunctionApprovalBySignature(
+            uniswap.swapETHForExactTokens.selector
+        );
 
         setFacetAddressInTestBase(address(gnosisBridgeFacet), "GnosisFacet");
 
@@ -95,20 +110,27 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            gnosisBridgeFacet.startBridgeTokensViaXDaiBridge{ value: bridgeData.minAmount }(bridgeData);
+            gnosisBridgeFacet.startBridgeTokensViaXDaiBridge{
+                value: bridgeData.minAmount
+            }(bridgeData);
         } else {
             gnosisBridgeFacet.startBridgeTokensViaXDaiBridge(bridgeData);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
-            gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge{ value: swapData[0].fromAmount }(
+            gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData);
+        } else {
+            gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge(
                 bridgeData,
                 swapData
             );
-        } else {
-            gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge(bridgeData, swapData);
         }
     }
 
@@ -117,7 +139,11 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         override
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
-        assertBalanceChange(ADDRESS_DAI, USER_SENDER, -int256(defaultDAIAmount))
+        assertBalanceChange(
+            ADDRESS_DAI,
+            USER_SENDER,
+            -int256(defaultDAIAmount)
+        )
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
         vm.startPrank(USER_SENDER);
@@ -145,7 +171,10 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         setDefaultSwapData();
         bridgeData.hasSourceSwaps = true;
 
-        gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge(bridgeData, swapData);
+        gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge(
+            bridgeData,
+            swapData
+        );
 
         vm.stopPrank();
     }
@@ -161,7 +190,13 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
 
         dai.transfer(USER_RECEIVER, dai.balanceOf(USER_SENDER));
 
-        vm.expectRevert(abi.encodeWithSelector(InsufficientBalance.selector, bridgeData.minAmount, 0));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InsufficientBalance.selector,
+                bridgeData.minAmount,
+                0
+            )
+        );
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }

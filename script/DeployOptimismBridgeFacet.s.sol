@@ -14,7 +14,9 @@ contract DeployScript is DeployScriptBase {
             return OptimismBridgeFacet(predicted);
         }
 
-        deployed = OptimismBridgeFacet(factory.deploy(salt, type(OptimismBridgeFacet).creationCode));
+        deployed = OptimismBridgeFacet(
+            factory.deploy(salt, type(OptimismBridgeFacet).creationCode)
+        );
 
         vm.stopBroadcast();
     }

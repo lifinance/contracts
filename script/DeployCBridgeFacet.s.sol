@@ -11,21 +11,46 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("CBridgeFacet") {}
 
-    function run() public returns (CBridgeFacet deployed, bytes memory constructorArgs) {
+    function run()
+        public
+        returns (CBridgeFacet deployed, bytes memory constructorArgs)
+    {
         // get messageBus address
-        string memory path = string.concat(vm.projectRoot(), "/config/cbridge.json");
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/cbridge.json"
+        );
         string memory json = vm.readFile(path);
-        address messageBus = json.readAddress(string.concat(".", network, ".messageBus"));
+        address messageBus = json.readAddress(
+            string.concat(".", network, ".messageBus")
+        );
         if (messageBus == address(0))
-            revert(string.concat("MessageBus address not found in deployment file for network ", network));
+            revert(
+                string.concat(
+                    "MessageBus address not found in deployment file for network ",
+                    network
+                )
+            );
         console.log("messageBus address: ", messageBus);
         // get relayer address
-        path = string.concat(vm.projectRoot(), "/deployments/", network, ".", fileSuffix, "json");
+        path = string.concat(
+            vm.projectRoot(),
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         json = vm.readFile(path);
         address relayer = json.readAddress(".RelayerCBridge");
         console.log("Relayer address: ", relayer);
         if (relayer == address(0))
-            revert(string.concat("Relayer address not found in deployment file for network ", network));
+            revert(
+                string.concat(
+                    "Relayer address not found in deployment file for network ",
+                    network
+                )
+            );
 
         constructorArgs = abi.encode(messageBus, relayer);
 
@@ -36,7 +61,15 @@ contract DeployScript is DeployScriptBase {
         }
 
         deployed = CBridgeFacet(
-            payable(factory.deploy(salt, bytes.concat(type(CBridgeFacet).creationCode, constructorArgs)))
+            payable(
+                factory.deploy(
+                    salt,
+                    bytes.concat(
+                        type(CBridgeFacet).creationCode,
+                        constructorArgs
+                    )
+                )
+            )
         );
 
         vm.stopBroadcast();

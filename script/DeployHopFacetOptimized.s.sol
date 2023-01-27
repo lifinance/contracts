@@ -14,7 +14,9 @@ contract DeployScript is DeployScriptBase {
             return HopFacetOptimized(predicted);
         }
 
-        deployed = HopFacetOptimized(factory.deploy(salt, type(HopFacetOptimized).creationCode));
+        deployed = HopFacetOptimized(
+            factory.deploy(salt, type(HopFacetOptimized).creationCode)
+        );
 
         vm.stopBroadcast();
     }
