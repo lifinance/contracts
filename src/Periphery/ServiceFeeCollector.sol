@@ -9,8 +9,16 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 /// @notice Provides functionality for collecting service fees
 contract ServiceFeeCollector is TransferrableOwnership {
     /// Events ///
-    event GasFeeCollected();
-    event InsuranceFeeCollected();
+    event GasFeeCollected(
+        address receiver,
+        uint256 dstChainId,
+        uint256 amountCollected
+    );
+    event InsuranceFeeCollected(
+        address receiver,
+        uint256 dstChainId,
+        uint256 amountCollected
+    );
 
     /// Constructor ///
     constructor(address _owner) TransferrableOwnership(_owner) {}
@@ -18,14 +26,23 @@ contract ServiceFeeCollector is TransferrableOwnership {
     /// External Methods ///
 
     /// @notice Collects the gas fee from the caller
-    /// @param _gasFee The gas fee to collect
-    function collectGasFee(uint256 _gasFee) external {
-        emit GasFeeCollected();
+    /// @param receiver The address to send the collected gas fee to
+    /// @param dstChainId The chain ID of the destination chain
+    function collectGasFee(address receiver, uint256 dstChainId) external {
+        emit GasFeeCollected(receiver, dstChainId, msg.value);
     }
 
     /// @notice Collects the insurance fee from the caller
-    /// @param _insuranceFee The insurance fee to collect
-    function collectInsuranceFee(uint256 _insuranceFee) external {
-        emit InsuranceFeeCollected();
+    /// @param receiver The address to send the collected insurance fee to
+    /// @param dstChainId The chain ID of the destination chain
+    function collectInsuranceFee(address receiver, uint256 dstChainId)
+        external
+    {
+        emit InsuranceFeeCollected(receiver, dstChainId, msg.value);
+    }
+
+    /// @notice Withdraws native asset from the contract
+    function withdraw() external onlyOwner {
+        payable(owner).transfer(address(this).balance);
     }
 }
