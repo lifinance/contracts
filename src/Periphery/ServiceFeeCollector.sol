@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.17;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
@@ -6,43 +6,139 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 
 /// @title Service Fee Collector
 /// @author LI.FI (https://li.fi)
-/// @notice Provides functionality for collecting service fees
+/// @notice Provides functionality for collecting service fees (gas/insurance)
 contract ServiceFeeCollector is TransferrableOwnership {
+    /// Errors ///
+    error TransferFailure();
+    error NotEnoughNativeForFees();
+
     /// Events ///
-    event GasFeeCollected(
-        address receiver,
-        uint256 dstChainId,
-        uint256 amountCollected
+    event GasFeesCollected(
+        address indexed _token,
+        address indexed _receiver,
+        uint256 _feeAmount
     );
-    event InsuranceFeeCollected(
-        address receiver,
-        uint256 dstChainId,
-        uint256 amountCollected
+
+    event InsuranceFeesCollected(
+        address indexed _token,
+        address indexed _receiver,
+        uint256 _feeAmount
+    );
+
+    event FeesWithdrawn(
+        address indexed _token,
+        address indexed _to,
+        uint256 _amount
     );
 
     /// Constructor ///
+
     constructor(address _owner) TransferrableOwnership(_owner) {}
 
     /// External Methods ///
 
-    /// @notice Collects the gas fee from the caller
-    /// @param receiver The address to send the collected gas fee to
-    /// @param dstChainId The chain ID of the destination chain
-    function collectGasFee(address receiver, uint256 dstChainId) external {
-        emit GasFeeCollected(receiver, dstChainId, msg.value);
+    /// @notice Collects gas fees
+    /// @param tokenAddress The address of the token to collect
+    /// @param feeAmount The amount of fees to collect
+    /// @param receiver The address to send gas to on the destination chain
+    function collectTokenGasFees(
+        address tokenAddress,
+        uint256 feeAmount,
+        address receiver
+    ) external {
+        LibAsset.depositAsset(tokenAddress, feeAmount);
+        emit GasFeesCollected(tokenAddress, receiver, feeAmount);
     }
 
-    /// @notice Collects the insurance fee from the caller
-    /// @param receiver The address to send the collected insurance fee to
-    /// @param dstChainId The chain ID of the destination chain
-    function collectInsuranceFee(address receiver, uint256 dstChainId)
+    /// @notice Collects gas fees in native token
+    /// @param feeAmount The amount of native token to collect
+    /// @param receiver The address to send gas to on destination chain
+    function collectNativeGasFees(uint256 feeAmount, address receiver)
         external
+        payable
     {
-        emit InsuranceFeeCollected(receiver, dstChainId, msg.value);
+        if (msg.value < feeAmount) revert NotEnoughNativeForFees();
+        uint256 remaining = msg.value - (feeAmount);
+        // Prevent extra native token from being locked in the contract
+        if (remaining > 0) {
+            (bool success, ) = payable(msg.sender).call{ value: remaining }(
+                ""
+            );
+            if (!success) {
+                revert TransferFailure();
+            }
+        }
+        emit GasFeesCollected(LibAsset.NULL_ADDRESS, receiver, feeAmount);
     }
 
-    /// @notice Withdraws native asset from the contract
-    function withdraw() external onlyOwner {
-        payable(owner).transfer(address(this).balance);
+    /// @notice Collects insurance fees
+    /// @param tokenAddress The address of the token to collect
+    /// @param feeAmount The amount of fees to collect
+    /// @param receiver The address to insure
+    function collectTokenInsuranceFees(
+        address tokenAddress,
+        uint256 feeAmount,
+        address receiver
+    ) external {
+        LibAsset.depositAsset(tokenAddress, feeAmount);
+        emit InsuranceFeesCollected(tokenAddress, receiver, feeAmount);
+    }
+
+    /// @notice Collects insurance fees in native token
+    /// @param feeAmount The amount of native token to collect
+    /// @param receiver The address to insure
+    function collectNativeInsuranceFees(uint256 feeAmount, address receiver)
+        external
+        payable
+    {
+        if (msg.value < feeAmount) revert NotEnoughNativeForFees();
+        uint256 remaining = msg.value - (feeAmount);
+        // Prevent extra native token from being locked in the contract
+        if (remaining > 0) {
+            (bool success, ) = payable(msg.sender).call{ value: remaining }(
+                ""
+            );
+            if (!success) {
+                revert TransferFailure();
+            }
+        }
+        emit InsuranceFeesCollected(
+            LibAsset.NULL_ADDRESS,
+            receiver,
+            feeAmount
+        );
+    }
+
+    /// @notice Withdraws fees
+    /// @param tokenAddress The address of the token to withdraw fees for
+    function withdrawFees(address tokenAddress) external onlyOwner {
+        uint256 balance = LibAsset.getOwnBalance(tokenAddress);
+        if (balance == 0) {
+            return;
+        }
+        LibAsset.transferAsset(tokenAddress, payable(msg.sender), balance);
+        emit FeesWithdrawn(tokenAddress, msg.sender, balance);
+    }
+
+    /// @notice Batch withdraws fees
+    /// @param tokenAddresses The addresses of the tokens to withdraw fees for
+    function batchWithdrawFees(address[] memory tokenAddresses)
+        external
+        onlyOwner
+    {
+        uint256 length = tokenAddresses.length;
+        uint256 balance;
+        for (uint256 i = 0; i < length; ) {
+            balance = LibAsset.getOwnBalance(tokenAddresses[i]);
+            LibAsset.transferAsset(
+                tokenAddresses[i],
+                payable(msg.sender),
+                balance
+            );
+            emit FeesWithdrawn(tokenAddresses[i], msg.sender, balance);
+            unchecked {
+                ++i;
+            }
+        }
     }
 }
