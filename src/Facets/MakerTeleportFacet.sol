@@ -17,14 +17,14 @@ import { InvalidSendingToken, NoSwapDataProvided } from "../Errors/GenericErrors
 contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    /// @notice The chain id of Gnosis.
-    uint64 private constant MAINNET_CHAIN_ID = 1;
-
     /// @notice The address of Maker Teleport.
     IMakerTeleport private immutable makerTeleport;
 
     /// @notice The address of DAI on the source chain.
     address private immutable dai;
+
+    /// @notice The chain id of destination chain.
+    uint256 private immutable dstChainId;
 
     /// @notice The domain of l1 network.
     bytes32 private immutable l1Domain;
@@ -34,12 +34,15 @@ contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Initialize the contract.
     /// @param _makerTeleport The address of Maker Teleport.
     /// @param _dai The address of DAI on the source chain.
+    /// @param _dstChainId The chain id of destination chain.
     /// @param _l1Domain The domain of l1 network.
     constructor(
         IMakerTeleport _makerTeleport,
         address _dai,
+        uint256 _dstChainId,
         bytes32 _l1Domain
     ) {
+        dstChainId = _dstChainId;
         makerTeleport = _makerTeleport;
         dai = _dai;
         l1Domain = _l1Domain;
@@ -57,7 +60,7 @@ contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
-        onlyAllowDestinationChain(_bridgeData, MAINNET_CHAIN_ID)
+        onlyAllowDestinationChain(_bridgeData, dstChainId)
         onlyAllowSourceToken(_bridgeData, dai)
     {
         LibAsset.depositAsset(dai, _bridgeData.minAmount);
@@ -67,7 +70,7 @@ contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Performs a swap before bridging via Maker Teleport
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    function swapAndStartBridgeTokensViaMaker(
+    function swapAndStartBridgeTokensViaMakerTeleport(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData
     )
@@ -78,7 +81,7 @@ contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
-        onlyAllowDestinationChain(_bridgeData, MAINNET_CHAIN_ID)
+        onlyAllowDestinationChain(_bridgeData, dstChainId)
         onlyAllowSourceToken(_bridgeData, dai)
     {
         if (_swapData.length == 0) {
