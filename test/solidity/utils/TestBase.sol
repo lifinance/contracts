@@ -231,8 +231,8 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     }
 
     function fork() internal virtual {
-        string memory rpcUrl = bytes(customRpcUrlForForking).length != 0
-            ? customRpcUrlForForking
+        string memory rpcUrl = bytes(customRpcUrlForForking).length > 0
+            ? vm.envString(customRpcUrlForForking)
             : vm.envString("ETH_NODE_URI_MAINNET");
         uint256 blockNumber = customBlockNumberForForking > 0
             ? customBlockNumberForForking
