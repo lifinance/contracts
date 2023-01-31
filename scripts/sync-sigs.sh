@@ -17,4 +17,4 @@ echo 'Updating Sigs'
 for d in "${CFG_SIGS[@]}"; do
   PARAMS+="${d},"
 done
-cast send $DIAMOND "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::-1}]" true --rpc-url ${!RPC} --private-key ${PRIVATE_KEY} --legacy 
+cast send $DIAMOND "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url ${!RPC} --private-key ${PRIVATE_KEY} --legacy
