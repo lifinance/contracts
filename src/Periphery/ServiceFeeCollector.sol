@@ -14,21 +14,21 @@ contract ServiceFeeCollector is TransferrableOwnership {
 
     /// Events ///
     event GasFeesCollected(
-        address indexed _token,
-        address indexed _receiver,
-        uint256 _feeAmount
+        address indexed token,
+        address indexed receiver,
+        uint256 feeAmount
     );
 
     event InsuranceFeesCollected(
-        address indexed _token,
-        address indexed _receiver,
-        uint256 _feeAmount
+        address indexed token,
+        address indexed receiver,
+        uint256 feeAmount
     );
 
     event FeesWithdrawn(
-        address indexed _token,
-        address indexed _to,
-        uint256 _amount
+        address indexed token,
+        address indexed to,
+        uint256 amount
     );
 
     /// Constructor ///
@@ -113,9 +113,6 @@ contract ServiceFeeCollector is TransferrableOwnership {
     /// @param tokenAddress The address of the token to withdraw fees for
     function withdrawFees(address tokenAddress) external onlyOwner {
         uint256 balance = LibAsset.getOwnBalance(tokenAddress);
-        if (balance == 0) {
-            return;
-        }
         LibAsset.transferAsset(tokenAddress, payable(msg.sender), balance);
         emit FeesWithdrawn(tokenAddress, msg.sender, balance);
     }

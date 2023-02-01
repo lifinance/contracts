@@ -12,6 +12,11 @@ contract ServiceFeeCollectorTest is DSTest {
     ServiceFeeCollector private feeCollector;
     ERC20 private feeToken;
 
+    error UnAuthorized();
+    error NoNullOwner();
+    error NotPendingOwner();
+    error NewOwnerMustNotBeSelf();
+
     function setUp() public {
         feeCollector = new ServiceFeeCollector(address(this));
         feeToken = new ERC20("TestToken", "TST", 18);
@@ -129,7 +134,7 @@ contract ServiceFeeCollectorTest is DSTest {
         assert(address(feeCollector).balance == 0);
     }
 
-    function testFailWhenNonOwnerAttemptsToWithdrawFees() public {
+    function testRevertsWhenNonOwnerAttemptsToWithdrawFees() public {
         // Arrange
         uint256 fee = 0.015 ether;
         feeToken.approve(address(feeCollector), fee);
@@ -141,6 +146,7 @@ contract ServiceFeeCollectorTest is DSTest {
 
         // Act
         vm.prank(address(0xb33f));
+        vm.expectRevert(UnAuthorized.selector);
         feeCollector.withdrawFees(address(feeToken));
     }
 
@@ -154,26 +160,32 @@ contract ServiceFeeCollectorTest is DSTest {
         vm.stopPrank();
     }
 
-    function testFailNonOwnerCanTransferOwnership() public {
+    function testRevertsWhenNonOwnerCanTransferOwnership() public {
         address newOwner = address(0x1234567890123456789012345678901234567890);
         assert(feeCollector.owner() != newOwner);
         vm.prank(newOwner);
+        vm.expectRevert(UnAuthorized.selector);
         feeCollector.transferOwnership(newOwner);
     }
 
-    function testFailOnwershipTransferToNullAddr() public {
+    function testRevertsWhenOnwershipTransferToNullAddr() public {
         address newOwner = address(0x0);
+        vm.expectRevert(NoNullOwner.selector);
         feeCollector.transferOwnership(newOwner);
     }
 
-    function testFailOwnerCanConfirmPendingOwnershipTransfer() public {
+    function testRevertsWhenOwnerAttemptsToConfirmPendingOwnershipTransfer()
+        public
+    {
         address newOwner = address(0x1234567890123456789012345678901234567890);
         feeCollector.transferOwnership(newOwner);
+        vm.expectRevert(NotPendingOwner.selector);
         feeCollector.confirmOwnershipTransfer();
     }
 
-    function testFailOwnershipTransferToSelf() public {
+    function testRevertsOnOwnershipTransferToSelf() public {
         address newOwner = address(this);
+        vm.expectRevert(NewOwnerMustNotBeSelf.selector);
         feeCollector.transferOwnership(newOwner);
     }
 }
