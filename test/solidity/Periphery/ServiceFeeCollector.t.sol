@@ -50,6 +50,36 @@ contract ServiceFeeCollectorTest is DSTest {
         assert(address(feeCollector).balance == fee);
     }
 
+    function testCanCollectTokenInsuranceFees() public {
+        // Arrange
+        uint256 fee = 0.015 ether;
+
+        // Act
+        feeToken.approve(address(feeCollector), fee);
+        feeCollector.collectTokenInsuranceFees(
+            address(feeToken),
+            fee,
+            address(0xb33f)
+        );
+
+        // Assert
+        assert(feeToken.balanceOf(address(feeCollector)) == fee);
+    }
+
+    function testCanCollectNativeInsuranceFees() public {
+        // Arrange
+        uint256 fee = 0.015 ether;
+
+        // Act
+        feeCollector.collectNativeInsuranceFees{ value: fee }(
+            fee,
+            address(0xb33f)
+        );
+
+        // Assert
+        assert(address(feeCollector).balance == fee);
+    }
+
     function testCanWithdrawFees() public {
         // Arrange
         uint256 fee = 0.015 ether;
