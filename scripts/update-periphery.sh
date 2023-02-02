@@ -19,6 +19,7 @@ AXELAREXECUTOR=$(jq -r '.AxelarExecutor // "0x"' $ADDRS)
 EXECUTOR=$(jq -r '.Executor // "0x"' $ADDRS)
 RECEIVER=$(jq -r '.Receiver // "0x"' $ADDRS)
 FEECOLLECTOR=$(jq -r '.FeeCollector // "0x"' $ADDRS)
+SERVICEFEECOLLECTOR=$(jq -r '.ServiceFeeCollector // "0x"' $ADDRS)
 RELAYERCBRIDGE=$(jq -r '.RelayerCBridge // "0x"' $ADDRS)
 
 echo "Diamond: $DIAMOND"
@@ -47,6 +48,12 @@ if [[ "$FEECOLLECTOR" != "0x" && " ${CONTRACTS[*]}" =~ "feeCollector" ]]; then
   echo "Updating FeeCollector $FEECOLLECTOR"
   register $NETWORK $DIAMOND 'FeeCollector' $FEECOLLECTOR
 fi
+
+if [[ "$SERVICEFEECOLLECTOR" != "0x" && " ${CONTRACTS[*]}" =~ "serviceFeeCollector" ]]; then
+  echo "Updating FeeCollector $SERVICEFEECOLLECTOR"
+  register $NETWORK $DIAMOND 'ServiceFeeCollector' $SERVICEFEECOLLECTOR
+fi
+
 
 if [[ "$RELAYERCBRIDGE" != "0x" && " ${CONTRACTS[*]}" =~ "relayerCBridge" ]]; then
   echo "Updating RelayerCBridge $RELAYERCBRIDGE"
