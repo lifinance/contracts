@@ -9,7 +9,7 @@ load() {
 	fi
 
 NETWORK=$(cat ./networks | gum filter --placeholder "Network")
-CONTRACTS=$(gum choose --no-limit erc20Proxy axelarExecutor executor receiver feeCollector relayerCBridge)
+CONTRACTS=$(gum choose --no-limit erc20Proxy axelarExecutor executor receiver feeCollector serviceFeeCollector relayerCBridge)
 
 ADDRS="deployments/$NETWORK$FILE_SUFFIX.json"
 
@@ -50,7 +50,7 @@ if [[ "$FEECOLLECTOR" != "0x" && " ${CONTRACTS[*]}" =~ "feeCollector" ]]; then
 fi
 
 if [[ "$SERVICEFEECOLLECTOR" != "0x" && " ${CONTRACTS[*]}" =~ "serviceFeeCollector" ]]; then
-  echo "Updating FeeCollector $SERVICEFEECOLLECTOR"
+  echo "Updating ServiceFeeCollector $SERVICEFEECOLLECTOR"
   register $NETWORK $DIAMOND 'ServiceFeeCollector' $SERVICEFEECOLLECTOR
 fi
 
