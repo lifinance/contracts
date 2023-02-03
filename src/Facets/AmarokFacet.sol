@@ -132,7 +132,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData The core information needed for bridging
     /// @param _amarokData Data specific to Amarok
     function _startBridge(
-        BridgeData calldata _bridgeData,
+        BridgeData memory _bridgeData,
         AmarokData calldata _amarokData
     ) private {
         // get Amarok-specific domain for destination chain
