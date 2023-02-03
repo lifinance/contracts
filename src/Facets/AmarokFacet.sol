@@ -37,7 +37,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param callTo The address of the contract on dest chain that will receive bridged funds and execute data
     /// @param relayerFee The amount of relayer fee the tx called xcall with
     /// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
-    /// @param delegate Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
+    /// @param delegate Destination delegate address
     struct AmarokData {
         bytes callData;
         address callTo;
@@ -87,9 +87,9 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// @notice Performs a swap before bridging via Amarok
-    /// @param _bridgeData Data used purely for tracking and analytics
+    /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _amarokData Data specific to bridge
+    /// @param _amarokData Data specific to Amarok
     function swapAndStartBridgeTokensViaAmarok(
         BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
@@ -129,10 +129,10 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Amarok
-    /// @param _bridgeData Data used purely for tracking and analytics
+    /// @param _bridgeData The core information needed for bridging
     /// @param _amarokData Data specific to Amarok
     function _startBridge(
-        BridgeData memory _bridgeData,
+        BridgeData calldata _bridgeData,
         AmarokData calldata _amarokData
     ) private {
         // get Amarok-specific domain for destination chain
@@ -147,12 +147,16 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount
         );
 
+        address receiver = _bridgeData.hasDestinationCall
+            ? _amarokData.callTo
+            : _bridgeData.receiver;
+
         // initiate bridge transaction
         connextHandler.xcall{ value: _amarokData.relayerFee }(
             dstChainDomain,
-            _bridgeData.receiver,
+            receiver,
             _bridgeData.sendingAssetId,
-            _bridgeData.receiver,
+            _amarokData.delegate,
             _bridgeData.minAmount,
             _amarokData.slippageTol,
             _amarokData.callData
