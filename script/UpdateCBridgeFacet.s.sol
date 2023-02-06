@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
-import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
+import {CelerIMFacet} from "lifi/Facets/CelerIMFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
@@ -19,7 +19,7 @@ contract DeployScript is UpdateScriptBase {
             "json"
         );
         string memory json = vm.readFile(path);
-        address facet = json.readAddress(".CBridgeFacet");
+        address facet = json.readAddress(".CelerIMFacet");
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -30,7 +30,7 @@ contract DeployScript is UpdateScriptBase {
                 IDiamondCut.FacetCut({
                     facetAddress: address(facet),
                     action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("CBridgeFacet", exclude)
+                    functionSelectors: getSelectors("CelerIMFacet", exclude)
                 })
             );
             cutter.diamondCut(cut, address(0), "");

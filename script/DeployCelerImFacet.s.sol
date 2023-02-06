@@ -3,17 +3,16 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
-import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
+import {CelerIMFacet} from "lifi/Facets/CelerIMFacet.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("CBridgeFacet") {}
+    constructor() DeployScriptBase("CelerIMFacet") {}
 
     function run()
         public
-        returns (CBridgeFacet deployed, bytes memory constructorArgs)
+        returns (CelerIMFacet deployed, bytes memory constructorArgs)
     {
         // get messageBus address
         string memory path = string.concat(
@@ -31,7 +30,6 @@ contract DeployScript is DeployScriptBase {
                     network
                 )
             );
-        console.log("messageBus address: ", messageBus);
         // get relayer address
         path = string.concat(
             vm.projectRoot(),
@@ -43,7 +41,6 @@ contract DeployScript is DeployScriptBase {
         );
         json = vm.readFile(path);
         address relayer = json.readAddress(".RelayerCBridge");
-        console.log("Relayer address: ", relayer);
         if (relayer == address(0))
             revert(
                 string.concat(
@@ -57,15 +54,15 @@ contract DeployScript is DeployScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return (CBridgeFacet(payable(predicted)), constructorArgs);
+            return (CelerIMFacet(payable(predicted)), constructorArgs);
         }
 
-        deployed = CBridgeFacet(
+        deployed = CelerIMFacet(
             payable(
                 factory.deploy(
                     salt,
                     bytes.concat(
-                        type(CBridgeFacet).creationCode,
+                        type(CelerIMFacet).creationCode,
                         constructorArgs
                     )
                 )
