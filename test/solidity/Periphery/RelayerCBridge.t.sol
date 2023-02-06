@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import { LibSwap, LibAllowList, TestBase, console } from "../utils/TestBase.sol";
 import { InvalidAmount, UnAuthorized, ExternalCallFailed } from "lifi/Errors/GenericErrors.sol";
-import { CBridgeFacet, IMessageBus, MsgDataTypes } from "lifi/Facets/CBridgeFacet.sol";
+import { CelerIMFacet, IMessageBus, MsgDataTypes } from "lifi/Facets/CelerIMFacet.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 import { RelayerCBridge } from "lifi/Periphery/RelayerCBridge.sol";
@@ -24,7 +24,7 @@ contract RelayerCBridgeTest is TestBase {
         0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
     address internal constant CBRIDGE_MESSAGEBUS_ETH =
         0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
-    CBridgeFacet.CBridgeData internal cBridgeData;
+    CelerIMFacet.CelerIMData internal celerIMData;
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
     RelayerCBridge internal relayer;
@@ -44,7 +44,7 @@ contract RelayerCBridgeTest is TestBase {
             address(executor)
         );
 
-        cBridgeData = CBridgeFacet.CBridgeData({
+        celerIMData = CelerIMFacet.CelerIMData({
             maxSlippage: 5000,
             nonce: 1,
             callTo: abi.encodePacked(address(0)),
