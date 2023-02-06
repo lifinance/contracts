@@ -12,7 +12,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
-import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
+import {CelerIMFacet} from "lifi/Facets/CelerIMFacet.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 
@@ -150,7 +150,7 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
      */
     function sendTokenTransfer(
         ILiFi.BridgeData memory _bridgeData,
-        CBridgeFacet.CBridgeData memory _cBridgeData
+        CelerIMFacet.CelerIMData memory _cBridgeData
     )
         external
         payable
