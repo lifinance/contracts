@@ -19,8 +19,6 @@ contract DeployScript is UpdateScriptBase {
         returns (LiFiDiamond deployed, bytes memory constructorArgs)
     {
         address diamondCut = json.readAddress(".DiamondCutFacet");
-        console.log("diamondCut: ", diamondCut);
-        console.log("cutter: ", address(cutter));
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -31,10 +29,10 @@ contract DeployScript is UpdateScriptBase {
         // remove diamondCut facet to not allow any further code changes to the contract
         bytes4[] memory exclude;
         cut.push(
-                IDiamondCut.FacetCut({
-            facetAddress: address(0),
-            action: IDiamondCut.FacetCutAction.Remove,
-            functionSelectors: getSelectors("DiamondCutFacet", exclude)
+            IDiamondCut.FacetCut({
+                facetAddress: address(0),
+                action: IDiamondCut.FacetCutAction.Remove,
+                functionSelectors: getSelectors("DiamondCutFacet", exclude)
             })
         );
         cutter.diamondCut(cut, address(0), "");

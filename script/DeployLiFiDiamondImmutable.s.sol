@@ -14,9 +14,6 @@ contract DeployScript is DeployScriptBase {
     address internal diamondImmutable;
     DiamondCutFacet internal cutter;
 
-
-
-
     constructor() DeployScriptBase("LiFiDiamond") {
 
         network = vm.envString("NETWORK");
@@ -69,17 +66,6 @@ contract DeployScript is DeployScriptBase {
                 )
             )
         );
-
-        // remove diamondCut facet to not allow any further code changes to the contract
-        bytes4[] memory emptyArray = new bytes4[](0);
-        cut.push(
-                IDiamondCut.FacetCut({
-            facetAddress: address(cutter),
-            action: IDiamondCut.FacetCutAction.Remove,
-            functionSelectors: emptyArray
-            })
-        );
-        cutter.diamondCut(cut, address(0), "");
 
         vm.stopBroadcast();
     }
