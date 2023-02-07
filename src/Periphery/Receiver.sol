@@ -93,7 +93,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     }
 
     /// @notice Completes a cross-chain transaction with calldata via Amarok facet on the receiving chain.
-    /// @dev This function is called from Stargate Router.
+    /// @dev This function is called from Amarok Router.
     /// @param _transferId The unique ID of this transaction (assigned by Amarok)
     /// @param _amount the amount of bridged tokens
     /// @param _asset the address of the bridged token
