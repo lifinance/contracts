@@ -29,6 +29,7 @@ update() {
 	echo $SCRIPT
 	# execute selected script
 	RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy)
+	checkFailure
   echo $RAW_RETURN_DATA
   # extract the "logs" property and its contents from return data
 	CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
@@ -70,6 +71,13 @@ saveDiamond() {
 	fi
 	result=$(cat "$DIAMOND_FILE" | jq -r ". + {\"facets\": [$FACETS] }" || cat "$DIAMOND_FILE")
 	printf %s "$result" >"$DIAMOND_FILE"
+}
+
+checkFailure() {
+	if [[ $? -ne 0 ]]; then
+		echo "Failed to update diamond"
+		exit 1
+	fi
 }
 
 

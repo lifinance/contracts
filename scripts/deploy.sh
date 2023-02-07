@@ -22,7 +22,7 @@ deploy() {
     # get contract bytecode
     BYTECODE=$(forge inspect $CONTRACTADJ bytecode)
     # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
-    BYTECODEADJ="$BYTECODE"ffffffffffffffffffffffffffffffffffffffffff
+    BYTECODEADJ="$BYTECODE"ffffffffffffffffffffffffffffffffffffffff
     # create salt with keccak(bytecode)
     SALT=$(cast keccak $BYTECODEADJ)
   else
@@ -37,6 +37,7 @@ deploy() {
 
   # execute script
 	RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+	checkFailure
   echo $RAW_RETURN_DATA
   # clean tx return data
 	CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
