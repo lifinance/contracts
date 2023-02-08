@@ -20,8 +20,10 @@ update() {
   # get diamond address from path
   DIAMOND=$(jq -r '.LiFiDiamondImmutable' $ADDRS)
 
-
-  echo "!!! ATTENTION !!!"
+  gum style \
+	--foreground 212 --border-foreground 213 --border double \
+	--align center --width 50 --margin "1 2" --padding "2 4" \
+	'!!! ATTENTION !!!'
   echo "Please check that this is the correct diamond address: $DIAMOND"
   echo "If you confirm the next prompt, this diamond will be made immutable"
   echo "Please check if you have added all necessary facets"
