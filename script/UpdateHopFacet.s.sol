@@ -59,7 +59,7 @@ contract DeployScript is UpdateScriptBase {
                     functionSelectors: getSelectors("HopFacet", exclude)
                 })
             );
-            cutter.diamondCut(cut, address(0), "");
+            cutter.diamondCut(cut, address(0), callData);
         }
 
         facets = loupe.facetAddresses();
