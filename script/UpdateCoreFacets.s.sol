@@ -9,25 +9,18 @@ import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
+import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     function run() public returns (address[] memory facets) {
-        string memory path = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".",
-            fileSuffix,
-            "json"
-        );
-        string memory json = vm.readFile(path);
         address diamondLoupe = json.readAddress(".DiamondLoupeFacet");
         address ownership = json.readAddress(".OwnershipFacet");
         address withdraw = json.readAddress(".WithdrawFacet");
         address dexMgr = json.readAddress(".DexManagerFacet");
         address accessMgr = json.readAddress(".AccessManagerFacet");
+        address peripheryRgs = json.readAddress(".PeripheryRegistryFacet");
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -82,6 +75,18 @@ contract DeployScript is UpdateScriptBase {
                 action: IDiamondCut.FacetCutAction.Add,
                 functionSelectors: getSelectors(
                     "AccessManagerFacet",
+                    emptyExclude
+                )
+            })
+        );
+
+        // PeripheryRegistry
+        cut.push(
+            IDiamondCut.FacetCut({
+                facetAddress: peripheryRgs,
+                action: IDiamondCut.FacetCutAction.Add,
+                functionSelectors: getSelectors(
+                    "PeripheryRegistryFacet",
                     emptyExclude
                 )
             })
