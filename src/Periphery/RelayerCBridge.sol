@@ -418,6 +418,22 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
         }
     }
 
+    /// @notice Sends remaining token to given receiver address (for refund cases)
+    /// @param assetId address of the token to be withdrawn
+    /// @param receiver address that will receive tokens
+    /// @param amount amount of tokens to be withdrawn
+    function withdraw(
+        address assetId,
+        address payable receiver,
+        uint256 amount
+    ) external onlyOwner {
+        if (LibAsset.isNativeAsset(assetId)) {
+            receiver.call{ value: amount }("");
+        } else {
+            IERC20(assetId).safeTransfer(receiver, amount);
+        }
+    }
+
     // required in order to receive native tokens from cBridge facet
     receive() external payable {}
 }
