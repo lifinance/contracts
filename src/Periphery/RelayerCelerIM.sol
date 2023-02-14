@@ -146,11 +146,11 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /**
      * @notice Forwards a call to transfer tokens to cBridge (sent via this contract to ensure that potential refunds are sent here)
      * @param _bridgeData the core information needed for bridging
-     * @param _cBridgeData data specific to CBridge
+     * @param _celerIMData data specific to CelerIM
      */
     function sendTokenTransfer(
         ILiFi.BridgeData memory _bridgeData,
-        CelerIMFacet.CelerIMData memory _cBridgeData
+        CelerIMFacet.CelerIMData memory _celerIMData
     )
         external
         payable
@@ -159,7 +159,7 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     {
         // approve to and call correct bridge depending on BridgeSendType
         // @dev copied and slightly adapted from Celer MessageSenderLib
-        if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.Liquidity) {
+        if (_celerIMData.bridgeType == MsgDataTypes.BridgeSendType.Liquidity) {
             bridgeAddress = cBridgeMessageBus.liquidityBridge();
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
                 // case: native asset bridging
@@ -169,8 +169,8 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     _bridgeData.receiver,
                     _bridgeData.minAmount,
                     uint64(_bridgeData.destinationChainId),
-                    _cBridgeData.nonce,
-                    _cBridgeData.maxSlippage
+                    _celerIMData.nonce,
+                    _celerIMData.maxSlippage
                 );
             } else {
                 // case: ERC20 asset bridging
@@ -184,8 +184,8 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     _bridgeData.sendingAssetId,
                     _bridgeData.minAmount,
                     uint64(_bridgeData.destinationChainId),
-                    _cBridgeData.nonce,
-                    _cBridgeData.maxSlippage
+                    _celerIMData.nonce,
+                    _celerIMData.maxSlippage
                 );
             }
             transferId = MessageSenderLib.computeLiqBridgeTransferId(
@@ -193,10 +193,10 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 uint64(_bridgeData.destinationChainId),
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
         } else if (
-            _cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegDeposit
+            _celerIMData.bridgeType == MsgDataTypes.BridgeSendType.PegDeposit
         ) {
             bridgeAddress = cBridgeMessageBus.pegVault();
             LibAsset.maxApproveERC20(
@@ -209,17 +209,17 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _bridgeData.minAmount,
                 uint64(_bridgeData.destinationChainId),
                 _bridgeData.receiver,
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
             transferId = MessageSenderLib.computePegV1DepositId(
                 _bridgeData.receiver,
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 uint64(_bridgeData.destinationChainId),
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
         } else if (
-            _cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegBurn
+            _celerIMData.bridgeType == MsgDataTypes.BridgeSendType.PegBurn
         ) {
             bridgeAddress = cBridgeMessageBus.pegBridge();
             LibAsset.maxApproveERC20(
@@ -231,16 +231,16 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 _bridgeData.receiver,
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
             transferId = MessageSenderLib.computePegV1BurnId(
                 _bridgeData.receiver,
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
         } else if (
-            _cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Deposit
+            _celerIMData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Deposit
         ) {
             bridgeAddress = cBridgeMessageBus.pegVaultV2();
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
@@ -250,7 +250,7 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     _bridgeData.minAmount,
                     uint64(_bridgeData.destinationChainId),
                     _bridgeData.receiver,
-                    _cBridgeData.nonce
+                    _celerIMData.nonce
                 );
             } else {
                 // case: ERC20 bridging
@@ -264,11 +264,11 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     _bridgeData.minAmount,
                     uint64(_bridgeData.destinationChainId),
                     _bridgeData.receiver,
-                    _cBridgeData.nonce
+                    _celerIMData.nonce
                 );
             }
         } else if (
-            _cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Burn
+            _celerIMData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Burn
         ) {
             bridgeAddress = cBridgeMessageBus.pegBridgeV2();
             LibAsset.maxApproveERC20(
@@ -281,10 +281,10 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _bridgeData.minAmount,
                 uint64(_bridgeData.destinationChainId),
                 _bridgeData.receiver,
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
         } else if (
-            _cBridgeData.bridgeType ==
+            _celerIMData.bridgeType ==
             MsgDataTypes.BridgeSendType.PegV2BurnFrom
         ) {
             bridgeAddress = cBridgeMessageBus.pegBridgeV2();
@@ -298,7 +298,7 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _bridgeData.minAmount,
                 uint64(_bridgeData.destinationChainId),
                 _bridgeData.receiver,
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
         } else {
             revert InvalidConfig();
