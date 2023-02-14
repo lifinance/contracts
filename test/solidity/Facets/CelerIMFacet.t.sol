@@ -4,13 +4,13 @@ pragma solidity 0.8.17;
 import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
 import { CelerIMFacet, IMessageBus, MsgDataTypes, IERC20 } from "lifi/Facets/CelerIMFacet.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
-import { RelayerCBridge } from "lifi/Periphery/RelayerCBridge.sol";
+import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CelerIMFacet Contract
 contract TestCelerIMFacet is CelerIMFacet {
-    constructor(IMessageBus _messageBus, RelayerCBridge _relayer)
+    constructor(IMessageBus _messageBus, RelayerCelerIM _relayer)
         CelerIMFacet(_messageBus, _relayer)
     {}
 
@@ -81,7 +81,7 @@ contract CelerIMFacetTest is TestBaseFacet {
     CelerIMFacet.CelerIMData internal celerIMData;
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
-    RelayerCBridge internal relayer;
+    RelayerCelerIM internal relayer;
 
     function setUp() public {
         customBlockNumberForForking = 16227237;
@@ -90,7 +90,7 @@ contract CelerIMFacetTest is TestBaseFacet {
         // deploy periphery
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(this), address(erc20Proxy));
-        relayer = new RelayerCBridge(
+        relayer = new RelayerCelerIM(
             address(this),
             CBRIDGE_MESSAGEBUS_ETH,
             address(diamond),

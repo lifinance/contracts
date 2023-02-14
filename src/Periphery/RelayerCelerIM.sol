@@ -16,10 +16,10 @@ import {CelerIMFacet} from "lifi/Facets/CelerIMFacet.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 
-/// @title RelayerCBridge
+/// @title RelayerCelerIM
 /// @author LI.FI (https://li.fi)
-/// @notice Relayer contract for CBridge/CelerIM that forwards calls to cBridge and handles refunds
-contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
+/// @notice Relayer contract for CelerIM that forwards calls and handles refunds on src side and acts receiver on dest
+contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
     /// Storage ///

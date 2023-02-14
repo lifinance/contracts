@@ -6,7 +6,7 @@ import { InvalidAmount, UnAuthorized, ExternalCallFailed } from "lifi/Errors/Gen
 import { CelerIMFacet, IMessageBus, MsgDataTypes } from "lifi/Facets/CelerIMFacet.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
-import { RelayerCBridge } from "lifi/Periphery/RelayerCBridge.sol";
+import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 
@@ -14,7 +14,7 @@ interface Ownable {
     function owner() external returns (address);
 }
 
-contract RelayerCBridgeTest is TestBase {
+contract RelayerCelerIMTest is TestBase {
     /// Events ///
     event CBridgeMessageBusSet(address indexed messageBusAddress);
     event DiamondAddressSet(address indexed diamondAddress);
@@ -27,7 +27,7 @@ contract RelayerCBridgeTest is TestBase {
     CelerIMFacet.CelerIMData internal celerIMData;
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
-    RelayerCBridge internal relayer;
+    RelayerCelerIM internal relayer;
 
     function setUp() public {
         initTestBase();
@@ -37,7 +37,7 @@ contract RelayerCBridgeTest is TestBase {
         // deploy CelerIM Receiver
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(this), address(erc20Proxy));
-        relayer = new RelayerCBridge(
+        relayer = new RelayerCelerIM(
             address(this),
             CBRIDGE_MESSAGEBUS_ETH,
             address(diamond),
@@ -89,7 +89,7 @@ contract RelayerCBridgeTest is TestBase {
             })
         );
 
-        // create callData that will be sent to our RelayerCBridge (from CBridge MessageBus)
+        // create callData that will be sent to our RelayerCelerIM (from CBridge MessageBus)
         bytes32 transactionId = 0x7472616e73616374696f6e496400000000000000000000000000000000000000;
         bytes memory payload = abi.encode(
             transactionId,
@@ -125,7 +125,7 @@ contract RelayerCBridgeTest is TestBase {
             block.timestamp
         );
 
-        // call function in RelayerCBridge to complete transaction
+        // call function in RelayerCelerIM to complete transaction
         relayer.executeMessageWithTransfer(
             address(this),
             ADDRESS_DAI,
@@ -142,7 +142,7 @@ contract RelayerCBridgeTest is TestBase {
 
         vm.expectRevert(UnAuthorized.selector);
 
-        // call function in RelayerCBridge to complete transaction
+        // call function in RelayerCelerIM to complete transaction
         relayer.executeMessageWithTransfer(
             address(this),
             ADDRESS_DAI,
@@ -158,7 +158,7 @@ contract RelayerCBridgeTest is TestBase {
 
         vm.expectRevert(UnAuthorized.selector);
 
-        // call function in RelayerCBridge to complete transaction
+        // call function in RelayerCelerIM to complete transaction
         relayer.executeMessageWithTransferRefund(
             ADDRESS_DAI,
             0,
@@ -202,7 +202,7 @@ contract RelayerCBridgeTest is TestBase {
             })
         );
 
-        // create callData that will be sent to our RelayerCBridge (from CBridge MessageBus)
+        // create callData that will be sent to our RelayerCelerIM (from CBridge MessageBus)
         bytes32 transactionId = 0x7472616e73616374696f6e496400000000000000000000000000000000000000;
         bytes memory payload = abi.encode(
             transactionId,
@@ -227,7 +227,7 @@ contract RelayerCBridgeTest is TestBase {
             block.timestamp
         );
 
-        // call function in RelayerCBridge to complete transaction
+        // call function in RelayerCelerIM to complete transaction
         relayer.executeMessageWithTransfer(
             address(this),
             ADDRESS_DAI,
