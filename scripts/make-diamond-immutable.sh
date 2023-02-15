@@ -17,13 +17,14 @@ update() {
   # define path of JSON file to get diamond address from
 	ADDRS="deployments/$NETWORK.${FILE_SUFFIX}json"
 
-  # get diamond address from path
-  DIAMOND=$(jq -r '.LiFiDiamondImmutable' $ADDRS)
+  # get diamond address from path (finds any key that contains "LiFiDiamondImmutable", works with versioning (V1, V2 etc.)
+  DIAMOND=$(jq 'to_entries[] | select(.key | contains("LiFiDiamondImmutable")) | .value' $ADDRS)
 
   gum style \
 	--foreground 212 --border-foreground 213 --border double \
 	--align center --width 50 --margin "1 2" --padding "2 4" \
 	'!!! ATTENTION !!!'
+
   echo "Please check that this is the correct diamond address: $DIAMOND"
   echo "If you confirm the next prompt, this diamond will be made immutable"
   echo "Please check if you have added all necessary facets"
@@ -33,7 +34,7 @@ update() {
   gum confirm && exit 1 || echo "OK, let's do it"
 
 	# execute selected script
-	RAW_RETURN_DATA=$(NETWORK=$NETWORK SALT="" FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=true forge script script/MakeLiFiDiamondImmutable.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy)
+	RAW_RETURN_DATA=$(NETWORK=$NETWORK SALT="" FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=true forge script script/MakeLiFiDiamondImmutable.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy --tc DeployScript)
   checkFailure
   echo $RAW_RETURN_DATA
 
