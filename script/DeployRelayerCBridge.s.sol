@@ -3,16 +3,16 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { RelayerCBridge } from "lifi/Periphery/RelayerCBridge.sol";
+import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("RelayerCBridge") {}
+    constructor() DeployScriptBase("RelayerCelerIM") {}
 
     function run()
         public
-        returns (RelayerCBridge deployed, bytes memory constructorArgs)
+        returns (RelayerCelerIM deployed, bytes memory constructorArgs)
     {
         string memory path = string.concat(
             vm.projectRoot(),
@@ -51,15 +51,15 @@ contract DeployScript is DeployScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return (RelayerCBridge(payable(predicted)), constructorArgs);
+            return (RelayerCelerIM(payable(predicted)), constructorArgs);
         }
 
-        deployed = RelayerCBridge(
+        deployed = RelayerCelerIM(
             payable(
                 factory.deploy(
                     salt,
                     bytes.concat(
-                        type(RelayerCBridge).creationCode,
+                        type(RelayerCelerIM).creationCode,
                         constructorArgs
                     )
                 )
