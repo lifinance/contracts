@@ -34,8 +34,30 @@ update() {
   gum confirm && exit 1 || echo "OK, let's do it"
 
 	# execute selected script
-	RAW_RETURN_DATA=$(NETWORK=$NETWORK SALT="" FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=true forge script script/MakeLiFiDiamondImmutable.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy --tc DeployScript)
-  checkFailure
+	attempts=1  # initialize attempts to 0
+
+  while [ $attempts -lt 11 ]
+  do
+    echo "Trying to  make $DIAMOND immutable now - attempt ${attempts}"
+    # try to execute call
+    RAW_RETURN_DATA=$(NETWORK=$NETWORK SALT="" FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=true forge script script/MakeLiFiDiamondImmutable.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy --tc DeployScript)
+
+    # check the return code the last call
+    if [ $? -eq 0 ]
+    then
+      break  # exit the loop if the operation was successful
+    fi
+
+    attempts=$((attempts+1))  # increment attempts
+    sleep 1  # wait for 1 second before trying the operation again
+  done
+
+  if [ $attempts -eq 11 ]
+  then
+      echo "Failed to make $DIAMOND immutable"
+      exit 1
+  fi
+
   echo $RAW_RETURN_DATA
 
   echo ""

@@ -23,7 +23,6 @@ contract DeployScript is UpdateScriptBase {
     ImmutableDiamondOwnershipTransfer internal ownershipTransfer;
 
     constructor() UpdateScriptBase() {
-        ownershipTransfer = new ImmutableDiamondOwnershipTransfer();
     }
 
     function run()
@@ -34,6 +33,10 @@ contract DeployScript is UpdateScriptBase {
 
         vm.startBroadcast(deployerPrivateKey);
 
+        // deploy helper contract
+        ownershipTransfer = new ImmutableDiamondOwnershipTransfer();
+
+        // check if diamond address has contract deployed to
         if (!isContract(diamond)) {
             revert("Error in script - check if diamondImmutable is deployed under stored address");
         }
