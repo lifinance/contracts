@@ -23,12 +23,6 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The domain of source chain.
     uint32 private immutable srcChainDomain;
 
-    /// Errors ///
-
-    /// Events ///
-
-    /// Types ///
-
     /// @param callData The data to execute on the receiving chain. If no crosschain call is needed, then leave empty.
     /// @param callTo The address of the contract on dest chain that will receive bridged funds and execute data
     /// @param relayerFee The amount of relayer fee the tx called xcall with
