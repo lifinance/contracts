@@ -25,11 +25,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Errors ///
 
-    error UnknownAmarokDomain(uint32 domain);
-
     /// Events ///
-
-    event AmarokDomainSet(uint256 indexed chainId, uint32 indexed domain);
 
     /// Types ///
 
@@ -38,12 +34,14 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param relayerFee The amount of relayer fee the tx called xcall with
     /// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
     /// @param delegate Destination delegate address
+    /// @param domainId The Amarok-specific domainId of the destination chain
     struct AmarokData {
         bytes callData;
         address callTo;
         uint256 relayerFee;
         uint256 slippageTol;
         address delegate;
+        uint32 destChainDomainId;
     }
 
     /// Constructor ///
@@ -118,14 +116,6 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData, _amarokData);
     }
 
-    function setAmarokDomain(uint256 _chainId, uint32 _domain) external {
-        LibDiamond.enforceIsContractOwner();
-        LibMappings.AmarokMappings storage sm = LibMappings
-            .getAmarokMappings();
-        sm.amarokDomain[_chainId] = _domain;
-        emit AmarokDomainSet(_chainId, _domain);
-    }
-
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via Amarok
@@ -135,11 +125,6 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         BridgeData memory _bridgeData,
         AmarokData calldata _amarokData
     ) private {
-        // get Amarok-specific domain for destination chain
-        uint32 dstChainDomain = getAmarokDomain(
-            _bridgeData.destinationChainId
-        );
-
         // give max approval for token to Amarok bridge, if not already
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
@@ -153,7 +138,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // initiate bridge transaction
         connextHandler.xcall{ value: _amarokData.relayerFee }(
-            dstChainDomain,
+            _amarokData.destChainDomainId,
             receiver,
             _bridgeData.sendingAssetId,
             _amarokData.delegate,
@@ -163,16 +148,6 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         emit LiFiTransferStarted(_bridgeData);
-    }
-
-    function getAmarokDomain(uint256 _chainId) private view returns (uint32) {
-        LibMappings.AmarokMappings storage sm = LibMappings
-            .getAmarokMappings();
-        uint32 domain = sm.amarokDomain[_chainId];
-        if (domain == 0) {
-            revert UnknownAmarokDomain(domain);
-        }
-        return domain;
     }
 
     function hasDestinationCall(AmarokData calldata _amarokData)

@@ -44,14 +44,13 @@ contract AmarokFacetTest is TestBaseFacet {
             IConnextHandler(CONNEXT_HANDLER2),
             DSTCHAIN_DOMAIN_MAINNET
         );
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = amarokFacet.startBridgeTokensViaAmarok.selector;
         functionSelectors[1] = amarokFacet
             .swapAndStartBridgeTokensViaAmarok
             .selector;
-        functionSelectors[2] = amarokFacet.setAmarokDomain.selector;
-        functionSelectors[3] = amarokFacet.addDex.selector;
-        functionSelectors[4] = amarokFacet
+        functionSelectors[2] = amarokFacet.addDex.selector;
+        functionSelectors[3] = amarokFacet
             .setFunctionApprovalBySignature
             .selector;
 
@@ -70,10 +69,6 @@ contract AmarokFacetTest is TestBaseFacet {
         // label addresses for better call traces
         vm.label(CONNEXT_HANDLER, "CONNEXT_HANDLER");
 
-        // set Amarok domain mappings
-        amarokFacet.setAmarokDomain(1, DSTCHAIN_DOMAIN_MAINNET);
-        amarokFacet.setAmarokDomain(137, DSTCHAIN_DOMAIN_POLYGON);
-
         // adjust bridgeData
         bridgeData.bridge = "amarok";
         bridgeData.destinationChainId = 137;
@@ -86,7 +81,8 @@ contract AmarokFacetTest is TestBaseFacet {
             callTo: receiver,
             relayerFee: 0,
             slippageTol: 9995,
-            delegate: delegate
+            delegate: delegate,
+            destChainDomainId: DSTCHAIN_DOMAIN_POLYGON
         });
 
         // make sure relayerFee is sent with every transaction
