@@ -3,11 +3,8 @@ pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import "forge-std/console.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
-import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
-import {DSTest} from "ds-test/test.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
