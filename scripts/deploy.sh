@@ -18,21 +18,21 @@ deploy() {
   # if selected contract is "LiFiDiamondImmutable" then use an adjusted salt for deployment to prevent clashes
   if [[ $CONTRACT = "LiFiDiamondImmutable" ]]; then
     # adjust contract name (remove "Immutable") since we are using our standard diamond contract
-    CONTRACTADJ=$(echo "$CONTRACT" | sed 's/Immutable//')
+    CONTRACTADJ=$(echo "$CONTRACT"V1) # << this needs to be updated when releasing a new version
     # get contract bytecode
     BYTECODE=$(forge inspect $CONTRACTADJ bytecode)
     # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
-    BYTECODEADJ="$BYTECODE"ffffffffffffffffffffffffffffffffffffffff
+    BYTECODEADJ="$BYTECODE"ffffffffffffffffffffffffffffffffffffff
     # create salt with keccak(bytecode)
     SALT=$(cast keccak $BYTECODEADJ)
   else
-    # in all other cases just create a salt based on the contract bytecode
+    # in all other cases just create a salt just based on the contract bytecode
     CONTRACTADJ=$CONTRACT
     BYTECODE=$(forge inspect $CONTRACT bytecode)
     SALT=$(cast keccak $BYTECODE)
   fi
 
-  # display the nake of the selected script that will be executed
+  # display the name of the selected script that will be executed
 	echo $SCRIPT
 
   # execute script
@@ -53,7 +53,7 @@ deploy() {
 	args=$(echo $RETURN_DATA | jq -r '.constructorArgs.value // "0x00"')
 	echo "$CONTRACT deployed on $NETWORK at address $deployed"
 
-	saveContract $NETWORK $CONTRACT $deployed
+	saveContract $NETWORK $CONTRACTADJ $deployed
 	verifyContract $NETWORK $CONTRACTADJ $deployed $args
 }
 
