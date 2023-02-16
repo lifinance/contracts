@@ -46,7 +46,12 @@ task(
   //   json = JSON.parse(json)
   //   abi.push(...json.abi)
   // }
-  const finalAbi = JSON.stringify(abi)
+  const cleanAbi = abi.filter(
+    (item, index, self) =>
+      index ===
+      self.findIndex((t) => t.name === item.name && t.type === item.type)
+  )
+  const finalAbi = JSON.stringify(cleanAbi)
   fs.writeFileSync('./diamondABI/diamond.json', finalAbi)
   console.log('ABI written to diamondABI/diamond.json')
 })
