@@ -301,7 +301,7 @@ contract HopFacetTest is TestBaseFacet {
 
         // create polygon fork
         string memory rpcUrl = vm.envString("ETH_NODE_URI_POLYGON");
-        uint256 blockNumber = vm.envUint("FORK_NUMBER_POLYGON");
+        uint256 blockNumber = 36004499;
         vm.createSelectFork(rpcUrl, blockNumber);
 
         // get USDC contract and approve
