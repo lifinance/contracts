@@ -106,6 +106,25 @@ contract ServiceFeeCollectorTest is DSTest {
         assert(feeToken.balanceOf(address(feeCollector)) == 0);
     }
 
+    function testCanWithdrawNativeFees() public {
+        // Arrange
+        uint256 fee = 0.015 ether;
+        feeCollector.collectNativeInsuranceFees{ value: fee }(
+            fee,
+            address(0xb33f)
+        );
+        uint256 startingBalance = address(this).balance;
+
+        // Act
+        feeCollector.withdrawFees(address(0));
+
+        // Assert
+        assert(
+            address(this).balance == 0.015 ether + startingBalance
+        );
+        assert(address(feeCollector).balance == 0);
+    }
+
     function testCanBatchWithdrawGasFees() public {
         // Arrange
         uint256 fee = 0.015 ether;
