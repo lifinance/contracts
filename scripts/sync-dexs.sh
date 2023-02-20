@@ -14,7 +14,8 @@ CFG_DEXS=($(jq --arg n "$NETWORK" -r '.[$n] | @sh' "./config/dexs.json" | tr -d 
 RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
 
 RESULT=$(cast call "$DIAMOND" "approvedDexs() returns (address[])" --rpc-url "${!RPC}")
-DEXS=($(echo ${RESULT:1:${#RESULT}-1} | tr ',' '\n' | tr '[:upper:]' '[:lower:]'))
+# remove [] at the beginning and end | split by , | to lowercase
+DEXS=($(echo ${RESULT:1:${#RESULT}-2} | tr ',' '\n' | tr '[:upper:]' '[:lower:]'))
 
 NEW_DEXS=()
 for dex in "${CFG_DEXS[@]}"; do
@@ -24,10 +25,11 @@ for dex in "${CFG_DEXS[@]}"; do
 done
 
 if [[ ! ${#NEW_DEXS[@]} -eq 0 ]]; then
-  echo 'Adding missing DEXs'
+  echo 'Adding missing DEXs:'
   for d in "${NEW_DEXS[@]}"; do
     PARAMS+="${d},"
   done
+  echo "[${PARAMS::${#PARAMS}-1}]"
   cast send $DIAMOND "batchAddDex(address[])" "[${PARAMS::${#PARAMS}-1}]" --rpc-url ${!RPC} --private-key ${PRIVATE_KEY} --legacy
 else
   echo 'No new DEXs to add'
