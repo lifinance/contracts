@@ -32,8 +32,8 @@ deploy() {
     SALT=$(cast keccak $BYTECODE)
   fi
 
-  # display the nake of the selected script that will be executed
-	echo $SCRIPT
+  # display the name of the selected script that will be executed
+	echo "Deploying $SCRIPT to $NETWORK"
 
   # execute script
 	RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
