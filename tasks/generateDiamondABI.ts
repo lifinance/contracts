@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { AbiCoder } from '@ethersproject/abi'
+import { Fragment } from '@ethersproject/abi'
 import { task } from 'hardhat/config'
 
 const basePath = 'src/Facets/'
@@ -11,7 +11,7 @@ task(
   'Generates ABI file for diamond, includes all ABIs of facets'
 ).setAction(async () => {
   let files = fs.readdirSync(__dirname + '/../' + basePath)
-  const abi: AbiCoder[] = []
+  const abi: Fragment[] = []
   for (const file of files) {
     const jsonFile = file.replace('sol', 'json')
     const data = fs.readFileSync(
@@ -37,16 +37,11 @@ task(
     const json: any = JSON.parse(data.toString())
     abi.push(...json.abi)
   }
-  // files = fs.readdirSync('.' + sharedLibraryBasePath)
-  // for (const file of files) {
-  //   const jsonFile = file.replace('sol', 'json')
-  //   let json = fs.readFileSync(
-  //     `./artifacts/${sharedLibraryBasePath}${file}/${jsonFile}`
-  //   )
-  //   json = JSON.parse(json)
-  //   abi.push(...json.abi)
-  // }
-  const cleanAbi = abi.filter(
+
+  // Remove duplicates from the combined ABI object
+  // Filters by checking if the name and type of the 
+  // function already exists in another ABI fragment
+  const cleanAbi = <Fragment[]>abi.filter(
     (item, index, self) =>
       index ===
       self.findIndex((t) => t.name === item.name && t.type === item.type)
