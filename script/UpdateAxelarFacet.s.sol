@@ -10,15 +10,6 @@ contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     function run() public returns (address[] memory facets) {
-        string memory path = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".",
-            fileSuffix,
-            "json"
-        );
-        string memory json = vm.readFile(path);
         address facet = json.readAddress(".AxelarFacet");
 
         vm.startBroadcast(deployerPrivateKey);
