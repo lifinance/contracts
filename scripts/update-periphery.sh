@@ -62,7 +62,7 @@ fi
 }
 
 register() {
-	NETWORK=$(tr '[:lower:]' '[:upper:]' <<< $1)
+	NETWORK=$(tr '[:lower:]-' '[:upper:]_' <<< $1)
   DIAMOND=$2
   NAME=$3
   ADDR=$4
