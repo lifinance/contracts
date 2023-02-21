@@ -18,26 +18,47 @@ deploy() {
   # if selected contract is "LiFiDiamondImmutable" then use an adjusted salt for deployment to prevent clashes
   if [[ $CONTRACT = "LiFiDiamondImmutable" ]]; then
     # adjust contract name (remove "Immutable") since we are using our standard diamond contract
-    CONTRACTADJ=$(echo "$CONTRACT" | sed 's/Immutable//')
+    CONTRACTADJ=$(echo "$CONTRACT"V1) # << this needs to be updated when releasing a new version
     # get contract bytecode
     BYTECODE=$(forge inspect $CONTRACTADJ bytecode)
     # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
-    BYTECODEADJ="$BYTECODE"ffffffffffffffffffffffffffffffffffffffff
+    BYTECODEADJ="$BYTECODE"ffffffffffffffffffffffffffffffffffffff
     # create salt with keccak(bytecode)
     SALT=$(cast keccak $BYTECODEADJ)
   else
-    # in all other cases just create a salt based on the contract bytecode
+    # in all other cases just create a salt just based on the contract bytecode
     CONTRACTADJ=$CONTRACT
     BYTECODE=$(forge inspect $CONTRACT bytecode)
     SALT=$(cast keccak $BYTECODE)
   fi
 
   # display the name of the selected script that will be executed
-	echo "Deploying $SCRIPT to $NETWORK"
+	echo $SCRIPT
 
   # execute script
-	RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
-	checkFailure
+  	attempts=1  # initialize attempts to 0
+
+    while [ $attempts -lt 11 ]
+    do
+      echo "Trying to deploy $CONTRACTADJ now - attempt ${attempts}"
+      # try to execute call
+    	RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+
+      # check the return code the last call
+      if [ $? -eq 0 ]
+      then
+        break  # exit the loop if the operation was successful
+      fi
+
+      attempts=$((attempts+1))  # increment attempts
+      sleep 1  # wait for 1 second before trying the operation again
+    done
+
+    if [ $attempts -eq 11 ]
+    then
+        echo "Failed to deploy $CONTRACTADJ"
+        exit 1
+    fi
   echo $RAW_RETURN_DATA
   # clean tx return data
 	CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
@@ -53,7 +74,7 @@ deploy() {
 	args=$(echo $RETURN_DATA | jq -r '.constructorArgs.value // "0x00"')
 	echo "$CONTRACT deployed on $NETWORK at address $deployed"
 
-	saveContract $NETWORK $CONTRACT $deployed
+	saveContract $NETWORK $CONTRACTADJ $deployed
 	verifyContract $NETWORK $CONTRACTADJ $deployed $args
 }
 
