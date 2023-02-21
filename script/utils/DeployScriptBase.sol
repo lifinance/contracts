@@ -20,7 +20,7 @@ contract DeployScriptBase is Script {
         deployerPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY"));
         deployerAddress = vm.addr(deployerPrivateKey);
         address factoryAddress = vm.envAddress("CREATE3_FACTORY_ADDRESS");
-        string memory saltPrefix = vm.envString("SALT");
+        string memory saltPrefix = vm.envString("DEPLOYSALT");
         root = vm.projectRoot();
         network = vm.envString("NETWORK");
         fileSuffix = vm.envString("FILE_SUFFIX");
