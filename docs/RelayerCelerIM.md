@@ -1,12 +1,12 @@
-# RelayerCBridge
+# RelayerCelerIM
 
 ## Description
 
-Periphery contract used for arbitrary cross-chain execution using CBridge / CelerIM
+Periphery contract used for arbitrary cross-chain execution using CelerIM framework
 
 ## How To Use
 
-The contract is used to receive and forward funds and as well as receive/parse payloads sent cross-chain using Celer Bridge / CelerIM.
+The contract is used to receive and forward funds and as well as receive/parse payloads sent cross-chain using CelerIM.
 
 The following external methods are available:
 
