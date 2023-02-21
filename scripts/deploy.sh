@@ -1,98 +1,125 @@
 #!/bin/bash
 
 deploy() {
-  source .env
+  # load env variables
+	source .env
 
-  if [[ -z "$PRODUCTION" ]]; then
-    FILE_SUFFIX="staging."
+  # check if env variable "PRODUCTION" is true, otherwise deploy as staging
+	if [[ -z "$PRODUCTION" ]]; then
+		FILE_SUFFIX="staging."
+	fi
+
+  # get user-selected network from list
+	NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+  # get user-selected network from list
+	SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+	CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
+
+  # if selected contract is "LiFiDiamondImmutable" then use an adjusted salt for deployment to prevent clashes
+  if [[ $CONTRACT = "LiFiDiamondImmutable" ]]; then
+    # adjust contract name (remove "Immutable") since we are using our standard diamond contract
+    CONTRACTADJ=$(echo "$CONTRACT"V1) # << this needs to be updated when releasing a new version
+    # get contract bytecode
+    BYTECODE=$(forge inspect $CONTRACTADJ bytecode)
+    # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
+    BYTECODEADJ="$BYTECODE"ffffffffffffffffffffffffffffffffffffff
+    # create salt with keccak(bytecode)
+    SALT=$(cast keccak $BYTECODEADJ)
+  else
+    # in all other cases just create a salt just based on the contract bytecode
+    CONTRACTADJ=$CONTRACT
+    BYTECODE=$(forge inspect $CONTRACT bytecode)
+    SALT=$(cast keccak $BYTECODE)
   fi
 
-  NETWORK=$(cat ./networks | gum filter --placeholder "Network")
-  SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
-  CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
-  BYTECODE=$(forge inspect $CONTRACT bytecode)
-  SALT=$(cast keccak $BYTECODE)
-
-  echo $SCRIPT
+  # display the name of the selected script that will be executed
+	echo $SCRIPT
 
   # execute script
-  attempts=1 # initialize attempts to 0
+  	attempts=1  # initialize attempts to 0
 
-  while [ $attempts -lt 11 ]; do
-    echo "Trying to deploy $CONTRACTADJ now - attempt ${attempts}"
-    # try to execute call
-    RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+    while [ $attempts -lt 11 ]
+    do
+      echo "Trying to deploy $CONTRACTADJ now - attempt ${attempts}"
+      # try to execute call
+    	RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
 
-    # check the return code the last call
-    if [ $? -eq 0 ]; then
-      break # exit the loop if the operation was successful
+      # check the return code the last call
+      if [ $? -eq 0 ]
+      then
+        break  # exit the loop if the operation was successful
+      fi
+
+      attempts=$((attempts+1))  # increment attempts
+      sleep 1  # wait for 1 second before trying the operation again
+    done
+
+    if [ $attempts -eq 11 ]
+    then
+        echo "Failed to deploy $CONTRACTADJ"
+        exit 1
     fi
-
-    attempts=$((attempts + 1)) # increment attempts
-    sleep 1                    # wait for 1 second before trying the operation again
-  done
-
-  if [ $attempts -eq 11 ]; then
-    echo "Failed to deploy $CONTRACTADJ"
-    exit 1
-  fi
-
   echo $RAW_RETURN_DATA
-  CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-  echo $CLEAN__RETURN_DATA | jq 2>/dev/null
-  checkFailure
-  RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
+  # clean tx return data
+	CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+	echo $CLEAN__RETURN_DATA | jq 2> /dev/null
+	checkFailure
 
-  deployed=$(echo $RETURN_DATA | jq -r '.deployed.value')
-  args=$(echo $RETURN_DATA | jq -r '.constructorArgs.value // "0x"')
+  # extract the "returns" field and its contents from the return data (+hide errors)
+	RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2> /dev/null)
 
-  echo "$CONTRACT deployed on $NETWORK at address $deployed"
+  # extract deployed-to address from return data
+	deployed=$(echo $RETURN_DATA | jq -r '.deployed.value')
+  # extract constructor arguments from return data
+	args=$(echo $RETURN_DATA | jq -r '.constructorArgs.value // "0x00"')
+	echo "$CONTRACT deployed on $NETWORK at address $deployed"
 
-  saveContract $NETWORK $CONTRACT $deployed
-  verifyContract $NETWORK $CONTRACT $deployed $args
+	saveContract $NETWORK $CONTRACTADJ $deployed
+	verifyContract $NETWORK $CONTRACTADJ $deployed $args
 }
 
 saveContract() {
-  source .env
+	source .env
 
-  if [[ -z "$PRODUCTION" ]]; then
-    FILE_SUFFIX="staging."
-  fi
+	if [[ -z "$PRODUCTION" ]]; then
+		FILE_SUFFIX="staging."
+	fi
 
-  NETWORK=$1
-  CONTRACT=$2
-  ADDRESS=$3
+	NETWORK=$1
+	CONTRACT=$2
+	ADDRESS=$3
 
-  ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+	ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
 
-  # create an empty json if it does not exist
-  if [[ ! -e $ADDRESSES_FILE ]]; then
-    echo "{}" >"$ADDRESSES_FILE"
-  fi
-  result=$(cat "$ADDRESSES_FILE" | jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$ADDRESSES_FILE")
-  printf %s "$result" >"$ADDRESSES_FILE"
+	# create an empty json if it does not exist
+	if [[ ! -e $ADDRESSES_FILE ]]; then
+		echo "{}" >"$ADDRESSES_FILE"
+	fi
+	result=$(cat "$ADDRESSES_FILE" | jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$ADDRESSES_FILE")
+	printf %s "$result" >"$ADDRESSES_FILE"
 }
 
 verifyContract() {
-  source .env
+	source .env
 
-  NETWORK=$1
-  CONTRACT=$2
-  ADDRESS=$3
-  ARGS=$4
-  API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
-  if [ "$ARGS" = "0x" ]; then
-    forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT "${!API_KEY}"
-  else
-    forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT --constructor-args $ARGS "${!API_KEY}"
-  fi
+	NETWORK=$1
+	CONTRACT=$2
+	ADDRESS=$3
+	echo "ADDRESS in verify: $ADDRESS"
+	ARGS=$4
+	API_KEY="$(tr '[:lower:]' '[:upper:]' <<< $NETWORK)_ETHERSCAN_API_KEY"
+	if [ "$ARGS" = "0x" ]; then
+		forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT "${!API_KEY}"
+	else
+		forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT --constructor-args $ARGS "${!API_KEY}"
+	fi
 }
 
 checkFailure() {
-  if [[ $? -ne 0 ]]; then
-    echo "Failed to deploy $CONTRACT"
-    exit 1
-  fi
+	if [[ $? -ne 0 ]]; then
+		echo "Failed to deploy $CONTRACT"
+		exit 1
+	fi
 }
 
 deploy
