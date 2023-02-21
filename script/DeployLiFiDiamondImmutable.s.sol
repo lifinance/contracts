@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
+import { LiFiDiamondImmutableV1 } from "lifi/LiFiDiamondImmutable.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 
 
@@ -14,7 +14,7 @@ contract DeployScript is DeployScriptBase {
     address internal diamondImmutable;
     DiamondCutFacet internal cutter;
 
-    constructor() DeployScriptBase("LiFiDiamond") {
+    constructor() DeployScriptBase("LiFiDiamondImmutableV1") {
 
         network = vm.envString("NETWORK");
         fileSuffix = vm.envString("FILE_SUFFIX");
@@ -28,13 +28,13 @@ contract DeployScript is DeployScriptBase {
             "json"
         );
         string memory json = vm.readFile(path);
-        diamondImmutable = json.readAddress(".LiFiDiamondImmutable");
+        diamondImmutable = json.readAddress(".LiFiDiamondImmutableV1");
         cutter = DiamondCutFacet(diamondImmutable);
     }
 
     function run()
         public
-        returns (LiFiDiamond deployed, bytes memory constructorArgs)
+        returns (LiFiDiamondImmutableV1 deployed, bytes memory constructorArgs)
     {
         string memory path = string.concat(
             root,
@@ -52,15 +52,15 @@ contract DeployScript is DeployScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return (LiFiDiamond(payable(predicted)), constructorArgs);
+            return (LiFiDiamondImmutableV1(payable(predicted)), constructorArgs);
         }
 
-        deployed = LiFiDiamond(
+        deployed = LiFiDiamondImmutableV1(
             payable(
                 factory.deploy(
                     salt,
                     bytes.concat(
-                        type(LiFiDiamond).creationCode,
+                        type(LiFiDiamondImmutableV1).creationCode,
                         constructorArgs
                     )
                 )

@@ -39,7 +39,7 @@ contract UpdateScriptBase is Script {
         json = vm.readFile(path);
         diamond = useDefaultDiamond ?
             json.readAddress(".LiFiDiamond") :
-            json.readAddress(".LiFiDiamondImmutable")
+            json.readAddress(".LiFiDiamondImmutableV1")
         ;
         cutter = DiamondCutFacet(diamond);
         loupe = DiamondLoupeFacet(diamond);

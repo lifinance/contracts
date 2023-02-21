@@ -22,14 +22,14 @@ deploy() {
     # get contract bytecode
     BYTECODE=$(forge inspect $CONTRACTADJ bytecode)
     # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
-    BYTECODEADJ="$BYTECODE"ffffffffffffffffffffffffffffffffffffff
+    BYTECODEADJ="$BYTECODE"ffffffffffffffffffffffffffffffffffffff$DEPLOYSALT
     # create salt with keccak(bytecode)
-    SALT=$(cast keccak $BYTECODEADJ)
+    DEPLOYSALT=$(cast keccak $BYTECODEADJ)
   else
     # in all other cases just create a salt just based on the contract bytecode
     CONTRACTADJ=$CONTRACT
     BYTECODE=$(forge inspect $CONTRACT bytecode)
-    SALT=$(cast keccak $BYTECODE)
+    DEPLOYSALT=$(cast keccak $BYTECODE)
   fi
 
   # display the name of the selected script that will be executed
@@ -42,7 +42,7 @@ deploy() {
     do
       echo "Trying to deploy $CONTRACTADJ now - attempt ${attempts}"
       # try to execute call
-    	RAW_RETURN_DATA=$(SALT=$SALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+	    RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
 
       # check the return code the last call
       if [ $? -eq 0 ]
