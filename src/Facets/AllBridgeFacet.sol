@@ -9,6 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 
+/// @title AllBridge Messenger Protocol Enum
 enum MessengerProtocol {
     None,
     Allbridge,
@@ -16,6 +17,7 @@ enum MessengerProtocol {
     LayerZero
 }
 
+/// @title AllBridge Interface
 interface IAllBridge {
     function pools(bytes32 addr) external returns (address);
 
@@ -34,10 +36,18 @@ interface IAllBridge {
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through AllBridge
 contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// @notice The contract address of the AllBridge router on the source chain.
     IAllBridge public immutable allBridge;
 
     error DoesNotSupportNativeTransfer();
 
+    /// @notice The struct for the AllBridge data.
+    /// @param fees The amount of token to pay the messenger and the bridge
+    /// @param recipient The address of the token receiver after bridging.
+    /// @param destinationChainId The destination chain id.
+    /// @param receiveToken The token to receive on the destination chain.
+    /// @param nonce A random nonce to associate with the tx.
+    /// @param messenger The messenger protocol enum
     struct AllBridgeData {
         uint256 fees;
         bytes32 recipient;
@@ -47,10 +57,14 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         MessengerProtocol messenger;
     }
 
+    /// @notice Initializes the AllBridge contract
+    /// @param _allBridge The address of the AllBridge contract
     constructor(IAllBridge _allBridge) {
         allBridge = _allBridge;
     }
 
+    /// @notice Bridge tokens to another chain via AllBridge
+    /// @param _bridgeData The bridge data struct
     function startBridgeTokensViaAllBridge(
         ILiFi.BridgeData memory _bridgeData,
         AllBridgeData calldata _allBridgeData
@@ -70,6 +84,10 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData, _allBridgeData);
     }
 
+    /// @notice Bridge tokens to another chain via AllBridge
+    /// @param _bridgeData The bridge data struct
+    /// @param _swapData The swap data struct
+    /// @param _allBridgeData The AllBridge data struct
     function swapAndStartBridgeTokensViaAllBridge(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
@@ -92,10 +110,15 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData, _allBridgeData);
     }
 
+    /// @notice converts an address to bytes
+    /// @param a The address to convert
     function _toBytes(address a) internal pure returns (bytes memory) {
         return abi.encodePacked(a);
     }
 
+    /// @notice Bridge tokens to another chain via AllBridge
+    /// @param _bridgeData The bridge data struct
+    /// @param _allBridgeData The allBridge data struct for AllBridge specicific data
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         AllBridgeData calldata _allBridgeData
