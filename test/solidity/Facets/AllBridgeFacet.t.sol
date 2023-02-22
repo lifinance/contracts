@@ -22,11 +22,14 @@ contract AllBridgeFacetTest is TestBaseFacet {
     // These values are for Optimism_Kovan
     address internal constant BRIDGE_ADDRESS =
         0xA314330482f325D38A83B492EF6B006224a3bea9;
+    address internal constant ALLBRIDGE_POOL =
+        0x1D3df13aDAe6cA91Fb90b977c21d6e90ad8d403C;
     // -----
     AllBridgeFacet.AllBridgeData internal validAllBridgeData;
     TestAllBridgeFacet internal allBridgeFacet;
 
     function setUp() public {
+        customBlockNumberForForking = 16661275;
         initTestBase();
 
         allBridgeFacet = new TestAllBridgeFacet(IAllBridge(BRIDGE_ADDRESS));
@@ -61,26 +64,31 @@ contract AllBridgeFacetTest is TestBaseFacet {
         bridgeData.bridge = "allbridge";
         bridgeData.destinationChainId = 137;
 
+        uint256 testPolygonMessengerFees = 69857330070000;
+        uint256 testPolygonBridgeFees = 28764782970000;
+        uint256 fees = testPolygonBridgeFees + testPolygonMessengerFees;
         // produce valid AllBridgeData
         validAllBridgeData = AllBridgeFacet.AllBridgeData({
+            fees: fees,
             recipient: 0x00000000000000000000000012561cc3ea2a60aa158b0421010859a983bf3c96,
             destinationChainId: 5,
             receiveToken: 0x0000000000000000000000002791Bca1f2de4661ED88A30C99A7a9449Aa84174,
             nonce: 40953790744158426077674476975877556494233328003707004662889959804198145032447,
             messenger: MessengerProtocol.Allbridge
         });
+
+        ERC20(ADDRESS_USDC).approve(ALLBRIDGE_POOL, type(uint256).max);
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             allBridgeFacet.startBridgeTokensViaAllBridge{
-                value: bridgeData.minAmount
+                value: bridgeData.minAmount + validAllBridgeData.fees
             }(bridgeData, validAllBridgeData);
         } else {
-            allBridgeFacet.startBridgeTokensViaAllBridge(
-                bridgeData,
-                validAllBridgeData
-            );
+            allBridgeFacet.startBridgeTokensViaAllBridge{
+                value: validAllBridgeData.fees
+            }(bridgeData, validAllBridgeData);
         }
     }
 
@@ -97,14 +105,12 @@ contract AllBridgeFacetTest is TestBaseFacet {
     ) internal override {
         if (isNative) {
             allBridgeFacet.swapAndStartBridgeTokensViaAllBridge{
-                value: swapData[0].fromAmount
+                value: swapData[0].fromAmount + validAllBridgeData.fees
             }(bridgeData, swapData, validAllBridgeData);
         } else {
-            allBridgeFacet.swapAndStartBridgeTokensViaAllBridge(
-                bridgeData,
-                swapData,
-                validAllBridgeData
-            );
+            allBridgeFacet.swapAndStartBridgeTokensViaAllBridge{
+                value: validAllBridgeData.fees
+            }(bridgeData, swapData, validAllBridgeData);
         }
     }
 }

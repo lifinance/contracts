@@ -17,6 +17,8 @@ enum MessengerProtocol {
 }
 
 interface IAllBridge {
+    function pools(bytes32 addr) external returns (address);
+
     function swapAndBridge(
         bytes32 token,
         uint256 amount,
@@ -37,6 +39,7 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     error DoesNotSupportNativeTransfer();
 
     struct AllBridgeData {
+        uint256 fees;
         bytes32 recipient;
         uint8 destinationChainId;
         bytes32 receiveToken;
@@ -101,14 +104,21 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (isNative) {
             revert DoesNotSupportNativeTransfer();
         } else {
+            address pool = allBridge.pools(
+                bytes32(uint256(uint160(_bridgeData.sendingAssetId)))
+            );
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                address(allBridge),
+                pool,
                 _bridgeData.minAmount
             );
         }
 
-        allBridge.swapAndBridge{ value: isNative ? _bridgeData.minAmount : 0 }(
+        allBridge.swapAndBridge{
+            value: isNative
+                ? _bridgeData.minAmount + _allBridgeData.fees
+                : _allBridgeData.fees
+        }(
             bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
             _bridgeData.minAmount,
             _allBridgeData.recipient,
