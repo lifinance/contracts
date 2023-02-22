@@ -12,19 +12,19 @@ import { LibMappings } from "../Libraries/LibMappings.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibMappings } from "../Libraries/LibMappings.sol";
 
-/// @title GasUp Facet
+/// @title GetGas Facet
 /// @author Li.Finance (https://li.finance)
-/// @notice Provides functionality for bridging gas through GasUp
-contract GasUpFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+/// @notice Provides functionality for bridging gas through GetGas
+contract GetGasFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     
     /// Storage ///
-    string internal constant FEE_COLLECTOR_NAME = "SERVICE_FEE_COLLECTOR";
+    string internal constant FEE_COLLECTOR_NAME = "ServiceFeeCollector";
 
     /// External Methods ///
 
-    /// @notice Bridges tokens via GasUp Bridge
+    /// @notice Bridges tokens via GetGas Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
-    function startBridgeTokensViaGasUp(
+    function startBridgeTokensViaGetGas(
         ILiFi.BridgeData memory _bridgeData
     )
         external
@@ -41,10 +41,10 @@ contract GasUpFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData);
     }
 
-    /// @notice Performs a swap before bridging via GasUp Bridge
+    /// @notice Performs a swap before bridging via GetGas Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    function swapAndStartBridgeTokensViaGasUp(
+    function swapAndStartBridgeTokensViaGetGas(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData
     )
@@ -67,7 +67,7 @@ contract GasUpFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Private Methods ///
 
-    /// @dev Contains the business logic for the bridge via GasUp Bridge
+    /// @dev Contains the business logic for the bridge via GetGas Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData

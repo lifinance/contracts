@@ -3,13 +3,13 @@ pragma solidity 0.8.17;
 
 import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { ServiceFeeCollector } from "lifi/Periphery/ServiceFeeCollector.sol";
-import { GasUpFacet } from "lifi/Facets/GasUpFacet.sol";
+import { GetGasFacet } from "lifi/Facets/GetGasFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InvalidAmount } from "src/Errors/GenericErrors.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 
-// Stub GasUpFacet Contract
-contract TestGasUpFacet is GasUpFacet {
+// Stub GetGasFacet Contract
+contract TestGetGasFacet is GetGasFacet {
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -19,24 +19,24 @@ contract TestGasUpFacet is GasUpFacet {
     }
 }
 
-contract GasUpFacetTest is TestBaseFacet {
+contract GetGasFacetTest is TestBaseFacet {
 
-    TestGasUpFacet internal gasUpFacet;
+    TestGetGasFacet internal gasUpFacet;
     ILiFi.BridgeData internal validBridgeData;
 
     function setUp() public {
         initTestBase();
-        gasUpFacet = new TestGasUpFacet();
+        gasUpFacet = new TestGetGasFacet();
 
         ServiceFeeCollector feeCollector = new ServiceFeeCollector(address(this));
         PeripheryRegistryFacet peripheryRegistry = new PeripheryRegistryFacet();
 
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = gasUpFacet
-            .startBridgeTokensViaGasUp
+            .startBridgeTokensViaGetGas
             .selector;
         functionSelectors[1] = gasUpFacet
-            .swapAndStartBridgeTokensViaGasUp
+            .swapAndStartBridgeTokensViaGetGas
             .selector;
         functionSelectors[2] = gasUpFacet.addDex.selector;
         functionSelectors[3] = gasUpFacet
@@ -51,7 +51,7 @@ contract GasUpFacetTest is TestBaseFacet {
         addFacet(diamond, address(gasUpFacet), functionSelectors);
         addFacet(diamond, address(peripheryRegistry), peripheryRegistryFunctionSelectors);
         
-        gasUpFacet = TestGasUpFacet(address(diamond));
+        gasUpFacet = TestGetGasFacet(address(diamond));
         peripheryRegistry = PeripheryRegistryFacet(address(diamond));
 
         gasUpFacet.addDex(address(uniswap));
@@ -64,7 +64,7 @@ contract GasUpFacetTest is TestBaseFacet {
 
 
         peripheryRegistry.registerPeripheryContract("SERVICE_FEE_COLLECTOR", address(feeCollector));
-        setFacetAddressInTestBase(address(gasUpFacet), "GasUpFacet");
+        setFacetAddressInTestBase(address(gasUpFacet), "GetGasFacet");
 
         vm.makePersistent(address(gasUpFacet));
         vm.makePersistent(address(peripheryRegistry));
@@ -76,11 +76,11 @@ contract GasUpFacetTest is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            gasUpFacet.startBridgeTokensViaGasUp{
+            gasUpFacet.startBridgeTokensViaGetGas{
                 value: bridgeData.minAmount
             }(bridgeData);
         } else {
-            gasUpFacet.startBridgeTokensViaGasUp(bridgeData);
+            gasUpFacet.startBridgeTokensViaGetGas(bridgeData);
         }
     }
 
@@ -89,11 +89,11 @@ contract GasUpFacetTest is TestBaseFacet {
         override
     {
         if (isNative) {
-            gasUpFacet.swapAndStartBridgeTokensViaGasUp{
+            gasUpFacet.swapAndStartBridgeTokensViaGetGas{
                 value: swapData[0].fromAmount
             }(bridgeData, swapData);
         } else {
-            gasUpFacet.swapAndStartBridgeTokensViaGasUp(
+            gasUpFacet.swapAndStartBridgeTokensViaGetGas(
                 bridgeData,
                 swapData
             );
@@ -104,7 +104,7 @@ contract GasUpFacetTest is TestBaseFacet {
     public
     override
     {
-        console.log("Not applicable for GasUpFacet");
+        console.log("Not applicable for GetGasFacet");
     }
 
 }
