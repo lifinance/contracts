@@ -1,0 +1,17 @@
+{
+  "hardhat": {
+    "tokenMessenger": "0xD0C3da58f55358142b8d3e06C1C30c5C6114EFE8",
+    "usdc": "0x07865c6E87B9F70255377e024ace6630C1Eaa37F",
+    "domain": 0
+  },
+  "goerli": {
+    "tokenMessenger": "0xD0C3da58f55358142b8d3e06C1C30c5C6114EFE8",
+    "usdc": "0x07865c6E87B9F70255377e024ace6630C1Eaa37F",
+    "domain": 0
+  },
+  "avalancheTestnet": {
+    "tokenMessenger": "0xeb08f243E5d3FCFF26A9E38Ae5520A669f4019d0",
+    "usdc": "0x5425890298aed601595a70AB815c96711a31Bc65",
+    "domain": 1
+  }
+}
