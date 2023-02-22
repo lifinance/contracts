@@ -15,6 +15,8 @@ library LibMappings {
         keccak256("com.lifi.library.mappings.wormhole");
     bytes32 internal constant AMAROK_NAMESPACE =
         keccak256("com.lifi.library.mappings.amarok");
+    bytes32 internal constant PERIPHERY_REGISTRY_NAMESPACE =
+        keccak256("com.lifi.facets.periphery_registry");
 
     /// Storage ///
     struct StargateMappings {
@@ -30,6 +32,10 @@ library LibMappings {
 
     struct AmarokMappings {
         mapping(uint256 => uint32) amarokDomain;
+    }
+
+    struct PeripheryRegistryMappings {
+        mapping(string => address) contracts;
     }
 
     /// @dev Fetch local storage for Stargate
@@ -65,6 +71,19 @@ library LibMappings {
         returns (AmarokMappings storage ms)
     {
         bytes32 position = AMAROK_NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            ms.slot := position
+        }
+    }
+
+    /// @dev Fetch local storage for Periphery Registry
+    function getPeripheryRegistryMappings()
+        internal
+        pure
+        returns (PeripheryRegistryMappings storage ms)
+    {
+        bytes32 position = PERIPHERY_REGISTRY_NAMESPACE;
         // solhint-disable-next-line no-inline-assembly
         assembly {
             ms.slot := position
