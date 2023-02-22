@@ -39,8 +39,6 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The contract address of the AllBridge router on the source chain.
     IAllBridge public immutable allBridge;
 
-    error DoesNotSupportNativeTransfer();
-
     /// @notice The struct for the AllBridge data.
     /// @param fees The amount of token to pay the messenger and the bridge
     /// @param recipient The address of the token receiver after bridging.
@@ -124,9 +122,7 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         AllBridgeData calldata _allBridgeData
     ) internal {
         bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
-        if (isNative) {
-            revert DoesNotSupportNativeTransfer();
-        } else {
+        if (!isNative) {
             address pool = allBridge.pools(
                 bytes32(uint256(uint160(_bridgeData.sendingAssetId)))
             );
@@ -137,11 +133,7 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         }
 
-        allBridge.swapAndBridge{
-            value: isNative
-                ? _bridgeData.minAmount + _allBridgeData.fees
-                : _allBridgeData.fees
-        }(
+        allBridge.swapAndBridge{ value: _allBridgeData.fees }(
             bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
             _bridgeData.minAmount,
             _allBridgeData.recipient,

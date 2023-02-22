@@ -4,42 +4,27 @@ pragma solidity ^0.8.17;
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
-import { WormholeFacet } from "lifi/Facets/WormholeFacet.sol";
+import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    struct Config {
-        uint256 chainId;
-        uint16 wormholeChainId;
-    }
-
     function run() public returns (address[] memory facets) {
-        address facet = json.readAddress(".WormholeFacet");
-
-        path = string.concat(root, "/config/wormhole.json");
-        json = vm.readFile(path);
-        bytes memory rawConfig = json.parseRaw(".chains");
-        Config[] memory configs = abi.decode(rawConfig, (Config[]));
-
-        bytes memory callData = abi.encodeWithSelector(
-            WormholeFacet.initWormhole.selector,
-            configs
-        );
+        address facet = json.readAddress(".AllBridgeFacet");
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Wormhole
+        // Across
         if (loupe.facetFunctionSelectors(facet).length == 0) {
             bytes4[] memory exclude;
             cut.push(
                 IDiamondCut.FacetCut({
                     facetAddress: address(facet),
                     action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("WormholeFacet", exclude)
+                    functionSelectors: getSelectors("AllBridgeFacet", exclude)
                 })
             );
-            cutter.diamondCut(cut, address(facet), callData);
+            cutter.diamondCut(cut, address(0), "");
         }
 
         facets = loupe.facetAddresses();
