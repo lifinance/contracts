@@ -8,7 +8,7 @@ import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, I
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 
-// Stub HopFacet Contract
+// Stub GasUpFacet Contract
 contract TestGasUpFacet is GasUpFacet {
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -59,13 +59,15 @@ contract GasUpFacetTest is TestBaseFacet {
             uniswap.swapExactTokensForTokens.selector
         );
         gasUpFacet.setFunctionApprovalBySignature(
-            uniswap.swapETHForExactTokens.selector
+            uniswap.swapTokensForExactETH.selector
         );
+
 
         peripheryRegistry.registerPeripheryContract("SERVICE_FEE_COLLECTOR", address(feeCollector));
         setFacetAddressInTestBase(address(gasUpFacet), "GasUpFacet");
 
         vm.makePersistent(address(gasUpFacet));
+        vm.makePersistent(address(peripheryRegistry));
 
         // adjust bridgeData
         bridgeData.bridge = "gasUp";
