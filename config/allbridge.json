@@ -1,0 +1,11 @@
+{
+  "polygon": {
+    "allBridge": "0xDbBE85a3E22F52F834c3D5ED627fb76DB554669e"
+  },
+  "mainnet": {
+    "allBridge": "0xA314330482f325D38A83B492EF6B006224a3bea9"
+  },
+  "bsc": {
+    "allBridge": "0x7E6c2522fEE4E74A0182B9C6159048361BC3260A"
+  }
+}

@@ -167,7 +167,7 @@ Sample requests to fetch transactions for each facet can be found at the end of 
 
 ## Getting Started<a name="getting-started"></a>
 
-Make sure to copy `.env.example` to `.env` and fill out the missing values.
+Make sure to copy `.env.example` to `.env` and fill out the missing values. Tests might fail with missing environment variables if some of the variables are blank.
 
 ### INSTALL<a name="install"></a>
 
