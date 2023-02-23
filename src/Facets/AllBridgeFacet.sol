@@ -115,16 +115,14 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         AllBridgeData calldata _allBridgeData
     ) internal {
-        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            address pool = allBridge.pools(
-                bytes32(uint256(uint160(_bridgeData.sendingAssetId)))
-            );
-            LibAsset.maxApproveERC20(
-                IERC20(_bridgeData.sendingAssetId),
-                pool,
-                _bridgeData.minAmount
-            );
-        }
+        address pool = allBridge.pools(
+            bytes32(uint256(uint160(_bridgeData.sendingAssetId)))
+        );
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            pool,
+            _bridgeData.minAmount
+        );
 
         allBridge.swapAndBridge{ value: _allBridgeData.fees }(
             bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
