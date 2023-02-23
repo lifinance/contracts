@@ -19,7 +19,6 @@ contract TestAllBridgeFacet is AllBridgeFacet {
 }
 
 contract AllBridgeFacetTest is TestBaseFacet {
-    // These values are for Optimism_Kovan
     address internal constant BRIDGE_ADDRESS =
         0xA314330482f325D38A83B492EF6B006224a3bea9;
     address internal constant ALLBRIDGE_POOL =
@@ -76,18 +75,18 @@ contract AllBridgeFacetTest is TestBaseFacet {
             nonce: 40953790744158426077674476975877556494233328003707004662889959804198145032447,
             messenger: MessengerProtocol.Allbridge
         });
-
+        addToMessageValue = validAllBridgeData.fees;
         ERC20(ADDRESS_USDC).approve(ALLBRIDGE_POOL, type(uint256).max);
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             allBridgeFacet.startBridgeTokensViaAllBridge{
-                value: bridgeData.minAmount + validAllBridgeData.fees
+                value: bridgeData.minAmount + addToMessageValue
             }(bridgeData, validAllBridgeData);
         } else {
             allBridgeFacet.startBridgeTokensViaAllBridge{
-                value: validAllBridgeData.fees
+                value: addToMessageValue
             }(bridgeData, validAllBridgeData);
         }
     }
@@ -105,11 +104,11 @@ contract AllBridgeFacetTest is TestBaseFacet {
     ) internal override {
         if (isNative) {
             allBridgeFacet.swapAndStartBridgeTokensViaAllBridge{
-                value: swapData[0].fromAmount + validAllBridgeData.fees
+                value: swapData[0].fromAmount + addToMessageValue
             }(bridgeData, swapData, validAllBridgeData);
         } else {
             allBridgeFacet.swapAndStartBridgeTokensViaAllBridge{
-                value: validAllBridgeData.fees
+                value: addToMessageValue
             }(bridgeData, swapData, validAllBridgeData);
         }
     }

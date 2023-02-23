@@ -14,7 +14,7 @@ contract DeployScript is UpdateScriptBase {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Across
+        // AllBridge
         if (loupe.facetFunctionSelectors(facet).length == 0) {
             bytes4[] memory exclude;
             cut.push(

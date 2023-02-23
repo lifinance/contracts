@@ -108,12 +108,6 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData, _allBridgeData);
     }
 
-    /// @notice converts an address to bytes
-    /// @param a The address to convert
-    function _toBytes(address a) internal pure returns (bytes memory) {
-        return abi.encodePacked(a);
-    }
-
     /// @notice Bridge tokens to another chain via AllBridge
     /// @param _bridgeData The bridge data struct
     /// @param _allBridgeData The allBridge data struct for AllBridge specicific data
@@ -121,8 +115,7 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         AllBridgeData calldata _allBridgeData
     ) internal {
-        bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
-        if (!isNative) {
+        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             address pool = allBridge.pools(
                 bytes32(uint256(uint160(_bridgeData.sendingAssetId)))
             );

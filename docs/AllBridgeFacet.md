@@ -26,9 +26,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaBridgeFacet(BridgeData calldata _bridgeData, AllBridgeData calldata _allBridgeData)`
+- `function startBridgeTokensViaAllBridge(BridgeData calldata _bridgeData, AllBridgeData calldata _allBridgeData)`
   - Simply bridges tokens using bridgeFacet
-- `function swapAndStartBridgeTokensViaBridgeFacet(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, AllBridgeData calldata _allBridgeData)`
+- `function swapAndStartBridgeTokensViaAllBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, AllBridgeData calldata _allBridgeData)`
   - Performs swap(s) before bridging tokens using bridgeFacet
 
 ## Bridge Specific Parameters
@@ -43,7 +43,7 @@ This data is specific to allBridgefacet and is represented as the following stru
 /// @param recipient The address of the token receiver after bridging.
 /// @param destinationChainId The destination chain id.
 /// @param receiveToken The token to receive on the destination chain.
-/// @param nonce A random nonce to associate with the tx.
+/// @param nonce A unique nonce to associate with the tx.
 /// @param messenger The messenger protocol enum
 struct AllBridgeData {
   uint256 fees;
@@ -73,7 +73,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 Most of the methods accept a `ILiFiBridgeData _bridgeData` parameter.
 
-In the AllBridge contract call the fields `minAmount` and `sendingAssetId` are used for the transfer amount and the asset to be sent. Since the AllBridge bridge does not support native token briding (it's mainly a stablecoin bridge) the methods will failed if native assets is tried bridged.
+In the AllBridge contract call the fields `minAmount` and `sendingAssetId` are used for the transfer amount and the asset to be sent. Since the AllBridge bridge does not support native token bridging (it's mainly a stablecoin bridge) the methods will fail if native assets are tried to be bridged.
 
 It's also used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
