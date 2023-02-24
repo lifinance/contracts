@@ -2,21 +2,12 @@
 pragma solidity 0.8.17;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { LibMappings } from "../Libraries/LibMappings.sol";
 
 /// @title Periphery Registry Facet
 /// @author LI.FI (https://li.fi)
 /// @notice A simple registry to track LIFI periphery contracts
 contract PeripheryRegistryFacet {
-    /// Storage ///
-
-    bytes32 internal constant NAMESPACE =
-        keccak256("com.lifi.facets.periphery_registry");
-
-    /// Types ///
-
-    struct Storage {
-        mapping(string => address) contracts;
-    }
 
     /// Events ///
 
@@ -32,7 +23,8 @@ contract PeripheryRegistryFacet {
         address _contractAddress
     ) external {
         LibDiamond.enforceIsContractOwner();
-        Storage storage s = getStorage();
+        LibMappings.PeripheryRegistryMappings storage s = LibMappings
+            .getPeripheryRegistryMappings();
         s.contracts[_name] = _contractAddress;
         emit PeripheryContractRegistered(_name, _contractAddress);
     }
@@ -44,17 +36,7 @@ contract PeripheryRegistryFacet {
         view
         returns (address)
     {
-        return getStorage().contracts[_name];
-    }
-
-    /// Private Methods ///
-
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            s.slot := namespace
-        }
+        return LibMappings
+            .getPeripheryRegistryMappings().contracts[_name];
     }
 }
