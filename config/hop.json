@@ -219,15 +219,21 @@
     "chainId": 5,
     "tokens": [
       {
+        "name": "ETH",
+        "bridge": "0xC8A4FB931e8D77df8497790381CA7d228E68a41b",
+        "token": "0x0000000000000000000000000000000000000000",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
         "name": "USDC",
-        "bridge": "0x39B052820F808534d5eD7C2b26f070169Fa6A686",
+        "bridge": "0x7D269D3E0d61A05a0bA976b7DBF8805bF844AF3F",
         "token": "0x98339D8C260052B7ad81c28c16C0b98420f2B46a",
         "ammWrapper": "0x0000000000000000000000000000000000000000"
       },
       {
-        "name": "DAI",
-        "bridge": "0x9CD998D84CE695646c3C874e8793eF4A80C2cAB8",
-        "token": "0xC61bA16e864eFbd06a9fe30Aab39D18B8F63710a",
+        "name": "HOP",
+        "bridge": "0x13B7F51BD865410c3AcC4d56083C5B56aB38D203",
+        "token": "0x7191061D5d4C60f598214cC6913502184BAddf18",
         "ammWrapper": "0x0000000000000000000000000000000000000000"
       }
     ]
