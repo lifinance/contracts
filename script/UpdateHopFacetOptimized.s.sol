@@ -33,7 +33,7 @@ contract DeployScript is UpdateScriptBase {
         // add the tokens and bridges to their respective arrays
         for (uint256 i = 0; i < configs.length; i++) {
             // if the token is address(0) (native) then skip it
-            if (bridge.token == address(0)) continue;
+            if (configs[i].token == address(0)) continue;
             bridges.push(
                 configs[i].ammWrapper == address(0)
                     ? configs[i].bridge
