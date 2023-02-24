@@ -21,5 +21,6 @@
   "FeeCollector": "0x353a5303dD2a39aB59aEd09fb971D359b94658C7",
   "WormholeFacet": "0xEa24FdD73390e1EbFA5FC13a73838bcc678CB54E",
   "AmarokFacet": "0xe7cA1F5E54cc0Be6c544F32CcE714FB484b0DfC4",
-  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
+  "GetGasFacet": "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac"
 }
