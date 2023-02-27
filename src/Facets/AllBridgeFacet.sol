@@ -2,35 +2,12 @@
 pragma solidity ^0.8.7;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
+import { IAllBridge } from "../Interfaces/IAllBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-
-/// @title AllBridge Messenger Protocol Enum
-enum MessengerProtocol {
-    None,
-    Allbridge,
-    Wormhole,
-    LayerZero
-}
-
-/// @title AllBridge Interface
-interface IAllBridge {
-    function pools(bytes32 addr) external returns (address);
-
-    function swapAndBridge(
-        bytes32 token,
-        uint256 amount,
-        bytes32 recipient,
-        uint8 destinationChainId,
-        bytes32 receiveToken,
-        uint256 nonce,
-        MessengerProtocol messenger
-    ) external payable;
-}
 
 /// @title Allbridge Facet
 /// @author Li.Finance (https://li.finance)
@@ -52,7 +29,7 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint8 destinationChainId;
         bytes32 receiveToken;
         uint256 nonce;
-        MessengerProtocol messenger;
+        IAllBridge.MessengerProtocol messenger;
     }
 
     /// @notice Initializes the AllBridge contract

@@ -19,9 +19,6 @@ import { LibMappings } from "../Libraries/LibMappings.sol";
 contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE =
-        keccak256("com.lifi.facets.wormhole");
-
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
 
