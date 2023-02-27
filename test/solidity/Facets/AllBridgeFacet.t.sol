@@ -2,8 +2,8 @@
 pragma solidity 0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
-import { AllBridgeFacet, IAllBridge, MessengerProtocol } from "lifi/Facets/AllBridgeFacet.sol";
-import { TestBase } from "../utils/TestBase.sol";
+import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
+import { IAllBridge } from "lifi/Interfaces/IAllBridge.sol";
 
 // Stub AllBridgeFacet Contract
 contract TestAllBridgeFacet is AllBridgeFacet {
@@ -73,7 +73,7 @@ contract AllBridgeFacetTest is TestBaseFacet {
             destinationChainId: 5,
             receiveToken: 0x0000000000000000000000002791Bca1f2de4661ED88A30C99A7a9449Aa84174,
             nonce: 40953790744158426077674476975877556494233328003707004662889959804198145032447,
-            messenger: MessengerProtocol.Allbridge
+            messenger: IAllBridge.MessengerProtocol.Allbridge
         });
         addToMessageValue = validAllBridgeData.fees;
         ERC20(ADDRESS_USDC).approve(ALLBRIDGE_POOL, type(uint256).max);
@@ -99,9 +99,10 @@ contract AllBridgeFacetTest is TestBaseFacet {
         // facet does not support bridging of native assets
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             allBridgeFacet.swapAndStartBridgeTokensViaAllBridge{
                 value: swapData[0].fromAmount + addToMessageValue
