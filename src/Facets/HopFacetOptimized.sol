@@ -100,7 +100,7 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         HopData calldata _hopData
-    ) external {
+    ) external payable {
         // Deposit and swap assets
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -209,7 +209,7 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         HopData calldata _hopData
-    ) external {
+    ) external payable {
         // Deposit and swap assets
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
