@@ -41,15 +41,14 @@ This data is specific to Stargate and is represented as the following struct typ
 /// @param callTo The address to send the tokens to on the destination.
 /// @param callData Additional payload.
 struct StargateData {
-    uint256 dstPoolId;
-    uint256 minAmountLD;
-    uint256 dstGasForCall;
-    uint256 lzFee;
-    address payable refundAddress;
-    bytes callTo;
-    bytes callData;
+  uint256 dstPoolId;
+  uint256 minAmountLD;
+  uint256 dstGasForCall;
+  uint256 lzFee;
+  address payable refundAddress;
+  bytes callTo;
+  bytes callData;
 }
-
 ```
 
 ## Swap Data
@@ -78,7 +77,7 @@ The quote result looks like the following:
 const quoteResult = {
   id: '0x...', // quote id
   type: 'lifi', // the type of the quote (all lifi contract calls have the type "lifi")
-  tool: 'hop', // the bridge tool used for the transaction
+  tool: 'stargate', // the bridge tool used for the transaction
   action: {}, // information about what is going to happen
   estimate: {}, // information about the estimated outcome of the call
   includedSteps: [], // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step
@@ -104,7 +103,7 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 To get a transaction for a transfer from 20 USDC on Polygon to USDC on Fantom you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=20000000000000000000&fromToken=USDC&toChain=FTM&toToken=USDC&slippage=0.03&allowBridges=stargate&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=20000000&fromToken=USDC&toChain=FTM&toToken=USDC&slippage=0.03&allowBridges=stargate&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross
@@ -112,5 +111,5 @@ curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=20000000000000000000&fr
 To get a transaction for a transfer from 10 USDT on Polygon to USDC on Fantom you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=10000000000000000000&fromToken=USDT&toChain=FTM&toToken=USDC&slippage=0.03&allowBridges=stargate&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=10000000&fromToken=USDT&toChain=FTM&toToken=USDC&slippage=0.03&allowBridges=stargate&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
