@@ -290,6 +290,39 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         );
     }
 
+    // @dev: be careful that _facetTestContractAddress is set before calling this function
+    function setDefaultSwapDataSingleETHtoUSDC() internal virtual {
+        delete swapData;
+        // Swap ETH -> USDC
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WETH;
+        path[1] = ADDRESS_USDC;
+
+        uint256 amountOut = defaultUSDCAmount;
+
+        // Calculate DAI amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactETHForTokens.selector,
+                    amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+    }
+
     //@dev: be careful that _facetTestContractAddress is set before calling this function
     function setDefaultSwapDataSingleDAItoETH() internal virtual {
         delete swapData;
