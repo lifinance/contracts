@@ -69,7 +69,7 @@ deploy() {
   # extract deployed-to address from return data
   deployed=$(echo $RETURN_DATA | jq -r '.deployed.value')
   # extract constructor arguments from return data
-  args=$(echo $RETURN_DATA | jq -r '.constructorArgs.value // "0x00"')
+  args=$(echo $RETURN_DATA | jq -r '.constructorArgs.value // "0x"')
   echo "$CONTRACT deployed on $NETWORK at address $deployed"
 
   saveContract $NETWORK $CONTRACTADJ $deployed

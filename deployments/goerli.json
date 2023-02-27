@@ -16,5 +16,6 @@
   "ERC20Proxy": "0xb74F109A4Aa61E814eC0A3AcbA4Da47173c772ed",
   "FeeCollector": "0x353a5303dD2a39aB59aEd09fb971D359b94658C7",
   "ArbitrumBridgeFacet": "0x0A713de704C85b67DAB6FbC88C05A773127741ea",
-  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
+  "HopFacetOptimized": "0xbCe268B24155dF2a18982984e9716136278f38d6"
 }
