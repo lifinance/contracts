@@ -2,6 +2,8 @@
 pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
+import { ISquidRouter } from "../Interfaces/ISquidRouter.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -20,11 +22,19 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 amountOut;
     }
 
+    /// State ///
+    ISquidRouter public immutable squidRouter;
+
+    /// Constructor ///
+    constructor(ISquidRouter _squidRouter) {
+        squidRouter = _squidRouter;
+    }
+
     /// External Methods ///
 
     /// @notice Bridges tokens via Squid Router
     /// @param _bridgeData the core information needed for bridging
-    /// @param _acrossData data specific to Squid Router
+    /// @param _squidData data specific to Squid Router
     function startBridgeTokensViaSquiad(
         ILiFi.BridgeData memory _bridgeData,
         SquidData memory _squidData
@@ -39,7 +49,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Swaps and bridges tokens via Squid Router
     /// @param _bridgeData the core information needed for bridging
-    /// @param _acrossData data specific to Squid Router
+    /// @param _squidData data specific to Squid Router
     function swapAndStartBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
         SquidData memory _squidData
@@ -51,7 +61,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @dev Contains the business logic for the bridge via Squid Router
     /// @param _bridgeData the core information needed for bridging
-    /// @param _acrossData data specific to Squid Router
+    /// @param _squidData data specific to Squid Router
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         SquidData memory _squidData
