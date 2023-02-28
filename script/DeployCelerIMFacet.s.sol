@@ -40,7 +40,7 @@ contract DeployScript is DeployScriptBase {
             "json"
         );
         json = vm.readFile(path);
-        address relayer = json.readAddress(".RelayerCBridge");
+        address relayer = json.readAddress(".RelayerCelerIM");
         if (relayer == address(0))
             revert(
                 string.concat(
