@@ -87,10 +87,9 @@ contract RoninBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 )
             );
 
-        bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
         uint256 nativeAssetAmount;
 
-        if (isNative) {
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             nativeAssetAmount = _bridgeData.minAmount;
         } else {
             LibAsset.maxApproveERC20(
