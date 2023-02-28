@@ -3,7 +3,8 @@ pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ISquidRouter } from "../Interfaces/ISquidRouter.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
+import { ISquidMulticall } from "../Interfaces/ISquidMulticall.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -13,13 +14,11 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @notice Provides functionality for bridging through Squid Router
 contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct SquidData {
-        address tokenIn;
-        address tokenOut;
-        uint256 amountIn;
-        uint256 amountOutMin;
-        uint256 deadline;
-        address to;
-        uint256 amountOut;
+        string destinationChain;
+        string bridgedTokenSymbol;
+        /* ISquidMulticall.Call[] calls; */
+        address refundRecipient;
+        bool forecallEnabled;
     }
 
     /// State ///
@@ -35,10 +34,10 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via Squid Router
     /// @param _bridgeData the core information needed for bridging
     /// @param _squidData data specific to Squid Router
-    function startBridgeTokensViaSquiad(
+    function startBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
         SquidData memory _squidData
-    ) external {
+    ) external payable {
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -53,7 +52,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
         SquidData memory _squidData
-    ) external {
+    ) external payable {
         // TODO: implement swap and bridge logic
     }
 
@@ -67,5 +66,25 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         SquidData memory _squidData
     ) internal {
         // TODO: implement internal bridge logic
+        IERC20 sendingAssetId = IERC20(_bridgeData.sendingAssetId);
+        LibAsset.maxApproveERC20(
+            sendingAssetId,
+            address(squidRouter),
+            _bridgeData.minAmount
+        );
+
+        // Initiate bridge tansfer
+        squidRouter.bridgeCall{
+            value: LibAsset.isNativeAsset(address(sendingAssetId))
+                ? _bridgeData.minAmount
+                : 0
+        }(
+            _squidData.destinationChain,
+            _squidData.bridgedTokenSymbol,
+            _bridgeData.minAmount,
+            new ISquidMulticall.Call[](0),
+            _squidData.refundRecipient,
+            _squidData.forecallEnabled
+        );
     }
 }
