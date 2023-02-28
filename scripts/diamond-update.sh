@@ -26,10 +26,29 @@ update() {
 	NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
 	# get user-selected script from list
 	SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Diamond Update Script")
-	echo $SCRIPT
-	# execute selected script
-	RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy)
-	checkFailure
+
+  # execute script
+  attempts=1 # initialize attempts to 0
+
+  while [ $attempts -lt 11 ]; do
+    echo "Trying to execute $SCRIPT now - attempt ${attempts}"
+    # try to execute call
+	  RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy)
+
+    # check the return code the last call
+    if [ $? -eq 0 ]; then
+      break # exit the loop if the operation was successful
+    fi
+
+    attempts=$((attempts + 1)) # increment attempts
+    sleep 1                    # wait for 1 second before trying the operation again
+  done
+
+  if [ $attempts -eq 11 ]; then
+    echo "Failed to execute $SCRIPT"
+    exit 1
+  fi
+
   echo $RAW_RETURN_DATA
   # extract the "logs" property and its contents from return data
 	CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
