@@ -23,7 +23,7 @@ contract TestMakerTeleportFacet is MakerTeleportFacet {
     }
 }
 
-contract mockTxToL1 {
+contract MockArbSys {
     function sendTxToL1(address _destination, bytes calldata _callDataForL1)
         external
         returns (uint256)
@@ -98,9 +98,9 @@ contract MakerTeleportFacetTest is TestBaseFacet {
         bridgeData.minAmount = defaultDAIAmount;
         bridgeData.destinationChainId = DST_CHAIN_ID;
 
-        // deploy mockTxToL1
-        mockTxToL1 mockTxToL1Contract = new mockTxToL1();
-        bytes memory code = address(mockTxToL1Contract).code;
+        // deploy mockArbSys
+        MockArbSys mockArbSys = new MockArbSys();
+        bytes memory code = address(mockArbSys).code;
         vm.etch(0x0000000000000000000000000000000000000064, code);
     }
 
