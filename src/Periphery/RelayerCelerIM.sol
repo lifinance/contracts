@@ -437,6 +437,7 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
         } else {
             IERC20(assetId).safeTransfer(receiver, amount);
         }
+        emit LogWithdraw(assetId, receiver, amount);
     }
 
     /// @notice Triggers a cBridge refund with calldata produced by cBridge API
