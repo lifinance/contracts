@@ -167,7 +167,7 @@ Sample requests to fetch transactions for each facet can be found at the end of 
 
 ## Getting Started<a name="getting-started"></a>
 
-Make sure to copy `.env.example` to `.env` and fill out the missing values.
+Make sure to copy `.env.example` to `.env` and fill out the missing values. Tests might fail with missing environment variables if some of the variables are blank.
 
 ### INSTALL<a name="install"></a>
 
@@ -204,28 +204,12 @@ forge install
 Run tests
 
 ```
-forge test
-```
-
-OR
-
-```
-yarn test:forge
+yarn test
 ```
 
 ### DEPLOY<a name="deploy"></a>
 
-You can deploy the entire project by running:
-
-`yarn deploy <network> --tags DeployAllFacets`
-
-You can deploy individual facets by running:
-
-`yarn deploy <network> --tags Deploy<facet> // e.g. DeployNXTPFacet`
-
-DEX Manager is a special facet that manages allowed DEXs and allowed function calls. You can update these allowed DEXs/functions by updating `/config/dex.ts` and then running:
-
-`yarn deploy <network> --tags DeployDexManagerFacet`
+Follow the deployment checklist [here](./docs/Deploy.md)
 
 ## More Information<a name="more-information"></a>
 

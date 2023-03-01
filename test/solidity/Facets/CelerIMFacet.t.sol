@@ -2,16 +2,16 @@
 pragma solidity 0.8.17;
 
 import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
-import { CBridgeFacet, IMessageBus, MsgDataTypes, IERC20 } from "lifi/Facets/CBridgeFacet.sol";
+import { CelerIMFacet, IMessageBus, MsgDataTypes, IERC20 } from "lifi/Facets/CelerIMFacet.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
-import { RelayerCBridge } from "lifi/Periphery/RelayerCBridge.sol";
+import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 
-// Stub CBridgeFacet Contract
-contract TestCBridgeFacet is CBridgeFacet {
-    constructor(IMessageBus _messageBus, RelayerCBridge _relayer)
-        CBridgeFacet(_messageBus, _relayer)
+// Stub CelerIMFacet Contract
+contract TestCelerIMFacet is CelerIMFacet {
+    constructor(IMessageBus _messageBus, RelayerCelerIM _relayer)
+        CelerIMFacet(_messageBus, _relayer)
     {}
 
     function addDex(address _dex) external {
@@ -27,7 +27,7 @@ interface Ownable {
     function owner() external returns (address);
 }
 
-contract CBridgeFacetTest is TestBaseFacet {
+contract CelerIMFacetTest is TestBaseFacet {
     /// EVENTS
     event Deposited(
         bytes32 depositId,
@@ -77,11 +77,11 @@ contract CBridgeFacetTest is TestBaseFacet {
     address internal constant CBRIDGE_PEG_BRIDGE_V2 =
         0x52E4f244f380f8fA51816c8a10A63105dd4De084;
 
-    TestCBridgeFacet internal cBridgeFacet;
-    CBridgeFacet.CBridgeData internal cBridgeData;
+    TestCelerIMFacet internal celerIMFacet;
+    CelerIMFacet.CelerIMData internal celerIMData;
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
-    RelayerCBridge internal relayer;
+    RelayerCelerIM internal relayer;
 
     function setUp() public {
         customBlockNumberForForking = 16227237;
@@ -90,43 +90,43 @@ contract CBridgeFacetTest is TestBaseFacet {
         // deploy periphery
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(this), address(erc20Proxy));
-        relayer = new RelayerCBridge(
+        relayer = new RelayerCelerIM(
             address(this),
             CBRIDGE_MESSAGEBUS_ETH,
             address(diamond),
             address(executor)
         );
 
-        cBridgeFacet = new TestCBridgeFacet(
+        celerIMFacet = new TestCelerIMFacet(
             IMessageBus(CBRIDGE_MESSAGEBUS_ETH),
             relayer
         );
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = cBridgeFacet
-            .startBridgeTokensViaCBridge
+        functionSelectors[0] = celerIMFacet
+            .startBridgeTokensViaCelerIM
             .selector;
-        functionSelectors[1] = cBridgeFacet
-            .swapAndStartBridgeTokensViaCBridge
+        functionSelectors[1] = celerIMFacet
+            .swapAndStartBridgeTokensViaCelerIM
             .selector;
-        functionSelectors[2] = cBridgeFacet.addDex.selector;
-        functionSelectors[3] = cBridgeFacet
+        functionSelectors[2] = celerIMFacet.addDex.selector;
+        functionSelectors[3] = celerIMFacet
             .setFunctionApprovalBySignature
             .selector;
 
-        addFacet(diamond, address(cBridgeFacet), functionSelectors);
+        addFacet(diamond, address(celerIMFacet), functionSelectors);
 
-        cBridgeFacet = TestCBridgeFacet(address(diamond));
-        cBridgeFacet.addDex(address(uniswap));
-        cBridgeFacet.setFunctionApprovalBySignature(
+        celerIMFacet = TestCelerIMFacet(address(diamond));
+        celerIMFacet.addDex(address(uniswap));
+        celerIMFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
-        cBridgeFacet.setFunctionApprovalBySignature(
+        celerIMFacet.setFunctionApprovalBySignature(
             uniswap.swapTokensForExactETH.selector
         );
-        cBridgeFacet.setFunctionApprovalBySignature(
+        celerIMFacet.setFunctionApprovalBySignature(
             uniswap.swapETHForExactTokens.selector
         );
-        setFacetAddressInTestBase(address(cBridgeFacet), "cBridgeFacet");
+        setFacetAddressInTestBase(address(celerIMFacet), "cBridgeFacet");
         vm.label(CBRIDGE_ROUTER, "CBRIDGE_ROUTER");
         vm.label(CBRIDGE_MESSAGEBUS_ETH, "CBRIDGE_MESSAGEBUS_ETH");
         vm.label(CBRIDGE_PEG_VAULT, "CBRIDGE_PEG_VAULT");
@@ -134,7 +134,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         vm.label(CBRIDGE_PEG_BRIDGE, "CBRIDGE_PEG_BRIDGE");
         vm.label(CBRIDGE_PEG_BRIDGE_V2, "CBRIDGE_PEG_BRIDGE_V2");
 
-        cBridgeData = CBridgeFacet.CBridgeData({
+        celerIMData = CelerIMFacet.CelerIMData({
             maxSlippage: 5000,
             nonce: 1,
             callTo: abi.encodePacked(address(0)),
@@ -146,11 +146,11 @@ contract CBridgeFacetTest is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            cBridgeFacet.startBridgeTokensViaCBridge{
+            celerIMFacet.startBridgeTokensViaCelerIM{
                 value: bridgeData.minAmount
-            }(bridgeData, cBridgeData);
+            }(bridgeData, celerIMData);
         } else {
-            cBridgeFacet.startBridgeTokensViaCBridge(bridgeData, cBridgeData);
+            celerIMFacet.startBridgeTokensViaCelerIM(bridgeData, celerIMData);
         }
     }
 
@@ -159,14 +159,14 @@ contract CBridgeFacetTest is TestBaseFacet {
         override
     {
         if (isNative) {
-            cBridgeFacet.swapAndStartBridgeTokensViaCBridge{
+            celerIMFacet.swapAndStartBridgeTokensViaCelerIM{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, cBridgeData);
+            }(bridgeData, swapData, celerIMData);
         } else {
-            cBridgeFacet.swapAndStartBridgeTokensViaCBridge(
+            celerIMFacet.swapAndStartBridgeTokensViaCelerIM(
                 bridgeData,
                 swapData,
-                cBridgeData
+                celerIMData
             );
         }
     }
@@ -191,9 +191,9 @@ contract CBridgeFacetTest is TestBaseFacet {
         // call testcase with correct call data (i.e. function selector) for this facet
         super.failReentrantCall(
             abi.encodeWithSelector(
-                cBridgeFacet.startBridgeTokensViaCBridge.selector,
+                celerIMFacet.startBridgeTokensViaCelerIM.selector,
                 bridgeData,
-                cBridgeData
+                celerIMData
             )
         );
     }
@@ -229,7 +229,7 @@ contract CBridgeFacetTest is TestBaseFacet {
                     uniswap.swapETHForExactTokens.selector,
                     amountOut,
                     path,
-                    address(cBridgeFacet),
+                    address(celerIMFacet),
                     block.timestamp + 20 minutes
                 ),
                 requiresDeposit: true
@@ -239,10 +239,10 @@ contract CBridgeFacetTest is TestBaseFacet {
         // call testcase with correct call data (i.e. function selector) for this facet
         super.failReentrantCall(
             abi.encodeWithSelector(
-                cBridgeFacet.swapAndStartBridgeTokensViaCBridge.selector,
+                celerIMFacet.swapAndStartBridgeTokensViaCelerIM.selector,
                 bridgeData,
                 swapData,
-                cBridgeData
+                celerIMData
             )
         );
     }
@@ -254,9 +254,9 @@ contract CBridgeFacetTest is TestBaseFacet {
         bridgeData.minAmount = 1 ether;
         vm.expectRevert();
 
-        cBridgeFacet.startBridgeTokensViaCBridge{
+        celerIMFacet.startBridgeTokensViaCelerIM{
             value: bridgeData.minAmount - 1
-        }(bridgeData, cBridgeData);
+        }(bridgeData, celerIMData);
 
         vm.stopPrank();
     }
@@ -271,7 +271,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         // reference tx: https://etherscan.io/tx/0xa91fd8a0b703bfec29c6682dcf2fc022db82b250e3d8544ad5efcef5dd245cb5
 
         // adjust cBridgeData
-        cBridgeData.bridgeType = MsgDataTypes.BridgeSendType.PegDeposit;
+        celerIMData.bridgeType = MsgDataTypes.BridgeSendType.PegDeposit;
 
         // approval
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -298,7 +298,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         bridgeData.minAmount = defaultDAIAmount;
 
         // adjust cBridgeData
-        cBridgeData.bridgeType = MsgDataTypes.BridgeSendType.PegBurn;
+        celerIMData.bridgeType = MsgDataTypes.BridgeSendType.PegBurn;
 
         // approval
         testToken.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -329,7 +329,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         bridgeData.minAmount = defaultDAIAmount;
 
         // adjust cBridgeData
-        cBridgeData.bridgeType = MsgDataTypes.BridgeSendType.PegV2Deposit;
+        celerIMData.bridgeType = MsgDataTypes.BridgeSendType.PegV2Deposit;
 
         // approval
         weth.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -362,7 +362,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         bridgeData.minAmount = defaultDAIAmount;
 
         // adjust cBridgeData
-        cBridgeData.bridgeType = MsgDataTypes.BridgeSendType.PegV2Deposit;
+        celerIMData.bridgeType = MsgDataTypes.BridgeSendType.PegV2Deposit;
 
         //prepare check for events
         vm.expectEmit(false, false, false, false, CBRIDGE_PEG_VAULT_V2);
@@ -396,7 +396,7 @@ contract CBridgeFacetTest is TestBaseFacet {
         bridgeData.minAmount = defaultDAIAmount;
 
         // adjust cBridgeData
-        cBridgeData.bridgeType = MsgDataTypes.BridgeSendType.PegV2Burn;
+        celerIMData.bridgeType = MsgDataTypes.BridgeSendType.PegV2Burn;
 
         // approval
         testToken.approve(_facetTestContractAddress, bridgeData.minAmount);

@@ -76,7 +76,7 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_POLYGON");
-        uint256 blockNumber = vm.envUint("POLYGON_FORK_NUMBER");
+        uint256 blockNumber = 25085298;
         vm.createSelectFork(rpcUrl, blockNumber);
     }
 

@@ -9,17 +9,44 @@ import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
+    struct Config {
+        address ammWrapper;
+        address bridge;
+        string name;
+        address token;
+    }
+
+    address[] internal bridges;
+    address[] internal tokensToApprove;
+
     function run() public returns (address[] memory facets) {
-        string memory path = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".",
-            fileSuffix,
-            "json"
-        );
-        string memory json = vm.readFile(path);
         address facet = json.readAddress(".HopFacetOptimized");
+
+        path = string.concat(root, "/config/hop.json");
+        json = vm.readFile(path);
+        bytes memory rawConfig = json.parseRaw(
+            string.concat(".", network, ".tokens")
+        );
+        Config[] memory configs = abi.decode(rawConfig, (Config[]));
+
+        // Loop through all items in the config and
+        // add the tokens and bridges to their respective arrays
+        for (uint256 i = 0; i < configs.length; i++) {
+            // if the token is address(0) (native) then skip it
+            if (configs[i].token == address(0)) continue;
+            bridges.push(
+                configs[i].ammWrapper == address(0)
+                    ? configs[i].bridge
+                    : configs[i].ammWrapper
+            );
+            tokensToApprove.push(configs[i].token);
+        }
+
+        bytes memory callData = abi.encodeWithSelector(
+            HopFacetOptimized.setApprovalForBridges.selector,
+            bridges,
+            tokensToApprove
+        );
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -27,7 +54,7 @@ contract DeployScript is UpdateScriptBase {
         if (loupe.facetFunctionSelectors(facet).length == 0) {
             cut.push(
                 IDiamondCut.FacetCut({
-                    facetAddress: address(facet),
+                    facetAddress: facet,
                     action: IDiamondCut.FacetCutAction.Add,
                     functionSelectors: getSelectors(
                         "HopFacetOptimized",
@@ -35,7 +62,7 @@ contract DeployScript is UpdateScriptBase {
                     )
                 })
             );
-            cutter.diamondCut(cut, address(0), "");
+            cutter.diamondCut(cut, facet, callData);
         }
 
         facets = loupe.facetAddresses();

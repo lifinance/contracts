@@ -22,11 +22,8 @@ contract DeployScript is DeployScriptBase {
         address connextHandler = json.readAddress(
             string.concat(".", network, ".connextHandler")
         );
-        address srcChainDomain = json.readAddress(
-            string.concat(".", network, ".domain")
-        );
 
-        constructorArgs = abi.encode(connextHandler, srcChainDomain);
+        constructorArgs = abi.encode(connextHandler);
 
         vm.startBroadcast(deployerPrivateKey);
 

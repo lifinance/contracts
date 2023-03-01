@@ -79,7 +79,7 @@ contract ExecutorTest is DSTest {
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = vm.envUint("FORK_NUMBER");
+        uint256 blockNumber = 14847528;
         vm.createSelectFork(rpcUrl, blockNumber);
     }
 

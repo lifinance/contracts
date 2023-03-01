@@ -9,7 +9,7 @@ load() {
 	fi
 
 NETWORK=$(cat ./networks | gum filter --placeholder "Network")
-CONTRACTS=$(gum choose --no-limit erc20Proxy axelarExecutor executor receiver feeCollector serviceFeeCollector relayerCBridge)
+CONTRACTS=$(gum choose --no-limit erc20Proxy axelarExecutor executor receiver feeCollector serviceFeeCollector relayerCelerIM)
 
 ADDRS="deployments/$NETWORK$FILE_SUFFIX.json"
 
@@ -20,7 +20,7 @@ EXECUTOR=$(jq -r '.Executor // "0x"' $ADDRS)
 RECEIVER=$(jq -r '.Receiver // "0x"' $ADDRS)
 FEECOLLECTOR=$(jq -r '.FeeCollector // "0x"' $ADDRS)
 SERVICEFEECOLLECTOR=$(jq -r '.ServiceFeeCollector // "0x"' $ADDRS)
-RELAYERCBRIDGE=$(jq -r '.RelayerCBridge // "0x"' $ADDRS)
+RELAYERCELERIM=$(jq -r '.RelayerCelerIM // "0x"' $ADDRS)
 
 echo "Diamond: $DIAMOND"
 
@@ -55,14 +55,14 @@ if [[ "$SERVICEFEECOLLECTOR" != "0x" && " ${CONTRACTS[*]}" =~ "serviceFeeCollect
 fi
 
 
-if [[ "$RELAYERCBRIDGE" != "0x" && " ${CONTRACTS[*]}" =~ "relayerCBridge" ]]; then
-  echo "Updating RelayerCBridge $RELAYERCBRIDGE"
-  register $NETWORK $DIAMOND 'RelayerCBridge' $RELAYERCBRIDGE
+if [[ "$RELAYERCELERIM" != "0x" && " ${CONTRACTS[*]}" =~ "relayerCelerIM" ]]; then
+  echo "Updating RelayerCelerIM $RELAYERCELERIM"
+  register $NETWORK $DIAMOND 'RelayerCelerIM' $RELAYERCELERIM
 fi
 }
 
 register() {
-	NETWORK=$(tr '[:lower:]' '[:upper:]' <<< $1)
+	NETWORK=$(tr '[:lower:]-' '[:upper:]_' <<< $1)
   DIAMOND=$2
   NAME=$3
   ADDR=$4

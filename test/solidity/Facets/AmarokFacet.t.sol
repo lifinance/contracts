@@ -8,8 +8,8 @@ import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, I
 
 // Stub AmarokFacet Contract
 contract TestAmarokFacet is AmarokFacet {
-    constructor(IConnextHandler _connextHandler, uint32 _srcChainDomain)
-        AmarokFacet(_connextHandler, _srcChainDomain)
+    constructor(IConnextHandler _connextHandler)
+        AmarokFacet(_connextHandler)
     {}
 
     function addDex(address _dex) external {
@@ -27,7 +27,6 @@ contract AmarokFacetTest is TestBaseFacet {
     address internal constant CONNEXT_HANDLER2 =
         0x2b501381c6d6aFf9238526352b1c7560Aa35A7C5;
     uint32 internal constant DSTCHAIN_DOMAIN_GOERLI = 1735356532;
-    uint32 internal constant DSTCHAIN_DOMAIN_MAINNET = 6648936;
     uint32 internal constant DSTCHAIN_DOMAIN_POLYGON = 1886350457;
     // -----
 
@@ -40,18 +39,14 @@ contract AmarokFacetTest is TestBaseFacet {
 
         initTestBase();
 
-        amarokFacet = new TestAmarokFacet(
-            IConnextHandler(CONNEXT_HANDLER2),
-            DSTCHAIN_DOMAIN_MAINNET
-        );
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        amarokFacet = new TestAmarokFacet(IConnextHandler(CONNEXT_HANDLER2));
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = amarokFacet.startBridgeTokensViaAmarok.selector;
         functionSelectors[1] = amarokFacet
             .swapAndStartBridgeTokensViaAmarok
             .selector;
-        functionSelectors[2] = amarokFacet.setAmarokDomain.selector;
-        functionSelectors[3] = amarokFacet.addDex.selector;
-        functionSelectors[4] = amarokFacet
+        functionSelectors[2] = amarokFacet.addDex.selector;
+        functionSelectors[3] = amarokFacet
             .setFunctionApprovalBySignature
             .selector;
 
@@ -70,10 +65,6 @@ contract AmarokFacetTest is TestBaseFacet {
         // label addresses for better call traces
         vm.label(CONNEXT_HANDLER, "CONNEXT_HANDLER");
 
-        // set Amarok domain mappings
-        amarokFacet.setAmarokDomain(1, DSTCHAIN_DOMAIN_MAINNET);
-        amarokFacet.setAmarokDomain(137, DSTCHAIN_DOMAIN_POLYGON);
-
         // adjust bridgeData
         bridgeData.bridge = "amarok";
         bridgeData.destinationChainId = 137;
@@ -86,7 +77,8 @@ contract AmarokFacetTest is TestBaseFacet {
             callTo: receiver,
             relayerFee: 0,
             slippageTol: 9995,
-            delegate: delegate
+            delegate: delegate,
+            destChainDomainId: DSTCHAIN_DOMAIN_POLYGON
         });
 
         // make sure relayerFee is sent with every transaction

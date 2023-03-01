@@ -22,19 +22,20 @@ graph LR;
 Some of the methods listed above take a variable labeled `_arbitrumData`.
 
 To populate `_arbitrumData` you will need to get the `gatewayRouter` and `tokenRouter`. Also you should get `maxSubmissionCost`, `maxGas`, `maxGasPrice` from the Arbitrum chain.
+
 - `maxSubmissionCost`
   Maximum amount of ETH allocated to pay for the base submission fee. The base submission fee is a parameter unique to retryable transactions; the user is charged the base submission fee to cover the storage costs of keeping their ticket’s calldata in the retry buffer.
   Base submission fee is querable via `ArbRetryableTx.getSubmissionPrice`.
   Base submission fee should be increased by specific percentage to get max submission cost. Currently, the increment percentage is 340%.
   `ArbRetryableTx` contract address and function abi can be found in configuration.
 - `maxGas`
-   Maximum Gas limit for immediate L2 execution attempt.
-   Gas limit can be estimated via `NodeInterface.estimateRetryableTicket`.
-   Gas limit should be increased by specific percentage to get maximum gas limit. The increment percentage is 50% now.
+  Maximum Gas limit for immediate L2 execution attempt.
+  Gas limit can be estimated via `NodeInterface.estimateRetryableTicket`.
+  Gas limit should be increased by specific percentage to get maximum gas limit. The increment percentage is 50% now.
   `NodeInterface` contract address and function abi can be found in configuration.
 - `maxGasPrice`
-   L2 Gas price bid for immediate L2 execution attempt.
-   It can be get with the same call to get the gas limit above.
+  L2 Gas price bid for immediate L2 execution attempt.
+  It can be get with the same call to get the gas limit above.
 
 You will need to send additional amount of ETH for the fee.
 If you do not desire immediate redemption, you should provide a DepositValue of at least `CallValue + MaxSubmissionCost`. If you do desire immediate execution, you should provide a DepositValue of at least `CallValue + MaxSubmissionCost + (GasPrice x MaxGas)`.
@@ -46,11 +47,10 @@ This data is specific to Arbitrum Native Bridge and is represented as the follow
 /// @param maxGas Max gas deducted from user's L2 balance to cover L2 execution.
 /// @param maxGasPrice price bid for L2 execution.
 struct ArbitrumData {
-    uint256 maxSubmissionCost;
-    uint256 maxGas;
-    uint256 maxGasPrice;
+  uint256 maxSubmissionCost;
+  uint256 maxGas;
+  uint256 maxGasPrice;
 }
-
 ```
 
 ## Swap Data
@@ -81,7 +81,7 @@ The quote result looks like the following:
 const quoteResult = {
   id: '0x...', // quote id
   type: 'lifi', // the type of the quote (all lifi contract calls have the type "lifi")
-  tool: 'hop', // the bridge tool used for the transaction
+  tool: 'arbitrum', // the bridge tool used for the transaction
   action: {}, // information about what is going to happen
   estimate: {}, // information about the estimated outcome of the call
   includedSteps: [], // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step
@@ -115,5 +115,5 @@ curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=20000000000000000000&fr
 To get a transaction for a transfer from 10 USDC on Ethereum to DAI on Arbitrum you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=10000000000000000000&fromToken=USDC&toChain=ARB&toToken=DAI&slippage=0.03&allowBridges=arbitrum&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=10000000&fromToken=USDC&toChain=ARB&toToken=DAI&slippage=0.03&allowBridges=arbitrum&fromAddress={YOUR_WALLET_ADDRESS}'
 ```

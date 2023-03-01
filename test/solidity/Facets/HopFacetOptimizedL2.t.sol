@@ -26,8 +26,6 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
         0x28529fec439cfF6d7D1D5917e956dEE62Cd3BE5c;
     address internal constant NATIVE_BRIDGE =
         0x884d1Aa15F9957E1aEAA86a82a72e49Bc2bfCbe3;
-    address internal constant CONNEXT_HANDLER =
-        0xB4C1340434920d70aD774309C75f9a4B679d801e;
     uint256 internal constant DSTCHAIN_ID = 1;
     // -----
 
@@ -78,6 +76,9 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
         );
         hopFacet.setFunctionApprovalBySignature(
             uniswap.swapETHForExactTokens.selector
+        );
+        hopFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactETHForTokens.selector
         );
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
 
@@ -137,6 +138,40 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
                 validHopData
             );
         }
+    }
+
+    function testCanSwapNativeAndBridgeTokens() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // reset swap data
+        setDefaultSwapDataSingleETHtoUSDC();
+
+        // update HopData
+        validHopData.bonderFee = (bridgeData.minAmount * 1) / 100;
+        validHopData.amountOutMin = 999999;
+        validHopData.hopBridge = IHopBridge(USDC_BRIDGE);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            address(0),
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        hopFacet.swapAndStartBridgeTokensViaHopL2ERC20{
+            value: swapData[0].fromAmount
+        }(bridgeData, swapData, validHopData);
     }
 
     function testBase_Revert_BridgeWithInvalidDestinationCallFlag()

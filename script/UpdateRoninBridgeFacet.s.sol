@@ -4,26 +4,17 @@ pragma solidity ^0.8.17;
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
-import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
+import { RoninBridgeFacet } from "lifi/Facets/RoninBridgeFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     function run() public returns (address[] memory facets) {
-        string memory path = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".",
-            fileSuffix,
-            "json"
-        );
-        string memory json = vm.readFile(path);
-        address facet = json.readAddress(".PeripheryRegistryFacet");
+        address facet = json.readAddress(".RoninBridgeFacet");
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // PeripheryRegistry
+        // RoninBridge
         if (loupe.facetFunctionSelectors(facet).length == 0) {
             bytes4[] memory exclude;
             cut.push(
@@ -31,7 +22,7 @@ contract DeployScript is UpdateScriptBase {
                     facetAddress: address(facet),
                     action: IDiamondCut.FacetCutAction.Add,
                     functionSelectors: getSelectors(
-                        "PeripheryRegistryFacet",
+                        "RoninBridgeFacet",
                         exclude
                     )
                 })

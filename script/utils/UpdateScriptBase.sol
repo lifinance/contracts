@@ -18,14 +18,17 @@ contract UpdateScriptBase is Script {
     string internal root;
     string internal network;
     string internal fileSuffix;
+    string internal path;
+    string internal json;
 
     constructor() {
         deployerPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY"));
         root = vm.projectRoot();
         network = vm.envString("NETWORK");
         fileSuffix = vm.envString("FILE_SUFFIX");
+        bool useDefaultDiamond = vm.envBool("USE_DEF_DIAMOND");
 
-        string memory path = string.concat(
+        path = string.concat(
             root,
             "/deployments/",
             network,
@@ -33,8 +36,11 @@ contract UpdateScriptBase is Script {
             fileSuffix,
             "json"
         );
-        string memory json = vm.readFile(path);
-        diamond = json.readAddress(".LiFiDiamond");
+        json = vm.readFile(path);
+        diamond = useDefaultDiamond ?
+            json.readAddress(".LiFiDiamond") :
+            json.readAddress(".LiFiDiamondImmutableV1")
+        ;
         cutter = DiamondCutFacet(diamond);
         loupe = DiamondLoupeFacet(diamond);
     }
