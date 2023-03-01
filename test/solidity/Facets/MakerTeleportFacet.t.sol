@@ -23,10 +23,18 @@ contract TestMakerTeleportFacet is MakerTeleportFacet {
     }
 }
 
+contract mockTxToL1 {
+    function sendTxToL1(address _destination, bytes calldata _callDataForL1)
+        external
+        returns (uint256)
+    {
+        console.log("sendTxToL1 called");
+        return 1;
+    }
+}
+
 contract MakerTeleportFacetTest is TestBaseFacet {
     // These values are for Arbitrum
-    address internal constant DAI_HOLDER =
-        0x21c0d45E3c1A4430c4bE2EE9109bC788CaC0ffe6;
     address internal constant MAKER_TELEPORT =
         0x5dBaf6F2bEDebd414F8d78d13499222347e59D5E;
     uint256 internal constant DST_CHAIN_ID = 1;
@@ -89,6 +97,11 @@ contract MakerTeleportFacetTest is TestBaseFacet {
         bridgeData.sendingAssetId = ADDRESS_DAI;
         bridgeData.minAmount = defaultDAIAmount;
         bridgeData.destinationChainId = DST_CHAIN_ID;
+
+        // deploy mockTxToL1
+        mockTxToL1 mockTxToL1Contract = new mockTxToL1();
+        bytes memory code = address(mockTxToL1Contract).code;
+        vm.etch(0x0000000000000000000000000000000000000064, code);
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -121,9 +134,13 @@ contract MakerTeleportFacetTest is TestBaseFacet {
     function testBase_CanBridgeTokens()
         public
         override
-        assertBalanceChange(ADDRESS_DAI, DAI_HOLDER, -int256(defaultDAIAmount))
+        assertBalanceChange(
+            ADDRESS_DAI,
+            USER_SENDER,
+            -int256(defaultDAIAmount)
+        )
     {
-        vm.startPrank(DAI_HOLDER);
+        vm.startPrank(USER_SENDER);
 
         // approval
         dai.approve(address(makerTeleportFacet), bridgeData.minAmount);
@@ -137,8 +154,7 @@ contract MakerTeleportFacetTest is TestBaseFacet {
     }
 
     // ToDo Fix issue
-    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
-    }
+    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {}
 
     function testBase_CanBridgeNativeTokens() public override {
         // facet does not support native bridging
