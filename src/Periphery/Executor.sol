@@ -266,7 +266,7 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @param operator The address of the tx initiator
     /// @param from The address from which the ERC721 token was transferred to this contract
     /// @param tokenId The ID of the token that was transferred
-    /// @param unused
+    /// {unused} - optional calldata
     /// @return uint256[] Array of token balances.
     function onERC721Received(
         address operator,
