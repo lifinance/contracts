@@ -35,6 +35,7 @@ contract SquidFacetTest is TestBaseFacet {
     TestSquidFacet internal squidFacet;
 
     function setUp() public {
+        customBlockNumberForForking = 16724399;
         initTestBase();
 
         squidFacet = new TestSquidFacet(ISquidRouter(SQUID_ROUTER));

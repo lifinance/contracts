@@ -37,7 +37,15 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function startBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
         SquidData memory _squidData
-    ) external payable {
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        validateBridgeData(_bridgeData)
+        doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+    {
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -52,8 +60,22 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
         SquidData memory _squidData
-    ) external payable {
-        // TODO: implement swap and bridge logic
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        validateBridgeData(_bridgeData)
+    {
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+        _startBridge(_bridgeData, _squidData);
     }
 
     /// Internal Methods ///
@@ -65,7 +87,6 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         SquidData memory _squidData
     ) internal {
-        // TODO: implement internal bridge logic
         IERC20 sendingAssetId = IERC20(_bridgeData.sendingAssetId);
         LibAsset.maxApproveERC20(
             sendingAssetId,
@@ -86,5 +107,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _squidData.refundRecipient,
             _squidData.forecallEnabled
         );
+
+        emit LiFiTransferStarted(_bridgeData);
     }
 }
