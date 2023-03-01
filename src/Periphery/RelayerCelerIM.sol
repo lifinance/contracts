@@ -28,8 +28,14 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     IExecutor public executor;
 
     /// Errors ///
+    error WithdrawFailed();
 
     /// Events ///
+    event LogWithdraw(
+        address indexed _assetAddress,
+        address indexed _to,
+        uint256 amount
+    );
     event CBridgeMessageBusSet(address indexed messageBusAddress);
     event DiamondAddressSet(address indexed diamondAddress);
     event ExecutorSet(address indexed executorAddress);
@@ -431,6 +437,42 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
             receiver.call{ value: amount }("");
         } else {
             IERC20(assetId).safeTransfer(receiver, amount);
+        }
+    }
+
+    /// @notice Triggers a cBridge refund with calldata produced by cBridge API
+    /// @param _callTo The address to execute the calldata on
+    /// @param _callData The data to execute
+    /// @param _assetAddress Asset to be withdrawn
+    /// @param _to Address to withdraw to
+    /// @param _amount Amount of asset to withdraw
+    function triggerRefund(
+        address payable _callTo,
+        bytes calldata _callData,
+        address _assetAddress,
+        address _to,
+        uint256 _amount
+    ) external onlyOwner {
+        bool success;
+
+        // make sure that callTo address is either of the cBridge addresses
+        if(cBridgeMessageBus.liquidityBridge() != _callTo &&
+        cBridgeMessageBus.pegBridge() != _callTo &&
+        cBridgeMessageBus.pegBridgeV2() != _callTo &&
+        cBridgeMessageBus.pegVault() != _callTo &&
+        cBridgeMessageBus.pegVaultV2() != _callTo)
+        revert ContractCallNotAllowed();
+
+        // call contract
+        (success, ) = _callTo.call(_callData);
+
+        // forward funds to _to address and emit event, if cBridge refund successful
+        if (success) {
+            address sendTo = (LibUtil.isZeroAddress(_to)) ? msg.sender : _to;
+            LibAsset.transferAsset(_assetAddress, payable(sendTo), _amount);
+            emit LogWithdraw(_assetAddress, sendTo, _amount);
+        } else {
+            revert WithdrawFailed();
         }
     }
 
