@@ -16,8 +16,6 @@ import { Validatable } from "../Helpers/Validatable.sol";
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.across");
-
     /// @notice The contract address of the spoke pool on the source chain.
     IAcrossSpokePool private immutable spokePool;
 

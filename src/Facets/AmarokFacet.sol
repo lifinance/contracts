@@ -4,12 +4,10 @@ pragma solidity 0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IConnextHandler } from "../Interfaces/IConnextHandler.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InformationMismatch } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { LibMappings } from "../Libraries/LibMappings.sol";
 
 /// @title Amarok Facet
 /// @author LI.FI (https://li.fi)
@@ -20,15 +18,12 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The contract address of the connext handler on the source chain.
     IConnextHandler private immutable connextHandler;
 
-    /// @notice The domain of source chain.
-    uint32 private immutable srcChainDomain;
-
     /// @param callData The data to execute on the receiving chain. If no crosschain call is needed, then leave empty.
     /// @param callTo The address of the contract on dest chain that will receive bridged funds and execute data
     /// @param relayerFee The amount of relayer fee the tx called xcall with
     /// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
     /// @param delegate Destination delegate address
-    /// @param domainId The Amarok-specific domainId of the destination chain
+    /// @param destChainDomainId The Amarok-specific domainId of the destination chain
     struct AmarokData {
         bytes callData;
         address callTo;
@@ -42,10 +37,8 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize the contract.
     /// @param _connextHandler The contract address of the connext handler on the source chain.
-    /// @param _srcChainDomain The domain of source chain.
-    constructor(IConnextHandler _connextHandler, uint32 _srcChainDomain) {
+    constructor(IConnextHandler _connextHandler) {
         connextHandler = _connextHandler;
-        srcChainDomain = _srcChainDomain;
     }
 
     /// External Methods ///

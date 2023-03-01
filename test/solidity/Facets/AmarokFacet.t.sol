@@ -8,8 +8,8 @@ import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, I
 
 // Stub AmarokFacet Contract
 contract TestAmarokFacet is AmarokFacet {
-    constructor(IConnextHandler _connextHandler, uint32 _srcChainDomain)
-        AmarokFacet(_connextHandler, _srcChainDomain)
+    constructor(IConnextHandler _connextHandler)
+        AmarokFacet(_connextHandler)
     {}
 
     function addDex(address _dex) external {
@@ -27,7 +27,6 @@ contract AmarokFacetTest is TestBaseFacet {
     address internal constant CONNEXT_HANDLER2 =
         0x2b501381c6d6aFf9238526352b1c7560Aa35A7C5;
     uint32 internal constant DSTCHAIN_DOMAIN_GOERLI = 1735356532;
-    uint32 internal constant DSTCHAIN_DOMAIN_MAINNET = 6648936;
     uint32 internal constant DSTCHAIN_DOMAIN_POLYGON = 1886350457;
     // -----
 
@@ -40,10 +39,7 @@ contract AmarokFacetTest is TestBaseFacet {
 
         initTestBase();
 
-        amarokFacet = new TestAmarokFacet(
-            IConnextHandler(CONNEXT_HANDLER2),
-            DSTCHAIN_DOMAIN_MAINNET
-        );
+        amarokFacet = new TestAmarokFacet(IConnextHandler(CONNEXT_HANDLER2));
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = amarokFacet.startBridgeTokensViaAmarok.selector;
         functionSelectors[1] = amarokFacet

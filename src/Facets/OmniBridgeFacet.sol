@@ -14,9 +14,6 @@ import { Validatable } from "../Helpers/Validatable.sol";
 contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    /// @notice The chain id of Gnosis.
-    uint64 private constant GNOSIS_CHAIN_ID = 100;
-
     /// @notice The contract address of the foreign omni bridge on the source chain.
     IOmniBridge private immutable foreignOmniBridge;
 
