@@ -44,7 +44,7 @@ The quote result looks like the following:
 const quoteResult = {
   id: '0x...', // quote id
   type: 'lifi', // the type of the quote (all lifi contract calls have the type "lifi")
-  tool: 'hop', // the bridge tool used for the transaction
+  tool: 'polygon', // the bridge tool used for the transaction
   action: {}, // information about what is going to happen
   estimate: {}, // information about the estimated outcome of the call
   includedSteps: [], // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step
@@ -78,5 +78,5 @@ curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=20000000000000000000&fr
 To get a transaction for a transfer from 10 USDT on Ethereum to DAI on Polygon you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=10000000000000000000&fromToken=USDT&toChain=POL&toToken=DAI&slippage=0.03&allowBridges=polygon&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=10000000&fromToken=USDT&toChain=POL&toToken=DAI&slippage=0.03&allowBridges=polygon&fromAddress={YOUR_WALLET_ADDRESS}'
 ```

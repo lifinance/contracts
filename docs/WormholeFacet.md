@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Wormhole Facet works by forwarding Wormhole (Portal) specific calls to the [Wormhole Router](https://etherscan.io/address/0x98f3c9e6E3fAce36bAAd05FE09d375Ef1464288B). All bridging is done by calling the `transferTokens` method. Currently we do not support transferring native tokens trough Wormhole. 
+The Wormhole Facet works by forwarding Wormhole (Portal) specific calls to the [Wormhole Router](https://etherscan.io/address/0x98f3c9e6E3fAce36bAAd05FE09d375Ef1464288B). All bridging is done by calling the `transferTokens` method. Currently we do not support transferring native tokens trough Wormhole.
 
 ```mermaid
 graph LR;
@@ -25,10 +25,9 @@ The methods listed above take a variable labeled `_wormholeData`. This data is s
 /// @param arbiterFee The amount of token to pay a relayer (can be zero if no relayer is used).
 /// @param nonce A random nonce to associate with the tx.
 struct WormholeData {
-    uint256 arbiterFee;
-    uint32 nonce;
+  uint256 arbiterFee;
+  uint32 nonce;
 }
-
 ```
 
 ## Swap Data
@@ -83,7 +82,7 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 To get a transaction for a transfer from 30 USDC.e on Avalanche to USDC on Binance you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=10000000&fromToken=USDC&toChain=POL&toToken=USDC&slippage=0.03&allowBridges=portal&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=10000000&fromToken=USDC&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=portal&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross
@@ -91,5 +90,5 @@ curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=10000000&fromToken=USDC
 To get a transaction for a transfer from 30 USDT on Avalanche to USDC on Binance you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=12000000&fromToken=USDT&toChain=AVA&toToken=USDC&slippage=0.03&allowBridges=portal&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=portal&fromAddress={YOUR_WALLET_ADDRESS}'
 ```

@@ -26,6 +26,7 @@ graph LR;
 Some of the methods listed above take a variable labeled `_optimismData`.
 
 To populate `_optimismData` you need to get the `assetIdOnL2` and `bridge`.
+
 - `assetIdOnL2`
   Address of token on L2.
   It can be get from the configuration.
@@ -42,11 +43,10 @@ struct OptimismData {
   uint32 l2Gas;
   bool isSynthetix;
 }
-
 ```
 
 **WARNING**: If the l2Gas is underpaid, the `finalizeDeposit` internal function call will fail and the funds will be lost!
-Please make sure to pass enough gas if the Optimism facet is used directly. 
+Please make sure to pass enough gas if the Optimism facet is used directly.
 
 ## Swap Data
 
@@ -74,7 +74,7 @@ The quote result looks like the following:
 const quoteResult = {
   id: '0x...', // quote id
   type: 'lifi', // the type of the quote (all lifi contract calls have the type "lifi")
-  tool: 'hop', // the bridge tool used for the transaction
+  tool: 'optimism', // the bridge tool used for the transaction
   action: {}, // information about what is going to happen
   estimate: {}, // information about the estimated outcome of the call
   includedSteps: [], // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step
@@ -108,5 +108,5 @@ curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=20000000000000000000&fr
 To get a transaction for a transfer from 10 USDT on Ethereum to DAI on Optimism you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=10000000000000000000&fromToken=USDT&toChain=OPT&toToken=DAI&slippage=0.03&allowBridges=optimism&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=10000000&fromToken=USDT&toChain=OPT&toToken=DAI&slippage=0.03&allowBridges=optimism&fromAddress={YOUR_WALLET_ADDRESS}'
 ```

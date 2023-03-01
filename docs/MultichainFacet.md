@@ -36,7 +36,6 @@ This data is specific to Multichain and is represented as the following struct t
 struct MultichainData {
   address router;
 }
-
 ```
 
 ## Swap Data

@@ -22,11 +22,12 @@ graph LR;
 Some of the methods listed above take a variable labeled `_deBridgeData`.
 
 To populate `_deBridgeData` you will need to get the `nativeFee`. Also you should calculate and specify `executionFee`.
+
 - `nativeFee`
   Native fee is a protocol fee and it's a payment in the native token of the base blockchain.
   It can be get from `getChainToConfig(uint256 chainId)` and `globalFixedNativeFee` of `DeBridgeGate` contract. When the `fixedNativeFee` of the config is zero, you should use the `globalFixedNativeFee`.
 - `executionFee`
-   The execution fee is a small amount of the intermediary token that incentivizes anyone to execute the transaction on the destination chain. In other words, the execution fee must cover the cost of gas needed to execute the transaction. Execution fee is payed with the bridged assets.
+  The execution fee is a small amount of the intermediary token that incentivizes anyone to execute the transaction on the destination chain. In other words, the execution fee must cover the cost of gas needed to execute the transaction. Execution fee is payed with the bridged assets.
 
 You will need to send additional amount of native asset for the native fee.
 If you do not desire immediate redemption, you can leave `executionFee` as 0. If you do desire immediate execution, you should provide `executionFee`.
@@ -40,10 +41,10 @@ This data is specific to DeBridge and is represented as the following struct typ
 /// @param data Message/Call data to be passed to the receiver
 ///             on the destination chain during the external call execution.
 struct SubmissionAutoParamsTo {
-    uint256 executionFee;
-    uint256 flags;
-    bytes fallbackAddress;
-    bytes data;
+  uint256 executionFee;
+  uint256 flags;
+  bytes fallbackAddress;
+  bytes data;
 }
 
 /// @param permit deadline + signature for approving the spender by signature.
@@ -52,13 +53,12 @@ struct SubmissionAutoParamsTo {
 /// @param referralCode Referral code.
 /// @param autoParams Structure that enables passing arbitrary messages and call data.
 struct DeBridgeData {
-    bytes permit;
-    uint256 nativeFee;
-    bool useAssetFee;
-    uint32 referralCode;
-    SubmissionAutoParamsTo autoParams;
+  bytes permit;
+  uint256 nativeFee;
+  bool useAssetFee;
+  uint32 referralCode;
+  SubmissionAutoParamsTo autoParams;
 }
-
 ```
 
 ## Swap Data
@@ -89,7 +89,7 @@ The quote result looks like the following:
 const quoteResult = {
   id: '0x...', // quote id
   type: 'lifi', // the type of the quote (all lifi contract calls have the type "lifi")
-  tool: 'hop', // the bridge tool used for the transaction
+  tool: 'debridge', // the bridge tool used for the transaction
   action: {}, // information about what is going to happen
   estimate: {}, // information about the estimated outcome of the call
   includedSteps: [], // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step
@@ -115,7 +115,7 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 To get a transaction for a transfer from 20 DAI on Ethereum to deDAI on Polygon you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=20000000000000000000&fromToken=DAI&toChain=ARB&toToken=deDAI&slippage=0.03&allowBridges=polygon&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=20000000000000000000&fromToken=DAI&toChain=POL&toToken=deDAI&slippage=0.03&allowBridges=polygon&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross
@@ -123,5 +123,5 @@ curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=20000000000000000000&fr
 To get a transaction for a transfer from 10 USDC on Ethereum to deDAI on polygon you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=10000000000000000000&fromToken=USDC&toChain=ARB&toToken=deDAI&slippage=0.03&allowBridges=polygon&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=10000000&fromToken=USDC&toChain=POL&toToken=deDAI&slippage=0.03&allowBridges=polygon&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
