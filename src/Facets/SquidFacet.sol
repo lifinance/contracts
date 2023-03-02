@@ -5,6 +5,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ISquidRouter } from "../Interfaces/ISquidRouter.sol";
 import { ISquidMulticall } from "../Interfaces/ISquidMulticall.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -56,9 +57,11 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Swaps and bridges tokens via Squid Router
     /// @param _bridgeData the core information needed for bridging
+    /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _squidData data specific to Squid Router
     function swapAndStartBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
         SquidData memory _squidData
     )
         external

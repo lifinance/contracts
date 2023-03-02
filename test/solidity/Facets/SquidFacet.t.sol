@@ -91,16 +91,16 @@ contract SquidFacetTest is TestBaseFacet {
         internal
         override
     {
-        /* if (isNative) { */
-        /*     squidFacet.swapAndStartBridgeTokensViaSquid{ */
-        /*         value: swapData[0].fromAmount */
-        /*     }(bridgeData, swapData, validSquidData); */
-        /* } else { */
-        /*     squidFacet.swapAndStartBridgeTokensViaSquid( */
-        /*         bridgeData, */
-        /*         swapData, */
-        /*         validSquidData */
-        /*     ); */
-        /* } */
+        if (isNative) {
+            squidFacet.swapAndStartBridgeTokensViaSquid{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData, validSquidData);
+        } else {
+            squidFacet.swapAndStartBridgeTokensViaSquid(
+                bridgeData,
+                swapData,
+                validSquidData
+            );
+        }
     }
 }
