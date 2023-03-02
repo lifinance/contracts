@@ -52,12 +52,4 @@ update() {
   echo "$SCRIPT successfully executed on network $NETWORK"
 }
 
-checkFailure() {
-	if [[ $? -ne 0 ]]; then
-		echo "Failed to update diamond"
-		exit 1
-	fi
-}
-
-
 update
