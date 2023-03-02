@@ -5,14 +5,14 @@ import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
-import { GetGasFacet } from "lifi/Facets/GetGasFacet.sol";
+import { LIFuelFacet } from "lifi/Facets/LIFuelFacet.sol";
 import {DSTest} from "ds-test/test.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     function run() public returns (address[] memory facets) {
-        address facet = json.readAddress(".GetGasFacet");
+        address facet = json.readAddress(".LIFuelFacet");
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -23,7 +23,7 @@ contract DeployScript is UpdateScriptBase {
                 IDiamondCut.FacetCut({
                     facetAddress: address(facet),
                     action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("GetGasFacet", exclude)
+                    functionSelectors: getSelectors("LIFuelFacet", exclude)
                 })
             );
             cutter.diamondCut(cut, address(0), "");
