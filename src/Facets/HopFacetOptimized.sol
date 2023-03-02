@@ -4,7 +4,6 @@ pragma solidity 0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 
 /// @title Hop Facet (Optimized)

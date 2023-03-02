@@ -54,8 +54,8 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Init ///
 
     /// @notice Initialize local variables for the Multichain Facet
-    /// @param routers Allowed Multichain Routers
     /// @param anyNative The address of the anyNative (e.g. anyETH) token
+    /// @param routers Allowed Multichain Routers
     function initMultichain(address anyNative, address[] calldata routers)
         external
     {

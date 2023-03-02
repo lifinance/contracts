@@ -58,7 +58,6 @@ struct NXTPData {
   bytes bidSignature;
   bytes encodedMeta;
 }
-
 ```
 
 ## Swap Data
@@ -87,7 +86,7 @@ The quote result looks like the following:
 const quoteResult = {
   id: '0x...', // quote id
   type: 'lifi', // the type of the quote (all lifi contract calls have the type "lifi")
-  tool: 'hop', // the bridge tool used for the transaction
+  tool: 'nxtp', // the bridge tool used for the transaction
   action: {}, // information about what is going to happen
   estimate: {}, // information about the estimated outcome of the call
   includedSteps: [], // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step

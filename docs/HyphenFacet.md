@@ -69,7 +69,7 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 To get a transaction for a transfer from 30 USDC.e on Avalanche to USDC on Binance you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=10000000&fromToken=USDC&toChain=POL&toToken=USDC&slippage=0.03&allowBridges=hyphen&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=hyphen&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross
@@ -77,5 +77,5 @@ curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=10000000&fromToken=USDC
 To get a transaction for a transfer from 30 USDT on Avalanche to USDC on Binance you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=12000000&fromToken=USDT&toChain=AVA&toToken=USDC&slippage=0.03&allowBridges=hyphen&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=hyphen&fromAddress={YOUR_WALLET_ADDRESS}'
 ```

@@ -10,7 +10,7 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { InvalidAmount, InformationMismatch } from "../Errors/GenericErrors.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
-import {RelayerCelerIM} from "lifi/Periphery/RelayerCelerIM.sol";
+import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 
 interface CelerToken {
     function canonical() external returns (address);
@@ -22,7 +22,10 @@ interface CelerToken {
 contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
+    /// @dev The contract address of the cBridge Message Bus
     IMessageBus private immutable cBridgeMessageBus;
+
+    /// @dev The contract address of the RelayerCelerIM
     RelayerCelerIM private immutable relayer;
 
     /// Types ///

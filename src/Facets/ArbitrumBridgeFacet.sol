@@ -20,9 +20,6 @@ contract ArbitrumBridgeFacet is
 {
     /// Storage ///
 
-    /// @notice Chain id of Arbitrum.
-    uint64 private constant ARB_CHAIN_ID = 42161;
-
     /// @notice The contract address of the gateway router on the source chain.
     IGatewayRouter private immutable gatewayRouter;
 

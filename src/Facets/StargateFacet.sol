@@ -35,8 +35,8 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param dstPoolId Dest pool id.
     /// @param minAmountLD The min qty you would accept on the destination.
     /// @param dstGasForCall Additional gas fee for extral call on the destination.
-    /// @param refundAddress Refund adddress. Extra gas (if any) is returned to this address
     /// @param lzFee Estimated message fee.
+    /// @param refundAddress Refund adddress. Extra gas (if any) is returned to this address
     /// @param callTo The address to send the tokens to on the destination.
     /// @param callData Additional payload.
     struct StargateData {

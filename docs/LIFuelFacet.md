@@ -1,8 +1,8 @@
-# GetGas Facet
+# LIFuel Facet
 
 ## How it works
 
-The GetGas Facet is used to deposit tokens on the source chain and receive native on the destination chain.
+The LIFuel Facet is used to deposit tokens on the source chain and receive native on the destination chain.
 It works by forwarding funds to the ServiceFee collector, which in turn will emit an event with the deposit info. 
 The event will be used by trusted relayers to pickup the deposit and relay it to the destination chain.
 The relayers currently only support stablecoins.
@@ -10,16 +10,16 @@ The amount of relayed token will be an amount of native that corresponds to the 
 
 ```mermaid
 graph LR;
-    D{LiFiDiamond}-- DELEGATECALL -->GetGasFaet;
-    GetGasFacet -- CALL --> C(ServiceFeeCollector)
+    D{LiFiDiamond}-- DELEGATECALL -->LIFuelFacet;
+    LIFuelFacet -- CALL --> C(ServiceFeeCollector)
 ```
 
 ## Public Methods
 
-- `function startBridgeTokensViaGetGas(BridgeData calldata _bridgeData)`
-  - Simply deposits tokens using GetGas
-- `function swapAndStartBridgeTokensViaGetGas(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
-  - Performs swap(s) before depositing tokens using GetGas
+- `function startBridgeTokensViaLIFuel(BridgeData calldata _bridgeData)`
+  - Simply deposits tokens using LIFuel
+- `function swapAndStartBridgeTokensViaLIFuel(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
+  - Performs swap(s) before depositing tokens using LIFuel
 
 ## Swap Data
 
@@ -73,7 +73,7 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 To get a transaction for a transfer from 0.5USDC on POL to BNB on Binance you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=5000000&fromToken=USDC&toChain=BSC&toToken=BNB&slippage=0.03&allowBridges=getGas&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=5000000&fromToken=USDC&toChain=BSC&toToken=BNB&slippage=0.03&allowBridges=lifuel&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross (Any token)
@@ -81,5 +81,5 @@ curl 'https://li.quest/v1/quote?fromChain=POL&fromAmount=5000000&fromToken=USDC&
 To get a transaction for a transfer from 1SUSHI on POL to BNB on Binance you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=1000000000000000000&fromToken=SUSHI&toChain=BSC&toToken=BNB&slippage=0.03&allowBridges=getGas&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=1000000000000000000&fromToken=SUSHI&toChain=BSC&toToken=BNB&slippage=0.03&allowBridges=lifuel&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
