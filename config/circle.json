@@ -1,9 +1,4 @@
 {
-  "hardhat": {
-    "tokenMessenger": "0xD0C3da58f55358142b8d3e06C1C30c5C6114EFE8",
-    "usdc": "0x07865c6E87B9F70255377e024ace6630C1Eaa37F",
-    "domain": 0
-  },
   "goerli": {
     "tokenMessenger": "0xD0C3da58f55358142b8d3e06C1C30c5C6114EFE8",
     "usdc": "0x07865c6E87B9F70255377e024ace6630C1Eaa37F",
