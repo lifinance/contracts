@@ -3,27 +3,27 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { GetGasFacet } from "lifi/Facets/GetGasFacet.sol";
+import { LIFuelFacet } from "lifi/Facets/LIFuelFacet.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("GetGasFacet") {}
+    constructor() DeployScriptBase("LIFuelFacet") {}
 
     function run()
         public
-        returns (GetGasFacet deployed, bytes memory constructorArgs)
+        returns (LIFuelFacet deployed, bytes memory constructorArgs)
     {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return (GetGasFacet(predicted), "");
+            return (LIFuelFacet(predicted), "");
         }
 
-        deployed = GetGasFacet(
+        deployed = LIFuelFacet(
             factory.deploy(
                 salt,
-                type(GetGasFacet).creationCode
+                type(LIFuelFacet).creationCode
             )
         );
 

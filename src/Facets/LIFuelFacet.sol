@@ -12,19 +12,19 @@ import { LibMappings } from "../Libraries/LibMappings.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibMappings } from "../Libraries/LibMappings.sol";
 
-/// @title GetGas Facet
+/// @title LIFuel Facet
 /// @author Li.Finance (https://li.finance)
-/// @notice Provides functionality for bridging gas through GetGas
-contract GetGasFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+/// @notice Provides functionality for bridging gas through LIFuel
+contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     
     /// Storage ///
     string internal constant FEE_COLLECTOR_NAME = "ServiceFeeCollector";
 
     /// External Methods ///
 
-    /// @notice Bridges tokens via GetGas Bridge
+    /// @notice Bridges tokens via LIFuel Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
-    function startBridgeTokensViaGetGas(
+    function startBridgeTokensViaLIFuel(
         ILiFi.BridgeData memory _bridgeData
     )
         external
@@ -41,10 +41,10 @@ contract GetGasFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData);
     }
 
-    /// @notice Performs a swap before bridging via GetGas Bridge
+    /// @notice Performs a swap before bridging via LIFuel Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    function swapAndStartBridgeTokensViaGetGas(
+    function swapAndStartBridgeTokensViaLIFuel(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData
     )
@@ -67,7 +67,7 @@ contract GetGasFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Private Methods ///
 
-    /// @dev Contains the business logic for the bridge via GetGas Bridge
+    /// @dev Contains the business logic for the bridge via LIFuel Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData

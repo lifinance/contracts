@@ -23,6 +23,5 @@
   "FeeCollector": "0x353a5303dD2a39aB59aEd09fb971D359b94658C7",
   "HopFacetOptimized": "0x1Cb2561e8EdEA2463016b92510e2C12C85302f8F",
   "AmarokFacet": "0xe7cA1F5E54cc0Be6c544F32CcE714FB484b0DfC4",
-  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
-  "GetGasFacet": "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac"
+  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
 }
