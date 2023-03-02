@@ -49,6 +49,7 @@ contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
         onlyAllowSourceToken(_bridgeData, usdc)
@@ -71,6 +72,7 @@ contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
         onlyAllowSourceToken(_bridgeData, usdc)
