@@ -64,12 +64,12 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         CelerIMData calldata _celerIMData
     )
-        external
-        payable
-        nonReentrant
-        refundExcessNative(payable(msg.sender))
-        doesNotContainSourceSwaps(_bridgeData)
-        validateBridgeData(_bridgeData)
+    external
+    payable
+    nonReentrant
+    refundExcessNative(payable(msg.sender))
+    doesNotContainSourceSwaps(_bridgeData)
+    validateBridgeData(_bridgeData)
     {
         validateDestinationCallFlag(_bridgeData, _celerIMData);
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
@@ -115,12 +115,12 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibSwap.SwapData[] calldata _swapData,
         CelerIMData memory _celerIMData
     )
-        external
-        payable
-        nonReentrant
-        refundExcessNative(payable(msg.sender))
-        containsSourceSwaps(_bridgeData)
-        validateBridgeData(_bridgeData)
+    external
+    payable
+    nonReentrant
+    refundExcessNative(payable(msg.sender))
+    containsSourceSwaps(_bridgeData)
+    validateBridgeData(_bridgeData)
     {
         validateDestinationCallFlag(_bridgeData, _celerIMData);
 
@@ -160,16 +160,21 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // assuming messageBusFee is pre-calculated off-chain and available in _celerIMData
         // determine correct native asset amount to be forwarded (if so) and send funds to relayer
         uint256 msgValue = LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
-            ? _bridgeData.minAmount
-            : 0;
-        (bytes32 transferId, address bridgeAddress) = relayer
-            .sendTokenTransfer{ value: msgValue }(_bridgeData, _celerIMData);
-
+        ? _bridgeData.minAmount
+        : 0;
         // check if transaction contains a destination call
-        if (_bridgeData.hasDestinationCall) {
+        if (!_bridgeData.hasDestinationCall) {
+            // case 'no': simple bridge transfer - send to receiver
+            relayer.sendTokenTransfer{ value: msgValue }(_bridgeData, _celerIMData);
+        } else {
+            // case 'yes': bridge + dest call - send to relayer
+            ILiFi.BridgeData memory bridgeDataAdjusted = _bridgeData;
+            bridgeDataAdjusted.receiver = address(relayer);
+            (bytes32 transferId, address bridgeAddress) = relayer
+            .sendTokenTransfer{ value: msgValue }(bridgeDataAdjusted, _celerIMData);
             // call message bus via relayer incl messageBusFee
             relayer.forwardSendMessageWithTransfer{
-                value: _celerIMData.messageBusFee
+            value: _celerIMData.messageBusFee
             }(
                 _bridgeData.receiver,
                 uint64(_bridgeData.destinationChainId),
