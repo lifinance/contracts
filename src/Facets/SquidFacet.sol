@@ -6,6 +6,7 @@ import { ISquidRouter } from "../Interfaces/ISquidRouter.sol";
 import { ISquidMulticall } from "../Interfaces/ISquidMulticall.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -14,20 +15,25 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Squid Router
 contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    enum SquidCallType {
+        BridgeCall,
+        CallBridge,
+        CallBridgeCall
+    }
+
     struct SquidData {
-        string destinationChain;
-        string bridgedTokenSymbol;
-        /* ISquidMulticall.Call[] calls; */
-        address refundRecipient;
-        bool forecallEnabled;
+        SquidCallType callType;
+        bytes callData;
     }
 
     /// State ///
     ISquidRouter public immutable squidRouter;
+    ISquidMulticall public immutable squidMulticall;
 
     /// Constructor ///
-    constructor(ISquidRouter _squidRouter) {
+    constructor(ISquidRouter _squidRouter, ISquidMulticall _squidMulticall) {
         squidRouter = _squidRouter;
+        squidMulticall = _squidMulticall;
     }
 
     /// External Methods ///
@@ -91,25 +97,36 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         SquidData memory _squidData
     ) internal {
         IERC20 sendingAssetId = IERC20(_bridgeData.sendingAssetId);
-        LibAsset.maxApproveERC20(
-            sendingAssetId,
-            address(squidRouter),
-            _bridgeData.minAmount
-        );
+        uint256 msgValue = LibAsset.isNativeAsset(address(sendingAssetId))
+            ? _bridgeData.minAmount
+            : 0;
 
-        // Initiate bridge tansfer
-        squidRouter.bridgeCall{
-            value: LibAsset.isNativeAsset(address(sendingAssetId))
-                ? _bridgeData.minAmount
-                : 0
-        }(
-            _squidData.destinationChain,
-            _squidData.bridgedTokenSymbol,
-            _bridgeData.minAmount,
-            new ISquidMulticall.Call[](0),
-            _squidData.refundRecipient,
-            _squidData.forecallEnabled
-        );
+        if (msgValue == 0) {
+            if (
+                _squidData.callType == SquidCallType.CallBridge ||
+                _squidData.callType == SquidCallType.CallBridgeCall
+            ) {
+                LibAsset.maxApproveERC20(
+                    sendingAssetId,
+                    address(squidMulticall),
+                    _bridgeData.minAmount
+                );
+            } else if (_squidData.callType == SquidCallType.BridgeCall) {
+                LibAsset.maxApproveERC20(
+                    sendingAssetId,
+                    address(squidRouter),
+                    _bridgeData.minAmount
+                );
+            }
+        }
+
+        (bool success, bytes memory res) = address(squidRouter).call{
+            value: msgValue
+        }(_squidData.callData);
+        if (!success) {
+            string memory reason = LibUtil.getRevertMsg(res);
+            revert(reason);
+        }
 
         emit LiFiTransferStarted(_bridgeData);
     }
