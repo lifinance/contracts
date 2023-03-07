@@ -70,29 +70,23 @@ contract SquidFacetTest is TestBaseFacet {
         bridgeData.bridge = "squid router";
         bridgeData.destinationChainId = 137;
 
-        // produce valid SquidData
-        validSquidData.callData = abi.encodeWithSelector(
-            ISquidRouter.bridgeCall.selector,
-            "polygon",
-            "USDC",
-            100000000,
-            new ISquidMulticall.Call[](0),
-            USER_SENDER,
-            false
-        );
+        validSquidData.routeType = SquidFacet.RouteType.BridgeCall;
+        validSquidData.destinationChain = "Polygon";
+        validSquidData.bridgedTokenSymbol = "USDC";
+        validSquidData.fee = 0;
+        validSquidData.forecallEnabled = false;
 
         vm.label(SQUID_ROUTER, "SquidRouter");
         vm.label(SQUID_MULTICALL, "SquidMulticall");
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
-        if (isNative) {
-            // Calldata returned from Squid API for native token
-            validSquidData.callData = getNativeBridgeCalldata();
+        if (bridgeData.sendingAssetId == address(0)) {
+            SquidFacet.SquidData memory squidData = setNativeBridgeSquidData();
 
             squidFacet.startBridgeTokensViaSquid{
                 value: bridgeData.minAmount
-            }(bridgeData, validSquidData);
+            }(bridgeData, squidData);
         } else {
             squidFacet.startBridgeTokensViaSquid(bridgeData, validSquidData);
         }
@@ -103,12 +97,11 @@ contract SquidFacetTest is TestBaseFacet {
         override
     {
         if (bridgeData.sendingAssetId == address(0)) {
-            // Calldata returned from Squid API for native token
-            validSquidData.callData = getNativeBridgeCalldata();
+            SquidFacet.SquidData memory squidData = setNativeBridgeSquidData();
 
             squidFacet.swapAndStartBridgeTokensViaSquid{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, validSquidData);
+            }(bridgeData, swapData, squidData);
         } else {
             squidFacet.swapAndStartBridgeTokensViaSquid(
                 bridgeData,
@@ -123,34 +116,56 @@ contract SquidFacetTest is TestBaseFacet {
         super.testBase_CanBridgeTokens_fuzzed(amount);
     }
 
-    function getNativeBridgeCalldata() internal returns (bytes memory) {
+    function testBase_CanBridgeNativeTokens()
+        public
+        override
+        assertBalanceChange(
+            address(0),
+            USER_SENDER,
+            -int256((1 ether + addToMessageValue))
+        )
+        assertBalanceChange(address(0), USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+        // customize bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+        bridgeData.hasSourceSwaps = true;
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function setNativeBridgeSquidData()
+        internal
+        returns (SquidFacet.SquidData memory)
+    {
+        SquidFacet.SquidData memory squidData = validSquidData;
+
         ISquidMulticall.Call[] memory sourceCalls = new ISquidMulticall.Call[](
             1
         );
         sourceCalls[0].callType = ISquidMulticall.CallType.FullNativeBalance;
         sourceCalls[0].target = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
         sourceCalls[0].value = 0;
+        // Calldata returned from Squid API for native token
         sourceCalls[0]
             .callData = hex"7ff36ab500000000000000000000000000000000000000000000000000000000093aa1390000000000000000000000000000000000000000000000000000000000000080000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d66600000000000000000000000000000000000000000000000000000186b6a684d00000000000000000000000000000000000000000000000000000000000000002000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
         sourceCalls[0].payload = "";
 
         ISquidMulticall.Call[] memory destinationCalls;
 
-        return
-            abi.encodeWithSelector(
-                ISquidRouter.callBridgeCall.selector,
-                address(0),
-                100000000000000000,
-                "Polygon",
-                "USDC",
-                sourceCalls,
-                destinationCalls,
-                USER_SENDER,
-                true
-            );
-    }
+        squidData.routeType = SquidFacet.RouteType.CallBridge;
+        squidData.destinationChain = "Polygon";
+        squidData.bridgedTokenSymbol = "USDC";
+        squidData.sourceCalls = sourceCalls;
 
-    /* function testBase_CanSwapAndBridgeNativeTokens() public override { */
-    /*     // facet does not support native bridging */
-    /* } */
+        return squidData;
+    }
 }
