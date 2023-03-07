@@ -31,18 +31,28 @@ Some of the methods listed above take a variable labeled `_squidData`.
 This data is specific to Squid and is represented as the following struct type:
 
 ```solidity
-/// @notice The struct for Squid data.
-/// @param callType type of call being sent to the Squid Router.
-/// @param callData calldata returned from the Squid API and then sent to the squid router
+/// @notice Contains the data needed for bridging via Squid squidRouter
+/// @param RouteType the type of route to use
+/// @param destinationChain the chain to bridge tokens to
+/// @param bridgedTokenSymbol the symbol of the bridged token
+/// @param sourceCalls the calls to make on the source chain
+/// @param destinationCalls the calls to make on the destination chain
+/// @param fee the fee to pay
+/// @param forecallEnabled whether or not to forecall
 struct SquidData {
-  SquidCallType callType;
-  bytes callData;
+    RouteType routeType;
+    string destinationChain;
+    string bridgedTokenSymbol;
+    ISquidMulticall.Call[] sourceCalls;
+    ISquidMulticall.Call[] destinationCalls;
+    uint256 fee;
+    bool forecallEnabled;
 }
 ```
 The Squid router performs various different call types depending on the starting token and the desired token recieved on the destination chain.
 
 ```solidity
-enum SquidCallType {
+enum RouteType {
   BridgeCall, // Simply bridges then makes call on the destination chain
   CallBridge, // Makes a call on the source chain then bridges
   CallBridgeCall // Makes calls on both chains while bridging in between
