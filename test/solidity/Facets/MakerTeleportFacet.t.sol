@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, LibSwap, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { MakerTeleportFacet } from "lifi/Facets/MakerTeleportFacet.sol";
 import { IMakerTeleport } from "lifi/Interfaces/IMakerTeleport.sol";
 
@@ -104,6 +104,39 @@ contract MakerTeleportFacetTest is TestBaseFacet {
         vm.etch(0x0000000000000000000000000000000000000064, code);
     }
 
+    function setDefaultSwapData() internal {
+        delete swapData;
+        // Swap USDC -> DAI
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_DAI;
+
+        uint256 amountOut = defaultDAIAmount;
+
+        // Calculate DAI amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: ADDRESS_DAI,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForTokens.selector,
+                    amountIn,
+                    amountOut,
+                    path,
+                    address(makerTeleportFacet),
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+    }
+
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             makerTeleportFacet.startBridgeTokensViaMakerTeleport{
@@ -130,7 +163,6 @@ contract MakerTeleportFacetTest is TestBaseFacet {
         }
     }
 
-    // ToDo Fix issue
     function testBase_CanBridgeTokens()
         public
         override
@@ -146,15 +178,47 @@ contract MakerTeleportFacetTest is TestBaseFacet {
         dai.approve(address(makerTeleportFacet), bridgeData.minAmount);
 
         //prepare check for events
-        // vm.expectEmit(true, true, true, true, address(makerTeleportFacet));
-        // emit LiFiTransferStarted(bridgeData);
+        vm.expectEmit(true, true, true, true, address(makerTeleportFacet));
+        emit LiFiTransferStarted(bridgeData);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
 
-    // ToDo Fix issue
-    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {}
+    function testBase_CanSwapAndBridgeTokens() public override {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(
+            address(makerTeleportFacet),
+            10_000 * 10**usdc.decimals()
+        );
+
+        setDefaultSwapData();
+        bridgeData.hasSourceSwaps = true;
+
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
+        vm.startPrank(USER_SENDER);
+
+        vm.assume(amount > 0 && amount < 100_000);
+        amount = amount * 10**dai.decimals();
+
+        // approval
+        dai.approve(address(makerTeleportFacet), amount);
+
+        bridgeData.minAmount = amount;
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, address(makerTeleportFacet));
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
 
     function testBase_CanBridgeNativeTokens() public override {
         // facet does not support native bridging
