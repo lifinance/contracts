@@ -64,12 +64,12 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         CelerIMData calldata _celerIMData
     )
-    external
-    payable
-    nonReentrant
-    refundExcessNative(payable(msg.sender))
-    doesNotContainSourceSwaps(_bridgeData)
-    validateBridgeData(_bridgeData)
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        doesNotContainSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
     {
         validateDestinationCallFlag(_bridgeData, _celerIMData);
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
@@ -115,12 +115,12 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibSwap.SwapData[] calldata _swapData,
         CelerIMData memory _celerIMData
     )
-    external
-    payable
-    nonReentrant
-    refundExcessNative(payable(msg.sender))
-    containsSourceSwaps(_bridgeData)
-    validateBridgeData(_bridgeData)
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        containsSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
     {
         validateDestinationCallFlag(_bridgeData, _celerIMData);
 
