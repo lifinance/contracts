@@ -11,9 +11,7 @@ contract TestSquidFacet is SquidFacet {
     address internal constant ADDRESS_WETH =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
-    constructor(ISquidRouter _squidRouter, ISquidMulticall _squidMulticall)
-        SquidFacet(_squidRouter, _squidMulticall)
-    {}
+    constructor(ISquidRouter _squidRouter) SquidFacet(_squidRouter) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -42,10 +40,7 @@ contract SquidFacetTest is TestBaseFacet {
         customBlockNumberForForking = 16724399;
         initTestBase();
 
-        squidFacet = new TestSquidFacet(
-            ISquidRouter(SQUID_ROUTER),
-            ISquidMulticall(SQUID_MULTICALL)
-        );
+        squidFacet = new TestSquidFacet(ISquidRouter(SQUID_ROUTER));
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = squidFacet.startBridgeTokensViaSquid.selector;
         functionSelectors[1] = squidFacet
@@ -76,7 +71,6 @@ contract SquidFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 137;
 
         // produce valid SquidData
-        validSquidData.callType = SquidFacet.SquidCallType.BridgeCall;
         validSquidData.callData = abi.encodeWithSelector(
             ISquidRouter.bridgeCall.selector,
             "polygon",
@@ -94,7 +88,6 @@ contract SquidFacetTest is TestBaseFacet {
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             // Calldata returned from Squid API for native token
-            validSquidData.callType = SquidFacet.SquidCallType.CallBridgeCall;
             validSquidData.callData = getNativeBridgeCalldata();
 
             squidFacet.startBridgeTokensViaSquid{
@@ -111,7 +104,6 @@ contract SquidFacetTest is TestBaseFacet {
     {
         if (bridgeData.sendingAssetId == address(0)) {
             // Calldata returned from Squid API for native token
-            validSquidData.callType = SquidFacet.SquidCallType.CallBridgeCall;
             validSquidData.callData = getNativeBridgeCalldata();
 
             squidFacet.swapAndStartBridgeTokensViaSquid{

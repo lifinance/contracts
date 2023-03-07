@@ -22,11 +22,8 @@ contract DeployScript is DeployScriptBase {
         address router = json.readAddress(
             string.concat(".", network, ".router")
         );
-        address multicall = json.readAddress(
-            string.concat(".", network, ".multicall")
-        );
 
-        constructorArgs = abi.encode(router, multicall);
+        constructorArgs = abi.encode(router);
 
         vm.startBroadcast(deployerPrivateKey);
 

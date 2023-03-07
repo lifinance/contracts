@@ -1,34 +1,26 @@
 {
   "mainnet": {
-    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666",
-    "multicall": "0x4fd39C9E151e50580779bd04B1f7eCc310079fd3"
+    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
   "arbitrum": {
-    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666",
-    "multicall": "0x4fd39C9E151e50580779bd04B1f7eCc310079fd3"
+    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
   "avalanche": {
-    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666",
-    "multicall": "0x4fd39C9E151e50580779bd04B1f7eCc310079fd3"
+    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
   "polygon": {
-    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666",
-    "multicall": "0x4fd39C9E151e50580779bd04B1f7eCc310079fd3"
+    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
   "moonbeam": {
-    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666",
-    "multicall": "0x4fd39C9E151e50580779bd04B1f7eCc310079fd3"
+    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
   "bsc": {
-    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666",
-    "multicall": "0x4fd39C9E151e50580779bd04B1f7eCc310079fd3"
+    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
   "fantom": {
-    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666",
-    "multicall": "0x4fd39C9E151e50580779bd04B1f7eCc310079fd3"
+    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
   "celo": {
-    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666",
-    "multicall": "0x4fd39C9E151e50580779bd04B1f7eCc310079fd3"
+    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   }
 }

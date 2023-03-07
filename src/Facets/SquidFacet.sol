@@ -10,30 +10,25 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { LibBytes } from "../Libraries/LibBytes.sol";
 
 /// @title Squid Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Squid Router
 contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    enum SquidCallType {
-        BridgeCall,
-        CallBridge,
-        CallBridgeCall
-    }
+    using LibBytes for bytes;
 
+    // @param callData the data to be passed to Squid Router
     struct SquidData {
-        SquidCallType callType;
         bytes callData;
     }
 
     /// State ///
     ISquidRouter public immutable squidRouter;
-    ISquidMulticall public immutable squidMulticall;
 
     /// Constructor ///
-    constructor(ISquidRouter _squidRouter, ISquidMulticall _squidMulticall) {
+    constructor(ISquidRouter _squidRouter) {
         squidRouter = _squidRouter;
-        squidMulticall = _squidMulticall;
     }
 
     /// External Methods ///
@@ -102,27 +97,17 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             : 0;
 
         if (msgValue == 0) {
-            if (
-                _squidData.callType == SquidCallType.CallBridge ||
-                _squidData.callType == SquidCallType.CallBridgeCall
-            ) {
-                LibAsset.maxApproveERC20(
-                    sendingAssetId,
-                    address(squidMulticall),
-                    _bridgeData.minAmount
-                );
-            } else if (_squidData.callType == SquidCallType.BridgeCall) {
-                LibAsset.maxApproveERC20(
-                    sendingAssetId,
-                    address(squidRouter),
-                    _bridgeData.minAmount
-                );
-            }
+            LibAsset.maxApproveERC20(
+                sendingAssetId,
+                address(squidRouter),
+                _bridgeData.minAmount
+            );
         }
 
         (bool success, bytes memory res) = address(squidRouter).call{
             value: msgValue
         }(_squidData.callData);
+
         if (!success) {
             string memory reason = LibUtil.getRevertMsg(res);
             revert(reason);
