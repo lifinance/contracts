@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IMakerTeleport } from "../Interfaces/IMakerTeleport.sol";
+import { ITeleportGateway } from "../Interfaces/ITeleportGateway.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
@@ -17,8 +17,8 @@ import { InvalidSendingToken, NoSwapDataProvided } from "../Errors/GenericErrors
 contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    /// @notice The address of Maker Teleport.
-    IMakerTeleport private immutable makerTeleport;
+    /// @notice The address of Teleport Gateway.
+    ITeleportGateway private immutable teleportGateway;
 
     /// @notice The address of DAI on the source chain.
     address private immutable dai;
@@ -32,18 +32,18 @@ contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Constructor ///
 
     /// @notice Initialize the contract.
-    /// @param _makerTeleport The address of Maker Teleport.
+    /// @param _teleportGateway The address of Teleport Gateway.
     /// @param _dai The address of DAI on the source chain.
     /// @param _dstChainId The chain id of destination chain.
     /// @param _l1Domain The domain of l1 network.
     constructor(
-        IMakerTeleport _makerTeleport,
+        ITeleportGateway _teleportGateway,
         address _dai,
         uint256 _dstChainId,
         bytes32 _l1Domain
     ) {
         dstChainId = _dstChainId;
-        makerTeleport = _makerTeleport;
+        teleportGateway = _teleportGateway;
         dai = _dai;
         l1Domain = _l1Domain;
     }
@@ -52,7 +52,9 @@ contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via Maker Teleport
     /// @param _bridgeData The core information needed for bridging
-    function startBridgeTokensViaMakerTeleport(ILiFi.BridgeData memory _bridgeData)
+    function startBridgeTokensViaMakerTeleport(
+        ILiFi.BridgeData memory _bridgeData
+    )
         external
         payable
         nonReentrant
@@ -104,9 +106,17 @@ contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via Maker Teleport
     /// @param _bridgeData The core information needed for bridging
     function _startBridge(ILiFi.BridgeData memory _bridgeData) internal {
-        LibAsset.maxApproveERC20(IERC20(dai), address(makerTeleport), _bridgeData.minAmount);
+        LibAsset.maxApproveERC20(
+            IERC20(dai),
+            address(teleportGateway),
+            _bridgeData.minAmount
+        );
 
-        makerTeleport.initiateTeleport(l1Domain, _bridgeData.receiver, uint128(_bridgeData.minAmount));
+        teleportGateway.initiateTeleport(
+            l1Domain,
+            _bridgeData.receiver,
+            uint128(_bridgeData.minAmount)
+        );
 
         emit LiFiTransferStarted(_bridgeData);
     }

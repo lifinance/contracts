@@ -3,16 +3,16 @@ pragma solidity 0.8.17;
 
 import { LibAllowList, LibSwap, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { MakerTeleportFacet } from "lifi/Facets/MakerTeleportFacet.sol";
-import { IMakerTeleport } from "lifi/Interfaces/IMakerTeleport.sol";
+import { ITeleportGateway } from "lifi/Interfaces/ITeleportGateway.sol";
 
 // Stub MakerTeleportFacet Contract
 contract TestMakerTeleportFacet is MakerTeleportFacet {
     constructor(
-        IMakerTeleport _makerTeleport,
+        ITeleportGateway _teleportGateway,
         address _dai,
         uint256 _dstChainId,
         bytes32 _l1Domain
-    ) MakerTeleportFacet(_makerTeleport, _dai, _dstChainId, _l1Domain) {}
+    ) MakerTeleportFacet(_teleportGateway, _dai, _dstChainId, _l1Domain) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -35,7 +35,7 @@ contract MockArbSys {
 
 contract MakerTeleportFacetTest is TestBaseFacet {
     // These values are for Arbitrum
-    address internal constant MAKER_TELEPORT =
+    address internal constant TELEPORT_GATEWAY =
         0x5dBaf6F2bEDebd414F8d78d13499222347e59D5E;
     uint256 internal constant DST_CHAIN_ID = 1;
     bytes32 internal constant L1_DOMAIN = "ETH-MAIN-A";
@@ -55,7 +55,7 @@ contract MakerTeleportFacetTest is TestBaseFacet {
         initTestBase();
 
         makerTeleportFacet = new TestMakerTeleportFacet(
-            IMakerTeleport(MAKER_TELEPORT),
+            ITeleportGateway(TELEPORT_GATEWAY),
             ADDRESS_DAI,
             DST_CHAIN_ID,
             L1_DOMAIN

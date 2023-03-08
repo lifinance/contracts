@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-interface IMakerTeleport {
+interface ITeleportGateway {
     /// @notice Initiate DAI transfer.
     /// @param targetDomain Domain of destination chain.
     /// @param receiver Receiver address.
