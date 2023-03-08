@@ -27,6 +27,7 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The struct for the ThorSwap data.
     struct ThorSwapData {
         RouterType routerType;
+        address tsRouter;
         address tcRouter;
         address tcVault;
         string tcMemo;
@@ -35,6 +36,7 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 amountOutMin;
         address router;
         bytes data;
+        uint256 deadline;
     }
 
     /// @notice Initializes the ThorSwap contract
@@ -97,7 +99,60 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         ThorSwapData calldata _thorSwapData
     ) internal {
-        // TODO
+        IERC20 sendingAssetId = IERC20(_bridgeData.sendingAssetId);
+
+        // Send straight to ThorChain
+        if (_thorSwapData.routerType == RouterType.Thorchain) {
+            IThorSwap(_thorSwapData.tsRouter).depositWithExpiry{
+                value: msg.value
+            }(
+                _thorSwapData.tcVault,
+                _thorSwapData.token,
+                _thorSwapData.amount,
+                _thorSwapData.tcMemo,
+                _thorSwapData.deadline
+            );
+        }
+
+        // Uniswap Style Aggregator
+        if (_thorSwapData.routerType == RouterType.Uniswap) {
+            LibAsset.maxApproveERC20(
+                sendingAssetId,
+                tsTokenProxy,
+                _bridgeData.minAmount
+            );
+
+            IThorSwap(_thorSwapData.tsRouter).swapIn(
+                _thorSwapData.tcRouter,
+                _thorSwapData.tcVault,
+                _thorSwapData.tcMemo,
+                _thorSwapData.token,
+                _thorSwapData.amount,
+                _thorSwapData.amountOutMin,
+                _thorSwapData.deadline
+            );
+        }
+
+        // Generic Aggregator
+        if (_thorSwapData.routerType == RouterType.Generic) {
+            LibAsset.maxApproveERC20(
+                sendingAssetId,
+                tsTokenProxy,
+                _bridgeData.minAmount
+            );
+
+            IThorSwap(_thorSwapData.tsRouter).swapIn(
+                _thorSwapData.tcRouter,
+                _thorSwapData.tcVault,
+                _thorSwapData.tcMemo,
+                _thorSwapData.token,
+                _thorSwapData.amount,
+                _thorSwapData.router,
+                _thorSwapData.data,
+                _thorSwapData.deadline
+            );
+        }
+
         emit LiFiTransferStarted(_bridgeData);
     }
 }
