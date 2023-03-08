@@ -34,7 +34,7 @@ contract CircleBridgeFacetTest is TestBaseFacet {
 
     function setUp() public {
         // Custom Config
-        customRpcUrlForForking = vm.envString("ETH_NODE_URI_GOERLI");
+        customRpcUrlForForking = "ETH_NODE_URI_GOERLI";
         customBlockNumberForForking = 8584590;
         ADDRESS_USDC = 0x07865c6E87B9F70255377e024ace6630C1Eaa37F;
         ADDRESS_DAI = 0x65a5ba240CBd7fD75700836b683ba95EBb2F32bd;

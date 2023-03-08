@@ -16,6 +16,7 @@
 - [Periphery Registry Facet](./PeripheryRegistryFacet.md)
 - [Access Manager Facet](./AccessManagerFacet.md)
 - [Squid Facet](./SquidFacet.md)
+- [MakerTeleport Facet](./MakerTeleportFacet.md)
 
 # Libraries
 
