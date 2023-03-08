@@ -15,6 +15,7 @@
 - [Axelar Facet](./AxelarFacet.md)
 - [Periphery Registry Facet](./PeripheryRegistryFacet.md)
 - [Access Manager Facet](./AccessManagerFacet.md)
+- [MakerTeleport Facet](./MakerTeleportFacet.md)
 
 # Libraries
 
