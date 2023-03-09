@@ -16,9 +16,4 @@ interface ISquidMulticall {
         bytes callData;
         bytes payload;
     }
-
-    error AlreadyRunning();
-    error CallFailed(uint256 callPosition, bytes reason);
-
-    function run(Call[] calldata calls) external payable;
 }

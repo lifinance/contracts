@@ -6,7 +6,6 @@ import { ISquidRouter } from "../Interfaces/ISquidRouter.sol";
 import { ISquidMulticall } from "../Interfaces/ISquidMulticall.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -26,13 +25,13 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// @dev Contains the data needed for bridging via Squid squidRouter
-    /// @param RouteType the type of route to use
-    /// @param destinationChain the chain to bridge tokens to
-    /// @param bridgedTokenSymbol the symbol of the bridged token
-    /// @param sourceCalls the calls to make on the source chain
-    /// @param destinationCalls the calls to make on the destination chain
-    /// @param fee the fee to pay
-    /// @param forecallEnabled whether or not to forecall
+    /// @param RouteType The type of route to use
+    /// @param destinationChain The chain to bridge tokens to
+    /// @param bridgedTokenSymbol The symbol of the bridged token
+    /// @param sourceCalls The calls to make on the source chain
+    /// @param destinationCalls The calls to make on the destination chain
+    /// @param fee The fee to pay
+    /// @param forecallEnabled Whether or not to forecall (Squid Router's instant execution service)
     struct SquidData {
         RouteType routeType;
         string destinationChain;
@@ -54,8 +53,8 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// External Methods ///
 
     /// @notice Bridges tokens via Squid Router
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _squidData data specific to Squid Router
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _squidData Data specific to Squid Router
     function startBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
         SquidData memory _squidData
@@ -88,9 +87,9 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// @notice Swaps and bridges tokens via Squid Router
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _swapData an array of swap related data for performing swaps before bridging
-    /// @param _squidData data specific to Squid Router
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _swapData An array of swap related data for performing swaps before bridging
+    /// @param _squidData Data specific to Squid Router
     function swapAndStartBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
@@ -122,17 +121,16 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Internal Methods ///
 
     /// @dev Contains the business logic for the bridge via Squid Router
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _squidData data specific to Squid Router
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _squidData Data specific to Squid Router
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         SquidData memory _squidData
     ) internal {
         IERC20 sendingAssetId = IERC20(_bridgeData.sendingAssetId);
-        bool isNative = LibAsset.isNativeAsset(address(sendingAssetId));
 
         uint256 msgValue = _squidData.fee;
-        if (isNative) {
+        if (LibAsset.isNativeAsset(address(sendingAssetId))) {
             msgValue += _bridgeData.minAmount;
         } else {
             LibAsset.maxApproveERC20(

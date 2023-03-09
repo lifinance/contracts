@@ -32,13 +32,13 @@ This data is specific to Squid and is represented as the following struct type:
 
 ```solidity
 /// @notice Contains the data needed for bridging via Squid squidRouter
-/// @param RouteType the type of route to use
-/// @param destinationChain the chain to bridge tokens to
-/// @param bridgedTokenSymbol the symbol of the bridged token
-/// @param sourceCalls the calls to make on the source chain
-/// @param destinationCalls the calls to make on the destination chain
-/// @param fee the fee to pay
-/// @param forecallEnabled whether or not to forecall
+/// @param RouteType The type of route to use
+/// @param destinationChain The chain to bridge tokens to
+/// @param bridgedTokenSymbol The symbol of the bridged token
+/// @param sourceCalls The calls to make on the source chain
+/// @param destinationCalls The calls to make on the destination chain
+/// @param fee The fee to pay
+/// @param forecallEnabled Whether or not to forecall (Squid Router's instant execution service)
 struct SquidData {
     RouteType routeType;
     string destinationChain;

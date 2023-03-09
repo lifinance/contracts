@@ -23,7 +23,7 @@ contract TestSquidFacet is SquidFacet {
 }
 
 contract SquidFacetTest is TestBaseFacet {
-    // These values are for Optimism_Kovan
+    // These values are for Ethereum Mainnet
     address internal constant ETH_HOLDER =
         0xb5d85CBf7cB3EE0D56b3bB207D5Fc4B82f43F511;
     address internal constant WETH_HOLDER =
