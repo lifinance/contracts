@@ -7,7 +7,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { AlreadyInitialized } from "../Errors/GenericErrors.sol";
+import { AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { console } from "../../test/solidity/utils/Console.sol";
@@ -51,6 +51,9 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 deadline;
     }
 
+    /// Errors ///
+    error RouterNotAllowed();
+
     /// Events ///
     event ThorSwapInitialized(IThorSwap[] allowedTSRouters);
 
@@ -73,7 +76,6 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         s.allowedTSRouters = _allowedTSRouters;
-
         s.initialized = true;
 
         emit ThorSwapInitialized(_allowedTSRouters);
@@ -93,6 +95,12 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        Storage storage s = getStorage();
+
+        if (!s.initialized) {
+            revert NotInitialized();
+        }
+
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -117,6 +125,12 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        Storage storage s = getStorage();
+
+        if (!s.initialized) {
+            revert NotInitialized();
+        }
+
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -133,6 +147,10 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         ThorSwapData calldata _thorSwapData
     ) internal {
+        if (!routerIsAllowed(IThorSwap(_thorSwapData.tsRouter))) {
+            revert RouterNotAllowed();
+        }
+
         IERC20 sendingAssetId = IERC20(_bridgeData.sendingAssetId);
 
         // Send straight to ThorChain
@@ -188,6 +206,16 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function routerIsAllowed(IThorSwap _router) private view returns (bool) {
+        Storage storage s = getStorage();
+        for (uint256 i = 0; i < s.allowedTSRouters.length; i++) {
+            if (s.allowedTSRouters[i] == _router) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// @dev fetch local storage

@@ -31,18 +31,12 @@ contract ThorSwapFacetTest is TestBaseFacet {
     ThorSwapFacet.ThorSwapData internal validThorSwapData;
     TestThorSwapFacet internal thorSwapFacet;
 
-    IThorSwap[] internal allowedRouters;
-
     function setUp() public {
         customBlockNumberForForking = 16661275;
         initTestBase();
 
-        allowedRouters.push(IThorSwap(THORCHAIN_ROUTER));
-        allowedRouters.push(IThorSwap(UNI_AGGREGATOR));
-        allowedRouters.push(IThorSwap(GENERIC_AGGREGTOR));
-
         thorSwapFacet = new TestThorSwapFacet(TOKEN_PROXY);
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](5);
         functionSelectors[0] = thorSwapFacet
             .startBridgeTokensViaThorSwap
             .selector;
@@ -53,9 +47,17 @@ contract ThorSwapFacetTest is TestBaseFacet {
         functionSelectors[3] = thorSwapFacet
             .setFunctionApprovalBySignature
             .selector;
+        functionSelectors[4] = thorSwapFacet.initThorSwap.selector;
 
         addFacet(diamond, address(thorSwapFacet), functionSelectors);
         thorSwapFacet = TestThorSwapFacet(address(diamond));
+
+        IThorSwap[] memory allowedRouters = new IThorSwap[](3);
+        allowedRouters[0] = IThorSwap(THORCHAIN_ROUTER);
+        allowedRouters[1] = IThorSwap(UNI_AGGREGATOR);
+        allowedRouters[2] = IThorSwap(GENERIC_AGGREGTOR);
+
+        thorSwapFacet.initThorSwap(allowedRouters);
         thorSwapFacet.addDex(ADDRESS_UNISWAP);
         thorSwapFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
