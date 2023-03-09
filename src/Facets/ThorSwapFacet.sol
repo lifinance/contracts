@@ -5,19 +5,31 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IThorSwap } from "../Interfaces/IThorSwap.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
+import { AlreadyInitialized } from "../Errors/GenericErrors.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { console } from "../../test/solidity/utils/Console.sol";
 
-/// @title Allbridge Facet
+/// @title ThorSwap Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through ThorSwap
 contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    /// @notice The contract address of the ThorSwap router on the source chain.
-    IThorSwap[] public allowedTSRouters;
-    address public tsTokenProxy;
+    /// Storage ///
+
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.thorswap");
+
+    address public immutable tsTokenProxy;
 
     /// Types ///
+
+    struct Storage {
+        IThorSwap[] allowedTSRouters;
+        bool initialized;
+    }
+
     enum RouterType {
         Uniswap,
         Generic,
@@ -39,10 +51,32 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 deadline;
     }
 
+    /// Events ///
+    event ThorSwapInitialized(IThorSwap[] allowedTSRouters);
+
     /// @notice Initializes the ThorSwap contract
-    constructor(IThorSwap[] memory _allowedTSRouters, address _tsTokenProxy) {
-        allowedTSRouters = _allowedTSRouters;
+    constructor(address _tsTokenProxy) {
         tsTokenProxy = _tsTokenProxy;
+    }
+
+    // Init ///
+
+    /// @notice Initialize local variables for the ThorSwap Facet
+    /// @param _allowedTSRouters Allowed ThorSwap routers
+    function initThorSwap(IThorSwap[] calldata _allowedTSRouters) external {
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage s = getStorage();
+
+        if (s.initialized) {
+            revert AlreadyInitialized();
+        }
+
+        s.allowedTSRouters = _allowedTSRouters;
+
+        s.initialized = true;
+
+        emit ThorSwapInitialized(_allowedTSRouters);
     }
 
     /// @notice Bridge tokens to another chain via ThorSwap
@@ -154,5 +188,14 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }
