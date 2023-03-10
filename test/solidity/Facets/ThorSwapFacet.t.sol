@@ -83,8 +83,6 @@ contract ThorSwapFacetTest is TestBaseFacet {
             0xeFa100c7821e68765b074dFF0670ae4F516181ee,
             "=:BTC.BTC:bc1qr930z62t42mnqy25h2tgcu7knpngjtxld33maa:10808311:t:15",
             ADDRESS_USDC,
-            bridgeData.minAmount,
-            bridgeData.minAmount,
             address(0),
             "",
             block.timestamp + 20 minutes
@@ -106,8 +104,6 @@ contract ThorSwapFacetTest is TestBaseFacet {
                 value: bridgeData.minAmount
             }(bridgeData, validThorSwapData);
         } else {
-            validThorSwapData.amount = bridgeData.minAmount;
-            validThorSwapData.amountOutMin = bridgeData.minAmount;
             thorSwapFacet.startBridgeTokensViaThorSwap(
                 bridgeData,
                 validThorSwapData

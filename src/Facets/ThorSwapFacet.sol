@@ -44,8 +44,6 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address tcVault;
         string tcMemo;
         address token;
-        uint256 amount;
-        uint256 amountOutMin;
         address router;
         bytes data;
         uint256 deadline;
@@ -156,11 +154,11 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // Send straight to ThorChain
         if (_thorSwapData.routerType == RouterType.Thorchain) {
             IThorSwap(_thorSwapData.tsRouter).depositWithExpiry{
-                value: msg.value
+                value: _bridgeData.minAmount
             }(
                 _thorSwapData.tcVault,
                 _thorSwapData.token,
-                _thorSwapData.amount,
+                _bridgeData.minAmount,
                 _thorSwapData.tcMemo,
                 _thorSwapData.deadline
             );
@@ -179,8 +177,8 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _thorSwapData.tcVault,
                 _thorSwapData.tcMemo,
                 _thorSwapData.token,
-                _thorSwapData.amount,
-                _thorSwapData.amountOutMin,
+                _bridgeData.minAmount,
+                _bridgeData.minAmount,
                 _thorSwapData.deadline
             );
         }
@@ -198,7 +196,7 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _thorSwapData.tcVault,
                 _thorSwapData.tcMemo,
                 _thorSwapData.token,
-                _thorSwapData.amount,
+                _bridgeData.minAmount,
                 _thorSwapData.router,
                 _thorSwapData.data,
                 _thorSwapData.deadline
