@@ -37,6 +37,15 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// @notice The struct for the ThorSwap data.
+    /// @param routerType The type of router to use
+    /// @param tsRouter The ThorSwap router
+    /// @param tcRouter The ThorChain router
+    /// @param tcVault The ThorChain vault address
+    /// @param tcMemo The ThorChain memo
+    /// @param token The token address
+    /// @param router The router address for (generic aggregators like 1inch)
+    /// @param data The data for the router
+    /// @param deadline The deadline for the swap
     struct ThorSwapData {
         RouterType routerType;
         address tsRouter;
@@ -50,9 +59,11 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// Errors ///
+
     error RouterNotAllowed();
 
     /// Events ///
+
     event ThorSwapInitialized(IThorSwap[] allowedTSRouters);
 
     /// @notice Initializes the ThorSwap contract
@@ -81,6 +92,7 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridge tokens to another chain via ThorSwap
     /// @param _bridgeData The bridge data struct
+    /// @param _thorSwapData The ThorSwap data struct
     function startBridgeTokensViaThorSwap(
         ILiFi.BridgeData memory _bridgeData,
         ThorSwapData calldata _thorSwapData
@@ -211,6 +223,9 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit LiFiTransferStarted(_bridgeData);
     }
 
+    /// @notice Checks if a router is allowed
+    /// @param _router The router to check
+    /// @return True if the router is allowed
     function routerIsAllowed(IThorSwap _router) private view returns (bool) {
         Storage storage s = getStorage();
         for (uint256 i = 0; i < s.allowedTSRouters.length; i++) {
