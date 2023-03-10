@@ -150,11 +150,19 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         IERC20 sendingAssetId = IERC20(_bridgeData.sendingAssetId);
+        bool isNative = LibAsset.isNativeAsset(address(sendingAssetId));
 
         // Send straight to ThorChain
         if (_thorSwapData.routerType == RouterType.Thorchain) {
+            if (!isNative) {
+                LibAsset.maxApproveERC20(
+                    sendingAssetId,
+                    tsTokenProxy,
+                    _bridgeData.minAmount
+                );
+            }
             IThorSwap(_thorSwapData.tsRouter).depositWithExpiry{
-                value: _bridgeData.minAmount
+                value: isNative ? _bridgeData.minAmount : 0
             }(
                 _thorSwapData.tcVault,
                 _thorSwapData.token,
@@ -162,16 +170,19 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _thorSwapData.tcMemo,
                 _thorSwapData.deadline
             );
+
+            emit LiFiTransferStarted(_bridgeData);
+            return;
         }
+
+        LibAsset.maxApproveERC20(
+            sendingAssetId,
+            tsTokenProxy,
+            _bridgeData.minAmount
+        );
 
         // Uniswap Style Aggregator
         if (_thorSwapData.routerType == RouterType.Uniswap) {
-            LibAsset.maxApproveERC20(
-                sendingAssetId,
-                tsTokenProxy,
-                _bridgeData.minAmount
-            );
-
             IThorSwap(_thorSwapData.tsRouter).swapIn(
                 _thorSwapData.tcRouter,
                 _thorSwapData.tcVault,
@@ -185,12 +196,6 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // Generic Aggregator
         if (_thorSwapData.routerType == RouterType.Generic) {
-            LibAsset.maxApproveERC20(
-                sendingAssetId,
-                tsTokenProxy,
-                _bridgeData.minAmount
-            );
-
             IThorSwap(_thorSwapData.tsRouter).swapIn(
                 _thorSwapData.tcRouter,
                 _thorSwapData.tcVault,
