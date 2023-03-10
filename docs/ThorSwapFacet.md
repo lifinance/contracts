@@ -3,6 +3,7 @@
 ## How it works
 
 The ThorSwap bridge facet works by forwarding calls to ThorSwap Aggregator contracts on the source chain. It is possible to find the contract addresses [here](https://docs.thorswap.net/smart-contracts/list-contracts).
+
 THORSwap is a multi-chain DEX aggregator built on THORChain's cross-chain liquidity protocol and the #1 interface for all THORChain services such as Savers, liquidity providing, THORNames, Synthetic Assets & THORSafe multisig wallets. In our belief that the future is multi-chain, THORSwap developed a secure solution to remove technical barriers for trading any assets accross chains, without relying on wrapped assets or bridges.
 
 ```mermaid
