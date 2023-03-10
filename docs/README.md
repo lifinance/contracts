@@ -17,6 +17,7 @@
 - [Access Manager Facet](./AccessManagerFacet.md)
 - [Squid Facet](./SquidFacet.md)
 - [MakerTeleport Facet](./MakerTeleportFacet.md)
+- [ThorSwap Facet](./ThorSwapFacet.md)
 
 # Libraries
 
