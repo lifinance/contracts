@@ -2,14 +2,14 @@
 
 ## How it works
 
-The ThorSwap bridge facet works by forwarding calls to ThorSwap Aggregator contracts on the source chain. It is possible to find the contract addresses [here](https://docs.thorswap.net/smart-contracts/list-contracts).
+The ThorSwap bridge facet works by forwarding calls to the Thorchain router contract on the source chain. Quotes are obtained using the ThorSwap API.
 
 THORSwap is a multi-chain DEX aggregator built on THORChain's cross-chain liquidity protocol and the #1 interface for all THORChain services such as Savers, liquidity providing, THORNames, Synthetic Assets & THORSafe multisig wallets. In our belief that the future is multi-chain, THORSwap developed a secure solution to remove technical barriers for trading any assets accross chains, without relying on wrapped assets or bridges.
 
 ```mermaid
 graph LR;
     D{LiFiDiamond}-- DELEGATECALL -->C(ThorSwapFacet);
-    C(ThorSwapFacet) -- CALL --> D(ThorSwap Router)
+    C(ThorSwapFacet) -- CALL --> D(ThorchainRouter)
 ```
 
 ## Public Methods
@@ -27,36 +27,16 @@ This data is specific to ThorSwap and is represented as the following struct typ
 
 ```solidity
 /// @notice The struct for the ThorSwap data.
-/// @param routerType The type of router to use
-/// @param tsRouter The ThorSwap router
-/// @param tcRouter The ThorChain router
-/// @param tcVault The ThorChain vault address
-/// @param tcMemo The ThorChain memo
-/// @param token The token address
-/// @param router The router address for (generic aggregators like 1inch)
-/// @param data The data for the router
-/// @param deadline The deadline for the swap
+/// @param vault The Thorchain vault address
+/// @param memo The memo to send to Thorchain for the swap
+/// @param expiration The expiration time for the swap
 struct ThorSwapData {
-    RouterType routerType;
-    address tsRouter;
-    address tcRouter;
-    address tcVault;
-    string tcMemo;
-    address token;
-    address router;
-    bytes data;
-    uint256 deadline;
+    address vault;
+    string memo;
+    uint256 expiration;
 }
 ```
-The ThorSwap router performs various different call types depending on the starting token and the desired token received on the destination chain.
 
-```solidity
-enum RouterType {
-  Uniswap, // Uses a Uniswap style aggregator
-  Generic, // Uses the ThorSwap generic aggregator
-  Thorchain // Sends directly to ThorChain's router contract
-}
-```
 ## Swap Data
 
 Some methods accept a `SwapData _swapData` parameter.
