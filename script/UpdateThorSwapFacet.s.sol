@@ -5,7 +5,6 @@ import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { ThorSwapFacet } from "lifi/Facets/ThorSwapFacet.sol";
-import { IThorSwap } from "lifi/Interfaces/IThorSwap.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
@@ -13,31 +12,11 @@ contract DeployScript is UpdateScriptBase {
     function run() public returns (address[] memory facets) {
         address facet = json.readAddress(".ThorSwapFacet");
 
-        path = string.concat(root, "/config/thorswap.json");
-        json = vm.readFile(path);
-        address[] memory allowedAddresses = json.readAddressArray(
-            string.concat(".", network, ".allowedRouters")
-        );
-
-        IThorSwap[] memory allowedRouters = new IThorSwap[](
-            allowedAddresses.length
-        );
-
-        for (uint256 i = 0; i < allowedAddresses.length; i++) {
-            allowedRouters[i] = IThorSwap(allowedAddresses[i]);
-        }
-
-        bytes memory callData = abi.encodeWithSelector(
-            ThorSwapFacet.initThorSwap.selector,
-            allowedRouters
-        );
-
         vm.startBroadcast(deployerPrivateKey);
 
         // ThorSwap
         if (loupe.facetFunctionSelectors(facet).length == 0) {
-            bytes4[] memory exclude = new bytes4[](1);
-            exclude[0] = ThorSwapFacet.initThorSwap.selector;
+            bytes4[] memory exclude;
             cut.push(
                 IDiamondCut.FacetCut({
                     facetAddress: address(facet),
@@ -45,7 +24,7 @@ contract DeployScript is UpdateScriptBase {
                     functionSelectors: getSelectors("ThorSwapFacet", exclude)
                 })
             );
-            cutter.diamondCut(cut, facet, callData);
+            cutter.diamondCut(cut, address(0), "");
         }
 
         facets = loupe.facetAddresses();

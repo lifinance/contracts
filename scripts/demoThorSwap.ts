@@ -39,15 +39,9 @@ const main = async () => {
   }
 
   const thorSwapData: ThorSwapFacet.ThorSwapDataStruct = {
-    routerType: 2, // Thorchain
-    tsRouter: route.contract,
-    tcRouter: route.calldata.tcRouter,
-    tcVault: route.calldata.tcVault,
-    tcMemo: route.calldata.memo,
-    token: route.calldata.assetAddress,
-    router: ethers.constants.AddressZero,
-    data: '0x',
-    deadline: route.calldata.expiration
+    vault: route.calldata.tcVault,
+    memo: route.calldata.memo,
+    expiration: route.calldata.expiration
   }
 
 

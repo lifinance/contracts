@@ -19,11 +19,11 @@ contract DeployScript is DeployScriptBase {
             "/config/thorswap.json"
         );
         string memory json = vm.readFile(path);
-        address tokenProxy = json.readAddress(
-            string.concat(".", network, ".tokenProxy")
+        address thorchainRouter = json.readAddress(
+            string.concat(".", network, ".thorchainRouter")
         );
 
-        constructorArgs = abi.encode(tokenProxy);
+        constructorArgs = abi.encode(thorchainRouter);
 
         vm.startBroadcast(deployerPrivateKey);
 

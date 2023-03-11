@@ -7,7 +7,7 @@ import { IThorSwap } from "lifi/Interfaces/IThorSwap.sol";
 
 // Stub ThorSwapFacet Contract
 contract TestThorSwapFacet is ThorSwapFacet {
-    constructor(address _tsTokenProxy) ThorSwapFacet(_tsTokenProxy) {}
+    constructor(address _thorchainRouter) ThorSwapFacet(_thorchainRouter) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -21,12 +21,6 @@ contract TestThorSwapFacet is ThorSwapFacet {
 contract ThorSwapFacetTest is TestBaseFacet {
     address internal constant THORCHAIN_ROUTER =
         0xD37BbE5744D730a1d98d8DC97c42F0Ca46aD7146;
-    address internal constant UNI_AGGREGATOR =
-        0x86904Eb2b3c743400D03f929F2246EfA80B91215;
-    address internal constant GENERIC_AGGREGTOR =
-        0xd31f7e39afECEc4855fecc51b693F9A0Cec49fd2;
-    address internal constant TOKEN_PROXY =
-        0xF892Fef9dA200d9E84c9b0647ecFF0F34633aBe8;
 
     ThorSwapFacet.ThorSwapData internal validThorSwapData;
     TestThorSwapFacet internal thorSwapFacet;
@@ -35,8 +29,8 @@ contract ThorSwapFacetTest is TestBaseFacet {
         customBlockNumberForForking = 16661275;
         initTestBase();
 
-        thorSwapFacet = new TestThorSwapFacet(TOKEN_PROXY);
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        thorSwapFacet = new TestThorSwapFacet(THORCHAIN_ROUTER);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = thorSwapFacet
             .startBridgeTokensViaThorSwap
             .selector;
@@ -47,17 +41,10 @@ contract ThorSwapFacetTest is TestBaseFacet {
         functionSelectors[3] = thorSwapFacet
             .setFunctionApprovalBySignature
             .selector;
-        functionSelectors[4] = thorSwapFacet.initThorSwap.selector;
 
         addFacet(diamond, address(thorSwapFacet), functionSelectors);
         thorSwapFacet = TestThorSwapFacet(address(diamond));
 
-        IThorSwap[] memory allowedRouters = new IThorSwap[](3);
-        allowedRouters[0] = IThorSwap(THORCHAIN_ROUTER);
-        allowedRouters[1] = IThorSwap(UNI_AGGREGATOR);
-        allowedRouters[2] = IThorSwap(GENERIC_AGGREGTOR);
-
-        thorSwapFacet.initThorSwap(allowedRouters);
         thorSwapFacet.addDex(ADDRESS_UNISWAP);
         thorSwapFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
@@ -73,33 +60,20 @@ contract ThorSwapFacetTest is TestBaseFacet {
 
         // adjust bridgeData
         bridgeData.bridge = "thorswap";
-        bridgeData.destinationChainId = 0;
+        bridgeData.destinationChainId = 12121212;
 
         // set valid ThorSwapData
         validThorSwapData = ThorSwapFacet.ThorSwapData(
-            ThorSwapFacet.RouterType.Uniswap,
-            UNI_AGGREGATOR,
-            THORCHAIN_ROUTER,
             0xeFa100c7821e68765b074dFF0670ae4F516181ee,
             "=:BTC.BTC:bc1qr930z62t42mnqy25h2tgcu7knpngjtxld33maa:10808311:t:15",
-            ADDRESS_USDC,
-            address(0),
-            "",
             block.timestamp + 20 minutes
         );
 
-        vm.label(UNI_AGGREGATOR, "UNI_AGGREGATOR");
         vm.label(THORCHAIN_ROUTER, "THORCHAIN_ROUTER");
-        vm.label(GENERIC_AGGREGTOR, "GENERIC_AGGREGTOR");
-        vm.label(TOKEN_PROXY, "TOKEN_PROXY");
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            validThorSwapData.routerType = ThorSwapFacet.RouterType.Thorchain;
-            validThorSwapData.tsRouter = THORCHAIN_ROUTER;
-            validThorSwapData.token = address(0);
-
             thorSwapFacet.startBridgeTokensViaThorSwap{
                 value: bridgeData.minAmount
             }(bridgeData, validThorSwapData);
@@ -115,11 +89,7 @@ contract ThorSwapFacetTest is TestBaseFacet {
         internal
         override
     {
-        if (bridgeData.sendingAssetId == address(0)) {
-            validThorSwapData.routerType = ThorSwapFacet.RouterType.Thorchain;
-            validThorSwapData.tsRouter = THORCHAIN_ROUTER;
-            validThorSwapData.token = address(0);
-
+        if (isNative) {
             thorSwapFacet.swapAndStartBridgeTokensViaThorSwap{
                 value: swapData[0].fromAmount
             }(bridgeData, swapData, validThorSwapData);
