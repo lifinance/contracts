@@ -24,7 +24,7 @@ contract TestGenericSwapFacet is GenericSwapFacet {
 
 contract GenericSwapFacetTest is DSTest, DiamondTest {
 
-    event LiFiSwappedGeneric(
+    event LiFiGenericSwapCompleted(
         bytes32 indexed transactionId,
         string integrator,
         string referrer,
@@ -120,7 +120,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiSwappedGeneric(
+        emit LiFiGenericSwapCompleted(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
             "integrator", // integrator,
             "referrer", // referrer,
