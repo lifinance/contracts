@@ -36,4 +36,26 @@ interface ILiFi {
         uint256 amount,
         uint256 timestamp
     );
+
+    event LiFiGenericSwapCompleted(
+        bytes32 indexed transactionId,
+        string integrator,
+        string referrer,
+        address receiver,
+        address fromAssetId,
+        address toAssetId,
+        uint256 fromAmount,
+        uint256 toAmount
+    );
+
+    // Deprecated but kept here to include in ABI to parse historic events
+    event LiFiSwappedGeneric(
+        bytes32 indexed transactionId,
+        string integrator,
+        string referrer,
+        address fromAssetId,
+        address toAssetId,
+        uint256 fromAmount,
+        uint256 toAmount
+    );
 }
