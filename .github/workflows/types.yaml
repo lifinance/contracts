@@ -78,19 +78,14 @@ jobs:
       - name: Push tag
         run: |
           cd lifi-contract-types
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git tag -a v${{ steps.bump_version.outputs.next-version }}
-          git push tag v${{ steps.bump_version.outputs.next-version }}
-
-      - name: Push package.json version
-        # if: env.BRANCH_NAME == 'master' # TODO remove comment
-        if: env.BRANCH_NAME == 'gh-actions' # TODO remove this line
-        run: |
-          cd lifi-contract-types
           jq '.version="${{ steps.bump_version.outputs.next-version }}"' package.json
           git config user.name github-actions
           git config user.email github-actions@github.com
           git add src/*
           git add package.json
-          git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
+          git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ github.event.head_commit.message }}"
+          git push tag v${{ steps.bump_version.outputs.next-version }}
+          if [[ "${{ env.BRANCH_NAME }}" == "gh-actions" ]]; then
+            git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
+          fi
+        # TODO replace gh-actions with master in the bash if
