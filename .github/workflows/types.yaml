@@ -1,0 +1,103 @@
+name: Types Bindings
+
+on:
+  push:
+    branches:
+      # - "master" # TODO remove comment
+      # - "staging" # TODO remove comment
+      - "gh-actions"
+
+env:
+  BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout contracts repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ env.BRANCH_NAME }}
+
+      # https://github.com/foundry-rs/foundry-toolchain
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - name: Install Node deps
+        run: yarn install
+
+      - name: Generate ABI
+        run: yarn abi:generate
+
+      - name: Generate types bindings
+        run: yarn typechain
+
+      - name: Checkout lifi-contract-types repository
+        uses: actions/checkout@v3
+        with:
+          repository: lifinance/lifi-contract-types
+          path: lifi-contract-types
+          ssh-key: ${{ secrets.SSH_REPO_TOKEN }}
+          # ref: master # TODO remove comment
+          ref: gh-actions # TODO remove line
+
+      - name: Install contract types
+        run: cd lifi-contract-types && yarn install
+
+      - name: Copy types bindings
+        run: |
+          rm -r src/
+          mv ../contracts/typechain src
+          cp ../contracts/diamondABI/diamond.json src/
+
+      - name: Build contract types
+        run: yarn build
+
+      - name: Take last Tag number
+        id: latest_release
+        run: |
+          release_json=$(curl https://api.github.com/repos/lifinance/lifi-contract-types/tags)
+          echo "LATEST_TAG=$(echo "$release_json" | jq -r '.[0].name')" >> $GITHUB_ENV
+
+      - name: Bump version
+        id: bump_version
+        if: contains(github.event.head_commit.message, 'fix')
+        uses: christian-draeger/increment-semantic-version@1.1.0
+        with:
+          current-version: ${{ env.LATEST_TAG }}
+          # TODO keep last one
+          version-fragment: "${{ env.BRANCH_NAME == 'gh-actions' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug') || 'rc' }}"
+          # version-fragment: "${{ env.BRANCH_NAME == 'staging' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug') || 'rc' }}"
+
+      - name: Save Tag name
+        id: latest_release
+        run: |
+          echo "tag_name=v${{ steps.bump_version.outputs.next-version }}" >> $GITHUB_ENV
+
+      - name: Configure Git
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+
+      - name: Push tag
+        run: |
+          git add src/*
+          git commit -m "actions: new contracts version v${{ steps.bump_version.outputs.next-version }}"
+          git tag -a v${{ steps.bump_version.outputs.next-version }}
+          git push tag v${{ steps.bump_version.outputs.next-version }}
+
+      - name: Push package.json version
+        # if: env.BRANCH_NAME == 'master' # TODO remove comment
+        if: env.BRANCH_NAME == 'gh-action' # TODO remove this line
+        run: |
+          jq '.version="${{ steps.bump_version.outputs.next-version }}"' package.json
+          git add src/*
+          git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
