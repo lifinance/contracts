@@ -6,7 +6,7 @@ import "lifi/Facets/DiamondCutFacet.sol";
 import "lifi/Facets/DiamondLoupeFacet.sol";
 import "lifi/Facets/OwnershipFacet.sol";
 import "lifi/Interfaces/IDiamondCut.sol";
-import "../../../src/Facets/PeripheryRegistryFacet.sol";
+import "lifi/Facets/PeripheryRegistryFacet.sol";
 
 contract DiamondTest {
     IDiamondCut.FacetCut[] internal cut;

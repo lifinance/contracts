@@ -15,7 +15,6 @@ import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/
 import {CelerIMFacet} from "lifi/Facets/CelerIMFacet.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
-import "../Facets/PeripheryRegistryFacet.sol";
 
 /// @title RelayerCelerIM
 /// @author LI.FI (https://li.fi)
