@@ -50,17 +50,19 @@ jobs:
           # ref: master # TODO remove comment
           ref: gh-actions # TODO remove line
 
-      - name: Install contract types
-        run: cd lifi-contract-types && yarn install
+      - name: Enter contract types
+        run: cd lifi-contract-types
 
-      - name: Copy types bindings and build
+      - name: Copy types bindings
         run: |
           rm -r src/
           mv ../contracts/typechain src
           cp ../contracts/diamondABI/diamond.json src/
-          yarn run build
 
-      - name: Take last Tag number
+      - name: Build contract types
+        run: yarn install && yarn build
+
+      - name: Retrieve latest Tag
         id: latest_release
         run: |
           release_json=$(curl https://api.github.com/repos/lifinance/lifi-contract-types/tags)
