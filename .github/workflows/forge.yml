@@ -1,6 +1,8 @@
 name: Forge
 on:
   push:
+    branches-ignore:
+      - "gh-actions" # TODO remove
 
 jobs:
   test:

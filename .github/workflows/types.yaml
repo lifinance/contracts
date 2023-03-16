@@ -75,8 +75,8 @@ jobs:
         with:
           current-version: ${{ env.LATEST_TAG }}
           # TODO keep last one
-          version-fragment: "${{ env.BRANCH_NAME == 'gh-actions' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug') || 'rc' }}"
-          # version-fragment: "${{ env.BRANCH_NAME == 'staging' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug') || 'rc' }}"
+          version-fragment: "${{ env.BRANCH_NAME == 'gh-actions' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug' || 'alpha' }}"
+          # version-fragment: "${{ env.BRANCH_NAME == 'staging' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug' || 'alpha' }}"
 
       - name: Save Tag name
         id: latest_release
