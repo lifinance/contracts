@@ -53,14 +53,12 @@ jobs:
       - name: Install contract types
         run: cd lifi-contract-types && yarn install
 
-      - name: Copy types bindings
+      - name: Copy types bindings and build
         run: |
           rm -r src/
           mv ../contracts/typechain src
           cp ../contracts/diamondABI/diamond.json src/
-
-      - name: Build contract types
-        run: yarn build
+          yarn run build
 
       - name: Take last Tag number
         id: latest_release
