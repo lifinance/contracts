@@ -8,12 +8,14 @@ import { UnAuthorized, InvalidConfig, InsufficientBalance, NotAContract, Contrac
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
+import { PeripheryRegistryFacet } from "../Facets/PeripheryRegistryFacet.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import {CelerIMFacet} from "lifi/Facets/CelerIMFacet.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
+import "../Facets/PeripheryRegistryFacet.sol";
 
 /// @title RelayerCelerIM
 /// @author LI.FI (https://li.fi)
@@ -24,7 +26,6 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// Storage ///
     IMessageBus public cBridgeMessageBus;
     address public diamondAddress;
-    IExecutor public executor;
 
     /// Errors ///
     error WithdrawFailed();
@@ -35,9 +36,6 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
         address indexed _to,
         uint256 amount
     );
-    event CBridgeMessageBusSet(address indexed messageBusAddress);
-    event DiamondAddressSet(address indexed diamondAddress);
-    event ExecutorSet(address indexed executorAddress);
 
     /// Modifiers ///
     modifier onlyCBridgeMessageBus() {
@@ -53,13 +51,11 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     constructor(
         address _owner,
         address _cBridgeMessageBusAddress,
-        address _diamondAddress,
-        address _executorAddress
+        address _diamondAddress
     ) TransferrableOwnership(_owner) {
         owner = _owner;
         cBridgeMessageBus = IMessageBus(_cBridgeMessageBusAddress);
         diamondAddress = _diamondAddress;
-        executor = IExecutor(_executorAddress);
     }
 
     /// External Methods ///
@@ -335,30 +331,6 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
         );
     }
 
-    /// @notice sets the CBridge MessageBus address
-    /// @param _messageBusAddress the MessageBus address
-    function setCBridgeMessageBus(address _messageBusAddress)
-        external
-        onlyOwner
-    {
-        cBridgeMessageBus = IMessageBus(_messageBusAddress);
-        emit CBridgeMessageBusSet(_messageBusAddress);
-    }
-
-    /// @notice sets the executor address
-    /// @param _executorAddress the address of the executor contract
-    function setExecutor(address _executorAddress) external onlyOwner {
-        executor = IExecutor(_executorAddress);
-        emit ExecutorSet(_executorAddress);
-    }
-
-    /// @notice sets the address of our diamond contract
-    /// @param _diamondAddress the address of our diamond contract
-    function setDiamondAddress(address _diamondAddress) external onlyOwner {
-        diamondAddress = _diamondAddress;
-        emit DiamondAddressSet(_diamondAddress);
-    }
-
     // ------------------------------------------------------------------------------------------------
 
     /// Private Methods ///
@@ -378,6 +350,7 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
         address refundAddress
     ) private {
         bool success;
+        IExecutor executor = IExecutor(PeripheryRegistryFacet(diamondAddress).getPeripheryContract("Executor"));
         if (LibAsset.isNativeAsset(assetId)) {
             try
                 executor.swapAndCompleteBridgeTokens{ value: amount }(
