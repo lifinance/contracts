@@ -79,9 +79,7 @@ jobs:
           # version-fragment: "${{ env.BRANCH_NAME == 'staging' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug' || 'alpha' }}"
 
       - name: Save Tag name
-        id: latest_release
-        run: |
-          echo "tag_name=v${{ steps.bump_version.outputs.next-version }}" >> $GITHUB_ENV
+        run: echo "tag_name=v${{ steps.bump_version.outputs.next-version }}" >> $GITHUB_ENV
 
       - name: Configure Git
         run: |
