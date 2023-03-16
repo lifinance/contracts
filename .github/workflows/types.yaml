@@ -50,17 +50,14 @@ jobs:
           # ref: master # TODO remove comment
           ref: gh-actions # TODO remove line
 
-      - name: Enter contract types
-        run: cd lifi-contract-types
-
       - name: Copy types bindings
         run: |
-          rm -r src/
-          mv ../contracts/typechain src
-          cp ../contracts/diamondABI/diamond.json src/
+          rm -r lifi-contract-types/src/
+          mv typechain lifi-contract-types/src
+          cp diamondABI/diamond.json lifi-contract-types/src/
 
       - name: Build contract types
-        run: yarn install && yarn build
+        run: cd lifi-contract-types && yarn install && yarn build
 
       - name: Retrieve latest Tag
         id: latest_release
@@ -78,9 +75,6 @@ jobs:
           version-fragment: "${{ env.BRANCH_NAME == 'gh-actions' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug' || 'alpha' }}"
           # version-fragment: "${{ env.BRANCH_NAME == 'staging' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug' || 'alpha' }}"
 
-      - name: Save Tag name
-        run: echo "tag_name=v${{ steps.bump_version.outputs.next-version }}" >> $GITHUB_ENV
-
       - name: Configure Git
         run: |
           git config user.name github-actions
@@ -88,6 +82,7 @@ jobs:
 
       - name: Push tag
         run: |
+          cd lifi-contract-types
           git add src/*
           git commit -m "actions: new contracts version v${{ steps.bump_version.outputs.next-version }}"
           git tag -a v${{ steps.bump_version.outputs.next-version }}
@@ -97,6 +92,7 @@ jobs:
         # if: env.BRANCH_NAME == 'master' # TODO remove comment
         if: env.BRANCH_NAME == 'gh-action' # TODO remove this line
         run: |
+          cd lifi-contract-types
           jq '.version="${{ steps.bump_version.outputs.next-version }}"' package.json
           git add src/*
           git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
