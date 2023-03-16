@@ -75,24 +75,22 @@ jobs:
           version-fragment: "${{ env.BRANCH_NAME == 'gh-actions' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug' || 'alpha' }}"
           # version-fragment: "${{ env.BRANCH_NAME == 'staging' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug' || 'alpha' }}"
 
-      - name: Configure Git
-        run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-
       - name: Push tag
         run: |
           cd lifi-contract-types
-          git add src/*
-          git commit -m "actions: new contracts version v${{ steps.bump_version.outputs.next-version }}"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
           git tag -a v${{ steps.bump_version.outputs.next-version }}
           git push tag v${{ steps.bump_version.outputs.next-version }}
 
       - name: Push package.json version
         # if: env.BRANCH_NAME == 'master' # TODO remove comment
-        if: env.BRANCH_NAME == 'gh-action' # TODO remove this line
+        if: env.BRANCH_NAME == 'gh-actions' # TODO remove this line
         run: |
           cd lifi-contract-types
           jq '.version="${{ steps.bump_version.outputs.next-version }}"' package.json
+          git config user.name github-actions
+          git config user.email github-actions@github.com
           git add src/*
+          git add package.json
           git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
