@@ -78,13 +78,13 @@ jobs:
       - name: Push tag
         run: |
           cd lifi-contract-types
-          jq '.version="${{ steps.bump_version.outputs.next-version }}"' package.json
+          jq '.version="${{ steps.bump_version.outputs.next-version }}"' package.json > package.json
           git config user.name github-actions
           git config user.email github-actions@github.com
           git add src/*
           git add package.json
           git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ github.event.head_commit.message }}"
-          git push tag v${{ steps.bump_version.outputs.next-version }}
+          git push origin tag v${{ steps.bump_version.outputs.next-version }}
           if [[ "${{ env.BRANCH_NAME }}" == "gh-actions" ]]; then
             git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
           fi
