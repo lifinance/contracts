@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibAccess } from "../Libraries/LibAccess.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErrors.sol";
 
 /// @title CBridge Facet
 /// @author LI.FI (https://li.fi)
@@ -27,6 +31,13 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint32 maxSlippage;
         uint64 nonce;
     }
+
+    /// Events ///
+    event CBridgeRefund(
+        address indexed _assetAddress,
+        address indexed _to,
+        uint256 amount
+    );
 
     /// Constructor ///
 
@@ -85,6 +96,42 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
         _startBridge(_bridgeData, _cBridgeData);
     }
+
+    /// @notice Triggers a cBridge refund with calldata produced by cBridge API
+    /// @param _callTo The address to execute the calldata on
+    /// @param _callData The data to execute
+    /// @param _assetAddress Asset to be withdrawn
+    /// @param _to Address to withdraw to
+    /// @param _amount Amount of asset to withdraw
+    function triggerRefund(
+        address payable _callTo,
+        bytes calldata _callData,
+        address _assetAddress,
+        address _to,
+        uint256 _amount
+    ) external {
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
+
+        // make sure that callTo address is either of the cBridge addresses
+        if (address(cBridge) != _callTo) {
+            revert ContractCallNotAllowed();
+        }
+
+        // call contract
+        bool success;
+        (success, ) = _callTo.call(_callData);
+        if (!success) {
+            revert ExternalCallFailed();
+        }
+
+        // forward funds to _to address and emit event
+        address sendTo = (LibUtil.isZeroAddress(_to)) ? msg.sender : _to;
+        LibAsset.transferAsset(_assetAddress, payable(sendTo), _amount);
+        emit CBridgeRefund(_assetAddress, sendTo, _amount);
+    }
+
 
     /// Private Methods ///
 
