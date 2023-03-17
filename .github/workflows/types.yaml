@@ -11,7 +11,7 @@ env:
   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
 jobs:
-  build:
+  generate-tag:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -62,8 +62,29 @@ jobs:
       - name: Retrieve latest Tag
         id: latest_release
         run: |
+          # fetch tag releases
           release_json=$(curl https://api.github.com/repos/lifinance/lifi-contract-types/tags)
-          echo "LATEST_TAG=$(echo "$release_json" | jq -r '.[0].name')" >> $GITHUB_ENV
+
+          # get the latest tag
+          LATEST_TAG=$(echo "$release_json" | jq -r '.[0].name')
+          echo "latest tag: $LATEST_TAG"
+
+          # loop through the tag releases
+          while read item; do
+            tag_name=$(jq -r '.name' <<< "$item")
+            # if we're on staging...
+            if [[ "$BRANCH_NAME" == "staging" ]]; then
+              # ...check if there's already a latest tag beta release
+              # and, if present, use it instead of the main one
+              if [[ "$tag_name" == "$LATEST_TAG-$beta"* ]]; then
+                echo "Found a latest beta release: $LATEST_TAG"
+                LATEST_TAG=$tag_name
+                break
+              fi
+            fi
+          done <<<$(echo "$release_json" | jq -c -r '.[]')
+
+          echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
 
       - name: Bump version
         id: bump_version
