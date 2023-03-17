@@ -1,9 +1,5 @@
 name: Slither Analysis
-on:
-  push:
-    branches-ignore:
-      - "gh-actions" # TODO remove
-
+on: [push]
 jobs:
   analyze:
     runs-on: ubuntu-latest
