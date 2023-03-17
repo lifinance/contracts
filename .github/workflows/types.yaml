@@ -3,9 +3,8 @@ name: Types Bindings
 on:
   push:
     branches:
-      # - "master" # TODO remove comment
-      # - "staging" # TODO remove comment
-      - "gh-actions"
+      - "master"
+      - "staging"
 
 env:
   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
@@ -13,8 +12,7 @@ env:
 jobs:
   generate-tag:
     runs-on: ubuntu-latest
-    # TODO replace gh-actions with staging
-    if: github.head_ref == 'staging' || github.ref_name == 'gh-actions' || contains(github.event.head_commit.message, 'major') || contains(github.event.head_commit.message, 'feat') || contains(github.event.head_commit.message, 'fix')
+    if: github.head_ref == 'staging' || github.ref_name == 'staging' || contains(github.event.head_commit.message, 'major') || contains(github.event.head_commit.message, 'feat') || contains(github.event.head_commit.message, 'fix')
     permissions:
       contents: read
 
@@ -47,8 +45,7 @@ jobs:
           repository: lifinance/lifi-contract-types
           path: lifi-contract-types
           ssh-key: ${{ secrets.SSH_REPO_TOKEN }}
-          # ref: master # TODO remove comment
-          ref: gh-actions # TODO remove line
+          ref: master
 
       - name: Copy types bindings
         run: |
@@ -70,8 +67,8 @@ jobs:
           # loop through the tag releases
           while read item; do
             tag_name=$(jq -r '.name' <<< "$item")
-            # if we're on staging... # TODO remove gh-actions and put staging
-            if [[ "$BRANCH_NAME" == "gh-actions" ]]; then
+            # if we're on staging...
+            if [[ "$BRANCH_NAME" == "staging" ]]; then
               # ...check if there's already a latest tag beta release
               # and, if present, use it instead of the main one
               if [[ "$tag_name" == "$LATEST_TAG-$beta"* ]]; then
@@ -89,9 +86,7 @@ jobs:
         uses: christian-draeger/increment-semantic-version@1.1.0
         with:
           current-version: "${{ env.LATEST_TAG }}"
-          # TODO keep last one
-          version-fragment: "${{ env.BRANCH_NAME == 'gh-actions' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug' || 'ERR' }}"
-          # version-fragment: "${{ env.BRANCH_NAME == 'staging' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug' || 'ERR' }}"
+          version-fragment: "${{ env.BRANCH_NAME == 'staging' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug' || 'ERR' }}"
 
       - name: Push tag
         if: steps.bump_version.outputs.next-version
@@ -106,8 +101,7 @@ jobs:
           git add package.json
           git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ github.event.head_commit.message }}"
           git push origin tag v${{ steps.bump_version.outputs.next-version }}
-          if [[ "$BRANCH_NAME" == "gh-actions" ]]; then
+          if [[ "$BRANCH_NAME" == "master" ]]; then
             git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
             git push origin $BRANCH_NAME
           fi
-        # TODO replace gh-actions with master in the bash if
