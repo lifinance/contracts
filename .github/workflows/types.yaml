@@ -109,5 +109,6 @@ jobs:
           git push origin tag v${{ steps.bump_version.outputs.next-version }}
           if [[ "$BRANCH_NAME" == "gh-actions" ]]; then
             git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
+            git push origin $BRANCH_NAME
           fi
         # TODO replace gh-actions with master in the bash if
