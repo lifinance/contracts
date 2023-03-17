@@ -104,7 +104,7 @@ jobs:
           echo "Updating version from ${{ env.LATEST_TAG }} to ${{ steps.bump_version.outputs.next-version }}"
           git add src/*
           git add package.json
+          git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
           git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ github.event.head_commit.message }}"
           git push origin tag v${{ steps.bump_version.outputs.next-version }}
-          git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
-          git push origin $BRANCH_NAME
+          git push -u origin $BRANCH_NAME --force
