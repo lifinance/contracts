@@ -107,4 +107,6 @@ jobs:
           git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
           git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ github.event.head_commit.message }}"
           git push origin tag v${{ steps.bump_version.outputs.next-version }}
-          git push -u origin $BRANCH_NAME --force
+          if [[ "$BRANCH_NAME" == "master" ]]; then
+            git push -u origin $BRANCH_NAME
+          fi
