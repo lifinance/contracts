@@ -19,13 +19,11 @@ jobs:
       contents: read
 
     steps:
-
       - name: Checkout contracts repository
         uses: actions/checkout@v3
         with:
           ref: ${{ env.BRANCH_NAME }}
 
-      # https://github.com/foundry-rs/foundry-toolchain
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
@@ -99,7 +97,8 @@ jobs:
         if: steps.bump_version.outputs.next-version
         run: |
           cd lifi-contract-types
-          jq '.version="${{ steps.bump_version.outputs.next-version }}"' package.json > package.json
+          tmp=$(mktemp)
+          jq '.version="${{ steps.bump_version.outputs.next-version }}"' package.json > "$tmp" && mv "$tmp" package.json
           git config user.name github-actions
           git config user.email github-actions@github.com
           echo "Updating version from ${{ env.LATEST_TAG }} to ${{ steps.bump_version.outputs.next-version }}"
