@@ -14,7 +14,7 @@ jobs:
   generate-tag:
     runs-on: ubuntu-latest
     # TODO replace gh-actions with staging
-    if: env.BRANCH_NAME == 'gh-actions' || contains(github.event.head_commit.message, 'major') || contains(github.event.head_commit.message, 'feat') || contains(github.event.head_commit.message, 'fix')
+    if: github.head_ref == 'staging' || github.ref_name == 'gh-actions' || contains(github.event.head_commit.message, 'major') || contains(github.event.head_commit.message, 'feat') || contains(github.event.head_commit.message, 'fix')
     permissions:
       contents: read
 
