@@ -77,7 +77,6 @@ jobs:
               # ...check if there's already a latest tag beta release
               # and, if present, use it instead of the main one
               if [[ "$tag_name" == "$LATEST_TAG-$beta"* ]]; then
-                echo "Found a latest beta release: $LATEST_TAG"
                 LATEST_TAG=$tag_name
                 break
               fi
@@ -108,7 +107,7 @@ jobs:
           git add package.json
           git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ github.event.head_commit.message }}"
           git push origin tag v${{ steps.bump_version.outputs.next-version }}
-          if [[ "${BRANCH_NAME}" == "gh-actions" ]]; then
+          if [[ "$BRANCH_NAME" == "gh-actions" ]]; then
             git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
           fi
         # TODO replace gh-actions with master in the bash if
