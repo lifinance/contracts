@@ -5,6 +5,7 @@ on:
     branches:
       - "master"
       - "staging"
+      - "gh-actions"
 
 env:
   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
@@ -12,7 +13,6 @@ env:
 jobs:
   generate-tag:
     runs-on: ubuntu-latest
-    if: github.head_ref == 'staging' || github.ref_name == 'staging' || contains(github.event.head_commit.message, 'major') || contains(github.event.head_commit.message, 'feat') || contains(github.event.head_commit.message, 'fix')
     permissions:
       contents: read
 
@@ -66,7 +66,7 @@ jobs:
           LATEST_TAG=$(echo "$release_json" | jq -r '.[0].name')
 
           # we need to make sure that on staging we're going to update a -beta version, if any
-          if [[ "$BRANCH_NAME" == "staging" ]]; then
+          if [[ "$BRANCH_NAME" != "master" ]]; then
             # if it has already "-beta", no other action is required, since it means
             # that we're already going to update the latest staging release
             if [[ "$LATEST_TAG" != *"beta"* ]]; then
@@ -75,7 +75,7 @@ jobs:
                 tag_name=$(jq -r '.name' <<< "$item")
                 # check if there's already a latest tag beta release
                 # and, if present, use it instead of the main one
-                # if we end up without any latest beta tag, weit will create a beta release from the latest tag
+                # if we end up without any latest beta tag, we will create a beta release from the latest tag
                 if [[ "$tag_name" == "$LATEST_TAG-$beta"* ]]; then
                   LATEST_TAG=$tag_name
                   break
@@ -88,11 +88,10 @@ jobs:
 
       - name: Update version
         id: bump_version
-        if: contains(github.event.head_commit.message, 'fix')
         uses: christian-draeger/increment-semantic-version@1.1.0
         with:
           current-version: "${{ env.LATEST_TAG }}"
-          version-fragment: "${{ env.BRANCH_NAME == 'staging' && 'beta' || contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || contains(github.event.head_commit.message, 'fix') && 'bug' || 'ERR' }}"
+          version-fragment: "${{ env.BRANCH_NAME == 'master' && (contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || 'bug') || 'beta' }}"
 
       - name: Push tag
         if: steps.bump_version.outputs.next-version
@@ -107,7 +106,5 @@ jobs:
           git add package.json
           git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ github.event.head_commit.message }}"
           git push origin tag v${{ steps.bump_version.outputs.next-version }}
-          if [[ "$BRANCH_NAME" == "master" ]]; then
-            git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
-            git push origin $BRANCH_NAME
-          fi
+          git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
+          git push origin $BRANCH_NAME
