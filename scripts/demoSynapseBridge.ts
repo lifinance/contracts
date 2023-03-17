@@ -23,7 +23,6 @@ const LIFI_ADDRESS = '0x1D7554F2EF87Faf41f9c678cF2501497D38c014f'
 const POLYGON_DAI_ADDRESS = '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063'
 const POLYGON_USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
 const BSC_BUSD_ADDRESS = '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56'
-const NETH_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
 const UNISWAP_ADDRESS = '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff'
 const ZERO_ADDRESS = constants.AddressZero
 const ONE = constants.One
@@ -146,8 +145,8 @@ async function main() {
     const synapseData = await getSynapseDataQueries(
       'polygon',
       'bsc',
-      NETH_ADDRESS,
-      NETH_ADDRESS,
+      ZERO_ADDRESS,
+      ZERO_ADDRESS,
       amount,
       0.05, // Slippage
       deadline // Deadline
@@ -174,6 +173,8 @@ async function getSynapseDataQueries(
     [network: string]: { router: string }
   }
 
+  const NETH_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+
   const srcJsonProvider = new providers.JsonRpcProvider(node_url(srcChain))
   const srcProvider = new providers.FallbackProvider([srcJsonProvider])
   const dstJsonProvider = new providers.JsonRpcProvider(node_url(dstChain))
@@ -189,13 +190,13 @@ async function getSynapseDataQueries(
   )
 
   const dstBridgeTokens = await dstSynapseRouter.getConnectedBridgeTokens(
-    dstToken
+    dstToken == ZERO_ADDRESS ? NETH_ADDRESS : dstToken
   )
 
   const dstSymbols = dstBridgeTokens.map((token) => token.symbol)
 
   const originQueries = await srcSynapseRouter.getOriginAmountOut(
-    srcToken,
+    srcToken == ZERO_ADDRESS ? NETH_ADDRESS : srcToken,
     dstSymbols,
     amount
   )
@@ -207,7 +208,7 @@ async function getSynapseDataQueries(
 
   const destQueries = await dstSynapseRouter.getDestinationAmountOut(
     requests,
-    dstToken
+    dstToken == ZERO_ADDRESS ? NETH_ADDRESS : dstToken
   )
 
   let selectedIndex = 0
