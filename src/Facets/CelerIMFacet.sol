@@ -165,15 +165,23 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // check if transaction contains a destination call
         if (!_bridgeData.hasDestinationCall) {
             // case 'no': simple bridge transfer - send to receiver
-            relayer.sendTokenTransfer{ value: msgValue }(_bridgeData, _celerIMData);
+            relayer.sendTokenTransfer{ value: msgValue }(
+                _bridgeData,
+                _celerIMData
+            );
         } else {
             // case 'yes': bridge + dest call - send to relayer
             address receiver = _bridgeData.receiver;
             _bridgeData.receiver = address(relayer);
             (bytes32 transferId, address bridgeAddress) = relayer
-            .sendTokenTransfer{ value: msgValue }(_bridgeData, _celerIMData);
+                .sendTokenTransfer{ value: msgValue }(
+                _bridgeData,
+                _celerIMData
+            );
             // call message bus via relayer incl messageBusFee
-            relayer.forwardSendMessageWithTransfer{value: _celerIMData.messageBusFee}(
+            relayer.forwardSendMessageWithTransfer{
+                value: _celerIMData.messageBusFee
+            }(
                 receiver,
                 uint64(_bridgeData.destinationChainId),
                 bridgeAddress,
