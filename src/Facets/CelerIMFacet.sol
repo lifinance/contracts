@@ -168,18 +168,19 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             relayer.sendTokenTransfer{ value: msgValue }(_bridgeData, _celerIMData);
         } else {
             // case 'yes': bridge + dest call - send to relayer
-            ILiFi.BridgeData memory bridgeDataAdjusted = _bridgeData;
-            bridgeDataAdjusted.receiver = address(relayer);
+            address receiver = _bridgeData.receiver;
+            _bridgeData.receiver = address(relayer);
             (bytes32 transferId, address bridgeAddress) = relayer
-            .sendTokenTransfer{ value: msgValue }(bridgeDataAdjusted, _celerIMData);
+            .sendTokenTransfer{ value: msgValue }(_bridgeData, _celerIMData);
             // call message bus via relayer incl messageBusFee
             relayer.forwardSendMessageWithTransfer{value: _celerIMData.messageBusFee}(
-                _bridgeData.receiver,
+                receiver,
                 uint64(_bridgeData.destinationChainId),
                 bridgeAddress,
                 transferId,
                 _celerIMData.callData
             );
+            _bridgeData.receiver = receiver;
         }
 
         // emit LiFi event
