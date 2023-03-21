@@ -42,6 +42,9 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bool forecallEnabled;
     }
 
+    /// Errors ///
+    error InvalidRouteType();
+
     /// State ///
     ISquidRouter public immutable squidRouter;
 
@@ -169,6 +172,8 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.receiver,
                 _squidData.forecallEnabled
             );
+        } else {
+            revert InvalidRouteType();
         }
 
         emit LiFiTransferStarted(_bridgeData);
