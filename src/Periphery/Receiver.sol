@@ -233,7 +233,8 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
         if (LibAsset.isNativeAsset(assetId)) {
             // case 1: native asset
-            if (reserveRecoverGas && gasleft() < _recoverGas) {
+            uint256 cacheGasLeft = gasleft();
+            if (reserveRecoverGas && cacheGasLeft < _recoverGas) {
                 // case 1a: not enough gas left to execute calls
                 receiver.call{ value: amount }("");
 
@@ -251,7 +252,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             try
                 executor.swapAndCompleteBridgeTokens{
                     value: amount,
-                    gas: gasleft() - _recoverGas
+                    gas: cacheGasLeft - _recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
                 receiver.call{ value: amount }("");
