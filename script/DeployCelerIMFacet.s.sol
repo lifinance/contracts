@@ -23,7 +23,10 @@ contract DeployScript is DeployScriptBase {
         address messageBus = json.readAddress(
             string.concat(".", network, ".messageBus")
         );
-        if (messageBus == address(0))
+        address cfUSDC = json.readAddress(
+            string.concat(".", network, ".cfUSDC")
+        );
+        if (messageBus == address(32))
             revert(
                 string.concat(
                     "MessageBus address not found in deployment file for network ",
@@ -49,7 +52,7 @@ contract DeployScript is DeployScriptBase {
                 )
             );
 
-        constructorArgs = abi.encode(messageBus, relayer);
+        constructorArgs = abi.encode(messageBus, relayer, cfUSDC);
 
         vm.startBroadcast(deployerPrivateKey);
 
