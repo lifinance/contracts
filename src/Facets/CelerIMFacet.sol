@@ -188,6 +188,7 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         } else {
             // Case 'yes': Bridge + Destination call - Send to relayer
             address receiver = _bridgeData.receiver;
+            // Set relayer as a receiver
             _bridgeData.receiver = address(relayer);
 
             (bytes32 transferId, address bridgeAddress) = relayer
@@ -207,6 +208,7 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _celerIMData.callData
             );
 
+            // Reset receiver of bridge data for event emission
             _bridgeData.receiver = receiver;
         }
 
