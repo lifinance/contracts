@@ -13,13 +13,14 @@ import {
 } from '../typechain'
 import { node_url } from '../utils/network'
 import config from '../config/synapse.json'
+import deployments from '../deployments/polygon.staging.json'
 import chalk from 'chalk'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))
 }
 
-const LIFI_ADDRESS = '0x1D7554F2EF87Faf41f9c678cF2501497D38c014f'
+const LIFI_ADDRESS = deployments.LiFiDiamond
 const POLYGON_DAI_ADDRESS = '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063'
 const POLYGON_USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
 const BSC_BUSD_ADDRESS = '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56'
