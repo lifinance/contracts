@@ -10,8 +10,8 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CelerIMFacet Contract
 contract TestCelerIMFacet is CelerIMFacet {
-    constructor(IMessageBus _messageBus, RelayerCelerIM _relayer)
-        CelerIMFacet(_messageBus, _relayer)
+    constructor(IMessageBus _messageBus, RelayerCelerIM _relayer, address _cfUSDC)
+        CelerIMFacet(_messageBus, _relayer, _cfUSDC)
     {}
 
     function addDex(address _dex) external {
@@ -76,6 +76,8 @@ contract CelerIMFacetTest is TestBaseFacet {
         0x16365b45EB269B5B5dACB34B4a15399Ec79b95eB;
     address internal constant CBRIDGE_PEG_BRIDGE_V2 =
         0x52E4f244f380f8fA51816c8a10A63105dd4De084;
+    address internal constant CFUSDC =
+        0x317F8d18FB16E49a958Becd0EA72f8E153d25654;
 
     TestCelerIMFacet internal celerIMFacet;
     CelerIMFacet.CelerIMData internal celerIMData;
@@ -99,7 +101,8 @@ contract CelerIMFacetTest is TestBaseFacet {
 
         celerIMFacet = new TestCelerIMFacet(
             IMessageBus(CBRIDGE_MESSAGEBUS_ETH),
-            relayer
+            relayer,
+            CFUSDC
         );
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = celerIMFacet
