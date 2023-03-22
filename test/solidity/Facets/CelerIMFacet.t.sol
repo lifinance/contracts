@@ -261,7 +261,7 @@ contract CelerIMFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testBase_CanBridgeNativeTokens_DestinationCall() public {
+    function test_CanBridgeNativeTokens_DestinationCall() public {
         addToMessageValue = 1e17;
         celerIMData = CelerIMFacet.CelerIMData({
             maxSlippage: 5000,
