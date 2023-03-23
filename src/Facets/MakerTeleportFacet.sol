@@ -2,6 +2,7 @@
 pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ITeleportGateway } from "../Interfaces/ITeleportGateway.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
@@ -15,6 +16,8 @@ import { InvalidSendingToken, NoSwapDataProvided } from "../Errors/GenericErrors
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Maker Teleport
 contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    using SafeCast for uint256;
+
     /// Storage ///
 
     /// @notice The address of Teleport Gateway.
@@ -115,7 +118,7 @@ contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         teleportGateway.initiateTeleport(
             l1Domain,
             _bridgeData.receiver,
-            uint128(_bridgeData.minAmount)
+            _bridgeData.minAmount.toUint128()
         );
 
         emit LiFiTransferStarted(_bridgeData);
