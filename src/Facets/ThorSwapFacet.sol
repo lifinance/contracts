@@ -5,12 +5,9 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IThorSwap } from "../Interfaces/IThorSwap.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-import { console } from "../../test/solidity/utils/Console.sol";
 
 /// @title ThorSwap Facet
 /// @author Li.Finance (https://li.finance)
