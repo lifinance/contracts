@@ -21,10 +21,6 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         IHopBridge hopBridge;
     }
 
-    /// Events ///
-
-    event HopBridgeRegistered(address indexed assetId, address bridge);
-
     /// External Methods ///
 
     /// @notice Sets approval for the Hop Bridge to spend the specified token
