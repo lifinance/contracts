@@ -43,9 +43,11 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// State ///
+
     ISquidRouter public immutable squidRouter;
 
     /// Constructor ///
+
     constructor(ISquidRouter _squidRouter) {
         squidRouter = _squidRouter;
     }
@@ -63,14 +65,9 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         payable
         nonReentrant
         refundExcessNative(payable(msg.sender))
+        doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        if (
-            (_squidData.sourceCalls.length > 0) != _bridgeData.hasSourceSwaps
-        ) {
-            revert InformationMismatch();
-        }
-
         if (
             (_squidData.destinationCalls.length > 0) !=
             _bridgeData.hasDestinationCall
@@ -115,6 +112,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
+
         _startBridge(_bridgeData, _squidData);
     }
 
