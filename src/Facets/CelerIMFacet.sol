@@ -128,7 +128,8 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(msg.sender),
+            _celerIMData.messageBusFee
         );
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // transfer ERC20 tokens directly to relayer
