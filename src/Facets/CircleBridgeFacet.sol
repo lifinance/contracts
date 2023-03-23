@@ -52,7 +52,6 @@ contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        noNativeAsset(_bridgeData)
         onlyAllowSourceToken(_bridgeData, usdc)
     {
         LibAsset.depositAsset(usdc, _bridgeData.minAmount);
