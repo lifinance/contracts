@@ -26,7 +26,6 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param destChainDomainId The Amarok-specific domainId of the destination chain
     struct AmarokData {
         bytes callData;
-        address callTo;
         uint256 relayerFee;
         uint256 slippageTol;
         address delegate;
@@ -119,14 +118,10 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount
         );
 
-        address receiver = _bridgeData.hasDestinationCall
-            ? _amarokData.callTo
-            : _bridgeData.receiver;
-
         // initiate bridge transaction
         connextHandler.xcall{ value: _amarokData.relayerFee }(
             _amarokData.destChainDomainId,
-            receiver,
+            _bridgeData.receiver,
             _bridgeData.sendingAssetId,
             _amarokData.delegate,
             _bridgeData.minAmount,
