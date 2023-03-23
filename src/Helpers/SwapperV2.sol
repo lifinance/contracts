@@ -213,6 +213,10 @@ contract SwapperV2 is ILiFi {
         uint256 newBalance = LibAsset.getOwnBalance(finalTokenId) -
             initialBalance;
 
+        if (LibAsset.isNativeAsset(finalTokenId)) {
+            newBalance -= _nativeReserve;
+        }
+
         if (newBalance < _minAmount) {
             revert CumulativeSlippageTooHigh(_minAmount, newBalance);
         }
