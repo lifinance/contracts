@@ -91,17 +91,11 @@ contract CircleBridgeFacetTest is TestBaseFacet {
         circleBridgeData = CircleBridgeFacet.CircleBridgeData(DST_DOMAIN);
     }
 
-    function initiateBridgeTxWithFacet(bool isNative) internal override {
-        if (isNative) {
-            circleBridgeFacet.startBridgeTokensViaCircleBridge{
-                value: bridgeData.minAmount
-            }(bridgeData, circleBridgeData);
-        } else {
-            circleBridgeFacet.startBridgeTokensViaCircleBridge(
-                bridgeData,
-                circleBridgeData
-            );
-        }
+    function initiateBridgeTxWithFacet(bool) internal override {
+        circleBridgeFacet.startBridgeTokensViaCircleBridge(
+            bridgeData,
+            circleBridgeData
+        );
     }
 
     function initiateSwapAndBridgeTxWithFacet(bool isNative)
