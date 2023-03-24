@@ -155,7 +155,7 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
      */
     function sendTokenTransfer(
         ILiFi.BridgeData memory _bridgeData,
-        CelerIMFacet.CelerIMData memory _celerIMData
+        CelerIMFacet.CelerIMData calldata _celerIMData
     )
         external
         payable

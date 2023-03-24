@@ -57,7 +57,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _squidData Data specific to Squid Router
     function startBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
-        SquidData memory _squidData
+        SquidData calldata _squidData
     )
         external
         payable
@@ -93,7 +93,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        SquidData memory _squidData
+        SquidData calldata _squidData
     )
         external
         payable
@@ -125,16 +125,15 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _squidData Data specific to Squid Router
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        SquidData memory _squidData
+        SquidData calldata _squidData
     ) internal {
-        IERC20 sendingAssetId = IERC20(_bridgeData.sendingAssetId);
-
         uint256 msgValue = _squidData.fee;
-        if (LibAsset.isNativeAsset(address(sendingAssetId))) {
+
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             msgValue += _bridgeData.minAmount;
         } else {
             LibAsset.maxApproveERC20(
-                sendingAssetId,
+                IERC20(_bridgeData.sendingAssetId),
                 address(squidRouter),
                 _bridgeData.minAmount
             );

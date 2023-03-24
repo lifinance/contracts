@@ -113,7 +113,7 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaCelerIM(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        CelerIMData memory _celerIMData
+        CelerIMData calldata _celerIMData
     )
         external
         payable
@@ -155,7 +155,7 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _celerIMData data specific to CBridge
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        CelerIMData memory _celerIMData
+        CelerIMData calldata _celerIMData
     ) private {
         // assuming messageBusFee is pre-calculated off-chain and available in _celerIMData
         // determine correct native asset amount to be forwarded (if so) and send funds to relayer
@@ -188,7 +188,7 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     function validateDestinationCallFlag(
         ILiFi.BridgeData memory _bridgeData,
-        CelerIMData memory _celerIMData
+        CelerIMData calldata _celerIMData
     ) private pure {
         if (
             (_celerIMData.callData.length > 0) !=

@@ -67,7 +67,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaCBridge(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        CBridgeData memory _cBridgeData
+        CBridgeData calldata _cBridgeData
     )
         external
         payable
@@ -93,7 +93,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _cBridgeData data specific to CBridge
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        CBridgeData memory _cBridgeData
+        CBridgeData calldata _cBridgeData
     ) private {
         if (uint64(block.chainid) == _bridgeData.destinationChainId)
             revert CannotBridgeToSameNetwork();

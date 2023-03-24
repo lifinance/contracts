@@ -119,7 +119,7 @@ contract ServiceFeeCollector is TransferrableOwnership {
 
     /// @notice Batch withdraws fees
     /// @param tokenAddresses The addresses of the tokens to withdraw fees for
-    function batchWithdrawFees(address[] memory tokenAddresses)
+    function batchWithdrawFees(address[] calldata tokenAddresses)
         external
         onlyOwner
     {
