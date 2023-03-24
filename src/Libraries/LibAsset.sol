@@ -105,10 +105,10 @@ library LibAsset {
     }
 
     function depositAsset(address assetId, uint256 amount) internal {
+        if (amount == 0) revert InvalidAmount();
         if (isNativeAsset(assetId)) {
             if (msg.value < amount) revert InvalidAmount();
         } else {
-            if (amount == 0) revert InvalidAmount();
             uint256 balance = IERC20(assetId).balanceOf(msg.sender);
             if (balance < amount) revert InsufficientBalance(amount, balance);
             transferFromERC20(assetId, msg.sender, address(this), amount);
