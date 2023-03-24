@@ -255,6 +255,13 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
                 receiver.call{ value: amount }("");
+                emit LiFiTransferRecovered(
+                    _transactionId,
+                    assetId,
+                    receiver,
+                    amount,
+                    block.timestamp
+                );
             }
         } else {
             // case 2: ERC20 asset
