@@ -4,14 +4,14 @@ pragma solidity 0.8.17;
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-import { UnAuthorized, InvalidConfig, InsufficientBalance, NotAContract, ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErrors.sol";
+import { ContractCallNotAllowed, ExternalCallFailed, InvalidConfig, UnAuthorized, WithdrawFailed } from "../Errors/GenericErrors.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
-import {CelerIMFacet} from "lifi/Facets/CelerIMFacet.sol";
+import { CelerIMFacet } from "lifi/Facets/CelerIMFacet.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 
@@ -22,14 +22,13 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
     /// Storage ///
+
     IMessageBus public cBridgeMessageBus;
     address public diamondAddress;
     IExecutor public executor;
 
-    /// Errors ///
-    error WithdrawFailed();
-
     /// Events ///
+
     event LogWithdraw(
         address indexed _assetAddress,
         address indexed _to,
@@ -40,6 +39,7 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     event ExecutorSet(address indexed executorAddress);
 
     /// Modifiers ///
+
     modifier onlyCBridgeMessageBus() {
         if (msg.sender != address(cBridgeMessageBus)) revert UnAuthorized();
         _;
@@ -50,6 +50,7 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
     }
 
     /// Constructor
+
     constructor(
         address _owner,
         address _cBridgeMessageBusAddress,
@@ -390,7 +391,9 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 success = true;
             } catch {
                 (bool fundsSent, ) = refundAddress.call{ value: amount }("");
-                if (!fundsSent) revert ExternalCallFailed();
+                if (!fundsSent) {
+                    revert ExternalCallFailed();
+                }
             }
         } else {
             IERC20 token = IERC20(assetId);
@@ -456,12 +459,15 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
         bool success;
 
         // make sure that callTo address is either of the cBridge addresses
-        if(cBridgeMessageBus.liquidityBridge() != _callTo &&
-        cBridgeMessageBus.pegBridge() != _callTo &&
-        cBridgeMessageBus.pegBridgeV2() != _callTo &&
-        cBridgeMessageBus.pegVault() != _callTo &&
-        cBridgeMessageBus.pegVaultV2() != _callTo)
-        revert ContractCallNotAllowed();
+        if (
+            cBridgeMessageBus.liquidityBridge() != _callTo &&
+            cBridgeMessageBus.pegBridge() != _callTo &&
+            cBridgeMessageBus.pegBridgeV2() != _callTo &&
+            cBridgeMessageBus.pegVault() != _callTo &&
+            cBridgeMessageBus.pegVaultV2() != _callTo
+        ) {
+            revert ContractCallNotAllowed();
+        }
 
         // call contract
         (success, ) = _callTo.call(_callData);
