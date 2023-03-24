@@ -58,14 +58,14 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        if (hasDestinationCall(_nxtpData) != _bridgeData.hasDestinationCall) {
-            revert InformationMismatch();
-        }
+        validateDestinationCallFlag(_bridgeData, _nxtpData);
         validateInvariantData(_nxtpData.invariantData, _bridgeData);
+
         LibAsset.depositAsset(
             _nxtpData.invariantData.sendingAssetId,
             _bridgeData.minAmount
         );
+
         _startBridge(_bridgeData, _nxtpData);
     }
 
@@ -86,17 +86,16 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        if (hasDestinationCall(_nxtpData) != _bridgeData.hasDestinationCall) {
-            revert InformationMismatch();
-        }
-
+        validateDestinationCallFlag(_bridgeData, _nxtpData);
         validateInvariantData(_nxtpData.invariantData, _bridgeData);
+
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender)
         );
+
         _startBridge(_bridgeData, _nxtpData);
     }
 
@@ -170,11 +169,15 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
     }
 
-    function hasDestinationCall(NXTPData memory _nxtpData)
-        private
-        pure
-        returns (bool)
-    {
-        return _nxtpData.encryptedCallData.length > 0;
+    function validateDestinationCallFlag(
+        ILiFi.BridgeData memory _bridgeData,
+        NXTPData calldata _nxtpData
+    ) private pure {
+        if (
+            (_nxtpData.encryptedCallData.length > 0) !=
+            _bridgeData.hasDestinationCall
+        ) {
+            revert InformationMismatch();
+        }
     }
 }
