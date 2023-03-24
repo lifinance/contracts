@@ -68,16 +68,13 @@ contract GnosisBridgeL2Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         onlyAllowDestinationChain(_bridgeData, ETHEREUM_CHAIN_ID)
         onlyAllowSourceToken(_bridgeData, XDAI)
     {
-        if (_swapData.length == 0) revert NoSwapDataProvided();
-        if (_swapData[_swapData.length - 1].receivingAssetId != XDAI) {
-            revert InvalidSendingToken();
-        }
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender)
         );
+
         _startBridge(_bridgeData);
     }
 
