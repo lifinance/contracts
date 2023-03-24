@@ -11,6 +11,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { InformationMismatch } from "../Errors/GenericErrors.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title Squid Facet
 /// @author LI.FI (https://li.fi)
@@ -66,6 +67,15 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
     {
         if (
+            !LibAsset.isNativeAsset(address(_bridgeData.sendingAssetId)) &&
+            keccak256(abi.encodePacked(_squidData.bridgedTokenSymbol)) !=
+            keccak256(
+                abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())
+            )
+        ) {
+            revert InformationMismatch();
+        }
+        if (
             (_squidData.sourceCalls.length > 0) != _bridgeData.hasSourceSwaps
         ) {
             revert InformationMismatch();
@@ -102,6 +112,15 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        if (
+            !LibAsset.isNativeAsset(address(_bridgeData.sendingAssetId)) &&
+            keccak256(abi.encodePacked(_squidData.bridgedTokenSymbol)) !=
+            keccak256(
+                abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())
+            )
+        ) {
+            revert InformationMismatch();
+        }
         if (
             (_squidData.destinationCalls.length > 0) !=
             _bridgeData.hasDestinationCall
