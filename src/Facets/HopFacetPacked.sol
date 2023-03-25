@@ -18,18 +18,18 @@ contract HopFacetPacked is ILiFi {
     function startBridgeTokensViaHopL2NativePacked(
     ) external payable {
         checkCalldataLength(118);
-        _startBridgeTokensViaHopL2Native(
+        _startBridgeTokensViaHopL2Native({
             // first 4 bytes are function signature
-            bytes32(getCalldataValue(4, 8)), // bytes8 > bytes32: transactionId
-            string(abi.encodePacked(getCalldataValue(12, 16))), // bytes16 > string: integrator
-            address(uint160(getCalldataValue(28, 20))), // bytes20 > address: receiver
-            getCalldataValue(48, 16), // uint128 > uint256: bonderFee
-            getCalldataValue(64, 16), // uint128 > uint256: amountOutMin
-            getCalldataValue(80, 2), // uint8 > uint256: destinationChainId
-            getCalldataValue(82, 16), // uint128 > uint256: destinationAmountOutMin
-            address(uint160(getCalldataValue(98, 20))) // bytes20 > address: hopBridge
+            transactionId: bytes32(getCalldataValue(4, 8)), // bytes8 > bytes32
+            integrator: string(abi.encodePacked(getCalldataValue(12, 16))), // bytes16 > string
+            receiver: address(uint160(getCalldataValue(28, 20))), // bytes20 > address
+            bonderFee: getCalldataValue(48, 16), // uint128 > uint256
+            amountOutMin: getCalldataValue(64, 16), // uint128 > uint256
+            destinationChainId: getCalldataValue(80, 2), // uint8 > uint256
+            destinationAmountOutMin: getCalldataValue(82, 16), // uint128 > uint256
+            hopBridge: address(uint160(getCalldataValue(98, 20))) // bytes20 > address
             // => total calldata length required: 118
-        );
+        });
     }
 
     /// @notice Bridges Native tokens via Hop Protocol from L2
@@ -68,20 +68,20 @@ contract HopFacetPacked is ILiFi {
     function startBridgeTokensViaHopL2ERC20Packed(
     ) external {
         checkCalldataLength(154);
-        _startBridgeTokensViaHopL2ERC20(
+        _startBridgeTokensViaHopL2ERC20({
             // first 4 bytes are function signature
-            bytes32(getCalldataValue(4, 8)), // bytes8 > bytes32: transactionId
-            string(abi.encodePacked(getCalldataValue(12, 16))), // bytes16 > string: integrator
-            address(uint160(getCalldataValue(28, 20))), // bytes20 > address: receiver
-            getCalldataValue(48, 16), // uint128 > uint256: bonderFee
-            getCalldataValue(64, 16), // uint128 > uint256: amountOutMin
-            getCalldataValue(80, 2), // uint8 > uint256: destinationChainId
-            getCalldataValue(82, 16), // uint128 > uint256: destinationAmountOutMin
-            address(uint160(getCalldataValue(98, 20))), // bytes20 > address: hopBridge
-            address(uint160(getCalldataValue(118, 20))), // bytes20 > address: sendingAssetId
-            getCalldataValue(138, 16) // uint128 > uint256: amount
+            transactionId: bytes32(getCalldataValue(4, 8)), // bytes8 > bytes32
+            integrator: string(abi.encodePacked(getCalldataValue(12, 16))), // bytes16 > string
+            receiver: address(uint160(getCalldataValue(28, 20))), // bytes20 > address
+            bonderFee: getCalldataValue(48, 16), // uint128 > uint256
+            amountOutMin: getCalldataValue(64, 16), // uint128 > uint256
+            destinationChainId: getCalldataValue(80, 2), // uint8 > uint256
+            destinationAmountOutMin: getCalldataValue(82, 16), // uint128 > uint256
+            hopBridge: address(uint160(getCalldataValue(98, 20))), // bytes20 > address
+            sendingAssetId: address(uint160(getCalldataValue(118, 20))), // bytes20 > address
+            amount: getCalldataValue(138, 16) // uint128 > uint256
             // => total calldata length required: 154
-        );
+        });
     }
 
     /// @notice Bridges ERC20 tokens via Hop Protocol from L2
@@ -137,7 +137,7 @@ contract HopFacetPacked is ILiFi {
 
     /// @notice Extract information from raw callData
     /// @param startByte Start position to read callData from
-    /// @param length Length of callData ro read
+    /// @param length Length of callData ro read, should not be longer than 32 bytes
     function getCalldataValue(uint startByte, uint length)
         private pure returns (uint) {
         uint _retVal;
@@ -172,18 +172,18 @@ contract HopFacetPacked is ILiFi {
             deadline
         );
 
-        emit LiFiTransferStarted(BridgeData(
-            transactionId,
-            "hop",
-            integrator,
-            address(0),
-            address(0),
-            receiver,
-            msg.value,
-            destinationChainId,
-            false,
-            false
-        ));
+        emit LiFiTransferStarted(BridgeData({
+            transactionId: transactionId,
+            bridge: "hop",
+            integrator: integrator,
+            referrer: address(0),
+            sendingAssetId: address(0),
+            receiver: receiver,
+            minAmount: msg.value,
+            destinationChainId: destinationChainId,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        }));
     }
 
     function _startBridgeTokensViaHopL2ERC20(
@@ -214,17 +214,17 @@ contract HopFacetPacked is ILiFi {
             deadline
         );
 
-        emit LiFiTransferStarted(BridgeData(
-            transactionId,
-            "hop",
-            integrator,
-            address(0),
-            sendingAssetId,
-            receiver,
-            amount,
-            destinationChainId,
-            false,
-            false
-        ));
+        emit LiFiTransferStarted(BridgeData({
+            transactionId: transactionId,
+            bridge: "hop",
+            integrator: integrator,
+            referrer: address(0),
+            sendingAssetId: sendingAssetId,
+            receiver: receiver,
+            minAmount: amount,
+            destinationChainId: destinationChainId,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        }));
     }
 }
