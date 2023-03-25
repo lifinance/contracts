@@ -26,7 +26,9 @@ contract HopGasTest is Test, DiamondTest {
     ERC20 internal usdc;
     LiFiDiamond internal diamond;
     HopFacetPacked internal hopFacetPacked;
+    HopFacetOptimized internal hopFacetOptimized;
 
+    bytes32 transactionId;
     string integrator;
     uint256 amountUSDC;
     uint256 amountBonderFeeUSDC;
@@ -37,6 +39,12 @@ contract HopGasTest is Test, DiamondTest {
     uint256 amountBonderFeeNative;
     uint256 amountOutMinNative;
     bytes packedNative;
+
+    ILiFi.BridgeData bridgeDataNative;
+    HopFacetOptimized.HopData hopDataNative;
+
+    ILiFi.BridgeData bridgeDataUSDC;
+    HopFacetOptimized.HopData hopDataUSDC;
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_ARBITRUM");
@@ -63,10 +71,12 @@ contract HopGasTest is Test, DiamondTest {
         hopFacetPacked = HopFacetPacked(address(diamond));
 
 
-        /// Perpare Approval
-        HopFacetOptimized hopFacetOptimized = new HopFacetOptimized();
-        bytes4[] memory functionSelectorsApproval = new bytes4[](1);
+        /// Perpare HopFacetOptimized & Approval
+        hopFacetOptimized = new HopFacetOptimized();
+        bytes4[] memory functionSelectorsApproval = new bytes4[](3);
         functionSelectorsApproval[0] = hopFacetOptimized.setApprovalForBridges.selector;
+        functionSelectorsApproval[1] = hopFacetOptimized.startBridgeTokensViaHopL2Native.selector;
+        functionSelectorsApproval[2] = hopFacetOptimized.startBridgeTokensViaHopL2ERC20.selector;
 
         addFacet(diamond, address(hopFacetOptimized), functionSelectorsApproval);
         hopFacetOptimized = HopFacetOptimized(address(diamond));
@@ -79,6 +89,7 @@ contract HopGasTest is Test, DiamondTest {
 
 
         /// Perpare parameters
+        transactionId = "someID";
         integrator = "demo-partner";
 
         // Native params
@@ -87,7 +98,7 @@ contract HopGasTest is Test, DiamondTest {
         amountOutMinNative = amountNative / 100 * 99;
 
         bytes memory packedNativeParams = bytes.concat(
-            bytes8("someID"), // transactionId
+            bytes8(transactionId), // transactionId
             bytes16(bytes(integrator)), // integrator
             bytes20(RECEIVER), // receiver
             bytes16(uint128(amountBonderFeeNative)), // bonderFee
@@ -107,7 +118,7 @@ contract HopGasTest is Test, DiamondTest {
         amountOutMinUSDC = amountUSDC / 100 * 99;
 
         bytes memory packedUSDCParams = bytes.concat(
-            bytes8("someID"), // transactionId
+            bytes8(transactionId), // transactionId
             bytes16(bytes(integrator)), // integrator
             bytes20(RECEIVER), // receiver
             bytes16(uint128(amountBonderFeeUSDC)), // bonderFee
@@ -122,6 +133,51 @@ contract HopGasTest is Test, DiamondTest {
             abi.encodeWithSignature("startBridgeTokensViaHopL2ERC20Packed()"),
             packedUSDCParams
         );
+
+        // same data for HopFacetOptimized
+        bridgeDataNative = ILiFi.BridgeData(
+            transactionId,
+            "hop",
+            integrator,
+            address(0),
+            address(0),
+            RECEIVER,
+            amountNative,
+            137,
+            false,
+            false
+        );
+
+        hopDataNative = HopFacetOptimized.HopData({
+            bonderFee: amountBonderFeeNative,
+            amountOutMin: amountOutMinNative,
+            deadline: block.timestamp + 60 * 20,
+            destinationAmountOutMin: amountOutMinNative,
+            destinationDeadline: block.timestamp + 60 * 20,
+            hopBridge: IHopBridge(HOP_NATIVE_BRIDGE)
+        });
+
+        bridgeDataUSDC = ILiFi.BridgeData(
+            transactionId,
+            "hop",
+            integrator,
+            address(0),
+            USDC_ADDRESS,
+            RECEIVER,
+            amountUSDC,
+            137,
+            false,
+            false
+        );
+
+        hopDataUSDC = HopFacetOptimized.HopData({
+            bonderFee: amountBonderFeeUSDC,
+            amountOutMin: amountOutMinUSDC,
+            deadline: block.timestamp + 60 * 20,
+            destinationAmountOutMin: amountOutMinUSDC,
+            destinationDeadline: block.timestamp + 60 * 20,
+            hopBridge: IHopBridge(HOP_USDC_BRIDGE)
+        });
     }
 
     function testCallData() public view {
@@ -183,4 +239,22 @@ contract HopGasTest is Test, DiamondTest {
         vm.stopPrank();
     }
 
+    function testStartBridgeTokensViaHopL2Native() public {
+        vm.startPrank(WHALE);
+        hopFacetOptimized.startBridgeTokensViaHopL2Native{value: amountNative}(
+            bridgeDataNative,
+            hopDataNative
+        );
+        vm.stopPrank();
+    }
+
+    function testStartBridgeTokensViaHopL2ERC20() public {
+        vm.startPrank(WHALE);
+        usdc.approve(address(diamond), amountUSDC);
+        hopFacetOptimized.startBridgeTokensViaHopL2ERC20(
+            bridgeDataUSDC,
+            hopDataUSDC
+        );
+        vm.stopPrank();
+    }
 }
