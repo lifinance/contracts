@@ -156,10 +156,10 @@ contract CBridgeGasTest is Test, DiamondTest {
             integrator,
             RECEIVER,
             uint64(destinationChainId),
-            nonce,
-            maxSlippage,
             USDC_ADDRESS,
-            amountUSDC
+            amountUSDC,
+            nonce,
+            maxSlippage
         );
         vm.stopPrank();
     }

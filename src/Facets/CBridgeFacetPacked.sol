@@ -25,7 +25,7 @@ contract CBridgeFacetPacked is ILiFi {
 
     /// External Methods ///
 
-    /// @notice Bridges Native tokens via cBridge
+    /// @notice Bridges Native tokens via cBridge (packed)
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaCBridgeNativePacked(
     ) external payable {
@@ -42,7 +42,7 @@ contract CBridgeFacetPacked is ILiFi {
         });
     }
 
-    /// @notice Bridges Native tokens via Hop Protocol from L2
+    /// @notice Bridges native tokens via cBridge
     /// @param transactionId Custom transaction ID for tracking
     /// @param integrator LI.FI partner name
     /// @param receiver Receiving wallet address
@@ -67,6 +67,32 @@ contract CBridgeFacetPacked is ILiFi {
         );
     }
 
+    /// @notice Encode callData to send native tokens packed
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param integrator LI.FI partner name
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param nonce A number input to guarantee uniqueness of transferId.
+    /// @param maxSlippage Destination swap minimal accepted amount
+    function encodeBridgeTokensViaCBridgeNativePacked(
+        bytes32 transactionId,
+        string memory integrator,
+        address receiver,
+        uint64 destinationChainId,
+        uint64 nonce,
+        uint32 maxSlippage
+    ) external pure returns (bytes memory) {
+        return bytes.concat(
+            abi.encodeWithSignature("startBridgeTokensViaCBridgeNativePacked()"),
+            bytes8(transactionId),
+            bytes16(bytes(integrator)),
+            bytes20(receiver),
+            bytes4(uint32(destinationChainId)),
+            bytes4(uint32(nonce)),
+            bytes4(maxSlippage)
+        );
+    }
+
     /// @notice Bridges ERC20 tokens via cBridge
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaCBridgeERC20Packed(
@@ -78,10 +104,10 @@ contract CBridgeFacetPacked is ILiFi {
             integrator: string(abi.encodePacked(getCalldataValue(12, 16))), // bytes16 > string
             receiver: address(uint160(getCalldataValue(28, 20))), // bytes20 > address
             destinationChainId: uint64(getCalldataValue(48, 4)), // bytes4 > uint256 > uint64
-            nonce: uint64(getCalldataValue(52, 4)), // bytes4 > uint256 > uint64
-            maxSlippage: uint32(getCalldataValue(56, 4)), // bytes4 > uint256 > uint32
-            sendingAssetId: address(uint160(getCalldataValue(60, 20))), // bytes20 > address
-            amount: getCalldataValue(80, 16) // bytes16 > uint256
+            sendingAssetId: address(uint160(getCalldataValue(52, 20))), // bytes20 > address
+            amount: getCalldataValue(72, 16), // bytes16 > uint256
+            nonce: uint64(getCalldataValue(88, 4)), // bytes4 > uint256 > uint64
+            maxSlippage: uint32(getCalldataValue(92, 4)) // bytes4 > uint256 > uint32
             // => total calldata length required: 96
         });
     }
@@ -91,29 +117,61 @@ contract CBridgeFacetPacked is ILiFi {
     /// @param integrator LI.FI partner name
     /// @param receiver Receiving wallet address
     /// @param destinationChainId Receiving chain
-    /// @param nonce A number input to guarantee uniqueness of transferId.
-    /// @param maxSlippage Destination swap minimal accepted amount
     /// @param sendingAssetId Address of the source asset to bridge
     /// @param amount Amount of the source asset to bridge
+    /// @param nonce A number input to guarantee uniqueness of transferId
+    /// @param maxSlippage Destination swap minimal accepted amount
     function startBridgeTokensViaCBridgeERC20Min(
         bytes32 transactionId,
         string memory integrator,
         address receiver,
         uint64 destinationChainId,
-        uint64 nonce,
-        uint32 maxSlippage,
         address sendingAssetId,
-        uint256 amount
+        uint256 amount,
+        uint64 nonce,
+        uint32 maxSlippage
     ) external {
         _startBridgeTokensViaCBridgeERC20(
             transactionId,
             integrator,
             receiver,
             destinationChainId,
-            nonce,
-            maxSlippage,
             sendingAssetId,
-            amount
+            amount,
+            nonce,
+            maxSlippage
+        );
+    }
+
+    /// @notice Encode callData to send ERC20 tokens packed
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param integrator LI.FI partner name
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param sendingAssetId Address of the source asset to bridge
+    /// @param amount Amount of the source asset to bridge
+    /// @param nonce A number input to guarantee uniqueness of transferId
+    /// @param maxSlippage Destination swap minimal accepted amount
+    function encodeBridgeTokensViaCBridgeERC20Packed(
+        bytes32 transactionId,
+        string memory integrator,
+        address receiver,
+        uint64 destinationChainId,
+        address sendingAssetId,
+        uint256 amount,
+        uint64 nonce,
+        uint32 maxSlippage
+    ) external pure returns (bytes memory) {
+        return bytes.concat(
+            abi.encodeWithSignature("startBridgeTokensViaCBridgeERC20Packed()"),
+            bytes8(transactionId),
+            bytes16(bytes(integrator)),
+            bytes20(receiver),
+            bytes4(uint32(destinationChainId)),
+            bytes20(sendingAssetId),
+            bytes16(uint128(amount)),
+            bytes4(uint32(nonce)),
+            bytes4(maxSlippage)
         );
     }
 
@@ -181,10 +239,10 @@ contract CBridgeFacetPacked is ILiFi {
         string memory integrator,
         address receiver,
         uint64 destinationChainId,
-        uint64 nonce,
-        uint32 maxSlippage,
         address sendingAssetId,
-        uint256 amount
+        uint256 amount,
+        uint64 nonce,
+        uint32 maxSlippage
     ) private {
         // Deposit assets
         SafeERC20.safeTransferFrom(IERC20(sendingAssetId), msg.sender, address(this), amount);
