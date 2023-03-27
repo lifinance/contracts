@@ -76,13 +76,6 @@ contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         onlyAllowSourceToken(_bridgeData, usdc)
     {
-        if (_swapData.length == 0) {
-            revert NoSwapDataProvided();
-        }
-        if (_swapData[_swapData.length - 1].receivingAssetId != usdc) {
-            revert InvalidSendingToken();
-        }
-
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
