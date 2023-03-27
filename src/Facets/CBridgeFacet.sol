@@ -95,9 +95,6 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         CBridgeData memory _cBridgeData
     ) private {
-        if (uint64(block.chainid) == _bridgeData.destinationChainId)
-            revert CannotBridgeToSameNetwork();
-
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             cBridge.sendNative{ value: _bridgeData.minAmount }(
                 _bridgeData.receiver,
