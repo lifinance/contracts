@@ -58,11 +58,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        if (
-            hasDestinationCall(_amarokData) != _bridgeData.hasDestinationCall
-        ) {
-            revert InformationMismatch();
-        }
+        validateDestinationCallFlag(_bridgeData, _amarokData);
 
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -88,11 +84,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        if (
-            hasDestinationCall(_amarokData) != _bridgeData.hasDestinationCall
-        ) {
-            revert InformationMismatch();
-        }
+        validateDestinationCallFlag(_bridgeData, _amarokData);
 
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -137,11 +129,14 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    function hasDestinationCall(AmarokData calldata _amarokData)
-        private
-        pure
-        returns (bool)
-    {
-        return _amarokData.callData.length > 0;
+    function validateDestinationCallFlag(
+        ILiFi.BridgeData memory _bridgeData,
+        AmarokData calldata _amarokData
+    ) private pure {
+        if (
+            (_amarokData.callData.length > 0) != _bridgeData.hasDestinationCall
+        ) {
+            revert InformationMismatch();
+        }
     }
 }
