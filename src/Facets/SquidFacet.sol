@@ -59,7 +59,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _squidData Data specific to Squid Router
     function startBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
-        SquidData memory _squidData
+        SquidData calldata _squidData
     )
         external
         payable
@@ -68,12 +68,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        if (
-            (_squidData.destinationCalls.length > 0) !=
-            _bridgeData.hasDestinationCall
-        ) {
-            revert InformationMismatch();
-        }
+        validateDestinationCallFlag(_bridgeData, _squidData);
 
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -90,7 +85,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        SquidData memory _squidData
+        SquidData calldata _squidData
     )
         external
         payable
@@ -99,12 +94,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        if (
-            (_squidData.destinationCalls.length > 0) !=
-            _bridgeData.hasDestinationCall
-        ) {
-            revert InformationMismatch();
-        }
+        validateDestinationCallFlag(_bridgeData, _squidData);
 
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -170,5 +160,17 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function validateDestinationCallFlag(
+        ILiFi.BridgeData memory _bridgeData,
+        SquidData calldata _squidData
+    ) private pure {
+        if (
+            (_squidData.destinationCalls.length > 0) !=
+            _bridgeData.hasDestinationCall
+        ) {
+            revert InformationMismatch();
+        }
     }
 }

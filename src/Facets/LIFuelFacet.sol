@@ -32,6 +32,7 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
         LibAsset.depositAsset(
@@ -53,6 +54,7 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
         _bridgeData.minAmount = _depositAndSwap(
@@ -78,10 +80,9 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            serviceFeeCollector.collectNativeGasFees{value: _bridgeData.minAmount}(
-                _bridgeData.minAmount,
-                _bridgeData.receiver
-            );
+            serviceFeeCollector.collectNativeGasFees{
+                value: _bridgeData.minAmount
+            }(_bridgeData.receiver);
         } else {
 
             LibAsset.maxApproveERC20(

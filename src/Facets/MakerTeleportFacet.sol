@@ -86,18 +86,13 @@ contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         onlyAllowDestinationChain(_bridgeData, dstChainId)
         onlyAllowSourceToken(_bridgeData, dai)
     {
-        if (_swapData.length == 0) {
-            revert NoSwapDataProvided();
-        }
-        if (_swapData[_swapData.length - 1].receivingAssetId != dai) {
-            revert InvalidSendingToken();
-        }
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender)
         );
+
         _startBridge(_bridgeData);
     }
 
