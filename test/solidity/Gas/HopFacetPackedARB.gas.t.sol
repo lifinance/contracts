@@ -10,6 +10,17 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { console } from "../utils/Console.sol";
 
+contract CallForwarder {
+
+    function callDiamond(uint256 nativeAmount, address contractAddress, bytes calldata callData) external payable {
+        (bool success, ) = contractAddress.call{value: nativeAmount}(callData);
+        if (!success) {
+            revert();
+        }
+    }
+}
+
+
 contract HopGasTest is Test, DiamondTest {
     address internal constant HOP_USDC_BRIDGE =
         0xe22D2beDb3Eca35E6397e0C6D62857094aA26F52;
@@ -27,6 +38,7 @@ contract HopGasTest is Test, DiamondTest {
     LiFiDiamond internal diamond;
     HopFacetPacked internal hopFacetPacked;
     HopFacetOptimized internal hopFacetOptimized;
+    CallForwarder internal callForwarder;
 
     bytes32 transactionId;
     string integrator;
@@ -60,6 +72,7 @@ contract HopGasTest is Test, DiamondTest {
         hopFacetPacked = new HopFacetPacked();
         usdc = ERC20(USDC_ADDRESS);
         hop = IHopBridge(HOP_USDC_BRIDGE);
+        callForwarder = new CallForwarder();
 
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = hopFacetPacked.startBridgeTokensViaHopL2NativePacked.selector;
@@ -193,6 +206,12 @@ contract HopGasTest is Test, DiamondTest {
         if (!success) {
             revert();
         }
+        vm.stopPrank();
+    }
+
+    function testStartBridgeTokensViaHopL2NativePackedForwarded() public {
+        vm.startPrank(WHALE);
+        callForwarder.callDiamond{value: 2 * amountNative}(amountNative, address(diamond), packedNative);
         vm.stopPrank();
     }
 
