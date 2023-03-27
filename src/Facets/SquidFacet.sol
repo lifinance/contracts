@@ -44,7 +44,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// State ///
 
-    ISquidRouter public immutable squidRouter;
+    ISquidRouter private immutable squidRouter;
 
     /// Constructor ///
 
