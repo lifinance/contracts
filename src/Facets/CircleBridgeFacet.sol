@@ -7,6 +7,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { InvalidSendingToken, NoSwapDataProvided } from "../Errors/GenericErrors.sol";
 
 /// @title CircleBridge Facet
 /// @author LI.FI (https://li.fi)
@@ -51,7 +52,6 @@ contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        noNativeAsset(_bridgeData)
         onlyAllowSourceToken(_bridgeData, usdc)
     {
         LibAsset.depositAsset(usdc, _bridgeData.minAmount);
@@ -74,7 +74,6 @@ contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        noNativeAsset(_bridgeData)
         onlyAllowSourceToken(_bridgeData, usdc)
     {
         _bridgeData.minAmount = _depositAndSwap(

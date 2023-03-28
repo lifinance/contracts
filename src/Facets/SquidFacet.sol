@@ -44,9 +44,11 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// State ///
-    ISquidRouter public immutable squidRouter;
+
+    ISquidRouter private immutable squidRouter;
 
     /// Constructor ///
+
     constructor(ISquidRouter _squidRouter) {
         squidRouter = _squidRouter;
     }
@@ -58,12 +60,13 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _squidData Data specific to Squid Router
     function startBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
-        SquidData memory _squidData
+        SquidData calldata _squidData
     )
         external
         payable
         nonReentrant
         refundExcessNative(payable(msg.sender))
+        doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
         if (
@@ -75,18 +78,8 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ) {
             revert InformationMismatch();
         }
-        if (
-            (_squidData.sourceCalls.length > 0) != _bridgeData.hasSourceSwaps
-        ) {
-            revert InformationMismatch();
-        }
-
-        if (
-            (_squidData.destinationCalls.length > 0) !=
-            _bridgeData.hasDestinationCall
-        ) {
-            revert InformationMismatch();
-        }
+        
+        validateDestinationCallFlag(_bridgeData, _squidData);
 
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -103,7 +96,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaSquid(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        SquidData memory _squidData
+        SquidData calldata _squidData
     )
         external
         payable
@@ -121,12 +114,8 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ) {
             revert InformationMismatch();
         }
-        if (
-            (_squidData.destinationCalls.length > 0) !=
-            _bridgeData.hasDestinationCall
-        ) {
-            revert InformationMismatch();
-        }
+      
+        validateDestinationCallFlag(_bridgeData, _squidData);
 
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -134,6 +123,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
+
         _startBridge(_bridgeData, _squidData);
     }
 
@@ -144,16 +134,15 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _squidData Data specific to Squid Router
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        SquidData memory _squidData
+        SquidData calldata _squidData
     ) internal {
-        IERC20 sendingAssetId = IERC20(_bridgeData.sendingAssetId);
-
         uint256 msgValue = _squidData.fee;
-        if (LibAsset.isNativeAsset(address(sendingAssetId))) {
+
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             msgValue += _bridgeData.minAmount;
         } else {
             LibAsset.maxApproveERC20(
-                sendingAssetId,
+                IERC20(_bridgeData.sendingAssetId),
                 address(squidRouter),
                 _bridgeData.minAmount
             );
@@ -191,5 +180,17 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function validateDestinationCallFlag(
+        ILiFi.BridgeData memory _bridgeData,
+        SquidData calldata _squidData
+    ) private pure {
+        if (
+            (_squidData.destinationCalls.length > 0) !=
+            _bridgeData.hasDestinationCall
+        ) {
+            revert InformationMismatch();
+        }
     }
 }

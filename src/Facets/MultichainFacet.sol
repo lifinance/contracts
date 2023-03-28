@@ -172,7 +172,7 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     function swapAndStartBridgeTokensViaMultichain(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        MultichainData memory _multichainData
+        MultichainData calldata _multichainData
     )
         external
         payable
@@ -202,7 +202,7 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @param _multichainData data specific to Multichain
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        MultichainData memory _multichainData
+        MultichainData calldata _multichainData
     ) private {
         // check if sendingAsset is a Multichain token that needs to be called directly in order to bridge it
         if (_multichainData.router == _bridgeData.sendingAssetId) {
