@@ -264,7 +264,6 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             // case 2: ERC20 asset
             IERC20 token = IERC20(assetId);
             token.safeApprove(address(executor), 0);
-            token.safeIncreaseAllowance(address(executor), amount);
 
             if (reserveRecoverGas && gasleft() < _recoverGas) {
                 // case 2a: not enough gas left to execute calls
@@ -281,6 +280,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             }
 
             // case 2b: enough gas left to execute calls
+            token.safeIncreaseAllowance(address(executor), amount);
             try
                 executor.swapAndCompleteBridgeTokens{
                     gas: gasleft() - _recoverGas
