@@ -16,10 +16,18 @@ graph LR;
   - Bridge native assets by passing custom encoded callData
 - `function startBridgeTokensViaHopL2NativeMin(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge)`
   - Bridge native assets by passing minimal required parameters
+- `function encodeBridgeTokensViaHopL2NativePacked(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge)`
+  - Generate packed transaction data based on minimal required parameters for native asset transfers
 - `function startBridgeTokensViaHopL2ERC20Packed()`
   - Bridge ERC20 tokens by passing custom encoded callData
 - `function startBridgeTokensViaHopL2ERC20Min(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge, address sendingAssetId, uint256 amount)`
   - Bridge ERC20 tokens by passing minimal required parameters
+- `function encodeBridgeTokensViaHopL2ERC20Min(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge, address sendingAssetId, uint256 amount)`
+  - Generate packed transaction data based on minimal required parameters for ERC20 token transfers
+- `startBridgeTokensViaHopL1NativeMin(bytes32 transactionId, string memory integrator, address receiver, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge)`
+  - Bridge native assets from ethereum by passing minimal required parameters
+- `function startBridgeTokensViaHopL1ERC20Min(bytes32 transactionId, string calldata integrator, address receiver, uint256 destinationChainId, address sendingAssetId, uint256 amount, uint256 destinationAmountOutMin, address hopBridge)`
+  - Bridge ERC20 tokens from ethereum by passing minimal required parameters
 
 ## Parameters
 
@@ -29,7 +37,7 @@ Most parameters are specific for how the hop protocol works.
 - `amountOutMin`: Source swap minimal accepted amount
 - `destinationChainId`: Receiving chain
 - `destinationAmountOutMin`: Destination swap minimal accepted amount
-- `hopBridge`: Address of the Hop L2_AmmWrapper
+- `hopBridge`: Address of the Hop L2_AmmWrapper or L1_Bridge
 - `sendingAssetId`: Address of the source asset to bridge (only needed when passing ERC20 tokens)
 - `amount`: Amount of the source asset to bridge (only needed when passing ERC20 tokens)
 
