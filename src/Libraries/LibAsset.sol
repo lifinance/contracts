@@ -84,6 +84,10 @@ library LibAsset {
         if (isNativeAsset(assetId)) {
             revert NullAddrIsNotAnERC20Token();
         }
+        if (recipient == NULL_ADDRESS) {
+            revert NoTransferToNullAddress();
+        }
+
         uint256 assetBalance = IERC20(assetId).balanceOf(address(this));
         if (amount > assetBalance) {
             revert InsufficientBalance(amount, assetBalance);
