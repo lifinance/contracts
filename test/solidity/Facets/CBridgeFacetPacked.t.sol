@@ -105,10 +105,10 @@ contract CBridgeGasTest is Test, DiamondTest {
             bytes16(bytes(integrator)), // integrator
             bytes20(RECEIVER), // receiver
             bytes4(uint32(destinationChainId)), // destinationChainId
-            bytes4(uint32(nonce)), // nonce
-            bytes4(maxSlippage), // maxSlippage
             bytes20(USDC_ADDRESS), // sendingAssetId
-            bytes16(uint128(amountUSDC)) // amount
+            bytes16(uint128(amountUSDC)), // amount
+            bytes4(uint32(nonce)), // nonce
+            bytes4(maxSlippage) // maxSlippage
         );
         packedUSDC = bytes.concat(
             abi.encodeWithSignature("startBridgeTokensViaCBridgeERC20Packed()"),
