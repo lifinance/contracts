@@ -14,7 +14,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 /// @notice Provides functionality for bridging through AllBridge
 contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The contract address of the AllBridge router on the source chain.
-    IAllBridge public immutable allBridge;
+    IAllBridge private immutable allBridge;
 
     /// @notice The struct for the AllBridge data.
     /// @param fees The amount of token to pay the messenger and the bridge
