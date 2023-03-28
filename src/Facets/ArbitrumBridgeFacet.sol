@@ -122,7 +122,7 @@ contract ArbitrumBridgeFacet is
         ILiFi.BridgeData memory _bridgeData,
         ArbitrumData calldata _arbitrumData,
         uint256 _cost
-    ) private validateBridgeData(_bridgeData) {
+    ) private {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             inbox.unsafeCreateRetryableTicket{
                 value: _bridgeData.minAmount + _cost
