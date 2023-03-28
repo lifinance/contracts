@@ -72,7 +72,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaAcross(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        AcrossData memory _acrossData
+        AcrossData calldata _acrossData
     )
         external
         payable
@@ -98,7 +98,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _acrossData data specific to Across
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        AcrossData memory _acrossData
+        AcrossData calldata _acrossData
     ) internal {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             spokePool.deposit{ value: _bridgeData.minAmount }(
