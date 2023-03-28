@@ -40,9 +40,10 @@ contract DeBridgeFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             deBridgeFacet.swapAndStartBridgeTokensViaDeBridge{
                 value: swapData[0].fromAmount + addToMessageValue
@@ -103,7 +104,6 @@ contract DeBridgeFacetTest is TestBaseFacet {
         uint256 executionFee = 1 * 10**usdc.decimals();
 
         deBridgeData = DeBridgeFacet.DeBridgeData(
-            "",
             nativeFee,
             false,
             0,
