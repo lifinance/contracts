@@ -11,7 +11,6 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { console } from "../utils/Console.sol";
 
 contract CallForwarder {
-
     function callDiamond(uint256 nativeAmount, address contractAddress, bytes calldata callData) external payable {
         (bool success, ) = contractAddress.call{value: nativeAmount}(callData);
         if (!success) {
@@ -19,7 +18,6 @@ contract CallForwarder {
         }
     }
 }
-
 
 contract HopGasTest is Test, DiamondTest {
     address internal constant HOP_USDC_BRIDGE =
@@ -74,11 +72,13 @@ contract HopGasTest is Test, DiamondTest {
         hop = IHopBridge(HOP_USDC_BRIDGE);
         callForwarder = new CallForwarder();
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = hopFacetPacked.startBridgeTokensViaHopL2NativePacked.selector;
         functionSelectors[1] = hopFacetPacked.startBridgeTokensViaHopL2NativeMin.selector;
-        functionSelectors[2] = hopFacetPacked.startBridgeTokensViaHopL2ERC20Packed.selector;
-        functionSelectors[3] = hopFacetPacked.startBridgeTokensViaHopL2ERC20Min.selector;
+        functionSelectors[2] = hopFacetPacked.encodeBridgeTokensViaHopL2NativePacked.selector;
+        functionSelectors[3] = hopFacetPacked.startBridgeTokensViaHopL2ERC20Packed.selector;
+        functionSelectors[4] = hopFacetPacked.startBridgeTokensViaHopL2ERC20Min.selector;
+        functionSelectors[5] = hopFacetPacked.encodeBridgeTokensViaHopL2ERC20Packed.selector;
 
         addFacet(diamond, address(hopFacetPacked), functionSelectors);
         hopFacetPacked = HopFacetPacked(address(diamond));
@@ -114,9 +114,9 @@ contract HopGasTest is Test, DiamondTest {
             bytes8(transactionId), // transactionId
             bytes16(bytes(integrator)), // integrator
             bytes20(RECEIVER), // receiver
+            bytes4(uint32(137)), // destinationChainId
             bytes16(uint128(amountBonderFeeNative)), // bonderFee
             bytes16(uint128(amountOutMinNative)), // amountOutMin
-            bytes2(uint16(137)), // destinationChainId
             bytes16(uint128(amountOutMinNative)), // destinationAmountOutMin
             bytes20(HOP_NATIVE_BRIDGE) // hopBridge
         );
@@ -134,13 +134,13 @@ contract HopGasTest is Test, DiamondTest {
             bytes8(transactionId), // transactionId
             bytes16(bytes(integrator)), // integrator
             bytes20(RECEIVER), // receiver
+            bytes4(uint32(137)), // destinationChainId
+            bytes20(USDC_ADDRESS), // sendingAssetId
+            bytes16(uint128(amountUSDC)), // amount
             bytes16(uint128(amountBonderFeeUSDC)), // bonderFee
             bytes16(uint128(amountOutMinUSDC)), // amountOutMin
-            bytes2(uint16(137)), // destinationChainId
             bytes16(uint128(amountOutMinUSDC)), // destinationAmountOutMin
-            bytes20(HOP_USDC_BRIDGE), // hopBridge
-            bytes20(USDC_ADDRESS), // sendingAssetId
-            bytes16(uint128(amountUSDC)) // amount
+            bytes20(HOP_USDC_BRIDGE) // hopBridge
         );
         packedUSDC = bytes.concat(
             abi.encodeWithSignature("startBridgeTokensViaHopL2ERC20Packed()"),
@@ -196,8 +196,35 @@ contract HopGasTest is Test, DiamondTest {
     function testCallData() public view {
         console.logString("startBridgeTokensViaHopL2NativePacked");
         console.logBytes(packedNative);
+        bytes memory encodedNative = hopFacetPacked.encodeBridgeTokensViaHopL2NativePacked(
+            "someID",
+            integrator,
+            RECEIVER,
+            137,
+            amountBonderFeeNative,
+            amountOutMinNative,
+            amountOutMinNative,
+            HOP_NATIVE_BRIDGE
+        );
+        console.logString("encodedNative");
+        console.logBytes(encodedNative);
+
         console.logString("startBridgeTokensViaHopL2ERC20Packed");
         console.logBytes(packedUSDC);
+        bytes memory encodedUSDC = hopFacetPacked.encodeBridgeTokensViaHopL2ERC20Packed(
+            "someID",
+            integrator,
+            RECEIVER,
+            137,
+            USDC_ADDRESS,
+            amountUSDC,
+            amountBonderFeeUSDC,
+            amountOutMinUSDC,
+            amountOutMinUSDC,
+            HOP_USDC_BRIDGE
+        );
+        console.logString("encodedUSDC");
+        console.logBytes(encodedUSDC);
     }
 
     function testStartBridgeTokensViaHopL2NativePacked() public {
@@ -221,9 +248,9 @@ contract HopGasTest is Test, DiamondTest {
             "someID",
             integrator,
             RECEIVER,
+            137,
             amountBonderFeeNative,
             amountOutMinNative,
-            137,
             amountOutMinNative,
             HOP_NATIVE_BRIDGE
         );
@@ -247,13 +274,13 @@ contract HopGasTest is Test, DiamondTest {
             "someID",
             integrator,
             RECEIVER,
+            137,
+            USDC_ADDRESS,
+            amountUSDC,
             amountBonderFeeUSDC,
             amountOutMinUSDC,
-            137,
             amountOutMinUSDC,
-            HOP_USDC_BRIDGE,
-            USDC_ADDRESS,
-            amountUSDC
+            HOP_USDC_BRIDGE
         );
         vm.stopPrank();
     }

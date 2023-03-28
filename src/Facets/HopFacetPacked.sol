@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
 import { IHopBridge } from "../Interfaces/IHopBridge.sol";
@@ -17,18 +16,18 @@ contract HopFacetPacked is ILiFi {
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaHopL2NativePacked(
     ) external payable {
-        checkCalldataLength(118);
+        checkCalldataLength(120);
         _startBridgeTokensViaHopL2Native({
             // first 4 bytes are function signature
             transactionId: bytes32(getCalldataValue(4, 8)), // bytes8 > bytes32
             integrator: string(abi.encodePacked(getCalldataValue(12, 16))), // bytes16 > string
             receiver: address(uint160(getCalldataValue(28, 20))), // bytes20 > address
-            bonderFee: getCalldataValue(48, 16), // uint128 > uint256
-            amountOutMin: getCalldataValue(64, 16), // uint128 > uint256
-            destinationChainId: getCalldataValue(80, 2), // uint8 > uint256
-            destinationAmountOutMin: getCalldataValue(82, 16), // uint128 > uint256
-            hopBridge: address(uint160(getCalldataValue(98, 20))) // bytes20 > address
-            // => total calldata length required: 118
+            destinationChainId: getCalldataValue(48, 4), // bytes4(uint32) > uint256
+            bonderFee: getCalldataValue(52, 16), // bytes16(uint128) > uint256
+            amountOutMin: getCalldataValue(68, 16), // bytes16(uint128) > uint256
+            destinationAmountOutMin: getCalldataValue(84, 16), // bytes16(uint128) > uint256
+            hopBridge: address(uint160(getCalldataValue(100, 20))) // bytes20 > address
+            // => total calldata length required: 120
         });
     }
 
@@ -36,18 +35,18 @@ contract HopFacetPacked is ILiFi {
     /// @param transactionId Custom transaction ID for tracking
     /// @param integrator LI.FI partner name
     /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
     /// @param bonderFee Fees payed to hop bonder
     /// @param amountOutMin Source swap minimal accepted amount
-    /// @param destinationChainId Receiving chain
     /// @param destinationAmountOutMin Destination swap minimal accepted amount
     /// @param hopBridge Address of the Hop L2_AmmWrapper
     function startBridgeTokensViaHopL2NativeMin(
         bytes32 transactionId,
         string calldata integrator,
         address receiver,
+        uint256 destinationChainId,
         uint256 bonderFee,
         uint256 amountOutMin,
-        uint256 destinationChainId,
         uint256 destinationAmountOutMin,
         address hopBridge
     ) external payable {
@@ -55,11 +54,43 @@ contract HopFacetPacked is ILiFi {
             transactionId,
             integrator,
             receiver,
+            destinationChainId,
             bonderFee,
             amountOutMin,
-            destinationChainId,
             destinationAmountOutMin,
             hopBridge
+        );
+    }
+
+    /// @notice Bridges Native tokens via Hop Protocol from L2
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param integrator LI.FI partner name
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param bonderFee Fees payed to hop bonder
+    /// @param amountOutMin Source swap minimal accepted amount
+    /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param hopBridge Address of the Hop L2_AmmWrapper
+    function encodeBridgeTokensViaHopL2NativePacked(
+        bytes32 transactionId,
+        string calldata integrator,
+        address receiver,
+        uint256 destinationChainId,
+        uint256 bonderFee,
+        uint256 amountOutMin,
+        uint256 destinationAmountOutMin,
+        address hopBridge
+    ) external pure returns (bytes memory) {
+        return bytes.concat(
+            abi.encodeWithSignature("startBridgeTokensViaHopL2NativePacked()"),
+            bytes8(transactionId),
+            bytes16(bytes(integrator)),
+            bytes20(receiver),
+            bytes4(uint32(destinationChainId)),
+            bytes16(uint128(bonderFee)),
+            bytes16(uint128(amountOutMin)),
+            bytes16(uint128(destinationAmountOutMin)),
+            bytes20(hopBridge)
         );
     }
 
@@ -67,20 +98,20 @@ contract HopFacetPacked is ILiFi {
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaHopL2ERC20Packed(
     ) external {
-        checkCalldataLength(154);
+        checkCalldataLength(156);
         _startBridgeTokensViaHopL2ERC20({
             // first 4 bytes are function signature
             transactionId: bytes32(getCalldataValue(4, 8)), // bytes8 > bytes32
             integrator: string(abi.encodePacked(getCalldataValue(12, 16))), // bytes16 > string
             receiver: address(uint160(getCalldataValue(28, 20))), // bytes20 > address
-            bonderFee: getCalldataValue(48, 16), // uint128 > uint256
-            amountOutMin: getCalldataValue(64, 16), // uint128 > uint256
-            destinationChainId: getCalldataValue(80, 2), // uint8 > uint256
-            destinationAmountOutMin: getCalldataValue(82, 16), // uint128 > uint256
-            hopBridge: address(uint160(getCalldataValue(98, 20))), // bytes20 > address
-            sendingAssetId: address(uint160(getCalldataValue(118, 20))), // bytes20 > address
-            amount: getCalldataValue(138, 16) // uint128 > uint256
-            // => total calldata length required: 154
+            destinationChainId: getCalldataValue(48, 4), // bytes4(uint32) > uint256
+            sendingAssetId: address(uint160(getCalldataValue(52, 20))), // bytes20 > address
+            amount: getCalldataValue(72, 16), // bytes16(uint128) > uint256
+            bonderFee: getCalldataValue(88, 16), // bytes16(uint128) > uint256
+            amountOutMin: getCalldataValue(104, 16), // bytes16(uint128) > uint256
+            destinationAmountOutMin: getCalldataValue(120, 16), // bytes16(uint128) > uint256
+            hopBridge: address(uint160(getCalldataValue(136, 20))) // bytes20 > address
+            // => total calldata length required: 156
         });
     }
 
@@ -88,36 +119,80 @@ contract HopFacetPacked is ILiFi {
     /// @param transactionId Custom transaction ID for tracking
     /// @param integrator LI.FI partner name
     /// @param receiver Receiving wallet address
-    /// @param bonderFee Fees payed to hop bonder
-    /// @param amountOutMin Source swap minimal accepted amount
     /// @param destinationChainId Receiving chain
-    /// @param destinationAmountOutMin Destination swap minimal accepted amount
-    /// @param hopBridge Address of the Hop L2_AmmWrapper
     /// @param sendingAssetId Address of the source asset to bridge
     /// @param amount Amount of the source asset to bridge
+    /// @param bonderFee Fees payed to hop bonder
+    /// @param amountOutMin Source swap minimal accepted amount
+    /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param hopBridge Address of the Hop L2_AmmWrapper
     function startBridgeTokensViaHopL2ERC20Min(
         bytes32 transactionId,
         string calldata integrator,
         address receiver,
+        uint256 destinationChainId,
+        address sendingAssetId,
+        uint256 amount,
         uint256 bonderFee,
         uint256 amountOutMin,
-        uint256 destinationChainId,
         uint256 destinationAmountOutMin,
-        address hopBridge,
-        address sendingAssetId,
-        uint256 amount
+        address hopBridge
     ) external {
         _startBridgeTokensViaHopL2ERC20(
             transactionId,
             integrator,
             receiver,
+            destinationChainId,
+            sendingAssetId,
+            amount,
             bonderFee,
             amountOutMin,
-            destinationChainId,
             destinationAmountOutMin,
-            hopBridge,
-            sendingAssetId,
-            amount
+            hopBridge
+        );
+    }
+
+    /// @notice Bridges ERC20 tokens via Hop Protocol from L2
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param integrator LI.FI partner name
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param sendingAssetId Address of the source asset to bridge
+    /// @param amount Amount of the source asset to bridge
+    /// @param bonderFee Fees payed to hop bonder
+    /// @param amountOutMin Source swap minimal accepted amount
+    /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param hopBridge Address of the Hop L2_AmmWrapper
+    function encodeBridgeTokensViaHopL2ERC20Packed(
+        bytes32 transactionId,
+        string calldata integrator,
+        address receiver,
+        uint256 destinationChainId,
+        address sendingAssetId,
+        uint256 amount,
+        uint256 bonderFee,
+        uint256 amountOutMin,
+        uint256 destinationAmountOutMin,
+        address hopBridge
+    ) external pure returns (bytes memory) {
+        bytes memory packedUSDCParams = bytes.concat(
+            bytes8(transactionId),
+            bytes16(bytes(integrator)),
+            bytes20(receiver),
+            bytes4(uint32(destinationChainId)),
+            bytes20(sendingAssetId),
+            bytes16(uint128(amount)),
+            bytes16(uint128(bonderFee)),
+            bytes16(uint128(amountOutMin)),
+            bytes16(uint128(destinationAmountOutMin)),
+            bytes20(hopBridge)
+        );
+
+        // split into two concat steps to avoid "Stack too deep" compiler errors
+
+        return bytes.concat(
+            abi.encodeWithSignature("startBridgeTokensViaHopL2ERC20Packed()"),
+            packedUSDCParams
         );
     }
 
@@ -153,9 +228,9 @@ contract HopFacetPacked is ILiFi {
         bytes32 transactionId,
         string memory integrator,
         address receiver,
+        uint256 destinationChainId,
         uint256 bonderFee,
         uint256 amountOutMin,
-        uint256 destinationChainId,
         uint256 destinationAmountOutMin,
         address hopBridge
     ) private {
@@ -190,13 +265,13 @@ contract HopFacetPacked is ILiFi {
         bytes32 transactionId,
         string memory integrator,
         address receiver,
+        uint256 destinationChainId,
+        address sendingAssetId,
+        uint256 amount,
         uint256 bonderFee,
         uint256 amountOutMin,
-        uint256 destinationChainId,
         uint256 destinationAmountOutMin,
-        address hopBridge,
-        address sendingAssetId,
-        uint256 amount
+        address hopBridge
     ) private {
         // Deposit assets
         SafeERC20.safeTransferFrom(IERC20(sendingAssetId), msg.sender, address(this), amount);
