@@ -61,14 +61,11 @@ library LibAsset {
         if (spender == NULL_ADDRESS) {
             revert NullAddrIsNotAValidSpender();
         }
-        uint256 allowance = assetId.allowance(address(this), spender);
 
-        if (allowance < amount)
-            SafeERC20.safeIncreaseAllowance(
-                IERC20(assetId),
-                spender,
-                MAX_UINT - allowance
-            );
+        if (assetId.allowance(address(this), spender) < amount) {
+            SafeERC20.safeApprove(IERC20(assetId), spender, 0);
+            SafeERC20.safeApprove(IERC20(assetId), spender, MAX_UINT);
+        }
     }
 
     /// @notice Transfers tokens from the inheriting contract to a given
