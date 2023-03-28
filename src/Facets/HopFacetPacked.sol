@@ -196,6 +196,62 @@ contract HopFacetPacked is ILiFi {
         );
     }
 
+    /// @notice Bridges Native tokens via Hop Protocol from L1
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param integrator LI.FI partner name
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param hopBridge Address of the Hop Bridge
+    function startBridgeTokensViaHopL1NativeMin(
+        bytes32 transactionId,
+        string memory integrator,
+        address receiver,
+        uint256 destinationChainId,
+        uint256 destinationAmountOutMin,
+        address hopBridge
+    ) external payable {
+        _startBridgeTokensViaHopL1Native(
+            transactionId,
+            integrator,
+            receiver,
+            destinationChainId,
+            destinationAmountOutMin,
+            hopBridge
+        );
+    }
+
+    /// @notice Bridges ERC20 tokens via Hop Protocol from L1
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param integrator LI.FI partner name
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param sendingAssetId Address of the source asset to bridge
+    /// @param amount Amount of the source asset to bridge
+    /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param hopBridge Address of the Hop Bridge
+    function startBridgeTokensViaHopL1ERC20Min(
+        bytes32 transactionId,
+        string calldata integrator,
+        address receiver,
+        uint256 destinationChainId,
+        address sendingAssetId,
+        uint256 amount,
+        uint256 destinationAmountOutMin,
+        address hopBridge
+    ) external {
+        _startBridgeTokensViaHopL1ERC20(
+            transactionId,
+            integrator,
+            receiver,
+            destinationChainId,
+            sendingAssetId,
+            amount,
+            destinationAmountOutMin,
+            hopBridge
+        );
+    }
+
     /// Internal Methods ///
 
     /// @notice Validate raw callData length
@@ -302,4 +358,78 @@ contract HopFacetPacked is ILiFi {
             hasDestinationCall: false
         }));
     }
+
+    function _startBridgeTokensViaHopL1Native(
+        bytes32 transactionId,
+        string memory integrator,
+        address receiver,
+        uint256 destinationChainId,
+        uint256 destinationAmountOutMin,
+        address hopBridge
+    ) private {
+        // Bridge assets
+        uint256 deadline = block.timestamp + 60 * 20;
+        IHopBridge(hopBridge).sendToL2{ value: msg.value }(
+            destinationChainId,
+            receiver,
+            msg.value,
+            destinationAmountOutMin,
+            deadline,
+            address(0),
+            0
+        );
+
+        emit LiFiTransferStarted(BridgeData({
+            transactionId: transactionId,
+            bridge: "hop",
+            integrator: integrator,
+            referrer: address(0),
+            sendingAssetId: address(0),
+            receiver: receiver,
+            minAmount: msg.value,
+            destinationChainId: destinationChainId,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        }));
+    }
+
+    function _startBridgeTokensViaHopL1ERC20(
+        bytes32 transactionId,
+        string memory integrator,
+        address receiver,
+        uint256 destinationChainId,
+        address sendingAssetId,
+        uint256 amount,
+        uint256 destinationAmountOutMin,
+        address hopBridge
+    ) private {
+        // Deposit assets
+        SafeERC20.safeTransferFrom(IERC20(sendingAssetId), msg.sender, address(this), amount);
+
+        // Bridge assets
+        uint256 deadline = block.timestamp + 60 * 20;
+        IHopBridge(hopBridge).sendToL2(
+            destinationChainId,
+            receiver,
+            amount,
+            destinationAmountOutMin,
+            deadline,
+            address(0),
+            0
+        );
+
+        emit LiFiTransferStarted(BridgeData({
+            transactionId: transactionId,
+            bridge: "hop",
+            integrator: integrator,
+            referrer: address(0),
+            sendingAssetId: sendingAssetId,
+            receiver: receiver,
+            minAmount: amount,
+            destinationChainId: destinationChainId,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        }));
+    }
+
 }
