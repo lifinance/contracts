@@ -293,22 +293,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     function toBytes(address _address) private pure returns (bytes memory) {
-        bytes memory tempBytes;
-
-        assembly {
-            let m := mload(0x40)
-            _address := and(
-                _address,
-                0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-            )
-            mstore(
-                add(m, 20),
-                xor(0x140000000000000000000000000000000000000000, _address)
-            )
-            mstore(0x40, add(m, 52))
-            tempBytes := m
-        }
-
-        return tempBytes;
+        return abi.encodePacked(_address);
     }
 }
