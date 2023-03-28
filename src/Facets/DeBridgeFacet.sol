@@ -6,7 +6,7 @@ import { IDeBridgeGate } from "../Interfaces/IDeBridgeGate.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { InformationMismatch } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidAmount } from "../Errors/GenericErrors.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title DeBridge Facet
@@ -120,6 +120,16 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         DeBridgeData calldata _deBridgeData
     ) internal {
+        IDeBridgeGate.ChainSupportInfo memory config = deBridgeGate
+            .getChainToConfig(_bridgeData.destinationChainId);
+        uint256 nativeFee = config.fixedNativeFee == 0
+            ? deBridgeGate.globalFixedNativeFee()
+            : config.fixedNativeFee;
+
+        if (_deBridgeData.nativeFee != nativeFee) {
+            revert InvalidAmount();
+        }
+
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
         uint256 nativeAssetAmount = _deBridgeData.nativeFee;
 

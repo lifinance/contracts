@@ -132,7 +132,6 @@ contract SquidFacetTest is TestBaseFacet {
         // customize bridgeData
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = 1 ether;
-        bridgeData.hasSourceSwaps = true;
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);

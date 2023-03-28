@@ -13,15 +13,16 @@ import { IERC721Receiver } from "@openzeppelin/contracts/token/ERC721/IERC721Rec
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership, IERC721Receiver {
+contract Executor is
+    ILiFi,
+    ReentrancyGuard,
+    TransferrableOwnership,
+    IERC721Receiver
+{
     /// Storage ///
 
     /// @notice The address of the ERC20Proxy contract
     IERC20Proxy public erc20Proxy;
-
-    /// Errors ///
-    error ExecutionFailed();
-    error InvalidCaller();
 
     /// Events ///
     event ERC20ProxySet(address indexed proxy);
