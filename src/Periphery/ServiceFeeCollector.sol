@@ -15,6 +15,7 @@ contract ServiceFeeCollector is TransferrableOwnership {
     /// Events ///
     event GasFeesCollected(
         address indexed token,
+        uint256 indexed chainId,
         address indexed receiver,
         uint256 feeAmount
     );
@@ -40,20 +41,31 @@ contract ServiceFeeCollector is TransferrableOwnership {
     /// @notice Collects gas fees
     /// @param tokenAddress The address of the token to collect
     /// @param feeAmount The amount of fees to collect
+    /// @param chainId The chain id of the destination chain
     /// @param receiver The address to send gas to on the destination chain
     function collectTokenGasFees(
         address tokenAddress,
         uint256 feeAmount,
+        uint256 chainId,
         address receiver
     ) external {
         LibAsset.depositAsset(tokenAddress, feeAmount);
-        emit GasFeesCollected(tokenAddress, receiver, feeAmount);
+        emit GasFeesCollected(tokenAddress, chainId, receiver, feeAmount);
     }
 
     /// @notice Collects gas fees in native token
+    /// @param chainId The chain id of the destination chain
     /// @param receiver The address to send gas to on destination chain
-    function collectNativeGasFees(address receiver) external payable {
-        emit GasFeesCollected(LibAsset.NULL_ADDRESS, receiver, msg.value);
+    function collectNativeGasFees(uint256 chainId, address receiver)
+        external
+        payable
+    {
+        emit GasFeesCollected(
+            LibAsset.NULL_ADDRESS,
+            chainId,
+            receiver,
+            msg.value
+        );
     }
 
     /// @notice Collects insurance fees
