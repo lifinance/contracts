@@ -46,9 +46,7 @@ contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         CircleBridgeData calldata _circleBridgeData
     )
         external
-        payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
