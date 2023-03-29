@@ -208,7 +208,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             IStargateRouter.lzTxObj(
                 _stargateData.dstGasForCall,
                 0,
-                toBytes(_bridgeData.receiver)
+                toBytes(address(0))
             ),
             _stargateData.callTo,
             _stargateData.callData
