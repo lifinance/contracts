@@ -18,7 +18,7 @@ contract SynapseBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// @notice The contract address of the SynapseRouter on the source chain.
-    ISynapseRouter public immutable synapseRouter;
+    ISynapseRouter private immutable synapseRouter;
 
     /// Types ///
 

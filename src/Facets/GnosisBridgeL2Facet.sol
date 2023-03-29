@@ -12,7 +12,12 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Gnosis Bridge Facet on Gnosis Chain
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through XDaiBridge
-contract GnosisBridgeL2Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract GnosisBridgeL2Facet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable
+{
     /// Storage ///
 
     /// @notice The xDAI address on the source chain.
@@ -62,22 +67,20 @@ contract GnosisBridgeL2Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         external
         payable
         nonReentrant
+        refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         onlyAllowDestinationChain(_bridgeData, ETHEREUM_CHAIN_ID)
         onlyAllowSourceToken(_bridgeData, XDAI)
     {
-        if (_swapData.length == 0) revert NoSwapDataProvided();
-        if (_swapData[_swapData.length - 1].receivingAssetId != XDAI) {
-            revert InvalidSendingToken();
-        }
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender)
         );
+
         _startBridge(_bridgeData);
     }
 
@@ -86,7 +89,9 @@ contract GnosisBridgeL2Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via XDaiBridge
     /// @param _bridgeData the core information needed for bridging
     function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
-        xDaiBridge.relayTokens{value: _bridgeData.minAmount}(_bridgeData.receiver);
+        xDaiBridge.relayTokens{ value: _bridgeData.minAmount }(
+            _bridgeData.receiver
+        );
         emit LiFiTransferStarted(_bridgeData);
     }
 }
