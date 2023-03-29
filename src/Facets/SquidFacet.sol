@@ -9,7 +9,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { LibBytes } from "../Libraries/LibBytes.sol";
 import { InformationMismatch } from "../Errors/GenericErrors.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -165,7 +165,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 _squidData.destinationChain,
-                Strings.toHexString(uint160(_bridgeData.receiver), 20),
+                LibBytes.toHexString(uint160(_bridgeData.receiver), 20),
                 _squidData.bridgedTokenSymbol,
                 _squidData.sourceCalls
             );

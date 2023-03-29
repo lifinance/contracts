@@ -64,7 +64,7 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
         if (!LibAsset.isContract(callTo)) revert NotAContract();
 
         // The remaining bytes should be calldata
-        bytes memory callData = payload.slice(20, payload.length - 20);
+        bytes memory callData = payload[20:];
 
         (bool success, ) = callTo.excessivelySafeCall(
             gasleft(),
@@ -92,7 +92,7 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
         address callTo = payload.toAddress(0);
         address recoveryAddress = payload.toAddress(20);
         // The remaining bytes should be calldata
-        bytes memory callData = payload.slice(40, payload.length - 40);
+        bytes memory callData = payload[40:];
         // get ERC-20 address from gateway
         address tokenAddress = gateway.tokenAddresses(tokenSymbol);
 
