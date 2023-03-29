@@ -75,10 +75,10 @@ contract HopGasTest is Test, DiamondTest {
         bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = hopFacetPacked.startBridgeTokensViaHopL2NativePacked.selector;
         functionSelectors[1] = hopFacetPacked.startBridgeTokensViaHopL2NativeMin.selector;
-        functionSelectors[2] = hopFacetPacked.encodeBridgeTokensViaHopL2NativePacked.selector;
+        functionSelectors[2] = hopFacetPacked.encoder_startBridgeTokensViaHopL2NativePacked.selector;
         functionSelectors[3] = hopFacetPacked.startBridgeTokensViaHopL2ERC20Packed.selector;
         functionSelectors[4] = hopFacetPacked.startBridgeTokensViaHopL2ERC20Min.selector;
-        functionSelectors[5] = hopFacetPacked.encodeBridgeTokensViaHopL2ERC20Packed.selector;
+        functionSelectors[5] = hopFacetPacked.encoder_startBridgeTokensViaHopL2ERC20Packed.selector;
 
         addFacet(diamond, address(hopFacetPacked), functionSelectors);
         hopFacetPacked = HopFacetPacked(address(diamond));
@@ -196,7 +196,7 @@ contract HopGasTest is Test, DiamondTest {
     function testCallData() public view {
         console.logString("startBridgeTokensViaHopL2NativePacked");
         console.logBytes(packedNative);
-        bytes memory encodedNative = hopFacetPacked.encodeBridgeTokensViaHopL2NativePacked(
+        bytes memory encodedNative = hopFacetPacked.encoder_startBridgeTokensViaHopL2NativePacked(
             "someID",
             integrator,
             RECEIVER,
@@ -211,7 +211,7 @@ contract HopGasTest is Test, DiamondTest {
 
         console.logString("startBridgeTokensViaHopL2ERC20Packed");
         console.logBytes(packedUSDC);
-        bytes memory encodedUSDC = hopFacetPacked.encodeBridgeTokensViaHopL2ERC20Packed(
+        bytes memory encodedUSDC = hopFacetPacked.encoder_startBridgeTokensViaHopL2ERC20Packed(
             "someID",
             integrator,
             RECEIVER,

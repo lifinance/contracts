@@ -74,7 +74,7 @@ contract CBridgeFacetPacked is ILiFi {
     /// @param destinationChainId Receiving chain
     /// @param nonce A number input to guarantee uniqueness of transferId.
     /// @param maxSlippage Destination swap minimal accepted amount
-    function encodeBridgeTokensViaCBridgeNativePacked(
+    function encoder_startBridgeTokensViaCBridgeNativePacked(
         bytes32 transactionId,
         string memory integrator,
         address receiver,
@@ -152,7 +152,7 @@ contract CBridgeFacetPacked is ILiFi {
     /// @param amount Amount of the source asset to bridge
     /// @param nonce A number input to guarantee uniqueness of transferId
     /// @param maxSlippage Destination swap minimal accepted amount
-    function encodeBridgeTokensViaCBridgeERC20Packed(
+    function encoder_startBridgeTokensViaCBridgeERC20Packed(
         bytes32 transactionId,
         string memory integrator,
         address receiver,

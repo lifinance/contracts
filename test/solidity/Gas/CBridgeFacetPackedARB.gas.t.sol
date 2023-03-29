@@ -52,14 +52,13 @@ contract CBridgeGasTest is Test, DiamondTest {
         cBridgeFacetPacked = new CBridgeFacetPacked(cbridge);
         usdc = ERC20(USDC_ADDRESS);
 
-
         bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = cBridgeFacetPacked.startBridgeTokensViaCBridgeNativePacked.selector;
         functionSelectors[1] = cBridgeFacetPacked.startBridgeTokensViaCBridgeNativeMin.selector;
-        functionSelectors[2] = cBridgeFacetPacked.encodeBridgeTokensViaCBridgeNativePacked.selector;
+        functionSelectors[2] = cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeNativePacked.selector;
         functionSelectors[3] = cBridgeFacetPacked.startBridgeTokensViaCBridgeERC20Packed.selector;
         functionSelectors[4] = cBridgeFacetPacked.startBridgeTokensViaCBridgeERC20Min.selector;
-        functionSelectors[5] = cBridgeFacetPacked.encodeBridgeTokensViaCBridgeERC20Packed.selector;
+        functionSelectors[5] = cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed.selector;
 
         addFacet(diamond, address(cBridgeFacetPacked), functionSelectors);
         cBridgeFacetPacked = CBridgeFacetPacked(address(diamond));
@@ -120,7 +119,7 @@ contract CBridgeGasTest is Test, DiamondTest {
     function testCallData() public view {
         console.logString("startBridgeTokensViaCBridgeNativePacked");
         console.logBytes(packedNative);
-        bytes memory encodedNative = cBridgeFacetPacked.encodeBridgeTokensViaCBridgeNativePacked(
+        bytes memory encodedNative = cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeNativePacked(
             transactionId,
             integrator,
             RECEIVER,
@@ -133,7 +132,7 @@ contract CBridgeGasTest is Test, DiamondTest {
 
         console.logString("startBridgeTokensViaCBridgeERC20Packed");
         console.logBytes(packedUSDC);
-        bytes memory encodedUSDC = cBridgeFacetPacked.encodeBridgeTokensViaCBridgeERC20Packed(
+        bytes memory encodedUSDC = cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
             transactionId,
             integrator,
             RECEIVER,

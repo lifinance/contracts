@@ -16,13 +16,13 @@ graph LR;
   - Bridge native assets by passing custom encoded callData
 - `function startBridgeTokensViaHopL2NativeMin(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge)`
   - Bridge native assets by passing minimal required parameters
-- `function encodeBridgeTokensViaHopL2NativePacked(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge)`
+- `function encoder_startBridgeTokensViaHopL2NativePacked(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge)`
   - Generate packed transaction data based on minimal required parameters for native asset transfers
 - `function startBridgeTokensViaHopL2ERC20Packed()`
   - Bridge ERC20 tokens by passing custom encoded callData
 - `function startBridgeTokensViaHopL2ERC20Min(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge, address sendingAssetId, uint256 amount)`
   - Bridge ERC20 tokens by passing minimal required parameters
-- `function encodeBridgeTokensViaHopL2ERC20Min(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge, address sendingAssetId, uint256 amount)`
+- `function encoder_startBridgeTokensViaHopL2ERC20Packed(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge, address sendingAssetId, uint256 amount)`
   - Generate packed transaction data based on minimal required parameters for ERC20 token transfers
 - `startBridgeTokensViaHopL1NativeMin(bytes32 transactionId, string memory integrator, address receiver, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge)`
   - Bridge native assets from ethereum by passing minimal required parameters

@@ -71,7 +71,7 @@ contract HopFacetPacked is ILiFi {
     /// @param amountOutMin Source swap minimal accepted amount
     /// @param destinationAmountOutMin Destination swap minimal accepted amount
     /// @param hopBridge Address of the Hop L2_AmmWrapper
-    function encodeBridgeTokensViaHopL2NativePacked(
+    function encoder_startBridgeTokensViaHopL2NativePacked(
         bytes32 transactionId,
         string calldata integrator,
         address receiver,
@@ -163,7 +163,7 @@ contract HopFacetPacked is ILiFi {
     /// @param amountOutMin Source swap minimal accepted amount
     /// @param destinationAmountOutMin Destination swap minimal accepted amount
     /// @param hopBridge Address of the Hop L2_AmmWrapper
-    function encodeBridgeTokensViaHopL2ERC20Packed(
+    function encoder_startBridgeTokensViaHopL2ERC20Packed(
         bytes32 transactionId,
         string calldata integrator,
         address receiver,
