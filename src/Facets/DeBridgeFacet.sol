@@ -15,7 +15,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    /// @notice The contract address of the spoke pool on the source chain.
+    /// @notice The contract address of the DeBridge Gate on the source chain.
     IDeBridgeGate private immutable deBridgeGate;
 
     /// Types ///

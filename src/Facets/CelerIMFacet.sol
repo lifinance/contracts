@@ -28,6 +28,9 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev The contract address of the RelayerCelerIM
     RelayerCelerIM private immutable relayer;
 
+    /// @dev The contract address of the Celer Flow USDC
+    address private immutable cfUSDC;
+
     /// Types ///
 
     /// @param maxSlippage The max slippage accepted, given as percentage in point (pip).
@@ -54,9 +57,15 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Initialize the contract.
     /// @param _messageBus The contract address of the cBridge Message Bus
     /// @param _relayer The contract address of the RelayerCelerIM
-    constructor(IMessageBus _messageBus, RelayerCelerIM _relayer) {
+    /// @param _cfUSDC The contract address of the Celer Flow USDC
+    constructor(
+        IMessageBus _messageBus,
+        RelayerCelerIM _relayer,
+        address _cfUSDC
+    ) {
         cBridgeMessageBus = _messageBus;
         relayer = _relayer;
+        cfUSDC = _cfUSDC;
     }
 
     /// External Methods ///
@@ -78,23 +87,7 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateDestinationCallFlag(_bridgeData, _celerIMData);
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Transfer ERC20 tokens directly to relayer
-            IERC20 asset;
-
-            if (
-                keccak256(
-                    abi.encodePacked(
-                        ERC20(_bridgeData.sendingAssetId).symbol()
-                    )
-                ) == keccak256(abi.encodePacked(("cfUSDC")))
-            ) {
-                // Special case for cfUSDC token
-                asset = IERC20(
-                    CelerToken(_bridgeData.sendingAssetId).canonical()
-                );
-            } else {
-                // Any other ERC20 token
-                asset = IERC20(_bridgeData.sendingAssetId);
-            }
+            IERC20 asset = _getRightAsset(_bridgeData.sendingAssetId);
 
             // Deposit ERC20 token
             uint256 prevBalance = asset.balanceOf(address(relayer));
@@ -143,8 +136,9 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Transfer ERC20 tokens directly to relayer
-            IERC20 asset = IERC20(_bridgeData.sendingAssetId);
+            IERC20 asset = _getRightAsset(_bridgeData.sendingAssetId);
 
+            // Deposit ERC20 token
             uint256 prevBalance = asset.balanceOf(address(relayer));
             SafeERC20.safeTransfer(
                 asset,
@@ -214,6 +208,21 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // emit LiFi event
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev Get right asset to transfer to relayer.
+    /// @param _sendingAssetId The address of asset to bridge.
+    /// @return _asset The address of asset to transfer to relayer.
+    function _getRightAsset(
+        address _sendingAssetId
+    ) private returns (IERC20 _asset) {
+        if (_sendingAssetId == cfUSDC) {
+            // special case for cfUSDC token
+            _asset = IERC20(CelerToken(_sendingAssetId).canonical());
+        } else {
+            // any other ERC20 token
+            _asset = IERC20(_sendingAssetId);
+        }
     }
 
     function validateDestinationCallFlag(
