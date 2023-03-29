@@ -7,7 +7,6 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidSendingToken, NoSwapDataProvided } from "../Errors/GenericErrors.sol";
 
 /// @title CircleBridge Facet
 /// @author LI.FI (https://li.fi)
