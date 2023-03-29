@@ -13,7 +13,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through ThorSwap
 contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    address public immutable thorchainRouter;
+    address private immutable thorchainRouter;
 
     /// @notice The struct for the ThorSwap data.
     /// @param vault The Thorchain vault address

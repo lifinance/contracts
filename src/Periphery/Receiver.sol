@@ -23,6 +23,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     address public amarokRouter;
 
     /// Errors ///
+    error ExternalCallFailed();
 
     /// Events ///
     event StargateRouterSet(address indexed router);
@@ -206,7 +207,8 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 amount
     ) external onlyOwner {
         if (LibAsset.isNativeAsset(assetId)) {
-            receiver.call{ value: amount }("");
+            (bool success, ) = receiver.call{ value: amount }("");
+            if (!success) revert ExternalCallFailed();
         } else {
             IERC20(assetId).safeTransfer(receiver, amount);
         }
@@ -235,7 +237,8 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             // case 1: native asset
             if (reserveRecoverGas && gasleft() < _recoverGas) {
                 // case 1a: not enough gas left to execute calls
-                receiver.call{ value: amount }("");
+                (bool success, ) = receiver.call{ value: amount }("");
+                if (!success) revert ExternalCallFailed();
 
                 emit LiFiTransferRecovered(
                     _transactionId,
@@ -254,13 +257,13 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     gas: gasleft() - _recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
-                receiver.call{ value: amount }("");
+                (bool success, ) = receiver.call{ value: amount }("");
+                if (!success) revert ExternalCallFailed();
             }
         } else {
             // case 2: ERC20 asset
             IERC20 token = IERC20(assetId);
             token.safeApprove(address(executor), 0);
-            token.safeIncreaseAllowance(address(executor), amount);
 
             if (reserveRecoverGas && gasleft() < _recoverGas) {
                 // case 2a: not enough gas left to execute calls
@@ -277,6 +280,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             }
 
             // case 2b: enough gas left to execute calls
+            token.safeIncreaseAllowance(address(executor), amount);
             try
                 executor.swapAndCompleteBridgeTokens{
                     gas: gasleft() - _recoverGas

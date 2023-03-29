@@ -30,9 +30,7 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via LIFuel Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
-    function startBridgeTokensViaLIFuel(
-        ILiFi.BridgeData memory _bridgeData
-    )
+    function startBridgeTokensViaLIFuel(ILiFi.BridgeData memory _bridgeData)
         external
         payable
         nonReentrant
@@ -85,7 +83,7 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             serviceFeeCollector.collectNativeGasFees{
                 value: _bridgeData.minAmount
-            }(_bridgeData.receiver);
+            }(_bridgeData.destinationChainId, _bridgeData.receiver);
         } else {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
@@ -96,6 +94,7 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             serviceFeeCollector.collectTokenGasFees(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
+                _bridgeData.destinationChainId,
                 _bridgeData.receiver
             );
         }

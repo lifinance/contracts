@@ -137,14 +137,8 @@ contract MakerTeleportFacetTest is TestBaseFacet {
         );
     }
 
-    function initiateBridgeTxWithFacet(bool isNative) internal override {
-        if (isNative) {
-            makerTeleportFacet.startBridgeTokensViaMakerTeleport{
-                value: bridgeData.minAmount
-            }(bridgeData);
-        } else {
-            makerTeleportFacet.startBridgeTokensViaMakerTeleport(bridgeData);
-        }
+    function initiateBridgeTxWithFacet(bool) internal override {
+        makerTeleportFacet.startBridgeTokensViaMakerTeleport(bridgeData);
     }
 
     function initiateSwapAndBridgeTxWithFacet(bool isNative)

@@ -30,7 +30,7 @@ contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize the contract.
     /// @param _tokenMessenger The address of the TokenMessenger on the source chain.
-    /// @param _usdc The address of DAI on the source chain.
+    /// @param _usdc The address of USDC on the source chain.
     constructor(ITokenMessenger _tokenMessenger, address _usdc) {
         tokenMessenger = _tokenMessenger;
         usdc = _usdc;
@@ -46,9 +46,7 @@ contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         CircleBridgeData calldata _circleBridgeData
     )
         external
-        payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
