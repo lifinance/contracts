@@ -56,14 +56,18 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @notice Initialize local variables for the Multichain Facet
     /// @param anyNative The address of the anyNative (e.g. anyETH) token
     /// @param routers Allowed Multichain Routers
-    function initMultichain(address anyNative, address[] calldata routers)
-        external
-    {
+    function initMultichain(
+        address anyNative,
+        address[] calldata routers
+    ) external {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
 
-        if (anyNative == address(0)) revert InvalidConfig();
+        if (anyNative == address(0)) {
+            revert InvalidConfig();
+        }
+
         s.anyNative = anyNative;
 
         if (s.initialized) {
@@ -155,7 +159,9 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         validateBridgeData(_bridgeData)
     {
         Storage storage s = getStorage();
-        if (!s.allowedRouters[_multichainData.router]) revert InvalidRouter();
+        if (!s.allowedRouters[_multichainData.router]) {
+            revert InvalidRouter();
+        }
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId))
             LibAsset.depositAsset(
                 _bridgeData.sendingAssetId,
@@ -184,7 +190,9 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     {
         Storage storage s = getStorage();
 
-        if (!s.allowedRouters[_multichainData.router]) revert InvalidRouter();
+        if (!s.allowedRouters[_multichainData.router]) {
+            revert InvalidRouter();
+        }
 
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -228,16 +236,20 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
                     _multichainData.router,
                     _bridgeData.minAmount
                 );
+
+                address anyToken = s.anyTokenAddresses[
+                    _bridgeData.sendingAssetId
+                ];
+
                 // replace tokenAddress with anyTokenAddress (if mapping found) and call ERC20 asset bridge function
                 IMultichainRouter(_multichainData.router).anySwapOutUnderlying(
-                        s.anyTokenAddresses[_bridgeData.sendingAssetId] !=
-                            address(0)
-                            ? s.anyTokenAddresses[_bridgeData.sendingAssetId]
-                            : _bridgeData.sendingAssetId,
-                        _bridgeData.receiver,
-                        _bridgeData.minAmount,
-                        _bridgeData.destinationChainId
-                    );
+                    anyToken != address(0)
+                        ? anyToken
+                        : _bridgeData.sendingAssetId,
+                    _bridgeData.receiver,
+                    _bridgeData.minAmount,
+                    _bridgeData.destinationChainId
+                );
             }
         }
 
