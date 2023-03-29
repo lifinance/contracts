@@ -2,7 +2,6 @@
 pragma solidity 0.8.17;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { UnAuthorized, InvalidConfig, InsufficientBalance, NotAContract, ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErrors.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
@@ -18,7 +17,7 @@ import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.
 /// @title RelayerCelerIM
 /// @author LI.FI (https://li.fi)
 /// @notice Relayer contract for CelerIM that forwards calls and handles refunds on src side and acts receiver on dest
-contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
+contract RelayerCelerIM is ILiFi, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
     /// Storage ///
@@ -155,7 +154,7 @@ contract RelayerCelerIM is ILiFi, ReentrancyGuard, TransferrableOwnership {
      */
     function sendTokenTransfer(
         ILiFi.BridgeData memory _bridgeData,
-        CelerIMFacet.CelerIMData memory _celerIMData
+        CelerIMFacet.CelerIMData calldata _celerIMData
     )
         external
         payable

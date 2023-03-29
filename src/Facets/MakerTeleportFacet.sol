@@ -2,6 +2,7 @@
 pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ITeleportGateway } from "../Interfaces/ITeleportGateway.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
@@ -15,6 +16,8 @@ import { InvalidSendingToken, NoSwapDataProvided } from "../Errors/GenericErrors
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Maker Teleport
 contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    using SafeCast for uint256;
+
     /// Storage ///
 
     /// @notice The address of Teleport Gateway.
@@ -56,9 +59,7 @@ contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData
     )
         external
-        payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
@@ -86,18 +87,13 @@ contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         onlyAllowDestinationChain(_bridgeData, dstChainId)
         onlyAllowSourceToken(_bridgeData, dai)
     {
-        if (_swapData.length == 0) {
-            revert NoSwapDataProvided();
-        }
-        if (_swapData[_swapData.length - 1].receivingAssetId != dai) {
-            revert InvalidSendingToken();
-        }
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender)
         );
+
         _startBridge(_bridgeData);
     }
 
@@ -115,7 +111,7 @@ contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         teleportGateway.initiateTeleport(
             l1Domain,
             _bridgeData.receiver,
-            uint128(_bridgeData.minAmount)
+            _bridgeData.minAmount.toUint128()
         );
 
         emit LiFiTransferStarted(_bridgeData);

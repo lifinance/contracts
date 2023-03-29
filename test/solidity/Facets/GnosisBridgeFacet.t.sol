@@ -108,14 +108,8 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         );
     }
 
-    function initiateBridgeTxWithFacet(bool isNative) internal override {
-        if (isNative) {
-            gnosisBridgeFacet.startBridgeTokensViaXDaiBridge{
-                value: bridgeData.minAmount
-            }(bridgeData);
-        } else {
-            gnosisBridgeFacet.startBridgeTokensViaXDaiBridge(bridgeData);
-        }
+    function initiateBridgeTxWithFacet(bool) internal override {
+        gnosisBridgeFacet.startBridgeTokensViaXDaiBridge(bridgeData);
     }
 
     function initiateSwapAndBridgeTxWithFacet(bool isNative)

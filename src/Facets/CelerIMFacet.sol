@@ -35,10 +35,14 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @param maxSlippage The max slippage accepted, given as percentage in point (pip).
     /// @param nonce A number input to guarantee uniqueness of transferId. Can be timestamp in practice.
-    /// @param callTo the address of the contract to be called at destination
-    /// @param callData the encoded calldata (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress)
-    /// @param messageBusFee the fee to be paid to CBridge message bus for relaying the message
-    /// @param bridgeType defines the bridge operation type (must be one of the values of CBridge library MsgDataTypes.BridgeSendType)
+    /// @param callTo The address of the contract to be called at destination.
+    /// @param callData The encoded calldata with below data
+    ///                 bytes32 transactionId,
+    ///                 LibSwap.SwapData[] memory swapData,
+    ///                 address receiver,
+    ///                 address refundAddress
+    /// @param messageBusFee The fee to be paid to CBridge message bus for relaying the message
+    /// @param bridgeType Defines the bridge operation type (must be one of the values of CBridge library MsgDataTypes.BridgeSendType)
     struct CelerIMData {
         uint32 maxSlippage;
         uint64 nonce;
@@ -67,8 +71,8 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// External Methods ///
 
     /// @notice Bridges tokens via CBridge
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _celerIMData data specific to CelerIM
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _celerIMData Data specific to CelerIM
     function startBridgeTokensViaCelerIM(
         ILiFi.BridgeData memory _bridgeData,
         CelerIMData calldata _celerIMData
@@ -82,10 +86,10 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     {
         validateDestinationCallFlag(_bridgeData, _celerIMData);
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            // transfer ERC20 tokens directly to relayer
+            // Transfer ERC20 tokens directly to relayer
             IERC20 asset = _getRightAsset(_bridgeData.sendingAssetId);
 
-            // deposit ERC20 token
+            // Deposit ERC20 token
             uint256 prevBalance = asset.balanceOf(address(relayer));
             SafeERC20.safeTransferFrom(
                 asset,
@@ -93,6 +97,7 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 address(relayer),
                 _bridgeData.minAmount
             );
+
             if (
                 asset.balanceOf(address(relayer)) - prevBalance !=
                 _bridgeData.minAmount
@@ -100,17 +105,18 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 revert InvalidAmount();
             }
         }
+
         _startBridge(_bridgeData, _celerIMData);
     }
 
     /// @notice Performs a swap before bridging via CBridge
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _swapData an array of swap related data for performing swaps before bridging
-    /// @param _celerIMData data specific to CelerIM
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _swapData An array of swap related data for performing swaps before bridging
+    /// @param _celerIMData Data specific to CelerIM
     function swapAndStartBridgeTokensViaCelerIM(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        CelerIMData memory _celerIMData
+        CelerIMData calldata _celerIMData
     )
         external
         payable
@@ -127,17 +133,19 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
+
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            // transfer ERC20 tokens directly to relayer
+            // Transfer ERC20 tokens directly to relayer
             IERC20 asset = _getRightAsset(_bridgeData.sendingAssetId);
 
-            // deposit ERC20 token
+            // Deposit ERC20 token
             uint256 prevBalance = asset.balanceOf(address(relayer));
             SafeERC20.safeTransfer(
                 asset,
                 address(relayer),
                 _bridgeData.minAmount
             );
+
             if (
                 asset.balanceOf(address(relayer)) - prevBalance !=
                 _bridgeData.minAmount
@@ -152,43 +160,50 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via CBridge
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _celerIMData data specific to CBridge
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _celerIMData Data specific to CBridge
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        CelerIMData memory _celerIMData
+        CelerIMData calldata _celerIMData
     ) private {
-        // assuming messageBusFee is pre-calculated off-chain and available in _celerIMData
-        // determine correct native asset amount to be forwarded (if so) and send funds to relayer
+        // Assuming messageBusFee is pre-calculated off-chain and available in _celerIMData
+        // Determine correct native asset amount to be forwarded (if so) and send funds to relayer
         uint256 msgValue = LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
             ? _bridgeData.minAmount
             : 0;
-        // check if transaction contains a destination call
+
+        // Check if transaction contains a destination call
         if (!_bridgeData.hasDestinationCall) {
-            // case 'no': simple bridge transfer - send to receiver
+            // Case 'no': Simple bridge transfer - Send to receiver
             relayer.sendTokenTransfer{ value: msgValue }(
                 _bridgeData,
                 _celerIMData
             );
         } else {
-            // case 'yes': bridge + dest call - send to relayer
-            ILiFi.BridgeData memory bridgeDataAdjusted = _bridgeData;
-            bridgeDataAdjusted.receiver = address(relayer);
+            // Case 'yes': Bridge + Destination call - Send to relayer
+            address receiver = _bridgeData.receiver;
+            // Set relayer as a receiver
+            _bridgeData.receiver = address(relayer);
+
             (bytes32 transferId, address bridgeAddress) = relayer
                 .sendTokenTransfer{ value: msgValue }(
-                bridgeDataAdjusted,
+                _bridgeData,
                 _celerIMData
             );
-            // call message bus via relayer incl messageBusFee
+
+            // Call message bus via relayer incl messageBusFee
             relayer.forwardSendMessageWithTransfer{
                 value: _celerIMData.messageBusFee
             }(
-                _bridgeData.receiver,
+                receiver,
                 uint64(_bridgeData.destinationChainId),
                 bridgeAddress,
                 transferId,
                 _celerIMData.callData
             );
+
+            // Reset receiver of bridge data for event emission
+            _bridgeData.receiver = receiver;
         }
 
         // emit LiFi event
@@ -212,7 +227,7 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     function validateDestinationCallFlag(
         ILiFi.BridgeData memory _bridgeData,
-        CelerIMData memory _celerIMData
+        CelerIMData calldata _celerIMData
     ) private pure {
         if (
             (_celerIMData.callData.length > 0) !=

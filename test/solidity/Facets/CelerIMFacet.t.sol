@@ -10,9 +10,11 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CelerIMFacet Contract
 contract TestCelerIMFacet is CelerIMFacet {
-    constructor(IMessageBus _messageBus, RelayerCelerIM _relayer, address _cfUSDC)
-        CelerIMFacet(_messageBus, _relayer, _cfUSDC)
-    {}
+    constructor(
+        IMessageBus _messageBus,
+        RelayerCelerIM _relayer,
+        address _cfUSDC
+    ) CelerIMFacet(_messageBus, _relayer, _cfUSDC) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -150,20 +152,19 @@ contract CelerIMFacetTest is TestBaseFacet {
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             celerIMFacet.startBridgeTokensViaCelerIM{
-                value: bridgeData.minAmount
+                value: bridgeData.minAmount + addToMessageValue
             }(bridgeData, celerIMData);
         } else {
             celerIMFacet.startBridgeTokensViaCelerIM(bridgeData, celerIMData);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             celerIMFacet.swapAndStartBridgeTokensViaCelerIM{
-                value: swapData[0].fromAmount
+                value: swapData[0].fromAmount + addToMessageValue
             }(bridgeData, swapData, celerIMData);
         } else {
             celerIMFacet.swapAndStartBridgeTokensViaCelerIM(
@@ -262,6 +263,26 @@ contract CelerIMFacetTest is TestBaseFacet {
         }(bridgeData, celerIMData);
 
         vm.stopPrank();
+    }
+
+    function test_CanBridgeNativeTokens_DestinationCall() public {
+        addToMessageValue = 1e17;
+        celerIMData = CelerIMFacet.CelerIMData({
+            maxSlippage: 5000,
+            nonce: 1,
+            callTo: abi.encodePacked(address(1)),
+            callData: abi.encode(
+                bytes32(""),
+                swapData,
+                USER_SENDER,
+                USER_SENDER
+            ),
+            messageBusFee: addToMessageValue,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
+        bridgeData.hasDestinationCall = true;
+
+        super.testBase_CanBridgeNativeTokens();
     }
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {

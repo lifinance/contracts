@@ -5,6 +5,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 
 /// @title Hop Facet (Optimized)
 /// @author LI.FI (https://li.fi)
@@ -21,10 +22,6 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         IHopBridge hopBridge;
     }
 
-    /// Events ///
-
-    event HopBridgeRegistered(address indexed assetId, address bridge);
-
     /// External Methods ///
 
     /// @notice Sets approval for the Hop Bridge to spend the specified token
@@ -34,6 +31,7 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         address[] calldata bridges,
         address[] calldata tokensToApprove
     ) external {
+        LibDiamond.enforceIsContractOwner();
         for (uint256 i; i < bridges.length; i++) {
             // Give Hop approval to bridge tokens
             LibAsset.maxApproveERC20(

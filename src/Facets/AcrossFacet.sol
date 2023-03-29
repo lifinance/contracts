@@ -22,9 +22,6 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The WETH address on the current chain.
     address private immutable wrappedNative;
 
-    /// Errors
-    error QuoteTimeout();
-
     /// Types ///
 
     /// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
@@ -75,7 +72,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaAcross(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        AcrossData memory _acrossData
+        AcrossData calldata _acrossData
     )
         external
         payable
@@ -101,26 +98,32 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _acrossData data specific to Across
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        AcrossData memory _acrossData
+        AcrossData calldata _acrossData
     ) internal {
-        bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
-        address sendingAsset = _bridgeData.sendingAssetId;
-        if (isNative) sendingAsset = wrappedNative;
-        else
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            spokePool.deposit{ value: _bridgeData.minAmount }(
+                _bridgeData.receiver,
+                wrappedNative,
+                _bridgeData.minAmount,
+                _bridgeData.destinationChainId,
+                _acrossData.relayerFeePct,
+                _acrossData.quoteTimestamp
+            );
+        } else {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(spokePool),
                 _bridgeData.minAmount
             );
-
-        spokePool.deposit{ value: isNative ? _bridgeData.minAmount : 0 }(
-            _bridgeData.receiver,
-            sendingAsset,
-            _bridgeData.minAmount,
-            _bridgeData.destinationChainId,
-            _acrossData.relayerFeePct,
-            _acrossData.quoteTimestamp
-        );
+            spokePool.deposit(
+                _bridgeData.receiver,
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                _bridgeData.destinationChainId,
+                _acrossData.relayerFeePct,
+                _acrossData.quoteTimestamp
+            );
+        }
 
         emit LiFiTransferStarted(_bridgeData);
     }
