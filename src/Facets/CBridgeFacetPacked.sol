@@ -29,15 +29,16 @@ contract CBridgeFacetPacked is ILiFi {
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaCBridgeNativePacked(
     ) external payable {
-        checkCalldataLength(60);
+        require(msg.data.length >= 60, "CallData length smaler than required.");
+
         _startBridgeTokensViaCBridgeNative({
             // first 4 bytes are function signature
-            transactionId: bytes32(getCalldataValue(4, 8)), // bytes8 > bytes32
-            integrator: string(abi.encodePacked(getCalldataValue(12, 16))), // bytes16 > string
-            receiver: address(uint160(getCalldataValue(28, 20))), // bytes20 > address
-            destinationChainId: uint64(getCalldataValue(48, 4)), // bytes4 > uint256 > uint64
-            nonce: uint64(getCalldataValue(52, 4)), // bytes4 > uint256 > uint64
-            maxSlippage: uint32(getCalldataValue(56, 4)) // bytes4 > uint256 > uint32
+            transactionId: bytes32(bytes8(msg.data[4:12])),
+            integrator: string(msg.data[12:28]), // bytes16 > string
+            receiver: address(bytes20(msg.data[28:48])),
+            destinationChainId: uint64(uint32(bytes4(msg.data[48:52]))),
+            nonce: uint64(uint32(bytes4(msg.data[52:56]))),
+            maxSlippage: uint32(bytes4(msg.data[56:60]))
             // => total calldata length required: 60
         });
     }
@@ -97,17 +98,18 @@ contract CBridgeFacetPacked is ILiFi {
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaCBridgeERC20Packed(
     ) external {
-        checkCalldataLength(96);
+        require(msg.data.length >= 96, "CallData length smaler than required.");
+
         _startBridgeTokensViaCBridgeERC20({
             // first 4 bytes are function signature
-            transactionId: bytes32(getCalldataValue(4, 8)), // bytes8 > bytes32
-            integrator: string(abi.encodePacked(getCalldataValue(12, 16))), // bytes16 > string
-            receiver: address(uint160(getCalldataValue(28, 20))), // bytes20 > address
-            destinationChainId: uint64(getCalldataValue(48, 4)), // bytes4 > uint256 > uint64
-            sendingAssetId: address(uint160(getCalldataValue(52, 20))), // bytes20 > address
-            amount: getCalldataValue(72, 16), // bytes16 > uint256
-            nonce: uint64(getCalldataValue(88, 4)), // bytes4 > uint256 > uint64
-            maxSlippage: uint32(getCalldataValue(92, 4)) // bytes4 > uint256 > uint32
+            transactionId: bytes32(bytes8(msg.data[4:12])),
+            integrator: string(msg.data[12:28]), // bytes16 > string
+            receiver: address(bytes20(msg.data[28:48])),
+            destinationChainId: uint64(uint32(bytes4(msg.data[48:52]))),
+            sendingAssetId: address(bytes20(msg.data[52:72])),
+            amount: uint256(uint128(bytes16(msg.data[72:88]))),
+            nonce: uint64(uint32(bytes4(msg.data[88:92]))),
+            maxSlippage: uint32(bytes4(msg.data[92:96]))
             // => total calldata length required: 96
         });
     }
@@ -176,32 +178,6 @@ contract CBridgeFacetPacked is ILiFi {
     }
 
     /// Internal Methods ///
-
-    /// @notice Validate raw callData length
-    /// @param length Total required callData length
-    function checkCalldataLength(uint length) private pure {
-            uint _calldatasize;
-            assembly {
-                _calldatasize := calldatasize()
-            }
-
-            require(length <= _calldatasize,
-                "calldatasize smaler than required");
-    }
-
-    /// @notice Extract information from raw callData
-    /// @param startByte Start position to read callData from
-    /// @param length Length of callData ro read, should not be longer than 32 bytes
-    function getCalldataValue(uint startByte, uint length)
-        private pure returns (uint) {
-        uint _retVal;
-
-        assembly {
-            _retVal := calldataload(startByte)
-        }
-
-        return _retVal >> (256-length*8);
-    }
 
     function _startBridgeTokensViaCBridgeNative(
         bytes32 transactionId,

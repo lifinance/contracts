@@ -47,7 +47,7 @@ Additional parameters are passed to track transfers on chain:
 
 ## Packed Parameters
 
-In order to pass as little data as possible when calling the `*Packed` methods, the parameters are restricted in length and concatinated manually to avoid any additional padding. The contract expects them to have those fixed lengths to be able to extract data from the passed callData. When generating the parameter the backend has to check that the values fit into the restricted length to ensure a lossless compression.
+In order to pass as little data as possible when calling the `*Packed` methods, the parameters are restricted in length and concatenated manually to avoid any additional padding. The contract expects them to have those fixed lengths to be able to extract data from the passed callData. When generating the parameter the backend has to check that the values fit into the restricted length to ensure a lossless compression.
 
 Most parameters are specific for how the hop protocol works.
 - `transactionId`: `bytes8`
