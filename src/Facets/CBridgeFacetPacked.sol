@@ -29,7 +29,7 @@ contract CBridgeFacetPacked is ILiFi {
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaCBridgeNativePacked(
     ) external payable {
-        require(msg.data.length >= 60, "CallData length smaler than required.");
+        require(msg.data.length >= 60, "callData length smaller than required");
 
         _startBridgeTokensViaCBridgeNative({
             // first 4 bytes are function signature
@@ -101,7 +101,7 @@ contract CBridgeFacetPacked is ILiFi {
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaCBridgeERC20Packed(
     ) external {
-        require(msg.data.length >= 96, "CallData length smaler than required.");
+        require(msg.data.length >= 96, "callData length smaller than required");
 
         _startBridgeTokensViaCBridgeERC20({
             // first 4 bytes are function signature

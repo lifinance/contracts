@@ -16,7 +16,7 @@ contract HopFacetPacked is ILiFi {
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaHopL2NativePacked(
     ) external payable {
-        require(msg.data.length >= 120, "CallData length smaler than required.");
+        require(msg.data.length >= 120, "callData length smaller than required");
 
         _startBridgeTokensViaHopL2Native({
             // first 4 bytes are function signature
@@ -104,7 +104,7 @@ contract HopFacetPacked is ILiFi {
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaHopL2ERC20Packed(
     ) external {
-        require(msg.data.length >= 156, "CallData length smaler than required.");
+        require(msg.data.length >= 156, "callData length smaller than required");
 
         _startBridgeTokensViaHopL2ERC20({
             // first 4 bytes are function signature

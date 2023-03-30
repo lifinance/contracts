@@ -53,39 +53,52 @@ Most parameters are specific for how the hop protocol works.
 - `transactionId`: `bytes8`
 - `integrator`: `bytes16` = 16 characters
 - `receiver`: `bytes20` = lossless length of EVM addresses
-- `bonderFee`: `unit128 > bytes16` = restricted value range*
-- `amountOutMin`: `unit128 > bytes16` = restricted value range*
-- `destinationChainId`: `uint16 > bytes2` = ChainIds up to `65535` which includes all chains supported by Hop
-- `destinationAmountOutMin`: `unit128 > bytes16` = restricted value range*
+- `bonderFee`: `uint128 > bytes16` = restricted value range*
+- `amountOutMin`: `uint128 > bytes16` = restricted value range*
+- `destinationChainId`: `uint32 > bytes4` = big enough to include all major chains
+- `destinationAmountOutMin`: `uint128 > bytes16` = restricted value range*
 - `hopBridge`: `bytes20` = lossless length of EVM addresses
 - `sendingAssetId`: `bytes20` = lossless length of EVM addresses
-- `amount`: `unit128 > bytes16` = restricted value range*
+- `amount`: `uint128 > bytes16` = restricted value range*
 
-*restricted value range: Considering a token with 18 decimals `unit128` still allows to pass 340 Quintillion (`10**18`) tokens, which will be more than the available liquidity of all tokens supported by Hop.
+*restricted value range: Considering a token with 18 decimals `uint128` still allows to pass 340 Quintillion (`10**18`) tokens, which will be more than the available liquidity of all tokens supported by Hop.
 
-Solidity based example to manually generate the callData passed to the contract to call the `startBridgeTokensViaHopL2NativePacked()` method:
+Solidity based example to manually generate the callData:
 ```solidity
-bytes memory packedNativeParams = bytes.concat(
+bytes memory packedNative = bytes.concat(
+   HopFacetPacked.startBridgeTokensViaHopL2NativePacked.selector,
     bytes8("someID"), // transactionId
-    bytes16(bytes(INTEGRATOR_STRING)), // integrator
+    bytes16(bytes("partner-a")), // integrator
     bytes20(RECEIVER_ADDRESS), // receiver
+    bytes4(uint32(137)), // destinationChainId
     bytes16(uint128(amountBonderFeeNative)), // bonderFee
     bytes16(uint128(amountOutMinNative)), // amountOutMin
-    bytes2(uint16(137)), // destinationChainId
     bytes16(uint128(amountOutMinNative)), // destinationAmountOutMin
     bytes20(HOP_NATIVE_BRIDGE) // hopBridge
 );
-bytes memory packedNative = bytes.concat(
-    abi.encodeWithSignature("startBridgeTokensViaHopL2NativePacked()"),
-    packedNativeParams
-);
+```
 
-// execute call
+The contract offers a pure helper method to does this work for you:
+```solidity
+bytes memory encodedNative = hopFacetPacked.encoder_startBridgeTokensViaHopL2NativePacked(
+    "someID",
+    "partner-a",
+    RECEIVER_ADDRESS,
+    137,
+    amountBonderFeeNative,
+    amountOutMinNative,
+    amountOutMinNative,
+    HOP_NATIVE_BRIDGE
+);
+```
+
+To execute the call just pass the encoded bytes and the required amount to the contract:
+```
 (bool success, ) = address(diamond).call{value: amountNative}(packedNative);
 ```
 
 ## Getting Sample Calls to interact with the Facet
 
-In order to interact with this optimized facet is is best to only use requests directly returned by the LI.FI API to ensure the packed parameters are formatted right.
+In order to interact with this optimized facet it is best to only use requests directly returned by the LI.FI API to ensure the packed parameters are formatted right.
 
 Will be available on the API soon.
