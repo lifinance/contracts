@@ -121,7 +121,7 @@ contract HopGasTest is Test, DiamondTest {
             bytes20(HOP_NATIVE_BRIDGE) // hopBridge
         );
         packedNative = bytes.concat(
-            abi.encodeWithSignature("startBridgeTokensViaHopL2NativePacked()"),
+            hopFacetPacked.startBridgeTokensViaHopL2NativePacked.selector,
             packedNativeParams
         );
 
@@ -143,7 +143,7 @@ contract HopGasTest is Test, DiamondTest {
             bytes20(HOP_USDC_BRIDGE) // hopBridge
         );
         packedUSDC = bytes.concat(
-            abi.encodeWithSignature("startBridgeTokensViaHopL2ERC20Packed()"),
+            hopFacetPacked.startBridgeTokensViaHopL2ERC20Packed.selector,
             packedUSDCParams
         );
 
@@ -197,7 +197,7 @@ contract HopGasTest is Test, DiamondTest {
         console.logString("startBridgeTokensViaHopL2NativePacked");
         console.logBytes(packedNative);
         bytes memory encodedNative = hopFacetPacked.encoder_startBridgeTokensViaHopL2NativePacked(
-            "someID",
+            transactionId,
             integrator,
             RECEIVER,
             137,
@@ -212,7 +212,7 @@ contract HopGasTest is Test, DiamondTest {
         console.logString("startBridgeTokensViaHopL2ERC20Packed");
         console.logBytes(packedUSDC);
         bytes memory encodedUSDC = hopFacetPacked.encoder_startBridgeTokensViaHopL2ERC20Packed(
-            "someID",
+            transactionId,
             integrator,
             RECEIVER,
             137,
@@ -245,7 +245,7 @@ contract HopGasTest is Test, DiamondTest {
     function testStartBridgeTokensViaHopL2NativeMin() public {
         vm.startPrank(WHALE);
         hopFacetPacked.startBridgeTokensViaHopL2NativeMin{value: amountNative}(
-            "someID",
+            transactionId,
             integrator,
             RECEIVER,
             137,
@@ -271,7 +271,7 @@ contract HopGasTest is Test, DiamondTest {
         vm.startPrank(WHALE);
         usdc.approve(address(diamond), amountUSDC);
         hopFacetPacked.startBridgeTokensViaHopL2ERC20Min(
-            "someID",
+            transactionId,
             integrator,
             RECEIVER,
             137,

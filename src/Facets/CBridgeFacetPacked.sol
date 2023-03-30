@@ -83,7 +83,7 @@ contract CBridgeFacetPacked is ILiFi {
         uint32 maxSlippage
     ) external pure returns (bytes memory) {
         return bytes.concat(
-            abi.encodeWithSignature("startBridgeTokensViaCBridgeNativePacked()"),
+            CBridgeFacetPacked.startBridgeTokensViaCBridgeNativePacked.selector,
             bytes8(transactionId),
             bytes16(bytes(integrator)),
             bytes20(receiver),
@@ -163,7 +163,7 @@ contract CBridgeFacetPacked is ILiFi {
         uint32 maxSlippage
     ) external pure returns (bytes memory) {
         return bytes.concat(
-            abi.encodeWithSignature("startBridgeTokensViaCBridgeERC20Packed()"),
+            CBridgeFacetPacked.startBridgeTokensViaCBridgeERC20Packed.selector,
             bytes8(transactionId),
             bytes16(bytes(integrator)),
             bytes20(receiver),

@@ -82,7 +82,7 @@ contract HopFacetPacked is ILiFi {
         address hopBridge
     ) external pure returns (bytes memory) {
         return bytes.concat(
-            abi.encodeWithSignature("startBridgeTokensViaHopL2NativePacked()"),
+            HopFacetPacked.startBridgeTokensViaHopL2NativePacked.selector,
             bytes8(transactionId),
             bytes16(bytes(integrator)),
             bytes20(receiver),
@@ -175,7 +175,8 @@ contract HopFacetPacked is ILiFi {
         uint256 destinationAmountOutMin,
         address hopBridge
     ) external pure returns (bytes memory) {
-        bytes memory packedUSDCParams = bytes.concat(
+        return bytes.concat(
+            HopFacetPacked.startBridgeTokensViaHopL2ERC20Packed.selector,
             bytes8(transactionId),
             bytes16(bytes(integrator)),
             bytes20(receiver),
@@ -186,13 +187,6 @@ contract HopFacetPacked is ILiFi {
             bytes16(uint128(amountOutMin)),
             bytes16(uint128(destinationAmountOutMin)),
             bytes20(hopBridge)
-        );
-
-        // split into two concat steps to avoid "Stack too deep" compiler errors
-
-        return bytes.concat(
-            abi.encodeWithSignature("startBridgeTokensViaHopL2ERC20Packed()"),
-            packedUSDCParams
         );
     }
 
