@@ -82,6 +82,11 @@ contract HopFacetPacked is ILiFi {
         uint256 destinationAmountOutMin,
         address hopBridge
     ) external pure returns (bytes memory) {
+        require(destinationChainId <= type(uint32).max, "destinationChainId value passed too big to fit in uint32");
+        require(bonderFee <= type(uint128).max, "bonderFee value passed too big to fit in uint128");
+        require(amountOutMin <= type(uint128).max, "amountOutMin value passed too big to fit in uint128");
+        require(destinationAmountOutMin <= type(uint128).max, "destinationAmountOutMin value passed too big to fit in uint128");
+
         return bytes.concat(
             HopFacetPacked.startBridgeTokensViaHopL2NativePacked.selector,
             bytes8(transactionId),
@@ -99,7 +104,7 @@ contract HopFacetPacked is ILiFi {
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaHopL2ERC20Packed(
     ) external {
-         require(msg.data.length >= 156, "CallData length smaler than required.");
+        require(msg.data.length >= 156, "CallData length smaler than required.");
 
         _startBridgeTokensViaHopL2ERC20({
             // first 4 bytes are function signature
@@ -177,6 +182,12 @@ contract HopFacetPacked is ILiFi {
         uint256 destinationAmountOutMin,
         address hopBridge
     ) external pure returns (bytes memory) {
+        require(destinationChainId <= type(uint32).max, "destinationChainId value passed too big to fit in uint32");
+        require(amount <= type(uint128).max, "amount value passed too big to fit in uint128");
+        require(bonderFee <= type(uint128).max, "bonderFee value passed too big to fit in uint128");
+        require(amountOutMin <= type(uint128).max, "amountOutMin value passed too big to fit in uint128");
+        require(destinationAmountOutMin <= type(uint128).max, "destinationAmountOutMin value passed too big to fit in uint128");
+
         return bytes.concat(
             HopFacetPacked.startBridgeTokensViaHopL2ERC20Packed.selector,
             bytes8(transactionId),

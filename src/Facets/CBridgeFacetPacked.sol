@@ -83,6 +83,9 @@ contract CBridgeFacetPacked is ILiFi {
         uint64 nonce,
         uint32 maxSlippage
     ) external pure returns (bytes memory) {
+        require(destinationChainId <= type(uint32).max, "destinationChainId value passed too big to fit in uint32");
+        require(nonce <= type(uint32).max, "nonce value passed too big to fit in uint32");
+
         return bytes.concat(
             CBridgeFacetPacked.startBridgeTokensViaCBridgeNativePacked.selector,
             bytes8(transactionId),
@@ -164,6 +167,10 @@ contract CBridgeFacetPacked is ILiFi {
         uint64 nonce,
         uint32 maxSlippage
     ) external pure returns (bytes memory) {
+        require(destinationChainId <= type(uint32).max, "destinationChainId value passed too big to fit in uint32");
+        require(amount <= type(uint128).max, "amount value passed too big to fit in uint128");
+        require(nonce <= type(uint32).max, "nonce value passed too big to fit in uint32");
+
         return bytes.concat(
             CBridgeFacetPacked.startBridgeTokensViaCBridgeERC20Packed.selector,
             bytes8(transactionId),
