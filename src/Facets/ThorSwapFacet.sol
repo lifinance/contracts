@@ -25,6 +25,9 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 expiration;
     }
 
+    /// Errors ///
+    error InvalidExpiration();
+
     /// @notice Initializes the ThorSwap contract
     constructor(address _thorchainRouter) {
         thorchainRouter = _thorchainRouter;
@@ -45,6 +48,10 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        // Check that expiration is at least 60 minutes from now
+        if (_thorSwapData.expiration < block.timestamp + 60 minutes) {
+            revert InvalidExpiration();
+        }
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -69,6 +76,10 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        // Check that expiration is at least 60 minutes from now
+        if (_thorSwapData.expiration < block.timestamp + 60 minutes) {
+            revert InvalidExpiration();
+        }
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
