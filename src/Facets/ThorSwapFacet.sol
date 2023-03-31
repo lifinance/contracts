@@ -51,7 +51,7 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
-        // Check that epiration is at least 60 minutes from now
+        // Check that expiration is at least 60 minutes from now
         if (_thorSwapData.expiration < block.timestamp + 60 minutes) {
             revert InvalidExpiration();
         }
@@ -79,7 +79,7 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        // Check that epiration is at least 60 minutes from now
+        // Check that expiration is at least 60 minutes from now
         if (_thorSwapData.expiration < block.timestamp + 60 minutes) {
             revert InvalidExpiration();
         }
