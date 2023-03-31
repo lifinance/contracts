@@ -13,7 +13,7 @@ task(
 
   // Create an empty array to store the ABI fragments
   const abi: Fragment[] = []
-  
+
   // Get a list of all the files in the Facets directory
   let files = fs.readdirSync(__dirname + '/../' + basePath)
 
@@ -30,14 +30,14 @@ task(
 
   // Get a list of all the files in the Libraries directory
   files = fs.readdirSync(__dirname + '/../' + libraryBasePath)
-  
+
   // Read the compiled ABI of each library and add it to the abi array
   for (const file of files) {
     const jsonFile = file.replace('sol', 'json')
     const data = fs.readFileSync(
       path.resolve(
         __dirname,
-        `../artifacts/${libraryBasePath}${file}/${jsonFile}`
+        `../out/${file}/${jsonFile}`
       )
     )
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,7 +46,7 @@ task(
   }
 
   // Remove duplicates from the combined ABI object
-  // Filters by checking if the name and type of the 
+  // Filters by checking if the name and type of the
   // function already exists in another ABI fragment
   const cleanAbi = <Fragment[]>abi.filter(
     (item, index, self) =>
