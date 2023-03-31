@@ -29,3 +29,5 @@ lcov.info
 test/logs
 
 .DS_Store
+
+.gas-snapshot
