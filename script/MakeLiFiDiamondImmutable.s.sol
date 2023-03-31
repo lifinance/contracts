@@ -10,10 +10,33 @@ import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
 import "./utils/UpdateScriptBase.sol";
 
 contract ImmutableDiamondOwnershipTransfer {
+    /// Storage ///
+
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.ownership");
+
+    /// Types ///
+
+    struct Storage {
+        address newOwner;
+    }
+
     /// @notice Transfers ownership of diamond to address(0) (for immutable diamond)
     function transferOwnershipToZeroAddress() external {
+        Storage storage s = getStorage();
+        // Clear out pending ownership if any.
+        s.newOwner = address(0);
         // transfer ownership to 0 address
         LibDiamond.setContractOwner(address(0));
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }
 
