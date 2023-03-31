@@ -8,7 +8,8 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IERC20Proxy } from "../Interfaces/IERC20Proxy.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
-import { IERC721Receiver } from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
 /// @title Executor
 /// @author LI.FI (https://li.fi)
@@ -17,7 +18,8 @@ contract Executor is
     ILiFi,
     ReentrancyGuard,
     TransferrableOwnership,
-    IERC721Receiver
+    ERC1155Holder,
+    ERC721Holder
 {
     /// Storage ///
 
@@ -261,20 +263,6 @@ contract Executor is
         }
 
         return balances;
-    }
-
-    /// @dev Will be called as part of an ERC721 token transfer to this contract (see IERC721Receiver for more details)
-    /// @param operator The address of the tx initiator
-    /// @param from The address from which the ERC721 token was transferred to this contract
-    /// @param tokenId The ID of the token that was transferred
-    /// @return The selector of its own function (onERC721Received)
-    function onERC721Received(
-        address operator,
-        address from,
-        uint256 tokenId,
-        bytes calldata
-    ) external returns (bytes4) {
-        return this.onERC721Received.selector;
     }
 
     /// @dev required for receiving native assets from destination swaps
