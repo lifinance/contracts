@@ -5,6 +5,7 @@
 - [Generic Swap Facet](./GenericSwapFacet.md)
 - [NXTP Facet](./NXTPFacet.md)
 - [Hop Facet](./HopFacet.md)
+- [Hop Facet Packed](./HopFacetPacked.md)
 - [AnySwap Facet](./AnyswapFacet.md)
 - [Hyphen Facet](./HyphenFacet.md)
 - [CBridge Facet](./CBridgeFacet.md)
