@@ -40,6 +40,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint16 layerZeroChainId;
     }
 
+    /// @param srcPoolId Source pool id.
     /// @param dstPoolId Dest pool id.
     /// @param minAmountLD The min qty you would accept on the destination.
     /// @param dstGasForCall Additional gas fee for extral call on the destination.
@@ -48,6 +49,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param callTo The address to send the tokens to on the destination.
     /// @param callData Additional payload.
     struct StargateData {
+        uint256 srcPoolId;
         uint256 dstPoolId;
         uint256 minAmountLD;
         uint256 dstGasForCall;
@@ -59,17 +61,15 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Errors ///
 
-    error UnknownStargatePool();
     error UnknownLayerZeroChain();
     error InvalidStargateRouter();
 
     /// Events ///
 
     event StargateInitialized(
-        PoolIdConfig[] poolIdConfigs,
         ChainIdConfig[] chainIdConfigs
     );
-    event StargatePoolIdSet(address indexed token, uint256 poolId);
+
     event LayerZeroChainIdSet(
         uint256 indexed chainId,
         uint16 layerZeroChainId
@@ -86,10 +86,8 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Init ///
 
     /// @notice Initialize local variables for the Stargate Facet
-    /// @param poolIdConfigs Pool Id configuration data
     /// @param chainIdConfigs Chain Id configuration data
     function initStargate(
-        PoolIdConfig[] calldata poolIdConfigs,
         ChainIdConfig[] calldata chainIdConfigs
     ) external {
         LibDiamond.enforceIsContractOwner();
@@ -100,14 +98,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert AlreadyInitialized();
         }
 
-        for (uint256 i = 0; i < poolIdConfigs.length; i++) {
-            if (poolIdConfigs[i].token == address(0)) {
-                revert InvalidConfig();
-            }
-            sm.stargatePoolId[poolIdConfigs[i].token] = poolIdConfigs[i]
-                .poolId;
-        }
-
         for (uint256 i = 0; i < chainIdConfigs.length; i++) {
             sm.layerZeroChainId[chainIdConfigs[i].chainId] = chainIdConfigs[i]
                 .layerZeroChainId;
@@ -115,7 +105,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         sm.initialized = true;
 
-        emit StargateInitialized(poolIdConfigs, chainIdConfigs);
+        emit StargateInitialized(chainIdConfigs);
     }
 
     /// External Methods ///
@@ -207,7 +197,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         router.swap{ value: _stargateData.lzFee }(
             getLayerZeroChainId(_bridgeData.destinationChainId),
-            getStargatePoolId(_bridgeData.sendingAssetId),
+            _stargateData.srcPoolId,
             _stargateData.dstPoolId,
             _stargateData.refundAddress,
             _bridgeData.minAmount,
