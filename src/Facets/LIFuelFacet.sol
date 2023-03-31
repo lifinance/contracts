@@ -8,16 +8,23 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InformationMismatch, InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { LibMappings } from "../Libraries/LibMappings.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { LibMappings } from "../Libraries/LibMappings.sol";
 
 /// @title LIFuel Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging gas through LIFuel
 contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
+
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.periphery_registry");
     string internal constant FEE_COLLECTOR_NAME = "ServiceFeeCollector";
+
+    /// Types ///
+
+    struct Storage {
+        mapping(string => address) contracts;
+    }
 
     /// External Methods ///
 
@@ -70,9 +77,7 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData Data used purely for tracking and analytics
     function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
         ServiceFeeCollector serviceFeeCollector = ServiceFeeCollector(
-            LibMappings.getPeripheryRegistryMappings().contracts[
-                FEE_COLLECTOR_NAME
-            ]
+            getStorage().contracts[FEE_COLLECTOR_NAME]
         );
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
@@ -95,5 +100,14 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }

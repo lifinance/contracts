@@ -8,7 +8,6 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InformationMismatch, InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { LibMappings } from "../Libraries/LibMappings.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Stargate Facet
@@ -17,10 +16,19 @@ import { Validatable } from "../Helpers/Validatable.sol";
 contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.stargate");
+
     /// @notice The contract address of the stargate router on the source chain.
     IStargateRouter private immutable router;
 
     /// Types ///
+
+    struct Storage {
+        mapping(address => uint16) stargatePoolId;
+        mapping(uint256 => uint16) layerZeroChainId;
+        bool initialized;
+    }
 
     struct PoolIdConfig {
         address token;
@@ -86,8 +94,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ) external {
         LibDiamond.enforceIsContractOwner();
 
-        LibMappings.StargateMappings storage sm = LibMappings
-            .getStargateMappings();
+        Storage storage sm = getStorage();
 
         if (sm.initialized) {
             revert AlreadyInitialized();
@@ -236,8 +243,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _poolId uint16 of the Stargate pool ID
     function setStargatePoolId(address _token, uint16 _poolId) external {
         LibDiamond.enforceIsContractOwner();
-        LibMappings.StargateMappings storage sm = LibMappings
-            .getStargateMappings();
+        Storage storage sm = getStorage();
 
         if (!sm.initialized) {
             revert NotInitialized();
@@ -251,12 +257,12 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _chainId uint16 of the chain ID
     /// @param _layerZeroChainId uint16 of the Layer 0 chain ID
     /// @dev This is used to map a chain ID to its Layer 0 chain ID
-    function setLayerZeroChainId(uint256 _chainId, uint16 _layerZeroChainId)
-        external
-    {
+    function setLayerZeroChainId(
+        uint256 _chainId,
+        uint16 _layerZeroChainId
+    ) external {
         LibDiamond.enforceIsContractOwner();
-        LibMappings.StargateMappings storage sm = LibMappings
-            .getStargateMappings();
+        Storage storage sm = getStorage();
 
         if (!sm.initialized) {
             revert NotInitialized();
@@ -270,8 +276,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _token address of the token
     /// @return uint256 of the Stargate pool ID
     function getStargatePoolId(address _token) private view returns (uint16) {
-        LibMappings.StargateMappings storage sm = LibMappings
-            .getStargateMappings();
+        Storage storage sm = getStorage();
         uint16 poolId = sm.stargatePoolId[_token];
         if (poolId == 0) revert UnknownStargatePool();
         return poolId;
@@ -280,13 +285,10 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Gets the Layer 0 chain ID for a given chain ID
     /// @param _chainId uint256 of the chain ID
     /// @return uint16 of the Layer 0 chain ID
-    function getLayerZeroChainId(uint256 _chainId)
-        private
-        view
-        returns (uint16)
-    {
-        LibMappings.StargateMappings storage sm = LibMappings
-            .getStargateMappings();
+    function getLayerZeroChainId(
+        uint256 _chainId
+    ) private view returns (uint16) {
+        Storage storage sm = getStorage();
         uint16 chainId = sm.layerZeroChainId[_chainId];
         if (chainId == 0) revert UnknownLayerZeroChain();
         return chainId;
@@ -310,5 +312,14 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         return tempBytes;
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }
