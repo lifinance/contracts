@@ -32,13 +32,11 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes data;
     }
 
-    /// @param permit deadline + signature for approving the spender by signature.
     /// @param nativeFee Native fee for the bridging when useAssetFee is false.
     /// @param useAssetFee Use assets fee for pay protocol fix (work only for specials token)
     /// @param referralCode Referral code.
     /// @param autoParams Structure that enables passing arbitrary messages and call data.
     struct DeBridgeData {
-        bytes permit;
         uint256 nativeFee;
         bool useAssetFee;
         uint32 referralCode;
@@ -148,7 +146,7 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount,
             _bridgeData.destinationChainId,
             abi.encodePacked(_bridgeData.receiver),
-            _deBridgeData.permit,
+            "",
             _deBridgeData.useAssetFee,
             _deBridgeData.referralCode,
             abi.encode(_deBridgeData.autoParams)
