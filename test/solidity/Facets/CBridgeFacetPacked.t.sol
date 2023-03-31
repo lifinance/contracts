@@ -53,11 +53,13 @@ contract CBridgeGasTest is Test, DiamondTest {
         usdc = ERC20(USDC_ADDRESS);
 
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = cBridgeFacetPacked.startBridgeTokensViaCBridgeNativePacked.selector;
         functionSelectors[1] = cBridgeFacetPacked.startBridgeTokensViaCBridgeNativeMin.selector;
         functionSelectors[2] = cBridgeFacetPacked.startBridgeTokensViaCBridgeERC20Packed.selector;
         functionSelectors[3] = cBridgeFacetPacked.startBridgeTokensViaCBridgeERC20Min.selector;
+        functionSelectors[4] = cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeNativePacked.selector;
+        functionSelectors[5] = cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed.selector;
 
         addFacet(diamond, address(cBridgeFacetPacked), functionSelectors);
         cBridgeFacetPacked = CBridgeFacetPacked(address(diamond));
@@ -162,5 +164,126 @@ contract CBridgeGasTest is Test, DiamondTest {
             maxSlippage
         );
         vm.stopPrank();
+    }
+
+    function testEncodeNativeValidation() public {
+        // destinationChainId
+        // > max allowed
+        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeNativePacked(
+            transactionId,
+            integrator,
+            RECEIVER,
+            uint64(type(uint32).max),
+            nonce,
+            maxSlippage
+        );
+        // > too big
+        vm.expectRevert();
+        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeNativePacked(
+            transactionId,
+            integrator,
+            RECEIVER,
+            uint64(type(uint32).max) + 1,
+            nonce,
+            maxSlippage
+        );
+
+        // nonce
+        // > max allowed
+        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeNativePacked(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            uint64(type(uint32).max),
+            maxSlippage
+        );
+        // > too big
+        vm.expectRevert();
+        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeNativePacked(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            uint64(type(uint32).max) + 1,
+            maxSlippage
+        );
+    }
+
+    function testEncodeERC20Validation() public {
+        // destinationChainId
+        // > max allowed
+        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            uint64(type(uint32).max),
+            USDC_ADDRESS,
+            amountUSDC,
+            nonce,
+            maxSlippage
+        );
+        // > too big
+        vm.expectRevert();
+        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            uint64(type(uint32).max) + 1,
+            USDC_ADDRESS,
+            amountUSDC,
+            nonce,
+            maxSlippage
+        );
+
+        // nonce
+        // > max allowed
+        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            USDC_ADDRESS,
+            uint256(type(uint128).max),
+            nonce,
+            maxSlippage
+        );
+        // > too big
+        vm.expectRevert();
+        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            USDC_ADDRESS,
+            uint256(type(uint128).max) + 1,
+            nonce,
+            maxSlippage
+        );
+
+        // nonce
+        // > max allowed
+        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            USDC_ADDRESS,
+            amountUSDC,
+            uint64(type(uint32).max),
+            maxSlippage
+        );
+        // > too big
+        vm.expectRevert();
+        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            USDC_ADDRESS,
+            amountUSDC,
+            uint64(type(uint32).max) + 1,
+            maxSlippage
+        );
     }
 }

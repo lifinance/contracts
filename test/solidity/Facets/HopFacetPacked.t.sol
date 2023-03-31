@@ -19,7 +19,7 @@ contract CallForwarder {
     }
 }
 
-contract HopGasTest is Test, DiamondTest {
+contract HopFacetPackedTest is Test, DiamondTest {
     address internal constant HOP_USDC_BRIDGE =
         0xe22D2beDb3Eca35E6397e0C6D62857094aA26F52;
     address internal constant HOP_NATIVE_BRIDGE =
@@ -211,7 +211,7 @@ contract HopGasTest is Test, DiamondTest {
     function testStartBridgeTokensViaHopL2NativeMin() public {
         vm.startPrank(WHALE);
         hopFacetPacked.startBridgeTokensViaHopL2NativeMin{value: amountNative}(
-            "someID",
+            transactionId,
             integrator,
             RECEIVER,
             137,
@@ -237,7 +237,7 @@ contract HopGasTest is Test, DiamondTest {
         vm.startPrank(WHALE);
         usdc.approve(address(diamond), amountUSDC);
         hopFacetPacked.startBridgeTokensViaHopL2ERC20Min(
-            "someID",
+            transactionId,
             integrator,
             RECEIVER,
             137,
@@ -268,5 +268,254 @@ contract HopGasTest is Test, DiamondTest {
             hopDataUSDC
         );
         vm.stopPrank();
+    }
+
+    function testEncodeNativeValidation() public {
+        // destinationChainId
+        // > max allowed
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2NativePacked(
+            transactionId,
+            integrator,
+            RECEIVER,
+            uint256(type(uint32).max),
+            amountBonderFeeNative,
+            amountOutMinNative,
+            amountOutMinNative,
+            HOP_NATIVE_BRIDGE
+        );
+        // > too big
+        vm.expectRevert();
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2NativePacked(
+            transactionId,
+            integrator,
+            RECEIVER,
+            uint256(type(uint32).max) + 1,
+            amountBonderFeeNative,
+            amountOutMinNative,
+            amountOutMinNative,
+            HOP_NATIVE_BRIDGE
+        );
+
+        // bonderFee
+        // > max allowed
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2NativePacked(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            uint256(type(uint128).max),
+            amountOutMinNative,
+            amountOutMinNative,
+            HOP_NATIVE_BRIDGE
+        );
+        // > too big
+        vm.expectRevert();
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2NativePacked(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            uint256(type(uint128).max) + 1,
+            amountOutMinNative,
+            amountOutMinNative,
+            HOP_NATIVE_BRIDGE
+        );
+
+        // amountOutMin
+        // > max allowed
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2NativePacked(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            amountBonderFeeNative,
+            uint256(type(uint128).max),
+            amountOutMinNative,
+            HOP_NATIVE_BRIDGE
+        );
+        // > too big
+        vm.expectRevert();
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2NativePacked(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            amountBonderFeeNative,
+            uint256(type(uint128).max) + 1,
+            amountOutMinNative,
+            HOP_NATIVE_BRIDGE
+        );
+
+        // destinationAmountOutMin
+        // > max allowed
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2NativePacked(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            amountBonderFeeNative,
+            amountOutMinNative,
+            uint256(type(uint128).max),
+            HOP_NATIVE_BRIDGE
+        );
+        // > too big
+        vm.expectRevert();
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2NativePacked(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            amountBonderFeeNative,
+            amountOutMinNative,
+            uint256(type(uint128).max) + 1,
+            HOP_NATIVE_BRIDGE
+        );
+    }
+
+    function testEncodeERC20Validation() public {
+        // destinationChainId
+        // > max allowed
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2ERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            uint256(type(uint32).max),
+            USDC_ADDRESS,
+            amountUSDC,
+            amountBonderFeeUSDC,
+            amountOutMinUSDC,
+            amountOutMinUSDC,
+            HOP_USDC_BRIDGE
+        );
+        // > too big
+        vm.expectRevert();
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2ERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            uint256(type(uint32).max) + 1,
+            USDC_ADDRESS,
+            amountUSDC,
+            amountBonderFeeUSDC,
+            amountOutMinUSDC,
+            amountOutMinUSDC,
+            HOP_USDC_BRIDGE
+        );
+
+        // amount
+        // > max allowed
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2ERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            USDC_ADDRESS,
+            uint256(type(uint128).max),
+            amountBonderFeeUSDC,
+            amountOutMinUSDC,
+            amountOutMinUSDC,
+            HOP_USDC_BRIDGE
+        );
+        // > too big
+        vm.expectRevert();
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2ERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            USDC_ADDRESS,
+            uint256(type(uint128).max) + 1,
+            amountBonderFeeUSDC,
+            amountOutMinUSDC,
+            amountOutMinUSDC,
+            HOP_USDC_BRIDGE
+        );
+
+        // bonderFee
+        // > max allowed
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2ERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            USDC_ADDRESS,
+            amountUSDC,
+            uint256(type(uint128).max),
+            amountOutMinUSDC,
+            amountOutMinUSDC,
+            HOP_USDC_BRIDGE
+        );
+        // > too big
+        vm.expectRevert();
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2ERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            USDC_ADDRESS,
+            amountUSDC,
+            uint256(type(uint128).max) + 1,
+            amountOutMinUSDC,
+            amountOutMinUSDC,
+            HOP_USDC_BRIDGE
+        );
+
+        // amountOutMin
+        // > max allowed
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2ERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            USDC_ADDRESS,
+            amountUSDC,
+            amountBonderFeeUSDC,
+            uint256(type(uint128).max),
+            amountOutMinUSDC,
+            HOP_USDC_BRIDGE
+        );
+        // > too big
+        vm.expectRevert();
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2ERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            USDC_ADDRESS,
+            amountUSDC,
+            amountBonderFeeUSDC,
+            uint256(type(uint128).max) + 1,
+            amountOutMinUSDC,
+            HOP_USDC_BRIDGE
+        );
+
+        // destinationAmountOutMin
+        // > max allowed
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2ERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            USDC_ADDRESS,
+            amountUSDC,
+            amountBonderFeeUSDC,
+            amountOutMinUSDC,
+            uint256(type(uint128).max),
+            HOP_USDC_BRIDGE
+        );
+        // > too big
+        vm.expectRevert();
+        hopFacetPacked.encoder_startBridgeTokensViaHopL2ERC20Packed(
+            transactionId,
+            integrator,
+            RECEIVER,
+            137,
+            USDC_ADDRESS,
+            amountUSDC,
+            amountBonderFeeUSDC,
+            amountOutMinUSDC,
+            uint256(type(uint128).max) + 1,
+            HOP_USDC_BRIDGE
+        );
     }
 }
