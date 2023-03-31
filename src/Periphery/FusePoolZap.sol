@@ -127,6 +127,7 @@ contract FusePoolZap is ReentrancyGuard {
         );
 
         // Use call because method can succeed with partial revert
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory res) = address(fToken).call{
             value: msg.value
         }(abi.encodeWithSignature("mint()"));

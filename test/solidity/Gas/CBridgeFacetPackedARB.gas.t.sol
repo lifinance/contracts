@@ -53,12 +53,24 @@ contract CBridgeGasTest is Test, DiamondTest {
         usdc = ERC20(USDC_ADDRESS);
 
         bytes4[] memory functionSelectors = new bytes4[](6);
-        functionSelectors[0] = cBridgeFacetPacked.startBridgeTokensViaCBridgeNativePacked.selector;
-        functionSelectors[1] = cBridgeFacetPacked.startBridgeTokensViaCBridgeNativeMin.selector;
-        functionSelectors[2] = cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeNativePacked.selector;
-        functionSelectors[3] = cBridgeFacetPacked.startBridgeTokensViaCBridgeERC20Packed.selector;
-        functionSelectors[4] = cBridgeFacetPacked.startBridgeTokensViaCBridgeERC20Min.selector;
-        functionSelectors[5] = cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed.selector;
+        functionSelectors[0] = cBridgeFacetPacked
+            .startBridgeTokensViaCBridgeNativePacked
+            .selector;
+        functionSelectors[1] = cBridgeFacetPacked
+            .startBridgeTokensViaCBridgeNativeMin
+            .selector;
+        functionSelectors[2] = cBridgeFacetPacked
+            .encoder_startBridgeTokensViaCBridgeNativePacked
+            .selector;
+        functionSelectors[3] = cBridgeFacetPacked
+            .startBridgeTokensViaCBridgeERC20Packed
+            .selector;
+        functionSelectors[4] = cBridgeFacetPacked
+            .startBridgeTokensViaCBridgeERC20Min
+            .selector;
+        functionSelectors[5] = cBridgeFacetPacked
+            .encoder_startBridgeTokensViaCBridgeERC20Packed
+            .selector;
 
         addFacet(diamond, address(cBridgeFacetPacked), functionSelectors);
         cBridgeFacetPacked = CBridgeFacetPacked(address(diamond));
@@ -66,9 +78,15 @@ contract CBridgeGasTest is Test, DiamondTest {
         /// Perpare Approval
         HopFacetOptimized hopFacetOptimized = new HopFacetOptimized();
         bytes4[] memory functionSelectorsApproval = new bytes4[](1);
-        functionSelectorsApproval[0] = hopFacetOptimized.setApprovalForBridges.selector;
+        functionSelectorsApproval[0] = hopFacetOptimized
+            .setApprovalForBridges
+            .selector;
 
-        addFacet(diamond, address(hopFacetOptimized), functionSelectorsApproval);
+        addFacet(
+            diamond,
+            address(hopFacetOptimized),
+            functionSelectorsApproval
+        );
         hopFacetOptimized = HopFacetOptimized(address(diamond));
 
         address[] memory bridges = new address[](1);
@@ -84,7 +102,7 @@ contract CBridgeGasTest is Test, DiamondTest {
         maxSlippage = 5000;
 
         // Native params
-        amountNative = 1 * 10**18;
+        amountNative = 1 * 10 ** 18;
         bytes memory packedNativeParams = bytes.concat(
             bytes8(transactionId), // transactionId
             bytes16(bytes(integrator)), // integrator
@@ -94,12 +112,14 @@ contract CBridgeGasTest is Test, DiamondTest {
             bytes4(maxSlippage) // maxSlippage
         );
         packedNative = bytes.concat(
-            abi.encodeWithSignature("startBridgeTokensViaCBridgeNativePacked()"),
+            abi.encodeWithSignature(
+                "startBridgeTokensViaCBridgeNativePacked()"
+            ),
             packedNativeParams
         );
 
         // USDC params
-        amountUSDC = 100 * 10**usdc.decimals();
+        amountUSDC = 100 * 10 ** usdc.decimals();
         bytes memory packedUSDCParams = bytes.concat(
             bytes8(transactionId), // transactionId
             bytes16(bytes(integrator)), // integrator
@@ -111,7 +131,9 @@ contract CBridgeGasTest is Test, DiamondTest {
             bytes4(maxSlippage) // maxSlippage
         );
         packedUSDC = bytes.concat(
-            abi.encodeWithSignature("startBridgeTokensViaCBridgeERC20Packed()"),
+            abi.encodeWithSignature(
+                "startBridgeTokensViaCBridgeERC20Packed()"
+            ),
             packedUSDCParams
         );
     }
@@ -119,36 +141,40 @@ contract CBridgeGasTest is Test, DiamondTest {
     function testCallData() public view {
         console.logString("startBridgeTokensViaCBridgeNativePacked");
         console.logBytes(packedNative);
-        bytes memory encodedNative = cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeNativePacked(
-            transactionId,
-            integrator,
-            RECEIVER,
-            uint64(destinationChainId),
-            nonce,
-            maxSlippage
-        );
+        bytes memory encodedNative = cBridgeFacetPacked
+            .encoder_startBridgeTokensViaCBridgeNativePacked(
+                transactionId,
+                integrator,
+                RECEIVER,
+                uint64(destinationChainId),
+                nonce,
+                maxSlippage
+            );
         console.logString("encodedNative");
         console.logBytes(encodedNative);
 
         console.logString("startBridgeTokensViaCBridgeERC20Packed");
         console.logBytes(packedUSDC);
-        bytes memory encodedUSDC = cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
-            transactionId,
-            integrator,
-            RECEIVER,
-            uint64(destinationChainId),
-            USDC_ADDRESS,
-            amountUSDC,
-            nonce,
-            maxSlippage
-        );
+        bytes memory encodedUSDC = cBridgeFacetPacked
+            .encoder_startBridgeTokensViaCBridgeERC20Packed(
+                transactionId,
+                integrator,
+                RECEIVER,
+                uint64(destinationChainId),
+                USDC_ADDRESS,
+                amountUSDC,
+                nonce,
+                maxSlippage
+            );
         console.logString("encodedUSDC");
         console.logBytes(encodedUSDC);
     }
 
     function testStartBridgeTokensViaCBridgeNativePacked() public {
         vm.startPrank(WHALE);
-        (bool success, ) = address(diamond).call{value: amountNative}(packedNative);
+        (bool success, ) = address(diamond).call{ value: amountNative }(
+            packedNative
+        );
         if (!success) {
             revert();
         }
@@ -157,7 +183,9 @@ contract CBridgeGasTest is Test, DiamondTest {
 
     function testStartBridgeTokensViaCBridgeNativeMin() public {
         vm.startPrank(WHALE);
-        cBridgeFacetPacked.startBridgeTokensViaCBridgeNativeMin{value: amountNative}(
+        cBridgeFacetPacked.startBridgeTokensViaCBridgeNativeMin{
+            value: amountNative
+        }(
             transactionId,
             integrator,
             RECEIVER,

@@ -111,7 +111,7 @@ contract OptimismBridgeFacetTest is DSTest, DiamondTest {
             referrer: address(0),
             sendingAssetId: DAI_L1_ADDRESS,
             receiver: DAI_L1_HOLDER,
-            minAmount: 10 * 10**dai.decimals(),
+            minAmount: 10 * 10 ** dai.decimals(),
             destinationChainId: DSTCHAIN_ID,
             hasSourceSwaps: false,
             hasDestinationCall: false
@@ -126,7 +126,10 @@ contract OptimismBridgeFacetTest is DSTest, DiamondTest {
     function testRevertToBridgeTokensWhenSendingAmountIsZero() public {
         vm.startPrank(DAI_L1_HOLDER);
 
-        dai.approve(address(optimismBridgeFacet), 10_000 * 10**dai.decimals());
+        dai.approve(
+            address(optimismBridgeFacet),
+            10_000 * 10 ** dai.decimals()
+        );
 
         ILiFi.BridgeData memory bridgeData = validBridgeData;
         bridgeData.minAmount = 0;
@@ -143,7 +146,10 @@ contract OptimismBridgeFacetTest is DSTest, DiamondTest {
     function testRevertToBridgeTokensWhenReceiverIsZeroAddress() public {
         vm.startPrank(DAI_L1_HOLDER);
 
-        dai.approve(address(optimismBridgeFacet), 10_000 * 10**dai.decimals());
+        dai.approve(
+            address(optimismBridgeFacet),
+            10_000 * 10 ** dai.decimals()
+        );
 
         ILiFi.BridgeData memory bridgeData = validBridgeData;
         bridgeData.receiver = address(0);
@@ -160,14 +166,17 @@ contract OptimismBridgeFacetTest is DSTest, DiamondTest {
     function testRevertToBridgeTokensWhenSenderHasNoEnoughAmount() public {
         vm.startPrank(DAI_L1_HOLDER);
 
-        dai.approve(address(optimismBridgeFacet), 10_000 * 10**dai.decimals());
+        dai.approve(
+            address(optimismBridgeFacet),
+            10_000 * 10 ** dai.decimals()
+        );
 
         dai.transfer(USDC_HOLDER, dai.balanceOf(DAI_L1_HOLDER));
 
         vm.expectRevert(
             abi.encodeWithSelector(
                 InsufficientBalance.selector,
-                10 * 10**dai.decimals(),
+                10 * 10 ** dai.decimals(),
                 0
             )
         );
@@ -198,7 +207,10 @@ contract OptimismBridgeFacetTest is DSTest, DiamondTest {
     function testRevertToBridgeTokensWhenInformationMismatch() public {
         vm.startPrank(DAI_L1_HOLDER);
 
-        dai.approve(address(optimismBridgeFacet), 10_000 * 10**dai.decimals());
+        dai.approve(
+            address(optimismBridgeFacet),
+            10_000 * 10 ** dai.decimals()
+        );
 
         ILiFi.BridgeData memory bridgeData = validBridgeData;
         bridgeData.hasSourceSwaps = true;
@@ -214,7 +226,10 @@ contract OptimismBridgeFacetTest is DSTest, DiamondTest {
 
     function testCanBridgeERC20Tokens() public {
         vm.startPrank(DAI_L1_HOLDER);
-        dai.approve(address(optimismBridgeFacet), 10_000 * 10**dai.decimals());
+        dai.approve(
+            address(optimismBridgeFacet),
+            10_000 * 10 ** dai.decimals()
+        );
 
         optimismBridgeFacet.startBridgeTokensViaOptimismBridge(
             validBridgeData,
@@ -228,7 +243,7 @@ contract OptimismBridgeFacetTest is DSTest, DiamondTest {
 
         usdc.approve(
             address(optimismBridgeFacet),
-            10_000 * 10**usdc.decimals()
+            10_000 * 10 ** usdc.decimals()
         );
 
         // Swap USDC to DAI
@@ -236,7 +251,7 @@ contract OptimismBridgeFacetTest is DSTest, DiamondTest {
         path[0] = USDC_ADDRESS;
         path[1] = DAI_L1_ADDRESS;
 
-        uint256 amountOut = 1000 * 10**dai.decimals();
+        uint256 amountOut = 1000 * 10 ** dai.decimals();
 
         // Calculate DAI amount
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);

@@ -20,7 +20,6 @@ contract TestLIFuelFacet is LIFuelFacet {
 }
 
 contract LIFuelFacetTest is TestBaseFacet {
-
     TestLIFuelFacet internal lifuelFacet;
     ILiFi.BridgeData internal validBridgeData;
 
@@ -28,13 +27,13 @@ contract LIFuelFacetTest is TestBaseFacet {
         initTestBase();
         lifuelFacet = new TestLIFuelFacet();
 
-        ServiceFeeCollector feeCollector = new ServiceFeeCollector(address(this));
+        ServiceFeeCollector feeCollector = new ServiceFeeCollector(
+            address(this)
+        );
         PeripheryRegistryFacet peripheryRegistry = new PeripheryRegistryFacet();
 
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = lifuelFacet
-            .startBridgeTokensViaLIFuel
-            .selector;
+        functionSelectors[0] = lifuelFacet.startBridgeTokensViaLIFuel.selector;
         functionSelectors[1] = lifuelFacet
             .swapAndStartBridgeTokensViaLIFuel
             .selector;
@@ -49,8 +48,12 @@ contract LIFuelFacetTest is TestBaseFacet {
             .selector;
 
         addFacet(diamond, address(lifuelFacet), functionSelectors);
-        addFacet(diamond, address(peripheryRegistry), peripheryRegistryFunctionSelectors);
-        
+        addFacet(
+            diamond,
+            address(peripheryRegistry),
+            peripheryRegistryFunctionSelectors
+        );
+
         lifuelFacet = TestLIFuelFacet(address(diamond));
         peripheryRegistry = PeripheryRegistryFacet(address(diamond));
 
@@ -62,8 +65,10 @@ contract LIFuelFacetTest is TestBaseFacet {
             uniswap.swapTokensForExactETH.selector
         );
 
-
-        peripheryRegistry.registerPeripheryContract("ServiceFeeCollector", address(feeCollector));
+        peripheryRegistry.registerPeripheryContract(
+            "ServiceFeeCollector",
+            address(feeCollector)
+        );
         setFacetAddressInTestBase(address(lifuelFacet), "LIFuelFacet");
 
         vm.makePersistent(address(lifuelFacet));
@@ -84,10 +89,9 @@ contract LIFuelFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             lifuelFacet.swapAndStartBridgeTokensViaLIFuel{
                 value: swapData[0].fromAmount
@@ -101,10 +105,9 @@ contract LIFuelFacetTest is TestBaseFacet {
     }
 
     function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
-    public
-    override
+        public
+        override
     {
         console.log("Not applicable for LIFuelFacet");
     }
-
 }

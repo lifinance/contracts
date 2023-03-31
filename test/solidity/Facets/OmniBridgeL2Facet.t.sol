@@ -7,9 +7,10 @@ import { IOmniBridge } from "lifi/Interfaces/IOmniBridge.sol";
 
 // Stub OmniBridgeFacet Contract
 contract TestOmniBridgeFacet is OmniBridgeFacet {
-    constructor(IOmniBridge _foreignOmniBridge, IOmniBridge _wethOmniBridge)
-        OmniBridgeFacet(_foreignOmniBridge, _wethOmniBridge)
-    {}
+    constructor(
+        IOmniBridge _foreignOmniBridge,
+        IOmniBridge _wethOmniBridge
+    ) OmniBridgeFacet(_foreignOmniBridge, _wethOmniBridge) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -89,10 +90,9 @@ contract OmniBridgeL2FacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             omniBridgeFacet.swapAndStartBridgeTokensViaOmniBridge{
                 value: swapData[0].fromAmount

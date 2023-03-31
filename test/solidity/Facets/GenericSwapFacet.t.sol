@@ -75,14 +75,17 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
     function testCanSwapERC20() public {
         vm.startPrank(USDC_HOLDER);
-        usdc.approve(address(genericSwapFacet), 10_000 * 10**usdc.decimals());
+        usdc.approve(
+            address(genericSwapFacet),
+            10_000 * 10 ** usdc.decimals()
+        );
 
         // Swap USDC to DAI
         address[] memory path = new address[](2);
         path[0] = USDC_ADDRESS;
         path[1] = DAI_ADDRESS;
 
-        uint256 amountOut = 10 * 10**dai.decimals();
+        uint256 amountOut = 10 * 10 ** dai.decimals();
 
         // Calculate DAI amount
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);

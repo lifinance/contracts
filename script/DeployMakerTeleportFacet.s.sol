@@ -10,13 +10,25 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("MakerTeleportFacet") {}
 
-    function run() public returns (MakerTeleportFacet deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(vm.projectRoot(), "/config/maker.json");
+    function run()
+        public
+        returns (MakerTeleportFacet deployed, bytes memory constructorArgs)
+    {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/maker.json"
+        );
         string memory json = vm.readFile(path);
-        address makerTeleport = json.readAddress(string.concat(".", network, ".makerTeleport"));
+        address makerTeleport = json.readAddress(
+            string.concat(".", network, ".makerTeleport")
+        );
         address dai = json.readAddress(string.concat(".", network, ".dai"));
-        uint256 dstChainId = json.readUint(string.concat(".", network, ".dstChainId"));
-        bytes32 l1Domain = json.readBytes32(string.concat(".", network, ".l1Domain"));
+        uint256 dstChainId = json.readUint(
+            string.concat(".", network, ".dstChainId")
+        );
+        bytes32 l1Domain = json.readBytes32(
+            string.concat(".", network, ".l1Domain")
+        );
 
         constructorArgs = abi.encode(makerTeleport, dai, dstChainId, l1Domain);
 
@@ -27,7 +39,15 @@ contract DeployScript is DeployScriptBase {
         }
 
         deployed = MakerTeleportFacet(
-            payable(factory.deploy(salt, bytes.concat(type(MakerTeleportFacet).creationCode, constructorArgs)))
+            payable(
+                factory.deploy(
+                    salt,
+                    bytes.concat(
+                        type(MakerTeleportFacet).creationCode,
+                        constructorArgs
+                    )
+                )
+            )
         );
 
         vm.stopBroadcast();

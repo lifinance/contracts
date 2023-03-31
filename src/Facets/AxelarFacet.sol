@@ -76,11 +76,9 @@ contract AxelarFacet is ReentrancyGuard {
 
     /// @notice Initiates a cross-chain contract call via Axelar Network
     /// @param params the parameters for the cross-chain call
-    function executeCallViaAxelar(AxelarCallParameters calldata params)
-        external
-        payable
-        nonReentrant
-    {
+    function executeCallViaAxelar(
+        AxelarCallParameters calldata params
+    ) external payable nonReentrant {
         Storage storage s = getStorage();
         bytes memory payload = abi.encodePacked(
             params.callTo,

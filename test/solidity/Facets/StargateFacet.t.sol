@@ -135,10 +135,9 @@ contract StargateFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             stargateFacet.swapAndStartBridgeTokensViaStargate{
                 value: swapData[0].fromAmount + addToMessageValue

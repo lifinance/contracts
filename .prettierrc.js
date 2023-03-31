@@ -9,7 +9,6 @@ module.exports = {
         printWidth: 79,
         tabWidth: 4,
         singleQuote: false,
-        explicitTypes: 'always',
       },
     },
   ],

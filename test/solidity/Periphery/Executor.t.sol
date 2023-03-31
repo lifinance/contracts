@@ -50,9 +50,10 @@ contract MockGateway {
         return true;
     }
 
-    function setTokenAddress(string memory _symbol, address _tokenAddress)
-        external
-    {
+    function setTokenAddress(
+        string memory _symbol,
+        address _tokenAddress
+    ) external {
         tokenAddresses[_symbol] = _tokenAddress;
     }
 }
@@ -229,7 +230,7 @@ contract ExecutorTest is DSTest {
         path[0] = DAI_ADDRESS;
         path[1] = WETH_ADDRESS;
 
-        uint256 amountOut = 1_000 * 10**weth.decimals();
+        uint256 amountOut = 1_000 * 10 ** weth.decimals();
 
         // Calculate DAI amount
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);

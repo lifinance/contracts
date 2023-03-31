@@ -4,8 +4,9 @@ pragma solidity 0.8.17;
 
 import { InvalidCallData } from "../Errors/GenericErrors.sol";
 
+// solhint-disable no-inline-assembly
 library ExcessivelySafeCall {
-    uint256 constant LOW_28_MASK =
+    uint256 private constant LOW_28_MASK =
         0x00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
     /// @notice Use when you _really_ really _really_ don't trust the called
@@ -122,10 +123,10 @@ library ExcessivelySafeCall {
      * @param _newSelector The new 4-byte selector
      * @param _buf The encoded contract args
      */
-    function swapSelector(bytes4 _newSelector, bytes memory _buf)
-        internal
-        pure
-    {
+    function swapSelector(
+        bytes4 _newSelector,
+        bytes memory _buf
+    ) internal pure {
         if (_buf.length < 4) {
             revert InvalidCallData();
         }

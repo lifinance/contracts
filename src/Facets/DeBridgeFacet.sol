@@ -141,6 +141,7 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         }
 
+        // solhint-disable-next-line check-send-result
         deBridgeGate.send{ value: nativeAssetAmount }(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,

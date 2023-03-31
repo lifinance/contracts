@@ -92,10 +92,9 @@ contract SquidFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (bridgeData.sendingAssetId == address(0)) {
             SquidFacet.SquidData memory squidData = setNativeBridgeSquidData();
 

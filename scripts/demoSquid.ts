@@ -1,5 +1,11 @@
 import deployments from '../deployments/polygon.staging.json'
-import { SquidFacet__factory, ILiFi, SquidFacet, ERC20__factory, ISquidRouter__factory } from '../typechain'
+import {
+  SquidFacet__factory,
+  ILiFi,
+  SquidFacet,
+  ERC20__factory,
+  ISquidRouter__factory,
+} from '../typechain'
 import { ethers, utils } from 'ethers'
 import dotenv from 'dotenv'
 dotenv.config()
@@ -7,7 +13,7 @@ dotenv.config()
 const ROUTE_TYPES: Record<string, number> = {
   CALL_BRIDGE: 0,
   BRIDGE_CALL: 1,
-  CALL_BRIDGE_CALL: 2
+  CALL_BRIDGE_CALL: 2,
 }
 
 const main = async () => {
@@ -20,22 +26,36 @@ const main = async () => {
   const squidFacet = SquidFacet__factory.connect(LIFI_ADDRESS, provider)
 
   // Get a route from the Squid API (https://squidrouter.readme.io/reference/get_route)
-  const route = await fetch('https://api.0xsquid.com/v1/route?fromChain=56&toChain=42161&fromToken=0x55d398326f99059fF775485246999027B3197955&toToken=0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE&fromAmount=5000000000000000000&toAddress=0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0&slippage=1')
+  const route = await fetch(
+    'https://api.0xsquid.com/v1/route?fromChain=56&toChain=42161&fromToken=0x55d398326f99059fF775485246999027B3197955&toToken=0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE&fromAmount=5000000000000000000&toAddress=0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0&slippage=1'
+  )
   const routeJson = await route.json()
 
-  const token = ERC20__factory.connect(routeJson.route.params.fromToken.address, provider)
+  const token = ERC20__factory.connect(
+    routeJson.route.params.fromToken.address,
+    provider
+  )
   const iface = ISquidRouter__factory.createInterface()
 
   let decodedData
   switch (routeJson.route.transactionRequest.routeType) {
     case 'CALL_BRIDGE':
-      decodedData = iface.decodeFunctionData('callBridge', routeJson.route.transactionRequest.data)
+      decodedData = iface.decodeFunctionData(
+        'callBridge',
+        routeJson.route.transactionRequest.data
+      )
       break
     case 'BRIDGE_CALL':
-      decodedData = iface.decodeFunctionData('bridgeCall', routeJson.route.transactionRequest.data)
+      decodedData = iface.decodeFunctionData(
+        'bridgeCall',
+        routeJson.route.transactionRequest.data
+      )
       break
     case 'CALL_BRIDGE_CALL':
-      decodedData = iface.decodeFunctionData('callBridgeCall', routeJson.route.transactionRequest.data)
+      decodedData = iface.decodeFunctionData(
+        'callBridgeCall',
+        routeJson.route.transactionRequest.data
+      )
       break
   }
 
@@ -52,7 +72,6 @@ const main = async () => {
     hasDestinationCall: decodedData?.destinationCalls.length > 0,
   }
 
-
   const squidData: SquidFacet.SquidDataStruct = {
     routeType: ROUTE_TYPES[routeJson.route.transactionRequest.routeType],
     destinationChain: decodedData?.destinationChain,
@@ -64,12 +83,22 @@ const main = async () => {
   }
 
   const txRequest = routeJson.route.transactionRequest
-  let { value, gasLimit, maxFeePerGas, maxPriorityFeePerGas } = txRequest
-  gasLimit = (parseInt(gasLimit) + 200000).toString()
+  const { value, maxFeePerGas, maxPriorityFeePerGas } = txRequest
 
-  let tx = await token.connect(signer).approve(LIFI_ADDRESS, bridgeData.minAmount, { maxFeePerGas, maxPriorityFeePerGas })
+  let tx = await token
+    .connect(signer)
+    .approve(LIFI_ADDRESS, bridgeData.minAmount, {
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+    })
   await tx.wait()
-  tx = await squidFacet.connect(signer).startBridgeTokensViaSquid(bridgeData, squidData, { value, maxFeePerGas, maxPriorityFeePerGas })
+  tx = await squidFacet
+    .connect(signer)
+    .startBridgeTokensViaSquid(bridgeData, squidData, {
+      value,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+    })
   await tx.wait()
 }
 

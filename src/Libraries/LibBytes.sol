@@ -87,11 +87,10 @@ library LibBytes {
         return tempBytes;
     }
 
-    function toAddress(bytes memory _bytes, uint256 _start)
-        internal
-        pure
-        returns (address)
-    {
+    function toAddress(
+        bytes memory _bytes,
+        uint256 _start
+    ) internal pure returns (address) {
         if (_bytes.length < _start + 20) {
             revert AddressOutOfBounds();
         }
@@ -109,11 +108,10 @@ library LibBytes {
 
     /// Copied from OpenZeppelin's `Strings.sol` utility library.
     /// https://github.com/OpenZeppelin/openzeppelin-contracts/blob/8335676b0e99944eef6a742e16dcd9ff6e68e609/contracts/utils/Strings.sol
-    function toHexString(uint256 value, uint256 length)
-        internal
-        pure
-        returns (string memory)
-    {
+    function toHexString(
+        uint256 value,
+        uint256 length
+    ) internal pure returns (string memory) {
         bytes memory buffer = new bytes(2 * length + 2);
         buffer[0] = "0";
         buffer[1] = "x";

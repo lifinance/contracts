@@ -21,10 +21,7 @@ contract DeployScript is DeployScriptBase {
         }
 
         deployed = LIFuelFacet(
-            factory.deploy(
-                salt,
-                type(LIFuelFacet).creationCode
-            )
+            factory.deploy(salt, type(LIFuelFacet).creationCode)
         );
 
         vm.stopBroadcast();
