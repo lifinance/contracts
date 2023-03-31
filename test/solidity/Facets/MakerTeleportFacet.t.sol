@@ -27,8 +27,10 @@ contract MockArbSys {
     function sendTxToL1(
         address _destination,
         bytes calldata _callDataForL1
-    ) external returns (uint256) {
+    ) external view returns (uint256) {
         console.log("sendTxToL1 called");
+        console.logAddress(_destination);
+        console.logBytes(_callDataForL1);
         return 1;
     }
 }

@@ -106,6 +106,7 @@ contract LIFuelFacetTest is TestBaseFacet {
 
     function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
         public
+        view
         override
     {
         console.log("Not applicable for LIFuelFacet");

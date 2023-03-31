@@ -175,6 +175,7 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
 
     function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
         public
+        view
         override
     {
         console.log("Not applicable for HopFacetOptimized");
@@ -182,6 +183,7 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
 
     function testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
         public
+        view
         override
     {
         console.log("Not applicable for HopFacetOptimized");
