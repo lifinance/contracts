@@ -102,10 +102,6 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _deBridgeData.nativeFee
         );
 
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            _bridgeData.minAmount -= _deBridgeData.nativeFee;
-        }
-
         _startBridge(_bridgeData, _deBridgeData);
     }
 

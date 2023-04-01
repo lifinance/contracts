@@ -155,7 +155,9 @@ contract CelerIMFacetTest is TestBaseFacet {
                 value: bridgeData.minAmount + addToMessageValue
             }(bridgeData, celerIMData);
         } else {
-            celerIMFacet.startBridgeTokensViaCelerIM(bridgeData, celerIMData);
+            celerIMFacet.startBridgeTokensViaCelerIM{
+                value: addToMessageValue
+            }(bridgeData, celerIMData);
         }
     }
 
@@ -167,7 +169,9 @@ contract CelerIMFacetTest is TestBaseFacet {
                 value: swapData[0].fromAmount + addToMessageValue
             }(bridgeData, swapData, celerIMData);
         } else {
-            celerIMFacet.swapAndStartBridgeTokensViaCelerIM(
+            celerIMFacet.swapAndStartBridgeTokensViaCelerIM{
+                value: addToMessageValue
+            }(
                 bridgeData,
                 swapData,
                 celerIMData
@@ -283,6 +287,26 @@ contract CelerIMFacetTest is TestBaseFacet {
         bridgeData.hasDestinationCall = true;
 
         super.testBase_CanBridgeNativeTokens();
+    }
+
+    function test_CanSwapAndBridgeNativeTokens_DestinationCall() public {
+        addToMessageValue = 1e17;
+        celerIMData = CelerIMFacet.CelerIMData({
+            maxSlippage: 5000,
+            nonce: 1,
+            callTo: abi.encodePacked(address(1)),
+            callData: abi.encode(
+                bytes32(""),
+                swapData,
+                USER_SENDER,
+                USER_SENDER
+            ),
+            messageBusFee: addToMessageValue,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
+        bridgeData.hasDestinationCall = true;
+
+        super.testBase_CanSwapAndBridgeNativeTokens();
     }
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {

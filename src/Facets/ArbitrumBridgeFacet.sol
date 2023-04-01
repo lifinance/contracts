@@ -105,10 +105,6 @@ contract ArbitrumBridgeFacet is
             cost
         );
 
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            _bridgeData.minAmount -= cost;
-        }
-
         _startBridge(_bridgeData, _arbitrumData, cost);
     }
 
