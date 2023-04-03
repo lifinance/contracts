@@ -1,0 +1,13 @@
+{
+  "bsctest": {
+    "staging": {
+      "FeeCollector": "1.0.0",
+      "RelayerCelerIM": "1.0.0"
+    },
+    "production": {
+      "Executor": "1.0.0",
+      "Receiver": "1.0.0"
+    }
+  }
+
+}
