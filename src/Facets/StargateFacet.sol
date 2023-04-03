@@ -25,7 +25,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     struct Storage {
-        mapping(address => uint16) stargatePoolId;
         mapping(uint256 => uint16) layerZeroChainId;
         bool initialized;
     }
@@ -228,21 +227,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Mappings management ///
 
-    /// @notice Sets the Stargate pool ID for a given token
-    /// @param _token address of the token
-    /// @param _poolId uint16 of the Stargate pool ID
-    function setStargatePoolId(address _token, uint16 _poolId) external {
-        LibDiamond.enforceIsContractOwner();
-        Storage storage sm = getStorage();
-
-        if (!sm.initialized) {
-            revert NotInitialized();
-        }
-
-        sm.stargatePoolId[_token] = _poolId;
-        emit StargatePoolIdSet(_token, _poolId);
-    }
-
     /// @notice Sets the Layer 0 chain ID for a given chain ID
     /// @param _chainId uint16 of the chain ID
     /// @param _layerZeroChainId uint16 of the Layer 0 chain ID
@@ -260,16 +244,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         sm.layerZeroChainId[_chainId] = _layerZeroChainId;
         emit LayerZeroChainIdSet(_chainId, _layerZeroChainId);
-    }
-
-    /// @notice Gets the Stargate pool ID for a given token
-    /// @param _token address of the token
-    /// @return uint256 of the Stargate pool ID
-    function getStargatePoolId(address _token) private view returns (uint16) {
-        Storage storage sm = getStorage();
-        uint16 poolId = sm.stargatePoolId[_token];
-        if (poolId == 0) revert UnknownStargatePool();
-        return poolId;
     }
 
     /// @notice Gets the Layer 0 chain ID for a given chain ID
