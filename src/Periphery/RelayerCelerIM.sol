@@ -17,6 +17,7 @@ import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.
 /// @title RelayerCelerIM
 /// @author LI.FI (https://li.fi)
 /// @notice Relayer contract for CelerIM that forwards calls and handles refunds on src side and acts receiver on dest
+/// @custom:version 1.0.0
 contract RelayerCelerIM is ILiFi, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
@@ -339,9 +340,10 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
 
     /// @notice sets the CBridge MessageBus address
     /// @param _messageBusAddress the MessageBus address
-    function setCBridgeMessageBus(
-        address _messageBusAddress
-    ) external onlyOwner {
+    function setCBridgeMessageBus(address _messageBusAddress)
+        external
+        onlyOwner
+    {
         cBridgeMessageBus = IMessageBus(_messageBusAddress);
         emit CBridgeMessageBusSet(_messageBusAddress);
     }

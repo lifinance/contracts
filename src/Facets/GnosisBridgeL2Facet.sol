@@ -12,6 +12,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Gnosis Bridge Facet on Gnosis Chain
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through XDaiBridge
+/// @custom:version 1.0.0
 contract GnosisBridgeL2Facet is
     ILiFi,
     ReentrancyGuard,

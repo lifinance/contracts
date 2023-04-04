@@ -12,6 +12,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title DeBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through DeBridge Protocol
+/// @custom:version 1.0.0
 contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 

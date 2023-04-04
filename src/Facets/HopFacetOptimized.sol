@@ -10,6 +10,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 /// @title Hop Facet (Optimized)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
+/// @custom:version 1.0.0
 contract HopFacetOptimized is ILiFi, SwapperV2 {
     /// Types ///
 

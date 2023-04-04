@@ -11,6 +11,10 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 
+/// @title Axelar Facet
+/// @author Li.Finance (https://li.finance)
+/// @notice Provides functionality for cross-chain contract calls via Axelar Network
+/// @custom:version 1.0.0
 contract AxelarFacet is ReentrancyGuard {
     /// Storage ///
 
@@ -76,9 +80,11 @@ contract AxelarFacet is ReentrancyGuard {
 
     /// @notice Initiates a cross-chain contract call via Axelar Network
     /// @param params the parameters for the cross-chain call
-    function executeCallViaAxelar(
-        AxelarCallParameters calldata params
-    ) external payable nonReentrant {
+    function executeCallViaAxelar(AxelarCallParameters calldata params)
+        external
+        payable
+        nonReentrant
+    {
         Storage storage s = getStorage();
         bytes memory payload = abi.encodePacked(
             params.callTo,

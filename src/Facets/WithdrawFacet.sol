@@ -10,6 +10,7 @@ import { NotAContract } from "../Errors/GenericErrors.sol";
 /// @title Withdraw Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Allows admin to withdraw funds that are kept in the contract by accident
+/// @custom:version 1.0.0
 contract WithdrawFacet {
     /// Errors ///
 

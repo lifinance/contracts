@@ -17,6 +17,7 @@ interface IMultichainERC20 {
 /// @title Multichain Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Multichain (Prev. AnySwap)
+/// @custom:version 1.0.0
 contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Storage ///
 
@@ -56,10 +57,9 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @notice Initialize local variables for the Multichain Facet
     /// @param anyNative The address of the anyNative (e.g. anyETH) token
     /// @param routers Allowed Multichain Routers
-    function initMultichain(
-        address anyNative,
-        address[] calldata routers
-    ) external {
+    function initMultichain(address anyNative, address[] calldata routers)
+        external
+    {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();

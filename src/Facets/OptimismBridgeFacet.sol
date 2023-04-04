@@ -14,6 +14,7 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 /// @title Optimism Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Optimism Bridge
+/// @custom:version 1.0.0
 contract OptimismBridgeFacet is
     ILiFi,
     ReentrancyGuard,

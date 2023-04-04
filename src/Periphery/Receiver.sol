@@ -13,6 +13,7 @@ import { UnAuthorized } from "../Errors/GenericErrors.sol";
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
+/// @custom:version 1.0.0
 contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
 

@@ -11,6 +11,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title LIFuel Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging gas through LIFuel
+/// @custom:version 1.0.0
 contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -28,9 +29,7 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via LIFuel Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
-    function startBridgeTokensViaLIFuel(
-        ILiFi.BridgeData memory _bridgeData
-    )
+    function startBridgeTokensViaLIFuel(ILiFi.BridgeData memory _bridgeData)
         external
         payable
         nonReentrant

@@ -11,6 +11,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title CircleBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CircleBridge
+/// @custom:version 1.0.0
 contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 

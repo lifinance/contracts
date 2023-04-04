@@ -15,6 +15,7 @@ import { InvalidSendingToken, NoSwapDataProvided } from "../Errors/GenericErrors
 /// @title MakerTeleport Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Maker Teleport
+/// @custom:version 1.0.0
 contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeCast for uint256;
 
