@@ -7,6 +7,7 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 /// @title Fee Collector
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for collecting integrator fees
+/// @custom:version 1.0.0
 contract FeeCollector is TransferrableOwnership {
     /// State ///
 

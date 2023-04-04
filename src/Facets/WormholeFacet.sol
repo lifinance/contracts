@@ -15,6 +15,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Wormhole Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Wormhole
+/// @custom:version 1.0.0
 contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 

@@ -12,6 +12,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Arbitrum Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Arbitrum Bridge
+/// @custom:version 1.0.0
 contract ArbitrumBridgeFacet is
     ILiFi,
     ReentrancyGuard,

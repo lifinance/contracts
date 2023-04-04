@@ -7,6 +7,7 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 /// @title Service Fee Collector
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for collecting service fees (gas/insurance)
+/// @custom:version 1.0.0
 contract ServiceFeeCollector is TransferrableOwnership {
     /// Errors ///
     error TransferFailure();

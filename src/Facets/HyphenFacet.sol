@@ -11,6 +11,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Hyphen Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hyphen
+/// @custom:version 1.0.0
 contract HyphenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 

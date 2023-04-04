@@ -12,6 +12,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 /// @title ThorSwap Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through ThorSwap
+/// @custom:version 1.0.0
 contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     address private immutable thorchainRouter;
 

@@ -171,11 +171,7 @@ contract CelerIMFacetTest is TestBaseFacet {
         } else {
             celerIMFacet.swapAndStartBridgeTokensViaCelerIM{
                 value: addToMessageValue
-            }(
-                bridgeData,
-                swapData,
-                celerIMData
-            );
+            }(bridgeData, swapData, celerIMData);
         }
     }
 

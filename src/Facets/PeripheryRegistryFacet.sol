@@ -6,6 +6,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 /// @title Periphery Registry Facet
 /// @author LI.FI (https://li.fi)
 /// @notice A simple registry to track LIFI periphery contracts
+/// @custom:version 1.0.0
 contract PeripheryRegistryFacet {
     /// Storage ///
 

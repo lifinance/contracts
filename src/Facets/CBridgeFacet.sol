@@ -16,6 +16,7 @@ import { ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErr
 /// @title CBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
+/// @custom:version 1.0.0
 contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -131,7 +132,6 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibAsset.transferAsset(_assetAddress, payable(sendTo), _amount);
         emit CBridgeRefund(_assetAddress, sendTo, _amount);
     }
-
 
     /// Private Methods ///
 

@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @title CBridge Facet Packed
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
+/// @custom:version 1.0.0
 contract CBridgeFacetPacked is ILiFi {
     /// Storage ///
 

@@ -16,6 +16,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 /// @title Squid Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Squid Router
+/// @custom:version 1.0.0
 contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 

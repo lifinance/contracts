@@ -7,6 +7,7 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 /// @title ERC20 Proxy
 /// @author LI.FI (https://li.fi)
 /// @notice Proxy contract for safely transferring ERC20 tokens for swaps/executions
+/// @custom:version 1.0.0
 contract ERC20Proxy is Ownable {
     /// Storage ///
     mapping(address => bool) public authorizedCallers;

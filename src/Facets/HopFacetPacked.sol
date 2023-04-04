@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @title Hop Facet (Optimized for Rollups)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
+/// @custom:version 1.0.0
 contract HopFacetPacked is ILiFi {
     /// External Methods ///
 

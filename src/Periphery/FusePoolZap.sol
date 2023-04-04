@@ -23,6 +23,7 @@ interface IFusePoolDirectory {
 /// @title Fuse Pool Zap
 /// @author LI.FI (https://li.fi)
 /// @notice Allows anyone to quickly zap into a Rari Fuse Pool
+/// @custom:version 1.0.0
 contract FusePoolZap is ReentrancyGuard {
     using SafeERC20 for IERC20;
 

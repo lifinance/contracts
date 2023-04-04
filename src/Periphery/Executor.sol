@@ -14,6 +14,7 @@ import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721H
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
+/// @custom:version 1.0.0
 contract Executor is
     ILiFi,
     ReentrancyGuard,
