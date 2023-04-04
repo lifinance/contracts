@@ -115,29 +115,12 @@ contract SquidFacetTest is TestBaseFacet {
         super.testBase_CanBridgeTokens_fuzzed(amount);
     }
 
-    function testBase_CanBridgeNativeTokens()
-        public
-        override
-        assertBalanceChange(
-            address(0),
-            USER_SENDER,
-            -int256((1 ether + addToMessageValue))
-        )
-        assertBalanceChange(address(0), USER_RECEIVER, 0)
-        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
-        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
-    {
-        vm.startPrank(USER_SENDER);
-        // customize bridgeData
-        bridgeData.sendingAssetId = address(0);
-        bridgeData.minAmount = 1 ether;
+    function testBase_CanBridgeNativeTokens() public override {
+        // facet does not support native bridging
+    }
 
-        //prepare check for events
-        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit LiFiTransferStarted(bridgeData);
-
-        initiateBridgeTxWithFacet(true);
-        vm.stopPrank();
+    function testBase_CanSwapAndBridgeNativeTokens() public override {
+        // facet does not support native bridging
     }
 
     function setNativeBridgeSquidData()
