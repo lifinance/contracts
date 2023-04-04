@@ -26,10 +26,10 @@ contract ERC20Proxy is Ownable {
     /// @notice Sets whether or not a specified caller is authorized to call this contract
     /// @param caller the caller to change authorization for
     /// @param authorized specifies whether the caller is authorized (true/false)
-    function setAuthorizedCaller(address caller, bool authorized)
-        external
-        onlyOwner
-    {
+    function setAuthorizedCaller(
+        address caller,
+        bool authorized
+    ) external onlyOwner {
         authorizedCallers[caller] = authorized;
         emit AuthorizationChanged(caller, authorized);
     }

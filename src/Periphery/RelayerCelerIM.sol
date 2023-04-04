@@ -340,10 +340,9 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
 
     /// @notice sets the CBridge MessageBus address
     /// @param _messageBusAddress the MessageBus address
-    function setCBridgeMessageBus(address _messageBusAddress)
-        external
-        onlyOwner
-    {
+    function setCBridgeMessageBus(
+        address _messageBusAddress
+    ) external onlyOwner {
         cBridgeMessageBus = IMessageBus(_messageBusAddress);
         emit CBridgeMessageBusSet(_messageBusAddress);
     }

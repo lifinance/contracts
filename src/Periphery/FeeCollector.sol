@@ -113,9 +113,9 @@ contract FeeCollector is TransferrableOwnership {
 
     /// @notice Batch withdraw fees and sends to the integrator
     /// @param tokenAddresses addresses of the tokens to withdraw fees for
-    function batchWithdrawIntegratorFees(address[] memory tokenAddresses)
-        external
-    {
+    function batchWithdrawIntegratorFees(
+        address[] memory tokenAddresses
+    ) external {
         uint256 length = tokenAddresses.length;
         uint256 balance;
         for (uint256 i = 0; i < length; ) {
@@ -149,10 +149,9 @@ contract FeeCollector is TransferrableOwnership {
 
     /// @notice Batch withdraws fees and sends to lifi
     /// @param tokenAddresses addresses of the tokens to withdraw fees for
-    function batchWithdrawLifiFees(address[] memory tokenAddresses)
-        external
-        onlyOwner
-    {
+    function batchWithdrawLifiFees(
+        address[] memory tokenAddresses
+    ) external onlyOwner {
         uint256 length = tokenAddresses.length;
         uint256 balance;
         for (uint256 i = 0; i < length; ) {
@@ -173,21 +172,18 @@ contract FeeCollector is TransferrableOwnership {
     /// @notice Returns the balance of the integrator
     /// @param integratorAddress address of the integrator
     /// @param tokenAddress address of the token to get the balance of
-    function getTokenBalance(address integratorAddress, address tokenAddress)
-        external
-        view
-        returns (uint256)
-    {
+    function getTokenBalance(
+        address integratorAddress,
+        address tokenAddress
+    ) external view returns (uint256) {
         return _balances[integratorAddress][tokenAddress];
     }
 
     /// @notice Returns the balance of lifi
     /// @param tokenAddress address of the token to get the balance of
-    function getLifiTokenBalance(address tokenAddress)
-        external
-        view
-        returns (uint256)
-    {
+    function getLifiTokenBalance(
+        address tokenAddress
+    ) external view returns (uint256) {
         return _lifiBalances[tokenAddress];
     }
 }

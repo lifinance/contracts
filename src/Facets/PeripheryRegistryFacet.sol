@@ -40,11 +40,9 @@ contract PeripheryRegistryFacet {
 
     /// @notice Returns the registered contract address by its name
     /// @param _name the registered name of the contract
-    function getPeripheryContract(string calldata _name)
-        external
-        view
-        returns (address)
-    {
+    function getPeripheryContract(
+        string calldata _name
+    ) external view returns (address) {
         return getStorage().contracts[_name];
     }
 

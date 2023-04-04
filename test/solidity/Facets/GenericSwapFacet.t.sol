@@ -23,7 +23,6 @@ contract TestGenericSwapFacet is GenericSwapFacet {
 }
 
 contract GenericSwapFacetTest is DSTest, DiamondTest {
-
     event LiFiGenericSwapCompleted(
         bytes32 indexed transactionId,
         string integrator,

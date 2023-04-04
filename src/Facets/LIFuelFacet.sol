@@ -29,7 +29,9 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via LIFuel Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
-    function startBridgeTokensViaLIFuel(ILiFi.BridgeData memory _bridgeData)
+    function startBridgeTokensViaLIFuel(
+        ILiFi.BridgeData memory _bridgeData
+    )
         external
         payable
         nonReentrant

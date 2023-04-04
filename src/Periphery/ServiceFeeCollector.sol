@@ -58,10 +58,10 @@ contract ServiceFeeCollector is TransferrableOwnership {
     /// @notice Collects gas fees in native token
     /// @param chainId The chain id of the destination chain
     /// @param receiver The address to send gas to on destination chain
-    function collectNativeGasFees(uint256 chainId, address receiver)
-        external
-        payable
-    {
+    function collectNativeGasFees(
+        uint256 chainId,
+        address receiver
+    ) external payable {
         emit GasFeesCollected(
             LibAsset.NULL_ADDRESS,
             chainId,
@@ -103,10 +103,9 @@ contract ServiceFeeCollector is TransferrableOwnership {
 
     /// @notice Batch withdraws fees
     /// @param tokenAddresses The addresses of the tokens to withdraw fees for
-    function batchWithdrawFees(address[] calldata tokenAddresses)
-        external
-        onlyOwner
-    {
+    function batchWithdrawFees(
+        address[] calldata tokenAddresses
+    ) external onlyOwner {
         uint256 length = tokenAddresses.length;
         uint256 balance;
         for (uint256 i = 0; i < length; ) {

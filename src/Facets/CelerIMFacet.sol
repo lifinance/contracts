@@ -215,10 +215,9 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Get right asset to transfer to relayer.
     /// @param _sendingAssetId The address of asset to bridge.
     /// @return _asset The address of asset to transfer to relayer.
-    function _getRightAsset(address _sendingAssetId)
-        private
-        returns (IERC20 _asset)
-    {
+    function _getRightAsset(
+        address _sendingAssetId
+    ) private returns (IERC20 _asset) {
         if (_sendingAssetId == cfUSDC) {
             // special case for cfUSDC token
             _asset = IERC20(CelerToken(_sendingAssetId).canonical());
