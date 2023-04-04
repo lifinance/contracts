@@ -53,6 +53,7 @@
   },
   "scripts": {
     "postinstall": "patch-package",
+    "prepare": "yarn prepare:husky",
     "prepare:husky": "husky install",
     "lint": "eslint \"**/*.{js,ts}\" && solhint src/**/*.sol",
     "lint:fix": "eslint --fix \"**/*.{js,ts}\" && solhint --fix src/**/*.sol",

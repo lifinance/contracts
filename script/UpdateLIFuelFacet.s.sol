@@ -6,7 +6,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { LIFuelFacet } from "lifi/Facets/LIFuelFacet.sol";
-import {DSTest} from "ds-test/test.sol";
+import { DSTest } from "ds-test/test.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;

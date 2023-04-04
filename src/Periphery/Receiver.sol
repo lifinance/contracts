@@ -207,6 +207,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 amount
     ) external onlyOwner {
         if (LibAsset.isNativeAsset(assetId)) {
+            // solhint-disable-next-line avoid-low-level-calls
             (bool success, ) = receiver.call{ value: amount }("");
             if (!success) revert ExternalCallFailed();
         } else {
@@ -237,6 +238,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             // case 1: native asset
             if (reserveRecoverGas && gasleft() < _recoverGas) {
                 // case 1a: not enough gas left to execute calls
+                // solhint-disable-next-line avoid-low-level-calls
                 (bool success, ) = receiver.call{ value: amount }("");
                 if (!success) revert ExternalCallFailed();
 
@@ -251,15 +253,17 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             }
 
             // case 1b: enough gas left to execute calls
+            // solhint-disable no-empty-blocks
             try
                 executor.swapAndCompleteBridgeTokens{
                     value: amount,
                     gas: gasleft() - _recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
+                // solhint-disable-next-line avoid-low-level-calls
                 (bool success, ) = receiver.call{ value: amount }("");
                 if (!success) revert ExternalCallFailed();
-                
+
                 emit LiFiTransferRecovered(
                     _transactionId,
                     assetId,

@@ -10,10 +10,18 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("CBridgeFacet") {}
 
-    function run() public returns (CBridgeFacet deployed, bytes memory constructorArgs) {
-        string memory path = string.concat(vm.projectRoot(), "/config/cbridge.json");
+    function run()
+        public
+        returns (CBridgeFacet deployed, bytes memory constructorArgs)
+    {
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/config/cbridge.json"
+        );
         string memory json = vm.readFile(path);
-        address cBridge = json.readAddress(string.concat(".", network, ".cBridge"));
+        address cBridge = json.readAddress(
+            string.concat(".", network, ".cBridge")
+        );
 
         constructorArgs = abi.encode(cBridge);
 
@@ -24,7 +32,15 @@ contract DeployScript is DeployScriptBase {
         }
 
         deployed = CBridgeFacet(
-            payable(factory.deploy(salt, bytes.concat(type(CBridgeFacet).creationCode, constructorArgs)))
+            payable(
+                factory.deploy(
+                    salt,
+                    bytes.concat(
+                        type(CBridgeFacet).creationCode,
+                        constructorArgs
+                    )
+                )
+            )
         );
 
         vm.stopBroadcast();

@@ -124,10 +124,9 @@ contract GnosisBridgeL2FacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             gnosisBridgeL2Facet.swapAndStartBridgeTokensViaXDaiBridge{
                 value: swapData[0].fromAmount
@@ -172,7 +171,10 @@ contract GnosisBridgeL2FacetTest is TestBaseFacet {
     function testBase_CanSwapAndBridgeTokens() public override {
         vm.startPrank(USER_SENDER);
 
-        usdc.approve(address(gnosisBridgeL2Facet), 10_000 * 10**usdc.decimals());
+        usdc.approve(
+            address(gnosisBridgeL2Facet),
+            10_000 * 10 ** usdc.decimals()
+        );
 
         setDefaultSwapData();
         bridgeData.hasSourceSwaps = true;

@@ -153,6 +153,7 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
      * @param _bridgeData the core information needed for bridging
      * @param _celerIMData data specific to CelerIM
      */
+    // solhint-disable-next-line code-complexity
     function sendTokenTransfer(
         ILiFi.BridgeData memory _bridgeData,
         CelerIMFacet.CelerIMData calldata _celerIMData
@@ -184,6 +185,7 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
                     bridgeAddress,
                     _bridgeData.minAmount
                 );
+                // solhint-disable-next-line check-send-result
                 ICBridge(bridgeAddress).send(
                     _bridgeData.receiver,
                     _bridgeData.sendingAssetId,
@@ -337,10 +339,9 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
 
     /// @notice sets the CBridge MessageBus address
     /// @param _messageBusAddress the MessageBus address
-    function setCBridgeMessageBus(address _messageBusAddress)
-        external
-        onlyOwner
-    {
+    function setCBridgeMessageBus(
+        address _messageBusAddress
+    ) external onlyOwner {
         cBridgeMessageBus = IMessageBus(_messageBusAddress);
         emit CBridgeMessageBusSet(_messageBusAddress);
     }
@@ -389,6 +390,7 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
             {
                 success = true;
             } catch {
+                // solhint-disable-next-line avoid-low-level-calls
                 (bool fundsSent, ) = refundAddress.call{ value: amount }("");
                 if (!fundsSent) {
                     revert ExternalCallFailed();
@@ -435,7 +437,11 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
         uint256 amount
     ) external onlyOwner {
         if (LibAsset.isNativeAsset(assetId)) {
-            receiver.call{ value: amount }("");
+            // solhint-disable-next-line avoid-low-level-calls
+            (bool success, ) = receiver.call{ value: amount }("");
+            if (!success) {
+                revert WithdrawFailed();
+            }
         } else {
             IERC20(assetId).safeTransfer(receiver, amount);
         }
@@ -469,6 +475,7 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
         }
 
         // call contract
+        // solhint-disable-next-line avoid-low-level-calls
         (success, ) = _callTo.call(_callData);
 
         // forward funds to _to address and emit event, if cBridge refund successful
@@ -482,5 +489,6 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
     }
 
     // required in order to receive native tokens from cBridge facet
+    // solhint-disable-next-line no-empty-blocks
     receive() external payable {}
 }

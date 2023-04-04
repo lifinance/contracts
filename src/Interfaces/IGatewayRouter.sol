@@ -42,10 +42,9 @@ interface IGatewayRouter {
     /// @notice Returns receiving token address on L2
     /// @param _token Sending token address on L1
     /// @return Receiving token address on L2
-    function calculateL2TokenAddress(address _token)
-        external
-        view
-        returns (address);
+    function calculateL2TokenAddress(
+        address _token
+    ) external view returns (address);
 
     /// @notice Returns exact gateway router address for token
     /// @param _token Sending token address on L1

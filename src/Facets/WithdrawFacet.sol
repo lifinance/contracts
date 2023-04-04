@@ -46,6 +46,8 @@ contract WithdrawFacet {
         bool success;
         bool isContract = LibAsset.isContract(_callTo);
         if (!isContract) revert NotAContract();
+
+        // solhint-disable-next-line avoid-low-level-calls
         (success, ) = _callTo.call(_callData);
 
         if (success) {

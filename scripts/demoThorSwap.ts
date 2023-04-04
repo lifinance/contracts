@@ -1,5 +1,10 @@
 import deployments from '../deployments/mainnet.staging.json'
-import { ThorSwapFacet__factory, ILiFi, ThorSwapFacet, ERC20__factory } from '../typechain'
+import {
+  ThorSwapFacet__factory,
+  ILiFi,
+  ThorSwapFacet,
+  ERC20__factory,
+} from '../typechain'
 import { ethers, utils } from 'ethers'
 import dotenv from 'dotenv'
 dotenv.config()
@@ -13,15 +18,14 @@ const main = async () => {
   const signer = new ethers.Wallet(PRIVATE_KEY as string, provider)
   const thorSwapFacet = ThorSwapFacet__factory.connect(LIFI_ADDRESS, provider)
 
-  let resp
-  let quote
-  let route
   let tx
 
-  resp = await fetch('https://dev-api.thorswap.net/aggregator/tokens/quote?sellAsset=ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48&buyAsset=LTC.LTC&sellAmount=10&recipientAddress=ltc1qpl20tgr56q6wk7t6gug0z77dhk80ppw728mvzx&providers=THORCHAIN')
-  quote = await resp.json()
+  const resp = await fetch(
+    'https://dev-api.thorswap.net/aggregator/tokens/quote?sellAsset=ETH.USDC-0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48&buyAsset=LTC.LTC&sellAmount=10&recipientAddress=ltc1qpl20tgr56q6wk7t6gug0z77dhk80ppw728mvzx&providers=THORCHAIN'
+  )
+  const quote = await resp.json()
   // @ts-ignore
-  route = quote.routes.filter(r => r.optimal === true)[0]
+  const route = quote.routes.filter((r) => r.optimal === true)[0]
 
   const token = ERC20__factory.connect(route.calldata.assetAddress, provider)
 
@@ -41,13 +45,16 @@ const main = async () => {
   const thorSwapData: ThorSwapFacet.ThorSwapDataStruct = {
     vault: route.calldata.tcVault,
     memo: route.calldata.memo,
-    expiration: route.calldata.expiration
+    expiration: route.calldata.expiration,
   }
 
-
-  tx = await token.connect(signer).approve(LIFI_ADDRESS, route.calldata.amountIn)
+  tx = await token
+    .connect(signer)
+    .approve(LIFI_ADDRESS, route.calldata.amountIn)
   await tx.wait()
-  tx = await thorSwapFacet.connect(signer).startBridgeTokensViaThorSwap(bridgeData, thorSwapData)
+  tx = await thorSwapFacet
+    .connect(signer)
+    .startBridgeTokensViaThorSwap(bridgeData, thorSwapData)
   await tx.wait()
 }
 

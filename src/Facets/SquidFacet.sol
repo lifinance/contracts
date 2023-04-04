@@ -81,7 +81,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ) {
             revert InformationMismatch();
         }
-        
+
         validateDestinationCallFlag(_bridgeData, _squidData);
 
         LibAsset.depositAsset(
@@ -117,7 +117,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ) {
             revert InformationMismatch();
         }
-      
+
         validateDestinationCallFlag(_bridgeData, _squidData);
 
         _bridgeData.minAmount = _depositAndSwap(
