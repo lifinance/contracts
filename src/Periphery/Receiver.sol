@@ -236,7 +236,8 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
         if (LibAsset.isNativeAsset(assetId)) {
             // case 1: native asset
-            if (reserveRecoverGas && gasleft() < _recoverGas) {
+            uint256 cacheGasLeft = gasleft();
+            if (reserveRecoverGas && cacheGasLeft < _recoverGas) {
                 // case 1a: not enough gas left to execute calls
                 // solhint-disable-next-line avoid-low-level-calls
                 (bool success, ) = receiver.call{ value: amount }("");
@@ -257,7 +258,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             try
                 executor.swapAndCompleteBridgeTokens{
                     value: amount,
-                    gas: gasleft() - _recoverGas
+                    gas: cacheGasLeft - _recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
                 // solhint-disable-next-line avoid-low-level-calls
@@ -274,10 +275,11 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             }
         } else {
             // case 2: ERC20 asset
+            uint256 cacheGasLeft = gasleft();
             IERC20 token = IERC20(assetId);
             token.safeApprove(address(executor), 0);
 
-            if (reserveRecoverGas && gasleft() < _recoverGas) {
+            if (reserveRecoverGas && cacheGasLeft < _recoverGas) {
                 // case 2a: not enough gas left to execute calls
                 token.safeTransfer(receiver, amount);
 
@@ -295,7 +297,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             token.safeIncreaseAllowance(address(executor), amount);
             try
                 executor.swapAndCompleteBridgeTokens{
-                    gas: gasleft() - _recoverGas
+                    gas: cacheGasLeft - _recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
                 token.safeTransfer(receiver, amount);
