@@ -14,18 +14,6 @@ import { InvalidReceiver } from "../Errors/GenericErrors.sol";
 /// @notice Provides functionality for swapping through ANY APPROVED DEX
 /// @dev Uses calldata to execute APPROVED arbitrary methods on DEXs
 contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    /// Events ///
-
-    event LiFiSwappedGeneric(
-        bytes32 indexed transactionId,
-        string integrator,
-        string referrer,
-        address fromAssetId,
-        address toAssetId,
-        uint256 fromAmount,
-        uint256 toAmount
-    );
-
     /// External Methods ///
 
     /// @notice Performs multiple swaps in one transaction
@@ -57,10 +45,11 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             .receivingAssetId;
         LibAsset.transferAsset(receivingAssetId, _receiver, postSwapBalance);
 
-        emit LiFiSwappedGeneric(
+        emit LiFiGenericSwapCompleted(
             _transactionId,
             _integrator,
             _referrer,
+            _receiver,
             _swapData[0].sendingAssetId,
             receivingAssetId,
             _swapData[0].fromAmount,

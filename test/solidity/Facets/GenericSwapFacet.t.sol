@@ -23,6 +23,18 @@ contract TestGenericSwapFacet is GenericSwapFacet {
 }
 
 contract GenericSwapFacetTest is DSTest, DiamondTest {
+
+    event LiFiGenericSwapCompleted(
+        bytes32 indexed transactionId,
+        string integrator,
+        string referrer,
+        address receiver,
+        address fromAssetId,
+        address toAssetId,
+        uint256 fromAmount,
+        uint256 toAmount
+    );
+
     // These values are for Mainnet
     address internal constant USDC_ADDRESS =
         0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -30,6 +42,8 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address internal constant USDC_HOLDER =
         0xee5B5B923fFcE93A870B3104b7CA09c3db80047A;
+    address internal constant SOME_WALLET =
+        0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
     address internal constant UNISWAP_V2_ROUTER =
         0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
 
@@ -108,14 +122,27 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
             true
         );
 
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiGenericSwapCompleted(
+            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
+            "integrator", // integrator,
+            "referrer", // referrer,
+            SOME_WALLET, // receiver,
+            USDC_ADDRESS, // fromAssetId,
+            DAI_ADDRESS, // toAssetId,
+            amountIn, // fromAmount,
+            10000000166486371895 // toAmount (with liquidity in that selected block)
+        );
+
         genericSwapFacet.swapTokensGeneric(
             "",
-            "",
-            "",
-            payable(USDC_HOLDER),
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET),
             amountOut,
             swapData
         );
+
         vm.stopPrank();
     }
 }

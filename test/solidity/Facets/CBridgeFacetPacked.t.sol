@@ -103,6 +103,7 @@ contract CBridgeGasTest is Test, DiamondTest {
 
         // Native params
         amountNative = 1 * 10 ** 18;
+
         bytes memory packedNativeParams = bytes.concat(
             bytes8(transactionId), // transactionId
             bytes16(bytes(integrator)), // integrator
