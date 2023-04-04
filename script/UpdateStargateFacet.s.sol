@@ -10,11 +10,6 @@ import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    struct PoolIdConfig {
-        address token;
-        uint16 poolId;
-    }
-
     struct ChainIdConfig {
         uint256 chainId;
         uint16 layerZeroChainId;
@@ -31,21 +26,11 @@ contract DeployScript is UpdateScriptBase {
             (ChainIdConfig[])
         );
 
-        bytes memory rawPools = json.parseRaw(
-            string.concat(".pools.", network)
-        );
-        PoolIdConfig[] memory poolCfg = abi.decode(rawPools, (PoolIdConfig[]));
-
         bytes memory callData = abi.encodeWithSelector(
             StargateFacet.initStargate.selector,
-            poolCfg,
             cidCfg
         );
 
-        for (uint256 i = 0; i < poolCfg.length; i++) {
-            console.log(poolCfg[i].poolId);
-            console.log(poolCfg[i].token);
-        }
         vm.startBroadcast(deployerPrivateKey);
 
         // Stargate
