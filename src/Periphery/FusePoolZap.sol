@@ -23,6 +23,7 @@ interface IFusePoolDirectory {
 /// @title Fuse Pool Zap
 /// @author LI.FI (https://li.fi)
 /// @notice Allows anyone to quickly zap into a Rari Fuse Pool
+/// @custom:version 1.0.0
 contract FusePoolZap is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -127,6 +128,7 @@ contract FusePoolZap is ReentrancyGuard {
         );
 
         // Use call because method can succeed with partial revert
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory res) = address(fToken).call{
             value: msg.value
         }(abi.encodeWithSignature("mint()"));

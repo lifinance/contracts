@@ -11,6 +11,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Gravity Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Gravity
+/// @custom:version 1.0.0
 contract GravityFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -37,7 +38,7 @@ contract GravityFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     function startBridgeTokensViaGravity(
         ILiFi.BridgeData memory _bridgeData,
-        GravityData memory _gravityData
+        GravityData calldata _gravityData
     )
         external
         payable
@@ -61,7 +62,7 @@ contract GravityFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaGravity(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        GravityData memory _gravityData
+        GravityData calldata _gravityData
     )
         external
         payable
@@ -87,7 +88,7 @@ contract GravityFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        GravityData memory _gravityData
+        GravityData calldata _gravityData
     ) private {
         // Give the Gravity router approval to bridge tokens
         LibAsset.maxApproveERC20(

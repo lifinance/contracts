@@ -1,0 +1,109 @@
+name: Types Bindings
+
+on:
+  push:
+    branches:
+      - "master"
+      - "staging"
+      - "spearbit-audit-march-2023"
+
+env:
+  BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+
+jobs:
+  generate-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout contracts repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ env.BRANCH_NAME }}
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - name: Install Node deps
+        run: yarn install
+
+      - name: Generate ABI
+        run: yarn abi:generate
+
+      - name: Generate types bindings
+        run: yarn typechain
+
+      - name: Checkout lifi-contract-types repository
+        uses: actions/checkout@v3
+        with:
+          repository: lifinance/lifi-contract-types
+          path: lifi-contract-types
+          ssh-key: ${{ secrets.SSH_REPO_TOKEN }}
+          ref: master
+
+      - name: Copy types bindings
+        run: |
+          rm -r lifi-contract-types/src/
+          mv typechain lifi-contract-types/src
+          cp diamondABI/diamond.json lifi-contract-types/dist/
+      - name: Build contract types
+        run: cd lifi-contract-types && yarn install && yarn build
+
+      - name: Retrieve latest Tag
+        id: latest_release
+        run: |
+          # fetch tag releases
+          release_json=$(curl https://api.github.com/repos/lifinance/lifi-contract-types/tags)
+          # get the latest tag
+          LATEST_TAG=$(echo "$release_json" | jq -r '.[0].name')
+          # we need to make sure that on staging we're going to update a -beta version, if any
+          if [[ "$BRANCH_NAME" != "master" ]]; then
+            # if it has already "-beta", no other action is required, since it means
+            # that we're already going to update the latest staging release
+            if [[ "$LATEST_TAG" != *"beta"* ]]; then
+              # otherwise, start looping through the tags and search for the latest -beta tag
+              while read item; do
+                tag_name=$(jq -r '.name' <<< "$item")
+                # check if there's already a latest tag beta release
+                # and, if present, use it instead of the main one
+                # if we end up without any latest beta tag, we will create a beta release from the latest tag
+                if [[ "$tag_name" == "$LATEST_TAG-$beta"* ]]; then
+                  LATEST_TAG=$tag_name
+                  break
+                fi
+              done <<<$(echo "$release_json" | jq -c -r '.[]')
+            fi
+          fi
+          echo "latest tag: $LATEST_TAG"
+          echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
+      - name: Update version
+        id: bump_version
+        uses: christian-draeger/increment-semantic-version@1.1.0
+        with:
+          current-version: "${{ env.LATEST_TAG }}"
+          version-fragment: "${{ env.BRANCH_NAME == 'master' && (contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || 'bug') || 'beta' }}"
+
+      - name: Push tag
+        if: steps.bump_version.outputs.next-version
+        run: |
+          cd lifi-contract-types
+          tmp=$(mktemp)
+          jq '.version="${{ steps.bump_version.outputs.next-version }}"' package.json > "$tmp" && mv "$tmp" package.json
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          echo "Updating version from ${{ env.LATEST_TAG }} to ${{ steps.bump_version.outputs.next-version }}"
+          git add src/*
+          git add dist/*
+          git add package.json
+          git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
+          git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ github.event.head_commit.message }}"
+          git push origin tag v${{ steps.bump_version.outputs.next-version }}
+          if [[ "$BRANCH_NAME" == "master" ]]; then
+            git push -u origin $BRANCH_NAME
+          fi

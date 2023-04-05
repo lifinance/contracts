@@ -99,10 +99,9 @@ contract AllBridgeFacetTest is TestBaseFacet {
         // facet does not support bridging of native assets
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             allBridgeFacet.swapAndStartBridgeTokensViaAllBridge{
                 value: swapData[0].fromAmount + addToMessageValue

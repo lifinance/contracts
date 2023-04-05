@@ -10,9 +10,11 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CelerIMFacet Contract
 contract TestCelerIMFacet is CelerIMFacet {
-    constructor(IMessageBus _messageBus, RelayerCelerIM _relayer)
-        CelerIMFacet(_messageBus, _relayer)
-    {}
+    constructor(
+        IMessageBus _messageBus,
+        RelayerCelerIM _relayer,
+        address _cfUSDC
+    ) CelerIMFacet(_messageBus, _relayer, _cfUSDC) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -76,6 +78,8 @@ contract CelerIMFacetTest is TestBaseFacet {
         0x16365b45EB269B5B5dACB34B4a15399Ec79b95eB;
     address internal constant CBRIDGE_PEG_BRIDGE_V2 =
         0x52E4f244f380f8fA51816c8a10A63105dd4De084;
+    address internal constant CFUSDC =
+        0x317F8d18FB16E49a958Becd0EA72f8E153d25654;
 
     TestCelerIMFacet internal celerIMFacet;
     CelerIMFacet.CelerIMData internal celerIMData;
@@ -99,7 +103,8 @@ contract CelerIMFacetTest is TestBaseFacet {
 
         celerIMFacet = new TestCelerIMFacet(
             IMessageBus(CBRIDGE_MESSAGEBUS_ETH),
-            relayer
+            relayer,
+            CFUSDC
         );
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = celerIMFacet
@@ -147,27 +152,26 @@ contract CelerIMFacetTest is TestBaseFacet {
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             celerIMFacet.startBridgeTokensViaCelerIM{
-                value: bridgeData.minAmount
+                value: bridgeData.minAmount + addToMessageValue
             }(bridgeData, celerIMData);
         } else {
-            celerIMFacet.startBridgeTokensViaCelerIM(bridgeData, celerIMData);
+            celerIMFacet.startBridgeTokensViaCelerIM{
+                value: addToMessageValue
+            }(bridgeData, celerIMData);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             celerIMFacet.swapAndStartBridgeTokensViaCelerIM{
-                value: swapData[0].fromAmount
+                value: swapData[0].fromAmount + addToMessageValue
             }(bridgeData, swapData, celerIMData);
         } else {
-            celerIMFacet.swapAndStartBridgeTokensViaCelerIM(
-                bridgeData,
-                swapData,
-                celerIMData
-            );
+            celerIMFacet.swapAndStartBridgeTokensViaCelerIM{
+                value: addToMessageValue
+            }(bridgeData, swapData, celerIMData);
         }
     }
 
@@ -259,6 +263,46 @@ contract CelerIMFacetTest is TestBaseFacet {
         }(bridgeData, celerIMData);
 
         vm.stopPrank();
+    }
+
+    function test_CanBridgeNativeTokens_DestinationCall() public {
+        addToMessageValue = 1e17;
+        celerIMData = CelerIMFacet.CelerIMData({
+            maxSlippage: 5000,
+            nonce: 1,
+            callTo: abi.encodePacked(address(1)),
+            callData: abi.encode(
+                bytes32(""),
+                swapData,
+                USER_SENDER,
+                USER_SENDER
+            ),
+            messageBusFee: addToMessageValue,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
+        bridgeData.hasDestinationCall = true;
+
+        super.testBase_CanBridgeNativeTokens();
+    }
+
+    function test_CanSwapAndBridgeNativeTokens_DestinationCall() public {
+        addToMessageValue = 1e17;
+        celerIMData = CelerIMFacet.CelerIMData({
+            maxSlippage: 5000,
+            nonce: 1,
+            callTo: abi.encodePacked(address(1)),
+            callData: abi.encode(
+                bytes32(""),
+                swapData,
+                USER_SENDER,
+                USER_SENDER
+            ),
+            messageBusFee: addToMessageValue,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
+        bridgeData.hasDestinationCall = true;
+
+        super.testBase_CanSwapAndBridgeNativeTokens();
     }
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {

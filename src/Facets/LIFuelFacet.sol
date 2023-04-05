@@ -4,21 +4,26 @@ pragma solidity 0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ServiceFeeCollector } from "../Periphery/ServiceFeeCollector.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InformationMismatch, InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { LibMappings } from "../Libraries/LibMappings.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { LibMappings } from "../Libraries/LibMappings.sol";
 
 /// @title LIFuel Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging gas through LIFuel
+/// @custom:version 1.0.0
 contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    
     /// Storage ///
+
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.periphery_registry");
     string internal constant FEE_COLLECTOR_NAME = "ServiceFeeCollector";
+
+    /// Types ///
+
+    struct Storage {
+        mapping(string => address) contracts;
+    }
 
     /// External Methods ///
 
@@ -32,6 +37,7 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
         LibAsset.depositAsset(
@@ -53,6 +59,7 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
         _bridgeData.minAmount = _depositAndSwap(
@@ -69,21 +76,16 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @dev Contains the business logic for the bridge via LIFuel Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData
-    ) private {
-        
+    function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
         ServiceFeeCollector serviceFeeCollector = ServiceFeeCollector(
-            LibMappings.getPeripheryRegistryMappings().contracts[FEE_COLLECTOR_NAME]
+            getStorage().contracts[FEE_COLLECTOR_NAME]
         );
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            serviceFeeCollector.collectNativeGasFees{value: _bridgeData.minAmount}(
-                _bridgeData.minAmount,
-                _bridgeData.receiver
-            );
+            serviceFeeCollector.collectNativeGasFees{
+                value: _bridgeData.minAmount
+            }(_bridgeData.destinationChainId, _bridgeData.receiver);
         } else {
-
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(serviceFeeCollector),
@@ -93,10 +95,20 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             serviceFeeCollector.collectTokenGasFees(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
+                _bridgeData.destinationChainId,
                 _bridgeData.receiver
             );
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }

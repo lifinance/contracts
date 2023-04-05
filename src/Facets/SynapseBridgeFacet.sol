@@ -11,6 +11,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title SynapseBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through SynapseBridge
+/// @custom:version 1.0.0
 contract SynapseBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -18,7 +19,7 @@ contract SynapseBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// @notice The contract address of the SynapseRouter on the source chain.
-    ISynapseRouter public immutable synapseRouter;
+    ISynapseRouter private immutable synapseRouter;
 
     /// Types ///
 

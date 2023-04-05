@@ -120,10 +120,9 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         validHopData.bonderFee = (bridgeData.minAmount * 1) / 100;
         if (isNative || bridgeData.sendingAssetId == address(0)) {
             validHopData.hopBridge = IHopBridge(NATIVE_BRIDGE);
@@ -176,6 +175,7 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
 
     function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
         public
+        view
         override
     {
         console.log("Not applicable for HopFacetOptimized");
@@ -183,6 +183,7 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
 
     function testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
         public
+        view
         override
     {
         console.log("Not applicable for HopFacetOptimized");

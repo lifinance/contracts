@@ -36,7 +36,9 @@ contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
     /// @notice Gets all the function selectors provided by a facet.
     /// @param _facet The facet address.
     /// @return facetFunctionSelectors_
-    function facetFunctionSelectors(address _facet)
+    function facetFunctionSelectors(
+        address _facet
+    )
         external
         view
         override
@@ -64,12 +66,9 @@ contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
     /// @dev If facet is not found return address(0).
     /// @param _functionSelector The function selector.
     /// @return facetAddress_ The facet address.
-    function facetAddress(bytes4 _functionSelector)
-        external
-        view
-        override
-        returns (address facetAddress_)
-    {
+    function facetAddress(
+        bytes4 _functionSelector
+    ) external view override returns (address facetAddress_) {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         facetAddress_ = ds
             .selectorToFacetAndPosition[_functionSelector]
@@ -77,12 +76,9 @@ contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
     }
 
     // This implements ERC-165.
-    function supportsInterface(bytes4 _interfaceId)
-        external
-        view
-        override
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 _interfaceId
+    ) external view override returns (bool) {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         return ds.supportedInterfaces[_interfaceId];
     }

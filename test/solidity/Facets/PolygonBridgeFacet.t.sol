@@ -7,9 +7,10 @@ import { IRootChainManager } from "lifi/Interfaces/IRootChainManager.sol";
 
 // Stub PolygonBridgeFacet Contract
 contract TestPolygonBridgeFacet is PolygonBridgeFacet {
-    constructor(IRootChainManager _rootChainManager, address _erc20Predicate)
-        PolygonBridgeFacet(_rootChainManager, _erc20Predicate)
-    {}
+    constructor(
+        IRootChainManager _rootChainManager,
+        address _erc20Predicate
+    ) PolygonBridgeFacet(_rootChainManager, _erc20Predicate) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -81,10 +82,9 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             polygonBridgeFacet.swapAndStartBridgeTokensViaPolygonBridge{
                 value: swapData[0].fromAmount

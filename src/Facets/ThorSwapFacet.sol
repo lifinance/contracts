@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IThorSwap } from "../Interfaces/IThorSwap.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-import { console } from "../../test/solidity/utils/Console.sol";
 
 /// @title ThorSwap Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through ThorSwap
+/// @custom:version 1.0.0
 contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    address public immutable thorchainRouter;
+    address private immutable thorchainRouter;
 
     /// @notice The struct for the ThorSwap data.
     /// @param vault The Thorchain vault address
@@ -27,6 +25,9 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         string memo;
         uint256 expiration;
     }
+
+    /// Errors ///
+    error InvalidExpiration();
 
     /// @notice Initializes the ThorSwap contract
     constructor(address _thorchainRouter) {
@@ -48,6 +49,10 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        // Check that expiration is at least 60 minutes from now
+        if (_thorSwapData.expiration < block.timestamp + 60 minutes) {
+            revert InvalidExpiration();
+        }
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -72,6 +77,10 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        // Check that expiration is at least 60 minutes from now
+        if (_thorSwapData.expiration < block.timestamp + 60 minutes) {
+            revert InvalidExpiration();
+        }
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,

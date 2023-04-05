@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IAllBridge } from "../Interfaces/IAllBridge.sol";
@@ -12,9 +12,10 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 /// @title Allbridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through AllBridge
+/// @custom:version 1.0.0
 contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The contract address of the AllBridge router on the source chain.
-    IAllBridge public immutable allBridge;
+    IAllBridge private immutable allBridge;
 
     /// @notice The struct for the AllBridge data.
     /// @param fees The amount of token to pay the messenger and the bridge

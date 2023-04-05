@@ -9,6 +9,7 @@ import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 /// @title Dex Manager Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Facet contract for managing approved DEXs to be used in swaps.
+/// @custom:version 1.0.0
 contract DexManagerFacet {
     /// Events ///
 
@@ -88,9 +89,10 @@ contract DexManagerFacet {
     /// @notice Adds/removes a specific function signature to/from the allowlist
     /// @param _signature the function signature to allow/disallow
     /// @param _approval whether the function signature should be allowed
-    function setFunctionApprovalBySignature(bytes4 _signature, bool _approval)
-        external
-    {
+    function setFunctionApprovalBySignature(
+        bytes4 _signature,
+        bool _approval
+    ) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
         }
@@ -132,11 +134,9 @@ contract DexManagerFacet {
     /// @notice Returns whether a function signature is approved
     /// @param _signature the function signature to query
     /// @return approved Approved or not
-    function isFunctionApproved(bytes4 _signature)
-        public
-        view
-        returns (bool approved)
-    {
+    function isFunctionApproved(
+        bytes4 _signature
+    ) public view returns (bool approved) {
         return LibAllowList.selectorIsAllowed(_signature);
     }
 

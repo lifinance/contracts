@@ -78,8 +78,7 @@ interface ITransactionManager {
 
     // called in the following order (in happy case)
     // 1. prepare by user on sending chain
-    function prepare(PrepareArgs calldata args)
-        external
-        payable
-        returns (TransactionData memory);
+    function prepare(
+        PrepareArgs calldata args
+    ) external payable returns (TransactionData memory);
 }

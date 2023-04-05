@@ -8,19 +8,33 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InformationMismatch, InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { LibMappings } from "../Libraries/LibMappings.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Stargate Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate
+/// @custom:version 1.0.0
 contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
+
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.stargate");
 
     /// @notice The contract address of the stargate router on the source chain.
     IStargateRouter private immutable router;
 
     /// Types ///
+
+    struct Storage {
+        mapping(uint256 => uint16) layerZeroChainId;
+        bool initialized;
+    }
+
+    struct PoolIdConfig {
+        address token;
+        uint16 poolId;
+    }
+
     struct ChainIdConfig {
         uint256 chainId;
         uint16 layerZeroChainId;
@@ -52,9 +66,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Events ///
 
-    event StargateInitialized(
-        ChainIdConfig[] chainIdConfigs
-    );
+    event StargateInitialized(ChainIdConfig[] chainIdConfigs);
 
     event LayerZeroChainIdSet(
         uint256 indexed chainId,
@@ -73,13 +85,10 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize local variables for the Stargate Facet
     /// @param chainIdConfigs Chain Id configuration data
-    function initStargate(
-        ChainIdConfig[] calldata chainIdConfigs
-    ) external {
+    function initStargate(ChainIdConfig[] calldata chainIdConfigs) external {
         LibDiamond.enforceIsContractOwner();
 
-        LibMappings.StargateMappings storage sm = LibMappings
-            .getStargateMappings();
+        Storage storage sm = getStorage();
 
         if (sm.initialized) {
             revert AlreadyInitialized();
@@ -162,7 +171,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 IStargateRouter.lzTxObj(
                     _stargateData.dstGasForCall,
                     0,
-                    toBytes(msg.sender)
+                    toBytes(address(0))
                 )
             );
     }
@@ -192,7 +201,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             IStargateRouter.lzTxObj(
                 _stargateData.dstGasForCall,
                 0,
-                toBytes(_bridgeData.receiver)
+                toBytes(address(0))
             ),
             _stargateData.callTo,
             _stargateData.callData
@@ -219,12 +228,12 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _chainId uint16 of the chain ID
     /// @param _layerZeroChainId uint16 of the Layer 0 chain ID
     /// @dev This is used to map a chain ID to its Layer 0 chain ID
-    function setLayerZeroChainId(uint256 _chainId, uint16 _layerZeroChainId)
-        external
-    {
+    function setLayerZeroChainId(
+        uint256 _chainId,
+        uint16 _layerZeroChainId
+    ) external {
         LibDiamond.enforceIsContractOwner();
-        LibMappings.StargateMappings storage sm = LibMappings
-            .getStargateMappings();
+        Storage storage sm = getStorage();
 
         if (!sm.initialized) {
             revert NotInitialized();
@@ -237,35 +246,25 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Gets the Layer 0 chain ID for a given chain ID
     /// @param _chainId uint256 of the chain ID
     /// @return uint16 of the Layer 0 chain ID
-    function getLayerZeroChainId(uint256 _chainId)
-        private
-        view
-        returns (uint16)
-    {
-        LibMappings.StargateMappings storage sm = LibMappings
-            .getStargateMappings();
+    function getLayerZeroChainId(
+        uint256 _chainId
+    ) private view returns (uint16) {
+        Storage storage sm = getStorage();
         uint16 chainId = sm.layerZeroChainId[_chainId];
         if (chainId == 0) revert UnknownLayerZeroChain();
         return chainId;
     }
 
     function toBytes(address _address) private pure returns (bytes memory) {
-        bytes memory tempBytes;
+        return abi.encodePacked(_address);
+    }
 
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
         assembly {
-            let m := mload(0x40)
-            _address := and(
-                _address,
-                0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-            )
-            mstore(
-                add(m, 20),
-                xor(0x140000000000000000000000000000000000000000, _address)
-            )
-            mstore(0x40, add(m, 52))
-            tempBytes := m
+            s.slot := namespace
         }
-
-        return tempBytes;
     }
 }

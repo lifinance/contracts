@@ -108,20 +108,13 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         );
     }
 
-    function initiateBridgeTxWithFacet(bool isNative) internal override {
-        if (isNative) {
-            gnosisBridgeFacet.startBridgeTokensViaXDaiBridge{
-                value: bridgeData.minAmount
-            }(bridgeData);
-        } else {
-            gnosisBridgeFacet.startBridgeTokensViaXDaiBridge(bridgeData);
-        }
+    function initiateBridgeTxWithFacet(bool) internal override {
+        gnosisBridgeFacet.startBridgeTokensViaXDaiBridge(bridgeData);
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge{
                 value: swapData[0].fromAmount
@@ -166,7 +159,10 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
     function testBase_CanSwapAndBridgeTokens() public override {
         vm.startPrank(USER_SENDER);
 
-        usdc.approve(address(gnosisBridgeFacet), 10_000 * 10**usdc.decimals());
+        usdc.approve(
+            address(gnosisBridgeFacet),
+            10_000 * 10 ** usdc.decimals()
+        );
 
         setDefaultSwapData();
         bridgeData.hasSourceSwaps = true;
@@ -218,7 +214,7 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         vm.assume(amount > 0 && amount < 100_000);
-        amount = amount * 10**dai.decimals();
+        amount = amount * 10 ** dai.decimals();
 
         // approval
         dai.approve(address(gnosisBridgeFacet), amount);

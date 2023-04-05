@@ -71,8 +71,8 @@ contract NXTPFacetTest is TestBaseFacet {
         bridgeData.bridge = "connext";
 
         // prepare valid NXTP data
-        ITransactionManager.InvariantTransactionData memory txData = ITransactionManager
-            .InvariantTransactionData({
+        ITransactionManager.InvariantTransactionData
+            memory txData = ITransactionManager.InvariantTransactionData({
                 receivingChainTxManagerAddress: TRANSACTION_MANAGER_POLYGON,
                 user: USER_SENDER,
                 router: ROUTER_ETH,
@@ -109,10 +109,9 @@ contract NXTPFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             nxtpFacet.swapAndStartBridgeTokensViaNXTP{
                 value: swapData[0].fromAmount

@@ -16,6 +16,7 @@ import { ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErr
 /// @title CBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
+/// @custom:version 1.0.0
 contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -78,7 +79,7 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaCBridge(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        CBridgeData memory _cBridgeData
+        CBridgeData calldata _cBridgeData
     )
         external
         payable
@@ -132,7 +133,6 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit CBridgeRefund(_assetAddress, sendTo, _amount);
     }
 
-
     /// Private Methods ///
 
     /// @dev Contains the business logic for the bridge via CBridge
@@ -140,11 +140,8 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _cBridgeData data specific to CBridge
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        CBridgeData memory _cBridgeData
+        CBridgeData calldata _cBridgeData
     ) private {
-        if (uint64(block.chainid) == _bridgeData.destinationChainId)
-            revert CannotBridgeToSameNetwork();
-
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             cBridge.sendNative{ value: _bridgeData.minAmount }(
                 _bridgeData.receiver,
