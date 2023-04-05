@@ -1,0 +1,25 @@
+{
+  "bsctest": {
+    "staging": {
+      "FeeCollector": "1.0.0",
+      "RelayerCelerIM": "1.0.0"
+    },
+    "production": {
+      "Executor": "1.0.0",
+      "Receiver": "1.0.0"
+    }
+  },
+  "goerli": {
+    "staging": {
+      "FeeCollector": "1.0.1",
+      "Executor": "1.0.1",
+      "ServiceFeeCollector": "1.0.0",
+      "RelayerCelerIM": "1.0.1"
+    },
+    "production": {
+      "Executor": "1.0.0",
+      "Receiver": "1.0.1"
+    }
+  }
+
+}

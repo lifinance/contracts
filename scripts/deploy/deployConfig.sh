@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# the maximum number of attempts to deploy a single contract
+MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT=3
+# the maximum number of attempts to verify contract
+MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=5
+# the maximum number of attempts to execute a script (e.g. diamondUpdate)
+MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=5
+# the path of the JSON file that contains the target state
+TARGET_STATE_PATH="scripts/deploy/_targetState.json"
+# the path of the JSON file that contains the deployment log file
+LOG_FILE_PATH="deployments/deployments_log_file.json"
+# the path of the JSON file that contains the bytecode storage file
+BYTECODE_STORAGE_PATH="deployments/bytecode_storage.json"
+# any networks listed here will be excluded from actions that are applied to "all networks"
+# exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,consensys-zkevm-testnet"
+# exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
+EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova,mumbai,consensys-zkevm-testnet,sepolia"
+# will output more detailed information for debugging purposes
+DEBUG=false
+# the root directory of all contract src files
+CONTRACT_DIRECTORY="src/"
+# defines if newly deployed contracts should be verified or not
+VERIFY_CONTRACTS=true
+# contract verification will be deactivated for any network listed here
+DO_NOT_VERIFY_IN_THESE_NETWORKS=""
+# the path to the file that contains a list of all networks
+NETWORKS_FILE_PATH="./networks"
+# script will deploy all periphery contracts by default, unless excluded here (must match exact filename without .sol)
+EXCLUDE_PERIPHERY_CONTRACTS=""
+# script will deploy all facet contracts by default, unless excluded here (must match exact filename without .sol)
+EXCLUDE_FACET_CONTRACTS=""
+# contains a list of all facets that are considered core facets and will be deployed to every network
+CORE_FACETS="DiamondCutFacet,DiamondLoupeFacet,OwnershipFacet,DexManagerFacet,AccessManagerFacet,WithdrawFacet,PeripheryRegistryFacet"

@@ -1,0 +1,168 @@
+{
+  "DiamondCutFacet": {
+    "goerli": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x3968cF36Ea531D35B82F56C23A1D933b7711b31f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-04 15:35:29",
+            "CONSTRUCTOR_ARGS": "0x"
+          }
+        ]
+      }
+    }
+  },
+  "DiamondLoupeFacet": {
+    "goerli": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xF3bd241Bd31cc84D1A2824E3ffB481961FC1456A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-04 15:35:36",
+            "CONSTRUCTOR_ARGS": "0x"
+          }
+        ]
+      }
+    }
+  },
+  "OwnershipFacet": {
+    "goerli": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6B5183628Fb571145385C01AD64779D2F17e759a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-04 15:35:42",
+            "CONSTRUCTOR_ARGS": "0x"
+          }
+        ]
+      }
+    }
+  },
+  "DexManagerFacet": {
+    "goerli": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xcd14Ea63191E4B27ECA7c98C29c373E015a5545A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-04 15:35:48",
+            "CONSTRUCTOR_ARGS": "0x"
+          }
+        ]
+      }
+    }
+  },
+  "AccessManagerFacet": {
+    "goerli": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x50F6AC46EB6cA7840e75fE5aFa50B8a3D6deeD26",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-04 15:35:55",
+            "CONSTRUCTOR_ARGS": "0x"
+          }
+        ]
+      }
+    }
+  },
+  "WithdrawFacet": {
+    "goerli": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xeb244dc26396846aDD8eaF5A0e3Bc6617B58482e",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-04 15:36:01",
+            "CONSTRUCTOR_ARGS": "0x"
+          }
+        ]
+      }
+    }
+  },
+  "PeripheryRegistryFacet": {
+    "goerli": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x99dC88607d3D6C2e08C9bC7fdDDFDcE438339E05",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-04 15:36:08",
+            "CONSTRUCTOR_ARGS": "0x"
+          }
+        ]
+      }
+    }
+  },
+  "LiFiDiamond": {
+    "goerli": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-04 15:36:14",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea00000000000000000000000003968cf36ea531d35b82f56c23a1d933b7711b31f"
+          },
+          {
+            "ADDRESS": "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-04 16:03:32",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea00000000000000000000000003968cf36ea531d35b82f56c23a1d933b7711b31f"
+          },
+          {
+            "ADDRESS": "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-04 16:04:27",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea00000000000000000000000003968cf36ea531d35b82f56c23a1d933b7711b31f"
+          }
+        ]
+      }
+    }
+  },
+  "Executor": {
+    "goerli": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x96619b1Ca58e9E32070653cFAC0649229429018B",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-04 15:36:23",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea00000000000000000000000009ee40c42cc11d6a3b6a9477d988111e76c52f14e"
+          }
+        ]
+      }
+    }
+  },
+  "FeeCollector": {
+    "goerli": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xd2981E8c29be81a8a6655764c2a60825bf1BB631",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-04 15:36:33",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0"
+          }
+        ]
+      }
+    }
+  },
+  "RelayerCelerIM": {
+    "goerli": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xbd4C982Bd19af2E5c8CC5350CCe1e6C98260338d",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-04 15:36:39",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0000000000000000000000000f25170f86e4291a99a9a560032fe9948b8bcfbb20000000000000000000000001d7554f2ef87faf41f9c678cf2501497d38c014f00000000000000000000000096619b1ca58e9e32070653cfac0649229429018b"
+          }
+        ]
+      }
+    }
+  }
+}

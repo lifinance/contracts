@@ -18,5 +18,6 @@
   "ArbitrumBridgeFacet": "0x0A713de704C85b67DAB6FbC88C05A773127741ea",
   "HopFacetOptimized": "0xbCe268B24155dF2a18982984e9716136278f38d6",
   "Receiver": "0x74674DAFd6f4495e7F63F7637E94b8B89B2f01dB",
-  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
+  "RelayerCelerIM": "staging."
 }
