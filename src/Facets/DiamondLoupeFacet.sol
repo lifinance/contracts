@@ -5,6 +5,10 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { IDiamondLoupe } from "../Interfaces/IDiamondLoupe.sol";
 import { IERC165 } from "../Interfaces/IERC165.sol";
 
+/// @title Diamond Loupe Facet
+/// @author LI.FI (https://li.fi)
+/// @notice Core EIP-2535 Facet for inspecting Diamond Proxies.
+/// @custom:version 1.0.0
 contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
     // Diamond Loupe Functions
     ////////////////////////////////////////////////////////////////////
