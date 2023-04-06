@@ -2,6 +2,8 @@ pragma solidity ^0.8.17;
 
 import { HopFacetOptimized } from "./HopFacetOptimized.sol";
 import { HopFacetPacked } from "./HopFacetPacked.sol";
+import { CBridgeFacet } from "./CBridgeFacet.sol";
+import { CBridgeFacetPacked } from "./CBridgeFacetPacked.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 
@@ -58,7 +60,7 @@ contract PackedEncoderDecoderFacet is ILiFi {
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
     {
         require(
-            _data.length == 120,
+            _data.length >= 120,
             "data passed in is not the correct length"
         );
 
@@ -131,7 +133,7 @@ contract PackedEncoderDecoderFacet is ILiFi {
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
     {
         require(
-            _data.length == 156,
+            _data.length >= 156,
             "data passed in is not the correct length"
         );
 
@@ -152,5 +154,122 @@ contract PackedEncoderDecoderFacet is ILiFi {
         hopData.hopBridge = IHopBridge(address(bytes20(_data[136:156])));
 
         return (bridgeData, hopData);
+    }
+
+    /// @notice Encodes calldata for startBridgeTokensViaCBridgeNativePacked
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _cBridgeData data specific to cBridge
+    function encode_startBridgeTokensViaCBridgeNativePacked(
+        BridgeData calldata _bridgeData,
+        CBridgeFacet.CBridgeData calldata _cBridgeData
+    ) external pure returns (bytes memory) {
+        require(
+            _bridgeData.destinationChainId <= type(uint32).max,
+            "destinationChainId value passed too big to fit in uint32"
+        );
+        require(
+            _cBridgeData.nonce <= type(uint32).max,
+            "nonce value passed too big to fit in uint32"
+        );
+
+        return
+            bytes.concat(
+                CBridgeFacetPacked
+                    .startBridgeTokensViaCBridgeNativePacked
+                    .selector,
+                bytes8(_bridgeData.transactionId),
+                bytes16(bytes(_bridgeData.integrator)),
+                bytes20(_bridgeData.receiver),
+                bytes4(uint32(_bridgeData.destinationChainId)),
+                bytes4(uint32(_cBridgeData.nonce)),
+                bytes4(_cBridgeData.maxSlippage)
+            );
+    }
+
+    /// @notice Decodes calldata for startBridgeTokensViaCBridgeNativePacked
+    /// @param _data the calldata to decode
+    function decode_startBridgeTokensViaCBridgeNativePacked(
+        bytes calldata _data
+    )
+        external
+        pure
+        returns (BridgeData memory, CBridgeFacet.CBridgeData memory)
+    {
+        require(
+            _data.length >= 60,
+            "data passed in is not the correct length"
+        );
+
+        BridgeData memory bridgeData;
+        CBridgeFacet.CBridgeData memory cBridgeData;
+
+        bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
+        bridgeData.integrator = string(_data[12:28]);
+        bridgeData.receiver = address(bytes20(_data[28:48]));
+        bridgeData.destinationChainId = uint64(uint32(bytes4(_data[48:52])));
+        cBridgeData.nonce = uint64(uint32(bytes4(_data[52:56])));
+        cBridgeData.maxSlippage = uint32(bytes4(_data[56:60]));
+
+        return (bridgeData, cBridgeData);
+    }
+
+    /// @notice Encodes calldata for startBridgeTokensViaCBridgeERC20Packed
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _cBridgeData data specific to cBridge
+    function encode_startBridgeTokensViaCBridgeERC20Packed(
+        BridgeData calldata _bridgeData,
+        CBridgeFacet.CBridgeData calldata _cBridgeData
+    ) external pure returns (bytes memory) {
+        require(
+            _bridgeData.destinationChainId <= type(uint32).max,
+            "destinationChainId value passed too big to fit in uint32"
+        );
+        require(
+            _bridgeData.minAmount <= type(uint128).max,
+            "amount value passed too big to fit in uint128"
+        );
+        require(
+            _cBridgeData.nonce <= type(uint32).max,
+            "nonce value passed too big to fit in uint32"
+        );
+
+        return
+            bytes.concat(
+                CBridgeFacetPacked
+                    .startBridgeTokensViaCBridgeERC20Packed
+                    .selector,
+                bytes8(_bridgeData.transactionId),
+                bytes16(bytes(_bridgeData.integrator)),
+                bytes20(_bridgeData.receiver),
+                bytes4(uint32(_bridgeData.destinationChainId)),
+                bytes20(_bridgeData.sendingAssetId),
+                bytes16(uint128(_bridgeData.minAmount)),
+                bytes4(uint32(_cBridgeData.nonce)),
+                bytes4(_cBridgeData.maxSlippage)
+            );
+    }
+
+    function decode_startBridgeTokensViaCBridgeERC20Packed(
+        bytes calldata _data
+    )
+        external
+        pure
+        returns (BridgeData memory, CBridgeFacet.CBridgeData memory)
+    {
+        require(_data.length >= 96, "callData length smaller than required");
+
+        BridgeData memory bridgeData;
+        CBridgeFacet.CBridgeData memory cBridgeData;
+
+        bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
+        bridgeData.integrator = string(_data[12:28]);
+        bridgeData.receiver = address(bytes20(_data[28:48]));
+        bridgeData.destinationChainId = uint64(uint32(bytes4(_data[48:52])));
+        bridgeData.sendingAssetId = address(bytes20(_data[52:72]));
+        bridgeData.minAmount = uint256(uint128(bytes16(_data[72:88])));
+        cBridgeData.nonce = uint64(uint32(bytes4(_data[88:92])));
+        cBridgeData.maxSlippage = uint32(bytes4(_data[92:96]));
+
+        return (bridgeData, cBridgeData);
     }
 }
