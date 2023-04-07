@@ -5,6 +5,7 @@ import { console } from "../utils/Console.sol";
 import { PackedEncoderDecoderFacet } from "lifi/Facets/PackedEncoderDecoderFacet.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
+import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 
 contract PackedEncoderDecoderFacetTest is DSTest {
@@ -13,6 +14,7 @@ contract PackedEncoderDecoderFacetTest is DSTest {
 
     PackedEncoderDecoderFacet internal packedEncoderDecoderFacet;
     HopFacetOptimized.HopData internal hopData;
+    CBridgeFacet.CBridgeData internal cBridgeData;
     ILiFi.BridgeData internal bridgeData;
 
     function setUp() public {
@@ -37,6 +39,7 @@ contract PackedEncoderDecoderFacetTest is DSTest {
             destinationDeadline: block.timestamp + 60 * 20,
             hopBridge: IHopBridge(NATIVE_BRIDGE)
         });
+        cBridgeData = CBridgeFacet.CBridgeData(5000, 123);
     }
 
     function test_CanEncodeAndDecodeHopNativeCall() public {
@@ -91,5 +94,49 @@ contract PackedEncoderDecoderFacetTest is DSTest {
             address(decodedHopData.hopBridge),
             address(hopData.hopBridge)
         );
+    }
+
+    function test_CanEncodeAndDecodeCBridgeNativeCall() public {
+        bytes memory encoded = packedEncoderDecoderFacet
+            .encode_startBridgeTokensViaCBridgeNativePacked(
+                bridgeData,
+                cBridgeData
+            );
+        (
+            ILiFi.BridgeData memory decodedBridgeData,
+            CBridgeFacet.CBridgeData memory decodedCBridgeData
+        ) = packedEncoderDecoderFacet
+                .decode_startBridgeTokensViaCBridgeNativePacked(encoded);
+        assertEq(decodedBridgeData.transactionId, bridgeData.transactionId);
+        assertEq(decodedBridgeData.receiver, bridgeData.receiver);
+        assertEq(
+            decodedBridgeData.destinationChainId,
+            bridgeData.destinationChainId
+        );
+        assertEq(decodedCBridgeData.maxSlippage, cBridgeData.maxSlippage);
+        assertEq(decodedCBridgeData.nonce, cBridgeData.nonce);
+    }
+
+    function test_CanEncodeAndDecodeCBridgeERC20Call() public {
+        bytes memory encoded = packedEncoderDecoderFacet
+            .encode_startBridgeTokensViaCBridgeERC20Packed(
+                bridgeData,
+                cBridgeData
+            );
+        (
+            ILiFi.BridgeData memory decodedBridgeData,
+            CBridgeFacet.CBridgeData memory decodedCBridgeData
+        ) = packedEncoderDecoderFacet
+                .decode_startBridgeTokensViaCBridgeERC20Packed(encoded);
+        assertEq(decodedBridgeData.transactionId, bridgeData.transactionId);
+        assertEq(decodedBridgeData.receiver, bridgeData.receiver);
+        assertEq(
+            decodedBridgeData.destinationChainId,
+            bridgeData.destinationChainId
+        );
+        assertEq(decodedBridgeData.sendingAssetId, bridgeData.sendingAssetId);
+        assertEq(decodedBridgeData.minAmount, bridgeData.minAmount);
+        assertEq(decodedCBridgeData.maxSlippage, cBridgeData.maxSlippage);
+        assertEq(decodedCBridgeData.nonce, cBridgeData.nonce);
     }
 }
