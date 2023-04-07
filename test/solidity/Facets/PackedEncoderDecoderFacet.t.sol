@@ -20,7 +20,7 @@ contract PackedEncoderDecoderFacetTest is DSTest {
         bridgeData = ILiFi.BridgeData({
             transactionId: bytes32(bytes8("123abc")),
             bridge: "acme",
-            integrator: "",
+            integrator: "lifi",
             referrer: address(0),
             sendingAssetId: address(0),
             receiver: address(0),
@@ -39,7 +39,7 @@ contract PackedEncoderDecoderFacetTest is DSTest {
         });
     }
 
-    function test_CanEncodeAndDecodeHopData() public {
+    function test_CanEncodeAndDecodeHopNativeCall() public {
         bytes memory encoded = packedEncoderDecoderFacet
             .encode_startBridgeTokensViaHopL2NativePacked(bridgeData, hopData);
         (
@@ -48,6 +48,48 @@ contract PackedEncoderDecoderFacetTest is DSTest {
         ) = packedEncoderDecoderFacet
                 .decode_startBridgeTokensViaHopL2NativePacked(encoded);
         assertEq(decodedBridgeData.transactionId, bridgeData.transactionId);
-        assertEq(decodedBridgeData.integrator, bridgeData.integrator);
+        assertEq(decodedBridgeData.receiver, bridgeData.receiver);
+        assertEq(
+            decodedBridgeData.destinationChainId,
+            bridgeData.destinationChainId
+        );
+        assertEq(decodedHopData.bonderFee, hopData.bonderFee);
+        assertEq(decodedHopData.amountOutMin, hopData.amountOutMin);
+        assertEq(
+            decodedHopData.destinationAmountOutMin,
+            hopData.destinationAmountOutMin
+        );
+        assertEq(
+            address(decodedHopData.hopBridge),
+            address(hopData.hopBridge)
+        );
+    }
+
+    function test_CanEncodeAndDecodeHopERC20Call() public {
+        bytes memory encoded = packedEncoderDecoderFacet
+            .encode_startBridgeTokensViaHopL2ERC20Packed(bridgeData, hopData);
+        (
+            ILiFi.BridgeData memory decodedBridgeData,
+            HopFacetOptimized.HopData memory decodedHopData
+        ) = packedEncoderDecoderFacet
+                .decode_startBridgeTokensViaHopL2ERC20Packed(encoded);
+        assertEq(decodedBridgeData.transactionId, bridgeData.transactionId);
+        assertEq(decodedBridgeData.receiver, bridgeData.receiver);
+        assertEq(
+            decodedBridgeData.destinationChainId,
+            bridgeData.destinationChainId
+        );
+        assertEq(decodedBridgeData.sendingAssetId, bridgeData.sendingAssetId);
+        assertEq(decodedBridgeData.minAmount, bridgeData.minAmount);
+        assertEq(decodedHopData.bonderFee, hopData.bonderFee);
+        assertEq(decodedHopData.amountOutMin, hopData.amountOutMin);
+        assertEq(
+            decodedHopData.destinationAmountOutMin,
+            hopData.destinationAmountOutMin
+        );
+        assertEq(
+            address(decodedHopData.hopBridge),
+            address(hopData.hopBridge)
+        );
     }
 }

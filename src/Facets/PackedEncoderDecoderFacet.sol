@@ -68,7 +68,7 @@ contract PackedEncoderDecoderFacet is ILiFi {
         HopFacetOptimized.HopData memory hopData;
 
         bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
-        bridgeData.integrator = string(bytes(_data[12:28]));
+        bridgeData.integrator = string(_data[12:28]);
         bridgeData.receiver = address(bytes20(_data[28:48]));
         bridgeData.destinationChainId = uint256(uint32(bytes4(_data[48:52])));
         hopData.bonderFee = uint256(uint128(bytes16(_data[52:68])));
