@@ -113,14 +113,10 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount
         );
 
-        address receiver = _bridgeData.hasDestinationCall
-            ? _amarokData.callTo
-            : _bridgeData.receiver;
-
         // initiate bridge transaction
         connextHandler.xcall{ value: _amarokData.relayerFee }(
             _amarokData.destChainDomainId,
-            receiver,
+            _amarokData.callTo,
             _bridgeData.sendingAssetId,
             _amarokData.delegate,
             _bridgeData.minAmount,
