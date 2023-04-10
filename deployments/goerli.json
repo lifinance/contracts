@@ -19,5 +19,6 @@
   "HopFacetOptimized": "0xbCe268B24155dF2a18982984e9716136278f38d6",
   "Receiver": "0x74674DAFd6f4495e7F63F7637E94b8B89B2f01dB",
   "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
-  "RelayerCelerIM": "staging."
+  "RelayerCelerIM": "staging.",
+  "AxelarFacet": "0xAD1AACa3c3a7c208f8f53d0dB85D5CF78D9D0b87"
 }

@@ -1,25 +1,31 @@
 #!/bin/bash
 
 # TODO
+# - check if contract is already deployed before deploying it again
 # - implement all deploy use cases
+#   - use case 4 is still missing
 # - improve logging (use external library for console logging)
-# - store bytecode in separate storage
-# - wrap deploy calls in do-while loop until address contains bytecode
 # - add verify contract use case (use bytecode and settings from storage)
 # - verify only in included networks
-# - add verified (true/false) to log
 # - write scripts to update targetState JSON
 #   - add new network with all contracts to target JSON
+#   - bump version of specific contract on all networks
 # - clean code
 #   - local before variables
 #   - variable names uppercase
-# - improve update-periphery script
-#   - should be applicable for immutable and mutable
-#   - should get periphery contract names from config
+#   - make environment / file suffix global variables
+# - update docs / notion
+#   - add info about SALT env variable to deploy new contracts
+# - write article
+# - for immutable diamond we need to run some specific script - add to deploy script
+# - improve the handling of several similar log file entries
+# - add fancy stuff
+#   - show deployer wallet balance before/after
+#   - script runtime
 
-
-
-
+# known limitations:
+#   - we currently cannot replace any of the core facets with our scripts
+#   - log can contain several entries of the same contract in same version - need to define which of those to return
 
 
 
@@ -31,36 +37,27 @@ deployMaster() {
   source scripts/deploy/deploySingleContract.sh
   source scripts/deploy/deployAllContracts.sh
   source scripts/deploy/deployHelperFunctions.sh
+  source scripts/sync-dexs.sh
+  source scripts/sync-sigs.sh
+  source scripts/deploy/diamondUpdate.sh
+  source scripts/deploy/deployFacetAndAddToDiamond.sh
+  source scripts/deploy/updatePeriphery.sh
 
-  # check if env variable "PRODUCTION" is true (or not set at all), otherwise deploy as staging
-  if [[ "$PRODUCTION" == "true" ]]; then
-    # make sure that PRODUCTION was selected intentionally by user
-    gum style \
-    --foreground 212 --border-foreground 213 --border double \
-    --align center --width 50 --margin "1 2" --padding "2 4" \
-    '!!! ATTENTION !!!'
-
-    echo "Your environment variable PRODUCTION is set to true"
-    echo "This means you will be deploying contracts to production"
-    echo "    "
-    echo "Last chance: Do you want to skip?"
-    gum confirm && exit 1 || echo "OK, continuing to deploy to PRODUCTION"
-
-    # set ENVIRONMENT variable
-    ENVIRONMENT="production"
-  else
-    # set ENVIRONMENT variable
-    ENVIRONMENT="staging"
-  fi
+  # determine environment (production/staging)
+  local ENVIRONMENT=$(determineEnvironment)
 
   # ask user to choose a deploy use case
   echo ""
-  echo "Please select what you would like to do:"
-  SELECTION=$(gum choose \
+  echo "Please choose one of the following options:"
+  local SELECTION=$(gum choose \
     "1) Deploy one specific contract to one network"\
     "2) Deploy one specific contract to all networks (=new contract)"\
     "3) Deploy all contracts to one selected network (=new network)" \
     "4) Deploy all (missing) contracts for all networks (actual vs. target)" \
+    "5) Run sync-sigs.sh script" \
+    "6) Run sync-dexs.sh script" \
+    "7) Run updatePeriphery.sh script" \
+    "8) Run diamondUpdate.sh script" \
     )
 
   # use case 1: Deploy one specific contract to one network
@@ -68,25 +65,15 @@ deployMaster() {
     echo ""
     echo "[info] selected use case: Deploy one specific contract to one network"
 
-    # get user-selected network from list
-    NETWORK=$(cat ./networks | gum filter --placeholder "Network")
-    echo "[info] selected network: $NETWORK"
-
-    # get user-selected deploy script and contract from list
-    SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
-    CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
-
-    # get current contract version
-    VERSION=$(getCurrentContractVersion "$CONTRACT")
-    wait
-
     # call deploy script
-    deploySingleContract "$CONTRACT" "$NETWORK" "$SCRIPT" "$ENVIRONMENT" "$VERSION"
+    deploySingleContract ""
 
     # check if last command was executed successfully, otherwise exit script with error message
     checkFailure $? "deploy contract $CONTRACT to network $NETWORK"
 
+    # TODO: add code that asks if contract is a facet that should be added to diamond in one go and call deployFacetAndAddToDiamond
     #TODO: run update script if deployed contract was a facet
+    #TODO: run updatePeriphery script if deployed contract was a periphery contract
 
   # use case 2: Deploy one specific contract to all networks (=new contract)
   elif [[ "$SELECTION" == *"2)"* ]]; then
@@ -94,15 +81,15 @@ deployMaster() {
     echo "[info] selected use case: Deploy one specific contract to all networks"
 
     # get user-selected deploy script and contract from list
-    SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
-    CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
+    local SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+    local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
     # get current contract version
-    VERSION=$(getCurrentContractVersion "$CONTRACT")
+    local VERSION=$(getCurrentContractVersion "$CONTRACT")
     wait
 
     # get array with all network names
-    NETWORKS=($(getIncludedNetworksArray))
+    local NETWORKS=($(getIncludedNetworksArray))
 
     # loop through all networks
     for NETWORK in "${NETWORKS[@]}"; do
@@ -110,7 +97,7 @@ deployMaster() {
       echo "[info] Now deploying contract $CONTRACT to network $NETWORK...."
 
       # call deploy script for current network
-      deploySingleContract "$CONTRACT" "$NETWORK" "$SCRIPT" "$ENVIRONMENT" "$VERSION"
+      deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
 
       # check if function call was successful
       echo ""
@@ -128,8 +115,9 @@ deployMaster() {
     echo "[info] selected use case: Deploy all contracts to one selected network (=new network)"
 
     # get user-selected network from list
-    NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+    local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
     echo "[info] selected network: $NETWORK"
+    checkRequiredVariablesInDotEnv $NETWORK
 
     # call deploy script
     deployAllContracts "$NETWORK" "$ENVIRONMENT"
@@ -143,25 +131,52 @@ deployMaster() {
     echo ""
     echo "[info] selected use case: Deploy all (missing) contracts for all networks"
 
+    #TODO: implement
+    echo "[error] this use case is not yet implemented"
+    exit 1
     # go through each network in target state
       # get list of contracts in array
       # go through each contract
         # compare actual vs. target
         # deploy if needed
 
+  # use case 5: Run sync-sigs.sh script
+  elif [[ "$SELECTION" == *"5)"* ]]; then
+    echo ""
+    echo "[info] selected use case: Run sync-sigs.sh script"
+    syncSIGs "" "" "" true
+
+  # use case 6: Run sync-dexs.sh script
+  elif [[ "$SELECTION" == *"6)"* ]]; then
+    echo ""
+    echo "[info] selected use case: Run sync-dexs.sh script"
+    syncDEXs "" "" "" true
+
+  # use case 7: Run updatePeriphery.sh script
+  elif [[ "$SELECTION" == *"7)"* ]]; then
+    echo ""
+    echo "[info] selected use case: Run updatePeriphery.sh script"
+    updatePeriphery "" "" "" "" true
+
+  # use case 8: Run diamondUpdate.sh script
+  elif [[ "$SELECTION" == *"8)"* ]]; then
+    echo ""
+    echo "[info] selected use case: Run diamondUpdate.sh script"
+    diamondUpdate
 
   else
-    echo "[error] invalid use case selection - exiting script"
-    return 1
+    echo "[error] invalid use case selected ('$SELECTION') - exiting script"
+    exit 1
   fi
-
 
   # inform user and end script
   echo ""
   echo "[info] deployMaster script successfully executed"
-  return 0
-
-
+  echo ""
+  echo ""
+  echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  echo "[info] PLEASE CHECK THE LOG CAREFULLY FOR WARNINGS AND ERRORS"
+  echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 }
 
 

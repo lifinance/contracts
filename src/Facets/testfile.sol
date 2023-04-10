@@ -11,5 +11,5 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title SynapseBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through SynapseBridge
-/// contract_version: 1.0.0
+/// @custom:version 1.0.0
 contract SynapseBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {}

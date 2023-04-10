@@ -1,6 +1,11 @@
 #!/bin/bash
 
+# load env variables
+source .env
 
+#TODO: sort & comment functions
+
+# load scripts
 source scripts/deploy/deployConfig.sh
 #source scripts/deploy/log4bash.sh
 
@@ -16,6 +21,7 @@ function logContractDeploymentInfo {
   local CONSTRUCTOR_ARGS="$6"
   local ENVIRONMENT="$7"
   local ADDRESS="$8"
+  local VERIFIED="$9"
 
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
@@ -29,6 +35,8 @@ function logContractDeploymentInfo {
     echo "[debug] CONSTRUCTOR_ARGS=$CONSTRUCTOR_ARGS"
     echo "[debug] ENVIRONMENT=$ENVIRONMENT"
     echo "[debug] ADDRESS=$ADDRESS"
+    echo "[debug] VERIFIED=$VERIFIED"
+    echo ""
   fi
 
   # Check if log FILE exists, if not create it
@@ -39,7 +47,7 @@ function logContractDeploymentInfo {
   # Check if log FILE already contains entry with same CONTRACT, NETWORK, ENVIRONMENT and VERSION
   checkIfJSONContainsEntry $CONTRACT $NETWORK $ENVIRONMENT $VERSION $LOG_FILE_PATH
   if [ $? -eq 1 ]; then
-      echo "[warning]: deployment log FILE contained already an entry for (CONTRACT: $CONTRACT, NETWORK: $NETWORK, ENVIRONMENT: $ENVIRONMENT, VERSION: $VERSION). This is unexpected behaviour since an existing CONTRACT should not have been re-deployed. A new entry was added to the log FILE. "
+      echo "[warning]: deployment log file contained already an entry for (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION). This is unexpected behaviour since an existing CONTRACT should not have been re-deployed. A new entry was added to the log file. "
   fi
 
   # Append new JSON object to log FILE
@@ -51,8 +59,88 @@ function logContractDeploymentInfo {
       --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS  }]' \
+      --arg VERIFIED "$VERIFIED" \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, VERIFIED: $VERIFIED  }]' \
       "$LOG_FILE_PATH" > tmpfile && mv tmpfile "$LOG_FILE_PATH"
+
+  if [[ "$DEBUG" == *"true"* ]]; then
+    echo "[info] contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
+  fi
+}
+function getBytecodeFromLog() {
+
+  # read function arguments into variables
+  local CONTRACT="$1"
+  local VERSION="$2"
+
+  # read bytecode from storage file
+  local RESULT=$(jq -r --arg CONTRACT "$CONTRACT" --arg VERSION "$VERSION" '.[$CONTRACT][$VERSION]' "$BYTECODE_STORAGE_PATH")
+
+  # return result
+  echo "$RESULT"
+}
+function logBytecode {
+  # read function arguments into variables
+  local CONTRACT="$1"
+  local VERSION="$2"
+  local BYTECODE="$3"
+
+  # logging for debug purposes
+  if [[ "$DEBUG" == *"true"* ]]; then
+    echo ""
+    echo "[debug] in function logBytecode"
+    echo "[debug] CONTRACT=$CONTRACT"
+    echo "[debug] VERSION=$VERSION"
+    echo ""
+  fi
+
+  # Check if log FILE exists, if not create it
+  if [ ! -f "$BYTECODE_STORAGE_PATH" ]; then
+    echo "{}" > "$BYTECODE_STORAGE_PATH"
+  fi
+
+  # get bytecode from log
+  local LOG_RESULT=$(getBytecodeFromLog "$CONTRACT" "$VERSION")
+
+  # find matching entry in log
+  if [ "$LOG_RESULT" == "null" ]; then
+    # no match found - add entry
+    # read file into variable
+    JSON=$(cat "$BYTECODE_STORAGE_PATH")
+
+    # Use jq to add a new entry to the JSON data
+    JSON=$(echo "$JSON" | jq --arg CONTRACT "$CONTRACT" --arg VERSION "$VERSION" --arg BYTECODE "$BYTECODE" '.[$CONTRACT][$VERSION] = $BYTECODE')
+
+    # Write the modified JSON data back to the file
+    echo "$JSON" > "$BYTECODE_STORAGE_PATH"
+
+    # if DEBUG
+    if [[ "$DEBUG" == *"true"* ]]; then
+      echo "[info] bytecode added to storage file (CONTRACT=$CONTRACT, VERSION=$VERSION)"
+    fi
+  else
+    # match found - check if bytecode matches
+    if [ "$BYTECODE" != "$LOG_RESULT" ]; then
+      echo "[warning] existing bytecode in log differs from bytecode produced by this run. Please check why this happens."
+      return 1
+    else
+      if [[ "$DEBUG" == *"true"* ]]; then
+        echo "[debug] bytecode already exists in log, no action needed"
+      fi
+      return 0
+    fi
+  fi
+
+
+
+
+
+
+
+  # Append new JSON object to log FILE
+JSON=$(echo "$JSON" | jq --arg contract_name "$CONTRACT_NAME" --arg version "$VERSION" --arg value "$VALUE" '.[$contract_name][$version] = $value')
+
+
 
   echo "[info] contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
 }
@@ -63,17 +151,6 @@ function checkIfJSONContainsEntry {
   ENVIRONMENT=$3
   VERSION=$4
   FILEPATH=$5
-
-  # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echo "[debug] in function checkIfJSONContainsEntry"
-    echo "[debug] CONTRACT=$CONTRACT"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] VERSION=$VERSION"
-    echo "[debug] FILEPATH=$FILEPATH"
-  fi
 
   # Check if the entry already exists
   if jq -e --arg CONTRACT "$CONTRACT" \
@@ -104,38 +181,33 @@ function findContractInLogFile() {
     echo "[debug] VERSION=$VERSION"
   fi
 
-  # Check if log FILE exists
+  # Check if log file exists
   if [ ! -f "$LOG_FILE_PATH" ]; then
-    echo "[error] deployments log FILE does not exist in path $LOG_FILE_PATH"
+    echo "[error] deployments log file does not exist in path $LOG_FILE_PATH. Please check and run script again."
     exit 1
   fi
 
   # find matching entry
-    local TARGET_STATE_FILE=$(cat "$LOG_FILE_PATH")
-    local RESULT=$(echo "$TARGET_STATE_FILE" | jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][0]')
+  local TARGET_STATE_FILE=$(cat "$LOG_FILE_PATH")
+  local RESULT=$(echo "$TARGET_STATE_FILE" | jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][0]')
 
-    if [[ "$RESULT" != "null" ]]; then
-        # entry found - return TARGET_STATE_FILE and success error code
-        echo "${RESULT[@]}"
-        return 0
-        #INFO:
-        # returns the following values if a matching entry was found:
-        # - ADDRESS
-        # - OPTIMIZER_RUNS
-        # - TIMESTAMP
-        # - CONSTRUCTOR_ARGS
-    else
-        # entry not found - issue error message and return error code
-        echo "[info] No matching entry found in deployments log FILE for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
-        return 1
-    fi
+  if [[ "$RESULT" != "null" ]]; then
+      # entry found - return TARGET_STATE_FILE and success error code
+      echo "${RESULT[@]}"
+      return 0
+      #INFO:
+      # returns the following values if a matching entry was found:
+      # - ADDRESS
+      # - OPTIMIZER_RUNS
+      # - TIMESTAMP
+      # - CONSTRUCTOR_ARGS
+  else
+      # entry not found - issue error message and return error code
+      echo "[info] No matching entry found in deployments log file for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
+      return 1
+  fi
 }
 function getCurrentContractVersion() {
-
-  # TODO: to be removed once contracts have their versions set
-  echo "1.0.1"
-  return 0
-
   # read function arguments into variables
   CONTRACT="$1"
 
@@ -149,8 +221,8 @@ function getCurrentContractVersion() {
       return 1
   fi
 
-  # Search for "contract_version::" in the FILE and store the first RESULT in the variable
-  VERSION=$(grep "contract_version:" "$FILEPATH" | cut -d ' ' -f 3)
+  # Search for "@custom:version 1.0.0" in the FILE and store the first RESULT in the variable
+  VERSION=$(grep "@custom:version 1.0.0" "$FILEPATH" | cut -d ' ' -f 3)
 
   # Check if VERSION is empty
   if [ -z "$VERSION" ]; then
@@ -161,9 +233,6 @@ function getCurrentContractVersion() {
   echo "$VERSION"
 }
 function doesAddressContainBytecode() {
-  # read ENVIRONMENT variables
-  source .env
-
   # read function arguments into variables
   NETWORK="$1"
   ADDRESS="$2"
@@ -173,12 +242,12 @@ function doesAddressContainBytecode() {
   NODE_URL=${!NODE_URL_KEY}
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echo "[debug] in function doesAddressContainBytecode"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ADDRESS=$ADDRESS"
-  fi
+#  if [[ "$DEBUG" == *"true"* ]]; then
+#    echo ""
+#    echo "[debug] in function doesAddressContainBytecode"
+#    echo "[debug] NETWORK=$NETWORK"
+#    echo "[debug] ADDRESS=$ADDRESS"
+#  fi
 
   # check if NODE_URL is available
   if [ -z "$NODE_URL" ]; then
@@ -186,8 +255,20 @@ function doesAddressContainBytecode() {
       return 1
   fi
 
+  # make sure address is in correct checksum format
+  jsCode="const Web3 = require('web3');
+    const web3 = new Web3();
+    const address = '$ADDRESS';
+    const checksumAddress = web3.utils.toChecksumAddress(address);
+    console.log(checksumAddress);"
+  CHECKSUM_ADDRESS=$(node -e "$jsCode")
+
+
   # get CONTRACT code from ADDRESS using web3
-  contract_code=$(node -e "const Web3 = require('web3'); const web3 = new Web3('$NODE_URL'); web3.eth.getCode('$ADDRESS', (error, RESULT) => { console.log(RESULT); });")
+  jsCode="const Web3 = require('web3');
+    const web3 = new Web3('$NODE_URL');
+    web3.eth.getCode('$CHECKSUM_ADDRESS', (error, RESULT) => { console.log(RESULT); });"
+  contract_code=$(node -e "$jsCode")
 
   # return ƒalse if ADDRESS does not contain CONTRACT code, otherwise true
   if [[ $contract_code == "0x" ]]; then
@@ -200,14 +281,6 @@ function checkFailure() {
   # read function arguments into variables
   RESULT=$1
   ERROR_MESSAGE=$2
-
-  # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echo "[debug] in function checkFailure"
-    echo "[debug] RESULT=$RESULT"
-    echo "[debug] ERROR_MESSAGE=$ERROR_MESSAGE"
-  fi
 
   # check RESULT code and display error message if code != 0
   if [[ $RESULT -ne 0 ]]; then
@@ -239,8 +312,7 @@ function getOptimizerRuns() {
 
 }
 function saveContract() {
-  # load env variables
-  source .env
+
 
   # read function arguments into variables
   NETWORK=$1
@@ -274,9 +346,6 @@ function saveContract() {
 }
 function verifyContract() {
   # TODO: only execute for selected NETWORKs
-  # load env variables
-  source .env
-
   # read function arguments into variables
   NETWORK=$1
   CONTRACT=$2
@@ -306,9 +375,19 @@ function verifyContract() {
   while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]
   do
     if [ "$ARGS" = "0x" ]; then
-      forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT -e "${!API_KEY}"
+      # only show output if DEBUG flag is activated
+      if [[ "$DEBUG" == *"true"* ]]; then
+        forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT -e "${!API_KEY}"
+      else
+        forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT -e "${!API_KEY}" >/dev/null 2>&1
+      fi
     else
-      forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT --constructor-args $ARGS -e "${!API_KEY}"
+      # only show output if DEBUG flag is activated
+      if [[ "$DEBUG" == *"true"* ]]; then
+        forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT --constructor-args $ARGS -e "${!API_KEY}"
+      else
+        forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT --constructor-args $ARGS -e "${!API_KEY}"  >/dev/null 2>&1
+      fi
     fi
     COMMAND_STATUS=$?
     RETRY_COUNT=$((RETRY_COUNT+1))
@@ -317,9 +396,14 @@ function verifyContract() {
   # check the return status of the contract verification call
   if [ $COMMAND_STATUS -ne 0 ]
   then
-      echo "[warning] contract $CONTRACT in network $NETWORK could not be verified"
+    if [[ "$DEBUG" == *"true"* ]]; then
+      echo "[warning] $CONTRACT in network $NETWORK could not be verified"
+    fi
+    return 1
   else
-      echo "[info] contract $CONTRACT in network $NETWORK successful verified"
+    if [[ "$DEBUG" == *"true"* ]]; then
+      echo "[info] $CONTRACT in network $NETWORK successfully verified"
+    fi
   fi
 
   # return command status 0 (to make sure failed verification does not stop script)
@@ -447,6 +531,7 @@ function findContractVersionInTargetState() {
     echo "[debug] CONTRACT=$CONTRACT"
     echo "[debug] NETWORK=$NETWORK"
     echo "[debug] ENVIRONMENT=$ENVIRONMENT"
+    echo ""
   fi
 
   # Check if target state FILE exists
@@ -469,19 +554,402 @@ function findContractVersionInTargetState() {
         return 0
     else
         # entry not found - issue error message and return error code
-        echo "[info] No matching entry found in target state FILE for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT"
+        echo "[info] No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT"
         return 1
     fi
 }
+function userDialogSelectDiamondType() {
+  # ask user to select diamond type
+  SELECTION=$(gum choose \
+    "1) Mutable"\
+    "2) Immutable"\
+    )
+
+  # select correct contract name based on user selection
+  if [[ "$SELECTION" == *"1)"* ]]; then
+    DIAMOND_CONTRACT_NAME="LiFiDiamond"
+  elif [[ "$SELECTION" == *"2)"* ]]; then
+    DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
+  else
+    echo "[error] invalid value selected: $SELECTION - exiting script now"
+    exit 1
+  fi
+
+  # return contract name
+  echo "$DIAMOND_CONTRACT_NAME"
+}
+function doesFacetExistInDiamond() {
+  # read function arguments into variables
+  local DIAMOND_ADDRESS=$1
+  local FACET_NAME=$2
+  local NETWORK=$3
+
+  # get all facet selectors of the facet to be checked
+  local SELECTORS=$(getFunctionSelectorsFromContractABI "$FACET_NAME")
+
+  # get RPC URL
+  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+
+  # loop through facet selectors and see if this selector is known by the diamond
+  for SELECTOR in $SELECTORS; do
+    # call diamond to get address of facet for given selector
+    local RESULT=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" $SELECTOR --rpc-url "${!RPC}")
+
+    # if result != address(0) >> facet selector is known
+    if [[ "$RESULT" != "0x0000000000000000000000000000000000000000" ]]; then
+      echo "true"
+      return 0
+    fi
+  done
+
+  echo "false"
+  return 0
+}
+function determineEnvironment() {
+  # check if env variable "PRODUCTION" is true (or not set at all), otherwise deploy as staging
+  if [[ "$PRODUCTION" == "true" ]]; then
+    # make sure that PRODUCTION was selected intentionally by user
+    gum style \
+    --foreground 212 --border-foreground 213 --border double \
+    --align center --width 50 --margin "1 2" --padding "2 4" \
+    '!!! ATTENTION !!!'
+
+    echo "Your environment variable PRODUCTION is set to true"
+    echo "This means you will be deploying contracts to production"
+    echo "    "
+    echo "Do you want to skip?"
+    gum confirm && exit 1 || echo "OK, continuing to deploy to PRODUCTION"
+
+    echo "production"
+  else
+    echo "staging"
+  fi
+}
+function getFunctionSelectorFromContractABI() {
+  # read function arguments into variables
+  local CONTRACT_NAME="$1"
+  local FUNCTION_NAME="$2"
+
+  # Extract the ABI file for the specified contract
+  local ABI="./out/$CONTRACT_NAME.sol/$CONTRACT_NAME.json"
+
+  # Loop through methodIdentifiers in ABI
+  for FUNCTION in $(jq -r '.methodIdentifiers | keys[]' "$ABI"); do
+    # extract function name only from value
+    CURRENT_FUNCTION_NAME=${FUNCTION%%(*}
+
+    # If the identifier matches the provided function name, store it's signature and exit loop
+    if [[ "$FUNCTION_NAME" == "$CURRENT_FUNCTION_NAME" ]]; then
+      # get function identifier
+      SIGNATURE=$(jq -r ".methodIdentifiers[\"$FUNCTION\"]" "$ABI")
+      break
+    fi
+  done
+
+  # return function signature
+  echo "$SIGNATURE"
+
+}
+function getFunctionSelectorsFromContractABI() {
+  # read function arguments into variables
+  local CONTRACT_NAME="$1"
+
+  # Extract the ABI file for the specified contract
+  local ABI="./out/$CONTRACT_NAME.sol/$CONTRACT_NAME.json"
+
+  # Extract the function selectors from the ABI file
+  local SELECTORS=$(jq -r '.methodIdentifiers | join(",")' "$ABI")
+
+  # Convert the comma-separated list of selectors to an array of bytes4 values
+  local BYTES4_SELECTORS=()
+  IFS=',' read -ra SELECTOR_ARRAY <<< "$SELECTORS"
+  for SELECTOR in "${SELECTOR_ARRAY[@]}"; do
+      BYTES4_SELECTORS+=("0x${SELECTOR}")
+  done
+
+  # return the selectors array
+  echo "${BYTES4_SELECTORS[@]}"
+}
+function getFacetFunctionSelectorsFromDiamond() {
+  # read function arguments into variables
+  local DIAMOND_ADDRESS="$1"
+  local FACET_NAME="$2"
+  local NETWORK="$3"
+  local ENVIRONMENT="$4"
+  local EXIT_ON_ERROR="$5"
+
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
+  # get facet address from deployments JSON
+  local FILE_PATH="deployments/$NETWORK.${FILE_SUFFIX}json"
+  local FACET_ADDRESS=$(jq -r ".$FACET_NAME" $FILE_PATH)
+
+  # check if facet address was found
+  if [[ -z "$FACET_ADDRESS" ]]; then
+    echo "[error] no address found for $FACET_NAME in $FILE_PATH"
+    return 1
+  fi
+
+  # get RPC URL
+  local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+
+  # get a list of all facet addresses that are registered with the diamond
+  local DIAMOND_FILE_PATH="deployments/$NETWORK.diamond.${FILE_SUFFIX}json"
+
+  # search in DIAMOND_FILE_PATH for the given address
+  if jq -e ".facets | index(\"$FACET_ADDRESS\")" "$DIAMOND_FILE_PATH" >/dev/null; then
+    # get function selectors from diamond (function facetFunctionSelectors)
+    local ATTEMPTS=1
+    while [[ -z "$FUNCTION_SELECTORS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
+      # get address of facet in diamond
+      local FUNCTION_SELECTORS=$(cast call "$DIAMOND_ADDRESS" "facetFunctionSelectors(address) returns (bytes4[])" "$FACET_ADDRESS" --rpc-url "${!RPC_URL}")
+      ((ATTEMPTS++))
+      sleep 1
+    done
+
+    if [[ "$ATTEMPTS" -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]]; then
+      echo "[error] could not get facet address after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts, exiting."
+      return 1
+    fi
+  else
+    echo "[error] $FACET_NAME with address $FACET_ADDRESS is not known by diamond $DIAMOND_ADDRESS on network $NETWORK in $ENVIRONMENT environment. Please check why you tried to remove this facet from the diamond."
+    return 1
+  fi
+
+
+
+  # return the selectors array
+  echo "${FUNCTION_SELECTORS[@]}"
+}
+function getFacetAddressFromSelector() {
+    # read function arguments into variables
+    local DIAMOND_ADDRESS="$1"
+    local FACET_NAME="$2"
+    local NETWORK="$3"
+    local FUNCTION_SELECTOR="$4"
+
+    #echo "FUNCTION_SELECTOR in Func: $FUNCTION_SELECTOR"
+
+    # get RPC URL
+    local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+
+    # loop until FACET_ADDRESS has a value or maximum attempts are reached
+    local FACET_ADDRESS
+    local ATTEMPTS=1
+    while [[ -z "$FACET_ADDRESS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
+      # get address of facet in diamond
+      FACET_ADDRESS=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$FUNCTION_SELECTOR" --rpc-url "${!RPC_URL}")
+      ((ATTEMPTS++))
+      sleep 1
+    done
+
+    if [[ "$ATTEMPTS" -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]]; then
+      echo "[error] could not get facet address after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts, exiting."
+      return 1
+    fi
+
+    echo "$FACET_ADDRESS"
+    return 0
+}
+function removeFacetFromDiamond() {
+  # read function arguments into variables
+  local DIAMOND_ADDRESS="$1"
+  local FACET_NAME="$2"
+  local NETWORK="$3"
+  local ENVIRONMENT="$4"
+  local EXIT_ON_ERROR="$5"
+
+  # get function selectors of facet
+  FUNCTION_SELECTORS=$(getFunctionSelectorsOfCurrentContract "$DIAMOND_ADDRESS" "$FACET_NAME" "$NETWORK" "$ENVIRONMENT" false)
+
+  # convert the function selector array to a comma-separated list
+  SELECTORS_LIST="$(echo "${FUNCTION_SELECTORS[@]}" | sed 's/ /,/g')"
+
+  # get ABI of facet
+  local ABI="./out/$FACET_NAME.sol/$FACET_NAME.json"
+
+  # get RPC URL
+  local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+
+  local ZERO_ADDRESS=0x0000000000000000000000000000000000000000
+
+  # go through list of facet selectors and find out which of those is known by the diamond
+  for SELECTOR in $FUNCTION_SELECTORS
+  do
+    # get address of facet in diamond
+    local FACET_ADDRESS=$(getFacetAddressFromSelector "$DIAMOND_ADDRESS" "$FACET_NAME" "$NETWORK" "$SELECTOR")
+
+    # check if facet address could be obtained
+    if [[ $? -ne 0 ]]; then
+      # display error message
+      echo "$FACET_ADDRESS"
+      # exit script
+      return 1
+    fi
+
+    # if not zero address => add to list of selectors
+    if [ "$FACET_ADDRESS" != "$ZERO_ADDRESS" ]; then
+      if [[ -z "$SELECTORS_LIST2" ]]; then
+        # initiate list
+        KNOWN_SELECTORS="$SELECTOR"
+      else
+        # add to list
+        KNOWN_SELECTORS+=",$SELECTOR"
+      fi
+    fi
+  done
+
+  # prepare arguments for diamondCut call
+  local FACET_CUT_ACTION="2" # (remove == 2 according to enum)
+  local DIAMOND_CUT_FUNCTION_SIGNATURE="diamondCut((address,uint8,bytes4[])[],address,bytes)"
+
+  local TUPLE="[(""$ZERO_ADDRESS"",""$FACET_CUT_ACTION,["$KNOWN_SELECTORS"])]"
+
+  # Encode the function call arguments with the encode command
+  local ENCODED_ARGS=$(cast calldata "$DIAMOND_CUT_FUNCTION_SIGNATURE" "$TUPLE" "$ZERO_ADDRESS" "0x")
+
+  ATTEMPTS=1
+  while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+    echo "[info] trying to remove $FACET_NAME  from diamond $DIAMOND_ADDRESS - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
+
+    # call diamond
+    if [[ "$DEBUG" == *"true"* ]]; then
+      # print output to console
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$PRIVATE_KEY" --rpc-url "${!RPC_URL}" --legacy
+    else
+      # do not print output to console
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$PRIVATE_KEY" --rpc-url "${!RPC_URL}" --legacy >/dev/null 2>&1
+    fi
+
+    # check the return code the last call
+    if [ $? -eq 0 ]; then
+      break # exit the loop if the operation was successful
+    fi
+
+    ATTEMPTS=$((ATTEMPTS + 1)) # increment ATTEMPTS
+    sleep 1                    # wait for 1 second before trying the operation again
+  done
+
+  # check if call was executed successfully or used all ATTEMPTS
+  if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
+    echo "[error] failed to remove $FACET_NAME from $DIAMOND_ADDRESS on network $NETWORK"
+    # end this script according to flag
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
+  if [[ "$DEBUG" == *"true"* ]]; then
+    echo "[info] successfully removed $FACET_NAME from $DIAMOND_ADDRESS on network $NETWORK"
+  fi
+}
+function checkRequiredVariablesInDotEnv() {
+  # read function arguments into variables
+  local NETWORK=$1
+
+  local PRIVATE_KEY="$PRIVATE_KEY"
+  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+  local RPC_URL="${!RPC}"
+  local BLOCKEXPLORER_API="$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")""_ETHERSCAN_API_KEY"
+  local BLOCKEXPLORER_API_KEY="${!BLOCKEXPLORER_API}"
+
+  if [[ -z "$PRIVATE_KEY" || -z "$RPC_URL" || -z "$BLOCKEXPLORER_API_KEY" ]]; then
+    # throw error if any of the essential keys is missing
+    echo "[error] your .env file is missing essential entries for this network (required are: PRIVATE_KEY, $RPC and $BLOCKEXPLORER_API)"
+    return 1
+  fi
+
+  # all good - continue
+  return 0
+}
+function doesDiamondHaveCoreFacetsRegistered() {
+  # read function arguments into variables
+  local DIAMOND_ADDRESS="$1"
+  local NETWORK="$2"
+  local FILE_SUFFIX="$3"
+
+  # logging for debug purposes
+  if [[ "$DEBUG" == *"true"* ]]; then
+    echo ""
+    echo "[debug] in function doesDiamondHaveCoreFacetsRegistered"
+    echo "[debug] DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+    echo "[debug] NETWORK=$NETWORK"
+    echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
+    echo ""
+  fi
+
+  # get file with deployment addresses
+  DEPLOYMENTS_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+
+  # get RPC URL
+  local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+
+  # get list of all core facet contracts from config
+  IFS=',' read -ra FACETS_NAMES <<< "$CORE_FACETS"
+
+  # get a list of all facets that the diamond knows
+  local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "${!RPC_URL}")
+  if [ $? -ne 0 ]; then
+    echo "[debug] not all core facets are registered in the diamond"
+    return 1
+  fi
+
+  # extract the IDiamondLoupe.Facet tuples
+  tuples=($(echo "${KNOWN_FACET_ADDRESSES:1:${#KNOWN_FACET_ADDRESSES}-2}" | sed 's/),(/) /g' | sed 's/[()]//g'))
+
+  # extract the addresses from the tuples into an array
+  ADDRESSES=()
+  for tpl in "${tuples[@]}"; do
+    tpl="${tpl// /}" # remove spaces
+    tpl="${tpl//\'/}" # remove single quotes
+    addr="${tpl%%,*}" # extract address from tuple
+    ADDRESSES+=("$addr")
+  done
+
+  # loop through all contracts
+  for FACET_NAME in "${FACETS_NAMES[@]}"; do
+    # get facet address from deployments file
+    local FACET_ADDRESS=$(jq -r ".$FACET_NAME" "$DEPLOYMENTS_FILE")
+    # check if the address is not included in the diamond
+    if ! [[ " ${ADDRESSES[@]} " =~ " ${FACET_ADDRESS} " ]]; then
+      if [[ "$DEBUG" == *"true"* ]]; then
+          echo "[debug] not all core facets are registered in the diamond"
+      fi
+
+      # not included, return error code
+      return 1
+    fi
+  done
+  return 0
+}
+function getUserSelectedNetwork() {
+  # get user-selected network
+  local NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
+
+  # if no value was returned (e.g. when pressing ESC, end script)
+  if [[ -z "$NETWORK" ]]; then
+    echo "[error] invalid network selection"
+    return 1
+  fi
+
+  # make sure all required .env variables are set
+  checkRequiredVariablesInDotEnv "$NETWORK"
+
+  echo "$NETWORK"
+  return 0
+}
+
 # WIP
 
-
-
-
-
-
 # test cases for helper functions
-function test__log_contract_info() {
+function test_tmp(){
+  #removeFunctionSelectorsFromDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "HopFacetOptimized" "goerli"
+  removeFacetFromDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "StargateFacet" "goerli"
+}
+
+function test_logContractDeploymentInfo() {
 
   logContractDeploymentInfo "ContractName" "BSC" "<TIMESTAMP>" "1.0.0" "10000" "<args>" "staging" "0x1234"
   logContractDeploymentInfo "ContractName" "BSC" "<TIMESTAMP>" "1.0.1" "10000" "<args>" "staging" "0x4321"
@@ -547,15 +1015,23 @@ function test_findContractInLogFile() {
 function test_getCurrentContractVersion() {
 
   echo "should return error - VERSION string not found:"
-  getCurrentContractVersion "src/Facets/AccessManagerFacet.sol"
+  getCurrentContractVersion "AccessManagerFacet"
 
   echo ""
   echo "should return error - FILE not found:"
-  getCurrentContractVersion "src/Facets/nofile.sol"
+  getCurrentContractVersion "nofile"
 
   echo ""
   echo "should return '1.0.0':"
-  getCurrentContractVersion "src/Facets/testfile.sol"
+  getCurrentContractVersion "testfile"
+
+  echo ""
+  echo "should return '1.0.0':"
+  getCurrentContractVersion "Executor"
+
+  echo ""
+  echo "should return '1.0.0':"
+  getCurrentContractVersion "Receiver"
 
 
 
@@ -607,3 +1083,34 @@ function test_findContractVersionInTargetState() {
   echo "should return '1.0.0: $(findContractVersionInTargetState "goerli" "staging" "FeeCollector")"
   echo "should return '1.0.1: $(findContractVersionInTargetState "goerli" "staging" "RelayerCelerIM")"
 }
+function test_userDialogSelectDiamondType() {
+  echo ""
+  echo "Please select which type of diamond contract to deploy:"
+  echo "should return 'LiFiDiamondImmutable': $(userDialogSelectDiamondType)"
+}
+function test_getFunctionSelectorsFromContractABI()  {
+  echo "should return {}: $(getFunctionSelectorsFromContractABI "LiFiDiamond")"
+  echo "should return selectors: $(getFunctionSelectorsFromContractABI "MultichainFacet")"
+}
+function test_doesFacetExistInDiamond() {
+  echo "should return 'true': $(doesFacetExistInDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "OwnershipFacet" "goerli")"
+  echo "should return 'false': $(doesFacetExistInDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "HopFacet" "goerli")"
+}
+function test_getFunctionSelectorFromContractABI() {
+  echo "should return 'ebbaa1cb': $(getFunctionSelectorFromContractABI "AllBridgeFacet" "startBridgeTokensViaAllBridge")"
+  echo "should return 'aeb116de': $(getFunctionSelectorFromContractABI "AxelarFacet" "executeCallViaAxelar")"
+  echo "should return 'aeb116de': $(getFunctionSelectorFromContractABI "DiamondCutFacet" "executeCallViaAxelar")"
+}
+function test_removeFunctionSelectorsFromDiamond() {
+    removeFacetFromDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "HopFacetOptimized" "goerli"
+    removeFacetFromDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "StargateFacet" "goerli"
+}
+function test_getFacetFunctionSelectorsFromDiamond() {
+  echo "should return '[0x23452b9c,0x7200b829,0x8da5cb5b,0xf2fde38b]': $(getFacetFunctionSelectorsFromDiamond "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f" "OwnershipFacet" "mainnet" "staging")"
+  echo "should return '[0x536db266,0xfbb2d381,0xfcd8e49e,0x9afc19c7,0x44e2b18c,0x2d2506a9,0x124f1ead,0xc3a6a96b]': $(getFacetFunctionSelectorsFromDiamond "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE" "DexManagerFacet" "bsc" "production")"
+}
+function test_doesDiamondHaveCoreFacetsRegistered() {
+  doesDiamondHaveCoreFacetsRegistered "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f" "mainnet" "staging"
+  #doesDiamondHaveCoreFacetsRegistered "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f" "mumbai" "staging"
+}
+

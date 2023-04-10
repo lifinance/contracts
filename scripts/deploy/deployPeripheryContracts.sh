@@ -4,7 +4,7 @@
 
 deployPeripheryContracts() {
   echo ""
-  echo "[info] ------ deploying periphery contracts now...."
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying periphery contracts now...."
 
   # load config & helper functions
   source scripts/deploy/deployConfig.sh
@@ -23,7 +23,6 @@ deployPeripheryContracts() {
 
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
     echo "[debug] in function deployPeripheryContracts"
     echo "[debug] NETWORK=$NETWORK"
     echo "[debug] ENVIRONMENT=$ENVIRONMENT"
@@ -56,11 +55,8 @@ deployPeripheryContracts() {
         # matching entry found - should be deployed in target version
         if [[ "$CURRENT_VERSION" == "$TARGET_VERSION" ]]; then
           # target state version and current version match > deploy contract
-          # get deploy script name
-          SCRIPT="Deploy""$CONTRACT"
-
           # call deploy script for current contract
-          deploySingleContract "$CONTRACT" "$NETWORK" "$SCRIPT" "$ENVIRONMENT" "$CURRENT_VERSION"
+          deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION"
 
           # check if function call was successful
           if [ $? -ne 0 ]
@@ -71,7 +67,7 @@ deployPeripheryContracts() {
           fi
         else
           # target state version and current version do not match > throw warning and skip iteration
-          echo "[warning] target state version does not match with current version (contract=$CONTRACT, target_version=$TARGET_VERSION, current_version=$CURRENT_VERSION)"
+          echo "[warning] target state version does not match with current version (contract=$CONTRACT, target_version=$TARGET_VERSION, current_version=$CURRENT_VERSION) >> contract will not be deployed"
           continue
         fi
       fi
@@ -81,7 +77,7 @@ deployPeripheryContracts() {
     fi
   done
 
-  echo "[info] ------ periphery contracts deployed (please check for warnings)"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< periphery contracts deployed (please check for warnings)"
   return 0
 }
 

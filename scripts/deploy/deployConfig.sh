@@ -1,11 +1,16 @@
 #!/bin/bash
 
+# the maximum time in seconds that the script will wait for blockchain to sync contract deployment
+# we use this as double check to make sure that a contract was actually deployed
+MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC=60
 # the maximum number of attempts to deploy a single contract
-MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT=3
+MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT=10
 # the maximum number of attempts to verify contract
-MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=5
+MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=10
 # the maximum number of attempts to execute a script (e.g. diamondUpdate)
-MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=5
+MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=10
+# the root directory of all contract src files
+CONTRACT_DIRECTORY="src/"
 # the path of the JSON file that contains the target state
 TARGET_STATE_PATH="scripts/deploy/_targetState.json"
 # the path of the JSON file that contains the deployment log file
@@ -18,8 +23,6 @@ BYTECODE_STORAGE_PATH="deployments/bytecode_storage.json"
 EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova,mumbai,consensys-zkevm-testnet,sepolia"
 # will output more detailed information for debugging purposes
 DEBUG=false
-# the root directory of all contract src files
-CONTRACT_DIRECTORY="src/"
 # defines if newly deployed contracts should be verified or not
 VERIFY_CONTRACTS=true
 # contract verification will be deactivated for any network listed here

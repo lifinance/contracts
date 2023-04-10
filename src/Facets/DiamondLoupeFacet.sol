@@ -5,6 +5,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { IDiamondLoupe } from "../Interfaces/IDiamondLoupe.sol";
 import { IERC165 } from "../Interfaces/IERC165.sol";
 
+/// @custom:version 1.0.0
 contract DiamondLoupeFacet is IDiamondLoupe, IERC165 {
     // Diamond Loupe Functions
     ////////////////////////////////////////////////////////////////////

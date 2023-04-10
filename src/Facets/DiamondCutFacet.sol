@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import { IDiamondCut } from "../Interfaces/IDiamondCut.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 
+/// @custom:version 1.0.0
 contract DiamondCutFacet is IDiamondCut {
     /// @notice Add/replace/remove any number of functions and optionally execute
     ///         a function with delegatecall

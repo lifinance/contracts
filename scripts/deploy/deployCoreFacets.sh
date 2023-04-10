@@ -4,7 +4,7 @@
 # core facets are contracts that are listed under CORE_FACETS in deployConfig.sh
 deployCoreFacets() {
   echo ""
-  echo "[info] ------ deploying core facets now...."
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying core facets now...."
 
   # load config & helper functions
   source scripts/deploy/deployConfig.sh
@@ -12,14 +12,14 @@ deployCoreFacets() {
   source scripts/deploy/deploySingleContract.sh
 
   # read function arguments into variables
-  NETWORK="$1"
-  ENVIRONMENT="$2"
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
 
   # load env variables
   source .env
 
   # get file suffix based on value in variable ENVIRONMENT
-  FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
@@ -28,6 +28,7 @@ deployCoreFacets() {
     echo "[debug] NETWORK=$NETWORK"
     echo "[debug] ENVIRONMENT=$ENVIRONMENT"
     echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
+    echo ""
   fi
 
   # get list of all core facet contracts
@@ -35,21 +36,17 @@ deployCoreFacets() {
 
   # loop through all contracts
   for CONTRACT in "${FACETS_ARRAY[@]}"; do
-    echo ""
     # get current contract version
-    CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
+    local CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
 
     # check if contract is deployed already
-    DEPLOYED=$(findContractInLogFile "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION")
+    DEPLOYED=$(findContractInLogFile "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION"  2>&1)
 
     # check return code of findContractInLogFile
     if [[ "$?" -ne 0 ]]; then
       # contract not found in log file (= has not been deployed to this network/environment)
-      # get deploy script name
-      SCRIPT="Deploy""$CONTRACT"
-
       # call deploy script for current contract
-      deploySingleContract "$CONTRACT" "$NETWORK" "$SCRIPT" "$ENVIRONMENT" "$CURRENT_VERSION"
+      deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" "true"
 
       # check if function call was successful
       if [ $? -ne 0 ]
@@ -63,7 +60,7 @@ deployCoreFacets() {
       echo "[info] contract $CONTRACT is deployed already in version $CURRENT_VERSION"
     fi
   done
-
-  echo "[info] ------ core facets deployed (please check for warnings)"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets deployed (please check for warnings)"
+  echo ""
   return 0
 }
