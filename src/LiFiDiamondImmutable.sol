@@ -5,6 +5,9 @@ import { LibDiamond } from "./Libraries/LibDiamond.sol";
 import { IDiamondCut } from "./Interfaces/IDiamondCut.sol";
 import { LibUtil } from "./Libraries/LibUtil.sol";
 
+/// @title LIFI Diamond Immutable
+/// @author LI.FI (https://li.fi)
+/// @notice (Immutable) Base EIP-2535 Diamond Proxy Contract.
 /// @custom:version 1.0.0
 contract LiFiDiamondImmutableV1 {
     constructor(address _contractOwner, address _diamondCutFacet) payable {

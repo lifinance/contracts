@@ -4,6 +4,9 @@ pragma solidity 0.8.17;
 import { IDiamondCut } from "../Interfaces/IDiamondCut.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 
+/// @title Diamond Cut Facet
+/// @author LI.FI (https://li.fi)
+/// @notice Core EIP-2535 Facet for upgrading Diamond Proxies.
 /// @custom:version 1.0.0
 contract DiamondCutFacet is IDiamondCut {
     /// @notice Add/replace/remove any number of functions and optionally execute
