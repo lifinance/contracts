@@ -44,7 +44,16 @@ contract PackedEncoderDecoderFacetTest is DSTest {
 
     function test_CanEncodeAndDecodeHopNativeCall() public {
         bytes memory encoded = packedEncoderDecoderFacet
-            .encode_startBridgeTokensViaHopL2NativePacked(bridgeData, hopData);
+            .encode_startBridgeTokensViaHopL2NativePacked(
+            bridgeData.transactionId,
+            bridgeData.integrator,
+            bridgeData.receiver,
+            bridgeData.destinationChainId,
+            hopData.bonderFee,
+            hopData.amountOutMin,
+            hopData.destinationAmountOutMin,
+            address(hopData.hopBridge)
+            );
         (
             ILiFi.BridgeData memory decodedBridgeData,
             HopFacetOptimized.HopData memory decodedHopData
@@ -70,7 +79,18 @@ contract PackedEncoderDecoderFacetTest is DSTest {
 
     function test_CanEncodeAndDecodeHopERC20Call() public {
         bytes memory encoded = packedEncoderDecoderFacet
-            .encode_startBridgeTokensViaHopL2ERC20Packed(bridgeData, hopData);
+            .encode_startBridgeTokensViaHopL2ERC20Packed(
+            bridgeData.transactionId,
+            bridgeData.integrator,
+            bridgeData.receiver,
+            bridgeData.destinationChainId,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount,
+            hopData.bonderFee,
+            hopData.amountOutMin,
+            hopData.destinationAmountOutMin,
+            address(hopData.hopBridge)
+            );
         (
             ILiFi.BridgeData memory decodedBridgeData,
             HopFacetOptimized.HopData memory decodedHopData
@@ -99,8 +119,12 @@ contract PackedEncoderDecoderFacetTest is DSTest {
     function test_CanEncodeAndDecodeCBridgeNativeCall() public {
         bytes memory encoded = packedEncoderDecoderFacet
             .encode_startBridgeTokensViaCBridgeNativePacked(
-                bridgeData,
-                cBridgeData
+                bridgeData.transactionId,
+                bridgeData.integrator,
+                bridgeData.receiver,
+                uint64(bridgeData.destinationChainId),
+                cBridgeData.nonce,
+                cBridgeData.maxSlippage
             );
         (
             ILiFi.BridgeData memory decodedBridgeData,
@@ -120,8 +144,14 @@ contract PackedEncoderDecoderFacetTest is DSTest {
     function test_CanEncodeAndDecodeCBridgeERC20Call() public {
         bytes memory encoded = packedEncoderDecoderFacet
             .encode_startBridgeTokensViaCBridgeERC20Packed(
-                bridgeData,
-                cBridgeData
+                bridgeData.transactionId,
+                bridgeData.integrator,
+                bridgeData.receiver,
+                uint64(bridgeData.destinationChainId),
+                bridgeData.sendingAssetId,
+                bridgeData.minAmount,
+                cBridgeData.nonce,
+                cBridgeData.maxSlippage
             );
         (
             ILiFi.BridgeData memory decodedBridgeData,
