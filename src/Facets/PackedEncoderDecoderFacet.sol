@@ -9,14 +9,14 @@ import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 
 /// @title PackedEncoderDecoderFacet
 /// @author LI.FI (https://li.fi)
-/// @notice Provides functionality for decoding packed calldata
+/// @notice Provides functionality for encoding/decoding packed calldata
 /// @custom:version 1.0.0
 contract PackedEncoderDecoderFacet is ILiFi {
     /// External Methods ///
 
     /// @notice Encodes calldata for startBridgeTokensViaHopL2NativePacked
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _hopData data specific to Hop Protocol
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _hopData Data specific to Hop Protocol
     function encode_startBridgeTokensViaHopL2NativePacked(
         BridgeData calldata _bridgeData,
         HopFacetOptimized.HopData calldata _hopData
@@ -256,7 +256,7 @@ contract PackedEncoderDecoderFacet is ILiFi {
         pure
         returns (BridgeData memory, CBridgeFacet.CBridgeData memory)
     {
-        require(_data.length >= 96, "callData length smaller than required");
+        require(_data.length >= 96, "data passed is not the correct length");
 
         BridgeData memory bridgeData;
         CBridgeFacet.CBridgeData memory cBridgeData;
