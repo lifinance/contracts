@@ -42,7 +42,25 @@ deployMaster() {
   source scripts/deploy/updatePeriphery.sh
 
   # determine environment (production/staging)
-  local ENVIRONMENT=$(determineEnvironment)
+  # TODO: also check where else this needs to be replaced
+    # check if env variable "PRODUCTION" is true (or not set at all), otherwise deploy as staging
+    if [[ "$PRODUCTION" == "true" ]]; then
+      # make sure that PRODUCTION was selected intentionally by user
+      gum style \
+      --foreground 212 --border-foreground 213 --border double \
+      --align center --width 50 --margin "1 2" --padding "2 4" \
+      '!!! ATTENTION !!!'
+
+      echo "Your environment variable PRODUCTION is set to true"
+      echo "This means you will be deploying contracts to production"
+      echo "    "
+      echo "Do you want to skip?"
+      gum confirm && exit 1 || echo "OK, continuing to deploy to PRODUCTION"
+
+      ENVIRONMENT="production"
+    else
+      ENVIRONMENT="staging"
+    fi
 
   # ask user to choose a deploy use case
   echo ""
