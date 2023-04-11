@@ -18,11 +18,7 @@ function deployFacetAndAddToDiamond() {
   local ENVIRONMENT="$5"
   local VERSION="$6"
 
-  # if no FILE_SUFFIX was passed to this function, define it
-  if [[ -z "$FILE_SUFFIX" ]]; then
-    ENVIRONMENT=$(determineEnvironment)
-    FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-  fi
+  # TODO - determine environment + file_suffix if no parameters passed
 
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then

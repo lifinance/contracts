@@ -70,6 +70,8 @@ function syncDEXs {
   RESULT=$(cast call "$DIAMOND_ADDRESS" "approvedDexs() returns (address[])" --rpc-url "${!RPC}")
   DEXS=($(echo ${RESULT:1:${#RESULT}-1} | tr ',' '\n' | tr '[:upper:]' '[:lower:]'))
 
+  # TODO: in production this was repeating even though no new DEXs were to be added - test again
+
   # find DEX addresses that are in the config file but not yet added to the diamond
   NEW_DEXS=()
   for DEX in "${CFG_DEXS[@]}"; do
@@ -109,7 +111,7 @@ function syncDEXs {
 
     # check if call was executed successfully or used all ATTEMPTS
     if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
-      echo "[error] failed to add missing DEXs to $DIAMOND_CONTRACT_NAME with $DIAMOND_ADDRESS on network $NETWORK"
+      echo "[error] failed to add missing DEXs to $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS on network $NETWORK"
       # end this script according to flag
       if [[ -z "$EXIT_ON_ERROR" ]]; then
         return 1

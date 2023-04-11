@@ -1374,7 +1374,9 @@ function test_addNewNetworkWithAllIncludedContractsInLatestVersions() {
 
 
 function test_tmp(){
- verifyContract "fantom" "LiFiDiamond" "" ""
+ RESULT=$(cast call "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "approvedDexs() returns (address[])" --rpc-url "https://fantom.blockpi.network/v1/rpc/public")
+
+echo "RESULT: $RESULT"
 }
 
 
