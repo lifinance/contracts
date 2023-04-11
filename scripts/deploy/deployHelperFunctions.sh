@@ -1378,6 +1378,3 @@ function test_tmp(){
 
 echo "RESULT: $RESULT"
 }
-
-
-test_tmp
