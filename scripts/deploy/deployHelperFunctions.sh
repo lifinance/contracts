@@ -1198,7 +1198,7 @@ function getRPCUrl(){
 
 # test cases for helper functions
 function test_tmp(){
- echo 
+ echo
 }
 
 function test_logContractDeploymentInfo() {

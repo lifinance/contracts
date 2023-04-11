@@ -59,16 +59,18 @@ function updatePeriphery() {
     echo "[info] deployer wallet balance in this network: $BALANCE"
   fi
 
-  # get a list of all periphery contracts
-  local PERIPHERY_PATH="$CONTRACT_DIRECTORY""Periphery/"
-  PERIPHERY_CONTRACTS=$(getContractNamesInFolder "$PERIPHERY_PATH")
-  PERIPHERY_CONTRACTS_ARR=($(echo "$PERIPHERY_CONTRACTS" | tr ',' ' '))
-
-  # ask user to select contracts to be updated
+  # determine which periphery contracts to update
   if [[ -z "$UPDATE_ALL" ]]; then
+    # get a list of all periphery contracts
+    local PERIPHERY_PATH="$CONTRACT_DIRECTORY""Periphery/"
+    PERIPHERY_CONTRACTS=$(getContractNamesInFolder "$PERIPHERY_PATH")
+    PERIPHERY_CONTRACTS_ARR=($(echo "$PERIPHERY_CONTRACTS" | tr ',' ' '))
+
+    # ask user to select contracts to be updated
     CONTRACTS=$(gum choose --no-limit "${PERIPHERY_CONTRACTS_ARR[@]}")
   else
-    CONTRACTS=$PERIPHERY_CONTRACTS
+    # get all periphery contracts that are not excluded by config
+    CONTRACTS=$(getIncludedPeripheryContractsArray)
   fi
 
   # logging for debug purposes
