@@ -67,7 +67,6 @@ deploySingleContract() {
     echo "[debug] ENVIRONMENT=$ENVIRONMENT"
     echo "[debug] VERSION=$VERSION"
     echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-    echo "[debug] SALT=$SALT"
     echo ""
   fi
 

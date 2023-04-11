@@ -666,7 +666,24 @@ function doesFacetExistInDiamond() {
   return 0
 }
 function determineEnvironment() {
+  # check if env variable "PRODUCTION" is true (or not set at all), otherwise deploy as staging
+  if [[ "$PRODUCTION" == "true" ]]; then
+    # make sure that PRODUCTION was selected intentionally by user
+    gum style \
+    --foreground 212 --border-foreground 213 --border double \
+    --align center --width 50 --margin "1 2" --padding "2 4" \
+    '!!! ATTENTION !!!'
 
+    echo "Your environment variable PRODUCTION is set to true"
+    echo "This means you will be deploying contracts to production"
+    echo "    "
+    echo "Do you want to skip?"
+    gum confirm && exit 1 || echo "OK, continuing to deploy to PRODUCTION"
+
+    echo "production"
+  else
+    echo "staging"
+  fi
 }
 function getFunctionSelectorFromContractABI() {
   # read function arguments into variables
@@ -1155,15 +1172,10 @@ function getDeployerBalance() {
   ADDRESS=$(getDeployerAddress)
 
   # get balance in given network
-  BALANCE=$(cast balance $ADDRESS )
-  #RESPONSE=$(curl -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$ADDRESS\", \"latest\"],\"id\":1}" $RPC_URL) 2> /dev/null
-
-  # convert hex response to decimal
-  BALANCE_HEX=$(echo $RESPONSE | jq -r '.result')
-  BALANCE_DEC=$(printf "%d\n" "$BALANCE_HEX")
+  BALANCE=$(cast balance "$ADDRESS" --rpc-url "$RPC_URL")
 
   # return formatted balance
-  echo "Balance: $(echo "scale=10;$BALANCE_DEC / 1000000000000000000" | bc)"
+  echo "Balance: $(echo "scale=10;$BALANCE / 1000000000000000000" | bc)"
 }
 function getRPCUrl(){
   # read function arguments into variables
@@ -1362,7 +1374,9 @@ function test_addNewNetworkWithAllIncludedContractsInLatestVersions() {
 
 
 function test_tmp(){
- doesAddressContainBytecode "polygon" "0xe4Fa2Bb6E9b99F35Dc66715790A0b6eeaD1d7B5d"
+ getDeployerBalance "polygon"
 }
+
+test_tmp
 
 
