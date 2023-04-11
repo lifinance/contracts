@@ -138,7 +138,17 @@ diamondUpdate() {
     fi
     # check the return code the last call
     if [ $? -eq 0 ]; then
-      break # exit the loop if the operation was successful
+        # extract the "logs" property and its contents from return data
+        CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+
+        # extract the "returns" property and its contents from logs
+        RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2> /dev/null)
+
+        # get the facet addresses that are known to the diamond from the return data
+        FACETS=$(echo $RETURN_DATA | jq -r '.FACETS.value')
+        if [[ $FACETS == "{}" ]]; then
+          break # exit the loop if the operation was successful
+        fi
     fi
 
     attempts=$((attempts + 1)) # increment attempts
@@ -157,13 +167,13 @@ diamondUpdate() {
   fi
 
   # extract the "logs" property and its contents from return data
-  CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+  #CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
   # extract the "returns" property and its contents from logs
-  RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2> /dev/null)
+  #RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2> /dev/null)
 
 
   # get the facet addresses that are known to the diamond from the return data
-  FACETS=$(echo $RETURN_DATA | jq -r '.FACETS.value')
+  #FACETS=$(echo $RETURN_DATA | jq -r '.FACETS.value')
 
   # save facet addresses
   saveDiamond "$NETWORK" "$USE_MUTABLE_DIAMOND" "$FACETS"

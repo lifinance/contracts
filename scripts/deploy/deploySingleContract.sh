@@ -193,6 +193,8 @@ deploySingleContract() {
     fi
   fi
 
+  # TODO: check for success and write to log with correct success info
+
   # write to logfile
   if [ $? -ne 0 ]; then
     # verification not successful

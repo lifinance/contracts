@@ -343,13 +343,13 @@ function verifyContract() {
   ADDRESS=$3
   ARGS=$4
 
-    if [[ "$NETWORK" == *"$DO_NOT_VERIFY_IN_THESE_NETWORKS"* ]]; then
-        if [[ "$DEBUG" == *"true"* ]]; then
-          echo "[debug] network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
-          return 0
-        fi
-    fi
-
+  # TODO: this does not seem to work correctly
+  if [[ "$NETWORK" == *"$DO_NOT_VERIFY_IN_THESE_NETWORKS"* ]]; then
+      if [[ "$DEBUG" == *"true"* ]]; then
+        echo "[debug] network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
+        return 0
+      fi
+  fi
 
 
   # get API key for blockchain explorer
@@ -1377,6 +1377,5 @@ function test_tmp(){
  getDeployerBalance "polygon"
 }
 
-test_tmp
 
 

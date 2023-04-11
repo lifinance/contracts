@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import {LiFiDiamondImmutable} from "lifi/LiFiDiamondImmutable.sol";
+import { LiFiDiamondImmutable } from "lifi/LiFiDiamondImmutable.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 
 contract DeployScript is DeployScriptBase {
@@ -50,10 +50,7 @@ contract DeployScript is DeployScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return (
-                LiFiDiamondImmutable(payable(predicted)),
-                constructorArgs
-            );
+            return (LiFiDiamondImmutable(payable(predicted)), constructorArgs);
         }
 
         deployed = LiFiDiamondImmutable(
