@@ -6,7 +6,6 @@
 #   - use case 4 is still missing
 # - improve logging (use external library for console logging)
 # - add verify contract use case (use bytecode and settings from storage)
-# - verify only in included networks
 
 # - clean code
 #   - local before variables
@@ -20,6 +19,7 @@
 # - add fancy stuff
 #   - show deployer wallet balance before/after
 #   - script runtime
+# - offer to exclude bytecode verification and adapt ensureENV for networks for which we dont have a functioning block explorer
 
 # known limitations:
 #   - we currently cannot replace any of the core facets with our scripts

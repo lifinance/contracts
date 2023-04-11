@@ -26,7 +26,7 @@ DEBUG=true
 # defines if newly deployed contracts should be verified or not
 VERIFY_CONTRACTS=true
 # contract verification will be deactivated for any network listed here
-DO_NOT_VERIFY_IN_THESE_NETWORKS=""
+DO_NOT_VERIFY_IN_THESE_NETWORKS="bsc"
 # the path to the file that contains a list of all networks
 NETWORKS_FILE_PATH="./networks"
 # script will use all periphery contracts by default, unless excluded here (must match exact filename without .sol, comma-separated without space)

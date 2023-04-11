@@ -345,12 +345,20 @@ function saveContract() {
   printf %s "$RESULT" >"$ADDRESSES_FILE"
 }
 function verifyContract() {
-  # TODO: only execute for selected NETWORKs
   # read function arguments into variables
   NETWORK=$1
   CONTRACT=$2
   ADDRESS=$3
   ARGS=$4
+
+    if [[ "$NETWORK" == *"$DO_NOT_VERIFY_IN_THESE_NETWORKS"* ]]; then
+        if [[ "$DEBUG" == *"true"* ]]; then
+          echo "[debug] network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
+          return 0
+        fi
+    fi
+
+
 
   # get API key for blockchain explorer
   API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
@@ -1307,6 +1315,6 @@ function test_addNewNetworkWithAllIncludedContractsInLatestVersions() {
   addNewNetworkWithAllIncludedContractsInLatestVersions "newNetwork2" "staging" "LiFiDiamond"
 }
 
-
+verifyContract "mainnet" "Daniel" "" ""
 
 
