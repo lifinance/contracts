@@ -121,7 +121,7 @@ function logBytecode {
   else
     # match found - check if bytecode matches
     if [ "$BYTECODE" != "$LOG_RESULT" ]; then
-      echo "[warning] existing bytecode in log differs from bytecode produced by this run. Please check why this happens."
+      echo "[warning] existing bytecode in log differs from bytecode produced by this run. Please check why this happens (e.g. code changed without version bump). Bytecode storage not updated."
       return 1
     else
       if [[ "$DEBUG" == *"true"* ]]; then
@@ -131,18 +131,9 @@ function logBytecode {
     fi
   fi
 
-
-
-
-
-
-
   # Append new JSON object to log FILE
-JSON=$(echo "$JSON" | jq --arg contract_name "$CONTRACT_NAME" --arg version "$VERSION" --arg value "$VALUE" '.[$contract_name][$version] = $value')
+  JSON=$(echo "$JSON" | jq --arg contract_name "$CONTRACT_NAME" --arg version "$VERSION" --arg value "$VALUE" '.[$contract_name][$version] = $value')
 
-
-
-  echo "[info] contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
 }
 function checkIfJSONContainsEntry {
   # read function arguments into variables
@@ -1125,6 +1116,51 @@ function addNewNetworkWithAllIncludedContractsInLatestVersions() {
   done
 }
 # <<<<<< Manipulation of target state JSON file
+function getContractAddressFromSalt() {
+  # read function arguments into variables
+  local SALT=$1
+  local NETWORK=$2
+  local CONTRACT_NAME=$3
+
+  # get RPC URL
+  local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+
+  # get deployer address
+  local DEPLOYER_ADDRESS=$(getDeployerAddress)
+
+
+  # get actual deploy salt (as we do in DeployScriptBase:  keccak256(abi.encodePacked(saltPrefix, contractName));)
+  # prepare web3 code to be executed
+  jsCode="const Web3 = require('web3');
+    const web3 = new Web3();
+    const result = web3.utils.soliditySha3({t: 'string', v: '$SALT'},{t: 'string', v: '$CONTRACT_NAME'})
+    console.log(result);"
+
+  # execute code using web3
+  ACTUAL_SALT=$(node -e "$jsCode")
+
+  # call create3 factory to obtain contract address
+  RESULT=$(cast call "$CREATE3_FACTORY_ADDRESS" "getDeployed(address,bytes32) returns (address)" "$DEPLOYER_ADDRESS" "$ACTUAL_SALT" --rpc-url "${!RPC_URL}")
+
+  # return address
+  echo "$RESULT"
+
+}
+function getDeployerAddress() {
+    # prepare web3 code to be executed
+    jsCode="const Web3 = require('web3');
+      const web3 = new Web3();
+      const deployerAddress = (web3.eth.accounts.privateKeyToAccount('$PRIVATE_KEY')).address
+      const checksumAddress = web3.utils.toChecksumAddress(deployerAddress);
+      console.log(checksumAddress);"
+
+    # execute code using web3
+    DEPLOYER_ADDRESS=$(node -e "$jsCode")
+
+    # return deployer address
+    echo "$DEPLOYER_ADDRESS"
+}
+
 
 
 # WIP
@@ -1314,7 +1350,5 @@ function test_addNewContractVersionToAllIncludedNetworks() {
 function test_addNewNetworkWithAllIncludedContractsInLatestVersions() {
   addNewNetworkWithAllIncludedContractsInLatestVersions "newNetwork2" "staging" "LiFiDiamond"
 }
-
-verifyContract "mainnet" "Daniel" "" ""
 
 

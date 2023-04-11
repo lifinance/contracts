@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # TODO
-# - check if contract is already deployed before deploying it again
 # - implement all deploy use cases
 #   - use case 4 is still missing
 # - improve logging (use external library for console logging)
@@ -11,6 +10,8 @@
 #   - local before variables
 #   - variable names uppercase
 #   - make environment / file suffix global variables
+#   - add function descriptions in helper functions
+
 # - update docs / notion
 #   - add info about SALT env variable to deploy new contracts
 # - write article

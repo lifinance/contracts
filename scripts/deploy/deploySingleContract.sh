@@ -93,6 +93,15 @@ deploySingleContract() {
   # create salt that is used to deploy contract
   local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
 
+  # get predicted contract address based on salt
+  local CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT")
+
+  # check if predicted address already contains bytecode
+  if doesAddressContainBytecode "$NETWORK" "$CONTRACT_ADDRESS" > /dev/null; then
+    echo "[info] contract $CONTRACT is already deployed to address $CONTRACT_ADDRESS. Change SALT in .env if you want to redeploy to fresh address"
+    return 0
+  fi
+
   # execute script
   attempts=1
 

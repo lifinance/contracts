@@ -22,7 +22,7 @@ BYTECODE_STORAGE_PATH="deployments/bytecode_storage.json"
 # exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
 EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
 # will output more detailed information for debugging purposes
-DEBUG=true
+DEBUG=false
 # defines if newly deployed contracts should be verified or not
 VERIFY_CONTRACTS=true
 # contract verification will be deactivated for any network listed here
