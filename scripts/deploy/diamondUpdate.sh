@@ -23,7 +23,11 @@ diamondUpdate() {
       echo "$NETWORK" # will contain an error message
       exit 1
     fi
+    # get deployer wallet balance
+    BALANCE=$(getDeployerBalance "$NETWORK")
+
     echo "[info] selected network: $NETWORK"
+    echo "[info] deployer wallet balance in this network: $BALANCE"
   fi
 
   # if no ENVIRONMENT was passed to this function, determine it

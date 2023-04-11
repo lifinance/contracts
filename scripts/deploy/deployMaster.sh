@@ -18,7 +18,6 @@
 # - for immutable diamond we need to run some specific script - add to deploy script
 # - improve the handling of several similar log file entries
 # - add fancy stuff
-#   - show deployer wallet balance before/after
 #   - script runtime
 # - offer to exclude bytecode verification and adapt ensureENV for networks for which we dont have a functioning block explorer
 
@@ -93,6 +92,10 @@ deployMaster() {
       echo ""
       echo "[info] Now deploying contract $CONTRACT to network $NETWORK...."
 
+      # get deployer wallet balance
+      BALANCE=$(getDeployerBalance "$NETWORK")
+      echo "[info] deployer wallet balance in this network: $BALANCE"
+
       # call deploy script for current network
       deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
 
@@ -113,7 +116,11 @@ deployMaster() {
 
     # get user-selected network from list
     local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+    # get deployer wallet balance
+    BALANCE=$(getDeployerBalance "$NETWORK")
+
     echo "[info] selected network: $NETWORK"
+    echo "[info] deployer wallet balance in this network: $BALANCE"
     checkRequiredVariablesInDotEnv $NETWORK
 
     # call deploy script

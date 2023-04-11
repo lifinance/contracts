@@ -750,7 +750,7 @@ function getFacetFunctionSelectorsFromDiamond() {
   fi
 
   # get RPC URL
-  local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
 
   # get a list of all facet addresses that are registered with the diamond
   local DIAMOND_FILE_PATH="deployments/$NETWORK.diamond.${FILE_SUFFIX}json"
@@ -761,7 +761,7 @@ function getFacetFunctionSelectorsFromDiamond() {
     local ATTEMPTS=1
     while [[ -z "$FUNCTION_SELECTORS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
       # get address of facet in diamond
-      local FUNCTION_SELECTORS=$(cast call "$DIAMOND_ADDRESS" "facetFunctionSelectors(address) returns (bytes4[])" "$FACET_ADDRESS" --rpc-url "${!RPC_URL}")
+      local FUNCTION_SELECTORS=$(cast call "$DIAMOND_ADDRESS" "facetFunctionSelectors(address) returns (bytes4[])" "$FACET_ADDRESS" --rpc-url "${!RPC}")
       ((ATTEMPTS++))
       sleep 1
     done
@@ -790,14 +790,14 @@ function getFacetAddressFromSelector() {
     #echo "FUNCTION_SELECTOR in Func: $FUNCTION_SELECTOR"
 
     # get RPC URL
-    local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+    local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
 
     # loop until FACET_ADDRESS has a value or maximum attempts are reached
     local FACET_ADDRESS
     local ATTEMPTS=1
     while [[ -z "$FACET_ADDRESS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
       # get address of facet in diamond
-      FACET_ADDRESS=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$FUNCTION_SELECTOR" --rpc-url "${!RPC_URL}")
+      FACET_ADDRESS=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$FUNCTION_SELECTOR" --rpc-url "${!RPC}")
       ((ATTEMPTS++))
       sleep 1
     done
@@ -828,7 +828,7 @@ function removeFacetFromDiamond() {
   local ABI="./out/$FACET_NAME.sol/$FACET_NAME.json"
 
   # get RPC URL
-  local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
 
   local ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 
@@ -874,10 +874,10 @@ function removeFacetFromDiamond() {
     # call diamond
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$PRIVATE_KEY" --rpc-url "${!RPC_URL}" --legacy
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$PRIVATE_KEY" --rpc-url "${!RPC}" --legacy
     else
       # do not print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$PRIVATE_KEY" --rpc-url "${!RPC_URL}" --legacy >/dev/null 2>&1
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$PRIVATE_KEY" --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
     fi
 
     # check the return code the last call
@@ -1160,6 +1160,37 @@ function getDeployerAddress() {
     # return deployer address
     echo "$DEPLOYER_ADDRESS"
 }
+function getDeployerBalance() {
+  # read function arguments into variables
+  local NETWORK=$1
+
+  # get RPC URL
+  RPC_URL=$(getRPCUrl "$NETWORK")
+
+  # get deployer address
+  ADDRESS=$(getDeployerAddress)
+  echo "Address: $ADDRESS"
+
+  # get balance in given network
+  RESPONSE=$(curl -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$ADDRESS\", \"latest\"],\"id\":1}" $RPC_URL)
+
+  # convert hex response to decimal
+  BALANCE_HEX=$(echo $RESPONSE | jq -r '.result')
+  BALANCE_DEC=$(printf "%d\n" "$BALANCE_HEX")
+
+  # return formatted balance
+  echo "Balance: $(echo "scale=10;$BALANCE_DEC / 1000000000000000000" | bc)"
+}
+function getRPCUrl(){
+  # read function arguments into variables
+  local NETWORK=$1
+
+  # get RPC KEY
+  RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+
+  # return RPC URL
+  echo "${!RPC_KEY}"
+}
 
 
 
@@ -1167,8 +1198,7 @@ function getDeployerAddress() {
 
 # test cases for helper functions
 function test_tmp(){
-  #removeFunctionSelectorsFromDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "HopFacetOptimized" "goerli"
-  removeFacetFromDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "StargateFacet" "goerli"
+ echo 
 }
 
 function test_logContractDeploymentInfo() {
@@ -1352,3 +1382,4 @@ function test_addNewNetworkWithAllIncludedContractsInLatestVersions() {
 }
 
 
+test_tmp
