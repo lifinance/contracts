@@ -186,10 +186,22 @@ deploySingleContract() {
 
   # verify contract
   if [[ $VERIFY_CONTRACTS == "true" ]]; then
+    echo "[debug] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS"
     if [[ $DEBUG == "true" ]]; then
+      echo "[debug] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS"
       verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"
+      if [ $? -ne 0 ]; then
+        VERIFIED="true"
+      else
+        VERIFIED="false"
+      fi
     else
       verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" 2>/dev/null
+      if [ $? -ne 0 ]; then
+        VERIFIED="true"
+      else
+        VERIFIED="false"
+      fi
     fi
   fi
 
@@ -198,10 +210,10 @@ deploySingleContract() {
   # write to logfile
   if [ $? -ne 0 ]; then
     # verification not successful
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" false
+    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" VERIFIED
   else
     # verification successful
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" true
+    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" VERIFIED
   fi
   return 0
 }

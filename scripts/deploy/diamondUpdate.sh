@@ -146,7 +146,7 @@ diamondUpdate() {
 
         # get the facet addresses that are known to the diamond from the return data
         FACETS=$(echo $RETURN_DATA | jq -r '.FACETS.value')
-        if [[ $FACETS == "{}" ]]; then
+        if [[ $FACETS != "{}" ]]; then
           break # exit the loop if the operation was successful
         fi
     fi

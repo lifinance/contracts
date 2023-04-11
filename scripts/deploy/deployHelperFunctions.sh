@@ -1374,8 +1374,8 @@ function test_addNewNetworkWithAllIncludedContractsInLatestVersions() {
 
 
 function test_tmp(){
- getDeployerBalance "polygon"
+ verifyContract "fantom" "LiFiDiamond" "" ""
 }
 
 
-
+test_tmp
