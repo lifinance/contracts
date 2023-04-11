@@ -1170,7 +1170,6 @@ function getDeployerBalance() {
 
   # get deployer address
   ADDRESS=$(getDeployerAddress)
-  echo "Address: $ADDRESS"
 
   # get balance in given network
   RESPONSE=$(curl -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$ADDRESS\", \"latest\"],\"id\":1}" $RPC_URL) 2> /dev/null
