@@ -7,9 +7,7 @@
 # - improve logging (use external library for console logging)
 # - add verify contract use case (use bytecode and settings from storage)
 # - verify only in included networks
-# - write scripts to update targetState JSON
-#   - add new network with all contracts to target JSON
-#   - bump version of specific contract on all networks
+
 # - clean code
 #   - local before variables
 #   - variable names uppercase
@@ -54,10 +52,8 @@ deployMaster() {
     "2) Deploy one specific contract to all networks (=new contract)"\
     "3) Deploy all contracts to one selected network (=new network)" \
     "4) Deploy all (missing) contracts for all networks (actual vs. target)" \
-    "5) Run sync-sigs.sh script" \
-    "6) Run sync-dexs.sh script" \
-    "7) Run updatePeriphery.sh script" \
-    "8) Run diamondUpdate.sh script" \
+    "5) Execute a script" \
+    "6) Batch update _targetState.json file" \
     )
 
   # use case 1: Deploy one specific contract to one network
@@ -140,38 +136,134 @@ deployMaster() {
         # compare actual vs. target
         # deploy if needed
 
-  # use case 5: Run sync-sigs.sh script
+  # use case 5: Execute a script
   elif [[ "$SELECTION" == *"5)"* ]]; then
     echo ""
-    echo "[info] selected use case: Run sync-sigs.sh script"
-    syncSIGs "" "" "" true
+    echo "Please select which script you would like to execute"
 
-  # use case 6: Run sync-dexs.sh script
+    local SELECTION2=$(gum choose \
+      "1) Run diamondUpdate.sh script" \
+      "2) Run updatePeriphery.sh script" \
+      "3) Run sync-dexs.sh script" \
+      "4) Run sync-sigs.sh script" \
+      )
+
+    if [[ "$SELECTION2" == *"1)"* ]]; then
+      echo ""
+      echo "[info] selected use case: Run diamondUpdate.sh script"
+      diamondUpdate
+    elif [[ "$SELECTION2" == *"2)"* ]]; then
+      echo ""
+      echo "[info] selected use case: Run updatePeriphery.sh script"
+      updatePeriphery "" "" "" "" true
+    elif [[ "$SELECTION2" == *"3)"* ]]; then
+      echo ""
+      echo "[info] selected use case: Run sync-dexs.sh script"
+      syncDEXs "" "" "" true
+    elif [[ "$SELECTION2" == *"4)"* ]]; then
+      echo ""
+      echo "[info] selected use case: Run sync-sigs.sh script"
+      syncSIGs "" "" "" true
+    else
+      echo "[error] invalid use case selected ('$SELECTION2') - exiting script"
+      exit 1
+    fi
+
+  # use case 6: Update _targetState.json file
   elif [[ "$SELECTION" == *"6)"* ]]; then
     echo ""
-    echo "[info] selected use case: Run sync-dexs.sh script"
-    syncDEXs "" "" "" true
+    echo "[info] selected use case: Batch update _targetState.json file"
 
-  # use case 7: Run updatePeriphery.sh script
-  elif [[ "$SELECTION" == *"7)"* ]]; then
     echo ""
-    echo "[info] selected use case: Run updatePeriphery.sh script"
-    updatePeriphery "" "" "" "" true
+    echo "Please choose one of the following options:"
+    local SELECTION2=$(gum choose \
+      "1) Update the version of a contract on all networks"\
+      "2) Add a new network with all (included) contracts"\
+      )
+    echo "$SELECTION2"
 
-  # use case 8: Run diamondUpdate.sh script
-  elif [[ "$SELECTION" == *"8)"* ]]; then
+    if [[ "$SELECTION2" == *"1)"* ]]; then
+      # get names of all contracts
+      ALL_CONTRACT_NAMES=($(getAllContractNames))
+
+      # Prompt the user to select a contract to be updated
+      echo ""
+      echo "Please select the contract for which you want to update the target version in all networks:"
+      PS3="Selection: "
+      select SELECTED_CONTRACT in "${ALL_CONTRACT_NAMES[@]}"; do
+        if [[ -n "$SELECTED_CONTRACT" ]]; then
+          break
+        else
+          echo "Invalid selection. Please try again."
+        fi
+      done
+
+      # Print the selected contract
+      echo ""
+      echo "[info] selected contract: $SELECTED_CONTRACT"
+
+      # get current contract version
+      CURRENT_VERSION=$(getCurrentContractVersion "$SELECTED_CONTRACT")
+
+      # ask user which version to update to
+      echo ""
+      echo "Please enter the new contract version (current contract version=$CURRENT_VERSION):"
+      read NEW_VERSION
+
+
+      echo ""
+      echo "Please select an environment:"
+      local ENVIRONMENT=$(gum choose \
+        "staging"\
+        "production"\
+        )
+      echo "[info] selected environment: $ENVIRONMENT"
+
+      echo ""
+      echo "[info] now updating contract version "
+
+      # update target state json
+      updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "$NEW_VERSION"
+
+
+
+    elif [[ "$SELECTION2" == *"2)"* ]]; then
+      echo "Please enter the name of the new network:"
+      read NETWORK_NAME
+      echo ""
+      echo "[info] selected network: $NETWORK_NAME"
+
+      echo "Please select an environment:"
+      local ENVIRONMENT=$(gum choose \
+        "staging"\
+        "production"\
+        )
+      echo "[info] selected environment: $ENVIRONMENT"
+
+      DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
+      echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
+
+      echo "[info] adding a new network '$NETWORK_NAME' with all contracts including $DIAMOND_CONTRACT_NAME to target state file"
+      addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+      # check if function call was successful
+      if [ $? -eq 0 ]
+      then
+        echo "[info] ...success"
+      else
+        echo "[error] script ended with error code. Please turn on DEBUG flag and check for details"
+      fi
+    else
+      echo "[error] invalid use case selected ('$SELECTION2') - exiting script"
+      exit 1
+    fi
     echo ""
-    echo "[info] selected use case: Run diamondUpdate.sh script"
-    diamondUpdate
-
+    echo "[info] ...Batch update _targetState.json file successfully completed"
   else
     echo "[error] invalid use case selected ('$SELECTION') - exiting script"
     exit 1
   fi
 
   # inform user and end script
-  echo ""
-  echo "[info] deployMaster script successfully executed"
   echo ""
   echo ""
   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"

@@ -20,18 +20,18 @@ BYTECODE_STORAGE_PATH="deployments/bytecode_storage.json"
 # any networks listed here will be excluded from actions that are applied to "all networks"
 # exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,consensys-zkevm-testnet"
 # exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
-EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova,mumbai,consensys-zkevm-testnet,sepolia"
+EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
 # will output more detailed information for debugging purposes
-DEBUG=false
+DEBUG=true
 # defines if newly deployed contracts should be verified or not
 VERIFY_CONTRACTS=true
 # contract verification will be deactivated for any network listed here
 DO_NOT_VERIFY_IN_THESE_NETWORKS=""
 # the path to the file that contains a list of all networks
 NETWORKS_FILE_PATH="./networks"
-# script will deploy all periphery contracts by default, unless excluded here (must match exact filename without .sol)
+# script will use all periphery contracts by default, unless excluded here (must match exact filename without .sol, comma-separated without space)
 EXCLUDE_PERIPHERY_CONTRACTS=""
-# script will deploy all facet contracts by default, unless excluded here (must match exact filename without .sol)
+# scripts will use all facet contracts by default, unless excluded here (must match exact filename without .sol, comma-separated without space)
 EXCLUDE_FACET_CONTRACTS=""
-# contains a list of all facets that are considered core facets and will be deployed to every network
+# contains a list of all facets that are considered core facets (and will be deployed to every network)
 CORE_FACETS="DiamondCutFacet,DiamondLoupeFacet,OwnershipFacet,DexManagerFacet,AccessManagerFacet,WithdrawFacet,PeripheryRegistryFacet"

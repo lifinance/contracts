@@ -209,10 +209,10 @@ function findContractInLogFile() {
 }
 function getCurrentContractVersion() {
   # read function arguments into variables
-  CONTRACT="$1"
+  local CONTRACT="$1"
 
   # get src FILE path for contract
-  FILEPATH=$(getContractFilePath "$CONTRACT")
+  local FILEPATH=$(getContractFilePath "$CONTRACT")
   wait
 
   # Check if FILE exists
@@ -221,12 +221,12 @@ function getCurrentContractVersion() {
       return 1
   fi
 
-  # Search for "@custom:version 1.0.0" in the FILE and store the first RESULT in the variable
-  VERSION=$(grep "@custom:version 1.0.0" "$FILEPATH" | cut -d ' ' -f 3)
+  # Search for "@custom:version" in the file and store the first result in the variable
+  local VERSION=$(grep "@custom:version" "$FILEPATH" | cut -d ' ' -f 3)
 
   # Check if VERSION is empty
   if [ -z "$VERSION" ]; then
-      echo "[error]: 'contract_version' string not found in $FILEPATH."
+      echo "[error]: '@custom:version' string not found in $FILEPATH"
       return 1
   fi
 
@@ -482,6 +482,28 @@ function getContractNamesInFolder() {
       echo "[error] the following path is not a valid directory: $FILEPATH"
   fi
   }
+function getAllContractNames() {
+  # will return the names of all contracts in the following folders:
+  # src
+  # src/Facets
+  # src/Periphery
+
+  # get all facet contracts
+  local FACET_CONTRACTS=$(getIncludedAndSortedFacetContractsArray)
+
+  # get all periphery contracts
+  local PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
+
+  # get all diamond contracts
+  local DIAMOND_CONTRACTS=$(getContractNamesInFolder "src")
+
+  # merge
+  local ALL_CONTRACTS=("${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}" "${DIAMOND_CONTRACTS[@]}")
+
+  # Print the resulting array
+  echo "${ALL_CONTRACTS[*]}"
+}
+
 function getIncludedPeripheryContractsArray() {
   # prepare required variables
   local DIRECTORY_PATH="$CONTRACT_DIRECTORY""Periphery/"
@@ -517,6 +539,44 @@ function getIncludedFacetContractsArray() {
 
   # return ARRAY
   echo "${ARRAY[@]}"
+}
+function getIncludedAndSortedFacetContractsArray() {
+  # get all facet contracts
+  FACET_CONTRACTS=($(getIncludedFacetContractsArray))
+
+  # convert CORE_FACETS into an array
+  CORE_FACETS_ARRAY=($(echo "$CORE_FACETS" | tr ',' ' '))
+
+  # initialize empty arrays for core and non-core facet contracts
+  CORE_FACET_CONTRACTS=()
+  OTHER_FACET_CONTRACTS=()
+
+  # loop through FACET_CONTRACTS and sort into core and non-core arrays
+  for contract in "${FACET_CONTRACTS[@]}"; do
+    is_core=0
+    for core_facet in "${CORE_FACETS_ARRAY[@]}"; do
+      if [[ $contract == $core_facet ]]; then
+        is_core=1
+        break
+      fi
+    done
+
+    if [[ $is_core == 1 ]]; then
+      CORE_FACET_CONTRACTS+=("$contract")
+    else
+      OTHER_FACET_CONTRACTS+=("$contract")
+    fi
+  done
+
+  # sort the arrays
+  CORE_FACET_CONTRACTS=($(printf '%s\n' "${CORE_FACET_CONTRACTS[@]}" | sort))
+  OTHER_FACET_CONTRACTS=($(printf '%s\n' "${OTHER_FACET_CONTRACTS[@]}" | sort))
+
+  # merge the arrays
+  SORTED_FACET_CONTRACTS=("${CORE_FACET_CONTRACTS[@]}" "${OTHER_FACET_CONTRACTS[@]}")
+
+  # print the sorted array
+  echo "${SORTED_FACET_CONTRACTS[*]}"
 }
 function findContractVersionInTargetState() {
   # read function arguments into variables
@@ -940,6 +1000,124 @@ function getUserSelectedNetwork() {
   echo "$NETWORK"
   return 0
 }
+# >>>>> Manipulation of target state JSON file
+function addContractVersionToTargetState() {
+  # read function arguments into variables
+  NETWORK=$1
+  ENVIRONMENT=$2
+  CONTRACT_NAME=$3
+  VERSION=$4
+  UPDATE_EXISTING=$5
+
+  # check if entry already exists
+  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${CONTRACT_NAME}\" // empty" $TARGET_STATE_PATH)
+
+  # check if entry should be updated and log warning if debug flag is set
+    if [[ -n "$ENTRY_EXISTS" ]]; then
+      if [[ "$UPDATE_EXISTING" == *"false"* ]]; then
+        if [[ "$DEBUG" == *"true"* ]]; then
+          echo "[warning]: target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, and CONTRACT_NAME:$CONTRACT_NAME."
+        fi
+        # exit script
+        return 1
+      else
+        if [[ "$DEBUG" == *"true"* ]]; then
+          echo "[warning]: target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, and CONTRACT_NAME:$CONTRACT_NAME. Updating version."
+        fi
+      fi
+    fi
+
+  # add or update target state file
+  jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" $TARGET_STATE_PATH > temp.json && mv temp.json $TARGET_STATE_PATH
+}
+function updateExistingContractVersionInTargetState() {
+  # this function will update only existing entries, not add new ones
+
+  # read function arguments into variables
+  NETWORK=$1
+  ENVIRONMENT=$2
+  CONTRACT_NAME=$3
+  VERSION=$4
+
+  # check if entry already exists
+  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${CONTRACT_NAME}\" // empty" $TARGET_STATE_PATH)
+
+  # check if entry should be updated and log warning if debug flag is set
+    if [[ -n "$ENTRY_EXISTS" ]]; then
+      echo "[info]: updating version in target state file: NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, CONTRACT_NAME:$CONTRACT_NAME, new VERSION: $VERSION."
+      # add or update target state file
+      jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" $TARGET_STATE_PATH > temp.json && mv temp.json $TARGET_STATE_PATH
+    else
+      echo "[info]: target state file does not contain an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, and CONTRACT_NAME:$CONTRACT_NAME that could be updated."
+      # exit script
+      return 1
+    fi
+}
+function updateContractVersionInAllIncludedNetworks() {
+  # read function arguments into variables
+  local ENVIRONMENT=$1
+  local CONTRACT_NAME=$2
+  local VERSION=$3
+
+  # get an array with all networks
+  local NETWORKS=$(getIncludedNetworksArray)
+
+  # go through all networks
+  for NETWORK in $NETWORKS
+  do
+    # update existing entries
+    updateExistingContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME" "$VERSION"
+  done
+}
+function addNewContractVersionToAllIncludedNetworks() {
+  # read function arguments into variables
+  local ENVIRONMENT=$1
+  local CONTRACT_NAME=$2
+  local VERSION=$3
+  local UPDATE_EXISTING=$4
+
+  # get an array with all networks
+  local NETWORKS=$(getIncludedNetworksArray)
+
+  # go through all networks
+  for NETWORK in $NETWORKS
+  do
+    # update existing entries
+    addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME" "$VERSION" "$UPDATE_EXISTING"
+  done
+}
+function addNewNetworkWithAllIncludedContractsInLatestVersions() {
+  # read function arguments into variables
+  local NETWORK=$1
+  local ENVIRONMENT=$2
+  local DIAMOND_CONTRACT=$3
+
+  if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$DIAMOND_CONTRACT" ]]; then
+    echo "[error] function addNewNetworkWithAllIncludedContractsInLatestVersions called with invalid parameters: NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, DIAMOND_CONTRACT=$DIAMOND_CONTRACT"
+    return 1
+  fi
+
+  # get all facet contracts
+  local FACET_CONTRACTS=$(getIncludedAndSortedFacetContractsArray)
+
+  # get all periphery contracts
+  local PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
+
+  # merge all contracts into one array
+  local ALL_CONTRACTS=("$DIAMOND_CONTRACT" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}")
+
+  # go through all contracts
+  for CONTRACT in ${ALL_CONTRACTS[*]}
+  do
+      # get current contract version
+      CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
+
+      # add to target state json
+      addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$CURRENT_VERSION" true
+  done
+}
+# <<<<<< Manipulation of target state JSON file
+
 
 # WIP
 
@@ -1113,4 +1291,22 @@ function test_doesDiamondHaveCoreFacetsRegistered() {
   doesDiamondHaveCoreFacetsRegistered "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f" "mainnet" "staging"
   #doesDiamondHaveCoreFacetsRegistered "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f" "mumbai" "staging"
 }
+function test_addContractToTargetState() {
+  addOrUpdateContractVersionToTargetState "goerli" "production" "TESTNAME2" "1.0.6" true
+}
+function test_updateExistingContractVersionInTargetState() {
+  updateExistingContractVersionInTargetState "bsctest" "production" "Executor" "1.0.7"
+}
+function test_updateContractVersionInAllIncludedNetworks() {
+  updateContractVersionInAllIncludedNetworks "production" "Executor" "2.0.0"
+}
+function test_addNewContractVersionToAllIncludedNetworks() {
+  addNewContractVersionToAllIncludedNetworks "production" "newContract" "1.0.0"
+}
+function test_addNewNetworkWithAllIncludedContractsInLatestVersions() {
+  addNewNetworkWithAllIncludedContractsInLatestVersions "newNetwork2" "staging" "LiFiDiamond"
+}
+
+
+
 
