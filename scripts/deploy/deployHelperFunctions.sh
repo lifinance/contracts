@@ -10,7 +10,7 @@ source scripts/deploy/deployConfig.sh
 #source scripts/deploy/log4bash.sh
 
 
-# DONE
+# writes information about a deployed contract into the log file (path is specified in config)
 function logContractDeploymentInfo {
   # read function arguments into variables
   local CONTRACT="$1"
@@ -67,6 +67,7 @@ function logContractDeploymentInfo {
     echo "[info] contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
   fi
 }
+
 function getBytecodeFromLog() {
 
   # read function arguments into variables
@@ -1172,7 +1173,7 @@ function getDeployerBalance() {
   echo "Address: $ADDRESS"
 
   # get balance in given network
-  RESPONSE=$(curl -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$ADDRESS\", \"latest\"],\"id\":1}" $RPC_URL)
+  RESPONSE=$(curl -X POST --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"$ADDRESS\", \"latest\"],\"id\":1}" $RPC_URL) 2> /dev/null
 
   # convert hex response to decimal
   BALANCE_HEX=$(echo $RESPONSE | jq -r '.result')
@@ -1194,13 +1195,8 @@ function getRPCUrl(){
 
 
 
-# WIP
 
 # test cases for helper functions
-function test_tmp(){
- echo
-}
-
 function test_logContractDeploymentInfo() {
 
   logContractDeploymentInfo "ContractName" "BSC" "<TIMESTAMP>" "1.0.0" "10000" "<args>" "staging" "0x1234"
@@ -1382,4 +1378,8 @@ function test_addNewNetworkWithAllIncludedContractsInLatestVersions() {
 }
 
 
-test_tmp
+function test_tmp(){
+ doesAddressContainBytecode "polygon" "0xe4Fa2Bb6E9b99F35Dc66715790A0b6eeaD1d7B5d"
+}
+
+

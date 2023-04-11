@@ -39,25 +39,15 @@ deployCoreFacets() {
     # get current contract version
     local CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
 
-    # check if contract is deployed already
-    DEPLOYED=$(findContractInLogFile "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION"  2>&1)
+    # call deploy script for current contract
+    deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" "false"
 
-    # check return code of findContractInLogFile
-    if [[ "$?" -ne 0 ]]; then
-      # contract not found in log file (= has not been deployed to this network/environment)
-      # call deploy script for current contract
-      deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" "true"
-
-      # check if function call was successful
-      if [ $? -ne 0 ]
-      then
-        echo "[warning] deployment of contract $CONTRACT to network $NETWORK failed :("
-      else
-        echo "[info] deployment of contract $CONTRACT to network $NETWORK successful :)"
-      fi
+    # check if function call was successful
+    if [ $? -ne 0 ]
+    then
+      echo "[warning] deployment of contract $CONTRACT to network $NETWORK failed :("
     else
-      # contract found in log file
-      echo "[info] contract $CONTRACT is deployed already in version $CURRENT_VERSION"
+      echo "[info] deployment of contract $CONTRACT to network $NETWORK successful :)"
     fi
   done
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets deployed (please check for warnings)"
