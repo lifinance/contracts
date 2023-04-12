@@ -14,12 +14,15 @@ deployPeripheryContracts() {
   # read function arguments into variables
   NETWORK="$1"
   ENVIRONMENT="$2"
+  DIAMOND_CONTRACT_NAME="$3"
 
   # load env variables
   source .env
 
   # get file suffix based on value in variable ENVIRONMENT
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
+  #TODO: add code to fill variables for standalone call
 
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
@@ -39,13 +42,15 @@ deployPeripheryContracts() {
     CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
 
     # check if contract is deployed already
+    # TODO: change to check for actual deployment?
+    # TODO: do I have to change logfile structure for diamond type, too?
     DEPLOYED=$(findContractInLogFile "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION")
 
     # check return code of findContractInLogFile
     if [[ "$?" -ne 0 ]]; then
       # contract not found in log file (= has not been deployed to this network/environment)
       # check if contract is present in target state JSON (=should be deployed)
-      TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
+      TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME")
 
       # check return code of findContractVersionInTargetState
       if [[ "$?" -ne 0 ]]; then

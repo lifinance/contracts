@@ -90,7 +90,7 @@ deployAllContracts() {
   for FACET_NAME in $(getContractNamesInFolder "$FACETS_PATH"); do
     if ! [[ "$FACET_NAME" =~ $EXCLUDED_FACETS_REGEXP ]]; then
       # check if facet is existing in target state JSON
-      TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$FACET_NAME")
+      TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_CONTRACT_NAME")
 
       # check result
       if [[ $? -ne 0 ]]; then
@@ -104,7 +104,7 @@ deployAllContracts() {
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< non-core facets part completed"
 
   # deploy periphery
-  deployPeripheryContracts "$NETWORK" "$ENVIRONMENT"
+  deployPeripheryContracts "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
   # update periphery registry
   updatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true

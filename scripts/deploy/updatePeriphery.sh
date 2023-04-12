@@ -100,7 +100,7 @@ function updatePeriphery() {
   # loop through all periphery contracts
   for CONTRACT in $CONTRACTS; do
     # check if contract is in target state, otherwise skip iteration
-    TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
+    TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME")
 
     # only continue if contract was found in target state
     if [[ "$?" -eq 0 ]]; then

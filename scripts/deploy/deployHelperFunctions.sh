@@ -1404,5 +1404,5 @@ function test_checkIfFileExists(){
 
 
 function test_tmp(){
-
+  echo ""
 }

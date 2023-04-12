@@ -1,11 +1,10 @@
 #!/bin/bash
 
 # TODO
-# -  immutable/mutable split in target state
 # -  log handling with similar entries
 
 
-
+# - create a easy-readable file that shows which facets are added to diamond (nice-to-have)
 # - implement all deploy use cases
 #   - use case 4 is still missing
 # - improve logging (use external library for console logging)
