@@ -112,5 +112,15 @@
         "ServiceFeeCollector": "1.0.0"
       }
     }
+  },
+  "mumbai": {
+    "production": {
+      "LiFiDiamond": {
+        "AcrossFacet": "1.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "AcrossFacet": "1.0.0"
+      }
+    }
   }
 }

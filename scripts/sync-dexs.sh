@@ -125,7 +125,7 @@ function syncDEXs {
         cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key ${PRIVATE_KEY} --legacy
       else
         # do not print output to console
-        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key ${PRIVATE_KEY} --legacy
+        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key ${PRIVATE_KEY} --legacy >/dev/null
       fi
 
       # check the return code the last call

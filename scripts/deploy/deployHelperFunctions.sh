@@ -544,6 +544,7 @@ function findContractVersionInTargetState() {
   NETWORK="$1"
   ENVIRONMENT="$2"
   CONTRACT="$3"
+  DIAMOND_NAME=$4
 
   # Check if target state FILE exists
   if [ ! -f "$TARGET_STATE_PATH" ]; then
@@ -553,7 +554,7 @@ function findContractVersionInTargetState() {
 
   # find matching entry
     local TARGET_STATE_FILE=$(cat "$TARGET_STATE_PATH")
-    local RESULT=$(echo "$TARGET_STATE_FILE" | jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '.[$NETWORK][$ENVIRONMENT][$CONTRACT]')
+    local RESULT=$(echo "$TARGET_STATE_FILE" | jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg DIAMOND_NAME "$DIAMOND_NAME" --arg VERSION "$VERSION" '.[$NETWORK][$ENVIRONMENT][$DIAMOND_NAME][$CONTRACT]')
 
     if [[ "$RESULT" != "null" ]]; then
         # entry found
@@ -983,7 +984,7 @@ function getDeployerBalance() {
   BALANCE=$(cast balance "$ADDRESS" --rpc-url "$RPC_URL")
 
   # return formatted balance
-  echo "Balance: $(echo "scale=10;$BALANCE / 1000000000000000000" | bc)"
+  echo "$(echo "scale=10;$BALANCE / 1000000000000000000" | bc)"
 }
 function doesDiamondHaveCoreFacetsRegistered() {
   # read function arguments into variables
@@ -1403,8 +1404,5 @@ function test_checkIfFileExists(){
 
 
 function test_tmp(){
- RESULT=$(cast call "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "approvedDexs() returns (address[])" --rpc-url "https://fantom.blockpi.network/v1/rpc/public")
 
-echo "RESULT: $RESULT"
 }
-
