@@ -228,7 +228,10 @@
   "nova": [
     "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"
   ],
-  "mumbai": [],
+  "mumbai": [
+    "0xfD0af5274aA16C72B7c463B22a435C06DEBbe894",
+    "0x427bFc2E0aa683ec43fbF7861d5F4A74147938d8"
+  ],
   "optimisticKovan": [],
   "avalancheFujiTestnet": []
 }

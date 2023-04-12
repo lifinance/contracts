@@ -4,6 +4,7 @@
 # core facets are contracts that are listed under CORE_FACETS in deployConfig.sh
 deployCoreFacets() {
   echo ""
+  echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying core facets now...."
 
   # load config & helper functions

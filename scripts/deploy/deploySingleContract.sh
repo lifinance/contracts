@@ -37,8 +37,23 @@ deploySingleContract() {
 
   # if no ENVIRONMENT was passed to this function, determine it
   if [[ -z "$ENVIRONMENT" ]]; then
-    # determine environment (production/staging)
-    ENVIRONMENT=$(determineEnvironment)
+    if [[ "$PRODUCTION" == "true" ]]; then
+      # make sure that PRODUCTION was selected intentionally by user
+      gum style \
+      --foreground 212 --border-foreground 213 --border double \
+      --align center --width 50 --margin "1 2" --padding "2 4" \
+      '!!! ATTENTION !!!'
+
+      echo "Your environment variable PRODUCTION is set to true"
+      echo "This means you will be deploying contracts to production"
+      echo "    "
+      echo "Do you want to skip?"
+      gum confirm && exit 1 || echo "OK, continuing to deploy to PRODUCTION"
+
+      ENVIRONMENT="production"
+    else
+      ENVIRONMENT="staging"
+    fi
   fi
 
   if [[ -z "$CONTRACT" ]]; then
@@ -49,14 +64,18 @@ deploySingleContract() {
     SCRIPT="Deploy"$CONTRACT
   fi
 
+  # check if deploy script exists
+  local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
+  if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
+    echo "[error] could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
+    return 1
+  fi
+
   # get current contract version
   local VERSION=$(getCurrentContractVersion "$CONTRACT")
 
-
   # get file suffix based on value in variable ENVIRONMENT
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-
-  # define name of deploy script
 
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
@@ -185,6 +204,8 @@ deploySingleContract() {
   TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
   OPTIMIZER=$(getOptimizerRuns)
 
+  VERIFIED=false
+
   # verify contract
   if [[ $VERIFY_CONTRACTS == "true" ]]; then
     echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS"
@@ -192,15 +213,11 @@ deploySingleContract() {
       verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"
       if [ $? -eq 0 ]; then
         VERIFIED=true
-      else
-        VERIFIED=false
       fi
     else
       verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" 2>/dev/null
       if [ $? -eq 0 ]; then
         VERIFIED=true
-      else
-        VERIFIED=false
       fi
     fi
     if $VERIFIED; then

@@ -33,8 +33,23 @@ diamondUpdate() {
 
   # if no ENVIRONMENT was passed to this function, determine it
   if [[ -z "$ENVIRONMENT" ]]; then
-    # determine environment (production/staging)
-    ENVIRONMENT=$(determineEnvironment)
+    if [[ "$PRODUCTION" == "true" ]]; then
+      # make sure that PRODUCTION was selected intentionally by user
+      gum style \
+      --foreground 212 --border-foreground 213 --border double \
+      --align center --width 50 --margin "1 2" --padding "2 4" \
+      '!!! ATTENTION !!!'
+
+      echo "Your environment variable PRODUCTION is set to true"
+      echo "This means you will be deploying contracts to production"
+      echo "    "
+      echo "Do you want to skip?"
+      gum confirm && exit 1 || echo "OK, continuing to deploy to PRODUCTION"
+
+      ENVIRONMENT="production"
+    else
+      ENVIRONMENT="staging"
+    fi
   fi
 
   # if no DIAMOND_CONTRACT_NAME was passed to this function, ask user to select diamond type
@@ -59,8 +74,8 @@ diamondUpdate() {
 
   # if no SCRIPT was passed to this function, ask user to select it
   if [[ -z "$SCRIPT" ]]; then
-    echo "Please select which facet you would like to deploy"
-    SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+    echo "Please select which facet you would like to update"
+    SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Update Script")
   fi
 
   # set flag for mutable/immutable diamond
@@ -68,7 +83,14 @@ diamondUpdate() {
 
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
-    echo "[debug] updating $DIAMOND_CONTRACT_NAME on $NETWORK in $ENVIRONMENT environment with script $SCRIPT"
+    echo "[debug] updating $DIAMOND_CONTRACT_NAME on $NETWORK with address $DIAMOND_ADDRESS in $ENVIRONMENT environment with script $SCRIPT (FILE_SUFFIX=$FILE_SUFFIX, USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND)"
+  fi
+
+    # check if update script exists
+  local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
+  if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
+    echo "[error] could not find update script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting update.
+    return 1
   fi
 
   # special handling for core facets since there we have several contracts in one call
@@ -81,11 +103,11 @@ diamondUpdate() {
 
     # check if core facets should be replaced
     if [[ "$REPLACE_EXISTING_FACET" == *"true"* ]]; then
-        echo "[error] this case is not yet implemented (Replace Core Facets)"
+        echo "[error] this case is not yet implemented (>> replace existing CoreFacets)"
         exit 1
     else
       if [[ "$DEBUG" == *"true"* ]]; then
-        echo "[debug] in diamondUpdate for core facets with REPLACE_EXISTING_FACET=$REPLACE_EXISTING_FACET"
+        echo "[debug] in diamondUpdate for CoreFacets with REPLACE_EXISTING_FACET=$REPLACE_EXISTING_FACET"
         # check if diamond knows core facets already
         doesDiamondHaveCoreFacetsRegistered "$DIAMOND_ADDRESS" "$NETWORK" "$FILE_SUFFIX"
       else
@@ -101,18 +123,21 @@ diamondUpdate() {
   else
     # in case: update single facet
     # get facet name from script
-    local FACET_CONTRACT_NAME=${$SCRIPT#Update}
-    echo "FACET_CONTRACT_NAME: $FACET_CONTRACT_NAME"
+    local FACET_CONTRACT_NAME=${SCRIPT//Update/}
+    #local FACET_CONTRACT_NAME=$(echo "$SCRIPT" | sed 's/^Update//') # TODO: remove if not needed
 
     # check if diamond contract already knows this facet
-    local FACET_EXISTS=$(doesFacetExistInDiamond "$DIAMOND_ADDRESS" "$FACET_CONTRACT_NAME")
+    local FACET_EXISTS=$(doesFacetExistInDiamond "$DIAMOND_ADDRESS" "$FACET_CONTRACT_NAME" "$NETWORK")
   fi
 
   # deploy facet if it exists
   if [ "$FACET_EXISTS" == "true" ]; then
     if [ "$REPLACE_EXISTING_FACET" == "true" ]; then
+      if [[ "$DEBUG" == *"true"* ]]; then
+        echo "[debug] trying to remove $FACET_NAME from diamond $DIAMOND_ADDRESS in $ENVIRONMENT environment on network $NETWORK now"
+      fi
       # remove old facet
-      removeFunctionSelectorsFromDiamond "$DIAMOND_ADDRESS" "$FACET_NAME" "$NETWORK" "$ENVIRONMENT" false
+      removeFacetFromDiamond "$DIAMOND_ADDRESS" "$FACET_NAME" "$NETWORK" "$ENVIRONMENT" false
 
       # check the return code the last call
       if [ $? -ne 0 ]; then

@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # TODO
-# - check fo
+# -  immutable/mutable split in target state
+# -  log handling with similar entries
+
 
 
 # - implement all deploy use cases
@@ -27,10 +29,6 @@
 # known limitations:
 #   - we currently cannot replace any of the core facets with our scripts
 #   - log can contain several entries of the same contract in same version - need to define which of those to return
-
-
-ENVIRONMENT=""
-FILE_SUFFIX=""
 
 
 deployMaster() {
@@ -61,7 +59,7 @@ deployMaster() {
       echo "This means you will be deploying contracts to production"
       echo "    "
       echo "Do you want to skip?"
-      gum confirm && exit 1 || echo "OK, continuing to deploy to PRODUCTION"
+      gum confirm && exit 1 || echo "OK, continuing to execute in PRODUCTION environment"
 
       ENVIRONMENT="production"
     else
@@ -86,7 +84,7 @@ deployMaster() {
     echo "[info] selected use case: Deploy one specific contract to one network"
 
     # call deploy script
-    deploySingleContract ""
+    deploySingleContract "" "" "$ENVIRONMENT"
 
     # check if last command was executed successfully, otherwise exit script with error message
     checkFailure $? "deploy contract $CONTRACT to network $NETWORK"
@@ -126,12 +124,13 @@ deployMaster() {
 
       # check if function call was successful
       echo ""
-      if [ $? -ne 0 ]
-      then
-        echo "[warning] deployment of contract $CONTRACT to network $NETWORK failed :("
-      else
-        echo "[info] deployment of contract $CONTRACT to network $NETWORK successful :)"
-      fi
+      # TODO: REMOVE OR REACTIVATE
+      #if [ $? -ne 0 ]
+      #then
+       # echo "[warning] deployment of contract $CONTRACT to network $NETWORK failed"
+      #else
+      #  echo "[info] deployment of contract $CONTRACT to network $NETWORK successful"
+      #fi
     done
 
   # use case 3: Deploy all contracts to one selected network (=new network)
@@ -185,19 +184,19 @@ deployMaster() {
     if [[ "$SELECTION2" == *"1)"* ]]; then
       echo ""
       echo "[info] selected use case: Run diamondUpdate.sh script"
-      diamondUpdate
+      diamondUpdate "" "$ENVIRONMENT"
     elif [[ "$SELECTION2" == *"2)"* ]]; then
       echo ""
       echo "[info] selected use case: Run updatePeriphery.sh script"
-      updatePeriphery "" "" "" "" true
+      updatePeriphery "" "$ENVIRONMENT" "" "" true
     elif [[ "$SELECTION2" == *"3)"* ]]; then
       echo ""
       echo "[info] selected use case: Run sync-dexs.sh script"
-      syncDEXs "" "" "" true
+      syncDEXs "" "$ENVIRONMENT" "" true
     elif [[ "$SELECTION2" == *"4)"* ]]; then
       echo ""
       echo "[info] selected use case: Run sync-sigs.sh script"
-      syncSIGs "" "" "" true
+      syncSIGs "" "$ENVIRONMENT" "" true
     else
       echo "[error] invalid use case selected ('$SELECTION2') - exiting script"
       exit 1

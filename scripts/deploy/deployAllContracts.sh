@@ -60,6 +60,7 @@ deployAllContracts() {
 
   # update diamond with core facets
   echo ""
+  echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now updating core facets in diamond contract"
   diamondUpdate "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateCoreFacets" false
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets update completed"
@@ -68,12 +69,15 @@ deployAllContracts() {
   checkFailure $? "update core facets in $DIAMOND_CONTRACT_NAME on network $NETWORK"
 
   # run sync dexs script
-  syncDEXs "$NETWORK" "$FILE_SUFFIX" "$DIAMOND_CONTRACT_NAME"
+  echo ""
+  syncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
   # run sync sigs script
-  syncSIGs "$NETWORK" "$FILE_SUFFIX" "$DIAMOND_CONTRACT_NAME"
+  echo ""
+  syncSIGs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
   # deploy all non-core facets (that are in target_state.JSON) and add to diamond
+  echo ""
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now deploying non-core facets and adding to diamond contract"
   # get all facet contract names

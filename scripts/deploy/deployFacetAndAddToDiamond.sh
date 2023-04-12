@@ -68,20 +68,20 @@ function deployFacetAndAddToDiamond() {
     echo "[debug] VERSION=$VERSION"
   fi
 
-  echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $FACET_CONTRACT_NAME for $DIAMOND_CONTRACT_NAME now...."
 
   # deploy facet
   deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION"
 
+  # TODO: reactivate or remove
   # check if function call was successful
-  if [ $? -ne 0 ]
-  then
-    echo "[error] deployment of facet $FACET_CONTRACT_NAME to network $NETWORK failed. Please manually deploy facet and add it to $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS. :("
-    return 1
-  else
-    echo "[info] deployment of facet $FACET_CONTRACT_NAME to network $NETWORK successful :)"
-  fi
+  #if [ $? -ne 0 ]
+  #then
+  #  echo "[error] deployment of facet $FACET_CONTRACT_NAME to network $NETWORK failed. Please manually deploy facet and add it to $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS. :("
+  #  return 1
+  #else
+  #  echo "[info] deployment of facet $FACET_CONTRACT_NAME to network $NETWORK successful :)"
+  #fi
 
   # prepare update script name
   local UPDATE_SCRIPT="Update$FACET_CONTRACT_NAME"
@@ -92,12 +92,12 @@ function deployFacetAndAddToDiamond() {
   # check if function call was successful
   if [ $? -ne 0 ]
   then
-    echo "[error] $FACET_CONTRACT_NAME could not be added to $DIAMOND_CONTRACT_NAME on network $NETWORK. Please manually add facet to diamond with address $DIAMOND_ADDRESS. :("
+    echo "[error] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME could not be added to $DIAMOND_CONTRACT_NAME on network $NETWORK. Please check for errors and repeat."
     return 1
   else
     echo "[info] $FACET_CONTRACT_NAME successfully added to $DIAMOND_CONTRACT_NAME on network $NETWORK"
   fi
 
-  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME deployed added to $DIAMOND_CONTRACT_NAME"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME successfully deployed and added to $DIAMOND_CONTRACT_NAME"
   return 0
 }

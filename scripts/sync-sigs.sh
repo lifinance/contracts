@@ -11,22 +11,39 @@ function syncSIGs {
 
   # read function arguments into variables
   local NETWORK="$1"
-  local FILE_SUFFIX="$2"
+  local ENVIRONMENT="$2"
   local DIAMOND_CONTRACT_NAME="$3"
   local EXIT_ON_ERROR="$4"
-
-  # if no FILE_SUFFIX was passed to this function, define it
-  if [[ -z "$FILE_SUFFIX" ]]; then
-    if [[ -z "$PRODUCTION" ]]; then #TODO: improve
-      FILE_SUFFIX="staging."
-    fi
-  fi
 
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
     NETWORK=$(cat ./networks | gum filter --placeholder "Network")
     checkRequiredVariablesInDotEnv $NETWORK
   fi
+
+  # if no ENVIRONMENT was passed to this function, determine it
+  if [[ -z "$ENVIRONMENT" ]]; then
+    if [[ "$PRODUCTION" == "true" ]]; then
+      # make sure that PRODUCTION was selected intentionally by user
+      gum style \
+      --foreground 212 --border-foreground 213 --border double \
+      --align center --width 50 --margin "1 2" --padding "2 4" \
+      '!!! ATTENTION !!!'
+
+      echo "Your environment variable PRODUCTION is set to true"
+      echo "This means you will be deploying contracts to production"
+      echo "    "
+      echo "Do you want to skip?"
+      gum confirm && exit 1 || echo "OK, continuing to deploy to PRODUCTION"
+
+      ENVIRONMENT="production"
+    else
+      ENVIRONMENT="staging"
+    fi
+  fi
+
+  # get file suffix based on value in variable ENVIRONMENT
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # if no DIAMOND_CONTRACT_NAME was passed to this function, ask user to select it
   if [[ -z "$DIAMOND_CONTRACT_NAME" ]]; then
@@ -45,12 +62,15 @@ function syncSIGs {
     return 1
   fi
 
+  # get RPC URL for given network
+  RPC_URL=$(getRPCUrl "$NETWORK")
+
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
     echo ""
     echo "[debug] in function syncSIGs"
     echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
+    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
     echo "[debug] DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
     echo "[debug] DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
     echo ""
@@ -58,9 +78,6 @@ function syncSIGs {
 
   # get function selectors (sigs) from config files
   CFG_SIGS=($(jq -r '.[] | @sh' "./config/sigs.json" | tr -d \' | tr '[:upper:]' '[:lower:]' ))
-
-  # get RPC URL for given network
-  RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
 
   # prepare parameter for batchSetFunctionApprovalBySignature call (=add all sigs to an array)
   for d in "${CFG_SIGS[@]}"; do
@@ -75,10 +92,10 @@ function syncSIGs {
     # call diamond
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
-      cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url ${!RPC} --private-key ${PRIVATE_KEY} --legacy
+      cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key ${PRIVATE_KEY} --legacy
     else
       # do not print output to console
-      cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url ${!RPC} --private-key ${PRIVATE_KEY} --legacy >/dev/null 2>&1
+      cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key ${PRIVATE_KEY} --legacy >/dev/null 2>&1
     fi
 
     # check the return code of the last call

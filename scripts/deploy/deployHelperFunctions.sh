@@ -585,16 +585,6 @@ function findContractVersionInTargetState() {
   ENVIRONMENT="$2"
   CONTRACT="$3"
 
-  # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echo "[debug] in function findContractInTargetState()"
-    echo "[debug] CONTRACT=$CONTRACT"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo ""
-  fi
-
   # Check if target state FILE exists
   if [ ! -f "$TARGET_STATE_PATH" ]; then
     echo "[error] target state FILE does not exist in path $TARGET_STATE_PATH"
@@ -664,13 +654,13 @@ function doesFacetExistInDiamond() {
   # get all facet selectors of the facet to be checked
   local SELECTORS=$(getFunctionSelectorsFromContractABI "$FACET_NAME")
 
-  # get RPC URL
-  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+  # get RPC URL for given network
+  RPC_URL=$(getRPCUrl "$NETWORK")
 
   # loop through facet selectors and see if this selector is known by the diamond
   for SELECTOR in $SELECTORS; do
     # call diamond to get address of facet for given selector
-    local RESULT=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" $SELECTOR --rpc-url "${!RPC}")
+    local RESULT=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR" --rpc-url "$RPC_URL")
 
     # if result != address(0) >> facet selector is known
     if [[ "$RESULT" != "0x0000000000000000000000000000000000000000" ]]; then
@@ -960,14 +950,14 @@ function doesDiamondHaveCoreFacetsRegistered() {
   # get file with deployment addresses
   DEPLOYMENTS_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
 
-  # get RPC URL
-  local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+  # get RPC URL for given network
+  RPC_URL=$(getRPCUrl "$NETWORK")
 
   # get list of all core facet contracts from config
   IFS=',' read -ra FACETS_NAMES <<< "$CORE_FACETS"
 
   # get a list of all facets that the diamond knows
-  local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "${!RPC_URL}")
+  local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
   if [ $? -ne 0 ]; then
     echo "[debug] not all core facets are registered in the diamond"
     return 1
@@ -1000,6 +990,19 @@ function doesDiamondHaveCoreFacetsRegistered() {
     fi
   done
   return 0
+}
+function checkIfFileExists(){
+    # read function arguments into variables
+    local FILE_PATH="$1"
+
+      # Check if FILE exists
+      if [ ! -f "$FILE_PATH" ]; then
+        echo "false"
+        return 1
+      else
+        echo "true"
+        return 0
+      fi
 }
 
 # >>>>> Manipulation of target state JSON file
@@ -1346,7 +1349,7 @@ function test_getFunctionSelectorFromContractABI() {
   echo "should return 'aeb116de': $(getFunctionSelectorFromContractABI "AxelarFacet" "executeCallViaAxelar")"
   echo "should return 'aeb116de': $(getFunctionSelectorFromContractABI "DiamondCutFacet" "executeCallViaAxelar")"
 }
-function test_removeFunctionSelectorsFromDiamond() {
+function test_removeFacetFromDiamond() {
     removeFacetFromDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "HopFacetOptimized" "goerli"
     removeFacetFromDiamond "0x89fb2F8F0B6046b1Aec2915bdaAE20487395a03b" "StargateFacet" "goerli"
 }
@@ -1373,6 +1376,10 @@ function test_addNewContractVersionToAllIncludedNetworks() {
 function test_addNewNetworkWithAllIncludedContractsInLatestVersions() {
   addNewNetworkWithAllIncludedContractsInLatestVersions "newNetwork2" "staging" "LiFiDiamond"
 }
+function test_checkIfFileExists(){
+  echo "should be true: $(checkIfFileExists "./script/DeployCelerIMFacet.s.sol")"
+  echo "should be false: $(checkIfFileExists "./script/NoScript.s.sol")"
+}
 
 
 function test_tmp(){
@@ -1380,3 +1387,4 @@ function test_tmp(){
 
 echo "RESULT: $RESULT"
 }
+

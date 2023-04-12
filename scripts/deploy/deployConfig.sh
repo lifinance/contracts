@@ -16,6 +16,9 @@ MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=20
 # the root directory of all contract src files
 CONTRACT_DIRECTORY="src/"
 
+# the directory of all deploy and update scripts
+DEPLOY_SCRIPT_DIRECTORY="script/"
+
 # the path of the JSON file that contains the target state
 TARGET_STATE_PATH="scripts/deploy/_targetState.json"
 
@@ -31,10 +34,10 @@ BYTECODE_STORAGE_PATH="deployments/_bytecode_storage.json"
 EXCLUDE_NETWORKS=""
 
 # will output more detailed information for debugging purposes
-DEBUG=true
+DEBUG=false
 
 # defines if newly deployed contracts should be verified or not
-VERIFY_CONTRACTS=true
+VERIFY_CONTRACTS=false
 
 # contract verification will be deactivated for any network listed here
 DO_NOT_VERIFY_IN_THESE_NETWORKS=""
