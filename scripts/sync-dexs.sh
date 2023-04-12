@@ -15,7 +15,6 @@ function syncDEXs {
   local DIAMOND_CONTRACT_NAME="$3"
   local EXIT_ON_ERROR="$4"
 
-
   # if no FILE_SUFFIX was passed to this function, define it
   if [[ -z "$FILE_SUFFIX" ]]; then
     if [[ -z "$PRODUCTION" ]]; then #TODO: improve
@@ -46,6 +45,11 @@ function syncDEXs {
     return 1
   fi
 
+  # get RPC URL for given network
+  RPC_URL=$(getRPCUrl "$NETWORK")
+
+  echo "RPC: $RPC_URL"
+
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
     echo ""
@@ -60,31 +64,38 @@ function syncDEXs {
   echo "[info] now syncing DEXs for $DIAMOND_CONTRACT_NAME on network $NETWORK with address $DIAMOND_ADDRESS"
 
   # get list of DEX addresses from config file
-  CFG_DEXS=($(jq --arg n "$NETWORK" -r '.[$n] | @sh' "./config/dexs.json" | tr -d \' | tr '[:upper:]' '[:lower:]'))
-
-
-  # get RPC URL for given network
-  RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+  CFG_DEXS=$(jq -r --arg network "$NETWORK" '.[$network][]' "./config/dexs.json")
 
   # get addresses of DEXs that are already approved in the diamond contract
-  RESULT=$(cast call "$DIAMOND_ADDRESS" "approvedDexs() returns (address[])" --rpc-url "${!RPC}")
+  RESULT=$(cast call "$DIAMOND_ADDRESS" "approvedDexs() returns (address[])" --rpc-url "$RPC_URL")
   DEXS=($(echo ${RESULT:1:${#RESULT}-1} | tr ',' '\n' | tr '[:upper:]' '[:lower:]'))
 
-  # TODO: in production this was repeating even though no new DEXs were to be added - test again
+  if [[ $DEBUG == "true" ]]; then
+    echo "[debug] approved DEXs from diamond with address $DIAMOND_ADDRESS: $DEXS"
+  fi
 
-  # find DEX addresses that are in the config file but not yet added to the diamond
+  # Loop through all DEX addresses from config and check if they are already known by the diamond
   NEW_DEXS=()
-  for DEX in "${CFG_DEXS[@]}"; do
-    if [[ ! " ${DEXS[*]} " =~ " ${DEX} " ]]; then
-      NEW_DEXS+=("$DEX")
+  for DEX_ADDRESS in $CFG_DEXS
+  do
+    # if address is in config file but not in DEX addresses returned from diamond...
+    if [[ ! " ${DEXS[*]} " == *" $(echo "$DEX_ADDRESS" | tr '[:upper:]' '[:lower:]')"* ]]; then
+      CHECKSUMMED=$(cast --to-checksum-address "$DEX_ADDRESS")
+      # ... add it to the array
+      NEW_DEXS+=("$CHECKSUMMED")
     fi
   done
 
+
   # add new DEXs to diamond
   if [[ ! ${#NEW_DEXS[@]} -eq 0 ]]; then
-    for DEX in "${NEW_DEXS[@]}"; do
-      local PARAMS+="${DEX},"
-    done
+    # Convert the list of addresses to an array
+    ADDRESS_ARRAY=($(echo "${NEW_DEXS[*]}"))
+
+    # Convert the array to a string with comma-separated values
+    ADDRESS_STRING=$(printf "%s," "${ADDRESS_ARRAY[@]}")
+    PARAMS="[${ADDRESS_STRING%,}]"
+
     # call batchAddDex function in diamond to add DEXs
     local ATTEMPTS=1
     while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
@@ -93,10 +104,10 @@ function syncDEXs {
       # call diamond
       if [[ "$DEBUG" == *"true"* ]]; then
         # print output to console
-        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "[${PARAMS::${#PARAMS}-1}]" --rpc-url ${!RPC} --private-key ${PRIVATE_KEY} --legacy
+        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key ${PRIVATE_KEY} --legacy
       else
         # do not print output to console
-        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "[${PARAMS::${#PARAMS}-1}]" --rpc-url ${!RPC} --private-key ${PRIVATE_KEY} --legacy >/dev/null 2>&1
+        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key ${PRIVATE_KEY} --legacy
       fi
 
 

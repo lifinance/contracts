@@ -42,6 +42,7 @@ deployAllContracts() {
 
   # deploy core facets
   deployCoreFacets "$NETWORK" "$ENVIRONMENT"
+  echo ""
 
   # prepare deploy script name for diamond
   local DIAMOND_SCRIPT="Deploy""$DIAMOND_CONTRACT_NAME"

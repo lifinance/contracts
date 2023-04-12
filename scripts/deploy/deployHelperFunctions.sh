@@ -21,7 +21,7 @@ function logContractDeploymentInfo {
   local CONSTRUCTOR_ARGS="$6"
   local ENVIRONMENT="$7"
   local ADDRESS="$8"
-  local VERIFIED="$9"
+  local VERIFIED=$9
 
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
@@ -344,13 +344,6 @@ function verifyContract() {
   ARGS=$4
 
   # TODO: this does not seem to work correctly
-  if [[ "$NETWORK" == *"$DO_NOT_VERIFY_IN_THESE_NETWORKS"* ]]; then
-      if [[ "$DEBUG" == *"true"* ]]; then
-        echo "[debug] network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
-        return 0
-      fi
-  fi
-
 
   # get API key for blockchain explorer
   API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
@@ -365,6 +358,14 @@ function verifyContract() {
     echo "[debug] ARGS=$ARGS"
     echo "[debug] blockexplorer API_KEY=${API_KEY}"
     echo "[debug] blockexplorer API_KEY value=${!API_KEY}"
+  fi
+
+  if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" &&  "$NETWORK" == *"$DO_NOT_VERIFY_IN_THESE_NETWORKS"* ]]; then
+    echo " it is true that the string '$NETWORK' is a substring of '$DO_NOT_VERIFY_IN_THESE_NETWORKS' "
+      if [[ "$DEBUG" == *"true"* ]]; then
+        echo "[debug] network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
+        return 0
+      fi
   fi
 
   # verify contract using forge
@@ -637,6 +638,22 @@ function userDialogSelectDiamondType() {
 
   # return contract name
   echo "$DIAMOND_CONTRACT_NAME"
+}
+function getUserSelectedNetwork() {
+  # get user-selected network
+  local NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
+
+  # if no value was returned (e.g. when pressing ESC, end script)
+  if [[ -z "$NETWORK" ]]; then
+    echo "[error] invalid network selection"
+    return 1
+  fi
+
+  # make sure all required .env variables are set
+  checkRequiredVariablesInDotEnv "$NETWORK"
+
+  echo "$NETWORK"
+  return 0
 }
 function doesFacetExistInDiamond() {
   # read function arguments into variables
@@ -984,22 +1001,7 @@ function doesDiamondHaveCoreFacetsRegistered() {
   done
   return 0
 }
-function getUserSelectedNetwork() {
-  # get user-selected network
-  local NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
 
-  # if no value was returned (e.g. when pressing ESC, end script)
-  if [[ -z "$NETWORK" ]]; then
-    echo "[error] invalid network selection"
-    return 1
-  fi
-
-  # make sure all required .env variables are set
-  checkRequiredVariablesInDotEnv "$NETWORK"
-
-  echo "$NETWORK"
-  return 0
-}
 # >>>>> Manipulation of target state JSON file
 function addContractVersionToTargetState() {
   # read function arguments into variables

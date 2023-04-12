@@ -32,6 +32,7 @@ deploySingleContract() {
 
     echo "[info] selected network: $NETWORK"
     echo "[info] deployer wallet balance in this network: $BALANCE"
+    echo ""
   fi
 
   # if no ENVIRONMENT was passed to this function, determine it
@@ -186,34 +187,40 @@ deploySingleContract() {
 
   # verify contract
   if [[ $VERIFY_CONTRACTS == "true" ]]; then
-    echo "[debug] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS"
+    echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS"
     if [[ $DEBUG == "true" ]]; then
-      echo "[debug] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS"
       verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"
-      if [ $? -ne 0 ]; then
-        VERIFIED="true"
+      if [ $? -eq 0 ]; then
+        VERIFIED=true
       else
-        VERIFIED="false"
+        VERIFIED=false
       fi
     else
       verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" 2>/dev/null
-      if [ $? -ne 0 ]; then
-        VERIFIED="true"
+      if [ $? -eq 0 ]; then
+        VERIFIED=true
       else
-        VERIFIED="false"
+        VERIFIED=false
       fi
     fi
+    if $VERIFIED; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
+    else
+      echo "[warning] $CONTRACT on $NETWORK with address $ADDRESS could not be verified"
+    fi
   fi
+
+
 
   # TODO: check for success and write to log with correct success INFO
 
   # write to logfile
   if [ $? -ne 0 ]; then
     # verification not successful
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" VERIFIED
+    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED
   else
     # verification successful
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" VERIFIED
+    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED
   fi
   return 0
 }

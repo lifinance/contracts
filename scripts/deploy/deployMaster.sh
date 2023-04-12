@@ -1,6 +1,9 @@
 #!/bin/bash
 
 # TODO
+# - check fo
+
+
 # - implement all deploy use cases
 #   - use case 4 is still missing
 # - improve logging (use external library for console logging)
@@ -25,6 +28,9 @@
 #   - we currently cannot replace any of the core facets with our scripts
 #   - log can contain several entries of the same contract in same version - need to define which of those to return
 
+
+ENVIRONMENT=""
+FILE_SUFFIX=""
 
 
 deployMaster() {
@@ -113,6 +119,7 @@ deployMaster() {
       # get deployer wallet balance
       BALANCE=$(getDeployerBalance "$NETWORK")
       echo "[info] deployer wallet balance in this network: $BALANCE"
+      echo ""
 
       # call deploy script for current network
       deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
@@ -139,6 +146,7 @@ deployMaster() {
 
     echo "[info] selected network: $NETWORK"
     echo "[info] deployer wallet balance in this network: $BALANCE"
+    echo ""
     checkRequiredVariablesInDotEnv $NETWORK
 
     # call deploy script

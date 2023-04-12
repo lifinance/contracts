@@ -28,6 +28,7 @@ diamondUpdate() {
 
     echo "[info] selected network: $NETWORK"
     echo "[info] deployer wallet balance in this network: $BALANCE"
+    echo ""
   fi
 
   # if no ENVIRONMENT was passed to this function, determine it
@@ -84,11 +85,13 @@ diamondUpdate() {
         exit 1
     else
       if [[ "$DEBUG" == *"true"* ]]; then
-        echo "[debug] in diamondUpdate for core facets with 'do not update' flag"
+        echo "[debug] in diamondUpdate for core facets with REPLACE_EXISTING_FACET=$REPLACE_EXISTING_FACET"
+        # check if diamond knows core facets already
+        doesDiamondHaveCoreFacetsRegistered "$DIAMOND_ADDRESS" "$NETWORK" "$FILE_SUFFIX"
+      else
+        # check if diamond knows core facets already
+        doesDiamondHaveCoreFacetsRegistered "$DIAMOND_ADDRESS" "$NETWORK" "$FILE_SUFFIX" 2>/dev/null
       fi
-
-      # check if diamond knows core facets already
-      doesDiamondHaveCoreFacetsRegistered "$DIAMOND_ADDRESS" "$NETWORK" "$FILE_SUFFIX"
 
       # check the return code the last call
       if [ $? -eq 0 ]; then

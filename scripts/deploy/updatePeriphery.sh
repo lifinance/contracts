@@ -57,6 +57,7 @@ function updatePeriphery() {
 
     echo "[info] selected network: $NETWORK"
     echo "[info] deployer wallet balance in this network: $BALANCE"
+    echo ""
   fi
 
   # determine which periphery contracts to update

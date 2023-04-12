@@ -31,7 +31,7 @@ BYTECODE_STORAGE_PATH="deployments/_bytecode_storage.json"
 EXCLUDE_NETWORKS=""
 
 # will output more detailed information for debugging purposes
-DEBUG=false
+DEBUG=true
 
 # defines if newly deployed contracts should be verified or not
 VERIFY_CONTRACTS=true
