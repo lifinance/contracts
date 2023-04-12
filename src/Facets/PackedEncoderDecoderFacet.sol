@@ -15,46 +15,60 @@ contract PackedEncoderDecoderFacet is ILiFi {
     /// External Methods ///
 
     /// @notice Encodes calldata for startBridgeTokensViaHopL2NativePacked
-    /// @param _bridgeData The core information needed for bridging
-    /// @param _hopData Data specific to Hop Protocol
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param integrator LI.FI partner name
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param bonderFee Fees payed to hop bonder
+    /// @param amountOutMin Source swap minimal accepted amount
+    /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param hopBridge Address of the Hop L2_AmmWrapper
     function encode_startBridgeTokensViaHopL2NativePacked(
-        BridgeData calldata _bridgeData,
-        HopFacetOptimized.HopData calldata _hopData
+        bytes32 transactionId,
+        string calldata integrator,
+        address receiver,
+        uint256 destinationChainId,
+        uint256 bonderFee,
+        uint256 amountOutMin,
+        uint256 destinationAmountOutMin,
+        address hopBridge
     ) external pure returns (bytes memory) {
         require(
-            _bridgeData.destinationChainId <= type(uint32).max,
+            destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
         );
         require(
-            _hopData.bonderFee <= type(uint128).max,
+            bonderFee <= type(uint128).max,
             "bonderFee value passed too big to fit in uint128"
         );
         require(
-            _hopData.amountOutMin <= type(uint128).max,
+            amountOutMin <= type(uint128).max,
             "amountOutMin value passed too big to fit in uint128"
         );
         require(
-            _hopData.destinationAmountOutMin <= type(uint128).max,
+            destinationAmountOutMin <= type(uint128).max,
             "destinationAmountOutMin value passed too big to fit in uint128"
         );
 
         return
             bytes.concat(
                 HopFacetPacked.startBridgeTokensViaHopL2NativePacked.selector,
-                bytes8(_bridgeData.transactionId),
-                bytes16(bytes(_bridgeData.integrator)),
-                bytes20(_bridgeData.receiver),
-                bytes4(uint32(_bridgeData.destinationChainId)),
-                bytes16(uint128(_hopData.bonderFee)),
-                bytes16(uint128(_hopData.amountOutMin)),
-                bytes16(uint128(_hopData.destinationAmountOutMin)),
-                bytes20(address(_hopData.hopBridge))
+                bytes8(transactionId),
+                bytes16(bytes(integrator)),
+                bytes20(receiver),
+                bytes4(uint32(destinationChainId)),
+                bytes16(uint128(bonderFee)),
+                bytes16(uint128(amountOutMin)),
+                bytes16(uint128(destinationAmountOutMin)),
+                bytes20(address(hopBridge))
             );
     }
 
     /// @notice Decodes calldata for startBridgeTokensViaHopL2NativePacked
     /// @param _data the calldata to decode
-    function decode_startBridgeTokensViaHopL2NativePacked(bytes calldata _data)
+    function decode_startBridgeTokensViaHopL2NativePacked(
+        bytes calldata _data
+    )
         external
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
@@ -82,52 +96,70 @@ contract PackedEncoderDecoderFacet is ILiFi {
     }
 
     /// @notice Encodes calldata for startBridgeTokensViaHopL2ERC20Packed
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _hopData data specific to Hop Protocol
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param integrator LI.FI partner name
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param sendingAssetId Address of the source asset to bridge
+    /// @param minAmount Amount of the source asset to bridge
+    /// @param bonderFee Fees payed to hop bonder
+    /// @param amountOutMin Source swap minimal accepted amount
+    /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param hopBridge Address of the Hop L2_AmmWrapper
     function encode_startBridgeTokensViaHopL2ERC20Packed(
-        BridgeData calldata _bridgeData,
-        HopFacetOptimized.HopData calldata _hopData
+        bytes32 transactionId,
+        string calldata integrator,
+        address receiver,
+        uint256 destinationChainId,
+        address sendingAssetId,
+        uint256 minAmount,
+        uint256 bonderFee,
+        uint256 amountOutMin,
+        uint256 destinationAmountOutMin,
+        address hopBridge
     ) external pure returns (bytes memory) {
         require(
-            _bridgeData.destinationChainId <= type(uint32).max,
+            destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
         );
         require(
-            _bridgeData.minAmount <= type(uint128).max,
+            minAmount <= type(uint128).max,
             "amount value passed too big to fit in uint128"
         );
         require(
-            _hopData.bonderFee <= type(uint128).max,
+            bonderFee <= type(uint128).max,
             "bonderFee value passed too big to fit in uint128"
         );
         require(
-            _hopData.amountOutMin <= type(uint128).max,
+            amountOutMin <= type(uint128).max,
             "amountOutMin value passed too big to fit in uint128"
         );
         require(
-            _hopData.destinationAmountOutMin <= type(uint128).max,
+            destinationAmountOutMin <= type(uint128).max,
             "destinationAmountOutMin value passed too big to fit in uint128"
         );
 
         return
             bytes.concat(
                 HopFacetPacked.startBridgeTokensViaHopL2ERC20Packed.selector,
-                bytes8(_bridgeData.transactionId),
-                bytes16(bytes(_bridgeData.integrator)),
-                bytes20(_bridgeData.receiver),
-                bytes4(uint32(_bridgeData.destinationChainId)),
-                bytes20(_bridgeData.sendingAssetId),
-                bytes16(uint128(_bridgeData.minAmount)),
-                bytes16(uint128(_hopData.bonderFee)),
-                bytes16(uint128(_hopData.amountOutMin)),
-                bytes16(uint128(_hopData.destinationAmountOutMin)),
-                bytes20(address(_hopData.hopBridge))
+                bytes8(transactionId),
+                bytes16(bytes(integrator)),
+                bytes20(receiver),
+                bytes4(uint32(destinationChainId)),
+                bytes20(sendingAssetId),
+                bytes16(uint128(minAmount)),
+                bytes16(uint128(bonderFee)),
+                bytes16(uint128(amountOutMin)),
+                bytes16(uint128(destinationAmountOutMin)),
+                bytes20(address(hopBridge))
             );
     }
 
     /// @notice Decodes calldata for startBridgeTokensViaHopL2ERC20Packed
     /// @param _data the calldata to decode
-    function decode_startBridgeTokensViaHopL2ERC20Packed(bytes calldata _data)
+    function decode_startBridgeTokensViaHopL2ERC20Packed(
+        bytes calldata _data
+    )
         external
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
@@ -157,18 +189,26 @@ contract PackedEncoderDecoderFacet is ILiFi {
     }
 
     /// @notice Encodes calldata for startBridgeTokensViaCBridgeNativePacked
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _cBridgeData data specific to cBridge
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param integrator LI.FI partner name
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param nonce A number input to guarantee uniqueness of transferId.
+    /// @param maxSlippage Destination swap minimal accepted amount
     function encode_startBridgeTokensViaCBridgeNativePacked(
-        BridgeData calldata _bridgeData,
-        CBridgeFacet.CBridgeData calldata _cBridgeData
+        bytes32 transactionId,
+        string memory integrator,
+        address receiver,
+        uint64 destinationChainId,
+        uint64 nonce,
+        uint32 maxSlippage
     ) external pure returns (bytes memory) {
         require(
-            _bridgeData.destinationChainId <= type(uint32).max,
+            destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
         );
         require(
-            _cBridgeData.nonce <= type(uint32).max,
+            nonce <= type(uint32).max,
             "nonce value passed too big to fit in uint32"
         );
 
@@ -177,12 +217,12 @@ contract PackedEncoderDecoderFacet is ILiFi {
                 CBridgeFacetPacked
                     .startBridgeTokensViaCBridgeNativePacked
                     .selector,
-                bytes8(_bridgeData.transactionId),
-                bytes16(bytes(_bridgeData.integrator)),
-                bytes20(_bridgeData.receiver),
-                bytes4(uint32(_bridgeData.destinationChainId)),
-                bytes4(uint32(_cBridgeData.nonce)),
-                bytes4(_cBridgeData.maxSlippage)
+                bytes8(transactionId),
+                bytes16(bytes(integrator)),
+                bytes20(receiver),
+                bytes4(uint32(destinationChainId)),
+                bytes4(uint32(nonce)),
+                bytes4(maxSlippage)
             );
     }
 
@@ -214,22 +254,34 @@ contract PackedEncoderDecoderFacet is ILiFi {
     }
 
     /// @notice Encodes calldata for startBridgeTokensViaCBridgeERC20Packed
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _cBridgeData data specific to cBridge
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param integrator LI.FI partner name
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param sendingAssetId Address of the source asset to bridge
+    /// @param minAmount Amount of the source asset to bridge
+    /// @param nonce A number input to guarantee uniqueness of transferId
+    /// @param maxSlippage Destination swap minimal accepted amount
     function encode_startBridgeTokensViaCBridgeERC20Packed(
-        BridgeData calldata _bridgeData,
-        CBridgeFacet.CBridgeData calldata _cBridgeData
+        bytes32 transactionId,
+        string memory integrator,
+        address receiver,
+        uint64 destinationChainId,
+        address sendingAssetId,
+        uint256 minAmount,
+        uint64 nonce,
+        uint32 maxSlippage
     ) external pure returns (bytes memory) {
         require(
-            _bridgeData.destinationChainId <= type(uint32).max,
+            destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
         );
         require(
-            _bridgeData.minAmount <= type(uint128).max,
+            minAmount <= type(uint128).max,
             "amount value passed too big to fit in uint128"
         );
         require(
-            _cBridgeData.nonce <= type(uint32).max,
+            nonce <= type(uint32).max,
             "nonce value passed too big to fit in uint32"
         );
 
@@ -238,14 +290,14 @@ contract PackedEncoderDecoderFacet is ILiFi {
                 CBridgeFacetPacked
                     .startBridgeTokensViaCBridgeERC20Packed
                     .selector,
-                bytes8(_bridgeData.transactionId),
-                bytes16(bytes(_bridgeData.integrator)),
-                bytes20(_bridgeData.receiver),
-                bytes4(uint32(_bridgeData.destinationChainId)),
-                bytes20(_bridgeData.sendingAssetId),
-                bytes16(uint128(_bridgeData.minAmount)),
-                bytes4(uint32(_cBridgeData.nonce)),
-                bytes4(_cBridgeData.maxSlippage)
+                bytes8(transactionId),
+                bytes16(bytes(integrator)),
+                bytes20(receiver),
+                bytes4(uint32(destinationChainId)),
+                bytes20(sendingAssetId),
+                bytes16(uint128(minAmount)),
+                bytes4(uint32(nonce)),
+                bytes4(maxSlippage)
             );
     }
 
