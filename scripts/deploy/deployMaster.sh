@@ -207,6 +207,16 @@ deployMaster() {
     echo ""
     echo "[info] selected use case: Batch update _targetState.json file"
 
+    # ask user to select a diamond type for which to update contract versions
+    echo "[info] Please select for which diamond type you want to update contract version(s):"
+    SELECTION=$(gum choose \
+      "1) Mutable"\
+      "2) Immutable"\
+      "3) Both"\
+
+      )
+    echo "[info] selected option: $SELECTION"
+
     echo ""
     echo "Please choose one of the following options:"
     local SELECTION2=$(gum choose \
@@ -216,6 +226,7 @@ deployMaster() {
     echo "$SELECTION2"
 
     if [[ "$SELECTION2" == *"1)"* ]]; then
+      # case: "1) Update the version of a contract on all networks"
       # get names of all contracts
       ALL_CONTRACT_NAMES=($(getAllContractNames))
 
@@ -256,11 +267,21 @@ deployMaster() {
       echo "[info] now updating contract version "
 
       # update target state json
-      updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "$NEW_VERSION"
-
-
-
+      if [[ "$SELECTION" == *"1)"* ]]; then
+        updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamond" "$NEW_VERSION"
+      elif [[ "$SELECTION" == *"2)"* ]]; then
+        updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamondImmutable" "$NEW_VERSION"
+        DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
+      elif [[ "$SELECTION" == *"3)"* ]]; then
+        updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamond" "$NEW_VERSION"
+        updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamondImmutable" "$NEW_VERSION"
+      else
+        echo "[error] invalid value selected: $SELECTION - exiting script now"
+        exit 1
+      fi
     elif [[ "$SELECTION2" == *"2)"* ]]; then
+      # case: "2) Add a new network with all (included) contracts"
+      # TODO: adapt here for diamond contract type
       echo "Please enter the name of the new network:"
       read NETWORK_NAME
       echo ""
@@ -272,18 +293,30 @@ deployMaster() {
         "production"\
         )
       echo "[info] selected environment: $ENVIRONMENT"
+      echo ""
 
-      DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
-      echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
+      echo "[info] now adding a new network '$NETWORK_NAME' with all contracts to target state file (selected diamond type: $SELECTION)"
+      # update target state json
+      if [[ "$SELECTION" == *"1)"* ]]; then
+        addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamond"
+      elif [[ "$SELECTION" == *"2)"* ]]; then
+        addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamondImmutable"
+      elif [[ "$SELECTION" == *"3)"* ]]; then
+        addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamond"
+        addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamondImmutable"
+      else
+        echo "[error] invalid value selected: $SELECTION - exiting script now"
+        exit 1
+      fi
 
-      echo "[info] adding a new network '$NETWORK_NAME' with all contracts including $DIAMOND_CONTRACT_NAME to target state file"
-      addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
       # check if function call was successful
       if [ $? -eq 0 ]
       then
         echo "[info] ...success"
+        exit 0
       else
         echo "[error] script ended with error code. Please turn on DEBUG flag and check for details"
+        exit 1
       fi
     else
       echo "[error] invalid use case selected ('$SELECTION2') - exiting script"

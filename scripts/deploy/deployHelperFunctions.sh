@@ -11,6 +11,9 @@ source scripts/deploy/deployConfig.sh
 
 
 # writes information about a deployed contract into the log file (path is specified in config)
+
+
+# >>>>> logging
 function logContractDeploymentInfo {
   # read function arguments into variables
   local CONTRACT="$1"
@@ -67,7 +70,6 @@ function logContractDeploymentInfo {
     echo "[info] contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
   fi
 }
-
 function getBytecodeFromLog() {
 
   # read function arguments into variables
@@ -224,51 +226,9 @@ function getCurrentContractVersion() {
 
   echo "$VERSION"
 }
-function doesAddressContainBytecode() {
-  # read function arguments into variables
-  NETWORK="$1"
-  ADDRESS="$2"
-
-  # get correct node URL for given NETWORK
-  NODE_URL_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)"
-  NODE_URL=${!NODE_URL_KEY}
-
-  # logging for debug purposes
-#  if [[ "$DEBUG" == *"true"* ]]; then
-#    echo ""
-#    echo "[debug] in function doesAddressContainBytecode"
-#    echo "[debug] NETWORK=$NETWORK"
-#    echo "[debug] ADDRESS=$ADDRESS"
-#  fi
-
-  # check if NODE_URL is available
-  if [ -z "$NODE_URL" ]; then
-      echo "[error]: no node url found for NETWORK $NETWORK. Please update your .env FILE and make sure it has a value for the following key: $NODE_URL_KEY"
-      return 1
-  fi
-
-  # make sure address is in correct checksum format
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3();
-    const address = '$ADDRESS';
-    const checksumAddress = web3.utils.toChecksumAddress(address);
-    console.log(checksumAddress);"
-  CHECKSUM_ADDRESS=$(node -e "$jsCode")
+# <<<<< logging
 
 
-  # get CONTRACT code from ADDRESS using web3
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3('$NODE_URL');
-    web3.eth.getCode('$CHECKSUM_ADDRESS', (error, RESULT) => { console.log(RESULT); });"
-  contract_code=$(node -e "$jsCode")
-
-  # return ƒalse if ADDRESS does not contain CONTRACT code, otherwise true
-  if [[ $contract_code == "0x" ]]; then
-    echo "false"
-  else
-    echo "true"
-  fi
-}
 function checkFailure() {
   # read function arguments into variables
   RESULT=$1
@@ -645,33 +605,7 @@ function getUserSelectedNetwork() {
   echo "$NETWORK"
   return 0
 }
-function doesFacetExistInDiamond() {
-  # read function arguments into variables
-  local DIAMOND_ADDRESS=$1
-  local FACET_NAME=$2
-  local NETWORK=$3
 
-  # get all facet selectors of the facet to be checked
-  local SELECTORS=$(getFunctionSelectorsFromContractABI "$FACET_NAME")
-
-  # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
-
-  # loop through facet selectors and see if this selector is known by the diamond
-  for SELECTOR in $SELECTORS; do
-    # call diamond to get address of facet for given selector
-    local RESULT=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR" --rpc-url "$RPC_URL")
-
-    # if result != address(0) >> facet selector is known
-    if [[ "$RESULT" != "0x0000000000000000000000000000000000000000" ]]; then
-      echo "true"
-      return 0
-    fi
-  done
-
-  echo "false"
-  return 0
-}
 function determineEnvironment() {
   # check if env variable "PRODUCTION" is true (or not set at all), otherwise deploy as staging
   if [[ "$PRODUCTION" == "true" ]]; then
@@ -736,87 +670,6 @@ function getFunctionSelectorsFromContractABI() {
 
   # return the selectors array
   echo "${BYTES4_SELECTORS[@]}"
-}
-function getFacetFunctionSelectorsFromDiamond() {
-  # read function arguments into variables
-  local DIAMOND_ADDRESS="$1"
-  local FACET_NAME="$2"
-  local NETWORK="$3"
-  local ENVIRONMENT="$4"
-  local EXIT_ON_ERROR="$5"
-
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-
-  # get facet address from deployments JSON
-  local FILE_PATH="deployments/$NETWORK.${FILE_SUFFIX}json"
-  local FACET_ADDRESS=$(jq -r ".$FACET_NAME" $FILE_PATH)
-
-  # check if facet address was found
-  if [[ -z "$FACET_ADDRESS" ]]; then
-    echo "[error] no address found for $FACET_NAME in $FILE_PATH"
-    return 1
-  fi
-
-  # get RPC URL
-  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
-
-  # get a list of all facet addresses that are registered with the diamond
-  local DIAMOND_FILE_PATH="deployments/$NETWORK.diamond.${FILE_SUFFIX}json"
-
-  # search in DIAMOND_FILE_PATH for the given address
-  if jq -e ".facets | index(\"$FACET_ADDRESS\")" "$DIAMOND_FILE_PATH" >/dev/null; then
-    # get function selectors from diamond (function facetFunctionSelectors)
-    local ATTEMPTS=1
-    while [[ -z "$FUNCTION_SELECTORS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
-      # get address of facet in diamond
-      local FUNCTION_SELECTORS=$(cast call "$DIAMOND_ADDRESS" "facetFunctionSelectors(address) returns (bytes4[])" "$FACET_ADDRESS" --rpc-url "${!RPC}")
-      ((ATTEMPTS++))
-      sleep 1
-    done
-
-    if [[ "$ATTEMPTS" -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]]; then
-      echo "[error] could not get facet address after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts, exiting."
-      return 1
-    fi
-  else
-    echo "[error] $FACET_NAME with address $FACET_ADDRESS is not known by diamond $DIAMOND_ADDRESS on network $NETWORK in $ENVIRONMENT environment. Please check why you tried to remove this facet from the diamond."
-    return 1
-  fi
-
-
-
-  # return the selectors array
-  echo "${FUNCTION_SELECTORS[@]}"
-}
-function getFacetAddressFromSelector() {
-    # read function arguments into variables
-    local DIAMOND_ADDRESS="$1"
-    local FACET_NAME="$2"
-    local NETWORK="$3"
-    local FUNCTION_SELECTOR="$4"
-
-    #echo "FUNCTION_SELECTOR in Func: $FUNCTION_SELECTOR"
-
-    # get RPC URL
-    local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
-
-    # loop until FACET_ADDRESS has a value or maximum attempts are reached
-    local FACET_ADDRESS
-    local ATTEMPTS=1
-    while [[ -z "$FACET_ADDRESS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
-      # get address of facet in diamond
-      FACET_ADDRESS=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$FUNCTION_SELECTOR" --rpc-url "${!RPC}")
-      ((ATTEMPTS++))
-      sleep 1
-    done
-
-    if [[ "$ATTEMPTS" -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]]; then
-      echo "[error] could not get facet address after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts, exiting."
-      return 1
-    fi
-
-    echo "$FACET_ADDRESS"
-    return 0
 }
 function removeFacetFromDiamond() {
   # read function arguments into variables
@@ -931,66 +784,6 @@ function checkRequiredVariablesInDotEnv() {
   # all good - continue
   return 0
 }
-function doesDiamondHaveCoreFacetsRegistered() {
-  # read function arguments into variables
-  local DIAMOND_ADDRESS="$1"
-  local NETWORK="$2"
-  local FILE_SUFFIX="$3"
-
-  # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echo "[debug] in function doesDiamondHaveCoreFacetsRegistered"
-    echo "[debug] DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-    echo ""
-  fi
-
-  # get file with deployment addresses
-  DEPLOYMENTS_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
-
-  # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
-
-  # get list of all core facet contracts from config
-  IFS=',' read -ra FACETS_NAMES <<< "$CORE_FACETS"
-
-  # get a list of all facets that the diamond knows
-  local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
-  if [ $? -ne 0 ]; then
-    echo "[debug] not all core facets are registered in the diamond"
-    return 1
-  fi
-
-  # extract the IDiamondLoupe.Facet tuples
-  tuples=($(echo "${KNOWN_FACET_ADDRESSES:1:${#KNOWN_FACET_ADDRESSES}-2}" | sed 's/),(/) /g' | sed 's/[()]//g'))
-
-  # extract the addresses from the tuples into an array
-  ADDRESSES=()
-  for tpl in "${tuples[@]}"; do
-    tpl="${tpl// /}" # remove spaces
-    tpl="${tpl//\'/}" # remove single quotes
-    addr="${tpl%%,*}" # extract address from tuple
-    ADDRESSES+=("$addr")
-  done
-
-  # loop through all contracts
-  for FACET_NAME in "${FACETS_NAMES[@]}"; do
-    # get facet address from deployments file
-    local FACET_ADDRESS=$(jq -r ".$FACET_NAME" "$DEPLOYMENTS_FILE")
-    # check if the address is not included in the diamond
-    if ! [[ " ${ADDRESSES[@]} " =~ " ${FACET_ADDRESS} " ]]; then
-      if [[ "$DEBUG" == *"true"* ]]; then
-          echo "[debug] not all core facets are registered in the diamond"
-      fi
-
-      # not included, return error code
-      return 1
-    fi
-  done
-  return 0
-}
 function checkIfFileExists(){
     # read function arguments into variables
     local FILE_PATH="$1"
@@ -1011,29 +804,30 @@ function addContractVersionToTargetState() {
   NETWORK=$1
   ENVIRONMENT=$2
   CONTRACT_NAME=$3
-  VERSION=$4
-  UPDATE_EXISTING=$5
+  DIAMOND_NAME=$4
+  VERSION=$5
+  UPDATE_EXISTING=$6
 
   # check if entry already exists
-  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${CONTRACT_NAME}\" // empty" $TARGET_STATE_PATH)
+  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" // empty" $TARGET_STATE_PATH)
 
   # check if entry should be updated and log warning if debug flag is set
-    if [[ -n "$ENTRY_EXISTS" ]]; then
-      if [[ "$UPDATE_EXISTING" == *"false"* ]]; then
-        if [[ "$DEBUG" == *"true"* ]]; then
-          echo "[warning]: target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, and CONTRACT_NAME:$CONTRACT_NAME."
-        fi
-        # exit script
-        return 1
-      else
-        if [[ "$DEBUG" == *"true"* ]]; then
-          echo "[warning]: target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, and CONTRACT_NAME:$CONTRACT_NAME. Updating version."
-        fi
+  if [[ -n "$ENTRY_EXISTS" ]]; then
+    if [[ "$UPDATE_EXISTING" == *"false"* ]]; then
+      if [[ "$DEBUG" == *"true"* ]]; then
+        echo "[warning]: target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, and CONTRACT_NAME:$CONTRACT_NAME."
+      fi
+      # exit script
+      return 1
+    else
+      if [[ "$DEBUG" == *"true"* ]]; then
+        echo "[warning]: target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, and CONTRACT_NAME:$CONTRACT_NAME. Updating version."
       fi
     fi
+  fi
 
   # add or update target state file
-  jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" $TARGET_STATE_PATH > temp.json && mv temp.json $TARGET_STATE_PATH
+  jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" $TARGET_STATE_PATH > temp.json && mv temp.json $TARGET_STATE_PATH
 }
 function updateExistingContractVersionInTargetState() {
   # this function will update only existing entries, not add new ones
@@ -1042,27 +836,29 @@ function updateExistingContractVersionInTargetState() {
   NETWORK=$1
   ENVIRONMENT=$2
   CONTRACT_NAME=$3
-  VERSION=$4
+  DIAMOND_NAME=$4
+  VERSION=$5
 
   # check if entry already exists
-  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${CONTRACT_NAME}\" // empty" $TARGET_STATE_PATH)
+  ENTRY_EXISTS=$(jq ".\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" // empty" $TARGET_STATE_PATH)
 
   # check if entry should be updated and log warning if debug flag is set
-    if [[ -n "$ENTRY_EXISTS" ]]; then
-      echo "[info]: updating version in target state file: NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, CONTRACT_NAME:$CONTRACT_NAME, new VERSION: $VERSION."
-      # add or update target state file
-      jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" $TARGET_STATE_PATH > temp.json && mv temp.json $TARGET_STATE_PATH
-    else
-      echo "[info]: target state file does not contain an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, and CONTRACT_NAME:$CONTRACT_NAME that could be updated."
-      # exit script
-      return 1
-    fi
+  if [[ -n "$ENTRY_EXISTS" ]]; then
+    echo "[info]: updating version in target state file: NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, CONTRACT_NAME:$CONTRACT_NAME, new VERSION: $VERSION."
+    # add or update target state file
+    jq ".\"${NETWORK}\" = (.\"${NETWORK}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" = (.\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\" // {}) | .\"${NETWORK}\".\"${ENVIRONMENT}\".\"${DIAMOND_NAME}\".\"${CONTRACT_NAME}\" = \"${VERSION}\"" $TARGET_STATE_PATH > temp.json && mv temp.json $TARGET_STATE_PATH
+  else
+    echo "[info]: target state file does not contain an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, and CONTRACT_NAME:$CONTRACT_NAME that could be updated."
+    # exit script
+    return 1
+  fi
 }
 function updateContractVersionInAllIncludedNetworks() {
   # read function arguments into variables
   local ENVIRONMENT=$1
   local CONTRACT_NAME=$2
-  local VERSION=$3
+  local DIAMOND_NAME=$3
+  local VERSION=$4
 
   # get an array with all networks
   local NETWORKS=$(getIncludedNetworksArray)
@@ -1071,15 +867,16 @@ function updateContractVersionInAllIncludedNetworks() {
   for NETWORK in $NETWORKS
   do
     # update existing entries
-    updateExistingContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME" "$VERSION"
+    updateExistingContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME" "$DIAMOND_NAME" "$VERSION"
   done
 }
 function addNewContractVersionToAllIncludedNetworks() {
   # read function arguments into variables
   local ENVIRONMENT=$1
   local CONTRACT_NAME=$2
-  local VERSION=$3
-  local UPDATE_EXISTING=$4
+  local DIAMOND_NAME=$3
+  local VERSION=$4
+  local UPDATE_EXISTING=$5
 
   # get an array with all networks
   local NETWORKS=$(getIncludedNetworksArray)
@@ -1088,17 +885,17 @@ function addNewContractVersionToAllIncludedNetworks() {
   for NETWORK in $NETWORKS
   do
     # update existing entries
-    addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME" "$VERSION" "$UPDATE_EXISTING"
+    addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME" "$DIAMOND_NAME" "$VERSION" "$UPDATE_EXISTING"
   done
 }
 function addNewNetworkWithAllIncludedContractsInLatestVersions() {
   # read function arguments into variables
   local NETWORK=$1
   local ENVIRONMENT=$2
-  local DIAMOND_CONTRACT=$3
+  local DIAMOND_NAME=$3
 
-  if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$DIAMOND_CONTRACT" ]]; then
-    echo "[error] function addNewNetworkWithAllIncludedContractsInLatestVersions called with invalid parameters: NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, DIAMOND_CONTRACT=$DIAMOND_CONTRACT"
+  if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$DIAMOND_NAME" ]]; then
+    echo "[error] function addNewNetworkWithAllIncludedContractsInLatestVersions called with invalid parameters: NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, DIAMOND_NAME=$DIAMOND_NAME"
     return 1
   fi
 
@@ -1109,7 +906,7 @@ function addNewNetworkWithAllIncludedContractsInLatestVersions() {
   local PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
 
   # merge all contracts into one array
-  local ALL_CONTRACTS=("$DIAMOND_CONTRACT" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}")
+  local ALL_CONTRACTS=("$DIAMOND_NAME" "${FACET_CONTRACTS[@]}" "${PERIPHERY_CONTRACTS[@]}")
 
   # go through all contracts
   for CONTRACT in ${ALL_CONTRACTS[*]}
@@ -1118,10 +915,16 @@ function addNewNetworkWithAllIncludedContractsInLatestVersions() {
       CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
 
       # add to target state json
-      addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$CURRENT_VERSION" true
+      addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_NAME" "$CURRENT_VERSION" true
+      if [ $? -ne 0 ]
+      then
+        echo "[error] could not add contract version to target state for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT, DIAMOND_NAME=$DIAMOND_NAME, VERSION=$CURRENT_VERSION"
+      fi
   done
 }
 # <<<<<< Manipulation of target state JSON file
+
+# >>>>> read from blockchain
 function getContractAddressFromSalt() {
   # read function arguments into variables
   local SALT=$1
@@ -1182,6 +985,221 @@ function getDeployerBalance() {
   # return formatted balance
   echo "Balance: $(echo "scale=10;$BALANCE / 1000000000000000000" | bc)"
 }
+function doesDiamondHaveCoreFacetsRegistered() {
+  # read function arguments into variables
+  local DIAMOND_ADDRESS="$1"
+  local NETWORK="$2"
+  local FILE_SUFFIX="$3"
+
+  # logging for debug purposes
+  if [[ "$DEBUG" == *"true"* ]]; then
+    echo ""
+    echo "[debug] in function doesDiamondHaveCoreFacetsRegistered"
+    echo "[debug] DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+    echo "[debug] NETWORK=$NETWORK"
+    echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
+    echo ""
+  fi
+
+  # get file with deployment addresses
+  DEPLOYMENTS_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+
+  # get RPC URL for given network
+  RPC_URL=$(getRPCUrl "$NETWORK")
+
+  # get list of all core facet contracts from config
+  IFS=',' read -ra FACETS_NAMES <<< "$CORE_FACETS"
+
+  # get a list of all facets that the diamond knows
+  local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
+  if [ $? -ne 0 ]; then
+    echo "[debug] not all core facets are registered in the diamond"
+    return 1
+  fi
+
+  # extract the IDiamondLoupe.Facet tuples
+  tuples=($(echo "${KNOWN_FACET_ADDRESSES:1:${#KNOWN_FACET_ADDRESSES}-2}" | sed 's/),(/) /g' | sed 's/[()]//g'))
+
+  # extract the addresses from the tuples into an array
+  ADDRESSES=()
+  for tpl in "${tuples[@]}"; do
+    tpl="${tpl// /}" # remove spaces
+    tpl="${tpl//\'/}" # remove single quotes
+    addr="${tpl%%,*}" # extract address from tuple
+    ADDRESSES+=("$addr")
+  done
+
+  # loop through all contracts
+  for FACET_NAME in "${FACETS_NAMES[@]}"; do
+    # get facet address from deployments file
+    local FACET_ADDRESS=$(jq -r ".$FACET_NAME" "$DEPLOYMENTS_FILE")
+    # check if the address is not included in the diamond
+    if ! [[ " ${ADDRESSES[@]} " =~ " ${FACET_ADDRESS} " ]]; then
+      if [[ "$DEBUG" == *"true"* ]]; then
+          echo "[debug] not all core facets are registered in the diamond"
+      fi
+
+      # not included, return error code
+      return 1
+    fi
+  done
+  return 0
+}
+function getFacetFunctionSelectorsFromDiamond() {
+  # read function arguments into variables
+  local DIAMOND_ADDRESS="$1"
+  local FACET_NAME="$2"
+  local NETWORK="$3"
+  local ENVIRONMENT="$4"
+  local EXIT_ON_ERROR="$5"
+
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
+  # get facet address from deployments JSON
+  local FILE_PATH="deployments/$NETWORK.${FILE_SUFFIX}json"
+  local FACET_ADDRESS=$(jq -r ".$FACET_NAME" $FILE_PATH)
+
+  # check if facet address was found
+  if [[ -z "$FACET_ADDRESS" ]]; then
+    echo "[error] no address found for $FACET_NAME in $FILE_PATH"
+    return 1
+  fi
+
+  # get RPC URL
+  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+
+  # get a list of all facet addresses that are registered with the diamond
+  local DIAMOND_FILE_PATH="deployments/$NETWORK.diamond.${FILE_SUFFIX}json"
+
+  # search in DIAMOND_FILE_PATH for the given address
+  if jq -e ".facets | index(\"$FACET_ADDRESS\")" "$DIAMOND_FILE_PATH" >/dev/null; then
+    # get function selectors from diamond (function facetFunctionSelectors)
+    local ATTEMPTS=1
+    while [[ -z "$FUNCTION_SELECTORS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
+      # get address of facet in diamond
+      local FUNCTION_SELECTORS=$(cast call "$DIAMOND_ADDRESS" "facetFunctionSelectors(address) returns (bytes4[])" "$FACET_ADDRESS" --rpc-url "${!RPC}")
+      ((ATTEMPTS++))
+      sleep 1
+    done
+
+    if [[ "$ATTEMPTS" -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]]; then
+      echo "[error] could not get facet address after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts, exiting."
+      return 1
+    fi
+  else
+    echo "[error] $FACET_NAME with address $FACET_ADDRESS is not known by diamond $DIAMOND_ADDRESS on network $NETWORK in $ENVIRONMENT environment. Please check why you tried to remove this facet from the diamond."
+    return 1
+  fi
+
+
+
+  # return the selectors array
+  echo "${FUNCTION_SELECTORS[@]}"
+}
+function getFacetAddressFromSelector() {
+    # read function arguments into variables
+    local DIAMOND_ADDRESS="$1"
+    local FACET_NAME="$2"
+    local NETWORK="$3"
+    local FUNCTION_SELECTOR="$4"
+
+    #echo "FUNCTION_SELECTOR in Func: $FUNCTION_SELECTOR"
+
+    # get RPC URL
+    local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+
+    # loop until FACET_ADDRESS has a value or maximum attempts are reached
+    local FACET_ADDRESS
+    local ATTEMPTS=1
+    while [[ -z "$FACET_ADDRESS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
+      # get address of facet in diamond
+      FACET_ADDRESS=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$FUNCTION_SELECTOR" --rpc-url "${!RPC}")
+      ((ATTEMPTS++))
+      sleep 1
+    done
+
+    if [[ "$ATTEMPTS" -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]]; then
+      echo "[error] could not get facet address after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts, exiting."
+      return 1
+    fi
+
+    echo "$FACET_ADDRESS"
+    return 0
+}
+function doesFacetExistInDiamond() {
+  # read function arguments into variables
+  local DIAMOND_ADDRESS=$1
+  local FACET_NAME=$2
+  local NETWORK=$3
+
+  # get all facet selectors of the facet to be checked
+  local SELECTORS=$(getFunctionSelectorsFromContractABI "$FACET_NAME")
+
+  # get RPC URL for given network
+  RPC_URL=$(getRPCUrl "$NETWORK")
+
+  # loop through facet selectors and see if this selector is known by the diamond
+  for SELECTOR in $SELECTORS; do
+    # call diamond to get address of facet for given selector
+    local RESULT=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR" --rpc-url "$RPC_URL")
+
+    # if result != address(0) >> facet selector is known
+    if [[ "$RESULT" != "0x0000000000000000000000000000000000000000" ]]; then
+      echo "true"
+      return 0
+    fi
+  done
+
+  echo "false"
+  return 0
+}
+function doesAddressContainBytecode() {
+  # read function arguments into variables
+  NETWORK="$1"
+  ADDRESS="$2"
+
+  # get correct node URL for given NETWORK
+  NODE_URL_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)"
+  NODE_URL=${!NODE_URL_KEY}
+
+  # logging for debug purposes
+#  if [[ "$DEBUG" == *"true"* ]]; then
+#    echo ""
+#    echo "[debug] in function doesAddressContainBytecode"
+#    echo "[debug] NETWORK=$NETWORK"
+#    echo "[debug] ADDRESS=$ADDRESS"
+#  fi
+
+  # check if NODE_URL is available
+  if [ -z "$NODE_URL" ]; then
+      echo "[error]: no node url found for NETWORK $NETWORK. Please update your .env FILE and make sure it has a value for the following key: $NODE_URL_KEY"
+      return 1
+  fi
+
+  # make sure address is in correct checksum format
+  jsCode="const Web3 = require('web3');
+    const web3 = new Web3();
+    const address = '$ADDRESS';
+    const checksumAddress = web3.utils.toChecksumAddress(address);
+    console.log(checksumAddress);"
+  CHECKSUM_ADDRESS=$(node -e "$jsCode")
+
+
+  # get CONTRACT code from ADDRESS using web3
+  jsCode="const Web3 = require('web3');
+    const web3 = new Web3('$NODE_URL');
+    web3.eth.getCode('$CHECKSUM_ADDRESS', (error, RESULT) => { console.log(RESULT); });"
+  contract_code=$(node -e "$jsCode")
+
+  # return ƒalse if ADDRESS does not contain CONTRACT code, otherwise true
+  if [[ $contract_code == "0x" ]]; then
+    echo "false"
+  else
+    echo "true"
+  fi
+}
+# <<<<<< read from blockchain
+
 function getRPCUrl(){
   # read function arguments into variables
   local NETWORK=$1
@@ -1192,8 +1210,6 @@ function getRPCUrl(){
   # return RPC URL
   echo "${!RPC_KEY}"
 }
-
-
 
 
 # test cases for helper functions
@@ -1361,20 +1377,24 @@ function test_doesDiamondHaveCoreFacetsRegistered() {
   doesDiamondHaveCoreFacetsRegistered "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f" "mainnet" "staging"
   #doesDiamondHaveCoreFacetsRegistered "0x1D7554F2EF87Faf41f9c678cF2501497D38c014f" "mumbai" "staging"
 }
-function test_addContractToTargetState() {
-  addOrUpdateContractVersionToTargetState "goerli" "production" "TESTNAME2" "1.0.6" true
+function test_addContractVersionToTargetState() {
+  addContractVersionToTargetState "mumbai" "production" "TESTNAME2" "LiFiDiamond" "1.0.6" true
+  addContractVersionToTargetState "mumbai" "production" "TESTNAME2" "LiFiDiamond" "2.0.6" true
+  addContractVersionToTargetState "mumbai" "staging" "TESTNAME2" "LiFiDiamond" "2.0.6" true
+  addContractVersionToTargetState "mumbai" "staging" "TESTNAME2" "LiFiDiamond" "1.0.6" true
+
 }
 function test_updateExistingContractVersionInTargetState() {
-  updateExistingContractVersionInTargetState "bsctest" "production" "Executor" "1.0.7"
+  updateExistingContractVersionInTargetState "mumbai" "staging" "TESTNAME2" "LiFiDiamond" "1.1.9"
 }
 function test_updateContractVersionInAllIncludedNetworks() {
-  updateContractVersionInAllIncludedNetworks "production" "Executor" "2.0.0"
+  updateContractVersionInAllIncludedNetworks "production" "TESTNAME2" "LiFiDiamond" "2.0.0"
 }
 function test_addNewContractVersionToAllIncludedNetworks() {
-  addNewContractVersionToAllIncludedNetworks "production" "newContract" "1.0.0"
+  addNewContractVersionToAllIncludedNetworks "production" "newContract" "LiFiDiamondImmutable" "1.0.0"
 }
 function test_addNewNetworkWithAllIncludedContractsInLatestVersions() {
-  addNewNetworkWithAllIncludedContractsInLatestVersions "newNetwork2" "staging" "LiFiDiamond"
+  addNewNetworkWithAllIncludedContractsInLatestVersions "newNetwork3" "production" "LiFiDiamondImmutable"
 }
 function test_checkIfFileExists(){
   echo "should be true: $(checkIfFileExists "./script/DeployCelerIMFacet.s.sol")"
