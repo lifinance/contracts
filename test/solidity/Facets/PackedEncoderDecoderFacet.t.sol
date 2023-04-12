@@ -45,14 +45,14 @@ contract PackedEncoderDecoderFacetTest is DSTest {
     function test_CanEncodeAndDecodeHopNativeCall() public {
         bytes memory encoded = packedEncoderDecoderFacet
             .encode_startBridgeTokensViaHopL2NativePacked(
-            bridgeData.transactionId,
-            bridgeData.integrator,
-            bridgeData.receiver,
-            bridgeData.destinationChainId,
-            hopData.bonderFee,
-            hopData.amountOutMin,
-            hopData.destinationAmountOutMin,
-            address(hopData.hopBridge)
+                bridgeData.transactionId,
+                bridgeData.integrator,
+                bridgeData.receiver,
+                bridgeData.destinationChainId,
+                hopData.bonderFee,
+                hopData.amountOutMin,
+                hopData.destinationAmountOutMin,
+                address(hopData.hopBridge)
             );
         (
             ILiFi.BridgeData memory decodedBridgeData,
@@ -80,16 +80,16 @@ contract PackedEncoderDecoderFacetTest is DSTest {
     function test_CanEncodeAndDecodeHopERC20Call() public {
         bytes memory encoded = packedEncoderDecoderFacet
             .encode_startBridgeTokensViaHopL2ERC20Packed(
-            bridgeData.transactionId,
-            bridgeData.integrator,
-            bridgeData.receiver,
-            bridgeData.destinationChainId,
-            bridgeData.sendingAssetId,
-            bridgeData.minAmount,
-            hopData.bonderFee,
-            hopData.amountOutMin,
-            hopData.destinationAmountOutMin,
-            address(hopData.hopBridge)
+                bridgeData.transactionId,
+                bridgeData.integrator,
+                bridgeData.receiver,
+                bridgeData.destinationChainId,
+                bridgeData.sendingAssetId,
+                bridgeData.minAmount,
+                hopData.bonderFee,
+                hopData.amountOutMin,
+                hopData.destinationAmountOutMin,
+                address(hopData.hopBridge)
             );
         (
             ILiFi.BridgeData memory decodedBridgeData,

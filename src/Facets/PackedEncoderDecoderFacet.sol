@@ -66,7 +66,9 @@ contract PackedEncoderDecoderFacet is ILiFi {
 
     /// @notice Decodes calldata for startBridgeTokensViaHopL2NativePacked
     /// @param _data the calldata to decode
-    function decode_startBridgeTokensViaHopL2NativePacked(bytes calldata _data)
+    function decode_startBridgeTokensViaHopL2NativePacked(
+        bytes calldata _data
+    )
         external
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
@@ -93,7 +95,7 @@ contract PackedEncoderDecoderFacet is ILiFi {
         return (bridgeData, hopData);
     }
 
-    /// @notice Encodes calldata for startBridgeTokensViaHopL2ERC20Packe    
+    /// @notice Encodes calldata for startBridgeTokensViaHopL2ERC20Packed
     /// @param transactionId Custom transaction ID for tracking
     /// @param integrator LI.FI partner name
     /// @param receiver Receiving wallet address
@@ -155,7 +157,9 @@ contract PackedEncoderDecoderFacet is ILiFi {
 
     /// @notice Decodes calldata for startBridgeTokensViaHopL2ERC20Packed
     /// @param _data the calldata to decode
-    function decode_startBridgeTokensViaHopL2ERC20Packed(bytes calldata _data)
+    function decode_startBridgeTokensViaHopL2ERC20Packed(
+        bytes calldata _data
+    )
         external
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
