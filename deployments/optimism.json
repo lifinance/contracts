@@ -23,5 +23,6 @@
   "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
   "LIFuelFacet": "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59",
   "AmarokFacet": "0xbd8D369470169f9976c5bCc60318955836843a71",
-  "PackedEncoderDecoderFacet": "0x73d2d674449B3D8ad549cc3b04F8104C444FD34D"
+  "PackedEncoderDecoderFacet": "0x73d2d674449B3D8ad549cc3b04F8104C444FD34D",
+  "HopFacetPacked": "0x9F960DF15961c1dc124d69eA5b318Df354Fb4dA6"
 }
