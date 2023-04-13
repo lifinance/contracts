@@ -11,8 +11,8 @@ deploy() {
 
   # get user-selected network from list
   NETWORK=$(cat ./networks | gum filter --placeholder "Network")
-  # get user-selected network from list
 
+  # get user-selected script/contract from list
   SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
   CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
