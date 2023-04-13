@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # TODO
-# -  log handling with similar entries
+# - improve the handling of several similar log file entries
+# - add verify contract use case (use bytecode and settings from storage)
 
 
-# - create a easy-readable file that shows which facets are added to diamond (nice-to-have)
+
 # - implement all deploy use cases
 #   - use case 4 is still missing
 # - improve logging (use external library for console logging)
-# - add verify contract use case (use bytecode and settings from storage)
 
 # - clean code
 #   - local before variables
@@ -20,9 +20,12 @@
 #   - add info about SALT env variable to deploy new contracts
 # - write article
 # - for immutable diamond we need to run some specific script - add to deploy script
-# - improve the handling of several similar log file entries
+
 # - add fancy stuff
 #   - script runtime
+#   -  add low balance warnings and currency symbols for deployer wallet balance
+#   - create a easy-readable file that shows which facets are added to diamond (nice-to-have)
+
 # - offer to exclude bytecode verification and adapt ensureENV for networks for which we dont have a functioning block explorer
 
 # known limitations:
@@ -132,6 +135,8 @@ deployMaster() {
       #fi
     done
 
+    playNotificationSound
+
   # use case 3: Deploy all contracts to one selected network (=new network)
   elif [[ "$SELECTION" == *"3)"* ]]; then
     echo ""
@@ -153,6 +158,7 @@ deployMaster() {
     # check if last command was executed successfully, otherwise exit script with error message
     checkFailure $? "deploy all contracts to network $NETWORK"
 
+    playNotificationSound
 
   # use case 4: Deploy all (missing) contracts for all networks (actual vs. target)
   elif [[ "$SELECTION" == *"4)"* ]]; then
@@ -167,6 +173,10 @@ deployMaster() {
       # go through each contract
         # compare actual vs. target
         # deploy if needed
+
+  playNotificationSound
+
+
 
   # use case 5: Execute a script
   elif [[ "$SELECTION" == *"5)"* ]]; then

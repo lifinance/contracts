@@ -1211,6 +1211,9 @@ function getRPCUrl(){
   # return RPC URL
   echo "${!RPC_KEY}"
 }
+function playNotificationSound() {
+  afplay ./notification.mp3
+}
 
 
 # test cases for helper functions
@@ -1404,5 +1407,12 @@ function test_checkIfFileExists(){
 
 
 function test_tmp(){
-  echo ""
+#echo -e '\a'
+#printf '\x07'
+checkIfFileExists "./notification.mp3"
+
+
+
 }
+
+test_tmp
