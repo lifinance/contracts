@@ -14,6 +14,7 @@ update() {
 	echo "Please select which diamond to update:"
 	SELECTION=$(gum choose "1) Mutable (default)" "2) Immutable")
 
+<<<<<<< HEAD
   # get user-selected network from list
   NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
 
@@ -25,6 +26,18 @@ update() {
       USE_DEF_DIAMOND=false
   fi
 
+=======
+  if [[ "$SELECTION" == *"default"* ]]; then
+      echo "Updating mutable diamond"
+      USE_DEF_DIAMOND=true
+  else
+      echo "Updating immutable diamond"
+      USE_DEF_DIAMOND=false
+  fi
+
+  # get user-selected network from list
+	NETWORK=$(cat ./networks | gum filter --placeholder "Network...")
+>>>>>>> staging
 	# get user-selected script from list
 	SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Diamond Update Script")
 
