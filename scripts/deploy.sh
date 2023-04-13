@@ -11,13 +11,8 @@ deploy() {
 
   # get user-selected network from list
   NETWORK=$(cat ./networks | gum filter --placeholder "Network")
-<<<<<<< HEAD
 
   # get user-selected script/contract from list
-=======
-  # get user-selected network from list
-
->>>>>>> staging
   SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
   CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
@@ -112,15 +107,9 @@ verifyContract() {
   ARGS=$4
   API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
   if [ "$ARGS" = "0x" ]; then
-<<<<<<< HEAD
     forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT -e "${!API_KEY}"
   else
     forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT --constructor-args $ARGS -e "${!API_KEY}"
-=======
-    forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT "${!API_KEY}"
-  else
-    forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT --constructor-args $ARGS "${!API_KEY}"
->>>>>>> staging
   fi
 }
 
