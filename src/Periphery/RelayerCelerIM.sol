@@ -2,39 +2,44 @@
 pragma solidity 0.8.17;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-import { UnAuthorized, InvalidConfig, InsufficientBalance, NotAContract, ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErrors.sol";
-import { LibAllowList } from "../Libraries/LibAllowList.sol";
+import { ContractCallNotAllowed, ExternalCallFailed, InvalidConfig, UnAuthorized, WithdrawFailed } from "../Errors/GenericErrors.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
-import { LibBytes } from "../Libraries/LibBytes.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
-import {CelerIMFacet} from "lifi/Facets/CelerIMFacet.sol";
+import { CelerIMFacet } from "lifi/Facets/CelerIMFacet.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 
-/// @title RelayerCBridge
+/// @title RelayerCelerIM
 /// @author LI.FI (https://li.fi)
-/// @notice Relayer contract for CBridge/CelerIM that forwards calls to cBridge and handles refunds
-contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
+/// @notice Relayer contract for CelerIM that forwards calls and handles refunds on src side and acts receiver on dest
+/// @custom:version 1.0.0
+contract RelayerCelerIM is ILiFi, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
     /// Storage ///
+
     IMessageBus public cBridgeMessageBus;
     address public diamondAddress;
     IExecutor public executor;
 
-    /// Errors ///
-
     /// Events ///
+
+    event LogWithdraw(
+        address indexed _assetAddress,
+        address indexed _to,
+        uint256 amount
+    );
     event CBridgeMessageBusSet(address indexed messageBusAddress);
     event DiamondAddressSet(address indexed diamondAddress);
     event ExecutorSet(address indexed executorAddress);
 
     /// Modifiers ///
+
     modifier onlyCBridgeMessageBus() {
         if (msg.sender != address(cBridgeMessageBus)) revert UnAuthorized();
         _;
@@ -45,6 +50,7 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
     }
 
     /// Constructor
+
     constructor(
         address _owner,
         address _cBridgeMessageBusAddress,
@@ -146,11 +152,12 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /**
      * @notice Forwards a call to transfer tokens to cBridge (sent via this contract to ensure that potential refunds are sent here)
      * @param _bridgeData the core information needed for bridging
-     * @param _cBridgeData data specific to CBridge
+     * @param _celerIMData data specific to CelerIM
      */
+    // solhint-disable-next-line code-complexity
     function sendTokenTransfer(
         ILiFi.BridgeData memory _bridgeData,
-        CelerIMFacet.CelerIMData memory _cBridgeData
+        CelerIMFacet.CelerIMData calldata _celerIMData
     )
         external
         payable
@@ -159,7 +166,7 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
     {
         // approve to and call correct bridge depending on BridgeSendType
         // @dev copied and slightly adapted from Celer MessageSenderLib
-        if (_cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.Liquidity) {
+        if (_celerIMData.bridgeType == MsgDataTypes.BridgeSendType.Liquidity) {
             bridgeAddress = cBridgeMessageBus.liquidityBridge();
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
                 // case: native asset bridging
@@ -169,8 +176,8 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     _bridgeData.receiver,
                     _bridgeData.minAmount,
                     uint64(_bridgeData.destinationChainId),
-                    _cBridgeData.nonce,
-                    _cBridgeData.maxSlippage
+                    _celerIMData.nonce,
+                    _celerIMData.maxSlippage
                 );
             } else {
                 // case: ERC20 asset bridging
@@ -179,13 +186,14 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     bridgeAddress,
                     _bridgeData.minAmount
                 );
+                // solhint-disable-next-line check-send-result
                 ICBridge(bridgeAddress).send(
                     _bridgeData.receiver,
                     _bridgeData.sendingAssetId,
                     _bridgeData.minAmount,
                     uint64(_bridgeData.destinationChainId),
-                    _cBridgeData.nonce,
-                    _cBridgeData.maxSlippage
+                    _celerIMData.nonce,
+                    _celerIMData.maxSlippage
                 );
             }
             transferId = MessageSenderLib.computeLiqBridgeTransferId(
@@ -193,10 +201,10 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 uint64(_bridgeData.destinationChainId),
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
         } else if (
-            _cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegDeposit
+            _celerIMData.bridgeType == MsgDataTypes.BridgeSendType.PegDeposit
         ) {
             bridgeAddress = cBridgeMessageBus.pegVault();
             LibAsset.maxApproveERC20(
@@ -209,17 +217,17 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _bridgeData.minAmount,
                 uint64(_bridgeData.destinationChainId),
                 _bridgeData.receiver,
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
             transferId = MessageSenderLib.computePegV1DepositId(
                 _bridgeData.receiver,
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 uint64(_bridgeData.destinationChainId),
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
         } else if (
-            _cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegBurn
+            _celerIMData.bridgeType == MsgDataTypes.BridgeSendType.PegBurn
         ) {
             bridgeAddress = cBridgeMessageBus.pegBridge();
             LibAsset.maxApproveERC20(
@@ -231,16 +239,16 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 _bridgeData.receiver,
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
             transferId = MessageSenderLib.computePegV1BurnId(
                 _bridgeData.receiver,
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
         } else if (
-            _cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Deposit
+            _celerIMData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Deposit
         ) {
             bridgeAddress = cBridgeMessageBus.pegVaultV2();
             if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
@@ -250,7 +258,7 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     _bridgeData.minAmount,
                     uint64(_bridgeData.destinationChainId),
                     _bridgeData.receiver,
-                    _cBridgeData.nonce
+                    _celerIMData.nonce
                 );
             } else {
                 // case: ERC20 bridging
@@ -264,11 +272,11 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     _bridgeData.minAmount,
                     uint64(_bridgeData.destinationChainId),
                     _bridgeData.receiver,
-                    _cBridgeData.nonce
+                    _celerIMData.nonce
                 );
             }
         } else if (
-            _cBridgeData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Burn
+            _celerIMData.bridgeType == MsgDataTypes.BridgeSendType.PegV2Burn
         ) {
             bridgeAddress = cBridgeMessageBus.pegBridgeV2();
             LibAsset.maxApproveERC20(
@@ -281,10 +289,10 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _bridgeData.minAmount,
                 uint64(_bridgeData.destinationChainId),
                 _bridgeData.receiver,
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
         } else if (
-            _cBridgeData.bridgeType ==
+            _celerIMData.bridgeType ==
             MsgDataTypes.BridgeSendType.PegV2BurnFrom
         ) {
             bridgeAddress = cBridgeMessageBus.pegBridgeV2();
@@ -298,7 +306,7 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 _bridgeData.minAmount,
                 uint64(_bridgeData.destinationChainId),
                 _bridgeData.receiver,
-                _cBridgeData.nonce
+                _celerIMData.nonce
             );
         } else {
             revert InvalidConfig();
@@ -332,10 +340,9 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
     /// @notice sets the CBridge MessageBus address
     /// @param _messageBusAddress the MessageBus address
-    function setCBridgeMessageBus(address _messageBusAddress)
-        external
-        onlyOwner
-    {
+    function setCBridgeMessageBus(
+        address _messageBusAddress
+    ) external onlyOwner {
         cBridgeMessageBus = IMessageBus(_messageBusAddress);
         emit CBridgeMessageBusSet(_messageBusAddress);
     }
@@ -384,8 +391,11 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
             {
                 success = true;
             } catch {
+                // solhint-disable-next-line avoid-low-level-calls
                 (bool fundsSent, ) = refundAddress.call{ value: amount }("");
-                if (!fundsSent) revert ExternalCallFailed();
+                if (!fundsSent) {
+                    revert ExternalCallFailed();
+                }
             }
         } else {
             IERC20 token = IERC20(assetId);
@@ -418,6 +428,68 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
         }
     }
 
+    /// @notice Sends remaining token to given receiver address (for refund cases)
+    /// @param assetId Address of the token to be withdrawn
+    /// @param receiver Address that will receive tokens
+    /// @param amount Amount of tokens to be withdrawn
+    function withdraw(
+        address assetId,
+        address payable receiver,
+        uint256 amount
+    ) external onlyOwner {
+        if (LibAsset.isNativeAsset(assetId)) {
+            // solhint-disable-next-line avoid-low-level-calls
+            (bool success, ) = receiver.call{ value: amount }("");
+            if (!success) {
+                revert WithdrawFailed();
+            }
+        } else {
+            IERC20(assetId).safeTransfer(receiver, amount);
+        }
+        emit LogWithdraw(assetId, receiver, amount);
+    }
+
+    /// @notice Triggers a cBridge refund with calldata produced by cBridge API
+    /// @param _callTo The address to execute the calldata on
+    /// @param _callData The data to execute
+    /// @param _assetAddress Asset to be withdrawn
+    /// @param _to Address to withdraw to
+    /// @param _amount Amount of asset to withdraw
+    function triggerRefund(
+        address payable _callTo,
+        bytes calldata _callData,
+        address _assetAddress,
+        address _to,
+        uint256 _amount
+    ) external onlyOwner {
+        bool success;
+
+        // make sure that callTo address is either of the cBridge addresses
+        if (
+            cBridgeMessageBus.liquidityBridge() != _callTo &&
+            cBridgeMessageBus.pegBridge() != _callTo &&
+            cBridgeMessageBus.pegBridgeV2() != _callTo &&
+            cBridgeMessageBus.pegVault() != _callTo &&
+            cBridgeMessageBus.pegVaultV2() != _callTo
+        ) {
+            revert ContractCallNotAllowed();
+        }
+
+        // call contract
+        // solhint-disable-next-line avoid-low-level-calls
+        (success, ) = _callTo.call(_callData);
+
+        // forward funds to _to address and emit event, if cBridge refund successful
+        if (success) {
+            address sendTo = (LibUtil.isZeroAddress(_to)) ? msg.sender : _to;
+            LibAsset.transferAsset(_assetAddress, payable(sendTo), _amount);
+            emit LogWithdraw(_assetAddress, sendTo, _amount);
+        } else {
+            revert WithdrawFailed();
+        }
+    }
+
     // required in order to receive native tokens from cBridge facet
+    // solhint-disable-next-line no-empty-blocks
     receive() external payable {}
 }

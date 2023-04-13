@@ -9,6 +9,7 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 /// @title Ownership Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Manages ownership of the LiFi Diamond contract for admin purposes
+/// @custom:version 1.0.0
 contract OwnershipFacet is IERC173 {
     /// Storage ///
 

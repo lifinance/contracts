@@ -8,19 +8,24 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IERC20Proxy } from "../Interfaces/IERC20Proxy.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
+/// @custom:version 1.0.0
+contract Executor is
+    ILiFi,
+    ReentrancyGuard,
+    TransferrableOwnership,
+    ERC1155Holder,
+    ERC721Holder
+{
     /// Storage ///
 
     /// @notice The address of the ERC20Proxy contract
     IERC20Proxy public erc20Proxy;
-
-    /// Errors ///
-    error ExecutionFailed();
-    error InvalidCaller();
 
     /// Events ///
     event ERC20ProxySet(address indexed proxy);
@@ -66,9 +71,10 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @notice Initialize local variables for the Executor
     /// @param _owner The address of owner
     /// @param _erc20Proxy The address of the ERC20Proxy contract
-    constructor(address _owner, address _erc20Proxy)
-        TransferrableOwnership(_owner)
-    {
+    constructor(
+        address _owner,
+        address _erc20Proxy
+    ) TransferrableOwnership(_owner) {
         owner = _owner;
         erc20Proxy = IERC20Proxy(_erc20Proxy);
 
@@ -237,11 +243,9 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @dev Fetches balances of tokens to be swapped before swapping.
     /// @param _swapData Array of data used to execute swaps
     /// @return uint256[] Array of token balances.
-    function _fetchBalances(LibSwap.SwapData[] calldata _swapData)
-        private
-        view
-        returns (uint256[] memory)
-    {
+    function _fetchBalances(
+        LibSwap.SwapData[] calldata _swapData
+    ) private view returns (uint256[] memory) {
         uint256 numSwaps = _swapData.length;
         uint256[] memory balances = new uint256[](numSwaps);
         address asset;

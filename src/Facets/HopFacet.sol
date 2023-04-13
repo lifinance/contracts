@@ -13,6 +13,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Hop Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
+/// @custom:version 1.0.0
 contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -120,7 +121,7 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaHop(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        HopData memory _hopData
+        HopData calldata _hopData
     )
         external
         payable
@@ -146,7 +147,7 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _hopData data specific to Hop Protocol
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        HopData memory _hopData
+        HopData calldata _hopData
     ) private {
         address sendingAssetId = _bridgeData.sendingAssetId;
         Storage storage s = getStorage();

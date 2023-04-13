@@ -12,6 +12,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Arbitrum Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Arbitrum Bridge
+/// @custom:version 1.0.0
 contract ArbitrumBridgeFacet is
     ILiFi,
     ReentrancyGuard,
@@ -19,9 +20,6 @@ contract ArbitrumBridgeFacet is
     Validatable
 {
     /// Storage ///
-
-    /// @notice Chain id of Arbitrum.
-    uint64 private constant ARB_CHAIN_ID = 42161;
 
     /// @notice The contract address of the gateway router on the source chain.
     IGatewayRouter private immutable gatewayRouter;
@@ -70,11 +68,13 @@ contract ArbitrumBridgeFacet is
         uint256 cost = _arbitrumData.maxSubmissionCost +
             _arbitrumData.maxGas *
             _arbitrumData.maxGasPrice;
+
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
-        _startBridge(_bridgeData, _arbitrumData, cost, msg.value);
+
+        _startBridge(_bridgeData, _arbitrumData, cost);
     }
 
     /// @notice Performs a swap before bridging via Arbitrum Bridge
@@ -98,7 +98,6 @@ contract ArbitrumBridgeFacet is
             _arbitrumData.maxGas *
             _arbitrumData.maxGasPrice;
 
-        uint256 ethBalance = address(this).balance - msg.value;
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -107,16 +106,7 @@ contract ArbitrumBridgeFacet is
             cost
         );
 
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            _bridgeData.minAmount -= cost;
-        }
-
-        _startBridge(
-            _bridgeData,
-            _arbitrumData,
-            cost,
-            address(this).balance - ethBalance
-        );
+        _startBridge(_bridgeData, _arbitrumData, cost);
     }
 
     /// Private Methods ///
@@ -125,69 +115,40 @@ contract ArbitrumBridgeFacet is
     /// @param _bridgeData Data containing core information for bridging
     /// @param _arbitrumData Data for gateway router address, asset id and amount
     /// @param _cost Additional amount of native asset for the fee
-    /// @param _receivedEther Amount of ether received from
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         ArbitrumData calldata _arbitrumData,
-        uint256 _cost,
-        uint256 _receivedEther
-    ) private validateBridgeData(_bridgeData) {
-        bool isNativeTransfer = LibAsset.isNativeAsset(
-            _bridgeData.sendingAssetId
-        );
-
-        uint256 requiredEther = isNativeTransfer
-            ? _cost + _bridgeData.minAmount
-            : _cost;
-        if (_receivedEther < requiredEther) {
-            revert InvalidAmount();
-        }
-
-        if (isNativeTransfer) {
-            _startNativeBridge(_bridgeData, _arbitrumData, _cost);
+        uint256 _cost
+    ) private {
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            inbox.unsafeCreateRetryableTicket{
+                value: _bridgeData.minAmount + _cost
+            }(
+                _bridgeData.receiver,
+                _bridgeData.minAmount, // l2CallValue
+                _arbitrumData.maxSubmissionCost,
+                _bridgeData.receiver, // excessFeeRefundAddress
+                _bridgeData.receiver, // callValueRefundAddress
+                _arbitrumData.maxGas,
+                _arbitrumData.maxGasPrice,
+                ""
+            );
         } else {
-            _startTokenBridge(_bridgeData, _arbitrumData, _cost);
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                gatewayRouter.getGateway(_bridgeData.sendingAssetId),
+                _bridgeData.minAmount
+            );
+            gatewayRouter.outboundTransfer{ value: _cost }(
+                _bridgeData.sendingAssetId,
+                _bridgeData.receiver,
+                _bridgeData.minAmount,
+                _arbitrumData.maxGas,
+                _arbitrumData.maxGasPrice,
+                abi.encode(_arbitrumData.maxSubmissionCost, "")
+            );
         }
 
         emit LiFiTransferStarted(_bridgeData);
-    }
-
-    function _startTokenBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        ArbitrumData calldata _arbitrumData,
-        uint256 cost
-    ) private {
-        LibAsset.maxApproveERC20(
-            IERC20(_bridgeData.sendingAssetId),
-            gatewayRouter.getGateway(_bridgeData.sendingAssetId),
-            _bridgeData.minAmount
-        );
-        gatewayRouter.outboundTransfer{ value: cost }(
-            _bridgeData.sendingAssetId,
-            _bridgeData.receiver,
-            _bridgeData.minAmount,
-            _arbitrumData.maxGas,
-            _arbitrumData.maxGasPrice,
-            abi.encode(_arbitrumData.maxSubmissionCost, "")
-        );
-    }
-
-    function _startNativeBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        ArbitrumData calldata _arbitrumData,
-        uint256 cost
-    ) private {
-        inbox.unsafeCreateRetryableTicket{
-            value: _bridgeData.minAmount + cost
-        }(
-            _bridgeData.receiver,
-            _bridgeData.minAmount, // l2CallValue
-            _arbitrumData.maxSubmissionCost,
-            _bridgeData.receiver, // excessFeeRefundAddress
-            _bridgeData.receiver, // callValueRefundAddress
-            _arbitrumData.maxGas,
-            _arbitrumData.maxGasPrice,
-            ""
-        );
     }
 }

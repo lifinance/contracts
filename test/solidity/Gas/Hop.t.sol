@@ -52,8 +52,8 @@ contract HopGasTest is Test, DiamondTest {
     }
 
     function testDirectBridge() public {
-        uint256 amount = 100 * 10**usdc.decimals();
-        uint256 amountOutMin = 99 * 10**usdc.decimals();
+        uint256 amount = 100 * 10 ** usdc.decimals();
+        uint256 amountOutMin = 99 * 10 ** usdc.decimals();
         uint256 deadline = block.timestamp + 20 minutes;
 
         vm.startPrank(WHALE);
@@ -71,8 +71,8 @@ contract HopGasTest is Test, DiamondTest {
     }
 
     function testLifiBridge() public {
-        uint256 amount = 100 * 10**usdc.decimals();
-        uint256 amountOutMin = 99 * 10**usdc.decimals();
+        uint256 amount = 100 * 10 ** usdc.decimals();
+        uint256 amountOutMin = 99 * 10 ** usdc.decimals();
         uint256 deadline = block.timestamp + 20 minutes;
 
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(

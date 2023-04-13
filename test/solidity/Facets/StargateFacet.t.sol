@@ -6,6 +6,7 @@ import { OnlyContractOwner, InvalidConfig, AlreadyInitialized } from "src/Errors
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 import { IStargateRouter } from "lifi/Interfaces/IStargateRouter.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 
 // Stub CBridgeFacet Contract
 contract TestStargateFacet is StargateFacet {
@@ -127,10 +128,9 @@ contract StargateFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             stargateFacet.swapAndStartBridgeTokensViaStargate{
                 value: swapData[0].fromAmount + addToMessageValue
@@ -165,7 +165,8 @@ contract StargateFacetTest is TestBaseFacet {
 
     function test_revert_InitializeAgain() public {
         vm.startPrank(USER_DIAMOND_OWNER);
-        StargateFacet.ChainIdConfig[] memory chainIdConfig = new StargateFacet.ChainIdConfig[](2);
+        StargateFacet.ChainIdConfig[]
+            memory chainIdConfig = new StargateFacet.ChainIdConfig[](2);
         chainIdConfig[0] = StargateFacet.ChainIdConfig(1, 101);
         chainIdConfig[1] = StargateFacet.ChainIdConfig(137, 109);
 
@@ -212,5 +213,43 @@ contract StargateFacetTest is TestBaseFacet {
         // fails otherwise with "slippage too high" from Stargate router contract
         vm.assume(amount > 100);
         super.testBase_CanBridgeTokens_fuzzed(amount);
+    }
+
+    function test_revert_invalidSrcPool() public {
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        // invalid data
+        stargateData.srcPoolId = 100;
+
+        vm.expectRevert();
+
+        stargateFacet.startBridgeTokensViaStargate{ value: addToMessageValue }(
+            bridgeData,
+            stargateData
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_revert_invalidDestPool() public {
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        // invalid data
+        stargateData.dstPoolId = 100;
+
+        vm.expectRevert();
+
+        stargateFacet.startBridgeTokensViaStargate{ value: addToMessageValue }(
+            bridgeData,
+            stargateData
+        );
+
+        vm.stopPrank();
     }
 }

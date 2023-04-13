@@ -8,5 +8,10 @@
     "xDaiBridge": "0x4aa42145Aa6Ebf72e164C9bBC74fbD3788045016",
     "token": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
     "dstChainId": 100
+  },
+  "gnosis": {
+    "xDaiBridge": "0x7301CFA0e1756B71869E93d4e4Dca5c7d0eb0AA6",
+    "token": "0x0000000000000000000000000000000000000000",
+    "dstChainId": 1
   }
 }

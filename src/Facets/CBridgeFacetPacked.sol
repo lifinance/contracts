@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @title CBridge Facet Packed
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
+/// @custom:version 1.0.0
 contract CBridgeFacetPacked is ILiFi {
     /// Storage ///
 
@@ -27,9 +28,11 @@ contract CBridgeFacetPacked is ILiFi {
 
     /// @notice Bridges Native tokens via cBridge (packed)
     /// No params, all data will be extracted from manually encoded callData
-    function startBridgeTokensViaCBridgeNativePacked(
-    ) external payable {
-        require(msg.data.length >= 60, "callData length smaller than required");
+    function startBridgeTokensViaCBridgeNativePacked() external payable {
+        require(
+            msg.data.length >= 60,
+            "callData length smaller than required"
+        );
 
         _startBridgeTokensViaCBridgeNative({
             // first 4 bytes are function signature
@@ -58,7 +61,7 @@ contract CBridgeFacetPacked is ILiFi {
         uint64 nonce,
         uint32 maxSlippage
     ) external payable {
-         _startBridgeTokensViaCBridgeNative(
+        _startBridgeTokensViaCBridgeNative(
             transactionId,
             integrator,
             receiver,
@@ -83,25 +86,36 @@ contract CBridgeFacetPacked is ILiFi {
         uint64 nonce,
         uint32 maxSlippage
     ) external pure returns (bytes memory) {
-        require(destinationChainId <= type(uint32).max, "destinationChainId value passed too big to fit in uint32");
-        require(nonce <= type(uint32).max, "nonce value passed too big to fit in uint32");
-
-        return bytes.concat(
-            CBridgeFacetPacked.startBridgeTokensViaCBridgeNativePacked.selector,
-            bytes8(transactionId),
-            bytes16(bytes(integrator)),
-            bytes20(receiver),
-            bytes4(uint32(destinationChainId)),
-            bytes4(uint32(nonce)),
-            bytes4(maxSlippage)
+        require(
+            destinationChainId <= type(uint32).max,
+            "destinationChainId value passed too big to fit in uint32"
         );
+        require(
+            nonce <= type(uint32).max,
+            "nonce value passed too big to fit in uint32"
+        );
+
+        return
+            bytes.concat(
+                CBridgeFacetPacked
+                    .startBridgeTokensViaCBridgeNativePacked
+                    .selector,
+                bytes8(transactionId),
+                bytes16(bytes(integrator)),
+                bytes20(receiver),
+                bytes4(uint32(destinationChainId)),
+                bytes4(uint32(nonce)),
+                bytes4(maxSlippage)
+            );
     }
 
     /// @notice Bridges ERC20 tokens via cBridge
     /// No params, all data will be extracted from manually encoded callData
-    function startBridgeTokensViaCBridgeERC20Packed(
-    ) external {
-        require(msg.data.length >= 96, "callData length smaller than required");
+    function startBridgeTokensViaCBridgeERC20Packed() external {
+        require(
+            msg.data.length >= 96,
+            "callData length smaller than required"
+        );
 
         _startBridgeTokensViaCBridgeERC20({
             // first 4 bytes are function signature
@@ -167,21 +181,33 @@ contract CBridgeFacetPacked is ILiFi {
         uint64 nonce,
         uint32 maxSlippage
     ) external pure returns (bytes memory) {
-        require(destinationChainId <= type(uint32).max, "destinationChainId value passed too big to fit in uint32");
-        require(amount <= type(uint128).max, "amount value passed too big to fit in uint128");
-        require(nonce <= type(uint32).max, "nonce value passed too big to fit in uint32");
-
-        return bytes.concat(
-            CBridgeFacetPacked.startBridgeTokensViaCBridgeERC20Packed.selector,
-            bytes8(transactionId),
-            bytes16(bytes(integrator)),
-            bytes20(receiver),
-            bytes4(uint32(destinationChainId)),
-            bytes20(sendingAssetId),
-            bytes16(uint128(amount)),
-            bytes4(uint32(nonce)),
-            bytes4(maxSlippage)
+        require(
+            destinationChainId <= type(uint32).max,
+            "destinationChainId value passed too big to fit in uint32"
         );
+        require(
+            amount <= type(uint128).max,
+            "amount value passed too big to fit in uint128"
+        );
+        require(
+            nonce <= type(uint32).max,
+            "nonce value passed too big to fit in uint32"
+        );
+
+        return
+            bytes.concat(
+                CBridgeFacetPacked
+                    .startBridgeTokensViaCBridgeERC20Packed
+                    .selector,
+                bytes8(transactionId),
+                bytes16(bytes(integrator)),
+                bytes20(receiver),
+                bytes4(uint32(destinationChainId)),
+                bytes20(sendingAssetId),
+                bytes16(uint128(amount)),
+                bytes4(uint32(nonce)),
+                bytes4(maxSlippage)
+            );
     }
 
     /// Internal Methods ///
@@ -203,18 +229,20 @@ contract CBridgeFacetPacked is ILiFi {
             maxSlippage
         );
 
-        emit LiFiTransferStarted(BridgeData({
-            transactionId: transactionId,
-            bridge: "cbridge",
-            integrator: integrator,
-            referrer: address(0),
-            sendingAssetId: address(0),
-            receiver: receiver,
-            minAmount: msg.value,
-            destinationChainId: destinationChainId,
-            hasSourceSwaps: false,
-            hasDestinationCall: false
-        }));
+        emit LiFiTransferStarted(
+            BridgeData({
+                transactionId: transactionId,
+                bridge: "cbridge",
+                integrator: integrator,
+                referrer: address(0),
+                sendingAssetId: address(0),
+                receiver: receiver,
+                minAmount: msg.value,
+                destinationChainId: destinationChainId,
+                hasSourceSwaps: false,
+                hasDestinationCall: false
+            })
+        );
     }
 
     function _startBridgeTokensViaCBridgeERC20(
@@ -228,9 +256,15 @@ contract CBridgeFacetPacked is ILiFi {
         uint32 maxSlippage
     ) private {
         // Deposit assets
-        SafeERC20.safeTransferFrom(IERC20(sendingAssetId), msg.sender, address(this), amount);
+        SafeERC20.safeTransferFrom(
+            IERC20(sendingAssetId),
+            msg.sender,
+            address(this),
+            amount
+        );
 
         // Bridge assets
+        // solhint-disable-next-line check-send-result
         cBridge.send(
             receiver,
             sendingAssetId,
@@ -240,17 +274,19 @@ contract CBridgeFacetPacked is ILiFi {
             maxSlippage
         );
 
-        emit LiFiTransferStarted(BridgeData({
-            transactionId: transactionId,
-            bridge: "cbridge",
-            integrator: integrator,
-            referrer: address(0),
-            sendingAssetId: sendingAssetId,
-            receiver: receiver,
-            minAmount: amount,
-            destinationChainId: destinationChainId,
-            hasSourceSwaps: false,
-            hasDestinationCall: false
-        }));
+        emit LiFiTransferStarted(
+            BridgeData({
+                transactionId: transactionId,
+                bridge: "cbridge",
+                integrator: integrator,
+                referrer: address(0),
+                sendingAssetId: sendingAssetId,
+                receiver: receiver,
+                minAmount: amount,
+                destinationChainId: destinationChainId,
+                hasSourceSwaps: false,
+                hasDestinationCall: false
+            })
+        );
     }
 }

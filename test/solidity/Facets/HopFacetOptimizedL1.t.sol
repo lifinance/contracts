@@ -26,8 +26,6 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1;
     address internal constant NATIVE_BRIDGE =
         0xb8901acB165ed027E32754E0FFe830802919727f;
-    address internal constant CONNEXT_HANDLER =
-        0xB4C1340434920d70aD774309C75f9a4B679d801e;
     uint256 internal constant DSTCHAIN_ID = 137;
     // -----
 
@@ -71,6 +69,9 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         hopFacet.setFunctionApprovalBySignature(
             uniswap.swapETHForExactTokens.selector
         );
+        hopFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactETHForTokens.selector
+        );
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
 
         // Set approval for all bridges
@@ -110,10 +111,9 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative || bridgeData.sendingAssetId == address(0)) {
             validHopData.hopBridge = IHopBridge(NATIVE_BRIDGE);
             hopFacet.swapAndStartBridgeTokensViaHopL1Native{
@@ -129,8 +129,42 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         }
     }
 
+    function testCanSwapNativeAndBridgeTokens() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // reset swap data
+        setDefaultSwapDataSingleETHtoUSDC();
+
+        // update HopData
+        validHopData.amountOutMin = defaultUSDCAmount;
+        validHopData.hopBridge = IHopBridge(USDC_BRIDGE);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            address(0),
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        hopFacet.swapAndStartBridgeTokensViaHopL1ERC20{
+            value: swapData[0].fromAmount
+        }(bridgeData, swapData, validHopData);
+    }
+
     function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
         public
+        view
         override
     {
         console.log("Not applicable for HopFacetOptimized");
@@ -138,6 +172,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
 
     function testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
         public
+        view
         override
     {
         console.log("Not applicable for HopFacetOptimized");

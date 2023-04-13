@@ -11,11 +11,9 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title OmniBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through OmniBridge
+/// @custom:version 1.0.0
 contract OmniBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
-
-    /// @notice The chain id of Gnosis.
-    uint64 private constant GNOSIS_CHAIN_ID = 100;
 
     /// @notice The contract address of the foreign omni bridge on the source chain.
     IOmniBridge private immutable foreignOmniBridge;

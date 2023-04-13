@@ -40,7 +40,7 @@ contract FusePoolZapTest is DSTest {
     function testCanZapIn() public {
         vm.startPrank(DEPOSITOR);
 
-        uint256 amount = 1000 * 10**ERC20(FRAX3CRV).decimals();
+        uint256 amount = 1000 * 10 ** ERC20(FRAX3CRV).decimals();
 
         ERC20(FRAX3CRV).approve(address(zap), amount);
         zap.zapIn(TRIBE_FUSE_POOL, FRAX3CRV, amount);
@@ -48,7 +48,7 @@ contract FusePoolZapTest is DSTest {
         // Should get 5000 fTokens back
         assertEq(
             ERC20(FTOKEN).balanceOf(DEPOSITOR),
-            5000 * 10**ERC20(FTOKEN).decimals()
+            5000 * 10 ** ERC20(FTOKEN).decimals()
         );
 
         ERC20(FRAX3CRV).approve(address(zap), amount);

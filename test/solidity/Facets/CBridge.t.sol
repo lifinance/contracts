@@ -23,30 +23,48 @@ interface Ownable {
 }
 
 contract CBridgeFacetTest is TestBaseFacet {
-    address internal constant CBRIDGE_ROUTER = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
+    address internal constant CBRIDGE_ROUTER =
+        0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
     TestCBridgeFacet internal cBridge;
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         // a) prepare the facet-specific data
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, currentTxId++);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            5000,
+            currentTxId++
+        );
 
         // b) call the correct function selectors (as they differ for each facet)
         if (isNative) {
-            cBridge.startBridgeTokensViaCBridge{ value: bridgeData.minAmount }(bridgeData, data);
+            cBridge.startBridgeTokensViaCBridge{ value: bridgeData.minAmount }(
+                bridgeData,
+                data
+            );
         } else {
             cBridge.startBridgeTokensViaCBridge(bridgeData, data);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative) internal override {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         // a) prepare the facet-specific data
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, currentTxId++);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            5000,
+            currentTxId++
+        );
 
         // b) call the correct function selectors (as they differ for each facet)
         if (isNative) {
-            cBridge.swapAndStartBridgeTokensViaCBridge{ value: swapData[0].fromAmount }(bridgeData, swapData, data);
+            cBridge.swapAndStartBridgeTokensViaCBridge{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData, data);
         } else {
-            cBridge.swapAndStartBridgeTokensViaCBridge(bridgeData, swapData, data);
+            cBridge.swapAndStartBridgeTokensViaCBridge(
+                bridgeData,
+                swapData,
+                data
+            );
         }
     }
 
@@ -55,7 +73,9 @@ contract CBridgeFacetTest is TestBaseFacet {
         cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = cBridge.startBridgeTokensViaCBridge.selector;
-        functionSelectors[1] = cBridge.swapAndStartBridgeTokensViaCBridge.selector;
+        functionSelectors[1] = cBridge
+            .swapAndStartBridgeTokensViaCBridge
+            .selector;
         functionSelectors[2] = cBridge.addDex.selector;
         functionSelectors[3] = cBridge.setFunctionApprovalBySignature.selector;
 
@@ -63,15 +83,24 @@ contract CBridgeFacetTest is TestBaseFacet {
 
         cBridge = TestCBridgeFacet(address(diamond));
         cBridge.addDex(address(uniswap));
-        cBridge.setFunctionApprovalBySignature(uniswap.swapExactTokensForTokens.selector);
-        cBridge.setFunctionApprovalBySignature(uniswap.swapTokensForExactETH.selector);
-        cBridge.setFunctionApprovalBySignature(uniswap.swapETHForExactTokens.selector);
+        cBridge.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        cBridge.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
+        cBridge.setFunctionApprovalBySignature(
+            uniswap.swapETHForExactTokens.selector
+        );
         setFacetAddressInTestBase(address(cBridge), "cBridgeFacet");
     }
 
     function testFail_ReentrantCallBridge() internal {
         // prepare facet-specific data
-        CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet.CBridgeData(5000, currentTxId++);
+        CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet.CBridgeData(
+            5000,
+            currentTxId++
+        );
 
         // prepare bridge data for native bridging
         setDefaultBridgeData();
@@ -80,7 +109,11 @@ contract CBridgeFacetTest is TestBaseFacet {
 
         // call testcase with correct call data (i.e. function selector) for this facet
         super.failReentrantCall(
-            abi.encodeWithSelector(cBridge.startBridgeTokensViaCBridge.selector, bridgeData, cBridgeData)
+            abi.encodeWithSelector(
+                cBridge.startBridgeTokensViaCBridge.selector,
+                bridgeData,
+                cBridgeData
+            )
         );
     }
 
@@ -88,7 +121,10 @@ contract CBridgeFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         // prepare facet-specific data
-        CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet.CBridgeData(5000, currentTxId++);
+        CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet.CBridgeData(
+            5000,
+            currentTxId++
+        );
 
         // prepare bridge data for native bridging
         setDefaultBridgeData();
@@ -110,20 +146,20 @@ contract CBridgeFacetTest is TestBaseFacet {
         delete swapData;
         swapData.push(
             LibSwap.SwapData({
-        callTo: address(uniswap),
-        approveTo: address(uniswap),
-        sendingAssetId: address(0),
-        receivingAssetId: ADDRESS_USDC,
-        fromAmount: amountIn,
-        callData: abi.encodeWithSelector(
-                uniswap.swapETHForExactTokens.selector,
-                amountOut,
-                path,
-                address(cBridge),
-                block.timestamp + 20 minutes
-            ),
-        requiresDeposit: true
-        })
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapETHForExactTokens.selector,
+                    amountOut,
+                    path,
+                    address(cBridge),
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
         );
 
         // call testcase with correct call data (i.e. function selector) for this facet
@@ -144,11 +180,17 @@ contract CBridgeFacetTest is TestBaseFacet {
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = 1 ether;
 
-        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(5000, currentTxId++);
+        CBridgeFacet.CBridgeData memory data = CBridgeFacet.CBridgeData(
+            5000,
+            currentTxId++
+        );
 
         vm.expectRevert(InvalidAmount.selector);
 
-        cBridge.startBridgeTokensViaCBridge{ value: bridgeData.minAmount - 1 }(bridgeData, data);
+        cBridge.startBridgeTokensViaCBridge{ value: bridgeData.minAmount - 1 }(
+            bridgeData,
+            data
+        );
 
         vm.stopPrank();
     }

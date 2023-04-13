@@ -11,17 +11,16 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { UnsupportedChainId, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { LibMappings } from "../Libraries/LibMappings.sol";
 
 /// @title Wormhole Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Wormhole
+/// @custom:version 1.0.0
 contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.wormhole");
-
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
 
@@ -29,6 +28,11 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     IWormholeRouter private immutable router;
 
     /// Types ///
+
+    struct Storage {
+        mapping(uint256 => uint16) wormholeChainId;
+        bool initialized;
+    }
 
     struct Config {
         uint256 chainId;
@@ -73,8 +77,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function initWormhole(Config[] calldata configs) external {
         LibDiamond.enforceIsContractOwner();
 
-        LibMappings.WormholeMappings storage sm = LibMappings
-            .getWormholeMappings();
+        Storage storage sm = getStorage();
 
         if (sm.initialized) {
             revert AlreadyInitialized();
@@ -144,12 +147,12 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Creates a mapping between a lifi chain id and a wormhole chain id
     /// @param _lifiChainId lifi chain id
     /// @param _wormholeChainId wormhole chain id
-    function setWormholeChainId(uint256 _lifiChainId, uint16 _wormholeChainId)
-        external
-    {
+    function setWormholeChainId(
+        uint256 _lifiChainId,
+        uint16 _wormholeChainId
+    ) external {
         LibDiamond.enforceIsContractOwner();
-        LibMappings.WormholeMappings storage sm = LibMappings
-            .getWormholeMappings();
+        Storage storage sm = getStorage();
         sm.wormholeChainId[_lifiChainId] = _wormholeChainId;
         emit WormholeChainIdMapped(_lifiChainId, _wormholeChainId);
     }
@@ -159,8 +162,7 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function setWormholeChainIds(Config[] calldata configs) external {
         LibDiamond.enforceIsContractOwner();
 
-        LibMappings.WormholeMappings storage sm = LibMappings
-            .getWormholeMappings();
+        Storage storage sm = getStorage();
 
         if (!sm.initialized) {
             revert NotInitialized();
@@ -234,15 +236,21 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Gets the wormhole chain id for a given lifi chain id
     /// @param _lifiChainId uint256 of the lifi chain ID
     /// @return uint16 of the wormhole chain id
-    function getWormholeChainId(uint256 _lifiChainId)
-        private
-        view
-        returns (uint16)
-    {
-        LibMappings.WormholeMappings storage sm = LibMappings
-            .getWormholeMappings();
+    function getWormholeChainId(
+        uint256 _lifiChainId
+    ) private view returns (uint16) {
+        Storage storage sm = getStorage();
         uint16 wormholeChainId = sm.wormholeChainId[_lifiChainId];
         if (wormholeChainId == 0) revert UnsupportedChainId(_lifiChainId);
         return wormholeChainId;
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }

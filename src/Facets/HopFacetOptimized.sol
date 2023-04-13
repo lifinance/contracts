@@ -4,12 +4,13 @@ pragma solidity 0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 
 /// @title Hop Facet (Optimized)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
+/// @custom:version 1.0.0
 contract HopFacetOptimized is ILiFi, SwapperV2 {
     /// Types ///
 
@@ -22,10 +23,6 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         IHopBridge hopBridge;
     }
 
-    /// Events ///
-
-    event HopBridgeRegistered(address indexed assetId, address bridge);
-
     /// External Methods ///
 
     /// @notice Sets approval for the Hop Bridge to spend the specified token
@@ -35,6 +32,7 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         address[] calldata bridges,
         address[] calldata tokensToApprove
     ) external {
+        LibDiamond.enforceIsContractOwner();
         for (uint256 i; i < bridges.length; i++) {
             // Give Hop approval to bridge tokens
             LibAsset.maxApproveERC20(
@@ -100,7 +98,7 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         HopData calldata _hopData
-    ) external {
+    ) external payable {
         // Deposit and swap assets
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -209,7 +207,7 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         HopData calldata _hopData
-    ) external {
+    ) external payable {
         // Deposit and swap assets
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,

@@ -18,5 +18,10 @@
     "foreignOmniBridge": "0xF0b456250DC9990662a6F25808cC74A6d1131Ea9",
     "wethOmniBridge": "0xefC33f8b2c4d51005585962BE7ea20518eA9Fd0D",
     "homeOmniBridge": "0x59447362798334d3485c64D1e4870Fde2DDC0d75"
+  },
+  "gnosis": {
+    "foreignOmniBridge": "0xf6A78083ca3e2a662D6dd1703c939c8aCE2e268d",
+    "wethOmniBridge": "0x0000000000000000000000000000000000000000",
+    "homeOmniBridge": "0x88ad09518695c6c3712AC10a214bE5109a655671"
   }
 }

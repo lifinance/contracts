@@ -32,11 +32,9 @@ library LibAllowList {
 
     /// @dev Checks whether a contract address has been added to the allow list
     /// @param _contract the contract address to check
-    function contractIsAllowed(address _contract)
-        internal
-        view
-        returns (bool)
-    {
+    function contractIsAllowed(
+        address _contract
+    ) internal view returns (bool) {
         return _getStorage().allowlist[_contract];
     }
 

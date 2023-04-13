@@ -46,9 +46,10 @@ contract MockGateway {
         return true;
     }
 
-    function setTokenAddress(string memory _symbol, address _tokenAddress)
-        external
-    {
+    function setTokenAddress(
+        string memory _symbol,
+        address _tokenAddress
+    ) external {
         tokenAddresses[_symbol] = _tokenAddress;
     }
 }

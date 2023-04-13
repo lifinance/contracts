@@ -63,21 +63,34 @@ contract HopGasTest is Test, DiamondTest {
         hop = IHopBridge(HOP_USDC_BRIDGE);
 
         bytes4[] memory functionSelectors = new bytes4[](2);
-        functionSelectors[0] = hopFacetPacked.startBridgeTokensViaHopL1NativeMin.selector;
-        functionSelectors[1] = hopFacetPacked.startBridgeTokensViaHopL1ERC20Min.selector;
+        functionSelectors[0] = hopFacetPacked
+            .startBridgeTokensViaHopL1NativeMin
+            .selector;
+        functionSelectors[1] = hopFacetPacked
+            .startBridgeTokensViaHopL1ERC20Min
+            .selector;
 
         addFacet(diamond, address(hopFacetPacked), functionSelectors);
         hopFacetPacked = HopFacetPacked(address(diamond));
 
-
         /// Perpare HopFacetOptimized & Approval
         hopFacetOptimized = new HopFacetOptimized();
         bytes4[] memory functionSelectorsApproval = new bytes4[](3);
-        functionSelectorsApproval[0] = hopFacetOptimized.setApprovalForBridges.selector;
-        functionSelectorsApproval[1] = hopFacetOptimized.startBridgeTokensViaHopL1Native.selector;
-        functionSelectorsApproval[2] = hopFacetOptimized.startBridgeTokensViaHopL1ERC20.selector;
+        functionSelectorsApproval[0] = hopFacetOptimized
+            .setApprovalForBridges
+            .selector;
+        functionSelectorsApproval[1] = hopFacetOptimized
+            .startBridgeTokensViaHopL1Native
+            .selector;
+        functionSelectorsApproval[2] = hopFacetOptimized
+            .startBridgeTokensViaHopL1ERC20
+            .selector;
 
-        addFacet(diamond, address(hopFacetOptimized), functionSelectorsApproval);
+        addFacet(
+            diamond,
+            address(hopFacetOptimized),
+            functionSelectorsApproval
+        );
         hopFacetOptimized = HopFacetOptimized(address(diamond));
 
         address[] memory bridges = new address[](1);
@@ -86,21 +99,20 @@ contract HopGasTest is Test, DiamondTest {
         tokens[0] = USDC_ADDRESS;
         hopFacetOptimized.setApprovalForBridges(bridges, tokens);
 
-
         /// Perpare parameters
         transactionId = "someID";
         integrator = "demo-partner";
         destinationChainId = 137;
 
         // Native params
-        amountNative = 1 * 10**18;
-        amountBonderFeeNative = amountNative / 100 * 1;
-        amountOutMinNative = amountNative / 100 * 99;
+        amountNative = 1 * 10 ** 18;
+        amountBonderFeeNative = (amountNative / 100) * 1;
+        amountOutMinNative = (amountNative / 100) * 99;
 
         // USDC params
-        amountUSDC = 100 * 10**usdc.decimals();
-        amountBonderFeeUSDC = amountUSDC / 100 * 1;
-        amountOutMinUSDC = amountUSDC / 100 * 99;
+        amountUSDC = 100 * 10 ** usdc.decimals();
+        amountBonderFeeUSDC = (amountUSDC / 100) * 1;
+        amountOutMinUSDC = (amountUSDC / 100) * 99;
 
         // same data for HopFacetOptimized
         bridgeDataNative = ILiFi.BridgeData(
@@ -150,7 +162,9 @@ contract HopGasTest is Test, DiamondTest {
 
     function testStartBridgeTokensViaHopL1NativeMin() public {
         vm.startPrank(WHALE);
-        hopFacetPacked.startBridgeTokensViaHopL1NativeMin{value: amountNative}(
+        hopFacetPacked.startBridgeTokensViaHopL1NativeMin{
+            value: amountNative
+        }(
             transactionId,
             integrator,
             RECEIVER,
@@ -179,10 +193,9 @@ contract HopGasTest is Test, DiamondTest {
 
     function testStartBridgeTokensViaHopL1Native() public {
         vm.startPrank(WHALE);
-        hopFacetOptimized.startBridgeTokensViaHopL1Native{value: amountNative}(
-            bridgeDataNative,
-            hopDataNative
-        );
+        hopFacetOptimized.startBridgeTokensViaHopL1Native{
+            value: amountNative
+        }(bridgeDataNative, hopDataNative);
         vm.stopPrank();
     }
 

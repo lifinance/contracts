@@ -6,19 +6,17 @@ import { IDeBridgeGate } from "../Interfaces/IDeBridgeGate.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { InformationMismatch } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidAmount } from "../Errors/GenericErrors.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title DeBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through DeBridge Protocol
+/// @custom:version 1.0.0
 contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE =
-        keccak256("com.lifi.facets.debridge");
-
-    /// @notice The contract address of the spoke pool on the source chain.
+    /// @notice The contract address of the DeBridge Gate on the source chain.
     IDeBridgeGate private immutable deBridgeGate;
 
     /// Types ///
@@ -35,13 +33,11 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes data;
     }
 
-    /// @param permit deadline + signature for approving the spender by signature.
     /// @param nativeFee Native fee for the bridging when useAssetFee is false.
     /// @param useAssetFee Use assets fee for pay protocol fix (work only for specials token)
     /// @param referralCode Referral code.
     /// @param autoParams Structure that enables passing arbitrary messages and call data.
     struct DeBridgeData {
-        bytes permit;
         uint256 nativeFee;
         bool useAssetFee;
         uint32 referralCode;
@@ -107,10 +103,6 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _deBridgeData.nativeFee
         );
 
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            _bridgeData.minAmount -= _deBridgeData.nativeFee;
-        }
-
         _startBridge(_bridgeData, _deBridgeData);
     }
 
@@ -123,6 +115,16 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         DeBridgeData calldata _deBridgeData
     ) internal {
+        IDeBridgeGate.ChainSupportInfo memory config = deBridgeGate
+            .getChainToConfig(_bridgeData.destinationChainId);
+        uint256 nativeFee = config.fixedNativeFee == 0
+            ? deBridgeGate.globalFixedNativeFee()
+            : config.fixedNativeFee;
+
+        if (_deBridgeData.nativeFee != nativeFee) {
+            revert InvalidAmount();
+        }
+
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
         uint256 nativeAssetAmount = _deBridgeData.nativeFee;
 
@@ -136,12 +138,13 @@ contract DeBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         }
 
+        // solhint-disable-next-line check-send-result
         deBridgeGate.send{ value: nativeAssetAmount }(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,
             _bridgeData.destinationChainId,
             abi.encodePacked(_bridgeData.receiver),
-            _deBridgeData.permit,
+            "",
             _deBridgeData.useAssetFee,
             _deBridgeData.referralCode,
             abi.encode(_deBridgeData.autoParams)

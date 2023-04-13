@@ -14,7 +14,9 @@ contract DeployScript is DeployScriptBase {
             return HopFacetPacked(predicted);
         }
 
-        deployed = HopFacetPacked(factory.deploy(salt, type(HopFacetPacked).creationCode));
+        deployed = HopFacetPacked(
+            factory.deploy(salt, type(HopFacetPacked).creationCode)
+        );
 
         vm.stopBroadcast();
     }

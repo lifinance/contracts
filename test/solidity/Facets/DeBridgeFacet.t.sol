@@ -40,10 +40,9 @@ contract DeBridgeFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             deBridgeFacet.swapAndStartBridgeTokensViaDeBridge{
                 value: swapData[0].fromAmount + addToMessageValue
@@ -101,10 +100,9 @@ contract DeBridgeFacetTest is TestBaseFacet {
         uint256 nativeFee = addToMessageValue = chainConfig.fixedNativeFee == 0
             ? IDeBridgeGate(DEBRIDGE_GATE).globalFixedNativeFee()
             : chainConfig.fixedNativeFee;
-        uint256 executionFee = 1 * 10**usdc.decimals();
+        uint256 executionFee = 1 * 10 ** usdc.decimals();
 
         deBridgeData = DeBridgeFacet.DeBridgeData(
-            "",
             nativeFee,
             false,
             0,
@@ -115,6 +113,17 @@ contract DeBridgeFacetTest is TestBaseFacet {
                 ""
             )
         );
+    }
+
+    function test_Revert_BridgeWithInvalidAmount() public {
+        vm.startPrank(USER_SENDER);
+
+        deBridgeData.nativeFee--;
+
+        vm.expectRevert();
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {

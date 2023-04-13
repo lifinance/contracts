@@ -11,6 +11,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Hyphen Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hyphen
+/// @custom:version 1.0.0
 contract HyphenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -29,7 +30,9 @@ contract HyphenFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via Hyphen
     /// @param _bridgeData the core information needed for bridging
-    function startBridgeTokensViaHyphen(ILiFi.BridgeData memory _bridgeData)
+    function startBridgeTokensViaHyphen(
+        ILiFi.BridgeData memory _bridgeData
+    )
         external
         payable
         nonReentrant

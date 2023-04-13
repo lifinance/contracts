@@ -11,11 +11,9 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Polygon Bridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Polygon Bridge
+/// @custom:version 1.0.0
 contract PolygonBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
-
-    /// @notice The chain id of Polygon.
-    uint64 private constant POLYGON_CHAIN_ID = 137;
 
     /// @notice The contract address of the RootChainManager on the source chain.
     IRootChainManager private immutable rootChainManager;

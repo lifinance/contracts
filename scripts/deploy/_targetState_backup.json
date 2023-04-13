@@ -1,0 +1,44 @@
+{
+  "bsctest": {
+    "staging": {
+      "FeeCollector": "3.0.0",
+      "RelayerCelerIM": "1.0.0"
+    },
+    "production": {
+      "Executor": "2.0.0",
+      "Receiver": "1.0.0",
+      "newContract": "1.0.0"
+    }
+  },
+  "goerli": {
+    "staging": {
+      "FeeCollector": "3.0.0",
+      "Executor": "1.0.0",
+      "Receiver": "1.0.1",
+      "HopFacetOptimized": "1.0.0",
+      "StargateFacet": "1.0.1"
+    },
+    "production": {
+      "Executor": "2.0.0",
+      "Receiver": "1.0.1",
+      "TESTNAME": "1.0.1",
+      "TESTNAME2": "1.087",
+      "newContract": "1.0.0"
+    }
+  },
+  "sepolia": {
+    "production": {
+      "newContract": "1.0.0"
+    }
+  },
+  "mumbai": {
+    "production": {
+      "newContract": "1.0.0"
+    }
+  },
+  "consensys-zkevm-testnet": {
+    "production": {
+      "newContract": "1.0.0"
+    }
+  }
+}

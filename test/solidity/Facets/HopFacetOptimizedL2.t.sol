@@ -26,8 +26,6 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
         0x28529fec439cfF6d7D1D5917e956dEE62Cd3BE5c;
     address internal constant NATIVE_BRIDGE =
         0x884d1Aa15F9957E1aEAA86a82a72e49Bc2bfCbe3;
-    address internal constant CONNEXT_HANDLER =
-        0xB4C1340434920d70aD774309C75f9a4B679d801e;
     uint256 internal constant DSTCHAIN_ID = 1;
     // -----
 
@@ -37,7 +35,7 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
 
     function setUp() public {
         // Custom Config
-        customRpcUrlForForking = vm.envString("ETH_NODE_URI_POLYGON");
+        customRpcUrlForForking = "ETH_NODE_URI_POLYGON";
         customBlockNumberForForking = 38461246;
         ADDRESS_USDC = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
         ADDRESS_DAI = 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063;
@@ -79,6 +77,9 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
         hopFacet.setFunctionApprovalBySignature(
             uniswap.swapETHForExactTokens.selector
         );
+        hopFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactETHForTokens.selector
+        );
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
 
         // Set approval for all bridges
@@ -119,10 +120,9 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         validHopData.bonderFee = (bridgeData.minAmount * 1) / 100;
         if (isNative || bridgeData.sendingAssetId == address(0)) {
             validHopData.hopBridge = IHopBridge(NATIVE_BRIDGE);
@@ -139,8 +139,43 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
         }
     }
 
+    function testCanSwapNativeAndBridgeTokens() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // reset swap data
+        setDefaultSwapDataSingleETHtoUSDC();
+
+        // update HopData
+        validHopData.bonderFee = (bridgeData.minAmount * 1) / 100;
+        validHopData.amountOutMin = 999999;
+        validHopData.hopBridge = IHopBridge(USDC_BRIDGE);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            address(0),
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        hopFacet.swapAndStartBridgeTokensViaHopL2ERC20{
+            value: swapData[0].fromAmount
+        }(bridgeData, swapData, validHopData);
+    }
+
     function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
         public
+        view
         override
     {
         console.log("Not applicable for HopFacetOptimized");
@@ -148,6 +183,7 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
 
     function testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
         public
+        view
         override
     {
         console.log("Not applicable for HopFacetOptimized");

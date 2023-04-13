@@ -35,8 +35,8 @@ const LIFI_ADDRESS = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE' // LiFiDiamond
 const USDC_ADDRESS = '0x98339D8C260052B7ad81c28c16C0b98420f2B46a' // USDC address on Goerli
 const TEST_TOKEN_ADDRESS = '0x7ea6eA49B0b0Ae9c5db7907d139D9Cd3439862a1' // TEST Token address on Goerli
 const UNISWAP_ADDRESS = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D' // Uniswap router address on Goerli
-const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'; // WETH address
-const ZERO_ADDRESS = constants.AddressZero;
+const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' // WETH address
+const ZERO_ADDRESS = constants.AddressZero
 const destinationChainId = 421613 // Arbitrum Goerli chain id
 const amountIn = utils.parseEther('1050')
 const amountOut = utils.parseUnits('1000', 6)
@@ -258,10 +258,10 @@ async function main() {
   // Swap Non-Native Asset into Native Asset and Bridge Native Asset
   {
     // Swap amount
-    const erc20AmountIn = utils.parseUnits('1.5', 6);
+    const erc20AmountIn = utils.parseUnits('1.5', 6)
 
     // Bridge amount
-    const ethAmountOut = utils.parseEther('0.001');
+    const ethAmountOut = utils.parseEther('0.001')
 
     const usdc = ERC20__factory.connect(USDC_ADDRESS, wallet)
 
@@ -274,14 +274,13 @@ async function main() {
     const to = lifi.address // should be a checksummed recipient address
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
 
-    const dexSwapData =
-      await uniswap.populateTransaction.swapTokensForExactETH(
-        ethAmountOut,
-        erc20AmountIn,
-        path,
-        to,
-        deadline
-      )
+    const dexSwapData = await uniswap.populateTransaction.swapTokensForExactETH(
+      ethAmountOut,
+      erc20AmountIn,
+      path,
+      to,
+      deadline
+    )
 
     const swapData = [
       {
@@ -328,7 +327,7 @@ async function main() {
     // =============================================================
 
     const { maxSubmissionCost, gasLimit, maxFeePerGas } = estimates
-    const maxGasLimit = gasLimit;
+    const maxGasLimit = gasLimit
 
     // Bridge Data
     const arbitrumData = {

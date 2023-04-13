@@ -39,7 +39,6 @@ struct HopData {
   uint256 destinationAmountOutMin;
   uint256 destinationDeadline;
 }
-
 ```
 
 ## Swap Data
