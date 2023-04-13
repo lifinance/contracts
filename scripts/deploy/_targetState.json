@@ -26,7 +26,9 @@
         "Executor": "1.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
-        "ServiceFeeCollector": "1.0.0"
+        "ServiceFeeCollector": "1.0.0",
+        "CelerIMFacet": "1.0.0",
+        "RelayerCelerIM": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "LiFiDiamondImmutable": "1.0.0",
@@ -83,7 +85,9 @@
         "Executor": "1.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
-        "ServiceFeeCollector": "1.0.0"
+        "ServiceFeeCollector": "1.0.0",
+        "CelerIMFacet": "1.0.0",
+        "RelayerCelerIM": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "LiFiDiamondImmutable": "1.0.0",
@@ -119,7 +123,76 @@
         "AcrossFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
+        "AcrossFacet": "1.0.0",
+        "AxelarExecutor": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "HopFacetOptimized": "1.0.0"
+      }
+    }
+  },
+  "goerli": {
+    "production": {
+      "LiFiDiamond": {
         "AcrossFacet": "1.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "RelayerCelerIM": "1.0.0"
+      }
+    }
+  },
+  "mainnet": {
+    "production": {
+      "LiFiDiamond": {
+        "CelerIMFacet": "1.0.0",
+        "RelayerCelerIM": "1.0.0"
+      }
+    }
+  },
+  "polygon": {
+    "production": {
+      "LiFiDiamond": {
+        "CelerIMFacet": "1.0.0",
+        "RelayerCelerIM": "1.0.0"
+      }
+    }
+  },
+  "bsc": {
+    "production": {
+      "LiFiDiamond": {
+        "CelerIMFacet": "1.0.0",
+        "RelayerCelerIM": "1.0.0"
+      }
+    }
+  },
+  "fantom": {
+    "production": {
+      "LiFiDiamond": {
+        "CelerIMFacet": "1.0.0",
+        "RelayerCelerIM": "1.0.0"
+      }
+    }
+  },
+  "avalanche": {
+    "production": {
+      "LiFiDiamond": {
+        "CelerIMFacet": "1.0.0",
+        "RelayerCelerIM": "1.0.0"
+      }
+    }
+  },
+  "moonriver": {
+    "production": {
+      "LiFiDiamond": {
+        "CelerIMFacet": "1.0.0",
+        "RelayerCelerIM": "1.0.0"
+      }
+    }
+  },
+  "aurora": {
+    "production": {
+      "LiFiDiamond": {
+        "CelerIMFacet": "1.0.0",
+        "RelayerCelerIM": "1.0.0"
       }
     }
   }

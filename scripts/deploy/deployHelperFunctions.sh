@@ -303,8 +303,6 @@ function verifyContract() {
   ADDRESS=$3
   ARGS=$4
 
-  # TODO: this does not seem to work correctly
-
   # get API key for blockchain explorer
   API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
 
@@ -357,14 +355,10 @@ function verifyContract() {
   # check the return status of the contract verification call
   if [ $COMMAND_STATUS -ne 0 ]
   then
-    if [[ "$DEBUG" == *"true"* ]]; then
-      echo "[warning] $CONTRACT in network $NETWORK could not be verified"
-    fi
+    echo "[warning] $CONTRACT on $NETWORK with address $ADDRESS could not be verified"
     return 1
   else
-    if [[ "$DEBUG" == *"true"* ]]; then
-      echo "[info] $CONTRACT in network $NETWORK successfully verified"
-    fi
+    echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
   fi
 
   # return command status 0 (to make sure failed verification does not stop script)
@@ -1212,7 +1206,30 @@ function getRPCUrl(){
   echo "${!RPC_KEY}"
 }
 function playNotificationSound() {
-  afplay ./notification.mp3
+  afplay ./scripts/deploy/notification.mp3
+}
+function deployAndAddContractToDiamond() {
+  # read function arguments into variables
+  NETWORK="$1"
+  ENVIRONMENT="$2"
+  CONTRACT="$3"
+  DIAMOND_CONTRACT_NAME="$4"
+  VERSION="$5"
+
+  # check which type of contract we are deploying
+  if [[ "$CONTRACT" == *"Facet"* ]]; then
+    # deploying a facet
+    deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME" "$VERSION"
+  elif [[ "$CONTRACT" == *"LiFiDiamond"* ]]; then
+    # deploying a diamond
+    deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
+  else
+    # deploy periphery contract
+    deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
+
+    # update periphery registry in diamond
+    updatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" false false "$CONTRACT"
+  fi
 }
 
 
@@ -1407,12 +1424,6 @@ function test_checkIfFileExists(){
 
 
 function test_tmp(){
-#echo -e '\a'
-#printf '\x07'
-checkIfFileExists "./notification.mp3"
-
-
-
+getDeployerAddress
 }
 
-test_tmp

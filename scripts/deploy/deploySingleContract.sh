@@ -190,7 +190,6 @@ deploySingleContract() {
       exit 1
     fi
   fi
-  #echo $RAW_RETURN_DATA
 
   # extract constructor arguments from return data
   CONSTRUCTOR_ARGS=$(echo $RETURN_DATA | jq -r '.constructorArgs.value // "0x"')
@@ -226,18 +225,9 @@ deploySingleContract() {
     fi
   fi
 
-
-
-  # TODO: check for success and write to log with correct success INFO
-
   # write to logfile
-  if [ $? -ne 0 ]; then
-    # verification not successful
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED
-  else
-    # verification successful
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED
-  fi
+  logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED
+
   return 0
 }
 

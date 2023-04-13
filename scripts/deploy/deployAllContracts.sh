@@ -97,7 +97,7 @@ deployAllContracts() {
         echo "[info] No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$FACET_NAME >> no deployment needed"
       else
         # deploy facet and add to diamond
-        deployFacetAndAddToDiamond "$NETWORK" "$FILE_SUFFIX" "$FACET_NAME" "$DIAMOND_CONTRACT_NAME" "$ENVIRONMENT" "$TARGET_VERSION"
+        deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_CONTRACT_NAME" "$TARGET_VERSION"
       fi
     fi
   done
@@ -107,7 +107,7 @@ deployAllContracts() {
   deployPeripheryContracts "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
   # update periphery registry
-  updatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true
+  updatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
 
   echo ""
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"

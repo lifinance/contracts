@@ -450,6 +450,19 @@
           }
         ]
       }
+    },
+    "mumbai": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x0aB0AF48c7A146c8cf11275D1b82EF0e71c13b89",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-13 10:19:27",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "HopFacet": {
@@ -646,6 +659,33 @@
           }
         ]
       }
+    },
+    "mumbai": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xe02Cd591D846F8E3Ff6c9eb55429A0861149f5EC",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-13 10:04:38",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "VERIFIED": "false"
+          },
+          {
+            "ADDRESS": "0xd8Ca20fa69226AF771Dd4F777c277E80ab69068E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-13 10:15:53",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "VERIFIED": "false"
+          },
+          {
+            "ADDRESS": "0xcfE830C59f51cDe53048a8FfDA711C2e7D01Ca58",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-13 10:17:08",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "Executor": {
@@ -670,6 +710,32 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-04-12 14:25:30",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000000654eba982ec082036a3d0f59964d302f1ba5cda",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "goerli": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x32B6dA8e81F8Ba2BeE4C36DCB52ED6e201eB7344",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-13 12:55:30",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0000000000000000000000000b74f109a4aa61e814ec0a3acba4da47173c772ed",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "mumbai": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x32B6dA8e81F8Ba2BeE4C36DCB52ED6e201eB7344",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-13 12:56:00",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0000000000000000000000000cfe830c59f51cde53048a8ffda711c2e7d01ca58",
             "VERIFIED": "false"
           }
         ]
@@ -769,6 +835,92 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-04-12 14:08:43",
             "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "mumbai": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x24595CaD65e258c41f9fd785733C6e1661714f71",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-13 09:08:56",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "MakerTeleportFacet": {
+    "mumbai": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xBdfcAAA3F6c479c7354693026878d0DCa7d66150",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-13 09:04:42",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "AxelarExecutor": {
+    "mumbai": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xbbaaDD441a45402B0cE8aB0C36E1E3A00bB1Debb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-13 09:10:42",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000bf62ef1486468a6bd26dd669c06db43ded5b849b",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "DeBridgeFacet": {
+    "mumbai": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD4C68d3500fe07f5582A033B637Eb94b35Cb6A92",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-13 10:25:44",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000020",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "RelayerCelerIM": {
+    "goerli": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x8E69fe0b1879D79db2BEF2986b075b2cD7Be480f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-13 12:48:19",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0000000000000000000000000f25170f86e4291a99a9a560032fe9948b8bcfbb20000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae0000000000000000000000000c6d2c414a92d61fc2ea41942b4de319943f4e33",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "mumbai": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x8E69fe0b1879D79db2BEF2986b075b2cD7Be480f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-13 12:51:33",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000a19a29a8a59f283652726299349975ddcd887175000000000000000000000000702e5a135ab830a5166793212615e968783c29c4",
             "VERIFIED": "false"
           }
         ]

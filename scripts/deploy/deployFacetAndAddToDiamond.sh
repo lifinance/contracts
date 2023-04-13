@@ -12,19 +12,40 @@ function deployFacetAndAddToDiamond() {
 
   # read function arguments into variables
   local NETWORK="$1"
-  local FILE_SUFFIX="$2"
+  local ENVIRONMENT="$2"
   local FACET_CONTRACT_NAME="$3"
   local DIAMOND_CONTRACT_NAME="$4"
-  local ENVIRONMENT="$5"
-  local VERSION="$6"
-
-  # TODO - determine environment + file_suffix if no parameters passed
+  local VERSION="$5"
 
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
     NETWORK=$(cat ./networks | gum filter --placeholder "Network")
     checkRequiredVariablesInDotEnv $NETWORK
   fi
+
+  # if no ENVIRONMENT was passed to this function, determine it
+  if [[ -z "$ENVIRONMENT" ]]; then
+    if [[ "$PRODUCTION" == "true" ]]; then
+      # make sure that PRODUCTION was selected intentionally by user
+      gum style \
+      --foreground 212 --border-foreground 213 --border double \
+      --align center --width 50 --margin "1 2" --padding "2 4" \
+      '!!! ATTENTION !!!'
+
+      echo "Your environment variable PRODUCTION is set to true"
+      echo "This means you will be deploying contracts to production"
+      echo "    "
+      echo "Do you want to skip?"
+      gum confirm && exit 1 || echo "OK, continuing to deploy to PRODUCTION"
+
+      ENVIRONMENT="production"
+    else
+      ENVIRONMENT="staging"
+    fi
+  fi
+
+  # get file suffix based on value in variable ENVIRONMENT
+  FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # if no FACET_CONTRACT_NAME was passed to this function, ask user to select it
   if [[ -z "$FACET_CONTRACT_NAME" ]]; then
@@ -87,16 +108,17 @@ function deployFacetAndAddToDiamond() {
   local UPDATE_SCRIPT="Update$FACET_CONTRACT_NAME"
 
   # update diamond
-  diamondUpdate "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "$UPDATE_SCRIPT"
+  diamondUpdate "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "$UPDATE_SCRIPT" true
 
+  # TODO: reactivate or remove
   # check if function call was successful
-  if [ $? -ne 0 ]
-  then
-    echo "[error] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME could not be added to $DIAMOND_CONTRACT_NAME on network $NETWORK. Please check for errors and repeat."
-    return 1
-  else
-    echo "[info] $FACET_CONTRACT_NAME successfully added to $DIAMOND_CONTRACT_NAME on network $NETWORK"
-  fi
+  #if [ $? -ne 0 ]
+  #then
+  #  echo "[error] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME could not be added to $DIAMOND_CONTRACT_NAME on network $NETWORK. Please check for errors and repeat."
+  #  return 1
+  #else
+  #  echo "[info] $FACET_CONTRACT_NAME successfully added to $DIAMOND_CONTRACT_NAME on network $NETWORK"
+  #fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME successfully deployed and added to $DIAMOND_CONTRACT_NAME"
   return 0

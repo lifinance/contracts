@@ -16,6 +16,7 @@ function updatePeriphery() {
   local DIAMOND_CONTRACT_NAME="$3"
   local UPDATE_ALL="$4"
   local EXIT_ON_ERROR="$5"
+  local CONTRACT=$6
 
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
@@ -61,14 +62,19 @@ function updatePeriphery() {
   fi
 
   # determine which periphery contracts to update
-  if [[ -z "$UPDATE_ALL" ]]; then
-    # get a list of all periphery contracts
-    local PERIPHERY_PATH="$CONTRACT_DIRECTORY""Periphery/"
-    PERIPHERY_CONTRACTS=$(getContractNamesInFolder "$PERIPHERY_PATH")
-    PERIPHERY_CONTRACTS_ARR=($(echo "$PERIPHERY_CONTRACTS" | tr ',' ' '))
+  if [[ -z "$UPDATE_ALL" || "$UPDATE_ALL" == "false" ]]; then
+      # check to see if a single contract was passed that should be upgraded
+      if [[ -z "$CONTRACT" ]]; then
+        # get a list of all periphery contracts
+        local PERIPHERY_PATH="$CONTRACT_DIRECTORY""Periphery/"
+        PERIPHERY_CONTRACTS=$(getContractNamesInFolder "$PERIPHERY_PATH")
+        PERIPHERY_CONTRACTS_ARR=($(echo "$PERIPHERY_CONTRACTS" | tr ',' ' '))
 
-    # ask user to select contracts to be updated
-    CONTRACTS=$(gum choose --no-limit "${PERIPHERY_CONTRACTS_ARR[@]}")
+        # ask user to select contracts to be updated
+        CONTRACTS=$(gum choose --no-limit "${PERIPHERY_CONTRACTS_ARR[@]}")
+      else
+        CONTRACTS=$CONTRACT
+      fi
   else
     # get all periphery contracts that are not excluded by config
     CONTRACTS=$(getIncludedPeripheryContractsArray)

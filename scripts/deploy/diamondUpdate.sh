@@ -124,7 +124,6 @@ diamondUpdate() {
     # in case: update single facet
     # get facet name from script
     local FACET_CONTRACT_NAME=${SCRIPT//Update/}
-    #local FACET_CONTRACT_NAME=$(echo "$SCRIPT" | sed 's/^Update//') # TODO: remove if not needed
 
     # check if diamond contract already knows this facet
     local FACET_EXISTS=$(doesFacetExistInDiamond "$DIAMOND_ADDRESS" "$FACET_CONTRACT_NAME" "$NETWORK")
@@ -134,7 +133,7 @@ diamondUpdate() {
   if [ "$FACET_EXISTS" == "true" ]; then
     if [ "$REPLACE_EXISTING_FACET" == "true" ]; then
       if [[ "$DEBUG" == *"true"* ]]; then
-        echo "[debug] trying to remove $FACET_NAME from diamond $DIAMOND_ADDRESS in $ENVIRONMENT environment on network $NETWORK now"
+        echo "[debug] trying to remove existing $FACET_NAME from diamond $DIAMOND_ADDRESS in $ENVIRONMENT environment on network $NETWORK now"
       fi
       # remove old facet
       removeFacetFromDiamond "$DIAMOND_ADDRESS" "$FACET_NAME" "$NETWORK" "$ENVIRONMENT" false
@@ -145,7 +144,7 @@ diamondUpdate() {
         return 1
       fi
     else
-      echo "[info] $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS knows $FACET_CONTRACT_NAME and script was set to not replace it."
+      echo "[info] $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS already knows $FACET_CONTRACT_NAME and script was set to not replace it."
       return 0
     fi
   fi
@@ -155,7 +154,7 @@ diamondUpdate() {
 
   # TODO log details only if debug is on
   while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-    echo "[info] trying to execute $SCRIPT now - attempt ${attempts} (max attempts:$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
+    echo "[info] trying to execute $SCRIPT on $DIAMOND_CONTRACT_NAME now - attempt ${attempts} (max attempts:$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
     # try to execute call
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
@@ -193,15 +192,6 @@ diamondUpdate() {
   if [[ "$DEBUG" == *"true"* ]]; then
       echo "[debug] return data: $RAW_RETURN_DATA"
   fi
-
-  # extract the "logs" property and its contents from return data
-  #CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-  # extract the "returns" property and its contents from logs
-  #RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2> /dev/null)
-
-
-  # get the facet addresses that are known to the diamond from the return data
-  #FACETS=$(echo $RETURN_DATA | jq -r '.FACETS.value')
 
   # save facet addresses
   saveDiamond "$NETWORK" "$USE_MUTABLE_DIAMOND" "$FACETS"
