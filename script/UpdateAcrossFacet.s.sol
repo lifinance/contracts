@@ -18,7 +18,7 @@ contract DeployScript is UpdateScriptBase {
         bytes4[] memory exclude;
         buildDiamondCut(getSelectors("AcrossFacet", exclude), facet);
         if (cut.length > 0) {
-            cutter.diamondCut(cut, address(facet), callData);
+            cutter.diamondCut(cut, address(0), "");
         }
         facets = loupe.facetAddresses();
 

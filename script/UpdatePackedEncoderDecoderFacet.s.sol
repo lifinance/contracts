@@ -21,7 +21,7 @@ contract DeployScript is UpdateScriptBase {
             facet
         );
         if (cut.length > 0) {
-            cutter.diamondCut(cut, address(facet), callData);
+            cutter.diamondCut(cut, address(0), "");
         }
         facets = loupe.facetAddresses();
 
