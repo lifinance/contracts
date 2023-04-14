@@ -49,19 +49,12 @@ contract DeployScript is UpdateScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         // Hop
-        if (loupe.facetFunctionSelectors(facet).length == 0) {
-            bytes4[] memory exclude = new bytes4[](1);
-            exclude[0] = HopFacet.initHop.selector;
-            cut.push(
-                IDiamondCut.FacetCut({
-                    facetAddress: address(facet),
-                    action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("HopFacet", exclude)
-                })
-            );
-            cutter.diamondCut(cut, facet, callData);
+        bytes4[] memory exclude = new bytes4[](1);
+        exclude[0] = HopFacet.initHop.selector;
+        buildDiamondCut(getSelectors("HopFacet", exclude), facet);
+        if (cut.length > 0) {
+            cutter.diamondCut(cut, address(facet), callData);
         }
-
         facets = loupe.facetAddresses();
 
         vm.stopBroadcast();

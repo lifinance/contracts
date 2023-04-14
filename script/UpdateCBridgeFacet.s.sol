@@ -15,18 +15,11 @@ contract DeployScript is UpdateScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         // CBridge
-        if (loupe.facetFunctionSelectors(facet).length == 0) {
-            bytes4[] memory exclude;
-            cut.push(
-                IDiamondCut.FacetCut({
-                    facetAddress: address(facet),
-                    action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("CBridgeFacet", exclude)
-                })
-            );
-            cutter.diamondCut(cut, address(0), "");
+        bytes4[] memory exclude;
+        buildDiamondCut(getSelectors("CBridgeFacet", exclude), facet);
+        if (cut.length > 0) {
+            cutter.diamondCut(cut, address(facet), callData);
         }
-
         facets = loupe.facetAddresses();
 
         vm.stopBroadcast();
