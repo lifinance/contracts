@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @title Hop Facet (Optimized for Rollups)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract HopFacetPacked is ILiFi {
     /// External Methods ///
 
@@ -310,6 +310,7 @@ contract HopFacetPacked is ILiFi {
     ) private {
         // Bridge assets
         uint256 deadline = block.timestamp + 60 * 20;
+        bool toL1 = destinationChainId == 1 || destinationChainId == 5;
         IHopBridge(hopBridge).swapAndSend{ value: msg.value }(
             destinationChainId,
             receiver,
@@ -318,7 +319,7 @@ contract HopFacetPacked is ILiFi {
             amountOutMin,
             deadline,
             destinationAmountOutMin,
-            deadline
+            toL1 ? 0 : deadline
         );
 
         emit LiFiTransferStarted(
@@ -359,6 +360,7 @@ contract HopFacetPacked is ILiFi {
 
         // Bridge assets
         uint256 deadline = block.timestamp + 60 * 20;
+        bool toL1 = destinationChainId == 1 || destinationChainId == 5;
         IHopBridge(hopBridge).swapAndSend(
             destinationChainId,
             receiver,
@@ -367,7 +369,7 @@ contract HopFacetPacked is ILiFi {
             amountOutMin,
             deadline,
             destinationAmountOutMin,
-            deadline
+            toL1 ? 0 : deadline
         );
 
         emit LiFiTransferStarted(
