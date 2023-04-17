@@ -703,6 +703,15 @@
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0xA57862295BdF8A680fda893B9bd3b935236d18bA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-17 10:52:02",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
@@ -715,6 +724,45 @@
             "TIMESTAMP": "2023-04-13 09:08:56",
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "optimism": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xA57862295BdF8A680fda893B9bd3b935236d18bA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-17 13:11:55",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xA57862295BdF8A680fda893B9bd3b935236d18bA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-17 13:20:47",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "gnosis": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xA57862295BdF8A680fda893B9bd3b935236d18bA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-17 13:24:02",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
           }
         ]
       }

@@ -26,7 +26,7 @@ contract CallForwarder {
     }
 }
 
-contract HopGasTest is Test, DiamondTest {
+contract HopGasTestPOL is Test, DiamondTest {
     address internal constant HOP_USDC_BRIDGE =
         0x76b22b8C1079A44F1211D867D68b1eda76a635A7;
     address internal constant HOP_NATIVE_BRIDGE =
@@ -47,6 +47,7 @@ contract HopGasTest is Test, DiamondTest {
 
     bytes32 transactionId;
     string integrator;
+    uint256 destinationChainId;
     uint256 amountUSDC;
     uint256 amountBonderFeeUSDC;
     uint256 amountOutMinUSDC;
@@ -131,6 +132,7 @@ contract HopGasTest is Test, DiamondTest {
         /// Perpare parameters
         transactionId = "someID";
         integrator = "demo-partner";
+        destinationChainId = 1;
 
         // Native params
         amountNative = 1 * 10 ** 18;
@@ -141,7 +143,7 @@ contract HopGasTest is Test, DiamondTest {
             bytes8(transactionId), // transactionId
             bytes16(bytes(integrator)), // integrator
             bytes20(RECEIVER), // receiver
-            bytes4(uint32(10)), // destinationChainId
+            bytes4(uint32(destinationChainId)), // destinationChainId
             bytes16(uint128(amountBonderFeeNative)), // bonderFee
             bytes16(uint128(amountOutMinNative)), // amountOutMin
             bytes16(uint128(amountOutMinNative)), // destinationAmountOutMin
@@ -161,7 +163,7 @@ contract HopGasTest is Test, DiamondTest {
             bytes8(transactionId), // transactionId
             bytes16(bytes(integrator)), // integrator
             bytes20(RECEIVER), // receiver
-            bytes4(uint32(10)), // destinationChainId
+            bytes4(uint32(destinationChainId)), // destinationChainId
             bytes20(USDC_ADDRESS), // sendingAssetId
             bytes16(uint128(amountUSDC)), // amount
             bytes16(uint128(amountBonderFeeUSDC)), // bonderFee
@@ -183,7 +185,7 @@ contract HopGasTest is Test, DiamondTest {
             address(0),
             RECEIVER,
             amountNative,
-            10,
+            destinationChainId,
             false,
             false
         );
@@ -205,7 +207,7 @@ contract HopGasTest is Test, DiamondTest {
             USDC_ADDRESS,
             RECEIVER,
             amountUSDC,
-            10,
+            destinationChainId,
             false,
             false
         );
@@ -228,7 +230,7 @@ contract HopGasTest is Test, DiamondTest {
                 "someID",
                 integrator,
                 RECEIVER,
-                10,
+                destinationChainId,
                 amountBonderFeeNative,
                 amountOutMinNative,
                 amountOutMinNative,
@@ -244,7 +246,7 @@ contract HopGasTest is Test, DiamondTest {
                 "someID",
                 integrator,
                 RECEIVER,
-                10,
+                destinationChainId,
                 USDC_ADDRESS,
                 amountUSDC,
                 amountBonderFeeUSDC,
@@ -285,7 +287,7 @@ contract HopGasTest is Test, DiamondTest {
             "someID",
             integrator,
             RECEIVER,
-            10,
+            destinationChainId,
             amountBonderFeeNative,
             amountOutMinNative,
             amountOutMinNative,
@@ -311,7 +313,7 @@ contract HopGasTest is Test, DiamondTest {
             "someID",
             integrator,
             RECEIVER,
-            10,
+            destinationChainId,
             USDC_ADDRESS,
             amountUSDC,
             amountBonderFeeUSDC,
