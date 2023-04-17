@@ -34,19 +34,12 @@ contract DeployScript is UpdateScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         // Stargate
-        if (loupe.facetFunctionSelectors(facet).length == 0) {
-            bytes4[] memory exclude = new bytes4[](1);
-            exclude[0] = StargateFacet.initStargate.selector;
-            cut.push(
-                IDiamondCut.FacetCut({
-                    facetAddress: address(facet),
-                    action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("StargateFacet", exclude)
-                })
-            );
+        bytes4[] memory exclude = new bytes4[](1);
+        exclude[0] = StargateFacet.initStargate.selector;
+        buildDiamondCut(getSelectors("StargateFacet", exclude), facet);
+        if (cut.length > 0) {
             cutter.diamondCut(cut, address(facet), callData);
         }
-
         facets = loupe.facetAddresses();
 
         vm.stopBroadcast();
