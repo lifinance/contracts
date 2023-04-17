@@ -309,6 +309,9 @@ contract HopFacetPacked is ILiFi {
         address hopBridge
     ) private {
         // Bridge assets
+        uint256 deadline = (destinationChainId == 1 || destinationChainId == 5)
+            ? 0
+            : block.timestamp + 60 * 20;
         IHopBridge(hopBridge).swapAndSend{ value: msg.value }(
             destinationChainId,
             receiver,
@@ -317,9 +320,7 @@ contract HopFacetPacked is ILiFi {
             amountOutMin,
             block.timestamp,
             destinationAmountOutMin,
-            (destinationChainId == 1 || destinationChainId == 5)
-                ? 0
-                : block.timestamp + 60 * 20
+            deadline
         );
 
         emit LiFiTransferStarted(
@@ -359,6 +360,9 @@ contract HopFacetPacked is ILiFi {
         );
 
         // Bridge assets
+        uint256 deadline = (destinationChainId == 1 || destinationChainId == 5)
+            ? 0
+            : block.timestamp + 60 * 20;
         IHopBridge(hopBridge).swapAndSend(
             destinationChainId,
             receiver,
@@ -367,9 +371,7 @@ contract HopFacetPacked is ILiFi {
             amountOutMin,
             block.timestamp,
             destinationAmountOutMin,
-            (destinationChainId == 1 || destinationChainId == 5)
-                ? 0
-                : block.timestamp + 60 * 20
+            deadline
         );
 
         emit LiFiTransferStarted(
