@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @title Hop Facet (Optimized for Rollups)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract HopFacetPacked is ILiFi {
     /// External Methods ///
 
@@ -309,14 +309,16 @@ contract HopFacetPacked is ILiFi {
         address hopBridge
     ) private {
         // Bridge assets
-        uint256 deadline = block.timestamp + 60 * 20;
+        uint256 deadline = (destinationChainId == 1 || destinationChainId == 5)
+            ? 0
+            : block.timestamp + 60 * 20;
         IHopBridge(hopBridge).swapAndSend{ value: msg.value }(
             destinationChainId,
             receiver,
             msg.value,
             bonderFee,
             amountOutMin,
-            deadline,
+            block.timestamp,
             destinationAmountOutMin,
             deadline
         );
@@ -358,14 +360,16 @@ contract HopFacetPacked is ILiFi {
         );
 
         // Bridge assets
-        uint256 deadline = block.timestamp + 60 * 20;
+        uint256 deadline = (destinationChainId == 1 || destinationChainId == 5)
+            ? 0
+            : block.timestamp + 60 * 20;
         IHopBridge(hopBridge).swapAndSend(
             destinationChainId,
             receiver,
             amount,
             bonderFee,
             amountOutMin,
-            deadline,
+            block.timestamp,
             destinationAmountOutMin,
             deadline
         );
@@ -395,13 +399,12 @@ contract HopFacetPacked is ILiFi {
         address hopBridge
     ) private {
         // Bridge assets
-        uint256 deadline = block.timestamp + 60 * 20;
         IHopBridge(hopBridge).sendToL2{ value: msg.value }(
             destinationChainId,
             receiver,
             msg.value,
             destinationAmountOutMin,
-            deadline,
+            block.timestamp + 60 * 20,
             address(0),
             0
         );
@@ -441,13 +444,12 @@ contract HopFacetPacked is ILiFi {
         );
 
         // Bridge assets
-        uint256 deadline = block.timestamp + 60 * 20;
         IHopBridge(hopBridge).sendToL2(
             destinationChainId,
             receiver,
             amount,
             destinationAmountOutMin,
-            deadline,
+            block.timestamp + 60 * 20,
             address(0),
             0
         );

@@ -18,7 +18,7 @@
         "NXTPFacet": "1.0.0",
         "StargateFacet": "1.0.0",
         "HopFacet": "1.0.0",
-        "HopFacetPacked": "1.0.0",
+        "HopFacetPacked": "1.0.1",
         "LIFuelFacet": "1.0.0",
         "HopFacetOptimized": "1.0.0",
         "AmarokFacet": "1.0.1",
@@ -47,7 +47,7 @@
         "NXTPFacet": "1.0.0",
         "StargateFacet": "1.0.0",
         "HopFacet": "1.0.0",
-        "HopFacetPacked": "1.0.0",
+        "HopFacetPacked": "1.0.1",
         "LIFuelFacet": "1.0.0",
         "HopFacetOptimized": "1.0.0",
         "AmarokFacet": "1.0.1",
@@ -78,6 +78,7 @@
         "NXTPFacet": "1.0.0",
         "StargateFacet": "1.0.0",
         "HopFacet": "1.0.0",
+        "HopFacetPacked": "1.0.1",
         "LIFuelFacet": "1.0.0",
         "HopFacetOptimized": "1.0.0",
         "AmarokFacet": "1.0.1",
@@ -106,6 +107,7 @@
         "NXTPFacet": "1.0.0",
         "StargateFacet": "1.0.0",
         "HopFacet": "1.0.0",
+        "HopFacetPacked": "1.0.1",
         "LIFuelFacet": "1.0.0",
         "HopFacetOptimized": "1.0.0",
         "AmarokFacet": "1.0.1",
@@ -151,6 +153,7 @@
   "polygon": {
     "production": {
       "LiFiDiamond": {
+        "HopFacetPacked": "1.0.1",
         "CelerIMFacet": "1.0.0",
         "RelayerCelerIM": "1.0.0"
       }
@@ -185,6 +188,13 @@
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
         "RelayerCelerIM": "1.0.0"
+      }
+    }
+  },
+  "gnosis": {
+    "production": {
+      "LiFiDiamond": {
+         "HopFacetPacked": "1.0.1"
       }
     }
   },

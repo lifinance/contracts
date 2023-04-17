@@ -10,7 +10,7 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { console } from "../utils/Console.sol";
 
-contract HopGasTest is Test, DiamondTest {
+contract HopGasTestETH is Test, DiamondTest {
     address internal constant HOP_USDC_BRIDGE =
         0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a;
     address internal constant HOP_NATIVE_BRIDGE =
