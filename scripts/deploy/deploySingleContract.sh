@@ -119,11 +119,15 @@ deploySingleContract() {
   # get predicted contract address based on salt
   local CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT")
 
+  # check if predicted address already contains bytecode
   local IS_DEPLOYED=$(doesAddressContainBytecode "$NETWORK" "$CONTRACT_ADDRESS")
 
-  # check if predicted address already contains bytecode
   if [[ $IS_DEPLOYED == "true" ]]; then
     echo "[info] contract $CONTRACT is already deployed to address $CONTRACT_ADDRESS. Change SALT in .env if you want to redeploy to fresh address"
+      
+    # save contract in network-specific deployment files
+    saveContract "$NETWORK" "$CONTRACT" "$CONTRACT_ADDRESS" "$FILE_SUFFIX"
+
     return 0
   fi
 
