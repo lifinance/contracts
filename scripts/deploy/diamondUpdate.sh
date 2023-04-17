@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 diamondUpdate() {
   # load required resources
   source .env
@@ -36,9 +35,9 @@ diamondUpdate() {
     if [[ "$PRODUCTION" == "true" ]]; then
       # make sure that PRODUCTION was selected intentionally by user
       gum style \
-      --foreground 212 --border-foreground 213 --border double \
-      --align center --width 50 --margin "1 2" --padding "2 4" \
-      '!!! ATTENTION !!!'
+        --foreground 212 --border-foreground 213 --border double \
+        --align center --width 50 --margin "1 2" --padding "2 4" \
+        '!!! ATTENTION !!!'
 
       echo "Your environment variable PRODUCTION is set to true"
       echo "This means you will be deploying contracts to production"
@@ -79,14 +78,14 @@ diamondUpdate() {
   fi
 
   # set flag for mutable/immutable diamond
-  USE_MUTABLE_DIAMOND=$( [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]] && echo true || echo false )
+  USE_MUTABLE_DIAMOND=$([[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]] && echo true || echo false)
 
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
     echo "[debug] updating $DIAMOND_CONTRACT_NAME on $NETWORK with address $DIAMOND_ADDRESS in $ENVIRONMENT environment with script $SCRIPT (FILE_SUFFIX=$FILE_SUFFIX, USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND)"
   fi
 
-    # check if update script exists
+  # check if update script exists
   local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     echo "[error] could not find update script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting update.
@@ -103,8 +102,8 @@ diamondUpdate() {
 
     # check if core facets should be replaced
     if [[ "$REPLACE_EXISTING_FACET" == *"true"* ]]; then
-        echo "[error] this case is not yet implemented (>> replace existing CoreFacets)"
-        exit 1
+      echo "[error] this case is not yet implemented (>> replace existing CoreFacets)"
+      exit 1
     else
       if [[ "$DEBUG" == *"true"* ]]; then
         echo "[debug] in diamondUpdate for CoreFacets with REPLACE_EXISTING_FACET=$REPLACE_EXISTING_FACET"
@@ -130,24 +129,24 @@ diamondUpdate() {
   fi
 
   # deploy facet if it exists
-  if [ "$FACET_EXISTS" == "true" ]; then
-    if [ "$REPLACE_EXISTING_FACET" == "true" ]; then
-      if [[ "$DEBUG" == *"true"* ]]; then
-        echo "[debug] trying to remove existing $FACET_NAME from diamond $DIAMOND_ADDRESS in $ENVIRONMENT environment on network $NETWORK now"
-      fi
-      # remove old facet
-      removeFacetFromDiamond "$DIAMOND_ADDRESS" "$FACET_NAME" "$NETWORK" "$ENVIRONMENT" false
-
-      # check the return code the last call
-      if [ $? -ne 0 ]; then
-        echo "[error] could not remove function selectors for $FACET_NAME from $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS on network $NETWORK"
-        return 1
-      fi
-    else
-      echo "[info] $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS already knows $FACET_CONTRACT_NAME and script was set to not replace it."
-      return 0
-    fi
-  fi
+  # if [ "$FACET_EXISTS" == "true" ]; then
+  #   if [ "$REPLACE_EXISTING_FACET" == "true" ]; then
+  #     if [[ "$DEBUG" == *"true"* ]]; then
+  #       echo "[debug] trying to remove existing $FACET_NAME from diamond $DIAMOND_ADDRESS in $ENVIRONMENT environment on network $NETWORK now"
+  #     fi
+  #     # remove old facet
+  #     removeFacetFromDiamond "$DIAMOND_ADDRESS" "$FACET_NAME" "$NETWORK" "$ENVIRONMENT" false
+  #
+  #     # check the return code the last call
+  #     if [ $? -ne 0 ]; then
+  #       echo "[error] could not remove function selectors for $FACET_NAME from $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS on network $NETWORK"
+  #       return 1
+  #     fi
+  #   else
+  #     echo "[info] $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS already knows $FACET_CONTRACT_NAME and script was set to not replace it."
+  #     return 0
+  #   fi
+  # fi
 
   # deploy new facet
   attempts=1
@@ -165,17 +164,17 @@ diamondUpdate() {
     fi
     # check the return code the last call
     if [ $? -eq 0 ]; then
-        # extract the "logs" property and its contents from return data
-        CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+      # extract the "logs" property and its contents from return data
+      CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
 
-        # extract the "returns" property and its contents from logs
-        RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2> /dev/null)
+      # extract the "returns" property and its contents from logs
+      RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
 
-        # get the facet addresses that are known to the diamond from the return data
-        FACETS=$(echo $RETURN_DATA | jq -r '.FACETS.value')
-        if [[ $FACETS != "{}" ]]; then
-          break # exit the loop if the operation was successful
-        fi
+      # get the facet addresses that are known to the diamond from the return data
+      FACETS=$(echo $RETURN_DATA | jq -r '.FACETS.value')
+      if [[ $FACETS != "{}" ]]; then
+        break # exit the loop if the operation was successful
+      fi
     fi
 
     attempts=$((attempts + 1)) # increment attempts
@@ -190,7 +189,7 @@ diamondUpdate() {
 
   # log return data
   if [[ "$DEBUG" == *"true"* ]]; then
-      echo "[debug] return data: $RAW_RETURN_DATA"
+    echo "[debug] return data: $RAW_RETURN_DATA"
   fi
 
   # save facet addresses
@@ -201,17 +200,17 @@ diamondUpdate() {
 }
 
 saveDiamond() {
-	source .env
+  source .env
 
-	if [[ -z "$PRODUCTION" ]]; then
-		FILE_SUFFIX="staging."
-	fi
+  if [[ -z "$PRODUCTION" ]]; then
+    FILE_SUFFIX="staging."
+  fi
 
   # store function arguments in variables
-	NETWORK=$1
-	USE_MUTABLE_DIAMOND=$2
-	FACETS=$(echo $3 | tr -d '[' | tr -d ']' | tr -d ',')
-	FACETS=$(printf '"%s",' $FACETS | sed 's/,*$//')
+  NETWORK=$1
+  USE_MUTABLE_DIAMOND=$2
+  FACETS=$(echo $3 | tr -d '[' | tr -d ']' | tr -d ',')
+  FACETS=$(printf '"%s",' $FACETS | sed 's/,*$//')
 
   # define path for json file based on which diamond was used
   if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
@@ -220,10 +219,10 @@ saveDiamond() {
     DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
   fi
 
-	# create an empty json if it does not exist
-	if [[ ! -e $DIAMOND_FILE ]]; then
-		echo "{}" >"$DIAMOND_FILE"
-	fi
-	result=$(cat "$DIAMOND_FILE" | jq -r ". + {\"facets\": [$FACETS] }" || cat "$DIAMOND_FILE")
-	printf %s "$result" >"$DIAMOND_FILE"
+  # create an empty json if it does not exist
+  if [[ ! -e $DIAMOND_FILE ]]; then
+    echo "{}" >"$DIAMOND_FILE"
+  fi
+  result=$(cat "$DIAMOND_FILE" | jq -r ". + {\"facets\": [$FACETS] }" || cat "$DIAMOND_FILE")
+  printf %s "$result" >"$DIAMOND_FILE"
 }

@@ -47,10 +47,10 @@ contract UpdateScriptBase is Script {
         loupe = DiamondLoupeFacet(diamond);
     }
 
-    function getSelectors(
-        string memory _facetName,
-        bytes4[] memory _exclude
-    ) internal returns (bytes4[] memory selectors) {
+    function getSelectors(string memory _facetName, bytes4[] memory _exclude)
+        internal
+        returns (bytes4[] memory selectors)
+    {
         string[] memory cmd = new string[](3);
         cmd[0] = "scripts/contract-selectors.sh";
         cmd[1] = _facetName;
@@ -63,17 +63,16 @@ contract UpdateScriptBase is Script {
         selectors = abi.decode(res, (bytes4[]));
     }
 
-    function buildDiamondCut(
-        bytes4[] memory newSelectors,
-        address newFacet
-    ) internal {
+    function buildDiamondCut(bytes4[] memory newSelectors, address newFacet)
+        internal
+    {
         address oldFacet;
 
         // Get selectors to add or replace
         for (uint256 i; i < newSelectors.length; i++) {
             if (loupe.facetAddress(newSelectors[i]) == address(0)) {
                 selectorsToAdd.push(newSelectors[i]);
-            } else {
+            } else if (loupe.facetAddress(newSelectors[i]) != newFacet) {
                 selectorsToReplace.push(newSelectors[i]);
                 oldFacet = loupe.facetAddress(newSelectors[i]);
             }
@@ -124,6 +123,10 @@ contract UpdateScriptBase is Script {
                 })
             );
         }
+
+        console.log(selectorsToReplace.length);
+        console.log(selectorsToRemove.length);
+        console.log(selectorsToAdd.length);
     }
 
     function toHexDigit(uint8 d) internal pure returns (bytes1) {
