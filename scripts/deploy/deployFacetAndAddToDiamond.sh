@@ -96,13 +96,12 @@ function deployFacetAndAddToDiamond() {
 
   # TODO: reactivate or remove
   # check if function call was successful
-  #if [ $? -ne 0 ]
-  #then
-  #  echo "[error] deployment of facet $FACET_CONTRACT_NAME to network $NETWORK failed. Please manually deploy facet and add it to $DIAMOND_CONTRACT_NAME with address $DIAMOND_ADDRESS. :("
-  #  return 1
+  if [ $? -ne 0 ]
+  then
+    return 1
   #else
   #  echo "[info] deployment of facet $FACET_CONTRACT_NAME to network $NETWORK successful :)"
-  #fi
+  fi
 
   # prepare update script name
   local UPDATE_SCRIPT="Update$FACET_CONTRACT_NAME"
