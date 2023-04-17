@@ -4,11 +4,11 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0xF1d67E1dddc87E2858C87EBd5b19f99a4E297541",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-04-12 10:25:37",
-            "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "false"
+            "ADDRESS": "0x1234",
+            "OPTIMIZER_RUNS": "50000",
+            "TIMESTAMP": "<TIMESTAMP>",
+            "CONSTRUCTOR_ARGS": "<args>",
+            "VERIFIED": ""
           }
         ]
       }
@@ -22,6 +22,19 @@
             "TIMESTAMP": "2023-04-12 13:44:40",
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "bsc": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1234",
+            "OPTIMIZER_RUNS": "50000",
+            "TIMESTAMP": "<TIMESTAMP>",
+            "CONSTRUCTOR_ARGS": "<args>",
+            "VERIFIED": ""
           }
         ]
       }

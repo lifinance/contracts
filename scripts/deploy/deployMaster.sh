@@ -2,13 +2,13 @@
 
 # USER INFO
 # - target state must be updated before running the script (e.g. deploying new contract etc.)
-# - existing facets will be replaced if a new
+# - existing facets will be replaced if a new facet is added
 
 
 # TODO
 # - improve the handling of several similar log file entries
 # - add verify contract use case (use bytecode and settings from storage)
-# - create function that checks if contract is apployed (get bytecode, predict address, check bytecode at address)
+# - create function that checks if contract is deployed (get bytecode, predict address, check bytecode at address)
 
 
 # - implement all deploy use cases
