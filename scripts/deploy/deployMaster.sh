@@ -88,6 +88,16 @@ deployMaster() {
     echo ""
     echo "[info] selected use case: Deploy one specific contract to one network"
 
+    # get user-selected network from list
+    local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+    # get deployer wallet balance
+    BALANCE=$(getDeployerBalance "$NETWORK")
+
+    echo "[info] selected network: $NETWORK"
+    echo "[info] deployer wallet balance in this network: $BALANCE"
+    echo ""
+    checkRequiredVariablesInDotEnv $NETWORK
+
     # get user-selected deploy script and contract from list
     SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
@@ -109,9 +119,9 @@ deployMaster() {
     if [[ "$ADD_TO_DIAMOND" == *"yes"* ]]; then
       # determine the name of the LiFiDiamond contract and call helper function with correct diamond name
       if [[ "$ADD_TO_DIAMOND" == *"LiFiDiamondImmutable"* ]]; then
-        deployAndAddContractToDiamond "$ENVIRONMENT" "$CONTRACT" "LiFiDiamondImmutable" "$VERSION"
+        deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamondImmutable" "$VERSION"
       else
-        deployAndAddContractToDiamond "$ENVIRONMENT" "$CONTRACT" "LiFiDiamond" "$VERSION"
+        deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamond" "$VERSION"
       fi
     else
       # just deploy the contract
