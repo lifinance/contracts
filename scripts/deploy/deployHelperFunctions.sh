@@ -434,6 +434,103 @@ function verifyContract() {
   # return command status 0 (to make sure failed verification does not stop script)
   return 0
 }
+
+
+
+
+function verifyAllUnverifiedContractsInLogFile() {
+  local log_file=$LOG_FILE_PATH
+
+  # Read top-level keys into an array
+  CONTRACTS=($(jq -r 'keys[]' "$LOG_FILE_PATH"))
+
+  # Loop through the array of top-level keys
+  for CONTRACT in "${CONTRACTS[@]}"; do
+
+    # Read second-level keys for the current top-level key
+    NETWORKS=($(jq -r ".${CONTRACT} | keys[]" "$LOG_FILE_PATH"))
+
+    # Loop through the array of second-level keys
+    for NETWORK in "${NETWORKS[@]}"; do
+
+     # Read ENVIRONMENT keys for the network
+     ENVIRONMENTS=($(jq -r ".${CONTRACT}.${NETWORK} | keys[]" "$LOG_FILE_PATH"))
+
+      # go through all environments
+      for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
+
+         # Read VERSION keys for the network
+         VERSIONS=($(jq -r ".${CONTRACT}.${NETWORK}.${ENVIRONMENT} | keys[]" "$LOG_FILE_PATH"))
+
+        # go through all versions
+        for VERSION in "${VERSIONS[@]}"; do
+
+          # get values of current entry
+          ENTRY=$(cat "$LOG_FILE_PATH" | jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][0]')
+
+          # extract necessary information from log
+          ADDRESS=$(echo "$ENTRY" | awk -F'"' '/"ADDRESS":/{print $4}')
+          VERIFIED=$(echo "$ENTRY" | awk -F'"' '/"VERIFIED":/{print $4}')
+          OPTIMIZER_RUNS=$(echo "$ENTRY" | awk -F'"' '/"OPTIMIZER_RUNS":/{print $4}')
+          TIMESTAMP=$(echo "$ENTRY" | awk -F'"' '/"TIMESTAMP":/{print $4}')
+          CONSTRUCTOR_ARGS=$(echo "$ENTRY" | awk -F'"' '/"CONSTRUCTOR_ARGS":/{print $4}')
+
+          echo ""
+          echo "CONTRACT: $CONTRACT"
+          echo "NETWORK: $NETWORK"
+          echo "ENVIRONMENT: $ENVIRONMENT"
+          echo "VERSION: $VERSION"
+          echo "VERIFIED: ${VERIFIED}"
+          echo "OPTIMIZER_RUNS: ${OPTIMIZER_RUNS}"
+          echo "TIMESTAMP: ${TIMESTAMP}"
+          echo "CONSTRUCTOR_ARGS: ${CONSTRUCTOR_ARGS}"
+
+
+          # check if contract is verified
+          if [[ "$VERIFIED" != "true" ]]
+          then
+            echo ""
+            echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS...."
+            verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"
+
+            # check result
+            if [ $? -eq 0 ]; then
+              # update log file
+              logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true"
+            fi
+          fi
+        done
+      done
+    done
+  done
+}
+
+
+function tmp() {
+    # Check if contract needs to be verified
+    if [[ "$VERIFIED" == "false" ]]; then
+        echo "Verifying contract: $CONTRACT, Network: $NETWORK, Environment: $ENVIRONMENT, Version: $VERSION"
+
+        # Replace the following line with your command to verify the contract
+        # You can use the variables extracted from the log entry as input to your command
+        verifyContractCommand "$CONTRACT" "$VERSION" "$ENVIRONMENT" "$ADDRESS"
+
+        # Update the log file to mark contract as verified
+        jq --arg CONTRACT "$CONTRACT" \
+           --arg NETWORK "$NETWORK" \
+           --arg ENVIRONMENT "$ENVIRONMENT" \
+           --arg VERSION "$VERSION" \
+           '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1].VERIFIED = "true"' \
+           "$LOG_FILE_PATH" > tmpfile && mv tmpfile "$LOG_FILE_PATH"
+
+
+
+
+
+    fi
+}
+
+
 function getContractFilePath() {
   # read function arguments into variables
   CONTRACT="$1"
@@ -1497,4 +1594,6 @@ function test_tmp(){
   logContractDeploymentInfo2 "DiamondCutFacet" "bsc" "<TIMESTAMP>" "1.0.0" "50000" "<args>" "production" "0x1234"
 
 }
+
+verifyAllUnverifiedContractsInLogFile
 

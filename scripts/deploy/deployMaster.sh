@@ -6,7 +6,6 @@
 
 
 # TODO
-# - improve the handling of several similar log file entries
 # - add verify contract use case (use bytecode and settings from storage)
 # - create function that checks if contract is deployed (get bytecode, predict address, check bytecode at address)
 
@@ -81,6 +80,7 @@ deployMaster() {
     "4) Deploy all (missing) contracts for all networks (actual vs. target) - NOT YET IMPLEMENTED" \
     "5) Execute a script" \
     "6) Batch update _targetState.json file" \
+    "7) Verify all unverified contracts" \
     )
 
   # use case 1: Deploy one specific contract to one network
@@ -430,6 +430,10 @@ deployMaster() {
     fi
     echo ""
     echo "[info] ...Batch update _targetState.json file successfully completed"
+  # use case 7: Verify all unverified contracts
+  elif [[ "$SELECTION" == *"7)"* ]]; then
+    verifyAllUnverifiedContractsInLogFile
+    playNotificationSound
   else
     echo "[error] invalid use case selected ('$SELECTION') - exiting script"
     exit 1
