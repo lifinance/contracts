@@ -434,12 +434,13 @@ function verifyContract() {
   # return command status 0 (to make sure failed verification does not stop script)
   return 0
 }
-
-
-
-
 function verifyAllUnverifiedContractsInLogFile() {
   local log_file=$LOG_FILE_PATH
+
+  echo "[info] checking log file for unverified contracts"
+
+  # initate counter
+  local COUNTER=0
 
   # Read top-level keys into an array
   CONTRACTS=($(jq -r 'keys[]' "$LOG_FILE_PATH"))
@@ -475,17 +476,6 @@ function verifyAllUnverifiedContractsInLogFile() {
           TIMESTAMP=$(echo "$ENTRY" | awk -F'"' '/"TIMESTAMP":/{print $4}')
           CONSTRUCTOR_ARGS=$(echo "$ENTRY" | awk -F'"' '/"CONSTRUCTOR_ARGS":/{print $4}')
 
-          echo ""
-          echo "CONTRACT: $CONTRACT"
-          echo "NETWORK: $NETWORK"
-          echo "ENVIRONMENT: $ENVIRONMENT"
-          echo "VERSION: $VERSION"
-          echo "VERIFIED: ${VERIFIED}"
-          echo "OPTIMIZER_RUNS: ${OPTIMIZER_RUNS}"
-          echo "TIMESTAMP: ${TIMESTAMP}"
-          echo "CONSTRUCTOR_ARGS: ${CONSTRUCTOR_ARGS}"
-
-
           # check if contract is verified
           if [[ "$VERIFIED" != "true" ]]
           then
@@ -497,12 +487,17 @@ function verifyAllUnverifiedContractsInLogFile() {
             if [ $? -eq 0 ]; then
               # update log file
               logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true"
+
+              # increase COUNTER
+              COUNTER++
             fi
           fi
         done
       done
     done
   done
+
+  echo "[info] done (verified contracts: $COUNTER)"
 }
 
 
@@ -1374,7 +1369,9 @@ function getRPCUrl(){
   echo "${!RPC_KEY}"
 }
 function playNotificationSound() {
-  afplay ./scripts/deploy/notification.mp3
+  if [[ "NOTIFICATION_SOUNDS" == *"true"* ]]; then
+    afplay ./scripts/deploy/notification.mp3
+  fi
 }
 function deployAndAddContractToDiamond() {
   # read function arguments into variables
@@ -1383,6 +1380,18 @@ function deployAndAddContractToDiamond() {
   CONTRACT="$3"
   DIAMOND_CONTRACT_NAME="$4"
   VERSION="$5"
+
+  # logging for debug purposes
+  if [[ "$DEBUG" == *"true"* ]]; then
+    echo ""
+    echo "[debug] in function deployAndAddContractToDiamond"
+    echo "[debug] NETWORK=$NETWORK"
+    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
+    echo "[debug] CONTRACT=$CONTRACT"
+    echo "[debug] DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
+    echo "[debug] VERSION=$VERSION"
+    echo ""
+  fi
 
   # check which type of contract we are deploying
   if [[ "$CONTRACT" == *"Facet"* ]]; then
@@ -1595,5 +1604,4 @@ function test_tmp(){
 
 }
 
-verifyAllUnverifiedContractsInLogFile
 

@@ -4,11 +4,11 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0x1234",
-            "OPTIMIZER_RUNS": "50000",
-            "TIMESTAMP": "<TIMESTAMP>",
-            "CONSTRUCTOR_ARGS": "<args>",
-            "VERIFIED": ""
+            "ADDRESS": "0xF1d67E1dddc87E2858C87EBd5b19f99a4E297541",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-12 10:25:37",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -553,32 +553,6 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-04-12 14:25:30",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000000654eba982ec082036a3d0f59964d302f1ba5cda",
-            "VERIFIED": "true"
-          }
-        ]
-      }
-    },
-    "goerli": {
-      "production": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x32B6dA8e81F8Ba2BeE4C36DCB52ED6e201eB7344",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-04-13 12:55:30",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0000000000000000000000000b74f109a4aa61e814ec0a3acba4da47173c772ed",
-            "VERIFIED": "true"
-          }
-        ]
-      }
-    },
-    "mumbai": {
-      "production": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x32B6dA8e81F8Ba2BeE4C36DCB52ED6e201eB7344",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-04-13 12:56:00",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0000000000000000000000000cfe830c59f51cde53048a8ffda711c2e7d01ca58",
             "VERIFIED": "true"
           }
         ]
