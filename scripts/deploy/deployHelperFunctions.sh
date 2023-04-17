@@ -921,7 +921,7 @@ function removeFacetFromDiamond() {
   if [[ "$DEBUG" == *"true"* ]]; then
     echo "[info] successfully removed $FACET_NAME from $DIAMOND_ADDRESS on network $NETWORK"
   fi
-}
+} # needs to be fixed before using again
 function checkRequiredVariablesInDotEnv() {
   # read function arguments into variables
   local NETWORK=$1
@@ -1617,7 +1617,7 @@ function test_tmp(){
 
 }
 function test_getFacetAddressFromDiamond(){
-  getFacetAddressFromDiamond "arbitrum" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "0xc5ae0fe6"
+  getFacetAddressFromDiamond "arbitrum" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE" "0xc5ae0fe6"
 }
 
 #test_getFacetAddressFromDiamond
