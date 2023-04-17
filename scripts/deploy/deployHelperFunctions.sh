@@ -1356,6 +1356,19 @@ function doesAddressContainBytecode() {
     echo "true"
   fi
 }
+function getFacetAddressFromDiamond() {
+  # read function arguments into variables
+  local NETWORK="$1"
+  local DIAMOND_ADDRESS="$2"
+  local SELECTOR="$3"
+
+  # get RPC URL for given network
+  RPC_URL=$(getRPCUrl "$NETWORK")
+
+  local RESULT=$(cast call "$DIAMOND_ADDRESS" "facetAddress(bytes4) returns (address)" "$SELECTOR" --rpc-url "$RPC_URL")
+
+  echo "$RESULT"
+}
 # <<<<<< read from blockchain
 
 function getRPCUrl(){
@@ -1603,5 +1616,10 @@ function test_tmp(){
   logContractDeploymentInfo2 "DiamondCutFacet" "bsc" "<TIMESTAMP>" "1.0.0" "50000" "<args>" "production" "0x1234"
 
 }
+function test_getFacetAddressFromDiamond(){
+  getFacetAddressFromDiamond "arbitrum" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "0xc5ae0fe6"
+}
+
+#test_getFacetAddressFromDiamond
 
 

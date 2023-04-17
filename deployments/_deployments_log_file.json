@@ -249,6 +249,55 @@
           }
         ]
       }
+    },
+    "mumbai": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x67c40A4da7B00B68bA6DE2D33B9af6A693F3d8C5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-17 16:48:25",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000fd9e2642a170add10f53ee14a93fcf2f31924944000000000000000000000000a6fa4fb5f76172d178d61b04b0ecd319c5d1c0aa",
+            "VERIFIED": "false"
+          }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x2fd02891d6f00Fb0eF80ec57a0Abf3cFAC333d69",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-17 16:57:40",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000fd9e2642a170add10f53ee14a93fcf2f31924944000000000000000000000000a6fa4fb5f76172d178d61b04b0ecd319c5d1c0aa",
+            "VERIFIED": "false"
+          }
+        ],
+        "1.0.2": [
+          {
+            "ADDRESS": "0x78B01d765BEEd6a397C7312a3655c4Ab66d45008",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-17 17:01:26",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000fd9e2642a170add10f53ee14a93fcf2f31924944000000000000000000000000a6fa4fb5f76172d178d61b04b0ecd319c5d1c0aa",
+            "VERIFIED": "false"
+          }
+        ],
+        "1.0.3": [
+          {
+            "ADDRESS": "0xC7d7B3F512B6b908b2ce75c6ebe5AC230537Db6e",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-17 17:04:06",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000fd9e2642a170add10f53ee14a93fcf2f31924944000000000000000000000000a6fa4fb5f76172d178d61b04b0ecd319c5d1c0aa",
+            "VERIFIED": "false"
+          }
+        ],
+        "1.0.4": [
+          {
+            "ADDRESS": "0x3a05C2920a54D97a6a831862006Bd0033C1f0AFA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-17 17:07:55",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000fd9e2642a170add10f53ee14a93fcf2f31924944000000000000000000000000a6fa4fb5f76172d178d61b04b0ecd319c5d1c0aa",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "CBridgeFacet": {
@@ -681,6 +730,30 @@
             "TIMESTAMP": "2023-04-13 16:52:59",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000008f7492de823025b4cfaab1d34c58963f2af5deda",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "RelayerCelerIM": {
+    "mumbai": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xd68c160882D48d9Ec0A8479Fcec2033C45a2A1D6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-17 17:23:57",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000a19a29a8a59f283652726299349975ddcd88717500000000000000000000000032b6da8e81f8ba2bee4c36dcb52ed6e201eb7344",
+            "VERIFIED": "false"
+          }
+        ],
+        "1.0.2": [
+          {
+            "ADDRESS": "0x836eE6941EDA6a0AF0FDAc4Cf3F9c424358b9a10",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-17 17:26:18",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000a19a29a8a59f283652726299349975ddcd88717500000000000000000000000032b6da8e81f8ba2bee4c36dcb52ed6e201eb7344",
+            "VERIFIED": "false"
           }
         ]
       }
