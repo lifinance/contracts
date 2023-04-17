@@ -120,7 +120,8 @@
   "mumbai": {
     "production": {
       "LiFiDiamond": {
-        "AcrossFacet": "1.0.1"
+        "AcrossFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "AcrossFacet": "1.0.0",
