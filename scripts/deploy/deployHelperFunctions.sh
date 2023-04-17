@@ -1381,6 +1381,18 @@ function deployAndAddContractToDiamond() {
   DIAMOND_CONTRACT_NAME="$4"
   VERSION="$5"
 
+  # logging for debug purposes
+  if [[ "$DEBUG" == *"true"* ]]; then
+    echo ""
+    echo "[debug] in function deployAndAddContractToDiamond"
+    echo "[debug] NETWORK=$NETWORK"
+    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
+    echo "[debug] CONTRACT=$CONTRACT"
+    echo "[debug] DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
+    echo "[debug] VERSION=$VERSION"
+    echo ""
+  fi
+
   # check which type of contract we are deploying
   if [[ "$CONTRACT" == *"Facet"* ]]; then
     # deploying a facet
