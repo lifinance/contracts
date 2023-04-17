@@ -437,6 +437,11 @@ function verifyContract() {
 function verifyAllUnverifiedContractsInLogFile() {
   local log_file=$LOG_FILE_PATH
 
+  echo "[info] checking log file for unverified contracts"
+
+  # initate counter
+  local COUNTER=0
+
   # Read top-level keys into an array
   CONTRACTS=($(jq -r 'keys[]' "$LOG_FILE_PATH"))
 
@@ -471,17 +476,6 @@ function verifyAllUnverifiedContractsInLogFile() {
           TIMESTAMP=$(echo "$ENTRY" | awk -F'"' '/"TIMESTAMP":/{print $4}')
           CONSTRUCTOR_ARGS=$(echo "$ENTRY" | awk -F'"' '/"CONSTRUCTOR_ARGS":/{print $4}')
 
-          echo ""
-          echo "CONTRACT: $CONTRACT"
-          echo "NETWORK: $NETWORK"
-          echo "ENVIRONMENT: $ENVIRONMENT"
-          echo "VERSION: $VERSION"
-          echo "VERIFIED: ${VERIFIED}"
-          echo "OPTIMIZER_RUNS: ${OPTIMIZER_RUNS}"
-          echo "TIMESTAMP: ${TIMESTAMP}"
-          echo "CONSTRUCTOR_ARGS: ${CONSTRUCTOR_ARGS}"
-
-
           # check if contract is verified
           if [[ "$VERIFIED" != "true" ]]
           then
@@ -493,12 +487,17 @@ function verifyAllUnverifiedContractsInLogFile() {
             if [ $? -eq 0 ]; then
               # update log file
               logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true"
+
+              # increase COUNTER
+              COUNTER++
             fi
           fi
         done
       done
     done
   done
+
+  echo "[info] done (verified contracts: $COUNTER)"
 }
 
 
