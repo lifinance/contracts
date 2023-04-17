@@ -25,7 +25,7 @@ contract CallForwarder {
     }
 }
 
-contract HopGasTest is Test, DiamondTest {
+contract HopGasTestARB is Test, DiamondTest {
     address internal constant HOP_USDC_BRIDGE =
         0xe22D2beDb3Eca35E6397e0C6D62857094aA26F52;
     address internal constant HOP_NATIVE_BRIDGE =
