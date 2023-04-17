@@ -529,33 +529,6 @@
           }
         ]
       }
-    },
-    "mumbai": {
-      "production": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0xe02Cd591D846F8E3Ff6c9eb55429A0861149f5EC",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-04-13 10:04:38",
-            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
-            "VERIFIED": "false"
-          },
-          {
-            "ADDRESS": "0xd8Ca20fa69226AF771Dd4F777c277E80ab69068E",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-04-13 10:15:53",
-            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
-            "VERIFIED": "false"
-          },
-          {
-            "ADDRESS": "0xcfE830C59f51cDe53048a8FfDA711C2e7D01Ca58",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-04-13 10:17:08",
-            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
-            "VERIFIED": "false"
-          }
-        ]
-      }
     }
   },
   "Executor": {
@@ -718,6 +691,21 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-04-13 09:08:56",
             "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "AmarokFacet": {
+    "optimism": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xbd8D369470169f9976c5bCc60318955836843a71",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-13 16:52:59",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000008f7492de823025b4cfaab1d34c58963f2af5deda",
             "VERIFIED": "false"
           }
         ]
