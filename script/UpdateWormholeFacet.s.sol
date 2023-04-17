@@ -30,18 +30,12 @@ contract DeployScript is UpdateScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         // Wormhole
-        if (loupe.facetFunctionSelectors(facet).length == 0) {
-            bytes4[] memory exclude;
-            cut.push(
-                IDiamondCut.FacetCut({
-                    facetAddress: address(facet),
-                    action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("WormholeFacet", exclude)
-                })
-            );
+        bytes4[] memory exclude = new bytes4[](1);
+        exclude[0] = WormholeFacet.initWormhole.selector;
+        buildDiamondCut(getSelectors("WormholeFacet", exclude), facet);
+        if (cut.length > 0) {
             cutter.diamondCut(cut, address(facet), callData);
         }
-
         facets = loupe.facetAddresses();
 
         vm.stopBroadcast();

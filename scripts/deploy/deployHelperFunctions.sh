@@ -1,20 +1,18 @@
 #!/bin/bash
+#TODO: sort & comment functions
 
 # load env variables
 source .env
 
-#TODO: sort & comment functions
-
 # load scripts
 source scripts/deploy/deployConfig.sh
-#source scripts/deploy/log4bash.sh
 
 
-# writes information about a deployed contract into the log file (path is specified in config)
 
 
 # >>>>> logging
-function logContractDeploymentInfo {
+# writes information about a deployed contract into the log file (path is specified in config)
+function logContractDeploymentInfo_BACKUP {
   # read function arguments into variables
   local CONTRACT="$1"
   local NETWORK="$2"
@@ -69,7 +67,79 @@ function logContractDeploymentInfo {
   if [[ "$DEBUG" == *"true"* ]]; then
     echo "[info] contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
   fi
-}
+} # will add, if entry exists already
+function logContractDeploymentInfo {
+  # read function arguments into variables
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local TIMESTAMP="$3"
+  local VERSION="$4"
+  local OPTIMIZER_RUNS="$5"
+  local CONSTRUCTOR_ARGS="$6"
+  local ENVIRONMENT="$7"
+  local ADDRESS="$8"
+  local VERIFIED="$9"
+
+  # logging for debug purposes
+  if [[ "$DEBUG" == *"true"* ]]; then
+    echo ""
+    echo "[debug] in function logContractDeploymentInfo"
+    echo "[debug] CONTRACT=$CONTRACT"
+    echo "[debug] NETWORK=$NETWORK"
+    echo "[debug] TIMESTAMP=$TIMESTAMP"
+    echo "[debug] VERSION=$VERSION"
+    echo "[debug] OPTIMIZER_RUNS=$OPTIMIZER_RUNS"
+    echo "[debug] CONSTRUCTOR_ARGS=$CONSTRUCTOR_ARGS"
+    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
+    echo "[debug] ADDRESS=$ADDRESS"
+    echo "[debug] VERIFIED=$VERIFIED"
+    echo ""
+  fi
+
+  # Check if log FILE exists, if not create it
+  if [ ! -f "$LOG_FILE_PATH" ]; then
+    echo "{}" > "$LOG_FILE_PATH"
+  fi
+
+  # Check if entry already exists in log FILE
+  local existing_entry=$(jq --arg CONTRACT "$CONTRACT" \
+     --arg NETWORK "$NETWORK" \
+     --arg ENVIRONMENT "$ENVIRONMENT" \
+     --arg VERSION "$VERSION" \
+     '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION]' \
+     "$LOG_FILE_PATH")
+
+  # Update existing entry or add new entry to log FILE
+  if [[ "$existing_entry" == "null" ]]; then
+    jq --arg CONTRACT "$CONTRACT" \
+       --arg NETWORK "$NETWORK" \
+       --arg ENVIRONMENT "$ENVIRONMENT" \
+       --arg VERSION "$VERSION" \
+       --arg ADDRESS "$ADDRESS" \
+       --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
+       --arg TIMESTAMP "$TIMESTAMP" \
+       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
+       --arg VERIFIED "$VERIFIED" \
+       '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, VERIFIED: $VERIFIED }]' \
+       "$LOG_FILE_PATH" > tmpfile && mv tmpfile "$LOG_FILE_PATH"
+  else
+    jq --arg CONTRACT "$CONTRACT" \
+       --arg NETWORK "$NETWORK" \
+       --arg ENVIRONMENT "$ENVIRONMENT" \
+       --arg VERSION "$VERSION" \
+       --arg ADDRESS "$ADDRESS" \
+       --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
+       --arg TIMESTAMP "$TIMESTAMP" \
+       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
+       --arg VERIFIED "$VERIFIED" \
+       '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, VERIFIED: $VERIFIED }' \
+       "$LOG_FILE_PATH" > tmpfile && mv tmpfile "$LOG_FILE_PATH"
+  fi
+
+  if [[ "$DEBUG" == *"true"* ]]; then
+    echo "[info] contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
+  fi
+} # will replace, if entry exists already
 function getBytecodeFromLog() {
 
   # read function arguments into variables
@@ -364,6 +434,103 @@ function verifyContract() {
   # return command status 0 (to make sure failed verification does not stop script)
   return 0
 }
+
+
+
+
+function verifyAllUnverifiedContractsInLogFile() {
+  local log_file=$LOG_FILE_PATH
+
+  # Read top-level keys into an array
+  CONTRACTS=($(jq -r 'keys[]' "$LOG_FILE_PATH"))
+
+  # Loop through the array of top-level keys
+  for CONTRACT in "${CONTRACTS[@]}"; do
+
+    # Read second-level keys for the current top-level key
+    NETWORKS=($(jq -r ".${CONTRACT} | keys[]" "$LOG_FILE_PATH"))
+
+    # Loop through the array of second-level keys
+    for NETWORK in "${NETWORKS[@]}"; do
+
+     # Read ENVIRONMENT keys for the network
+     ENVIRONMENTS=($(jq -r ".${CONTRACT}.${NETWORK} | keys[]" "$LOG_FILE_PATH"))
+
+      # go through all environments
+      for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
+
+         # Read VERSION keys for the network
+         VERSIONS=($(jq -r ".${CONTRACT}.${NETWORK}.${ENVIRONMENT} | keys[]" "$LOG_FILE_PATH"))
+
+        # go through all versions
+        for VERSION in "${VERSIONS[@]}"; do
+
+          # get values of current entry
+          ENTRY=$(cat "$LOG_FILE_PATH" | jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][0]')
+
+          # extract necessary information from log
+          ADDRESS=$(echo "$ENTRY" | awk -F'"' '/"ADDRESS":/{print $4}')
+          VERIFIED=$(echo "$ENTRY" | awk -F'"' '/"VERIFIED":/{print $4}')
+          OPTIMIZER_RUNS=$(echo "$ENTRY" | awk -F'"' '/"OPTIMIZER_RUNS":/{print $4}')
+          TIMESTAMP=$(echo "$ENTRY" | awk -F'"' '/"TIMESTAMP":/{print $4}')
+          CONSTRUCTOR_ARGS=$(echo "$ENTRY" | awk -F'"' '/"CONSTRUCTOR_ARGS":/{print $4}')
+
+          echo ""
+          echo "CONTRACT: $CONTRACT"
+          echo "NETWORK: $NETWORK"
+          echo "ENVIRONMENT: $ENVIRONMENT"
+          echo "VERSION: $VERSION"
+          echo "VERIFIED: ${VERIFIED}"
+          echo "OPTIMIZER_RUNS: ${OPTIMIZER_RUNS}"
+          echo "TIMESTAMP: ${TIMESTAMP}"
+          echo "CONSTRUCTOR_ARGS: ${CONSTRUCTOR_ARGS}"
+
+
+          # check if contract is verified
+          if [[ "$VERIFIED" != "true" ]]
+          then
+            echo ""
+            echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS...."
+            verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"
+
+            # check result
+            if [ $? -eq 0 ]; then
+              # update log file
+              logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true"
+            fi
+          fi
+        done
+      done
+    done
+  done
+}
+
+
+function tmp() {
+    # Check if contract needs to be verified
+    if [[ "$VERIFIED" == "false" ]]; then
+        echo "Verifying contract: $CONTRACT, Network: $NETWORK, Environment: $ENVIRONMENT, Version: $VERSION"
+
+        # Replace the following line with your command to verify the contract
+        # You can use the variables extracted from the log entry as input to your command
+        verifyContractCommand "$CONTRACT" "$VERSION" "$ENVIRONMENT" "$ADDRESS"
+
+        # Update the log file to mark contract as verified
+        jq --arg CONTRACT "$CONTRACT" \
+           --arg NETWORK "$NETWORK" \
+           --arg ENVIRONMENT "$ENVIRONMENT" \
+           --arg VERSION "$VERSION" \
+           '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1].VERIFIED = "true"' \
+           "$LOG_FILE_PATH" > tmpfile && mv tmpfile "$LOG_FILE_PATH"
+
+
+
+
+
+    fi
+}
+
+
 function getContractFilePath() {
   # read function arguments into variables
   CONTRACT="$1"
@@ -920,6 +1087,7 @@ function addNewNetworkWithAllIncludedContractsInLatestVersions() {
 # <<<<<< Manipulation of target state JSON file
 
 # >>>>> read from blockchain
+
 function getContractAddressFromSalt() {
   # read function arguments into variables
   local SALT=$1
@@ -1289,8 +1457,8 @@ function test_checkIfJSONContainsEntry() {
 
 }
 function test_findContractInLogFile() {
-  findContractInLogFile "ContractName" "BSC" "staging" "1.0.0"
-  match=($(findContractInLogFile "ContractName" "BSC" "staging" "1.0.0"))
+  findContractInLogFile "DiamondCutFacet" "optimism" "production" "1.0.0"
+  match=($(findContractInLogFile "DiamondCutFacet" "optimism" "production" "1.0.0"))
 
   echo "Address: ${match[2]}"
   echo "Optimizer Runs: ${match[4]}"
@@ -1421,9 +1589,11 @@ function test_checkIfFileExists(){
   echo "should be true: $(checkIfFileExists "./script/DeployCelerIMFacet.s.sol")"
   echo "should be false: $(checkIfFileExists "./script/NoScript.s.sol")"
 }
-
-
 function test_tmp(){
-getDeployerAddress
+  logContractDeploymentInfo2 "DiamondCutFacet" "optimism" "<TIMESTAMP>" "1.0.0" "50000" "<args>" "production" "0x1234"
+  logContractDeploymentInfo2 "DiamondCutFacet" "bsc" "<TIMESTAMP>" "1.0.0" "50000" "<args>" "production" "0x1234"
+
 }
+
+verifyAllUnverifiedContractsInLogFile
 
