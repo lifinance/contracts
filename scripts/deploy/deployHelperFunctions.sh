@@ -434,10 +434,6 @@ function verifyContract() {
   # return command status 0 (to make sure failed verification does not stop script)
   return 0
 }
-
-
-
-
 function verifyAllUnverifiedContractsInLogFile() {
   local log_file=$LOG_FILE_PATH
 
@@ -1374,7 +1370,9 @@ function getRPCUrl(){
   echo "${!RPC_KEY}"
 }
 function playNotificationSound() {
-  afplay ./scripts/deploy/notification.mp3
+  if [[ "NOTIFICATION_SOUNDS" == *"true"* ]]; then
+    afplay ./scripts/deploy/notification.mp3
+  fi
 }
 function deployAndAddContractToDiamond() {
   # read function arguments into variables
@@ -1595,5 +1593,4 @@ function test_tmp(){
 
 }
 
-verifyAllUnverifiedContractsInLogFile
 
