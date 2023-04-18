@@ -108,7 +108,9 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount,
                 _bridgeData.destinationChainId,
                 _acrossData.relayerFeePct,
-                _acrossData.quoteTimestamp
+                _acrossData.quoteTimestamp,
+                "",
+                0
             );
         } else {
             LibAsset.maxApproveERC20(
@@ -122,7 +124,9 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount,
                 _bridgeData.destinationChainId,
                 _acrossData.relayerFeePct,
-                _acrossData.quoteTimestamp
+                _acrossData.quoteTimestamp,
+                "",
+                0
             );
         }
 
