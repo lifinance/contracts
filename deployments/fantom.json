@@ -21,4 +21,5 @@
   "FeeCollector": "0x353a5303dD2a39aB59aEd09fb971D359b94658C7",
   "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
   "LIFuelFacet": "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59",
+  "RelayerCelerIM": "0x34D16bE69CB282c7160abaB1dC02ACfA45f7006c"
 }
