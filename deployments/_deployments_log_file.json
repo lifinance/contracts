@@ -758,6 +758,138 @@
           }
         ]
       }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x34D16bE69CB282c7160abaB1dC02ACfA45f7006c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-18 11:40:54",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000004066d196a423b2b3b8b054f4f40efb47a74e200c0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000dd1305150d27aecc60c066630105db419977e367",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "null",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-18 11:30:06",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "bsc": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x34D16bE69CB282c7160abaB1dC02ACfA45f7006c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-18 12:04:41",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce4400000000000000000000000095714818fdd7a5454f73da9c777b3ee6ebaeea6b0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000dd1305150d27aecc60c066630105db419977e367",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "fantom": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x34D16bE69CB282c7160abaB1dC02ACfA45f7006c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-18 12:07:50",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000ff4e183a0ceb4fa98e63bbf8077b929c8e5a2ba40000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000dd1305150d27aecc60c066630105db419977e367",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "avalanche": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x34D16bE69CB282c7160abaB1dC02ACfA45f7006c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-18 12:08:49",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000005a926eeeafc4d217add17e9641e8ce23cd01ad570000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000dd1305150d27aecc60c066630105db419977e367",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "arbitrum": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x34D16bE69CB282c7160abaB1dC02ACfA45f7006c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-18 12:09:09",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000003ad9d0648cdaa2426331e894e980d0a5ed16257f0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae0000000000000000000000002120c7a5ccf73d6fb5c7e9b2a0d4b3a4f587e7a4",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "optimism": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x34D16bE69CB282c7160abaB1dC02ACfA45f7006c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-18 12:09:58",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000000d71d18126e03646eb09fec929e2ae87b7cae69d0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae0000000000000000000000002120c7a5ccf73d6fb5c7e9b2a0d4b3a4f587e7a4",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "moonriver": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x34D16bE69CB282c7160abaB1dC02ACfA45f7006c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-18 12:10:33",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000940daaba3f713abfabd79cdd991466fe698cbe540000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000dd1305150d27aecc60c066630105db419977e367",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "aurora": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x34D16bE69CB282c7160abaB1dC02ACfA45f7006c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-18 12:10:54",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000c1a2d967dfaa6a10f3461bc21864c23c1dd51eea0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae0000000000000000000000004f6a9caca8cd1e6025972bcaf6bfd8504de69b52",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "CelerIMFacet": {
+    "fantom": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "null",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-18 11:36:36",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   }
 }
