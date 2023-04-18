@@ -40,9 +40,9 @@ deploySingleContract() {
     if [[ "$PRODUCTION" == "true" ]]; then
       # make sure that PRODUCTION was selected intentionally by user
       gum style \
-      --foreground 212 --border-foreground 213 --border double \
-      --align center --width 50 --margin "1 2" --padding "2 4" \
-      '!!! ATTENTION !!!'
+        --foreground 212 --border-foreground 213 --border double \
+        --align center --width 50 --margin "1 2" --padding "2 4" \
+        '!!! ATTENTION !!!'
 
       echo "Your environment variable PRODUCTION is set to true"
       echo "This means you will be deploying contracts to production"
@@ -104,7 +104,7 @@ deploySingleContract() {
 
   # check if .env file contains a value "SALT" and if this has correct number of digits (must be even)
   if [[ ! -z "$SALT" ]]; then
-    if [ $(( ${#SALT} % 2 )) != 0 ]; then
+    if [ $((${#SALT} % 2)) != 0 ]; then
       echo "[error] your SALT environment variable (in .env file) has a value with odd digits (must be even digits) - please adjust value and run script again"
       exit 1
     fi
@@ -124,7 +124,7 @@ deploySingleContract() {
 
   if [[ $IS_DEPLOYED == "true" ]]; then
     echo "[info] contract $CONTRACT is already deployed to address $CONTRACT_ADDRESS. Change SALT in .env if you want to redeploy to fresh address"
-      
+
     # save contract in network-specific deployment files
     saveContract "$NETWORK" "$CONTRACT" "$CONTRACT_ADDRESS" "$FILE_SUFFIX"
 
@@ -158,10 +158,9 @@ deploySingleContract() {
 
       # check every ten seconds up until MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC if code is deployed
       local COUNT=0
-      while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]
-      do
+      while [ $COUNT -lt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; do
         # check if bytecode is deployed at address
-        if doesAddressContainBytecode "$NETWORK" "$ADDRESS" > /dev/null; then
+        if doesAddressContainBytecode "$NETWORK" "$ADDRESS" >/dev/null; then
           echo "[info] bytecode deployment at address $ADDRESS verified through block explorer"
           break 2 # exit both loops if the operation was successful
         fi
@@ -170,7 +169,7 @@ deploySingleContract() {
           echo "[info] waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconcs)"
         fi
         sleep 10
-        COUNT=$((COUNT+10))
+        COUNT=$((COUNT + 10))
       done
 
       if [ $COUNT -gt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; then
@@ -234,4 +233,3 @@ deploySingleContract() {
 
   return 0
 }
-

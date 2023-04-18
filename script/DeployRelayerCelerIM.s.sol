@@ -16,7 +16,7 @@ contract DeployScript is DeployScriptBase {
     {
         string memory path = string.concat(
             vm.projectRoot(),
-            "/config/cBridge.json"
+            "/config/cbridge.json"
         );
         string memory json = vm.readFile(path);
         address messageBus = json.readAddress(
