@@ -908,8 +908,6 @@ function verifyAllUnverifiedContractsInLogFile() {
 
             # check result
             if [ $? -eq 0 ]; then
-              echo "[info] ....verification successful."
-
               # update log file
               logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true"
 
