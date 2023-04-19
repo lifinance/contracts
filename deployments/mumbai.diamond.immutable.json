@@ -1,5 +1,44 @@
 {
-  "facets": [
-    "null"
-  ]
+  "LiFiDiamondImmutable": {
+    "0xF1d67E1dddc87E2858C87EBd5b19f99a4E297541": {
+      "Name": "DiamondCutFacet",
+      "Version": ""
+    },
+    "0x49d195D3138D4E0E2b4ea88484C54AEE45B04B9F": {
+      "Name": "DiamondLoupeFacet",
+      "Version": ""
+    },
+    "0x44beA2Ab010d1CedC4E60E97DA8F88b8840951B0": {
+      "Name": "OwnershipFacet",
+      "Version": ""
+    },
+    "0x428C4abf8BB3ECc893bD3E0Be12b0f363c6e81aA": {
+      "Name": "WithdrawFacet",
+      "Version": ""
+    },
+    "0x64D41a7B52CA910f4995b1df33ea68471138374b": {
+      "Name": "DexManagerFacet",
+      "Version": ""
+    },
+    "0xfaA5f885a54D22C8571806fC001E53F0191f5Aff": {
+      "Name": "AccessManagerFacet",
+      "Version": ""
+    },
+    "0x2EfC66F1ff37fc5277De5526Ab5CB7650f2DD518": {
+      "Name": "PeripheryRegistryFacet",
+      "Version": ""
+    },
+    "0xCd063F35ed6f6d9B036284475B7779FdCf1Dd76C": {
+      "Name": "",
+      "Version": ""
+    },
+    "0x24595CaD65e258c41f9fd785733C6e1661714f71": {
+      "Name": "HopFacetPacked",
+      "Version": "1.0.0"
+    },
+    "0x0aB0AF48c7A146c8cf11275D1b82EF0e71c13b89": {
+      "Name": "HopFacetOptimized",
+      "Version": ""
+    }
+  }
 }

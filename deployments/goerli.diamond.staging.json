@@ -1,12 +1,36 @@
 {
-  "facets": [
-    "0x0d21DA3ce8c2E527C8557f5313f896BF2097EbB9",
-    "0xb7e85A365d69A145C5F4e83843656511755cDFB4",
-    "0x9FFB50c414faFaE03Fab346Af0f8ec1e53663170",
-    "0x6C213E21e9bf0D769C80FD2acEfa5ae25313533F",
-    "0xd22807714d0e201f9321AE9360aD75022E2e085C",
-    "0x9565332E63Ac632Bc196626A85baC365b40bC5B7",
-    "0x5Bd2070c6dA48b341E95bB1eD687FC9f1c864209",
-    "0x6B5183628Fb571145385C01AD64779D2F17e759a"
-  ]
+  "LiFiDiamond": {
+    "0x3968cF36Ea531D35B82F56C23A1D933b7711b31f": {
+      "Name": "DiamondCutFacet",
+      "Version": ""
+    },
+    "0xF3bd241Bd31cc84D1A2824E3ffB481961FC1456A": {
+      "Name": "DiamondLoupeFacet",
+      "Version": ""
+    },
+    "0x6B5183628Fb571145385C01AD64779D2F17e759a": {
+      "Name": "OwnershipFacet",
+      "Version": ""
+    },
+    "0xeb244dc26396846aDD8eaF5A0e3Bc6617B58482e": {
+      "Name": "WithdrawFacet",
+      "Version": ""
+    },
+    "0xcd14Ea63191E4B27ECA7c98C29c373E015a5545A": {
+      "Name": "DexManagerFacet",
+      "Version": ""
+    },
+    "0x50F6AC46EB6cA7840e75fE5aFa50B8a3D6deeD26": {
+      "Name": "AccessManagerFacet",
+      "Version": ""
+    },
+    "0x99dC88607d3D6C2e08C9bC7fdDDFDcE438339E05": {
+      "Name": "PeripheryRegistryFacet",
+      "Version": ""
+    },
+    "0x155fcbf103d00C56b106e42Cc2782709325bB7a7": {
+      "Name": "StargateFacet",
+      "Version": ""
+    }
+  }
 }

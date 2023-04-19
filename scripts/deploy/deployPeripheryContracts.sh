@@ -44,7 +44,7 @@ deployPeripheryContracts() {
     # check if contract is deployed already
     # TODO: change to check for actual deployment?
     # TODO: do I have to change logfile structure for diamond type, too?
-    DEPLOYED=$(findContractInLogFile "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION")
+    DEPLOYED=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION")
 
     # check return code of findContractInLogFile
     if [[ "$?" -ne 0 ]]; then

@@ -228,7 +228,7 @@ function checkIfJSONContainsEntry {
       return 0
   fi
 }
-function findContractInLogFile() {
+function findContractInMasterLog() {
   # read function arguments into variables
   CONTRACT="$1"
   NETWORK="$2"
@@ -238,7 +238,7 @@ function findContractInLogFile() {
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
     echo ""
-    echo "[debug] in function function findContractInLogFile()"
+    echo "[debug] in function findContractInMasterLog()"
     echo "[debug] CONTRACT=$CONTRACT"
     echo "[debug] NETWORK=$NETWORK"
     echo "[debug] ENVIRONMENT=$ENVIRONMENT"
@@ -271,7 +271,7 @@ function findContractInLogFile() {
       return 1
   fi
 }
-function findContractInLogFileByAddress() {
+function findContractInMasterLogByAddress() {
   # read function arguments into variables
   NETWORK="$1"
   ENVIRONMENT="$2"
@@ -315,10 +315,7 @@ function findContractInLogFileByAddress() {
   echo "[info] address not found"
   exit 1
 }
-# <<<<< logging
-
-# >>>>> reading and manipulation of deployment log files
-function getContractVersionFromDeploymentLogs(){
+function getContractVersionFromMasterLog(){
   # read function arguments into variables
   NETWORK=$1
   ENVIRONMENT=$2
@@ -355,6 +352,42 @@ function getContractVersionFromDeploymentLogs(){
   # no matching entry found
   return 1
 
+}
+# <<<<< logging
+
+# >>>>> reading and manipulation of deployment log files
+function getContractNameFromDeploymentLogs(){
+  # read function arguments into variables
+  NETWORK=$1
+  ENVIRONMENT=$2
+  TARGET_ADDRESS=$3
+
+  # get file suffix based on value in variable ENVIRONMENT
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
+  # load JSON FILE that contains deployment addresses
+  ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+
+  if ! checkIfFileExists "$ADDRESSES_FILE" >/dev/null; then
+    return 1
+  fi
+
+  # read all keys (i.e. names)
+  FACET_NAMES=($(cat $ADDRESSES_FILE | jq -r 'keys[]'))
+
+  # loop through all names
+  for FACET in "${FACET_NAMES[@]}"; do
+    # extract address
+    ADDRESS=$(jq -r ".${FACET}" "$ADDRESSES_FILE")
+
+    # check if address matches
+    if [[ "$(echo $ADDRESS | tr '[:upper:]' '[:lower:]')" == "$(echo $TARGET_ADDRESS | tr '[:upper:]' '[:lower:]')" ]]; then
+      echo "$FACET"
+      return 0
+    fi
+  done
+
+  return 1
 }
 function getContractAddressFromDeploymentLogs(){
   # read function arguments into variables
@@ -490,19 +523,19 @@ function saveDiamond() {
 
   # loop through all facets
   for FACET_ADDRESS in "${FACET_ADDRESSES[@]}"; do
-    # get contract name and version of this address from log
-    FACET_NAME="TestName"
-    FACET_VERSION="1.0.1"
-
     # get a JSON entry from log file
-    JSON_ENTRY=$(findContractInLogFileByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
+    JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
 
     # check if contract was found in log file
     if [[ $? -ne 0 ]]; then
       echo "[warning] could not find information about this contract in log file: NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, ADDRESS=$FACET_ADDRESS"
 
+      # try to find name of contract from network-specific deployments file
+      # load JSON FILE that contains deployment addresses
+      NAME=$(getContractNameFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
+
       # create JSON entry manually with limited information (address only)
-      JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"\", \"Version\": \"\"}}"
+      JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$NAME\", \"Version\": \"\"}}"
     fi
 
     # add new entry to JSON file
@@ -1037,7 +1070,7 @@ function updateAllContractsToTargetState() {
           # check if diamond matches current version
           # (need to do that first, otherwise facets might be updated to old diamond before diamond gets updated)
           # check version of known diamond
-          KNOWN_VERSION=$(getContractVersionFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "$DIAMOND_ADDRESS")
+          KNOWN_VERSION=$(getContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "$DIAMOND_ADDRESS")
 
           # check result
           if [[ "$?" -ne 0 ]]; then
@@ -1136,7 +1169,7 @@ function updateAllContractsToTargetState() {
               DEPLOYMENT_REQUIRED=true
             else
               # check version of known address
-              KNOWN_VERSION=$(getContractVersionFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$KNOWN_ADDRESS")
+              KNOWN_VERSION=$(getContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$KNOWN_ADDRESS")
 
               # check result
               if [[ "$?" -ne 0 ]]; then
@@ -1933,29 +1966,39 @@ function updateDiamondLogsInAllNetworks(){
       for DIAMOND in "${DIAMONDS[@]}"; do
         echo "  current DIAMOND: $DIAMOND"
 
+        # define diamond type flag
+        if [[ $DIAMOND == "LiFiDiamondImmutable" ]]; then
+          USE_MUTABLE_DIAMOND=false
+        else
+          USE_MUTABLE_DIAMOND=true
+        fi
 
-    # get diamond address
-    DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND")
+        # get diamond address
+        DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND")
 
-    if [[ $? -ne 0 ]]; then
-      continue
-    else
-      echo "    diamond address: $DIAMOND_ADDRESS"
-    fi
+        if [[ $? -ne 0 ]]; then
+          continue
+        else
+          echo "    diamond address: $DIAMOND_ADDRESS"
+        fi
 
-    echo "    continuing"
+        # get RPC URL
+        local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
 
-    # get RPC URL
-    local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+        # get list of facets
+        local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "${!RPC_URL}") 2>/dev/null
 
-    # get list of facets
-    local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "${!RPC_URL}") 2>/dev/null
+        # call saveDiamond function
+        saveDiamond "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES"
 
-    echo "    FACETS: $KNOWN_FACET_ADDRESSES"
-    # call saveDiamond function
-    #saveDiamond "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS"
+        # check result
+        if [[ $? -ne 0 ]]; then
+          echo "    error"
+        else
+          echo "    updated"
+        fi
 
-      echo ""
+        echo ""
       done
     echo ""
     done
@@ -2021,9 +2064,9 @@ function test_checkIfJSONContainsEntry() {
 
 
 }
-function test_findContractInLogFile() {
-  findContractInLogFile "DiamondCutFacet" "optimism" "production" "1.0.0"
-  match=($(findContractInLogFile "DiamondCutFacet" "optimism" "production" "1.0.0"))
+function test_findContractInMasterLog() {
+  findContractInMasterLog "DiamondCutFacet" "optimism" "production" "1.0.0"
+  match=($(findContractInMasterLog "DiamondCutFacet" "optimism" "production" "1.0.0"))
 
   echo "Address: ${match[2]}"
   echo "Optimizer Runs: ${match[4]}"
@@ -2160,9 +2203,9 @@ function test_getFacetAddressFromDiamond(){
 function test_getAddressOfDeployedContractFromDeploymentsFiles(){
   getAddressOfDeployedContractFromDeploymentsFiles "mumbai" "staging" "LiFiDiamondImmutable" "ContractName"
 }
-function test_findContractInLogFileByAddress(){
-  #findContractInLogFileByAddress "optimism" "production" "0x49d195D3138D4E0E2b4ea88484C54AEE45B04B9F"
-  findContractInLogFileByAddress "optimism" "production" "0x49d195D3138D4E0E2b4ea88484C54AEE45B04BFd"
+function test_findContractInMasterLogByAddress(){
+  #findContractInMasterLogByAddress"optimism" "production" "0x49d195D3138D4E0E2b4ea88484C54AEE45B04B9F"
+  findContractInMasterLogByAddress "optimism" "production" "0x49d195D3138D4E0E2b4ea88484C54AEE45B04BFd"
 }
 function test_getContractAddressFromDeploymentLogs() {
   echo "should be '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE': $(getContractAddressFromDeploymentLogs "arbitrum" "production" "LiFiDiamond")"
@@ -2180,11 +2223,14 @@ function test_updateAllContractsToTargetState() {
 function test_getPeripheryAddressFromDiamond() {
   getPeripheryAddressFromDiamond "mainnet" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE" "Executor"
 }
-function test_getContractVersionFromDeploymentLogs(){
-  echo "should return '1.0.0': $(getContractVersionFromDeploymentLogs "optimism" "production" "DexManagerFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374b")"
-  echo "should return '': $(getContractVersionFromDeploymentLogs "optimism" "production" "DexManagerFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374")"
-  echo "should return '': $(getContractVersionFromDeploymentLogs "optimism" "production" "DeBridgeFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374")"
-  echo "should return '': $(getContractVersionFromDeploymentLogs "testNetwork" "production" "LiFiDiamond" "0x64D41a7B52CA910f4995b1df33ea68471138374")"
+function test_getContractVersionFromMasterLog(){
+  echo "should return '1.0.0': $(getContractVersionFromMasterLog "optimism" "production" "DexManagerFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374b")"
+  echo "should return '': $(getContractVersionFromMasterLog "optimism" "production" "DexManagerFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374")"
+  echo "should return '': $(getContractVersionFromMasterLog "optimism" "production" "DeBridgeFacet" "0x64D41a7B52CA910f4995b1df33ea68471138374")"
+  echo "should return '': $(getContractVersionFromMasterLog "testNetwork" "production" "LiFiDiamond" "0x64D41a7B52CA910f4995b1df33ea68471138374")"
+}
+function test_getContractNameFromDeploymentLogs() {
+  echo "should return 'LiFiDiamond': $(getContractNameFromDeploymentLogs "mainnet" "production" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE")"
 }
 function test_tmp(){
   findContractVersionInTargetState "testNetwork" "production" "LiFiDiamond" "LiFiDiamond"
@@ -2193,6 +2239,7 @@ function test_tmp(){
 #test_tmp
 #test_updateAllContractsToTargetState
 #test_getContractAddressFromDeploymentLogs
-updateDiamondLogsInAllNetworks
+
+
 
 

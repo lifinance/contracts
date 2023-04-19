@@ -1,17 +1,56 @@
 {
-  "facets": [
-    "0xf7993A8df974AD022647E63402d6315137c58ABf",
-    "0x9F4a263603f7e1836EcEd6af1AfbE7836AF034D0",
-    "0x344FC123A15973524b5b5ef9691646A3773Ae34f",
-    "0x7FFD0aaDe23D76b15cB041ccA5b017a44e33988D",
-    "0xB5770537Ff4a11Cc90b2079bd6aEf2B8F0E08d02",
-    "0x6b398460b9848CB81d21cCf0587193062c8fD0b9",
-    "0x2eF0BbFbaAE41Ca0437fCdba751fA0d23ae272A3",
-    "0x9A44e53581860979A68Ba4AC1e0De49DEE381dEF",
-    "0x62268a6c608DE494dfaaC270D6Fd93D8e4eF0C90",
-    "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59",
-    "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac",
-    "0xbCe268B24155dF2a18982984e9716136278f38d6",
-    "0xbd8D369470169f9976c5bCc60318955836843a71"
-  ]
+  "LiFiDiamond": {
+    "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+      "Name": "DiamondCutFacet",
+      "Version": ""
+    },
+    "0x9F4a263603f7e1836EcEd6af1AfbE7836AF034D0": {
+      "Name": "DiamondLoupeFacet",
+      "Version": ""
+    },
+    "0x344FC123A15973524b5b5ef9691646A3773Ae34f": {
+      "Name": "OwnershipFacet",
+      "Version": ""
+    },
+    "0x7FFD0aaDe23D76b15cB041ccA5b017a44e33988D": {
+      "Name": "WithdrawFacet",
+      "Version": ""
+    },
+    "0xB5770537Ff4a11Cc90b2079bd6aEf2B8F0E08d02": {
+      "Name": "DexManagerFacet",
+      "Version": ""
+    },
+    "0x6b398460b9848CB81d21cCf0587193062c8fD0b9": {
+      "Name": "AccessManagerFacet",
+      "Version": ""
+    },
+    "0x2eF0BbFbaAE41Ca0437fCdba751fA0d23ae272A3": {
+      "Name": "NXTPFacet",
+      "Version": ""
+    },
+    "0x9A44e53581860979A68Ba4AC1e0De49DEE381dEF": {
+      "Name": "PeripheryRegistryFacet",
+      "Version": ""
+    },
+    "0x62268a6c608DE494dfaaC270D6Fd93D8e4eF0C90": {
+      "Name": "MultichainFacet",
+      "Version": ""
+    },
+    "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59": {
+      "Name": "LIFuelFacet",
+      "Version": ""
+    },
+    "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
+      "Name": "",
+      "Version": ""
+    },
+    "0xbCe268B24155dF2a18982984e9716136278f38d6": {
+      "Name": "HopFacetOptimized",
+      "Version": ""
+    },
+    "0xbd8D369470169f9976c5bCc60318955836843a71": {
+      "Name": "AmarokFacet",
+      "Version": ""
+    }
+  }
 }
