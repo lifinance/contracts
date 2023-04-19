@@ -65,7 +65,7 @@ diamondUpdate() {
 
   # if no diamond address was found, throw an error and exit the script
   if [[ "$DIAMOND_ADDRESS" == "null" ]]; then
-    echo "[error] could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting updatePeriphery script now"
+    error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting updatePeriphery script now"
     return 1
   fi
 
@@ -89,7 +89,7 @@ diamondUpdate() {
   # check if update script exists
   local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
-    echo "[error] could not find update script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting update.
+    error "could not find update script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting update.
     return 1
   fi
 
@@ -128,7 +128,7 @@ diamondUpdate() {
 
   # check if call was executed successfully or used all attempts
   if [ $attempts -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
-    echo "[error] failed to execute $SCRIPT on network $NETWORK in $ENVIRONMENT environment"
+    error "failed to execute $SCRIPT on network $NETWORK in $ENVIRONMENT environment"
     return 1
   fi
 

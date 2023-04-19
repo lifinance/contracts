@@ -80,6 +80,10 @@ function logContractDeploymentInfo {
   local ADDRESS="$8"
   local VERIFIED="$9"
 
+  if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
+    error "no address was logged for deployment of $CONTRACT on network $NETWORK (environment=$ENVIRONMENT). Please check and manually update the log with the correct address. "
+  fi
+
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
     echo ""
@@ -194,7 +198,7 @@ function logBytecode {
   else
     # match found - check if bytecode matches
     if [ "$BYTECODE" != "$LOG_RESULT" ]; then
-      echo "[warning] existing bytecode in log differs from bytecode produced by this run. Please check why this happens (e.g. code changed without version bump). Bytecode storage not updated."
+      warning "existing bytecode in log differs from bytecode produced by this run. Please check why this happens (e.g. code changed without version bump). Bytecode storage not updated."
       return 1
     else
       if [[ "$DEBUG" == *"true"* ]]; then
@@ -247,7 +251,7 @@ function findContractInMasterLog() {
 
   # Check if log file exists
   if [ ! -f "$LOG_FILE_PATH" ]; then
-    echo "[error] deployments log file does not exist in path $LOG_FILE_PATH. Please check and run script again."
+    error "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run script again."
     exit 1
   fi
 
@@ -279,7 +283,7 @@ function findContractInMasterLogByAddress() {
 
   # Check if log file exists
   if [ ! -f "$LOG_FILE_PATH" ]; then
-    echo "[error] deployments log file does not exist in path $LOG_FILE_PATH. Please check and run script again."
+    error "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run script again."
     exit 1
   fi
 
@@ -453,7 +457,7 @@ function getContractInfoFromDiamondDeploymentLogByName(){
     fi
   done
 
-  echo "[error] could not find contract info"
+  error "could not find contract info"
   return 1
 }
 function saveDiamond_OLD() {
@@ -528,7 +532,7 @@ function saveDiamond() {
 
     # check if contract was found in log file
     if [[ $? -ne 0 ]]; then
-      echo "[warning] could not find information about this contract in log file: NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, ADDRESS=$FACET_ADDRESS"
+      warning "could not find information about this contract in log file: NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, ADDRESS=$FACET_ADDRESS"
 
       # try to find name of contract from network-specific deployments file
       # load JSON FILE that contains deployment addresses
@@ -607,7 +611,7 @@ function checkRequiredVariablesInDotEnv() {
 
       if [[ -z "$PRIVATE_KEY" || -z "$RPC_URL" || -z "$BLOCKEXPLORER_API_KEY" ]]; then
         # throw error if any of the essential keys is missing
-        echo "[error] your .env file is missing essential entries for this network (required are: PRIVATE_KEY, $RPC and $BLOCKEXPLORER_API)"
+        error "your .env file is missing essential entries for this network (required are: PRIVATE_KEY, $RPC and $BLOCKEXPLORER_API)"
         return 1
       fi
 
@@ -636,7 +640,7 @@ function getContractNamesInFolder() {
       echo "${CONTRACTS[@]}"
   else
       # Print an error message if the path is invalid
-      echo "[error] the following path is not a valid directory: $FILEPATH"
+      error "the following path is not a valid directory: $FILEPATH"
   fi
   }
 function getContractFilePath() {
@@ -654,7 +658,7 @@ function getContractFilePath() {
       if [ -n "$file_path" ]; then
           echo "$file_path"
       else
-          echo "[error] could not find src FILE path for contract $CONTRACT"
+          error "could not find src FILE path for contract $CONTRACT"
           exit 1
       fi
     }
@@ -835,7 +839,7 @@ function verifyContract() {
   # check the return status of the contract verification call
   if [ $COMMAND_STATUS -ne 0 ]
   then
-    echo "[warning] $CONTRACT on $NETWORK with address $ADDRESS could not be verified"
+    warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified"
     return 1
   else
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
@@ -847,7 +851,7 @@ function verifyContract() {
 function verifyAllUnverifiedContractsInLogFile() {
   # Check if target state FILE exists
   if [ ! -f "$LOG_FILE_PATH" ]; then
-    echo "[error] log file does not exist in path $LOG_FILE_PATH"
+    error "log file does not exist in path $LOG_FILE_PATH"
     exit 1
   fi
 
@@ -895,15 +899,24 @@ function verifyAllUnverifiedContractsInLogFile() {
           then
             echo ""
             echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS...."
-            verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"
+            if [[ "$DEBUG" == *"true"* ]]; then
+              verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"
+            else
+              verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" 2>/dev/null
+            fi
+
 
             # check result
             if [ $? -eq 0 ]; then
+              echo "[info] ....verification successful."
+
               # update log file
               logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true"
 
               # increase COUNTER
-              COUNTER++
+              COUNTER+=1
+            else
+              echo "[info] ....verification failed."
             fi
           fi
         done
@@ -994,7 +1007,7 @@ function removeFacetFromDiamond() {
 
   # check if call was executed successfully or used all ATTEMPTS
   if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
-    echo "[error] failed to remove $FACET_NAME from $DIAMOND_ADDRESS on network $NETWORK"
+    error "failed to remove $FACET_NAME from $DIAMOND_ADDRESS on network $NETWORK"
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" ]]; then
       return 1
@@ -1015,7 +1028,7 @@ function removeFacetFromDiamond() {
 function updateAllContractsToTargetState() {
   # Check if target state FILE exists
   if [ ! -f "$TARGET_STATE_PATH" ]; then
-    echo "[error] target state FILE does not exist in path $TARGET_STATE_PATH"
+    error "target state FILE does not exist in path $TARGET_STATE_PATH"
     exit 1
   fi
 
@@ -1101,7 +1114,7 @@ function updateAllContractsToTargetState() {
 
         # ensure that diamond address is now available
         if [[ -z $DIAMOND_ADDRESS ]]; then
-          echo "[error]     failed to deploy diamond (or get its address) - cannot continue. Please run script again."
+          error "    failed to deploy diamond (or get its address) - cannot continue. Please run script again."
           exit 1
         fi
         DEPLOYMENT_REQUIRED=false
@@ -1195,7 +1208,7 @@ function updateAllContractsToTargetState() {
             if [[ "$?" -eq 0 ]]; then
               echo "[info]     $CONTRACT successfully deployed and added to $DIAMOND_NAME"
             else
-              echo "[error]    $CONTRACT was not successfully deployed and added to $DIAMOND_NAME - please investigate and try again"
+              error "   $CONTRACT was not successfully deployed and added to $DIAMOND_NAME - please investigate and try again"
             fi
           fi
         echo ""
@@ -1345,7 +1358,7 @@ function userDialogSelectDiamondType() {
   elif [[ "$SELECTION" == *"2)"* ]]; then
     DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
   else
-    echo "[error] invalid value selected: $SELECTION - exiting script now"
+    error "invalid value selected: $SELECTION - exiting script now"
     exit 1
   fi
 
@@ -1358,7 +1371,7 @@ function getUserSelectedNetwork() {
 
   # if no value was returned (e.g. when pressing ESC, end script)
   if [[ -z "$NETWORK" ]]; then
-    echo "[error] invalid network selection"
+    error "invalid network selection"
     return 1
   fi
 
@@ -1399,6 +1412,15 @@ function checkFailure() {
     exit 1
   fi
 }
+
+# >>>>> output to console
+function error() {
+  printf '\033[31m[error] %s\033[0m\n' "$1";
+}
+function warning() {
+  printf '\033[33m[warning] %s\033[0m\n' "$1";
+}
+# <<<<< output to console
 
 
 
@@ -1501,7 +1523,7 @@ function addNewNetworkWithAllIncludedContractsInLatestVersions() {
   local DIAMOND_NAME=$3
 
   if [[ -z "$NETWORK" || -z "$ENVIRONMENT" || -z "$DIAMOND_NAME" ]]; then
-    echo "[error] function addNewNetworkWithAllIncludedContractsInLatestVersions called with invalid parameters: NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, DIAMOND_NAME=$DIAMOND_NAME"
+    error "function addNewNetworkWithAllIncludedContractsInLatestVersions called with invalid parameters: NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, DIAMOND_NAME=$DIAMOND_NAME"
     return 1
   fi
 
@@ -1524,7 +1546,7 @@ function addNewNetworkWithAllIncludedContractsInLatestVersions() {
       addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_NAME" "$CURRENT_VERSION" true
       if [ $? -ne 0 ]
       then
-        echo "[error] could not add contract version to target state for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT, DIAMOND_NAME=$DIAMOND_NAME, VERSION=$CURRENT_VERSION"
+        error "could not add contract version to target state for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT, DIAMOND_NAME=$DIAMOND_NAME, VERSION=$CURRENT_VERSION"
       fi
   done
 }
@@ -1537,7 +1559,7 @@ function findContractVersionInTargetState() {
 
   # Check if target state FILE exists
   if [ ! -f "$TARGET_STATE_PATH" ]; then
-    echo "[error] target state FILE does not exist in path $TARGET_STATE_PATH"
+    error "target state FILE does not exist in path $TARGET_STATE_PATH"
     exit 1
   fi
 
@@ -1726,7 +1748,7 @@ function getFacetFunctionSelectorsFromDiamond() {
 
   # check if facet address was found
   if [[ -z "$FACET_ADDRESS" ]]; then
-    echo "[error] no address found for $FACET_NAME in $FILE_PATH"
+    error "no address found for $FACET_NAME in $FILE_PATH"
     return 1
   fi
 
@@ -1748,11 +1770,11 @@ function getFacetFunctionSelectorsFromDiamond() {
     done
 
     if [[ "$ATTEMPTS" -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]]; then
-      echo "[error] could not get facet address after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts, exiting."
+      error "could not get facet address after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts, exiting."
       return 1
     fi
   else
-    echo "[error] $FACET_NAME with address $FACET_ADDRESS is not known by diamond $DIAMOND_ADDRESS on network $NETWORK in $ENVIRONMENT environment. Please check why you tried to remove this facet from the diamond."
+    error "$FACET_NAME with address $FACET_ADDRESS is not known by diamond $DIAMOND_ADDRESS on network $NETWORK in $ENVIRONMENT environment. Please check why you tried to remove this facet from the diamond."
     return 1
   fi
 
@@ -1784,7 +1806,7 @@ function getFacetAddressFromSelector() {
     done
 
     if [[ "$ATTEMPTS" -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]]; then
-      echo "[error] could not get facet address after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts, exiting."
+      error "could not get facet address after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts, exiting."
       return 1
     fi
 
@@ -1889,7 +1911,7 @@ function getRPCUrl(){
   echo "${!RPC_KEY}"
 }
 function playNotificationSound() {
-  if [[ "NOTIFICATION_SOUNDS" == *"true"* ]]; then
+  if [[ "$NOTIFICATION_SOUNDS" == *"true"* ]]; then
     afplay ./scripts/deploy/notification.mp3
   fi
 }
@@ -2233,12 +2255,12 @@ function test_getContractNameFromDeploymentLogs() {
   echo "should return 'LiFiDiamond': $(getContractNameFromDeploymentLogs "mainnet" "production" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE")"
 }
 function test_tmp(){
-  findContractVersionInTargetState "testNetwork" "production" "LiFiDiamond" "LiFiDiamond"
+  warning "this is a warning"
+  red "this is an error"
+
 }
 
 #test_tmp
-#test_updateAllContractsToTargetState
-#test_getContractAddressFromDeploymentLogs
 
 
 

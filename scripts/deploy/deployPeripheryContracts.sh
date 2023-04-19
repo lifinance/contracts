@@ -67,13 +67,13 @@ deployPeripheryContracts() {
           # check if function call was successful
           #if [ $? -ne 0 ]
           #then
-          #  echo "[warning] deployment of contract $CONTRACT to network $NETWORK failed :("
+          #  warning "deployment of contract $CONTRACT to network $NETWORK failed :("
           #else
           #  echo "[info] deployment of contract $CONTRACT to network $NETWORK successful :)"
           #fi
         else
           # target state version and current version do not match > throw warning and skip iteration
-          echo "[warning] target state version does not match with current version (contract=$CONTRACT, target_version=$TARGET_VERSION, current_version=$CURRENT_VERSION) >> contract will not be deployed"
+          warning "target state version does not match with current version (contract=$CONTRACT, target_version=$TARGET_VERSION, current_version=$CURRENT_VERSION) >> contract will not be deployed"
           continue
         fi
       fi
