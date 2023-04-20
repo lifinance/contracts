@@ -196,7 +196,7 @@ contract CBridgeGasTest is Test, DiamondTest {
             nonce: 1234
         });
 
-        standAlone.setApprovalForBridge(false, tokens);
+        standAlone.setApprovalForBridge(tokens);
     }
 
     function testCallData() public view {

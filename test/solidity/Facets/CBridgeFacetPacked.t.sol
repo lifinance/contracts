@@ -140,7 +140,7 @@ contract CBridgeGasTest is Test, DiamondTest {
             packedUSDCParams
         );
 
-        standAlone.setApprovalForBridge(false, tokens);
+        standAlone.setApprovalForBridge(tokens);
     }
 
     function testStartBridgeTokensViaCBridgeNativePacked() public {

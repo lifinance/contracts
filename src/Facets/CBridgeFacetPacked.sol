@@ -6,43 +6,44 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { SafeTransferLib, ERC20 } from "solmate/utils/SafeTransferLib.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import { UnAuthorized } from '../Errors/GenericErrors.sol';
+import { ContractCallNotAllowed, ExternalCallFailed } from '../Errors/GenericErrors.sol';
+import { LibUtil } from "../Libraries/LibUtil.sol";
+import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 
 /// @title CBridge Facet Packed
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
 /// @custom:version 1.0.0
-contract CBridgeFacetPacked is ILiFi {
+contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
     /// Storage ///
 
     /// @notice The contract address of the cbridge on the source chain.
     ICBridge private immutable cBridge;
-    address private immutable owner;
+
+    /// Events ///
+    
+    event CBridgeRefund(
+        address indexed _assetAddress,
+        address indexed _to,
+        uint256 amount
+    );
 
     /// Constructor ///
 
     /// @notice Initialize the contract.
     /// @param _cBridge The contract address of the cbridge on the source chain.
-    constructor(ICBridge _cBridge, address _owner) {
+    constructor(ICBridge _cBridge, address _owner) TransferrableOwnership(_owner) {
         cBridge = _cBridge;
-        owner = _owner;
     }
 
     /// External Methods ///
 
+    /// @dev Only meant to be called outside of the context of the diamond
     /// @notice Sets approval for the CBridge Router to spend the specified token
-    /// @param asProxy Whether to set approvals from the proxy or the diamond
     /// @param tokensToApprove The tokens to approve to the CBridge Router
     function setApprovalForBridge(
-        bool asProxy,
         address[] calldata tokensToApprove
-    ) external {
-        if (asProxy) {
-          LibDiamond.enforceIsContractOwner();
-        } else if (msg.sender != owner) {
-            revert UnAuthorized();
-        }
-
+    ) external onlyOwner {
         for (uint256 i; i < tokensToApprove.length; i++) {
             // Give CBridge approval to bridge tokens
             LibAsset.maxApproveERC20(
@@ -51,6 +52,37 @@ contract CBridgeFacetPacked is ILiFi {
                 type(uint256).max
             );
         }
+    }
+
+    /// @notice Triggers a cBridge refund with calldata produced by cBridge API
+    /// @param _callTo The address to execute the calldata on
+    /// @param _callData The data to execute
+    /// @param _assetAddress Asset to be withdrawn
+    /// @param _to Address to withdraw to
+    /// @param _amount Amount of asset to withdraw
+    function triggerRefund(
+        address payable _callTo,
+        bytes calldata _callData,
+        address _assetAddress,
+        address _to,
+        uint256 _amount
+    ) external onlyOwner {
+        // make sure that callTo address is either of the cBridge addresses
+        if (address(cBridge) != _callTo) {
+            revert ContractCallNotAllowed();
+        }
+
+        // call contract
+        bool success;
+        (success, ) = _callTo.call(_callData);
+        if (!success) {
+            revert ExternalCallFailed();
+        }
+
+        // forward funds to _to address and emit event
+        address sendTo = (LibUtil.isZeroAddress(_to)) ? msg.sender : _to;
+        LibAsset.transferAsset(_assetAddress, payable(sendTo), _amount);
+        emit CBridgeRefund(_assetAddress, sendTo, _amount);
     }
 
     /// @notice Bridges Native tokens via cBridge (packed)
