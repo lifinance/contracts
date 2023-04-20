@@ -912,9 +912,7 @@ function verifyAllUnverifiedContractsInLogFile() {
               logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true"
 
               # increase COUNTER
-              COUNTER+=1
-            else
-              echo "[info] ....verification failed."
+              COUNTER=$((COUNTER+1))
             fi
           fi
         done
