@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { SafeTransferLib, ERC20 } from "solmate/utils/SafeTransferLib.sol";
+import { ERC20 } from "solmate/utils/SafeTransferLib.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ContractCallNotAllowed, ExternalCallFailed } from '../Errors/GenericErrors.sol';
@@ -21,7 +21,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
     ICBridge private immutable cBridge;
 
     /// Events ///
-    
+
     event CBridgeTransfer(
         bytes32 indexed _transactionId,
         string _integrator
@@ -307,8 +307,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         uint32 maxSlippage
     ) private {
         // Deposit assets
-        SafeTransferLib.safeTransferFrom(
-            ERC20(sendingAssetId),
+        ERC20(sendingAssetId).transferFrom(
             msg.sender,
             address(this),
             amount
