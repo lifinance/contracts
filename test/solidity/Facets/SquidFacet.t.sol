@@ -81,7 +81,7 @@ contract SquidFacetTest is TestBaseFacet {
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
-        if (bridgeData.sendingAssetId == address(0)) {
+        if (isNative) {
             SquidFacet.SquidData memory squidData = setNativeBridgeSquidData();
 
             squidFacet.startBridgeTokensViaSquid{
@@ -92,11 +92,10 @@ contract SquidFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
-        if (bridgeData.sendingAssetId == address(0)) {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
+        if (isNative) {
             SquidFacet.SquidData memory squidData = setNativeBridgeSquidData();
 
             squidFacet.swapAndStartBridgeTokensViaSquid{
@@ -116,34 +115,17 @@ contract SquidFacetTest is TestBaseFacet {
         super.testBase_CanBridgeTokens_fuzzed(amount);
     }
 
-    function testBase_CanBridgeNativeTokens()
-        public
-        override
-        assertBalanceChange(
-            address(0),
-            USER_SENDER,
-            -int256((1 ether + addToMessageValue))
-        )
-        assertBalanceChange(address(0), USER_RECEIVER, 0)
-        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
-        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
-    {
-        vm.startPrank(USER_SENDER);
-        // customize bridgeData
-        bridgeData.sendingAssetId = address(0);
-        bridgeData.minAmount = 1 ether;
-        bridgeData.hasSourceSwaps = true;
+    function testBase_CanBridgeNativeTokens() public override {
+        // facet does not support native bridging
+    }
 
-        //prepare check for events
-        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit LiFiTransferStarted(bridgeData);
-
-        initiateBridgeTxWithFacet(true);
-        vm.stopPrank();
+    function testBase_CanSwapAndBridgeNativeTokens() public override {
+        // facet does not support native bridging
     }
 
     function setNativeBridgeSquidData()
         internal
+        view
         returns (SquidFacet.SquidData memory)
     {
         SquidFacet.SquidData memory squidData = validSquidData;
@@ -158,8 +140,6 @@ contract SquidFacetTest is TestBaseFacet {
         sourceCalls[0]
             .callData = hex"7ff36ab500000000000000000000000000000000000000000000000000000000093aa1390000000000000000000000000000000000000000000000000000000000000080000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d66600000000000000000000000000000000000000000000000000000186b6a684d00000000000000000000000000000000000000000000000000000000000000002000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
         sourceCalls[0].payload = "";
-
-        ISquidMulticall.Call[] memory destinationCalls;
 
         squidData.routeType = SquidFacet.RouteType.CallBridge;
         squidData.destinationChain = "Polygon";

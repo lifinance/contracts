@@ -15,18 +15,11 @@ contract DeployScript is UpdateScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         // ThorSwap
-        if (loupe.facetFunctionSelectors(facet).length == 0) {
-            bytes4[] memory exclude;
-            cut.push(
-                IDiamondCut.FacetCut({
-                    facetAddress: address(facet),
-                    action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("ThorSwapFacet", exclude)
-                })
-            );
+        bytes4[] memory exclude;
+        buildDiamondCut(getSelectors("ThorSwapFacet", exclude), facet);
+        if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }
-
         facets = loupe.facetAddresses();
 
         vm.stopBroadcast();

@@ -7,7 +7,7 @@ import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
-using stdJson for string;
+    using stdJson for string;
 
     function run() public returns (address[] memory facets) {
         address facet = json.readAddress(".CBridgeFacet");
@@ -15,20 +15,13 @@ using stdJson for string;
         vm.startBroadcast(deployerPrivateKey);
 
         // CBridge
-        if (loupe.facetFunctionSelectors(facet).length == 0) {
-            bytes4[] memory exclude;
-            cut.push(
-            IDiamondCut.FacetCut({
-                facetAddress: address(facet),
-                action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: getSelectors("CBridgeFacet", exclude)
-                })
-            );
-        cutter.diamondCut(cut, address(0), "");
-    }
+        bytes4[] memory exclude;
+        buildDiamondCut(getSelectors("CBridgeFacet", exclude), facet);
+        if (cut.length > 0) {
+            cutter.diamondCut(cut, address(0), "");
+        }
+        facets = loupe.facetAddresses();
 
-    facets = loupe.facetAddresses();
-
-    vm.stopBroadcast();
+        vm.stopBroadcast();
     }
 }

@@ -24,7 +24,7 @@ library LibAsset {
     /// @return Balance held by contracts using this library
     function getOwnBalance(address assetId) internal view returns (uint256) {
         return
-            assetId == NATIVE_ASSETID
+            isNativeAsset(assetId)
                 ? address(this).balance
                 : IERC20(assetId).balanceOf(address(this));
     }
@@ -33,9 +33,10 @@ library LibAsset {
     ///         recipient
     /// @param recipient Address to send ether to
     /// @param amount Amount to send to given recipient
-    function transferNativeAsset(address payable recipient, uint256 amount)
-        private
-    {
+    function transferNativeAsset(
+        address payable recipient,
+        uint256 amount
+    ) private {
         if (recipient == NULL_ADDRESS) revert NoTransferToNullAddress();
         if (amount > address(this).balance)
             revert InsufficientBalance(amount, address(this).balance);
@@ -54,16 +55,17 @@ library LibAsset {
         address spender,
         uint256 amount
     ) internal {
-        if (address(assetId) == NATIVE_ASSETID) return;
-        if (spender == NULL_ADDRESS) revert NullAddrIsNotAValidSpender();
-        uint256 allowance = assetId.allowance(address(this), spender);
+        if (isNativeAsset(address(assetId))) {
+            return;
+        }
+        if (spender == NULL_ADDRESS) {
+            revert NullAddrIsNotAValidSpender();
+        }
 
-        if (allowance < amount)
-            SafeERC20.safeIncreaseAllowance(
-                IERC20(assetId),
-                spender,
-                MAX_UINT - allowance
-            );
+        if (assetId.allowance(address(this), spender) < amount) {
+            SafeERC20.safeApprove(IERC20(assetId), spender, 0);
+            SafeERC20.safeApprove(IERC20(assetId), spender, MAX_UINT);
+        }
     }
 
     /// @notice Transfers tokens from the inheriting contract to a given
@@ -76,10 +78,17 @@ library LibAsset {
         address recipient,
         uint256 amount
     ) private {
-        if (isNativeAsset(assetId)) revert NullAddrIsNotAnERC20Token();
+        if (isNativeAsset(assetId)) {
+            revert NullAddrIsNotAnERC20Token();
+        }
+        if (recipient == NULL_ADDRESS) {
+            revert NoTransferToNullAddress();
+        }
+
         uint256 assetBalance = IERC20(assetId).balanceOf(address(this));
-        if (amount > assetBalance)
+        if (amount > assetBalance) {
             revert InsufficientBalance(amount, assetBalance);
+        }
         SafeERC20.safeTransfer(IERC20(assetId), recipient, amount);
     }
 
@@ -94,21 +103,26 @@ library LibAsset {
         address to,
         uint256 amount
     ) internal {
-        if (assetId == NATIVE_ASSETID) revert NullAddrIsNotAnERC20Token();
-        if (to == NULL_ADDRESS) revert NoTransferToNullAddress();
+        if (isNativeAsset(assetId)) {
+            revert NullAddrIsNotAnERC20Token();
+        }
+        if (to == NULL_ADDRESS) {
+            revert NoTransferToNullAddress();
+        }
 
         IERC20 asset = IERC20(assetId);
         uint256 prevBalance = asset.balanceOf(to);
         SafeERC20.safeTransferFrom(asset, from, to, amount);
-        if (asset.balanceOf(to) - prevBalance != amount)
+        if (asset.balanceOf(to) - prevBalance != amount) {
             revert InvalidAmount();
+        }
     }
 
     function depositAsset(address assetId, uint256 amount) internal {
+        if (amount == 0) revert InvalidAmount();
         if (isNativeAsset(assetId)) {
             if (msg.value < amount) revert InvalidAmount();
         } else {
-            if (amount == 0) revert InvalidAmount();
             uint256 balance = IERC20(assetId).balanceOf(msg.sender);
             if (balance < amount) revert InsufficientBalance(amount, balance);
             transferFromERC20(assetId, msg.sender, address(this), amount);
@@ -117,7 +131,7 @@ library LibAsset {
 
     function depositAssets(LibSwap.SwapData[] calldata swaps) internal {
         for (uint256 i = 0; i < swaps.length; ) {
-            LibSwap.SwapData memory swap = swaps[i];
+            LibSwap.SwapData calldata swap = swaps[i];
             if (swap.requiresDeposit) {
                 depositAsset(swap.sendingAssetId, swap.fromAmount);
             }
@@ -146,7 +160,7 @@ library LibAsset {
         address payable recipient,
         uint256 amount
     ) internal {
-        (assetId == NATIVE_ASSETID)
+        isNativeAsset(assetId)
             ? transferNativeAsset(recipient, amount)
             : transferERC20(assetId, recipient, amount);
     }

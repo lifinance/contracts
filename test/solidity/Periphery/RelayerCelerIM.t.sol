@@ -15,6 +15,12 @@ interface Ownable {
     function owner() external returns (address);
 }
 
+contract MockLiquidityBridge is TestBase {
+    function mockWithdraw(uint256 _amount) external {
+        deal(msg.sender, _amount);
+    }
+}
+
 contract RelayerCelerIMTest is TestBase {
     address internal constant CBRIDGE_ROUTER =
         0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
@@ -307,5 +313,32 @@ contract RelayerCelerIMTest is TestBase {
     function test_CanReceiveNativeAssets() public {
         (bool success, ) = address(relayer).call{ value: 1 }("");
         if (!success) revert ExternalCallFailed();
+    }
+
+    function test_CanTriggerRefund() public {
+        address BRIDGE_ADDRESS = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
+        uint256 REFUND_AMOUNT = 0.1 ether;
+
+        vm.allowCheatcodes(BRIDGE_ADDRESS);
+        MockLiquidityBridge lb = new MockLiquidityBridge();
+        vm.etch(BRIDGE_ADDRESS, address(lb).code);
+
+        uint256 preRefundBalance = address(USER_RECEIVER).balance;
+        relayer.triggerRefund(
+            payable(BRIDGE_ADDRESS), // Celer Liquidity Bridge
+            abi.encodeWithSelector(
+                MockLiquidityBridge.mockWithdraw.selector,
+                REFUND_AMOUNT
+            ), // Calldata
+            address(0), // Native asset
+            payable(USER_RECEIVER), // Address to refund to
+            REFUND_AMOUNT
+        );
+        uint256 postRefundBalance = address(USER_RECEIVER).balance;
+        assertEq(
+            postRefundBalance - preRefundBalance,
+            REFUND_AMOUNT,
+            "Refund amount should be correct"
+        );
     }
 }

@@ -10,25 +10,25 @@ contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     function run() public returns (address[] memory facets) {
-        string memory path = string.concat(root, "/deployments/", network, ".", fileSuffix, "json");
+        string memory path = string.concat(
+            root,
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
+        );
         string memory json = vm.readFile(path);
         address facet = json.readAddress(".MakerTeleportFacet");
 
         vm.startBroadcast(deployerPrivateKey);
 
         // MakerTeleport
-        if (loupe.facetFunctionSelectors(facet).length == 0) {
-            bytes4[] memory exclude;
-            cut.push(
-                IDiamondCut.FacetCut({
-                    facetAddress: address(facet),
-                    action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("MakerTeleportFacet", exclude)
-                })
-            );
+        bytes4[] memory exclude;
+        buildDiamondCut(getSelectors("MakerTeleportFacet", exclude), facet);
+        if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }
-
         facets = loupe.facetAddresses();
 
         vm.stopBroadcast();

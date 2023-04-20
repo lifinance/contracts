@@ -161,10 +161,9 @@ contract MultichainFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             multichainFacet.swapAndStartBridgeTokensViaMultichain{
                 value: swapData[0].fromAmount
@@ -200,7 +199,7 @@ contract MultichainFacetTest is TestBaseFacet {
         // token contract itself (instead of going through a router contract)
         ERC20 testToken3 = ERC20(0x55aF5865807b196bD0197e0902746F31FBcCFa58); // BOO token
         address testToken3Whale = 0x27F82c89b5380Da1A39A8f4F2b56145256A98D34;
-        uint256 amountToBeBridged = 10_000 * 10**testToken3.decimals();
+        uint256 amountToBeBridged = 10_000 * 10 ** testToken3.decimals();
 
         vm.startPrank(testToken3Whale);
         testToken3.approve(address(multichainFacet), amountToBeBridged);
@@ -263,7 +262,7 @@ contract MultichainFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         vm.assume(amount > 0 && amount < 100_000);
-        amount = amount * 10**testToken.decimals();
+        amount = amount * 10 ** testToken.decimals();
 
         // approval
         underlyingToken.approve(address(multichainFacet), amount);

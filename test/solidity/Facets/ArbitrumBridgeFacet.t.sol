@@ -7,9 +7,10 @@ import { IGatewayRouter } from "lifi/Interfaces/IGatewayRouter.sol";
 
 // Stub ArbitrumBridgeFacet Contract
 contract TestArbitrumBridgeFacet is ArbitrumBridgeFacet {
-    constructor(IGatewayRouter _gatewayRouter, IGatewayRouter _inbox)
-        ArbitrumBridgeFacet(_gatewayRouter, _inbox)
-    {}
+    constructor(
+        IGatewayRouter _gatewayRouter,
+        IGatewayRouter _inbox
+    ) ArbitrumBridgeFacet(_gatewayRouter, _inbox) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -102,10 +103,9 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             arbitrumBridgeFacet.swapAndStartBridgeTokensViaArbitrumBridge{
                 value: swapData[0].fromAmount + addToMessageValue

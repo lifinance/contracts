@@ -12,6 +12,9 @@ contract UpdateScriptBase is Script {
 
     address internal diamond;
     IDiamondCut.FacetCut[] internal cut;
+    bytes4[] internal selectorsToReplace;
+    bytes4[] internal selectorsToRemove;
+    bytes4[] internal selectorsToAdd;
     DiamondCutFacet internal cutter;
     DiamondLoupeFacet internal loupe;
     uint256 internal deployerPrivateKey;
@@ -37,18 +40,17 @@ contract UpdateScriptBase is Script {
             "json"
         );
         json = vm.readFile(path);
-        diamond = useDefaultDiamond ?
-            json.readAddress(".LiFiDiamond") :
-            json.readAddress(".LiFiDiamondImmutableV1")
-        ;
+        diamond = useDefaultDiamond
+            ? json.readAddress(".LiFiDiamond")
+            : json.readAddress(".LiFiDiamondImmutable");
         cutter = DiamondCutFacet(diamond);
         loupe = DiamondLoupeFacet(diamond);
     }
 
-    function getSelectors(string memory _facetName, bytes4[] memory _exclude)
-        internal
-        returns (bytes4[] memory selectors)
-    {
+    function getSelectors(
+        string memory _facetName,
+        bytes4[] memory _exclude
+    ) internal returns (bytes4[] memory selectors) {
         string[] memory cmd = new string[](3);
         cmd[0] = "scripts/contract-selectors.sh";
         cmd[1] = _facetName;
@@ -59,6 +61,69 @@ contract UpdateScriptBase is Script {
         cmd[2] = exclude;
         bytes memory res = vm.ffi(cmd);
         selectors = abi.decode(res, (bytes4[]));
+    }
+
+    function buildDiamondCut(
+        bytes4[] memory newSelectors,
+        address newFacet
+    ) internal {
+        address oldFacet;
+
+        // Get selectors to add or replace
+        for (uint256 i; i < newSelectors.length; i++) {
+            if (loupe.facetAddress(newSelectors[i]) == address(0)) {
+                selectorsToAdd.push(newSelectors[i]);
+            } else {
+                selectorsToReplace.push(newSelectors[i]);
+                oldFacet = loupe.facetAddress(newSelectors[i]);
+            }
+        }
+
+        // Get selectors to remove
+        bytes4[] memory oldSelectors = loupe.facetFunctionSelectors(oldFacet);
+        for (uint256 i; i < oldSelectors.length; i++) {
+            bool found = false;
+            for (uint256 j; j < newSelectors.length; j++) {
+                if (oldSelectors[i] == newSelectors[j]) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                selectorsToRemove.push(oldSelectors[i]);
+            }
+        }
+
+        // Build diamond cut
+        if (selectorsToReplace.length > 0) {
+            cut.push(
+                IDiamondCut.FacetCut({
+                    facetAddress: newFacet,
+                    action: IDiamondCut.FacetCutAction.Replace,
+                    functionSelectors: selectorsToReplace
+                })
+            );
+        }
+
+        if (selectorsToRemove.length > 0) {
+            cut.push(
+                IDiamondCut.FacetCut({
+                    facetAddress: address(0),
+                    action: IDiamondCut.FacetCutAction.Remove,
+                    functionSelectors: selectorsToRemove
+                })
+            );
+        }
+
+        if (selectorsToAdd.length > 0) {
+            cut.push(
+                IDiamondCut.FacetCut({
+                    facetAddress: newFacet,
+                    action: IDiamondCut.FacetCutAction.Add,
+                    functionSelectors: selectorsToAdd
+                })
+            );
+        }
     }
 
     function toHexDigit(uint8 d) internal pure returns (bytes1) {

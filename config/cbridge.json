@@ -4,7 +4,8 @@
   },
   "mainnet": {
     "cBridge": "0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820",
-    "messageBus": "0x4066D196A423b2b3B8B054f4F40efB47a74E200C"
+    "messageBus": "0x4066D196A423b2b3B8B054f4F40efB47a74E200C",
+    "cfUSDC": "0x317F8d18FB16E49a958Becd0EA72f8E153d25654"
   },
   "optimism": {
     "cBridge": "0x9D39Fc627A6d9d9F8C831c16995b209548cc3401",

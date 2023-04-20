@@ -10,9 +10,10 @@ import { ITokenMessenger } from "lifi/Interfaces/ITokenMessenger.sol";
 
 // Stub CircleBridgeFacet Contract
 contract TestCircleBridgeFacet is CircleBridgeFacet {
-    constructor(ITokenMessenger _xDaiBridge, address _usdc)
-        CircleBridgeFacet(_xDaiBridge, _usdc)
-    {}
+    constructor(
+        ITokenMessenger _xDaiBridge,
+        address _usdc
+    ) CircleBridgeFacet(_xDaiBridge, _usdc) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -43,8 +44,8 @@ contract CircleBridgeFacetTest is TestBaseFacet {
 
         initTestBase();
 
-        defaultDAIAmount = 5 * 10**dai.decimals();
-        defaultUSDCAmount = 5 * 10**usdc.decimals();
+        defaultDAIAmount = 5 * 10 ** dai.decimals();
+        defaultUSDCAmount = 5 * 10 ** usdc.decimals();
 
         circleBridgeFacet = new TestCircleBridgeFacet(
             ITokenMessenger(TOKEN_MESSENGER),
@@ -91,23 +92,16 @@ contract CircleBridgeFacetTest is TestBaseFacet {
         circleBridgeData = CircleBridgeFacet.CircleBridgeData(DST_DOMAIN);
     }
 
-    function initiateBridgeTxWithFacet(bool isNative) internal override {
-        if (isNative) {
-            circleBridgeFacet.startBridgeTokensViaCircleBridge{
-                value: bridgeData.minAmount
-            }(bridgeData, circleBridgeData);
-        } else {
-            circleBridgeFacet.startBridgeTokensViaCircleBridge(
-                bridgeData,
-                circleBridgeData
-            );
-        }
+    function initiateBridgeTxWithFacet(bool) internal override {
+        circleBridgeFacet.startBridgeTokensViaCircleBridge(
+            bridgeData,
+            circleBridgeData
+        );
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             circleBridgeFacet.swapAndStartBridgeTokensViaCircleBridge{
                 value: swapData[0].fromAmount

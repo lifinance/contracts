@@ -24,11 +24,13 @@ contract TestMakerTeleportFacet is MakerTeleportFacet {
 }
 
 contract MockArbSys {
-    function sendTxToL1(address _destination, bytes calldata _callDataForL1)
-        external
-        returns (uint256)
-    {
+    function sendTxToL1(
+        address _destination,
+        bytes calldata _callDataForL1
+    ) external view returns (uint256) {
         console.log("sendTxToL1 called");
+        console.logAddress(_destination);
+        console.logBytes(_callDataForL1);
         return 1;
     }
 }
@@ -137,20 +139,13 @@ contract MakerTeleportFacetTest is TestBaseFacet {
         );
     }
 
-    function initiateBridgeTxWithFacet(bool isNative) internal override {
-        if (isNative) {
-            makerTeleportFacet.startBridgeTokensViaMakerTeleport{
-                value: bridgeData.minAmount
-            }(bridgeData);
-        } else {
-            makerTeleportFacet.startBridgeTokensViaMakerTeleport(bridgeData);
-        }
+    function initiateBridgeTxWithFacet(bool) internal override {
+        makerTeleportFacet.startBridgeTokensViaMakerTeleport(bridgeData);
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             makerTeleportFacet.swapAndStartBridgeTokensViaMakerTeleport{
                 value: swapData[0].fromAmount
@@ -190,7 +185,7 @@ contract MakerTeleportFacetTest is TestBaseFacet {
 
         usdc.approve(
             address(makerTeleportFacet),
-            10_000 * 10**usdc.decimals()
+            10_000 * 10 ** usdc.decimals()
         );
 
         setDefaultSwapData();
@@ -205,7 +200,7 @@ contract MakerTeleportFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         vm.assume(amount > 0 && amount < 100_000);
-        amount = amount * 10**dai.decimals();
+        amount = amount * 10 ** dai.decimals();
 
         // approval
         dai.approve(address(makerTeleportFacet), amount);

@@ -6,7 +6,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
-import {DSTest} from "ds-test/test.sol";
+import { DSTest } from "ds-test/test.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
@@ -17,18 +17,11 @@ contract DeployScript is UpdateScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         // add Amarok facet to diamond
-        if (loupe.facetFunctionSelectors(facet).length == 0) {
-            bytes4[] memory exclude;
-            cut.push(
-                IDiamondCut.FacetCut({
-                    facetAddress: address(facet),
-                    action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("AmarokFacet", exclude)
-                })
-            );
+        bytes4[] memory exclude;
+        buildDiamondCut(getSelectors("AmarokFacet", exclude), facet);
+        if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }
-
         facets = loupe.facetAddresses();
 
         vm.stopBroadcast();

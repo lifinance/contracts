@@ -13,6 +13,7 @@ import { UnAuthorized } from "../Errors/GenericErrors.sol";
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
+/// @custom:version 1.0.0
 contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
@@ -23,6 +24,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     address public amarokRouter;
 
     /// Errors ///
+    error ExternalCallFailed();
 
     /// Events ///
     event StargateRouterSet(address indexed router);
@@ -206,7 +208,9 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 amount
     ) external onlyOwner {
         if (LibAsset.isNativeAsset(assetId)) {
-            receiver.call{ value: amount }("");
+            // solhint-disable-next-line avoid-low-level-calls
+            (bool success, ) = receiver.call{ value: amount }("");
+            if (!success) revert ExternalCallFailed();
         } else {
             IERC20(assetId).safeTransfer(receiver, amount);
         }
@@ -233,9 +237,12 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
         if (LibAsset.isNativeAsset(assetId)) {
             // case 1: native asset
-            if (reserveRecoverGas && gasleft() < _recoverGas) {
+            uint256 cacheGasLeft = gasleft();
+            if (reserveRecoverGas && cacheGasLeft < _recoverGas) {
                 // case 1a: not enough gas left to execute calls
-                receiver.call{ value: amount }("");
+                // solhint-disable-next-line avoid-low-level-calls
+                (bool success, ) = receiver.call{ value: amount }("");
+                if (!success) revert ExternalCallFailed();
 
                 emit LiFiTransferRecovered(
                     _transactionId,
@@ -248,21 +255,32 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             }
 
             // case 1b: enough gas left to execute calls
+            // solhint-disable no-empty-blocks
             try
                 executor.swapAndCompleteBridgeTokens{
                     value: amount,
-                    gas: gasleft() - _recoverGas
+                    gas: cacheGasLeft - _recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
-                receiver.call{ value: amount }("");
+                // solhint-disable-next-line avoid-low-level-calls
+                (bool success, ) = receiver.call{ value: amount }("");
+                if (!success) revert ExternalCallFailed();
+
+                emit LiFiTransferRecovered(
+                    _transactionId,
+                    assetId,
+                    receiver,
+                    amount,
+                    block.timestamp
+                );
             }
         } else {
             // case 2: ERC20 asset
+            uint256 cacheGasLeft = gasleft();
             IERC20 token = IERC20(assetId);
             token.safeApprove(address(executor), 0);
-            token.safeIncreaseAllowance(address(executor), amount);
 
-            if (reserveRecoverGas && gasleft() < _recoverGas) {
+            if (reserveRecoverGas && cacheGasLeft < _recoverGas) {
                 // case 2a: not enough gas left to execute calls
                 token.safeTransfer(receiver, amount);
 
@@ -277,9 +295,10 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
             }
 
             // case 2b: enough gas left to execute calls
+            token.safeIncreaseAllowance(address(executor), amount);
             try
                 executor.swapAndCompleteBridgeTokens{
-                    gas: gasleft() - _recoverGas
+                    gas: cacheGasLeft - _recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
                 token.safeTransfer(receiver, amount);

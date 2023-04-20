@@ -3,9 +3,8 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { LiFiDiamondImmutableV1 } from "lifi/LiFiDiamondImmutable.sol";
+import { LiFiDiamondImmutable } from "lifi/LiFiDiamondImmutable.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
-
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
@@ -14,8 +13,7 @@ contract DeployScript is DeployScriptBase {
     address internal diamondImmutable;
     DiamondCutFacet internal cutter;
 
-    constructor() DeployScriptBase("LiFiDiamondImmutableV1") {
-
+    constructor() DeployScriptBase("LiFiDiamondImmutable") {
         network = vm.envString("NETWORK");
         fileSuffix = vm.envString("FILE_SUFFIX");
 
@@ -28,13 +26,13 @@ contract DeployScript is DeployScriptBase {
             "json"
         );
         string memory json = vm.readFile(path);
-        diamondImmutable = json.readAddress(".LiFiDiamondImmutableV1");
+        diamondImmutable = json.readAddress(".LiFiDiamondImmutable");
         cutter = DiamondCutFacet(diamondImmutable);
     }
 
     function run()
         public
-        returns (LiFiDiamondImmutableV1 deployed, bytes memory constructorArgs)
+        returns (LiFiDiamondImmutable deployed, bytes memory constructorArgs)
     {
         string memory path = string.concat(
             root,
@@ -52,15 +50,15 @@ contract DeployScript is DeployScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return (LiFiDiamondImmutableV1(payable(predicted)), constructorArgs);
+            return (LiFiDiamondImmutable(payable(predicted)), constructorArgs);
         }
 
-        deployed = LiFiDiamondImmutableV1(
+        deployed = LiFiDiamondImmutable(
             payable(
                 factory.deploy(
                     salt,
                     bytes.concat(
-                        type(LiFiDiamondImmutableV1).creationCode,
+                        type(LiFiDiamondImmutable).creationCode,
                         constructorArgs
                     )
                 )

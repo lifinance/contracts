@@ -80,10 +80,9 @@ contract RoninBridgeFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             roninBridgeFacet.swapAndStartBridgeTokensViaRoninBridge{
                 value: swapData[0].fromAmount

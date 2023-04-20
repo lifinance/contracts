@@ -10,11 +10,6 @@ import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    struct PoolIdConfig {
-        address token;
-        uint16 poolId;
-    }
-
     struct ChainIdConfig {
         uint256 chainId;
         uint16 layerZeroChainId;
@@ -31,37 +26,20 @@ contract DeployScript is UpdateScriptBase {
             (ChainIdConfig[])
         );
 
-        bytes memory rawPools = json.parseRaw(
-            string.concat(".pools.", network)
-        );
-        PoolIdConfig[] memory poolCfg = abi.decode(rawPools, (PoolIdConfig[]));
-
         bytes memory callData = abi.encodeWithSelector(
             StargateFacet.initStargate.selector,
-            poolCfg,
             cidCfg
         );
 
-        for (uint256 i = 0; i < poolCfg.length; i++) {
-            console.log(poolCfg[i].poolId);
-            console.log(poolCfg[i].token);
-        }
         vm.startBroadcast(deployerPrivateKey);
 
         // Stargate
-        if (loupe.facetFunctionSelectors(facet).length == 0) {
-            bytes4[] memory exclude = new bytes4[](1);
-            exclude[0] = StargateFacet.initStargate.selector;
-            cut.push(
-                IDiamondCut.FacetCut({
-                    facetAddress: address(facet),
-                    action: IDiamondCut.FacetCutAction.Add,
-                    functionSelectors: getSelectors("StargateFacet", exclude)
-                })
-            );
+        bytes4[] memory exclude = new bytes4[](1);
+        exclude[0] = StargateFacet.initStargate.selector;
+        buildDiamondCut(getSelectors("StargateFacet", exclude), facet);
+        if (cut.length > 0) {
             cutter.diamondCut(cut, address(facet), callData);
         }
-
         facets = loupe.facetAddresses();
 
         vm.stopBroadcast();

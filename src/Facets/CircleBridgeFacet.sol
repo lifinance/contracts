@@ -11,6 +11,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title CircleBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CircleBridge
+/// @custom:version 1.0.0
 contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -29,7 +30,7 @@ contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize the contract.
     /// @param _tokenMessenger The address of the TokenMessenger on the source chain.
-    /// @param _usdc The address of DAI on the source chain.
+    /// @param _usdc The address of USDC on the source chain.
     constructor(ITokenMessenger _tokenMessenger, address _usdc) {
         tokenMessenger = _tokenMessenger;
         usdc = _usdc;
@@ -45,13 +46,10 @@ contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         CircleBridgeData calldata _circleBridgeData
     )
         external
-        payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        noNativeAsset(_bridgeData)
         onlyAllowSourceToken(_bridgeData, usdc)
     {
         LibAsset.depositAsset(usdc, _bridgeData.minAmount);
@@ -74,7 +72,6 @@ contract CircleBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
-        noNativeAsset(_bridgeData)
         onlyAllowSourceToken(_bridgeData, usdc)
     {
         _bridgeData.minAmount = _depositAndSwap(
