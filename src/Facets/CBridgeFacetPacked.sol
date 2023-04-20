@@ -3,8 +3,10 @@ pragma solidity 0.8.17;
 
 import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeTransferLib, ERC20 } from "solmate/utils/SafeTransferLib.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { UnAuthorized } from '../Errors/GenericErrors.sol';
 
 /// @title CBridge Facet Packed
 /// @author LI.FI (https://li.fi)
@@ -15,16 +17,41 @@ contract CBridgeFacetPacked is ILiFi {
 
     /// @notice The contract address of the cbridge on the source chain.
     ICBridge private immutable cBridge;
+    address private immutable owner;
 
     /// Constructor ///
 
     /// @notice Initialize the contract.
     /// @param _cBridge The contract address of the cbridge on the source chain.
-    constructor(ICBridge _cBridge) {
+    constructor(ICBridge _cBridge, address _owner) {
         cBridge = _cBridge;
+        owner = _owner;
     }
 
     /// External Methods ///
+
+    /// @notice Sets approval for the CBridge Router to spend the specified token
+    /// @param asProxy Whether to set approvals from the proxy or the diamond
+    /// @param tokensToApprove The tokens to approve to the CBridge Router
+    function setApprovalForBridge(
+        bool asProxy,
+        address[] calldata tokensToApprove
+    ) external {
+        if (asProxy) {
+          LibDiamond.enforceIsContractOwner();
+        } else if (msg.sender != owner) {
+            revert UnAuthorized();
+        }
+
+        for (uint256 i; i < tokensToApprove.length; i++) {
+            // Give CBridge approval to bridge tokens
+            LibAsset.maxApproveERC20(
+                IERC20(tokensToApprove[i]),
+                address(cBridge),
+                type(uint256).max
+            );
+        }
+    }
 
     /// @notice Bridges Native tokens via cBridge (packed)
     /// No params, all data will be extracted from manually encoded callData
@@ -256,8 +283,8 @@ contract CBridgeFacetPacked is ILiFi {
         uint32 maxSlippage
     ) private {
         // Deposit assets
-        SafeERC20.safeTransferFrom(
-            IERC20(sendingAssetId),
+        SafeTransferLib.safeTransferFrom(
+            ERC20(sendingAssetId),
             msg.sender,
             address(this),
             amount

@@ -24,6 +24,7 @@ contract CBridgeGasTest is Test, DiamondTest {
     ERC20 internal usdc;
     LiFiDiamond internal diamond;
     CBridgeFacetPacked internal cBridgeFacetPacked;
+    CBridgeFacetPacked internal standAlone;
 
     bytes32 transactionId;
     string integrator;
@@ -49,7 +50,8 @@ contract CBridgeGasTest is Test, DiamondTest {
         /// Perpare CBridgeFacetPacked
         diamond = createDiamond();
         cbridge = ICBridge(CBRIDGE_ROUTER);
-        cBridgeFacetPacked = new CBridgeFacetPacked(cbridge);
+        cBridgeFacetPacked = new CBridgeFacetPacked(cbridge, address(this));
+        standAlone = new CBridgeFacetPacked(cbridge, address(this));
         usdc = ERC20(USDC_ADDRESS);
 
         bytes4[] memory functionSelectors = new bytes4[](6);
@@ -102,7 +104,7 @@ contract CBridgeGasTest is Test, DiamondTest {
         maxSlippage = 5000;
 
         // Native params
-        amountNative = 1 * 10 ** 18;
+        amountNative = 1 * 10**18;
         bytes memory packedNativeParams = bytes.concat(
             bytes8(transactionId), // transactionId
             bytes16(bytes(integrator)), // integrator
@@ -119,7 +121,7 @@ contract CBridgeGasTest is Test, DiamondTest {
         );
 
         // USDC params
-        amountUSDC = 100 * 10 ** usdc.decimals();
+        amountUSDC = 100 * 10**usdc.decimals();
         bytes memory packedUSDCParams = bytes.concat(
             bytes8(transactionId), // transactionId
             bytes16(bytes(integrator)), // integrator
@@ -136,6 +138,8 @@ contract CBridgeGasTest is Test, DiamondTest {
             ),
             packedUSDCParams
         );
+
+        standAlone.setApprovalForBridge(false, tokens);
     }
 
     function testCallData() public view {
@@ -181,6 +185,17 @@ contract CBridgeGasTest is Test, DiamondTest {
         vm.stopPrank();
     }
 
+    function testStartBridgeTokensViaCBridgeNativePacked_StandAlone() public {
+        vm.startPrank(WHALE);
+        (bool success, ) = address(standAlone).call{ value: amountNative }(
+            packedNative
+        );
+        if (!success) {
+            revert();
+        }
+        vm.stopPrank();
+    }
+
     function testStartBridgeTokensViaCBridgeNativeMin() public {
         vm.startPrank(WHALE);
         cBridgeFacetPacked.startBridgeTokensViaCBridgeNativeMin{
@@ -200,6 +215,16 @@ contract CBridgeGasTest is Test, DiamondTest {
         vm.startPrank(WHALE);
         usdc.approve(address(diamond), amountUSDC);
         (bool success, ) = address(diamond).call(packedUSDC);
+        if (!success) {
+            revert();
+        }
+        vm.stopPrank();
+    }
+
+    function testStartBridgeTokensViaCBridgeERC20Packed_StandAlone() public {
+        vm.startPrank(WHALE);
+        usdc.approve(address(standAlone), amountUSDC);
+        (bool success, ) = address(standAlone).call(packedUSDC);
         if (!success) {
             revert();
         }
