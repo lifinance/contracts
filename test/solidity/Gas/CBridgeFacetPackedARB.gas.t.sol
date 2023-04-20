@@ -104,7 +104,7 @@ contract CBridgeGasTest is Test, DiamondTest {
         maxSlippage = 5000;
 
         // Native params
-        amountNative = 1 * 10**18;
+        amountNative = 1 * 10 ** 18;
         bytes memory packedNativeParams = bytes.concat(
             bytes8(transactionId), // transactionId
             bytes16(bytes(integrator)), // integrator
@@ -121,7 +121,7 @@ contract CBridgeGasTest is Test, DiamondTest {
         );
 
         // USDC params
-        amountUSDC = 100 * 10**usdc.decimals();
+        amountUSDC = 100 * 10 ** usdc.decimals();
         bytes memory packedUSDCParams = bytes.concat(
             bytes8(transactionId), // transactionId
             bytes16(bytes(integrator)), // integrator

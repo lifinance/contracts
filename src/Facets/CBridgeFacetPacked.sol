@@ -6,7 +6,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ERC20 } from "solmate/utils/SafeTransferLib.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import { ContractCallNotAllowed, ExternalCallFailed } from '../Errors/GenericErrors.sol';
+import { ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErrors.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 
@@ -22,9 +22,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
 
     /// Events ///
 
-    event CBridgeTransfer(
-        bytes8 _transactionId
-    );
+    event CBridgeTransfer(bytes8 _transactionId);
 
     event CBridgeRefund(
         address indexed _assetAddress,
@@ -36,7 +34,10 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Initialize the contract.
     /// @param _cBridge The contract address of the cbridge on the source chain.
-    constructor(ICBridge _cBridge, address _owner) TransferrableOwnership(_owner) {
+    constructor(
+        ICBridge _cBridge,
+        address _owner
+    ) TransferrableOwnership(_owner) {
         cBridge = _cBridge;
     }
 
@@ -174,11 +175,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         uint256 amount = uint256(uint128(bytes16(msg.data[72:88])));
 
         // Deposit assets
-        ERC20(sendingAssetId).transferFrom(
-            msg.sender,
-            address(this),
-            amount
-        );
+        ERC20(sendingAssetId).transferFrom(msg.sender, address(this), amount);
 
         // Bridge assets
         // solhint-disable-next-line check-send-result
@@ -214,11 +211,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         uint32 maxSlippage
     ) external {
         // Deposit assets
-        ERC20(sendingAssetId).transferFrom(
-            msg.sender,
-            address(this),
-            amount
-        );
+        ERC20(sendingAssetId).transferFrom(msg.sender, address(this), amount);
 
         // Bridge assets
         // solhint-disable-next-line check-send-result
