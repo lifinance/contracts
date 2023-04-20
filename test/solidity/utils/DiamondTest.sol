@@ -61,8 +61,12 @@ contract DiamondTest {
 
         // PeripheryRegistryFacet
         functionSelectors = new bytes4[](2);
-        functionSelectors[0] = PeripheryRegistryFacet.registerPeripheryContract.selector;
-        functionSelectors[1] = PeripheryRegistryFacet.getPeripheryContract.selector;
+        functionSelectors[0] = PeripheryRegistryFacet
+            .registerPeripheryContract
+            .selector;
+        functionSelectors[1] = PeripheryRegistryFacet
+            .getPeripheryContract
+            .selector;
 
         cut.push(
             IDiamondCut.FacetCut({
@@ -72,7 +76,7 @@ contract DiamondTest {
             })
         );
 
-    DiamondCutFacet(address(diamond)).diamondCut(cut, address(0), "");
+        DiamondCutFacet(address(diamond)).diamondCut(cut, address(0), "");
 
         delete cut;
 

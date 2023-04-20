@@ -55,7 +55,10 @@ contract RelayerCelerIMTest is TestBase {
         });
 
         // add executor address in diamond periphery registry
-        PeripheryRegistryFacet(address(diamond)).registerPeripheryContract("Executor", address(executor));
+        PeripheryRegistryFacet(address(diamond)).registerPeripheryContract(
+            "Executor",
+            address(executor)
+        );
     }
 
     function test_canExecuteMessageOnDestChain() public {
