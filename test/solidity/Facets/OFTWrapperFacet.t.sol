@@ -51,6 +51,11 @@ contract OFTWrapperFacetTest is TestBaseFacet {
         uint256 indexed chainId,
         uint16 layerZeroChainId
     );
+    event BridgeToNonEVMChain(
+        bytes32 indexed transactionId,
+        uint16 indexed layerZeroChainId,
+        bytes32 receiver
+    );
 
     // These values are for Mainnet
     address internal constant MAINNET_OFTWRAPPER =
@@ -59,6 +64,8 @@ contract OFTWrapperFacetTest is TestBaseFacet {
         0x2297aEbD383787A160DD0d9F71508148769342E3;
     address internal UNISWAP_FACTORY =
         0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+    address internal constant NON_EVM_ADDRESS =
+        0x11f111f111f111F111f111f111F111f111f111F1;
     uint256 internal constant DST_CHAIN_ID = 137;
     // -----
 
@@ -96,9 +103,12 @@ contract OFTWrapperFacetTest is TestBaseFacet {
         addFacet(diamond, address(oftWrapperFacet), functionSelectors);
 
         OFTWrapperFacet.ChainIdConfig[]
-            memory chainIdConfig = new OFTWrapperFacet.ChainIdConfig[](2);
+            memory chainIdConfig = new OFTWrapperFacet.ChainIdConfig[](3);
         chainIdConfig[0] = OFTWrapperFacet.ChainIdConfig(1, 101);
         chainIdConfig[1] = OFTWrapperFacet.ChainIdConfig(137, 109);
+        // Test purpose
+        // 108 is LayerZero Chain id for Aptos
+        chainIdConfig[2] = OFTWrapperFacet.ChainIdConfig(11111, 108);
 
         oftWrapperFacet = TestOFTWrapperFacet(address(diamond));
         oftWrapperFacet.initOFTWrapper(chainIdConfig);
@@ -183,6 +193,45 @@ contract OFTWrapperFacetTest is TestBaseFacet {
         btcboft.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testBase_CanBridgeTokensToNonEVM()
+        public
+        assertBalanceChange(
+            BTCBOFT_ADDRESS,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
+        assertBalanceChange(BTCBOFT_ADDRESS, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = 11111;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        (uint256 fees, ) = oftWrapperFacet.estimateSendFee(
+            bridgeData,
+            oftWrapperData
+        );
+
+        oftWrapperData.lzFee = addToMessageValue = fees;
+
+        // approval
+        btcboft.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChain(
+            bridgeData.transactionId,
+            108,
+            oftWrapperData.receiver
+        );
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 

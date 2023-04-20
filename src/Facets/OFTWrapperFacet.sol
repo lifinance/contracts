@@ -19,6 +19,9 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.oft");
 
+    address internal constant NON_EVM_ADDRESS =
+        0x11f111f111f111F111f111f111F111f111f111F1;
+
     /// @notice The contract address of the OFTWrapper on the source chain.
     IOFTWrapper private immutable oftWrapper;
 
@@ -61,6 +64,12 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     event LayerZeroChainIdSet(
         uint256 indexed chainId,
         uint16 layerZeroChainId
+    );
+
+    event BridgeToNonEVMChain(
+        bytes32 indexed transactionId,
+        uint16 indexed layerZeroChainId,
+        bytes32 receiver
     );
 
     /// Constructor ///
@@ -156,11 +165,15 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         OFTWrapperData calldata _oftWrapperData
     ) external view returns (uint256 nativeFee, uint256 zroFee) {
+        uint16 layerZeroChainId = getOFTLayerZeroChainId(
+            _bridgeData.destinationChainId
+        );
+
         if (_oftWrapperData.tokenType == TokenType.OFT) {
             return
                 oftWrapper.estimateSendFee(
                     _bridgeData.sendingAssetId,
-                    getOFTLayerZeroChainId(_bridgeData.destinationChainId),
+                    layerZeroChainId,
                     abi.encodePacked(_bridgeData.receiver),
                     _bridgeData.minAmount,
                     false,
@@ -168,11 +181,20 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     IOFTWrapper.FeeObj(0, address(0), "")
                 );
         } else {
+            bytes32 receiver;
+            if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+                receiver = _oftWrapperData.receiver;
+            } else {
+                receiver = bytes32(
+                    uint256(uint160(_bridgeData.receiver)) << 96
+                );
+            }
+
             return
                 oftWrapper.estimateSendFeeV2(
                     _bridgeData.sendingAssetId,
-                    getOFTLayerZeroChainId(_bridgeData.destinationChainId),
-                    _oftWrapperData.receiver,
+                    layerZeroChainId,
+                    receiver,
                     _bridgeData.minAmount,
                     false,
                     _oftWrapperData.adapterParams,
@@ -183,9 +205,9 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Internal Methods ///
 
-    /// @dev Contains the business logic for the bridge via OFT Wrapper
-    /// @param _bridgeData The core information needed for bridging
-    /// @param _oftWrapperData Data specific to OFT Wrapper
+    /// @dev Contains the business logic for the bridge via OFT Wrapper.
+    /// @param _bridgeData The core information needed for bridging.
+    /// @param _oftWrapperData Data specific to OFT Wrapper.
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         OFTWrapperData calldata _oftWrapperData
@@ -200,7 +222,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             oftWrapper.sendOFT{ value: _oftWrapperData.lzFee }(
                 _bridgeData.sendingAssetId,
                 getOFTLayerZeroChainId(_bridgeData.destinationChainId),
-                abi.encodePacked(_oftWrapperData.receiver),
+                abi.encodePacked(_bridgeData.receiver),
                 _bridgeData.minAmount,
                 _oftWrapperData.minAmount,
                 payable(msg.sender),
@@ -208,65 +230,87 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _oftWrapperData.adapterParams,
                 IOFTWrapper.FeeObj(0, address(0), "")
             );
-        } else if (_oftWrapperData.tokenType == TokenType.OFTV2) {
+        } else {
+            _sendOFTV2(_bridgeData, _oftWrapperData);
+        }
+
+        emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev Contains the logic for the bridge OFT V2 tokens via OFT Wrapper.
+    /// @param _bridgeData The core information needed for bridging.
+    /// @param _oftWrapperData Data specific to OFT Wrapper.
+    function _sendOFTV2(
+        ILiFi.BridgeData memory _bridgeData,
+        OFTWrapperData calldata _oftWrapperData
+    ) internal {
+        uint16 layerZeroChainId = getOFTLayerZeroChainId(
+            _bridgeData.destinationChainId
+        );
+
+        bytes32 receiver;
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            receiver = _oftWrapperData.receiver;
+        } else {
+            receiver = bytes32(uint256(uint160(_bridgeData.receiver)) << 96);
+        }
+
+        IOFTWrapper.LzCallParams memory lzCallParams = IOFTWrapper
+            .LzCallParams(
+                payable(msg.sender),
+                address(0),
+                _oftWrapperData.adapterParams
+            );
+
+        if (_oftWrapperData.tokenType == TokenType.OFTV2) {
             oftWrapper.sendOFTV2{ value: _oftWrapperData.lzFee }(
                 _bridgeData.sendingAssetId,
-                getOFTLayerZeroChainId(_bridgeData.destinationChainId),
-                _oftWrapperData.receiver,
+                layerZeroChainId,
+                receiver,
                 _bridgeData.minAmount,
                 _oftWrapperData.minAmount,
-                IOFTWrapper.LzCallParams(
-                    payable(msg.sender),
-                    address(0),
-                    _oftWrapperData.adapterParams
-                ),
+                lzCallParams,
                 IOFTWrapper.FeeObj(0, address(0), "")
             );
         } else if (_oftWrapperData.tokenType == TokenType.OFTFeeV2) {
             oftWrapper.sendOFTFeeV2{ value: _oftWrapperData.lzFee }(
                 _bridgeData.sendingAssetId,
-                getOFTLayerZeroChainId(_bridgeData.destinationChainId),
-                _oftWrapperData.receiver,
+                layerZeroChainId,
+                receiver,
                 _bridgeData.minAmount,
                 _oftWrapperData.minAmount,
-                IOFTWrapper.LzCallParams(
-                    payable(msg.sender),
-                    address(0),
-                    _oftWrapperData.adapterParams
-                ),
+                lzCallParams,
                 IOFTWrapper.FeeObj(0, address(0), "")
             );
         } else if (_oftWrapperData.tokenType == TokenType.ProxyOFTV2) {
             oftWrapper.sendProxyOFTV2{ value: _oftWrapperData.lzFee }(
                 _bridgeData.sendingAssetId,
-                getOFTLayerZeroChainId(_bridgeData.destinationChainId),
-                _oftWrapperData.receiver,
+                layerZeroChainId,
+                receiver,
                 _bridgeData.minAmount,
                 _oftWrapperData.minAmount,
-                IOFTWrapper.LzCallParams(
-                    payable(msg.sender),
-                    address(0),
-                    _oftWrapperData.adapterParams
-                ),
+                lzCallParams,
                 IOFTWrapper.FeeObj(0, address(0), "")
             );
         } else if (_oftWrapperData.tokenType == TokenType.ProxyOFTFeeV2) {
             oftWrapper.sendProxyOFTFeeV2{ value: _oftWrapperData.lzFee }(
                 _bridgeData.sendingAssetId,
-                getOFTLayerZeroChainId(_bridgeData.destinationChainId),
-                _oftWrapperData.receiver,
+                layerZeroChainId,
+                receiver,
                 _bridgeData.minAmount,
                 _oftWrapperData.minAmount,
-                IOFTWrapper.LzCallParams(
-                    payable(msg.sender),
-                    address(0),
-                    _oftWrapperData.adapterParams
-                ),
+                lzCallParams,
                 IOFTWrapper.FeeObj(0, address(0), "")
             );
         }
 
-        emit LiFiTransferStarted(_bridgeData);
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            emit BridgeToNonEVMChain(
+                _bridgeData.transactionId,
+                layerZeroChainId,
+                _oftWrapperData.receiver
+            );
+        }
     }
 
     /// Mappings management ///
