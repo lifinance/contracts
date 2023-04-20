@@ -22,6 +22,11 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
 
     /// Events ///
     
+    event CBridgeTransfer(
+        bytes32 indexed _transactionId,
+        string _integrator
+    );
+
     event CBridgeRefund(
         address indexed _assetAddress,
         address indexed _to,
@@ -288,21 +293,8 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
             maxSlippage
         );
 
-        emit LiFiTransferStarted(
-            BridgeData({
-                transactionId: transactionId,
-                bridge: "cbridge",
-                integrator: integrator,
-                referrer: address(0),
-                sendingAssetId: address(0),
-                receiver: receiver,
-                minAmount: msg.value,
-                destinationChainId: destinationChainId,
-                hasSourceSwaps: false,
-                hasDestinationCall: false
-            })
-        );
-    }
+        emit CBridgeTransfer(transactionId, integrator);
+      }
 
     function _startBridgeTokensViaCBridgeERC20(
         bytes32 transactionId,
@@ -333,19 +325,6 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
             maxSlippage
         );
 
-        emit LiFiTransferStarted(
-            BridgeData({
-                transactionId: transactionId,
-                bridge: "cbridge",
-                integrator: integrator,
-                referrer: address(0),
-                sendingAssetId: sendingAssetId,
-                receiver: receiver,
-                minAmount: amount,
-                destinationChainId: destinationChainId,
-                hasSourceSwaps: false,
-                hasDestinationCall: false
-            })
-        );
+        emit CBridgeTransfer(transactionId, integrator);
     }
 }
