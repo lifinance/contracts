@@ -23,8 +23,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
     /// Events ///
 
     event CBridgeTransfer(
-        bytes32 indexed _transactionId,
-        string _integrator
+        bytes8 _transactionId
     );
 
     event CBridgeRefund(
@@ -93,21 +92,15 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
     /// @notice Bridges Native tokens via cBridge (packed)
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaCBridgeNativePacked() external payable {
-        require(
-            msg.data.length >= 60,
-            "callData length smaller than required"
+        cBridge.sendNative{ value: msg.value }(
+            address(bytes20(msg.data[28:48])),
+            msg.value,
+            uint64(uint32(bytes4(msg.data[48:52]))),
+            uint64(uint32(bytes4(msg.data[52:56]))),
+            uint32(bytes4(msg.data[56:60]))
         );
 
-        _startBridgeTokensViaCBridgeNative({
-            // first 4 bytes are function signature
-            transactionId: bytes32(bytes8(msg.data[4:12])),
-            integrator: string(msg.data[12:28]), // bytes16 > string
-            receiver: address(bytes20(msg.data[28:48])),
-            destinationChainId: uint64(uint32(bytes4(msg.data[48:52]))),
-            nonce: uint64(uint32(bytes4(msg.data[52:56]))),
-            maxSlippage: uint32(bytes4(msg.data[56:60]))
-            // => total calldata length required: 60
-        });
+        emit CBridgeTransfer(bytes8(msg.data[4:12]));
     }
 
     /// @notice Bridges native tokens via cBridge
@@ -125,14 +118,15 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         uint64 nonce,
         uint32 maxSlippage
     ) external payable {
-        _startBridgeTokensViaCBridgeNative(
-            transactionId,
-            integrator,
+        cBridge.sendNative{ value: msg.value }(
             receiver,
+            msg.value,
             destinationChainId,
             nonce,
             maxSlippage
         );
+
+        emit CBridgeTransfer(bytes8(transactionId));
     }
 
     /// @notice Encode callData to send native tokens packed
@@ -176,23 +170,28 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
     /// @notice Bridges ERC20 tokens via cBridge
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaCBridgeERC20Packed() external {
-        require(
-            msg.data.length >= 96,
-            "callData length smaller than required"
+        address sendingAssetId = address(bytes20(msg.data[52:72]));
+        uint256 amount = uint256(uint128(bytes16(msg.data[72:88])));
+
+        // Deposit assets
+        ERC20(sendingAssetId).transferFrom(
+            msg.sender,
+            address(this),
+            amount
         );
 
-        _startBridgeTokensViaCBridgeERC20({
-            // first 4 bytes are function signature
-            transactionId: bytes32(bytes8(msg.data[4:12])),
-            integrator: string(msg.data[12:28]), // bytes16 > string
-            receiver: address(bytes20(msg.data[28:48])),
-            destinationChainId: uint64(uint32(bytes4(msg.data[48:52]))),
-            sendingAssetId: address(bytes20(msg.data[52:72])),
-            amount: uint256(uint128(bytes16(msg.data[72:88]))),
-            nonce: uint64(uint32(bytes4(msg.data[88:92]))),
-            maxSlippage: uint32(bytes4(msg.data[92:96]))
-            // => total calldata length required: 96
-        });
+        // Bridge assets
+        // solhint-disable-next-line check-send-result
+        cBridge.send(
+            address(bytes20(msg.data[28:48])),
+            sendingAssetId,
+            amount,
+            uint64(uint32(bytes4(msg.data[48:52]))),
+            uint64(uint32(bytes4(msg.data[88:92]))),
+            uint32(bytes4(msg.data[92:96]))
+        );
+
+        emit CBridgeTransfer(bytes8(msg.data[4:12]));
     }
 
     /// @notice Bridges ERC20 tokens via cBridge
@@ -214,16 +213,25 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         uint64 nonce,
         uint32 maxSlippage
     ) external {
-        _startBridgeTokensViaCBridgeERC20(
-            transactionId,
-            integrator,
+        // Deposit assets
+        ERC20(sendingAssetId).transferFrom(
+            msg.sender,
+            address(this),
+            amount
+        );
+
+        // Bridge assets
+        // solhint-disable-next-line check-send-result
+        cBridge.send(
             receiver,
-            destinationChainId,
             sendingAssetId,
             amount,
+            destinationChainId,
             nonce,
             maxSlippage
         );
+
+        emit CBridgeTransfer(bytes8(transactionId));
     }
 
     /// @notice Encode callData to send ERC20 tokens packed
@@ -272,58 +280,5 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
                 bytes4(uint32(nonce)),
                 bytes4(maxSlippage)
             );
-    }
-
-    /// Internal Methods ///
-
-    function _startBridgeTokensViaCBridgeNative(
-        bytes32 transactionId,
-        string memory integrator,
-        address receiver,
-        uint64 destinationChainId,
-        uint64 nonce,
-        uint32 maxSlippage
-    ) private {
-        // Bridge assets
-        cBridge.sendNative{ value: msg.value }(
-            receiver,
-            msg.value,
-            destinationChainId,
-            nonce,
-            maxSlippage
-        );
-
-        emit CBridgeTransfer(transactionId, integrator);
-      }
-
-    function _startBridgeTokensViaCBridgeERC20(
-        bytes32 transactionId,
-        string memory integrator,
-        address receiver,
-        uint64 destinationChainId,
-        address sendingAssetId,
-        uint256 amount,
-        uint64 nonce,
-        uint32 maxSlippage
-    ) private {
-        // Deposit assets
-        ERC20(sendingAssetId).transferFrom(
-            msg.sender,
-            address(this),
-            amount
-        );
-
-        // Bridge assets
-        // solhint-disable-next-line check-send-result
-        cBridge.send(
-            receiver,
-            sendingAssetId,
-            amount,
-            destinationChainId,
-            nonce,
-            maxSlippage
-        );
-
-        emit CBridgeTransfer(transactionId, integrator);
     }
 }
