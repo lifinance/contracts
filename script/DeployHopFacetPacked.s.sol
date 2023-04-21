@@ -7,14 +7,27 @@ import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
 contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("HopFacetPacked") {}
 
-    function run() public returns (HopFacetPacked deployed) {
+    function run()
+        public
+        returns (HopFacetPacked deployed, bytes memory constructorArgs)
+    {
         vm.startBroadcast(deployerPrivateKey);
 
+        constructorArgs = abi.encode(deployerAddress);
+
         if (isDeployed()) {
-            return HopFacetPacked(predicted);
+            return (HopFacetPacked(predicted), constructorArgs);
         }
 
-        deployed = HopFacetPacked(factory.deploy(salt, type(HopFacetPacked).creationCode));
+        deployed = HopFacetPacked(
+            factory.deploy(
+                salt,
+                bytes.concat(
+                    type(HopFacetPacked).creationCode,
+                    constructorArgs
+                )
+            )
+        );
 
         vm.stopBroadcast();
     }
