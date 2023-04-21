@@ -70,7 +70,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             uint256(uint32(bytes4(msg.data[84:88])))
         );
 
-        emit HopTransfer(bytes8(msg.data[4:12]));
+        emit LiFiHopTransfer(bytes8(msg.data[4:12]));
     }
 
     /// @notice Bridges Native tokens via Hop Protocol from L2
@@ -104,7 +104,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             destinationDeadline
         );
 
-        emit HopTransfer(transactionId);
+        emit LiFiHopTransfer(transactionId);
     }
 
     /// @notice Bridges Native tokens via Hop Protocol from L2
@@ -230,7 +230,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             uint256(uint32(bytes4(msg.data[120:124])))
         );
 
-        emit HopTransfer(bytes8(msg.data[4:12]));
+        emit LiFiHopTransfer(bytes8(msg.data[4:12]));
     }
 
     /// @notice Bridges ERC20 tokens via Hop Protocol from L2
@@ -275,7 +275,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             destinationDeadline
         );
 
-        emit HopTransfer(transactionId);
+        emit LiFiHopTransfer(transactionId);
     }
 
     /// @notice Bridges ERC20 tokens via Hop Protocol from L2
@@ -401,7 +401,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             uint256(uint128(bytes16(msg.data[72:88])))
         );
 
-        emit HopTransfer(bytes8(msg.data[4:12]));
+        emit LiFiHopTransfer(bytes8(msg.data[4:12]));
     }
 
     /// @notice Bridges Native tokens via Hop Protocol from L1
@@ -432,7 +432,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             relayerFee
         );
 
-        emit HopTransfer(transactionId);
+        emit LiFiHopTransfer(transactionId);
     }
 
     /// @notice Bridges Native tokens via Hop Protocol from L1
@@ -543,7 +543,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             uint256(uint128(bytes16(msg.data[108:124])))
         );
 
-        emit HopTransfer(bytes8(msg.data[4:12]));
+        emit LiFiHopTransfer(bytes8(msg.data[4:12]));
     }
 
     /// @notice Bridges ERC20 tokens via Hop Protocol from L1
@@ -585,7 +585,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             relayerFee
         );
 
-        emit HopTransfer(transactionId);
+        emit LiFiHopTransfer(transactionId);
     }
 
     /// @notice Bridges ERC20 tokens via Hop Protocol from L1
