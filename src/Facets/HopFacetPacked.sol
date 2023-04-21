@@ -12,7 +12,9 @@ import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 /// @notice Provides functionality for bridging through Hop
 /// @custom:version 1.0.2
 contract HopFacetPacked is ILiFi, TransferrableOwnership {
-    event HopTransfer(bytes8 _transactionId);
+    /// Events ///
+
+    event LiFiHopTransfer(bytes8 _transactionId);
 
     /// Constructor ///
 
@@ -176,7 +178,6 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         BridgeData memory bridgeData;
         HopFacetOptimized.HopData memory hopData;
 
-        bridgeData.sendingAssetId = address(0);
         bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
         bridgeData.receiver = address(bytes20(_data[12:32]));
         bridgeData.destinationChainId = uint256(uint32(bytes4(_data[32:36])));
@@ -494,7 +495,6 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         BridgeData memory bridgeData;
         HopFacetOptimized.HopData memory hopData;
 
-        bridgeData.sendingAssetId = address(0);
         bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
         bridgeData.receiver = address(bytes20(_data[12:32]));
         bridgeData.destinationChainId = uint256(uint32(bytes4(_data[32:36])));
