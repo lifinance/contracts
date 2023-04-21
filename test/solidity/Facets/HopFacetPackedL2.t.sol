@@ -216,6 +216,18 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
         vm.stopPrank();
     }
 
+    function testStartBridgeTokensViaHopL2NativePackedDecode() public {
+        (
+            ILiFi.BridgeData memory decodedBridgeData,
+            HopFacetOptimized.HopData memory decodedHopData
+        ) = standAlone.decode_startBridgeTokensViaHopL2NativePacked(
+                packedNative
+            );
+
+        assertEq(decodedBridgeData.transactionId, transactionId);
+        assertEq(decodedHopData.destinationAmountOutMin, amountOutMinNative);
+    }
+
     function testStartBridgeTokensViaHopL2NativeMin() public {
         vm.startPrank(WHALE);
         hopFacetPacked.startBridgeTokensViaHopL2NativeMin{
@@ -267,6 +279,16 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
             revert();
         }
         vm.stopPrank();
+    }
+
+    function testStartBridgeTokensViaHopL2ERC20PackedDecode() public {
+        (
+            ILiFi.BridgeData memory decodedBridgeData,
+            HopFacetOptimized.HopData memory decodedHopData
+        ) = standAlone.decode_startBridgeTokensViaHopL2ERC20Packed(packedUSDC);
+
+        assertEq(decodedBridgeData.transactionId, transactionId);
+        assertEq(decodedHopData.destinationAmountOutMin, amountOutMinUSDC);
     }
 
     function testStartBridgeTokensViaHopL2ERC20Min() public {

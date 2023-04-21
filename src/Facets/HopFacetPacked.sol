@@ -5,6 +5,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ERC20 } from "solmate/utils/SafeTransferLib.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 
 /// @title Hop Facet (Optimized for Rollups)
 /// @author LI.FI (https://li.fi)
@@ -158,6 +159,39 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             );
     }
 
+    /// @notice Decodes calldata for startBridgeTokensViaHopL2NativePacked
+    /// @param _data the calldata to decode
+    function decode_startBridgeTokensViaHopL2NativePacked(
+        bytes calldata _data
+    )
+        external
+        pure
+        returns (BridgeData memory, HopFacetOptimized.HopData memory)
+    {
+        require(
+            _data.length >= 108,
+            "data passed in is not the correct length"
+        );
+
+        BridgeData memory bridgeData;
+        HopFacetOptimized.HopData memory hopData;
+
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
+        bridgeData.receiver = address(bytes20(_data[12:32]));
+        bridgeData.destinationChainId = uint256(uint32(bytes4(_data[32:36])));
+        bridgeData.minAmount = uint256(uint128(bytes16(_data[56:72])));
+        hopData.bonderFee = uint256(uint128(bytes16(_data[36:52])));
+        hopData.amountOutMin = uint256(uint128(bytes16(_data[52:68])));
+        hopData.destinationAmountOutMin = uint256(
+            uint128(bytes16(_data[68:84]))
+        );
+        hopData.destinationDeadline = uint256(uint32(bytes4(_data[84:88])));
+        hopData.hopBridge = IHopBridge(address(bytes20(_data[88:108])));
+
+        return (bridgeData, hopData);
+    }
+
     /// @notice Bridges ERC20 tokens via Hop Protocol from L2
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaHopL2ERC20Packed() external {
@@ -307,6 +341,39 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             );
     }
 
+    /// @notice Decodes calldata for startBridgeTokensViaHopL2ERC20Packed
+    /// @param _data the calldata to decode
+    function decode_startBridgeTokensViaHopL2ERC20Packed(
+        bytes calldata _data
+    )
+        external
+        pure
+        returns (BridgeData memory, HopFacetOptimized.HopData memory)
+    {
+        require(
+            _data.length >= 144,
+            "data passed in is not the correct length"
+        );
+
+        BridgeData memory bridgeData;
+        HopFacetOptimized.HopData memory hopData;
+
+        bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
+        bridgeData.receiver = address(bytes20(_data[12:32]));
+        bridgeData.destinationChainId = uint256(uint32(bytes4(_data[32:36])));
+        bridgeData.sendingAssetId = address(bytes20(_data[36:56]));
+        bridgeData.minAmount = uint256(uint128(bytes16(_data[56:72])));
+        hopData.bonderFee = uint256(uint128(bytes16(_data[72:88])));
+        hopData.amountOutMin = uint256(uint128(bytes16(_data[88:104])));
+        hopData.destinationAmountOutMin = uint256(
+            uint128(bytes16(_data[104:120]))
+        );
+        hopData.destinationDeadline = uint256(uint32(bytes4(_data[120:124])));
+        hopData.hopBridge = IHopBridge(address(bytes20(_data[124:144])));
+
+        return (bridgeData, hopData);
+    }
+
     /// @notice Bridges Native tokens via Hop Protocol from L1
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaHopL1NativePacked() external payable {
@@ -408,6 +475,37 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
                 bytes16(uint128(relayerFee)),
                 bytes20(hopBridge)
             );
+    }
+
+    /// @notice Decodes calldata for startBridgeTokensViaHopL1NativePacked
+    /// @param _data the calldata to decode
+    function decode_startBridgeTokensViaHopL1NativePacked(
+        bytes calldata _data
+    )
+        external
+        pure
+        returns (BridgeData memory, HopFacetOptimized.HopData memory)
+    {
+        require(
+            _data.length >= 108,
+            "data passed in is not the correct length"
+        );
+
+        BridgeData memory bridgeData;
+        HopFacetOptimized.HopData memory hopData;
+
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
+        bridgeData.receiver = address(bytes20(_data[12:32]));
+        bridgeData.destinationChainId = uint256(uint32(bytes4(_data[32:36])));
+        hopData.destinationAmountOutMin = uint256(
+            uint128(bytes16(_data[36:52]))
+        );
+        // relayer = address(bytes20(_data[52:72]));
+        // relayerFee = uint256(uint128(bytes16(_data[72:88])));
+        hopData.hopBridge = IHopBridge(address(bytes20(_data[88:108])));
+
+        return (bridgeData, hopData);
     }
 
     /// @notice Bridges Native tokens via Hop Protocol from L1
@@ -541,5 +639,37 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
                 bytes16(uint128(relayerFee)),
                 bytes20(hopBridge)
             );
+    }
+
+    /// @notice Decodes calldata for startBridgeTokensViaHopL1ERC20Packed
+    /// @param _data the calldata to decode
+    function decode_startBridgeTokensViaHopL1ERC20Packed(
+        bytes calldata _data
+    )
+        external
+        pure
+        returns (BridgeData memory, HopFacetOptimized.HopData memory)
+    {
+        require(
+            _data.length >= 144,
+            "data passed in is not the correct length"
+        );
+
+        BridgeData memory bridgeData;
+        HopFacetOptimized.HopData memory hopData;
+
+        bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
+        bridgeData.receiver = address(bytes20(_data[12:32]));
+        bridgeData.destinationChainId = uint256(uint32(bytes4(_data[32:36])));
+        bridgeData.sendingAssetId = address(bytes20(_data[36:56]));
+        bridgeData.minAmount = uint256(uint128(bytes16(_data[56:72])));
+        hopData.destinationAmountOutMin = uint256(
+            uint128(bytes16(_data[72:88]))
+        );
+        // relayer = address(bytes20(_data[88:108]));
+        // relayerFee = uint256(uint128(bytes16(_data[108:124])));
+        hopData.hopBridge = IHopBridge(address(bytes20(_data[124:144])));
+
+        return (bridgeData, hopData);
     }
 }
