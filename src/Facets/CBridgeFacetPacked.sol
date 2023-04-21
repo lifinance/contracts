@@ -23,7 +23,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
 
     /// Events ///
 
-    event CBridgeTransfer(bytes8 _transactionId);
+    event LiFiCBridgeTransfer(bytes8 _transactionId);
 
     event CBridgeRefund(
         address indexed _assetAddress,
@@ -102,7 +102,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
             uint32(bytes4(msg.data[40:44])) // maxSlippage
         );
 
-        emit CBridgeTransfer(bytes8(msg.data[4:12])); // transactionId
+        emit LiFiCBridgeTransfer(bytes8(msg.data[4:12])); // transactionId
     }
 
     /// @notice Bridges native tokens via cBridge
@@ -126,7 +126,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
             maxSlippage
         );
 
-        emit CBridgeTransfer(bytes8(transactionId));
+        emit LiFiCBridgeTransfer(bytes8(transactionId));
     }
 
     /// @notice Bridges ERC20 tokens via cBridge
@@ -149,7 +149,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
             uint32(bytes4(msg.data[76:80])) // maxSlippage
         );
 
-        emit CBridgeTransfer(bytes8(msg.data[4:12]));
+        emit LiFiCBridgeTransfer(bytes8(msg.data[4:12]));
     }
 
     /// @notice Bridges ERC20 tokens via cBridge
@@ -183,7 +183,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
             maxSlippage
         );
 
-        emit CBridgeTransfer(bytes8(transactionId));
+        emit LiFiCBridgeTransfer(bytes8(transactionId));
     }
 
     /// Encoder/Decoders ///
