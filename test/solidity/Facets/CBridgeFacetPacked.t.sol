@@ -2,6 +2,7 @@ pragma solidity 0.8.17;
 
 import "ds-test/test.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
+import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
@@ -52,7 +53,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
         standAlone = new CBridgeFacetPacked(cbridge, address(this));
         usdc = ERC20(USDC_ADDRESS);
 
-        bytes4[] memory functionSelectors = new bytes4[](6);
+        bytes4[] memory functionSelectors = new bytes4[](8);
         functionSelectors[0] = cBridgeFacetPacked
             .startBridgeTokensViaCBridgeNativePacked
             .selector;
@@ -70,6 +71,12 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
             .selector;
         functionSelectors[5] = cBridgeFacetPacked
             .encode_startBridgeTokensViaCBridgeERC20Packed
+            .selector;
+        functionSelectors[6] = cBridgeFacetPacked
+            .decode_startBridgeTokensViaCBridgeNativePacked
+            .selector;
+        functionSelectors[7] = cBridgeFacetPacked
+            .decode_startBridgeTokensViaCBridgeERC20Packed
             .selector;
 
         addFacet(diamond, address(cBridgeFacetPacked), functionSelectors);
@@ -292,5 +299,94 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
             uint64(type(uint32).max) + 1,
             maxSlippage
         );
+    }
+
+    function test_CanEncodeAndDecodeCBridgeNativeCall() public {
+        bytes memory encoded = cBridgeFacetPacked
+            .encode_startBridgeTokensViaCBridgeNativePacked(
+                transactionId,
+                RECEIVER,
+                destinationChainId,
+                nonce,
+                maxSlippage
+            );
+
+        (
+            ILiFi.BridgeData memory decodedBridgeData,
+            CBridgeFacet.CBridgeData memory decodedCBridgeData
+        ) = cBridgeFacetPacked.decode_startBridgeTokensViaCBridgeNativePacked(
+                encoded
+            );
+        assertEq(
+            decodedBridgeData.transactionId,
+            transactionId,
+            "transactionId does not match"
+        );
+        assertEq(
+            decodedBridgeData.receiver,
+            RECEIVER,
+            "Receiver does not match"
+        );
+        assertEq(
+            decodedBridgeData.destinationChainId,
+            destinationChainId,
+            "destinationChainId does not match"
+        );
+        assertEq(
+            decodedCBridgeData.maxSlippage,
+            maxSlippage,
+            "maxSlippage does not match"
+        );
+        assertEq(decodedCBridgeData.nonce, nonce, "nonce does not match");
+    }
+
+    function test_CanEncodeAndDecodeCBridgeERC20Call() public {
+        bytes memory encoded = cBridgeFacetPacked
+            .encode_startBridgeTokensViaCBridgeERC20Packed(
+                transactionId,
+                RECEIVER,
+                destinationChainId,
+                USDC_ADDRESS,
+                amountUSDC,
+                nonce,
+                maxSlippage
+            );
+        (
+            ILiFi.BridgeData memory decodedBridgeData,
+            CBridgeFacet.CBridgeData memory decodedCBridgeData
+        ) = cBridgeFacetPacked.decode_startBridgeTokensViaCBridgeERC20Packed(
+                encoded
+            );
+        assertEq(
+            decodedBridgeData.transactionId,
+            transactionId,
+            "transactionId does not match"
+        );
+        assertEq(
+            decodedBridgeData.receiver,
+            RECEIVER,
+            "Receiver does not match"
+        );
+        assertEq(
+            decodedBridgeData.destinationChainId,
+            destinationChainId,
+            "destinationChainId does not match"
+        );
+        assertEq(
+            decodedBridgeData.sendingAssetId,
+            USDC_ADDRESS,
+            "sendingAssetId does not match"
+        );
+        assertEq(
+            decodedBridgeData.minAmount,
+            amountUSDC,
+            "minAmount does not match"
+        );
+        assertEq(
+            decodedCBridgeData.maxSlippage,
+            maxSlippage,
+            "maxSlippage does not match"
+        );
+        assertEq(decodedCBridgeData.nonce, nonce, "nonce does not match");
     }
 }

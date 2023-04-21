@@ -233,7 +233,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         returns (BridgeData memory, CBridgeFacet.CBridgeData memory)
     {
         require(
-            _data.length >= 40,
+            _data.length >= 44,
             "data passed in is not the correct length"
         );
 
@@ -241,10 +241,10 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         CBridgeFacet.CBridgeData memory cBridgeData;
 
         bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
-        bridgeData.receiver = address(bytes20(_data[28:48]));
-        bridgeData.destinationChainId = uint64(uint32(bytes4(_data[48:52])));
-        cBridgeData.nonce = uint64(uint32(bytes4(_data[52:56])));
-        cBridgeData.maxSlippage = uint32(bytes4(_data[56:60]));
+        bridgeData.receiver = address(bytes20(_data[12:32]));
+        bridgeData.destinationChainId = uint64(uint32(bytes4(_data[32:36])));
+        cBridgeData.nonce = uint64(uint32(bytes4(_data[36:40])));
+        cBridgeData.maxSlippage = uint32(bytes4(_data[40:44]));
 
         return (bridgeData, cBridgeData);
     }
@@ -301,18 +301,18 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         pure
         returns (BridgeData memory, CBridgeFacet.CBridgeData memory)
     {
-        require(_data.length >= 76, "data passed is not the correct length");
+        require(_data.length >= 80, "data passed is not the correct length");
 
         BridgeData memory bridgeData;
         CBridgeFacet.CBridgeData memory cBridgeData;
 
         bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
-        bridgeData.receiver = address(bytes20(_data[12:22]));
-        bridgeData.destinationChainId = uint64(uint32(bytes4(_data[22:26])));
-        bridgeData.sendingAssetId = address(bytes20(_data[26:46]));
-        bridgeData.minAmount = uint256(uint128(bytes16(_data[46:62])));
-        cBridgeData.nonce = uint64(uint32(bytes4(_data[62:66])));
-        cBridgeData.maxSlippage = uint32(bytes4(_data[66:70]));
+        bridgeData.receiver = address(bytes20(_data[12:32]));
+        bridgeData.destinationChainId = uint64(uint32(bytes4(_data[32:36])));
+        bridgeData.sendingAssetId = address(bytes20(_data[36:56]));
+        bridgeData.minAmount = uint256(uint128(bytes16(_data[56:72])));
+        cBridgeData.nonce = uint64(uint32(bytes4(_data[72:76])));
+        cBridgeData.maxSlippage = uint32(bytes4(_data[76:80]));
 
         return (bridgeData, cBridgeData);
     }
