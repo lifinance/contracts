@@ -32,7 +32,7 @@ BYTECODE_STORAGE_PATH="deployments/_bytecode_storage.json"
 # exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,consensys-zkevm-testnet"
 # exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
 #EXCLUDE_NETWORKS="gnosis,okx,moonbeam,celo,fuse,cronos,velas,harmony,evmos,boba,nova,bsctest,goerli,sepolia,mumbai,consensys-zkevm-testnet"
-EXCLUDE_NETWORKS="bsctest,sepolia,consensys-zkevm-testnet,mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
+EXCLUDE_NETWORKS=""
 
 # will output more detailed information for debugging purposes
 DEBUG=false
