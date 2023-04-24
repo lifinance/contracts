@@ -1,1 +1,44 @@
-{}
+{
+  "LiFiDiamond": {
+    "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+      "Name": "DiamondCutFacet",
+      "Version": ""
+    },
+    "0xF3bd241Bd31cc84D1A2824E3ffB481961FC1456A": {
+      "Name": "DiamondLoupeFacet",
+      "Version": ""
+    },
+    "0x6B5183628Fb571145385C01AD64779D2F17e759a": {
+      "Name": "OwnershipFacet",
+      "Version": ""
+    },
+    "0xeb244dc26396846aDD8eaF5A0e3Bc6617B58482e": {
+      "Name": "WithdrawFacet",
+      "Version": ""
+    },
+    "0xcd14Ea63191E4B27ECA7c98C29c373E015a5545A": {
+      "Name": "DexManagerFacet",
+      "Version": ""
+    },
+    "0x50F6AC46EB6cA7840e75fE5aFa50B8a3D6deeD26": {
+      "Name": "AccessManagerFacet",
+      "Version": ""
+    },
+    "0x67168314911e4aADD97daaF9560b7C7bE41BD519": {
+      "Name": "PeripheryRegistryFacet",
+      "Version": ""
+    },
+    "0x7F1Ea7aEf6fCc44a885CeA0A3526e0c3aD7300B1": {
+      "Name": "HopFacetOptimized",
+      "Version": ""
+    },
+    "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
+      "Name": "",
+      "Version": ""
+    },
+    "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59": {
+      "Name": "LiFuelFacet",
+      "Version": ""
+    }
+  }
+}
