@@ -7,6 +7,7 @@ import { CelerIMFacet, IMessageBus, MsgDataTypes } from "lifi/Facets/CelerIMFace
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
+import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 
@@ -21,11 +22,6 @@ contract MockLiquidityBridge is TestBase {
 }
 
 contract RelayerCelerIMTest is TestBase {
-    /// Events ///
-    event CBridgeMessageBusSet(address indexed messageBusAddress);
-    event DiamondAddressSet(address indexed diamondAddress);
-    event ExecutorSet(address indexed executorAddress);
-
     address internal constant CBRIDGE_ROUTER =
         0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
     address internal constant CBRIDGE_MESSAGEBUS_ETH =
@@ -46,8 +42,7 @@ contract RelayerCelerIMTest is TestBase {
         relayer = new RelayerCelerIM(
             address(this),
             CBRIDGE_MESSAGEBUS_ETH,
-            address(diamond),
-            address(executor)
+            address(diamond)
         );
 
         celerIMData = CelerIMFacet.CelerIMData({
@@ -58,6 +53,12 @@ contract RelayerCelerIMTest is TestBase {
             messageBusFee: 0,
             bridgeType: MsgDataTypes.BridgeSendType.Liquidity
         });
+
+        // add executor address in diamond periphery registry
+        PeripheryRegistryFacet(address(diamond)).registerPeripheryContract(
+            "Executor",
+            address(executor)
+        );
     }
 
     function test_canExecuteMessageOnDestChain() public {
@@ -310,51 +311,6 @@ contract RelayerCelerIMTest is TestBase {
             payload,
             address(this)
         );
-    }
-
-    function test_OwnerCanUpdateExecutorAddress() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        vm.expectEmit(true, true, true, true, address(relayer));
-        emit CBridgeMessageBusSet(CBRIDGE_ROUTER);
-
-        relayer.setCBridgeMessageBus(CBRIDGE_ROUTER);
-    }
-
-    function test_Revert_UpdateCBridgeMessageBusNonOwner() public {
-        vm.startPrank(USER_SENDER);
-        vm.expectRevert(UnAuthorized.selector);
-        relayer.setCBridgeMessageBus(CBRIDGE_ROUTER);
-    }
-
-    function test_OwnerCanUpdateExecutor() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        vm.expectEmit(true, true, true, true, address(relayer));
-        emit ExecutorSet(CBRIDGE_ROUTER);
-
-        relayer.setExecutor(CBRIDGE_ROUTER);
-    }
-
-    function test_Revert_UpdateExecutorNonOwner() public {
-        vm.startPrank(USER_SENDER);
-        vm.expectRevert(UnAuthorized.selector);
-        relayer.setExecutor(CBRIDGE_ROUTER);
-    }
-
-    function test_OwnerCanUpdateDiamondAddress() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        vm.expectEmit(true, true, true, true, address(relayer));
-        emit DiamondAddressSet(CBRIDGE_ROUTER);
-
-        relayer.setDiamondAddress(CBRIDGE_ROUTER);
-    }
-
-    function test_Revert_UpdateDiamondAddressNonOwner() public {
-        vm.startPrank(USER_SENDER);
-        vm.expectRevert(UnAuthorized.selector);
-        relayer.setDiamondAddress(CBRIDGE_ROUTER);
     }
 
     function test_CanReceiveNativeAssets() public {

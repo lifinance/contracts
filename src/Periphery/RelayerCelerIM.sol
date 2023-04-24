@@ -7,6 +7,7 @@ import { ContractCallNotAllowed, ExternalCallFailed, InvalidConfig, UnAuthorized
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
+import { PeripheryRegistryFacet } from "../Facets/PeripheryRegistryFacet.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
@@ -17,7 +18,7 @@ import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.
 /// @title RelayerCelerIM
 /// @author LI.FI (https://li.fi)
 /// @notice Relayer contract for CelerIM that forwards calls and handles refunds on src side and acts receiver on dest
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract RelayerCelerIM is ILiFi, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
@@ -25,7 +26,6 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
 
     IMessageBus public cBridgeMessageBus;
     address public diamondAddress;
-    IExecutor public executor;
 
     /// Events ///
 
@@ -34,9 +34,6 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
         address indexed _to,
         uint256 amount
     );
-    event CBridgeMessageBusSet(address indexed messageBusAddress);
-    event DiamondAddressSet(address indexed diamondAddress);
-    event ExecutorSet(address indexed executorAddress);
 
     /// Modifiers ///
 
@@ -54,13 +51,11 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
     constructor(
         address _owner,
         address _cBridgeMessageBusAddress,
-        address _diamondAddress,
-        address _executorAddress
+        address _diamondAddress
     ) TransferrableOwnership(_owner) {
         owner = _owner;
         cBridgeMessageBus = IMessageBus(_cBridgeMessageBusAddress);
         diamondAddress = _diamondAddress;
-        executor = IExecutor(_executorAddress);
     }
 
     /// External Methods ///
@@ -338,29 +333,6 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
         );
     }
 
-    /// @notice sets the CBridge MessageBus address
-    /// @param _messageBusAddress the MessageBus address
-    function setCBridgeMessageBus(
-        address _messageBusAddress
-    ) external onlyOwner {
-        cBridgeMessageBus = IMessageBus(_messageBusAddress);
-        emit CBridgeMessageBusSet(_messageBusAddress);
-    }
-
-    /// @notice sets the executor address
-    /// @param _executorAddress the address of the executor contract
-    function setExecutor(address _executorAddress) external onlyOwner {
-        executor = IExecutor(_executorAddress);
-        emit ExecutorSet(_executorAddress);
-    }
-
-    /// @notice sets the address of our diamond contract
-    /// @param _diamondAddress the address of our diamond contract
-    function setDiamondAddress(address _diamondAddress) external onlyOwner {
-        diamondAddress = _diamondAddress;
-        emit DiamondAddressSet(_diamondAddress);
-    }
-
     // ------------------------------------------------------------------------------------------------
 
     /// Private Methods ///
@@ -380,6 +352,11 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
         address refundAddress
     ) private {
         bool success;
+        IExecutor executor = IExecutor(
+            PeripheryRegistryFacet(diamondAddress).getPeripheryContract(
+                "Executor"
+            )
+        );
         if (LibAsset.isNativeAsset(assetId)) {
             try
                 executor.swapAndCompleteBridgeTokens{ value: amount }(
