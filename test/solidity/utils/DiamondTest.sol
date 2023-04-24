@@ -6,6 +6,7 @@ import "lifi/Facets/DiamondCutFacet.sol";
 import "lifi/Facets/DiamondLoupeFacet.sol";
 import "lifi/Facets/OwnershipFacet.sol";
 import "lifi/Interfaces/IDiamondCut.sol";
+import "lifi/Facets/PeripheryRegistryFacet.sol";
 
 contract DiamondTest {
     IDiamondCut.FacetCut[] internal cut;
@@ -14,6 +15,7 @@ contract DiamondTest {
         DiamondCutFacet diamondCut = new DiamondCutFacet();
         DiamondLoupeFacet diamondLoupe = new DiamondLoupeFacet();
         OwnershipFacet ownership = new OwnershipFacet();
+        PeripheryRegistryFacet periphery = new PeripheryRegistryFacet();
         LiFiDiamond diamond = new LiFiDiamond(
             address(this),
             address(diamondCut)
@@ -52,6 +54,23 @@ contract DiamondTest {
         cut.push(
             IDiamondCut.FacetCut({
                 facetAddress: address(ownership),
+                action: IDiamondCut.FacetCutAction.Add,
+                functionSelectors: functionSelectors
+            })
+        );
+
+        // PeripheryRegistryFacet
+        functionSelectors = new bytes4[](2);
+        functionSelectors[0] = PeripheryRegistryFacet
+            .registerPeripheryContract
+            .selector;
+        functionSelectors[1] = PeripheryRegistryFacet
+            .getPeripheryContract
+            .selector;
+
+        cut.push(
+            IDiamondCut.FacetCut({
+                facetAddress: address(periphery),
                 action: IDiamondCut.FacetCutAction.Add,
                 functionSelectors: functionSelectors
             })
