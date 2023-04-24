@@ -30,6 +30,15 @@ interface ISynapseRouter {
         uint256 amountIn;
     }
 
+    /// @notice Struct representing a bridge token.
+    ///         Used as the return value in view functions.
+    /// @param symbol Bridge token symbol: unique token ID consistent among all chains.
+    /// @param token Bridge token address.
+    struct BridgeToken {
+        string symbol;
+        address token;
+    }
+
     /// @notice Initiate a bridge transaction with an optional swap on both origin
     ///         and destination chains.
     /// @dev Note This method is payable.
@@ -111,4 +120,14 @@ interface ISynapseRouter {
         DestRequest[] memory requests,
         address tokenOut
     ) external view returns (SwapQuery[] memory destQueries);
+
+    /// @notice Gets the list of all bridge tokens (and their symbols),
+    ///         such that destination swap from a bridge token to `tokenOut` is possible.
+    /// @param tokenOut Token address to swap to on destination chain
+    /// @return tokens List of structs with following information:
+    ///                - symbol: unique token ID consistent among all chains
+    ///                - token: bridge token address
+    function getConnectedBridgeTokens(
+        address tokenOut
+    ) external view returns (BridgeToken[] memory tokens);
 }

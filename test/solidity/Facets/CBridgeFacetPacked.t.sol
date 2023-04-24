@@ -2,15 +2,15 @@ pragma solidity 0.8.17;
 
 import "ds-test/test.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
+import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
-import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { console } from "../utils/Console.sol";
 
-contract CBridgeGasTest is Test, DiamondTest {
+contract CBridgeFacetPackedTest is Test, DiamondTest {
     address internal constant CBRIDGE_ROUTER =
         0x1619DE6B6B20eD217a58d00f37B9d47C7663feca;
     address internal constant USDC_ADDRESS =
@@ -24,10 +24,10 @@ contract CBridgeGasTest is Test, DiamondTest {
     ERC20 internal usdc;
     LiFiDiamond internal diamond;
     CBridgeFacetPacked internal cBridgeFacetPacked;
+    CBridgeFacetPacked internal standAlone;
 
     bytes32 transactionId;
-    string integrator;
-    uint256 destinationChainId;
+    uint64 destinationChainId;
     uint64 nonce;
     uint32 maxSlippage;
 
@@ -49,10 +49,11 @@ contract CBridgeGasTest is Test, DiamondTest {
         /// Perpare CBridgeFacetPacked
         diamond = createDiamond();
         cbridge = ICBridge(CBRIDGE_ROUTER);
-        cBridgeFacetPacked = new CBridgeFacetPacked(cbridge);
+        cBridgeFacetPacked = new CBridgeFacetPacked(cbridge, address(this));
+        standAlone = new CBridgeFacetPacked(cbridge, address(this));
         usdc = ERC20(USDC_ADDRESS);
 
-        bytes4[] memory functionSelectors = new bytes4[](6);
+        bytes4[] memory functionSelectors = new bytes4[](8);
         functionSelectors[0] = cBridgeFacetPacked
             .startBridgeTokensViaCBridgeNativePacked
             .selector;
@@ -66,82 +67,72 @@ contract CBridgeGasTest is Test, DiamondTest {
             .startBridgeTokensViaCBridgeERC20Min
             .selector;
         functionSelectors[4] = cBridgeFacetPacked
-            .encoder_startBridgeTokensViaCBridgeNativePacked
+            .encode_startBridgeTokensViaCBridgeNativePacked
             .selector;
         functionSelectors[5] = cBridgeFacetPacked
-            .encoder_startBridgeTokensViaCBridgeERC20Packed
+            .encode_startBridgeTokensViaCBridgeERC20Packed
+            .selector;
+        functionSelectors[6] = cBridgeFacetPacked
+            .decode_startBridgeTokensViaCBridgeNativePacked
+            .selector;
+        functionSelectors[7] = cBridgeFacetPacked
+            .decode_startBridgeTokensViaCBridgeERC20Packed
             .selector;
 
         addFacet(diamond, address(cBridgeFacetPacked), functionSelectors);
         cBridgeFacetPacked = CBridgeFacetPacked(address(diamond));
 
-        /// Perpare Approval
-        HopFacetOptimized hopFacetOptimized = new HopFacetOptimized();
-        bytes4[] memory functionSelectorsApproval = new bytes4[](1);
-        functionSelectorsApproval[0] = hopFacetOptimized
-            .setApprovalForBridges
-            .selector;
-
-        addFacet(
-            diamond,
-            address(hopFacetOptimized),
-            functionSelectorsApproval
-        );
-        hopFacetOptimized = HopFacetOptimized(address(diamond));
-
-        address[] memory bridges = new address[](1);
-        bridges[0] = CBRIDGE_ROUTER;
-        address[] memory tokens = new address[](1);
-        tokens[0] = USDC_ADDRESS;
-        hopFacetOptimized.setApprovalForBridges(bridges, tokens);
-
         /// Perpare parameters
         transactionId = "someID";
-        integrator = "demo-partner";
         destinationChainId = 137;
         maxSlippage = 5000;
 
         // Native params
-        amountNative = 1 * 10 ** 18;
-
-        bytes memory packedNativeParams = bytes.concat(
-            bytes8(transactionId), // transactionId
-            bytes16(bytes(integrator)), // integrator
-            bytes20(RECEIVER), // receiver
-            bytes4(uint32(destinationChainId)), // destinationChainId
-            bytes4(uint32(nonce)), // nonce
-            bytes4(maxSlippage) // maxSlippage
-        );
-        packedNative = bytes.concat(
-            abi.encodeWithSignature(
-                "startBridgeTokensViaCBridgeNativePacked()"
-            ),
-            packedNativeParams
-        );
+        amountNative = 1 ether;
+        packedNative = cBridgeFacetPacked
+            .encode_startBridgeTokensViaCBridgeNativePacked(
+                transactionId,
+                RECEIVER,
+                destinationChainId,
+                nonce,
+                maxSlippage
+            );
 
         // USDC params
-        amountUSDC = 100 * 10 ** usdc.decimals();
-        bytes memory packedUSDCParams = bytes.concat(
-            bytes8(transactionId), // transactionId
-            bytes16(bytes(integrator)), // integrator
-            bytes20(RECEIVER), // receiver
-            bytes4(uint32(destinationChainId)), // destinationChainId
-            bytes20(USDC_ADDRESS), // sendingAssetId
-            bytes16(uint128(amountUSDC)), // amount
-            bytes4(uint32(nonce)), // nonce
-            bytes4(maxSlippage) // maxSlippage
-        );
-        packedUSDC = bytes.concat(
-            abi.encodeWithSignature(
-                "startBridgeTokensViaCBridgeERC20Packed()"
-            ),
-            packedUSDCParams
-        );
+        amountUSDC = 100 * 10**usdc.decimals();
+        packedUSDC = cBridgeFacetPacked
+            .encode_startBridgeTokensViaCBridgeERC20Packed(
+                transactionId,
+                RECEIVER,
+                destinationChainId,
+                USDC_ADDRESS,
+                amountUSDC,
+                nonce,
+                maxSlippage
+            );
+
+        // Prepare approvals
+        address[] memory tokens = new address[](1);
+        tokens[0] = USDC_ADDRESS;
+        vm.prank(address(cBridgeFacetPacked));
+        usdc.approve(CBRIDGE_ROUTER, type(uint256).max);
+        standAlone.setApprovalForBridge(tokens);
     }
 
     function testStartBridgeTokensViaCBridgeNativePacked() public {
         vm.startPrank(WHALE);
         (bool success, ) = address(diamond).call{ value: amountNative }(
+            packedNative
+        );
+        if (!success) {
+            revert();
+        }
+        vm.stopPrank();
+    }
+
+    function testStartBridgeTokensViaCBridgeNativePacked_StandAlone() public {
+        vm.startPrank(WHALE);
+        (bool success, ) = address(standAlone).call{ value: amountNative }(
             packedNative
         );
         if (!success) {
@@ -156,7 +147,6 @@ contract CBridgeGasTest is Test, DiamondTest {
             value: amountNative
         }(
             transactionId,
-            integrator,
             RECEIVER,
             uint64(destinationChainId),
             nonce,
@@ -175,12 +165,21 @@ contract CBridgeGasTest is Test, DiamondTest {
         vm.stopPrank();
     }
 
+    function testStartBridgeTokensViaCBridgeERC20Packed_StandAlone() public {
+        vm.startPrank(WHALE);
+        usdc.approve(address(standAlone), amountUSDC);
+        (bool success, ) = address(standAlone).call(packedUSDC);
+        if (!success) {
+            revert();
+        }
+        vm.stopPrank();
+    }
+
     function testStartBridgeTokensViaCBridgeERC20Min() public {
         vm.startPrank(WHALE);
         usdc.approve(address(diamond), amountUSDC);
         cBridgeFacetPacked.startBridgeTokensViaCBridgeERC20Min(
             transactionId,
-            integrator,
             RECEIVER,
             uint64(destinationChainId),
             USDC_ADDRESS,
@@ -194,9 +193,8 @@ contract CBridgeGasTest is Test, DiamondTest {
     function testEncodeNativeValidation() public {
         // destinationChainId
         // > max allowed
-        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeNativePacked(
+        cBridgeFacetPacked.encode_startBridgeTokensViaCBridgeNativePacked(
             transactionId,
-            integrator,
             RECEIVER,
             uint64(type(uint32).max),
             nonce,
@@ -204,9 +202,8 @@ contract CBridgeGasTest is Test, DiamondTest {
         );
         // > too big
         vm.expectRevert();
-        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeNativePacked(
+        cBridgeFacetPacked.encode_startBridgeTokensViaCBridgeNativePacked(
             transactionId,
-            integrator,
             RECEIVER,
             uint64(type(uint32).max) + 1,
             nonce,
@@ -215,9 +212,8 @@ contract CBridgeGasTest is Test, DiamondTest {
 
         // nonce
         // > max allowed
-        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeNativePacked(
+        cBridgeFacetPacked.encode_startBridgeTokensViaCBridgeNativePacked(
             transactionId,
-            integrator,
             RECEIVER,
             137,
             uint64(type(uint32).max),
@@ -225,9 +221,8 @@ contract CBridgeGasTest is Test, DiamondTest {
         );
         // > too big
         vm.expectRevert();
-        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeNativePacked(
+        cBridgeFacetPacked.encode_startBridgeTokensViaCBridgeNativePacked(
             transactionId,
-            integrator,
             RECEIVER,
             137,
             uint64(type(uint32).max) + 1,
@@ -238,9 +233,8 @@ contract CBridgeGasTest is Test, DiamondTest {
     function testEncodeERC20Validation() public {
         // destinationChainId
         // > max allowed
-        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
+        cBridgeFacetPacked.encode_startBridgeTokensViaCBridgeERC20Packed(
             transactionId,
-            integrator,
             RECEIVER,
             uint64(type(uint32).max),
             USDC_ADDRESS,
@@ -250,9 +244,8 @@ contract CBridgeGasTest is Test, DiamondTest {
         );
         // > too big
         vm.expectRevert();
-        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
+        cBridgeFacetPacked.encode_startBridgeTokensViaCBridgeERC20Packed(
             transactionId,
-            integrator,
             RECEIVER,
             uint64(type(uint32).max) + 1,
             USDC_ADDRESS,
@@ -263,9 +256,8 @@ contract CBridgeGasTest is Test, DiamondTest {
 
         // nonce
         // > max allowed
-        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
+        cBridgeFacetPacked.encode_startBridgeTokensViaCBridgeERC20Packed(
             transactionId,
-            integrator,
             RECEIVER,
             137,
             USDC_ADDRESS,
@@ -275,9 +267,8 @@ contract CBridgeGasTest is Test, DiamondTest {
         );
         // > too big
         vm.expectRevert();
-        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
+        cBridgeFacetPacked.encode_startBridgeTokensViaCBridgeERC20Packed(
             transactionId,
-            integrator,
             RECEIVER,
             137,
             USDC_ADDRESS,
@@ -288,9 +279,8 @@ contract CBridgeGasTest is Test, DiamondTest {
 
         // nonce
         // > max allowed
-        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
+        cBridgeFacetPacked.encode_startBridgeTokensViaCBridgeERC20Packed(
             transactionId,
-            integrator,
             RECEIVER,
             137,
             USDC_ADDRESS,
@@ -300,9 +290,8 @@ contract CBridgeGasTest is Test, DiamondTest {
         );
         // > too big
         vm.expectRevert();
-        cBridgeFacetPacked.encoder_startBridgeTokensViaCBridgeERC20Packed(
+        cBridgeFacetPacked.encode_startBridgeTokensViaCBridgeERC20Packed(
             transactionId,
-            integrator,
             RECEIVER,
             137,
             USDC_ADDRESS,
@@ -310,5 +299,94 @@ contract CBridgeGasTest is Test, DiamondTest {
             uint64(type(uint32).max) + 1,
             maxSlippage
         );
+    }
+
+    function test_CanEncodeAndDecodeCBridgeNativeCall() public {
+        bytes memory encoded = cBridgeFacetPacked
+            .encode_startBridgeTokensViaCBridgeNativePacked(
+                transactionId,
+                RECEIVER,
+                destinationChainId,
+                nonce,
+                maxSlippage
+            );
+
+        (
+            ILiFi.BridgeData memory decodedBridgeData,
+            CBridgeFacet.CBridgeData memory decodedCBridgeData
+        ) = cBridgeFacetPacked.decode_startBridgeTokensViaCBridgeNativePacked(
+                encoded
+            );
+        assertEq(
+            decodedBridgeData.transactionId,
+            transactionId,
+            "transactionId does not match"
+        );
+        assertEq(
+            decodedBridgeData.receiver,
+            RECEIVER,
+            "Receiver does not match"
+        );
+        assertEq(
+            decodedBridgeData.destinationChainId,
+            destinationChainId,
+            "destinationChainId does not match"
+        );
+        assertEq(
+            decodedCBridgeData.maxSlippage,
+            maxSlippage,
+            "maxSlippage does not match"
+        );
+        assertEq(decodedCBridgeData.nonce, nonce, "nonce does not match");
+    }
+
+    function test_CanEncodeAndDecodeCBridgeERC20Call() public {
+        bytes memory encoded = cBridgeFacetPacked
+            .encode_startBridgeTokensViaCBridgeERC20Packed(
+                transactionId,
+                RECEIVER,
+                destinationChainId,
+                USDC_ADDRESS,
+                amountUSDC,
+                nonce,
+                maxSlippage
+            );
+        (
+            ILiFi.BridgeData memory decodedBridgeData,
+            CBridgeFacet.CBridgeData memory decodedCBridgeData
+        ) = cBridgeFacetPacked.decode_startBridgeTokensViaCBridgeERC20Packed(
+                encoded
+            );
+        assertEq(
+            decodedBridgeData.transactionId,
+            transactionId,
+            "transactionId does not match"
+        );
+        assertEq(
+            decodedBridgeData.receiver,
+            RECEIVER,
+            "Receiver does not match"
+        );
+        assertEq(
+            decodedBridgeData.destinationChainId,
+            destinationChainId,
+            "destinationChainId does not match"
+        );
+        assertEq(
+            decodedBridgeData.sendingAssetId,
+            USDC_ADDRESS,
+            "sendingAssetId does not match"
+        );
+        assertEq(
+            decodedBridgeData.minAmount,
+            amountUSDC,
+            "minAmount does not match"
+        );
+        assertEq(
+            decodedCBridgeData.maxSlippage,
+            maxSlippage,
+            "maxSlippage does not match"
+        );
+        assertEq(decodedCBridgeData.nonce, nonce, "nonce does not match");
     }
 }
