@@ -32,13 +32,13 @@ BYTECODE_STORAGE_PATH="deployments/_bytecode_storage.json"
 # exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,consensys-zkevm-testnet"
 # exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
 #EXCLUDE_NETWORKS="gnosis,okx,moonbeam,celo,fuse,cronos,velas,harmony,evmos,boba,nova,bsctest,goerli,sepolia,mumbai,consensys-zkevm-testnet"
-EXCLUDE_NETWORKS=""
+EXCLUDE_NETWORKS="consensys-zkevm-testnet"
 
 # will output more detailed information for debugging purposes
 DEBUG=false
 
 # defines if newly deployed contracts should be verified or not
-VERIFY_CONTRACTS=false
+VERIFY_CONTRACTS=true
 
 # contract verification will be deactivated for any network listed here
 DO_NOT_VERIFY_IN_THESE_NETWORKS=""

@@ -35,9 +35,10 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Initialize the contract.
     /// @param _cBridge The contract address of the cbridge on the source chain.
-    constructor(ICBridge _cBridge, address _owner)
-        TransferrableOwnership(_owner)
-    {
+    constructor(
+        ICBridge _cBridge,
+        address _owner
+    ) TransferrableOwnership(_owner) {
         cBridge = _cBridge;
     }
 
@@ -46,10 +47,9 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
     /// @dev Only meant to be called outside of the context of the diamond
     /// @notice Sets approval for the CBridge Router to spend the specified token
     /// @param tokensToApprove The tokens to approve to the CBridge Router
-    function setApprovalForBridge(address[] calldata tokensToApprove)
-        external
-        onlyOwner
-    {
+    function setApprovalForBridge(
+        address[] calldata tokensToApprove
+    ) external onlyOwner {
         for (uint256 i; i < tokensToApprove.length; i++) {
             // Give CBridge approval to bridge tokens
             LibAsset.maxApproveERC20(

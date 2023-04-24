@@ -1978,6 +1978,10 @@ function updateDiamondLogsInAllNetworks(){
     echo ""
     echo "current Network: $NETWORK"
 
+    # get RPC URL
+    local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+    echo "RPC_URL: ${!RPC_URL}"
+
     for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
@@ -2000,8 +2004,7 @@ function updateDiamondLogsInAllNetworks(){
           echo "    diamond address: $DIAMOND_ADDRESS"
         fi
 
-        # get RPC URL
-        local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
+
 
         # get list of facets
         local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "${!RPC_URL}") 2>/dev/null
@@ -2257,7 +2260,6 @@ function test_tmp(){
 }
 
 #test_tmp
-
 
 
 

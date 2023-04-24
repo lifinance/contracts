@@ -8,9 +8,9 @@
       "Name": "",
       "Version": ""
     },
-    "0x2327f3FBeC98B836012639545bE35e6e8F83892a": {
-      "Name": "",
-      "Version": ""
+    "0x44beA2Ab010d1CedC4E60E97DA8F88b8840951B0": {
+      "Name": "OwnershipFacet",
+      "Version": "1.0.0"
     },
     "0x756061F9c646a755233c63f5bc6e7Ad0D3B54Fc3": {
       "Name": "",
@@ -60,9 +60,9 @@
       "Name": "",
       "Version": ""
     },
-    "0xA57862295BdF8A680fda893B9bd3b935236d18bA": {
-      "Name": "HopFacetPacked",
-      "Version": "1.0.1"
+    "0x54f015D8615192f0F4B42f1eEE193CAA01AD42FE": {
+      "Name": "CelerIMFacet",
+      "Version": "1.0.0"
     },
     "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
       "Name": "",
@@ -85,19 +85,15 @@
       "Version": ""
     },
     "0x62dE2C0a71cd722bF3e6f9a8470887319b1c7B20": {
-      "Name": "CBridgeFacetPacked",
-      "Version": ""
-    },
-    "0x54f015D8615192f0F4B42f1eEE193CAA01AD42FE": {
-      "Name": "CelerIMFacet",
+      "Name": "",
       "Version": ""
     },
     "0xF156dc1077213AA92a3Ed6008a7FF8aEA2633186": {
-      "Name": "",
+      "Name": "CBridgeFacetPacked",
       "Version": ""
     },
     "0x5D3675D698A3DD53E3457951e1dEbEF717A29A72": {
-      "Name": "",
+      "Name": "HopFacetPacked",
       "Version": ""
     }
   }
