@@ -42,17 +42,7 @@ contract LIFuelFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        bytes4[] memory peripheryRegistryFunctionSelectors = new bytes4[](1);
-        peripheryRegistryFunctionSelectors[0] = peripheryRegistry
-            .registerPeripheryContract
-            .selector;
-
         addFacet(diamond, address(lifuelFacet), functionSelectors);
-        addFacet(
-            diamond,
-            address(peripheryRegistry),
-            peripheryRegistryFunctionSelectors
-        );
 
         lifuelFacet = TestLIFuelFacet(address(diamond));
         peripheryRegistry = PeripheryRegistryFacet(address(diamond));
@@ -89,9 +79,10 @@ contract LIFuelFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             lifuelFacet.swapAndStartBridgeTokensViaLIFuel{
                 value: swapData[0].fromAmount
