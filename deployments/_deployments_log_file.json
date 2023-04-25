@@ -938,20 +938,5 @@
         ]
       }
     }
-  },
-  "LiFiDiamond": {
-    "mumbai": {
-      "staging": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x0000000000000000000000000000000000000000",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-04-25 11:37:10",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea00000000000000000000000009f3cdb0393dec04ed20bd86fb0e8e1e98f719bfe",
-            "VERIFIED": "false"
-          }
-        ]
-      }
-    }
   }
 }

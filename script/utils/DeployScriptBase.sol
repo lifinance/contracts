@@ -5,7 +5,6 @@ import { Script } from "forge-std/Script.sol";
 import { console } from "forge-std/console.sol";
 
 import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
-import "../../src/LiFiDiamond.sol";
 import { DSTest } from "ds-test/test.sol";
 
 contract DeployScriptBase is Script, DSTest {
