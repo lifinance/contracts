@@ -99,7 +99,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
             );
 
         // USDC params
-        amountUSDC = 100 * 10**usdc.decimals();
+        amountUSDC = 100 * 10 ** usdc.decimals();
         packedUSDC = cBridgeFacetPacked
             .encode_startBridgeTokensViaCBridgeERC20Packed(
                 transactionId,
