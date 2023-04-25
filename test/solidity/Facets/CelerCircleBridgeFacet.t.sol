@@ -6,8 +6,6 @@ import { InsufficientBalance } from "src/Errors/GenericErrors.sol";
 import { CelerCircleBridgeFacet } from "lifi/Facets/CelerCircleBridgeFacet.sol";
 import { ICircleBridgeProxy } from "lifi/Interfaces/ICircleBridgeProxy.sol";
 
-// import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-
 // Stub CelerCircleBridgeFacet Contract
 contract TestCelerCircleBridgeFacet is CelerCircleBridgeFacet {
     constructor(
@@ -77,7 +75,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
             "CelerCircleBridgeFacet"
         );
 
-        bridgeData.bridge = "celerCircle";
+        bridgeData.bridge = "circle";
         bridgeData.sendingAssetId = ADDRESS_USDC;
         bridgeData.minAmount = defaultUSDCAmount;
         bridgeData.destinationChainId = 43114;
@@ -112,5 +110,18 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
 
     function testBase_CanSwapAndBridgeNativeTokens() public override {
         // facet does not support native bridging
+    }
+
+    function test_Revert_DestinationChainIdTooLarge() public virtual {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.destinationChainId = uint256(type(uint64).max) + 1;
+        vm.expectRevert(
+            "DestinationChainId passed is too big to fit in uint64"
+        );
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 }

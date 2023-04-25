@@ -29,8 +29,8 @@ contract CelerCircleBridgeFacet is
     /// Constructor ///
 
     /// @notice Initialize the contract.
-    /// @param _circleBridgeProxy The address of the CircleBridgeProxy on the source chain.
-    /// @param _usdc The address of USDC on the source chain.
+    /// @param _circleBridgeProxy The address of the CircleBridgeProxy on the current chain.
+    /// @param _usdc The address of USDC on the current chain.
     constructor(ICircleBridgeProxy _circleBridgeProxy, address _usdc) {
         circleBridgeProxy = _circleBridgeProxy;
         usdc = _usdc;
@@ -84,6 +84,11 @@ contract CelerCircleBridgeFacet is
     /// @dev Contains the business logic for the bridge via CelerCircleBridge
     /// @param _bridgeData The core information needed for bridging
     function _startBridge(BridgeData memory _bridgeData) private {
+        require(
+            _bridgeData.destinationChainId <= type(uint64).max,
+            "DestinationChainId passed is too big to fit in uint64"
+        );
+
         // give max approval for token to CelerCircleBridge bridge, if not already
         LibAsset.maxApproveERC20(
             IERC20(usdc),
