@@ -23,7 +23,6 @@ contract TestCelerCircleBridgeFacet is CelerCircleBridgeFacet {
 }
 
 contract CelerCircleBridgeFacetTest is TestBaseFacet {
-    // These values are for Goerli
     address internal constant TOKEN_MESSENGER =
         0x6065A982F04F759b7d2D042D2864e569fad84214;
 
