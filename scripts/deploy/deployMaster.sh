@@ -125,7 +125,7 @@ deployMaster() {
       fi
     else
       # just deploy the contract
-      deploySingleContract "$CONTRACT" "" "$ENVIRONMENT" "" false
+      deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "" false
     fi
 
     # check if last command was executed successfully, otherwise exit script with error message
@@ -198,7 +198,7 @@ deployMaster() {
     echo "[info] selected network: $NETWORK"
     echo "[info] deployer wallet balance in this network: $BALANCE"
     echo ""
-    checkRequiredVariablesInDotEnv $NETWORK
+    checkRequiredVariablesInDotEnv "$NETWORK"
 
     # call deploy script
     deployAllContracts "$NETWORK" "$ENVIRONMENT"
@@ -214,7 +214,7 @@ deployMaster() {
     echo "[info] selected use case: Deploy all (missing) contracts for all networks"
 
     #TODO: implement
-    echo "[error] this use case is not yet implemented"
+    error "this use case is not yet implemented"
     exit 1
     # go through each network in target state
       # get list of contracts in array
@@ -255,7 +255,7 @@ deployMaster() {
       echo "[info] selected use case: Run sync-sigs.sh script"
       syncSIGs "" "$ENVIRONMENT" "" true
     else
-      echo "[error] invalid use case selected ('$SELECTION2') - exiting script"
+      error "invalid use case selected ('$SELECTION2') - exiting script"
       exit 1
     fi
 
@@ -337,7 +337,7 @@ deployMaster() {
         addNewContractVersionToAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamond" "$USE_VERSION" true
         addNewContractVersionToAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamondImmutable" "$USE_VERSION" true
       else
-        echo "[error] invalid value selected: $SELECTION - exiting script now"
+        error "invalid value selected: $SELECTION - exiting script now"
         exit 1
       fi
     elif [[ "$SELECTION2" == *"2)"* ]]; then
@@ -392,7 +392,7 @@ deployMaster() {
         updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamond" "$NEW_VERSION"
         updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamondImmutable" "$NEW_VERSION"
       else
-        echo "[error] invalid value selected: $SELECTION - exiting script now"
+        error "invalid value selected: $SELECTION - exiting script now"
         exit 1
       fi
     elif [[ "$SELECTION2" == *"3)"* ]]; then
@@ -421,7 +421,7 @@ deployMaster() {
         addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamond"
         addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamondImmutable"
       else
-        echo "[error] invalid value selected: $SELECTION - exiting script now"
+        error "invalid value selected: $SELECTION - exiting script now"
         exit 1
       fi
 
@@ -431,11 +431,11 @@ deployMaster() {
         echo "[info] ...success"
         exit 0
       else
-        echo "[error] script ended with error code. Please turn on DEBUG flag and check for details"
+        error "script ended with error code. Please turn on DEBUG flag and check for details"
         exit 1
       fi
     else
-      echo "[error] invalid use case selected ('$SELECTION2') - exiting script"
+      error "invalid use case selected ('$SELECTION2') - exiting script"
       exit 1
     fi
     echo ""
@@ -445,7 +445,7 @@ deployMaster() {
     verifyAllUnverifiedContractsInLogFile
     playNotificationSound
   else
-    echo "[error] invalid use case selected ('$SELECTION') - exiting script"
+    error "invalid use case selected ('$SELECTION') - exiting script"
     exit 1
   fi
 
