@@ -6,12 +6,40 @@ import { ERC20 } from "solmate/utils/SafeTransferLib.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
+import { WETH } from "solmate/tokens/WETH.sol";
+
+interface L2_AmmWrapper {
+    function bridge() external view returns (address);
+
+    function l2CanonicalToken() external view returns (address);
+
+    function hToken() external view returns (address);
+
+    function exchangeAddress() external view returns (address);
+}
+
+interface Swap {
+    function swap(
+        uint8 tokenIndexFrom,
+        uint8 tokenIndexTo,
+        uint256 dx,
+        uint256 minDy,
+        uint256 deadline
+    ) external returns (uint256);
+}
 
 /// @title Hop Facet (Optimized for Rollups)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
 /// @custom:version 1.0.2
 contract HopFacetPacked is ILiFi, TransferrableOwnership {
+    /// Storage ///
+
+    address public immutable bridge;
+    address public immutable l2CanonicalToken;
+    address public immutable hToken;
+    address public immutable exchangeAddress;
+
     /// Events ///
 
     event LiFiHopTransfer(bytes8 _transactionId);
@@ -20,7 +48,22 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Initialize the contract.
     /// @param _owner The contract owner to approve tokens.
-    constructor(address _owner) TransferrableOwnership(_owner) {}
+    constructor(address _owner, address _wrapper)
+        TransferrableOwnership(_owner)
+    {
+        l2CanonicalToken = _wrapper != address(0)
+            ? L2_AmmWrapper(_wrapper).l2CanonicalToken()
+            : address(0);
+        hToken = _wrapper != address(0)
+            ? L2_AmmWrapper(_wrapper).hToken()
+            : address(0);
+        exchangeAddress = _wrapper != address(0)
+            ? L2_AmmWrapper(_wrapper).exchangeAddress()
+            : address(0);
+        bridge = _wrapper != address(0)
+            ? L2_AmmWrapper(_wrapper).bridge()
+            : address(0);
+    }
 
     /// External Methods ///
 
@@ -56,16 +99,26 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         // hopBridge: address(bytes20(msg.data[88:108]))
         // => total calldata length required: 108
 
+        uint256 amountOutMin = uint256(uint128(bytes16(msg.data[52:68])));
+
+        // Wrap ETH
+        WETH(payable(l2CanonicalToken)).deposit{ value: msg.value }();
+
+        // Exchange WETH for hToken
+        uint256 swapAmount = Swap(exchangeAddress).swap(
+            0,
+            1,
+            msg.value,
+            amountOutMin,
+            block.timestamp
+        );
+
         // Bridge assets
-        IHopBridge(address(bytes20(msg.data[88:108]))).swapAndSend{
-            value: msg.value
-        }(
+        IHopBridge(bridge).send(
             uint256(uint32(bytes4(msg.data[32:36]))),
             address(bytes20(msg.data[12:32])),
-            msg.value,
+            swapAmount,
             uint256(uint128(bytes16(msg.data[36:52]))),
-            uint256(uint128(bytes16(msg.data[52:68]))),
-            block.timestamp,
             uint256(uint128(bytes16(msg.data[68:84]))),
             uint256(uint32(bytes4(msg.data[84:88])))
         );
@@ -163,9 +216,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Decodes calldata for startBridgeTokensViaHopL2NativePacked
     /// @param _data the calldata to decode
-    function decode_startBridgeTokensViaHopL2NativePacked(
-        bytes calldata _data
-    )
+    function decode_startBridgeTokensViaHopL2NativePacked(bytes calldata _data)
         external
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
@@ -344,9 +395,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Decodes calldata for startBridgeTokensViaHopL2ERC20Packed
     /// @param _data the calldata to decode
-    function decode_startBridgeTokensViaHopL2ERC20Packed(
-        bytes calldata _data
-    )
+    function decode_startBridgeTokensViaHopL2ERC20Packed(bytes calldata _data)
         external
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
@@ -480,9 +529,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Decodes calldata for startBridgeTokensViaHopL1NativePacked
     /// @param _data the calldata to decode
-    function decode_startBridgeTokensViaHopL1NativePacked(
-        bytes calldata _data
-    )
+    function decode_startBridgeTokensViaHopL1NativePacked(bytes calldata _data)
         external
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
@@ -643,9 +690,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Decodes calldata for startBridgeTokensViaHopL1ERC20Packed
     /// @param _data the calldata to decode
-    function decode_startBridgeTokensViaHopL1ERC20Packed(
-        bytes calldata _data
-    )
+    function decode_startBridgeTokensViaHopL1ERC20Packed(bytes calldata _data)
         external
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)

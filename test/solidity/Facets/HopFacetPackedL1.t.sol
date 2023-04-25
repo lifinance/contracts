@@ -70,8 +70,8 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
 
         /// Perpare HopFacetPacked
         diamond = createDiamond();
-        hopFacetPacked = new HopFacetPacked(address(this));
-        standAlone = new HopFacetPacked(address(this));
+        hopFacetPacked = new HopFacetPacked(address(this), address(0));
+        standAlone = new HopFacetPacked(address(this), address(0));
         usdc = ERC20(USDC_ADDRESS);
         hop = IHopBridge(HOP_USDC_BRIDGE);
         callForwarder = new CallForwarder();
@@ -150,7 +150,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
         deadline = block.timestamp + 7 * 24 * 60 * 60;
 
         // Native params
-        amountNative = 1 * 10 ** 18;
+        amountNative = 1 * 10**18;
         amountBonderFeeNative = (amountNative / 100) * 1;
         amountOutMinNative = (amountNative / 100) * 99;
 
@@ -166,7 +166,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
             );
 
         // USDC params
-        amountUSDC = 100 * 10 ** usdc.decimals();
+        amountUSDC = 100 * 10**usdc.decimals();
         amountBonderFeeUSDC = (amountUSDC / 100) * 1;
         amountOutMinUSDC = (amountUSDC / 100) * 99;
 
