@@ -97,8 +97,7 @@ contract CelerIMFacetTest is TestBaseFacet {
         relayer = new RelayerCelerIM(
             address(this),
             CBRIDGE_MESSAGEBUS_ETH,
-            address(diamond),
-            address(executor)
+            address(diamond)
         );
 
         celerIMFacet = new TestCelerIMFacet(

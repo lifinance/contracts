@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 function updatePeriphery() {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running updatePeriphery now...."
@@ -63,18 +62,18 @@ function updatePeriphery() {
 
   # determine which periphery contracts to update
   if [[ -z "$UPDATE_ALL" || "$UPDATE_ALL" == "false" ]]; then
-      # check to see if a single contract was passed that should be upgraded
-      if [[ -z "$CONTRACT" ]]; then
-        # get a list of all periphery contracts
-        local PERIPHERY_PATH="$CONTRACT_DIRECTORY""Periphery/"
-        PERIPHERY_CONTRACTS=$(getContractNamesInFolder "$PERIPHERY_PATH")
-        PERIPHERY_CONTRACTS_ARR=($(echo "$PERIPHERY_CONTRACTS" | tr ',' ' '))
+    # check to see if a single contract was passed that should be upgraded
+    if [[ -z "$CONTRACT" ]]; then
+      # get a list of all periphery contracts
+      local PERIPHERY_PATH="$CONTRACT_DIRECTORY""Periphery/"
+      PERIPHERY_CONTRACTS=$(getContractNamesInFolder "$PERIPHERY_PATH")
+      PERIPHERY_CONTRACTS_ARR=($(echo "$PERIPHERY_CONTRACTS" | tr ',' ' '))
 
-        # ask user to select contracts to be updated
-        CONTRACTS=$(gum choose --no-limit "${PERIPHERY_CONTRACTS_ARR[@]}")
-      else
-        CONTRACTS=$CONTRACT
-      fi
+      # ask user to select contracts to be updated
+      CONTRACTS=$(gum choose --no-limit "${PERIPHERY_CONTRACTS_ARR[@]}")
+    else
+      CONTRACTS=$CONTRACT
+    fi
   else
     # get all periphery contracts that are not excluded by config
     CONTRACTS=$(getIncludedPeripheryContractsArray)
@@ -91,7 +90,6 @@ function updatePeriphery() {
     echo "[debug] CONTRACTS=($CONTRACTS)"
     echo ""
   fi
-
 
   # get path of deployment file to extract contract addresses from it
   if [[ -z "$FILE_SUFFIX" ]]; then
@@ -132,17 +130,17 @@ function updatePeriphery() {
 
   # check the return code the last call
   if [ $LAST_CALL -ne 0 ]; then
-      # end this script according to flag
-      if [[ "$EXIT_ON_ERROR" == "true" ]]; then
-        exit 1
-      fi
+    # end this script according to flag
+    if [[ "$EXIT_ON_ERROR" == "true" ]]; then
+      exit 1
+    fi
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< updatePeriphery completed"
 }
 
 register() {
-	local NETWORK=$(tr '[:lower:]-' '[:upper:]_' <<< $1)
+  local NETWORK=$(tr '[:lower:]-' '[:upper:]_' <<<$1)
   local DIAMOND=$2
   local CONTRACT_NAME=$3
   local ADDR=$4
@@ -156,10 +154,10 @@ register() {
     if [[ "$DEBUG" == *"true"* ]]; then
       echo "[info] trying to register periphery contract $CONTRACT_NAME in diamond on network $NETWORK now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
       # print output to console
-      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$NAME" "$ADDR" --private-key $PRIVATE_KEY --rpc-url "${!RPC}" --legacy
+      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $PRIVATE_KEY --rpc-url "${!RPC}" --legacy
     else
       # do not print output to console
-      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$NAME" "$ADDR" --private-key $PRIVATE_KEY --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
+      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $PRIVATE_KEY --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
     fi
 
     # check the return code the last call
@@ -177,4 +175,3 @@ register() {
     return 1
   fi
 }
-
