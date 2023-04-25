@@ -102,14 +102,16 @@ deployMaster() {
     SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
-    # check if new contract should be added to diamond after deployment
-    echo ""
-    echo "Do you want to add this contract to a diamond after deployment?"
-    local ADD_TO_DIAMOND=$(gum choose \
-        "yes - to LiFiDiamond"\
-        "yes - to LiFiDiamondImmutable"\
-        " no - do not update any diamond"\
-        )
+    # check if new contract should be added to diamond after deployment (only check for
+    if [[ ! "$CONTRACT" == *"LiFiDiamond"* ]]; then
+      echo ""
+      echo "Do you want to add this contract to a diamond after deployment?"
+      ADD_TO_DIAMOND=$(gum choose \
+          "yes - to LiFiDiamond"\
+          "yes - to LiFiDiamondImmutable"\
+          " no - do not update any diamond"\
+          )
+    fi
 
     #TODO: add code to select a contract version (or use latest as default)
     # get current contract version
