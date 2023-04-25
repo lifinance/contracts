@@ -14,7 +14,7 @@ contract DeployScript is UpdateScriptBase {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // CircleBridge
+        // CelerCircleBridgeFacet
         bytes4[] memory exclude;
         buildDiamondCut(
             getSelectors("CelerCircleBridgeFacet", exclude),

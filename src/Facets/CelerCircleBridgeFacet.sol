@@ -20,10 +20,10 @@ contract CelerCircleBridgeFacet is
 {
     /// Storage ///
 
-    /// @notice The address of the TokenMessenger on the source chain.
+    /// @notice The address of the TokenMessenger on the current chain.
     ICircleBridgeProxy private immutable circleBridgeProxy;
 
-    /// @notice The USDC address on the source chain.
+    /// @notice The USDC address on the current chain.
     address private immutable usdc;
 
     /// Constructor ///
