@@ -119,7 +119,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
 
         bridgeData.destinationChainId = uint256(type(uint64).max) + 1;
         vm.expectRevert(
-            "DestinationChainId passed is too big to fit in uint64"
+            "_bridgeData.destinationChainId passed is too big to fit in uint64"
         );
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
