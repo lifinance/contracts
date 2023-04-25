@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# defines the environment (true=production, false=staging)
+PRODUCTION=true
+
 # the maximum time in seconds that the script will wait for blockchain to sync contract deployment
 # we use this as double check to make sure that a contract was actually deployed
 MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC=60

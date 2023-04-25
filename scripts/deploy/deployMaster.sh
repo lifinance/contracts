@@ -8,11 +8,11 @@
 # TODO
 # - add verify contract use case (use bytecode and settings from storage)
 # - create function that checks if contract is deployed (get bytecode, predict address, check bytecode at address)
+# - return master log to store all deployments (and return latest when inquired)
 
 
-# - implement all deploy use cases
-#   - use case 4 is still missing
-# - improve logging (use external library for console logging)
+
+
 
 # - clean code
 #   - local before variables
@@ -28,7 +28,6 @@
 # - add fancy stuff
 #   - script runtime
 #   -  add low balance warnings and currency symbols for deployer wallet balance
-#   - create a easy-readable file that shows which facets are added to diamond (nice-to-have)
 
 # - offer to exclude bytecode verification and adapt ensureENV for networks for which we dont have a functioning block explorer
 
@@ -54,16 +53,23 @@ deployMaster() {
   # determine environment: check if .env variable "PRODUCTION" is set to true
   if [[ "$PRODUCTION" == "true" ]]; then
     # make sure that PRODUCTION was selected intentionally by user
-    gum style \
-    --foreground 212 --border-foreground 213 --border double \
-    --align center --width 50 --margin "1 2" --padding "2 4" \
-    '!!! ATTENTION !!!'
-
-    echo "Your environment variable PRODUCTION is set to true"
-    echo "This means you will be deploying contracts to production"
     echo "    "
-    echo "Do you want to skip?"
-    gum confirm && exit 1 || echo "OK, continuing to execute in PRODUCTION environment"
+    echo "    "
+    printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!";
+    printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true";
+    printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production";
+    printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+    echo "    "
+    printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?";
+    PROD_SELECTION=$(gum choose \
+        "yes" \
+        "no" \
+        )
+
+    if [[ $PROD_SELECTION != "no" ]]; then
+      echo "...exiting script"
+      exit 0
+    fi
 
     ENVIRONMENT="production"
   else
@@ -142,13 +148,15 @@ deployMaster() {
     local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment
-    echo ""
-    echo "Do you want to add this contract to a diamond after deployment?"
-    local ADD_TO_DIAMOND=$(gum choose \
-        "yes - to LiFiDiamond"\
-        "yes - to LiFiDiamondImmutable"\
-        " no - do not update any diamond"\
-        )
+    if [[ ! "$CONTRACT" == *"LiFiDiamond"* ]]; then
+      echo ""
+      echo "Do you want to add this contract to a diamond after deployment?"
+      local ADD_TO_DIAMOND=$(gum choose \
+          "yes - to LiFiDiamond"\
+          "yes - to LiFiDiamondImmutable"\
+          " no - do not update any diamond"\
+          )
+    fi
 
     #TODO: add code to select a contract version (or use latest as default)
 
