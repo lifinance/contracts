@@ -67,7 +67,7 @@ deploySingleContract() {
   # check if deploy script exists
   local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
-    echo "[error] could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
+    error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
     return 1
   fi
 
@@ -105,7 +105,7 @@ deploySingleContract() {
   # check if .env file contains a value "SALT" and if this has correct number of digits (must be even)
   if [[ ! -z "$SALT" ]]; then
     if [ $((${#SALT} % 2)) != 0 ]; then
-      echo "[error] your SALT environment variable (in .env file) has a value with odd digits (must be even digits) - please adjust value and run script again"
+      error "your SALT environment variable (in .env file) has a value with odd digits (must be even digits) - please adjust value and run script again"
       exit 1
     fi
   fi
@@ -177,7 +177,7 @@ deploySingleContract() {
       done
 
       if [ $COUNT -gt "$MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC" ]; then
-        echo "[warning] contract deployment tx successful but doesAddressContainBytecode returned false. Please check if contract was actually deployed (NETWORK=$NETWORK, ADDRESS:$ADDRESS)"
+        warning "contract deployment tx successful but doesAddressContainBytecode returned false. Please check if contract was actually deployed (NETWORK=$NETWORK, ADDRESS:$ADDRESS)"
       fi
 
     fi
@@ -188,7 +188,7 @@ deploySingleContract() {
 
   # check if call was executed successfully or used all ATTEMPTS
   if [ $attempts -gt "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; then
-    echo "[error] failed to deploy $CONTRACT to network $NETWORK in $ENVIRONMENT environment"
+    error "failed to deploy $CONTRACT to network $NETWORK in $ENVIRONMENT environment"
 
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" ]]; then
@@ -228,7 +228,7 @@ deploySingleContract() {
     if $VERIFIED; then
       echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
     else
-      echo "[warning] $CONTRACT on $NETWORK with address $ADDRESS could not be verified"
+      warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified"
     fi
   fi
 

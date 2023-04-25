@@ -47,7 +47,7 @@ deployCoreFacets() {
     # check if function call was successful
     #if [ $? -ne 0 ]
     #then
-    #  echo "[warning] deployment of contract $CONTRACT to network $NETWORK failed :("
+    #  warning "deployment of contract $CONTRACT to network $NETWORK failed :("
     #else
     #  echo "[info] deployment of contract $CONTRACT to network $NETWORK successful :)"
     #fi

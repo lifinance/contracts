@@ -79,10 +79,9 @@ contract LIFuelFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             lifuelFacet.swapAndStartBridgeTokensViaLIFuel{
                 value: swapData[0].fromAmount

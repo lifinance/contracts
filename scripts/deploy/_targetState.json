@@ -122,7 +122,33 @@
   "mumbai": {
     "production": {
       "LiFiDiamond": {
-        "AcrossFacet": "1.0.1",
+        "LiFiDiamond": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "RelayerCelerIM": "1.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "AcrossFacet": "1.0.0",
+        "AxelarExecutor": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "HopFacetOptimized": "1.0.0"
+      }
+    },
+    "staging": {
+      "LiFiDiamond": {
+        "LiFiDiamond": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
         "RelayerCelerIM": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -136,7 +162,31 @@
   "goerli": {
     "production": {
       "LiFiDiamond": {
-        "AcrossFacet": "1.0.0"
+        "LiFiDiamond": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "RelayerCelerIM": "1.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "RelayerCelerIM": "1.0.0"
+      }
+    },
+    "staging": {
+      "LiFiDiamond": {
+        "LiFiDiamond": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "RelayerCelerIM": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "RelayerCelerIM": "1.0.0"

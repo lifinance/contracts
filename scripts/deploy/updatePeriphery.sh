@@ -36,7 +36,7 @@ function updatePeriphery() {
 
   # if no diamond address was found, throw an error and exit the script
   if [[ "$DIAMOND_ADDRESS" == "null" ]]; then
-    echo "[error] could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting updatePeriphery script now"
+    error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting updatePeriphery script now"
     return 1
   fi
 
@@ -120,7 +120,7 @@ function updatePeriphery() {
           echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
         fi
       else
-        echo "[warning] no address found for periphery contract $CONTRACT in this file: $ADDRS >> please deploy contract first"
+        warning "no address found for periphery contract $CONTRACT in this file: $ADDRS >> please deploy contract first"
         LAST_CALL=1
       fi
     else
@@ -171,7 +171,7 @@ register() {
 
   # check if call was executed successfully or used all attempts
   if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
-    echo "[error] failed to register $CONTRACT_NAME in diamond on network $NETWORK"
+    error "failed to register $CONTRACT_NAME in diamond on network $NETWORK"
     return 1
   fi
 }

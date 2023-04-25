@@ -68,7 +68,7 @@ function deployFacetAndAddToDiamond() {
 
   # if no diamond address was found, throw an error and exit this script
   if [[ "$DIAMOND_ADDRESS" == "null" ]]; then
-    echo "[error] could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting script now"
+    error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting script now"
     return 1
   fi
 
@@ -113,7 +113,7 @@ function deployFacetAndAddToDiamond() {
   # check if function call was successful
   #if [ $? -ne 0 ]
   #then
-  #  echo "[error] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME could not be added to $DIAMOND_CONTRACT_NAME on network $NETWORK. Please check for errors and repeat."
+  #  error "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME could not be added to $DIAMOND_CONTRACT_NAME on network $NETWORK. Please check for errors and repeat."
   #  return 1
   #else
   #  echo "[info] $FACET_CONTRACT_NAME successfully added to $DIAMOND_CONTRACT_NAME on network $NETWORK"
