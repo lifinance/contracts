@@ -12,9 +12,10 @@
     "@ethersproject/bytes" "^5.0.8"
     ethers "^5.1.0"
 
-"@axelar-network/axelar-cgp-solidity@git+https://github.com/axelarnetwork/axelar-cgp-solidity.git":
-  version "4.4.0"
-  resolved "git+https://github.com/axelarnetwork/axelar-cgp-solidity.git#7a8978819940469d15fe7a7029ea51d2464982e7"
+"@axelar-network/axelar-cgp-solidity@^4.5.0":
+  version "4.5.0"
+  resolved "https://registry.yarnpkg.com/@axelar-network/axelar-cgp-solidity/-/axelar-cgp-solidity-4.5.0.tgz#f0456a2a6665302613a4d5243282ce1b18842348"
+  integrity sha512-4F4rmHei0cmzeUR7/mW4Bap5rc/KlPV2crD9HA7HTRfl15mVcN6/3z8p+pAm9We6bOrQplNW9KBZ3HJFP3C1Gw==
 
 "@axelar-network/axelarjs-sdk@^0.6.11-alpha.8":
   version "0.6.20"
