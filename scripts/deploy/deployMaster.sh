@@ -125,7 +125,7 @@ deployMaster() {
       fi
     else
       # just deploy the contract
-      deploySingleContract "$CONTRACT" "" "$ENVIRONMENT" "" false
+      deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "" false
     fi
 
     # check if last command was executed successfully, otherwise exit script with error message

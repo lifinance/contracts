@@ -23,18 +23,22 @@ contract DeployScriptBase is Script, DSTest {
         deployerAddress = vm.addr(deployerPrivateKey);
         address factoryAddress = vm.envAddress("CREATE3_FACTORY_ADDRESS");
         string memory saltPrefix = vm.envString("DEPLOYSALT");
-        bool deployToDefaultDiamondAddress= vm.envBool("DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS");
+        bool deployToDefaultDiamondAddress = vm.envBool(
+            "DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS"
+        );
         root = vm.projectRoot();
         network = vm.envString("NETWORK");
         fileSuffix = vm.envString("FILE_SUFFIX");
 
-        // if LiFiDiamond should be deployed to 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE then set following env variables:
-        // TARGET_DEPLOYSALT=0xc726deb4bf42c6ef5d0b4e3080ace43aed9b270938861f7cacf900eba890fa66
+        // if LiFiDiamond should be deployed to 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE
+        // then set this value in deployConfig.sh:
         // DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=true
-        if (keccak256(abi.encodePacked(contractName)) == keccak256(abi.encodePacked("LiFiDiamond")) && deployToDefaultDiamondAddress)
-            salt = vm.envBytes32("TARGET_DEPLOYSALT");
-        else
-            salt = keccak256(abi.encodePacked(saltPrefix, contractName));
+        if (
+            keccak256(abi.encodePacked(contractName)) ==
+            keccak256(abi.encodePacked("LiFiDiamond")) &&
+            deployToDefaultDiamondAddress
+        ) salt = vm.envBytes32("TARGET_DEPLOYSALT");
+        else salt = keccak256(abi.encodePacked(saltPrefix, contractName));
         factory = CREATE3Factory(factoryAddress);
         predicted = factory.getDeployed(deployerAddress, salt);
     }
