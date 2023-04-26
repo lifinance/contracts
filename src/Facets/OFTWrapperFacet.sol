@@ -17,7 +17,8 @@ import { Validatable } from "../Helpers/Validatable.sol";
 contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.oft");
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.oftwrapper");
 
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
@@ -162,7 +163,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData The core information needed for bridging.
     /// @param _oftWrapperData Data specific to OFT Wrapper.
     function estimateSendFee(
-        ILiFi.BridgeData memory _bridgeData,
+        ILiFi.BridgeData calldata _bridgeData,
         OFTWrapperData calldata _oftWrapperData
     ) external view returns (uint256 nativeFee, uint256 zroFee) {
         uint16 layerZeroChainId = getOFTLayerZeroChainId(

@@ -19,6 +19,7 @@
 - [Squid Facet](./SquidFacet.md)
 - [MakerTeleport Facet](./MakerTeleportFacet.md)
 - [ThorSwap Facet](./ThorSwapFacet.md)
+- [OFTWrapper Facet](./OFTWrapperFacet.md)
 
 # Libraries
 
