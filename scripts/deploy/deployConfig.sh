@@ -1,17 +1,17 @@
 #!/bin/bash
 
 # defines the environment (true=production, false=staging)
-PRODUCTION=true
+PRODUCTION=false
 
 # the maximum time in seconds that the script will wait for blockchain to sync contract deployment
 # we use this as double check to make sure that a contract was actually deployed
 MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC=60
 
 # the maximum number of attempts to deploy a single contract
-MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT=5
+MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT=10
 
 # the maximum number of attempts to verify contract
-MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=30
+MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=5
 
 # the maximum number of attempts to execute a script (e.g. diamondUpdate)
 MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=5
@@ -30,6 +30,9 @@ LOG_FILE_PATH="deployments/_deployments_log_file.json"
 
 # the path of the JSON file that contains the bytecode storage file
 BYTECODE_STORAGE_PATH="deployments/_bytecode_storage.json"
+
+# the path of the JSON file that contains the bytecode storage file
+CONTRACT_REMINDERS="scripts/deploy/resources/contractSpecificReminders.sh"
 
 # any networks listed here will be excluded from actions that are applied to "all networks"
 # exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,consensys-zkevm-testnet"

@@ -1,5 +1,5 @@
 #!/bin/bash
-#TODO: sort & comment functions
+#TODO: comment functions
 
 # load env variables
 source .env
@@ -8,8 +8,6 @@ source .env
 source scripts/deploy/deployConfig.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
-
-
 
 # >>>>> logging
 function logContractDeploymentInfo_BACKUP {
@@ -580,11 +578,6 @@ function saveContract() {
 }
 # <<<<< reading and manipulation of deployment log files
 
-
-
-
-
-
 # >>>>> working with directories and reading other files
 function checkIfFileExists(){
     # read function arguments into variables
@@ -777,7 +770,6 @@ function getOptimizerRuns() {
 
     }
 # <<<<< working with directories and reading other files
-
 
 # >>>>> writing to blockchain & verification
 function verifyContract() {
@@ -1424,10 +1416,6 @@ function warning() {
 }
 # <<<<< output to console
 
-
-
-
-
 # >>>>> Reading and manipulation of target state JSON file
 function addContractVersionToTargetState() {
   # read function arguments into variables
@@ -1902,6 +1890,7 @@ function getFacetAddressFromDiamond() {
 }
 # <<<<<< read from blockchain
 
+# >>>>>> miscellaneous
 function getRPCUrl(){
   # read function arguments into variables
   local NETWORK=$1
@@ -1914,7 +1903,7 @@ function getRPCUrl(){
 }
 function playNotificationSound() {
   if [[ "$NOTIFICATION_SOUNDS" == *"true"* ]]; then
-    afplay ./scripts/deploy/notification.mp3
+    afplay ./scripts/deploy/resources/notification.mp3
   fi
 }
 function deployAndAddContractToDiamond() {
@@ -1967,6 +1956,7 @@ function deployAndAddContractToDiamond() {
   # there was an error if we reach this code
   return 1
 }
+# <<<<<< miscellaneous
 
 
 # >>>>>> helpers to set/update deployment files/logs/etc

@@ -7,6 +7,7 @@ deploySingleContract() {
   # load config & helper functions
   source scripts/deploy/deployConfig.sh
   source scripts/deploy/deployHelperFunctions.sh
+  source scripts/deploy/resources/contractSpecificReminders.sh
 
   # read function arguments into variables
   CONTRACT="$1"
@@ -70,6 +71,15 @@ deploySingleContract() {
   else
     SCRIPT="Deploy"$CONTRACT
   fi
+
+  # Display contract-specific information, if existing
+  if grep -q "^$CONTRACT=" "$CONTRACT_REMINDERS"; then
+    echo ""
+    warning "Please read the following information carefully: "
+    warning "${!CONTRACT}"
+    echo ""
+  fi
+
 
   # check if deploy script exists
   local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
