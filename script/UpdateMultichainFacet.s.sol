@@ -20,6 +20,8 @@ contract DeployScript is UpdateScriptBase {
         address anyNative = json.readAddress(
             string.concat(".", network, ".anyNative")
         );
+        // TODO
+        // MultichainFacet.AnyMapping[] mappings =
 
         bytes memory callData = abi.encodeWithSelector(
             MultichainFacet.initMultichain.selector,
@@ -29,13 +31,18 @@ contract DeployScript is UpdateScriptBase {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Multichain
+        // add and init
         bytes4[] memory exclude = new bytes4[](1);
         exclude[0] = MultichainFacet.initMultichain.selector;
         buildDiamondCut(getSelectors("MultichainFacet", exclude), facet);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(facet), callData);
         }
+
+        // set token mapping
+        // TODO
+        // updateAddressMappings
+
         facets = loupe.facetAddresses();
 
         vm.stopBroadcast();
