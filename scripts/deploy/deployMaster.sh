@@ -78,6 +78,8 @@ deployMaster() {
 
   # ask user to choose a deploy use case
   echo ""
+  echo "You are deploying from this address: $(getDeployerAddress)"
+  echo ""
   echo "Please choose one of the following options:"
   local SELECTION=$(gum choose \
     "1) Deploy one specific contract to one network"\
