@@ -60,6 +60,9 @@ diamondUpdate() {
     echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
   fi
 
+  # get file suffix based on value in variable ENVIRONMENT
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
   # get diamond address from deployments script
   DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "./deployments/${NETWORK}.${FILE_SUFFIX}json")
 
@@ -69,8 +72,6 @@ diamondUpdate() {
     return 1
   fi
 
-  # get file suffix based on value in variable ENVIRONMENT
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # if no SCRIPT was passed to this function, ask user to select it
   if [[ -z "$SCRIPT" ]]; then
@@ -141,7 +142,7 @@ diamondUpdate() {
   fi
 
   # save facet addresses
-  saveDiamond "$NETWORK" "$USE_MUTABLE_DIAMOND" "$FACETS"
+  saveDiamond "$NETWORK" "$USE_MUTABLE_DIAMOND" "$FACETS" "$FILE_SUFFIX"
 
   echo "[info] $SCRIPT successfully executed on network $NETWORK in $ENVIRONMENT environment"
   return 0
@@ -150,15 +151,12 @@ diamondUpdate() {
 saveDiamond() {
 	source .env
 
-	if [[ -z "$PRODUCTION" ]]; then
-		FILE_SUFFIX="staging."
-	fi
-
   # store function arguments in variables
 	NETWORK=$1
 	USE_MUTABLE_DIAMOND=$2
 	FACETS=$(echo $3 | tr -d '[' | tr -d ']' | tr -d ',')
 	FACETS=$(printf '"%s",' $FACETS | sed 's/,*$//')
+	FILE_SUFFIX=$4
 
   # define path for json file based on which diamond was used
   if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
