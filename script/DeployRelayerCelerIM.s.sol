@@ -38,11 +38,7 @@ contract DeployScript is DeployScriptBase {
         if (diamond == address(0))
             revert("LiFiDiamond not found in deployments file");
 
-        constructorArgs = abi.encode(
-            deployerAddress,
-            messageBus,
-            diamond
-        );
+        constructorArgs = abi.encode(deployerAddress, messageBus, diamond);
 
         vm.startBroadcast(deployerPrivateKey);
 

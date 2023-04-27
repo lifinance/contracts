@@ -51,9 +51,10 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Initialize the contract.
     /// @param _owner The contract owner to approve tokens.
-    constructor(address _owner, address _wrapper)
-        TransferrableOwnership(_owner)
-    {
+    constructor(
+        address _owner,
+        address _wrapper
+    ) TransferrableOwnership(_owner) {
         bool wrapperIsSet = _wrapper != address(0);
         if (block.chainid == 1 && wrapperIsSet) revert Invalid();
 
@@ -220,7 +221,9 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Decodes calldata for startBridgeTokensViaHopL2NativePacked
     /// @param _data the calldata to decode
-    function decode_startBridgeTokensViaHopL2NativePacked(bytes calldata _data)
+    function decode_startBridgeTokensViaHopL2NativePacked(
+        bytes calldata _data
+    )
         external
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
@@ -399,7 +402,9 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Decodes calldata for startBridgeTokensViaHopL2ERC20Packed
     /// @param _data the calldata to decode
-    function decode_startBridgeTokensViaHopL2ERC20Packed(bytes calldata _data)
+    function decode_startBridgeTokensViaHopL2ERC20Packed(
+        bytes calldata _data
+    )
         external
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
@@ -533,7 +538,9 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Decodes calldata for startBridgeTokensViaHopL1NativePacked
     /// @param _data the calldata to decode
-    function decode_startBridgeTokensViaHopL1NativePacked(bytes calldata _data)
+    function decode_startBridgeTokensViaHopL1NativePacked(
+        bytes calldata _data
+    )
         external
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
@@ -694,7 +701,9 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Decodes calldata for startBridgeTokensViaHopL1ERC20Packed
     /// @param _data the calldata to decode
-    function decode_startBridgeTokensViaHopL1ERC20Packed(bytes calldata _data)
+    function decode_startBridgeTokensViaHopL1ERC20Packed(
+        bytes calldata _data
+    )
         external
         pure
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
