@@ -11,7 +11,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title CelerCircleBridge Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CelerCircleBridge
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract CelerCircleBridgeFacet is
     ILiFi,
     ReentrancyGuard,
@@ -20,7 +20,7 @@ contract CelerCircleBridgeFacet is
 {
     /// Storage ///
 
-    /// @notice The address of the TokenMessenger on the current chain.
+    /// @notice The address of the CircleBridgeProxy on the current chain.
     ICircleBridgeProxy private immutable circleBridgeProxy;
 
     /// @notice The USDC address on the current chain.
@@ -86,7 +86,7 @@ contract CelerCircleBridgeFacet is
     function _startBridge(BridgeData memory _bridgeData) private {
         require(
             _bridgeData.destinationChainId <= type(uint64).max,
-            "DestinationChainId passed is too big to fit in uint64"
+            "_bridgeData.destinationChainId passed is too big to fit in uint64"
         );
 
         // give max approval for token to CelerCircleBridge bridge, if not already
