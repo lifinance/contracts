@@ -23,37 +23,19 @@ contract TestAcrossFacet is AcrossFacet {
     }
 }
 
-// Mock SpokePool contract
-contract SpokePoolMock is IAcrossSpokePool {
-    function deposit(
-        address recipient,
-        address originToken,
-        uint256 amount,
-        uint256 destinationChainId,
-        uint64 relayerFeePct,
-        uint32 quoteTimestamp,
-        bytes memory message,
-        uint256 maxCount
-    ) external payable override {
-        if (msg.value == 0) {
-            ERC20(originToken).transferFrom(msg.sender, address(this), amount);
-        }
-    }
-}
-
 contract AcrossFacetTest is TestBaseFacet {
     address internal constant ETH_HOLDER =
         0xb5d85CBf7cB3EE0D56b3bB207D5Fc4B82f43F511;
     address internal constant WETH_HOLDER =
         0xD022510A3414f255150Aa54b2e42DB6129a20d9E;
     address internal constant SPOKE_POOL =
-        0x7CE9f4189d0b0b04B834a5BDeDE8E518Ad1d7dC0;
+        0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
     // -----
     AcrossFacet.AcrossData internal validAcrossData;
     TestAcrossFacet internal acrossFacet;
 
     function setUp() public {
-        customBlockNumberForForking = 17074050;
+        customBlockNumberForForking = 17130542;
         initTestBase();
 
         acrossFacet = new TestAcrossFacet(IAcrossSpokePool(SPOKE_POOL));
@@ -89,12 +71,11 @@ contract AcrossFacetTest is TestBaseFacet {
         // produce valid AcrossData
         validAcrossData = AcrossFacet.AcrossData({
             relayerFeePct: 0,
-            quoteTimestamp: uint32(block.timestamp)
+            quoteTimestamp: uint32(block.timestamp),
+            message: "",
+            maxCount: type(uint256).max
         });
 
-        // TODO: Remove this mock once routes are enabled on mainnet
-        SpokePoolMock spokePoolMock = new SpokePoolMock();
-        vm.etch(SPOKE_POOL, address(spokePoolMock).code);
         vm.label(SPOKE_POOL, "SpokePool");
     }
 
@@ -128,13 +109,16 @@ contract AcrossFacetTest is TestBaseFacet {
     }
 
     function testFailsToBridgeERC20TokensDueToQuoteTimeout() public {
+        console.logBytes4(IAcrossSpokePool.deposit.selector);
         vm.startPrank(WETH_HOLDER);
         ERC20 weth = ERC20(ADDRESS_WETH);
         weth.approve(address(acrossFacet), 10_000 * 10 ** weth.decimals());
 
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
             0, // Relayer fee
-            uint32(block.timestamp + 20 minutes)
+            uint32(block.timestamp + 20 minutes),
+            "",
+            type(uint256).max
         );
         acrossFacet.startBridgeTokensViaAcross(bridgeData, data);
         vm.stopPrank();
