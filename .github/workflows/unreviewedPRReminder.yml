@@ -39,7 +39,7 @@ jobs:
             PR_AGE=$(( (NOW - PR_CREATED_AT) / 86400 ))
 
             if (( PR_AGE > 1 )); then  # >>>>>>>>>>>>>>>>>>>>>>>>>>>> replace with 7 after testing
-              OLD_PRS+="PR #$PR_NUMBER is $PR_AGE days old\n"
+              OLD_PRS="${OLD_PRS}PR #$PR_NUMBER is $PR_AGE days old\n"
             fi
           done
           echo -e "$OLD_PRS"
