@@ -21,7 +21,7 @@ jobs:
           PRS=$(gh api repos/lifinance/contracts/pulls -q '.[] | {number: .number, created_at: .created_at, labels: (.labels | map(.name))}')
           echo "PRS: $PRS"
           OLD_PRS=""
-          echo "${PRS}" | while read -r PR; do
+          while read -r PR; do
             PR_CREATED_AT=$(echo "$PR" | jq -r '.created_at')
             PR_NUMBER=$(echo "$PR" | jq -r '.number')
             PR_LABELS=$(echo "$PR" | jq -c '.labels')
@@ -41,7 +41,7 @@ jobs:
             if (( PR_AGE > 1 )); then  # >>>>>>>>>>>>>>>>>>>>>>>>>>>> replace with 7 after testing
               OLD_PRS="${OLD_PRS}PR #$PR_NUMBER is $PR_AGE days old\n"
             fi
-          done
+          done <<< "$PRS"
           echo -e "$OLD_PRS"
           echo "old_prs=$OLD_PRS" >> $GITHUB_ENV
 
