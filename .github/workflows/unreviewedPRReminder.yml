@@ -42,6 +42,7 @@ jobs:
               OLD_PRS+="PR #$PR_NUMBER is $PR_AGE days old\n"
             fi
           done
+          echo -e "$OLD_PRS"
           echo "old_prs=$OLD_PRS" >> $GITHUB_ENV
 
       - name: Print old PRs
@@ -50,7 +51,7 @@ jobs:
           echo "${{ env.old_prs }}"
 
       - name: Send Discord message
-        #if: env.old_prs != ''
+        if: env.old_prs != ''
         uses: Ilshidur/action-discord@0.3.2
         with:
           args: "Hey team, please check out the following PRs that are not yet reviewed/merged: ${{ env.old_prs }}"
