@@ -27,7 +27,10 @@ contract DeployScript is UpdateScriptBase {
         );
 
         // parse raw data from config into anyMappings array
-        MultichainFacet.AnyMapping[] memory addressMappings = abi.decode(rawConfig, (MultichainFacet.AnyMapping[]));
+        MultichainFacet.AnyMapping[] memory addressMappings = abi.decode(
+            rawConfig,
+            (MultichainFacet.AnyMapping[])
+        );
 
         // prepare calldata for call of initMultichain function
         bytes memory callData = abi.encodeWithSelector(
@@ -47,7 +50,7 @@ contract DeployScript is UpdateScriptBase {
         }
 
         // call updateAddressMappings function with data from config
-        MultichainFacet(facet).updateAddressMappings(addressMappings);
+        MultichainFacet(diamond).updateAddressMappings(addressMappings);
 
         facets = loupe.facetAddresses();
 
