@@ -49,6 +49,6 @@ jobs:
         if: env.old_prs != ''
         uses: Ilshidur/action-discord@0.3.2
         with:
-          args: "Hey <@&Smart Contract Dev>, please check out the following PRs that are not yet reviewed/merged: ${{ env.old_prs }}"
+          args: "Hey <@Smart Contract Dev>, please check out the following PRs that are not yet reviewed/merged: ${{ env.old_prs }}"
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
