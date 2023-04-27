@@ -39,21 +39,16 @@ jobs:
             PR_AGE=$(( (NOW - PR_CREATED_AT) / 86400 ))
 
             if (( PR_AGE > 1 )); then  # >>>>>>>>>>>>>>>>>>>>>>>>>>>> replace with 7 after testing
-              OLD_PRS="${OLD_PRS}PR #$PR_NUMBER is $PR_AGE days old\n"
+              OLD_PRS="${OLD_PRS}PR #$PR_NUMBER is $PR_AGE days old ||"
             fi
           done <<< "$PRS"
           echo -e "$OLD_PRS"
           echo "old_prs=$OLD_PRS" >> $GITHUB_ENV
 
-      - name: Print old PRs
-        run: |
-          echo "Those are the unreviewed PRs identified:"
-          echo "${{ env.old_prs }}"
-
       - name: Send Discord message
         if: env.old_prs != ''
         uses: Ilshidur/action-discord@0.3.2
         with:
-          args: "Hey team, please check out the following PRs that are not yet reviewed/merged: ${{ env.old_prs }}"
+          args: "Hey <@&Smart Contract Dev>, please check out the following PRs that are not yet reviewed/merged: ${{ env.old_prs }}"
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
