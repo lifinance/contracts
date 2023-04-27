@@ -29,7 +29,7 @@
       "Version": ""
     },
     "0xDF21834da251337F6DA22C6E961ed17031681A1e": {
-      "Name": "",
+      "Name": "SynapseBridgeFacet",
       "Version": ""
     },
     "0x9d6959a101A0BC2CEaAEFd8DC32B8c55E05Ba3B2": {
@@ -39,6 +39,10 @@
     "0xefB4cE435C9FA3dE51f292Ac4905f91fbA2BE65D": {
       "Name": "CelerIMFacet",
       "Version": ""
+    },
+    "0xb414f9BBCd4B359c9B4a1d8138Cd573F96E5896C": {
+      "Name": "WormholeFacet",
+      "Version": "1.0.0"
     }
   }
 }

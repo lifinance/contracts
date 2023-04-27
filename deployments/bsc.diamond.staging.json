@@ -35,6 +35,10 @@
     "0xefB4cE435C9FA3dE51f292Ac4905f91fbA2BE65D": {
       "Name": "CelerIMFacet",
       "Version": ""
+    },
+    "0xb414f9BBCd4B359c9B4a1d8138Cd573F96E5896C": {
+      "Name": "WormholeFacet",
+      "Version": "1.0.0"
     }
   }
 }

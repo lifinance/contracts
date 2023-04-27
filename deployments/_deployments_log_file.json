@@ -966,5 +966,33 @@
         ]
       }
     }
+  },
+  "WormholeFacet": {
+    "bsc": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb414f9BBCd4B359c9B4a1d8138Cd573F96E5896C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-27 16:23:36",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b6f6d86a8f9879a9c87f643768d9efc38c1da6e7",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb414f9BBCd4B359c9B4a1d8138Cd573F96E5896C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-27 16:31:46",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000005a58505a96d1dbf8df91cb21b54419fc36e93fde",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
   }
 }
