@@ -4,7 +4,7 @@ import "ds-test/test.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
 import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
+import { HopFacetPacked, L2_AmmWrapper } from "lifi/Facets/HopFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { console } from "../utils/Console.sol";
@@ -36,6 +36,8 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
         0xF3F094484eC6901FfC9681bCb808B96bAFd0b8a8; // USDC + ETH
     address internal constant RECEIVER =
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
+    address internal constant AMM_WRAPPER =
+        0x33ceb27b39d2Bb7D2e61F7564d3Df29344020417;
 
     IHopBridge internal hop;
     ERC20 internal usdc;
@@ -70,8 +72,8 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
 
         /// Perpare HopFacetPacked
         diamond = createDiamond();
-        hopFacetPacked = new HopFacetPacked(address(this));
-        standAlone = new HopFacetPacked(address(this));
+        hopFacetPacked = new HopFacetPacked(address(this), AMM_WRAPPER);
+        standAlone = new HopFacetPacked(address(this), AMM_WRAPPER);
         usdc = ERC20(USDC_ADDRESS);
         hop = IHopBridge(HOP_USDC_BRIDGE);
         callForwarder = new CallForwarder();
@@ -118,10 +120,14 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
         hopFacetPacked = HopFacetPacked(address(diamond));
 
         /// Approval
-        address[] memory bridges = new address[](1);
+        address[] memory bridges = new address[](3);
         bridges[0] = HOP_USDC_BRIDGE;
-        address[] memory tokens = new address[](1);
+        bridges[1] = L2_AmmWrapper(AMM_WRAPPER).exchangeAddress();
+        bridges[2] = L2_AmmWrapper(AMM_WRAPPER).bridge();
+        address[] memory tokens = new address[](3);
         tokens[0] = USDC_ADDRESS;
+        tokens[1] = L2_AmmWrapper(AMM_WRAPPER).l2CanonicalToken();
+        tokens[2] = L2_AmmWrapper(AMM_WRAPPER).hToken();
 
         // > diamond
         HopFacetOptimized hopFacetOptimized = new HopFacetOptimized();

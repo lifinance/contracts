@@ -70,8 +70,8 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
 
         /// Perpare HopFacetPacked
         diamond = createDiamond();
-        hopFacetPacked = new HopFacetPacked(address(this));
-        standAlone = new HopFacetPacked(address(this));
+        hopFacetPacked = new HopFacetPacked(address(this), address(0));
+        standAlone = new HopFacetPacked(address(this), address(0));
         usdc = ERC20(USDC_ADDRESS);
         hop = IHopBridge(HOP_USDC_BRIDGE);
         callForwarder = new CallForwarder();
