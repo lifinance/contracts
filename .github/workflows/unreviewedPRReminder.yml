@@ -1,0 +1,49 @@
+name: "Check old PRs"
+on:
+  schedule:
+    - cron: '0 0 * * *'  # run once a day
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Check PR age
+        id: check_age
+        run: |
+          # Use GitHub API and jq to parse the data
+          PRS=$(gh api repos/lifinance/contracts/pulls -q '.[] | {number: .number, created_at: .created_at, labels: .labels[].name}')
+          OLD_PRS=""
+          for PR in $PRS
+          do
+            PR_CREATED_AT=$(echo $PR | jq -r '.created_at')
+            PR_NUMBER=$(echo $PR | jq -r '.number')
+            PR_LABELS=$(echo $PR | jq -r '.labels')
+
+            # Continue loop if the PR has the label "WIP"
+            if echo "$PR_LABELS" | grep -q "WIP"; then
+              continue
+            fi
+
+            # Convert date to Unix timestamp
+            PR_CREATED_AT=$(date -d"$PR_CREATED_AT" +%s)
+            NOW=$(date +%s)
+
+            # Calculate age of PR in days
+            PR_AGE=$(( (NOW - PR_CREATED_AT) / 86400 ))
+
+            if (( PR_AGE > 1 )); then  # >>>>>>>>>>>>>>>>>>>>>>>>>>>> replace with 7 after testing
+              OLD_PRS+="PR #$PR_NUMBER is $PR_AGE days old\n"
+            fi
+          done
+          echo "::set-output name=old_prs::$OLD_PRS"
+
+      - name: Send Discord message
+        if: steps.check_age.outputs.old_prs != ''
+        uses: Ilshidur/action-discord@2.1.0
+        with:
+          args: "${{ steps.check_age.outputs.old_prs }}"
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
