@@ -46,7 +46,7 @@ jobs:
 
       - name: Send Discord message
         if: env.old_prs != ''
-        uses: Ilshidur/action-discord@2.0.1
+        uses: Ilshidur/action-discord@0.3.2
         with:
           args: "${{ env.old_prs }}"
         env:
