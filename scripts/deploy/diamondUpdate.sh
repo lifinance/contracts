@@ -110,11 +110,13 @@ diamondUpdate() {
     if [ $? -eq 0 ]; then
         # extract the "logs" property and its contents from return data
         CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-         echo "[debug] CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
+        if [[ "$DEBUG" == *"true"* ]]; then
+          echo "[debug] CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
+        fi
 
         # extract the "returns" property and its contents from logs
         RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2> /dev/null)
-        echo "[debug] RETURN_DATA: $RETURN_DATA"
+        #echo "[debug] RETURN_DATA: $RETURN_DATA"
 
         # get the facet addresses that are known to the diamond from the return data
         FACETS=$(echo $RETURN_DATA | jq -r '.facets.value')
@@ -133,42 +135,9 @@ diamondUpdate() {
     return 1
   fi
 
-  # log return data
-  if [[ "$DEBUG" == *"true"* ]]; then
-      echo "[debug] return data: $RAW_RETURN_DATA"
-      echo "[debug] FACETS: $FACETS"
-      echo "[debug] FACETS2: ${FACETS[*]}"
-
-  fi
-
   # save facet addresses
-  saveDiamond "$NETWORK" "$USE_MUTABLE_DIAMOND" "$FACETS" "$FILE_SUFFIX"
+  saveDiamond "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS"
 
   echo "[info] $SCRIPT successfully executed on network $NETWORK in $ENVIRONMENT environment"
   return 0
-}
-
-saveDiamond() {
-	source .env
-
-  # store function arguments in variables
-	NETWORK=$1
-	USE_MUTABLE_DIAMOND=$2
-	FACETS=$(echo $3 | tr -d '[' | tr -d ']' | tr -d ',')
-	FACETS=$(printf '"%s",' $FACETS | sed 's/,*$//')
-	FILE_SUFFIX=$4
-
-  # define path for json file based on which diamond was used
-  if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
-  else
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
-  fi
-
-	# create an empty json if it does not exist
-	if [[ ! -e $DIAMOND_FILE ]]; then
-		echo "{}" >"$DIAMOND_FILE"
-	fi
-	result=$(cat "$DIAMOND_FILE" | jq -r ". + {\"facets\": [$FACETS] }" || cat "$DIAMOND_FILE")
-	printf %s "$result" >"$DIAMOND_FILE"
 }
