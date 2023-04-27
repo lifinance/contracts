@@ -38,7 +38,7 @@ jobs:
             # Calculate age of PR in days
             PR_AGE=$(( (NOW - PR_CREATED_AT) / 86400 ))
 
-            if (( PR_AGE > 1 )); then  # >>>>>>>>>>>>>>>>>>>>>>>>>>>> replace with 7 after testing
+            if (( PR_AGE > 7 )); then
               OLD_PRS="${OLD_PRS}PR #$PR_NUMBER is $PR_AGE days old ||"
             fi
           done <<< "$PRS"
