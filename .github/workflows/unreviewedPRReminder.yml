@@ -21,11 +21,10 @@ jobs:
           PRS=$(gh api repos/lifinance/contracts/pulls -q '.[] | {number: .number, created_at: .created_at, labels: (.labels | map(.name))}')
           echo "PRS: $PRS"
           OLD_PRS=""
-          for PR in $(echo "${PRS}" | jq -r '.[] | @base64'); do
-            PR=$(echo "${PR}" | base64 --decode)
-            PR_CREATED_AT=$(echo $PR | jq -r '.created_at')
-            PR_NUMBER=$(echo $PR | jq -r '.number')
-            PR_LABELS=$(echo $PR | jq -c '.labels')
+          echo "${PRS}" | while read -r PR; do
+            PR_CREATED_AT=$(echo "$PR" | jq -r '.created_at')
+            PR_NUMBER=$(echo "$PR" | jq -r '.number')
+            PR_LABELS=$(echo "$PR" | jq -c '.labels')
 
             # Continue loop if the PR has the label "WIP"
             if echo "$PR_LABELS" | grep -q "WIP"; then
