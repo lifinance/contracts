@@ -97,7 +97,7 @@ diamondUpdate() {
   # update diamond with new facet address (remove/replace of existing selectors happens in update script)
   attempts=1
   while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-    echo "[info] trying to execute $SCRIPT on $DIAMOND_CONTRACT_NAME now - attempt ${attempts} (max attempts:$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
+    echo "[info] trying to execute $SCRIPT on $DIAMOND_CONTRACT_NAME (address: $DIAMOND_ADDRESS) now - attempt ${attempts} (max attempts:$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
     # try to execute call
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console

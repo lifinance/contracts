@@ -121,6 +121,7 @@ deployMaster() {
     # check if contract should be added after deployment
     if [[ "$ADD_TO_DIAMOND" == *"yes"* ]]; then
       echo "[info] selected option: $ADD_TO_DIAMOND"
+      echo ""
 
       # determine the name of the LiFiDiamond contract and call helper function with correct diamond name
       if [[ "$ADD_TO_DIAMOND" == *"LiFiDiamondImmutable"* ]]; then
