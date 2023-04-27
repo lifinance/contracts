@@ -90,10 +90,13 @@ deployMaster() {
 
     # get user-selected network from list
     local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+
+    echo "[info] selected network: $NETWORK"
+    echo "[info] loading deployer wallet balance..."
+
     # get deployer wallet balance
     BALANCE=$(getDeployerBalance "$NETWORK")
 
-    echo "[info] selected network: $NETWORK"
     echo "[info] deployer wallet balance in this network: $BALANCE"
     echo ""
     checkRequiredVariablesInDotEnv $NETWORK
@@ -117,6 +120,8 @@ deployMaster() {
 
     # check if contract should be added after deployment
     if [[ "$ADD_TO_DIAMOND" == *"yes"* ]]; then
+      echo "[info] selected option: $ADD_TO_DIAMOND"
+
       # determine the name of the LiFiDiamond contract and call helper function with correct diamond name
       if [[ "$ADD_TO_DIAMOND" == *"LiFiDiamondImmutable"* ]]; then
         deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamondImmutable" "$VERSION"
@@ -456,6 +461,5 @@ deployMaster() {
   echo "[info] PLEASE CHECK THE LOG CAREFULLY FOR WARNINGS AND ERRORS"
   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 }
-
 
 deployMaster

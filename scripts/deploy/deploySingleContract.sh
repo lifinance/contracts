@@ -225,11 +225,6 @@ deploySingleContract() {
         VERIFIED=true
       fi
     fi
-    if $VERIFIED; then
-      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
-    else
-      warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified"
-    fi
   fi
 
   # write to logfile
