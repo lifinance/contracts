@@ -4,7 +4,6 @@ on:
     - cron: '0 0 * * *'  # run once a day
   workflow_dispatch:  # enables manual trigger
 
-
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -17,14 +16,16 @@ jobs:
         env:  # set the GH_TOKEN environment variable here
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -x
           # Use GitHub API and jq to parse the data
-          PRS=$(gh api repos/lifinance/contracts/pulls -q '.[] | {number: .number, created_at: .created_at, labels: .labels[].name}')
+          PRS=$(gh api repos/lifinance/contracts/pulls -q '.[] | {number: .number, created_at: .created_at, labels: (.labels | map(.name))}')
+          echo "PRS: $PRS"
           OLD_PRS=""
-          for PR in $PRS
-          do
+          for PR in $(echo "${PRS}" | jq -r '.[] | @base64'); do
+            PR=$(echo "${PR}" | base64 --decode)
             PR_CREATED_AT=$(echo $PR | jq -r '.created_at')
             PR_NUMBER=$(echo $PR | jq -r '.number')
-            PR_LABELS=$(echo $PR | jq -r '.labels')
+            PR_LABELS=$(echo $PR | jq -c '.labels')
 
             # Continue loop if the PR has the label "WIP"
             if echo "$PR_LABELS" | grep -q "WIP"; then
@@ -43,14 +44,16 @@ jobs:
             fi
           done
           echo "old_prs=$OLD_PRS" >> $GITHUB_ENV
-          
+
       - name: Print old PRs
-        run: echo "${{ env.old_prs }}"
+        run: |
+          echo "Those are the unreviewed PRs identified:"
+          echo "${{ env.old_prs }}"
 
       - name: Send Discord message
-        if: env.old_prs != ''
+        #if: env.old_prs != ''
         uses: Ilshidur/action-discord@0.3.2
         with:
-          args: "${{ env.old_prs }}"
+          args: "Hey team, please check out the following PRs that are not yet reviewed/merged: ${{ env.old_prs }}"
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
