@@ -43,6 +43,9 @@ jobs:
             fi
           done
           echo "old_prs=$OLD_PRS" >> $GITHUB_ENV
+          
+      - name: Print old PRs
+        run: echo "${{ env.old_prs }}"
 
       - name: Send Discord message
         if: env.old_prs != ''
