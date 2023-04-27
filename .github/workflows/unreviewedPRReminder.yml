@@ -14,6 +14,8 @@ jobs:
 
       - name: Check PR age
         id: check_age
+        env:  # set the GH_TOKEN environment variable here
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Use GitHub API and jq to parse the data
           PRS=$(gh api repos/lifinance/contracts/pulls -q '.[] | {number: .number, created_at: .created_at, labels: .labels[].name}')
