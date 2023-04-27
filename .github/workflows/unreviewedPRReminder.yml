@@ -42,12 +42,12 @@ jobs:
               OLD_PRS+="PR #$PR_NUMBER is $PR_AGE days old\n"
             fi
           done
-          echo "::set-output name=old_prs::$OLD_PRS"
+          echo "old_prs=$OLD_PRS" >> $GITHUB_ENV
 
       - name: Send Discord message
-        if: steps.check_age.outputs.old_prs != ''
-        uses: Ilshidur/action-discord@0.3.2
+        if: env.old_prs != ''
+        uses: Ilshidur/action-discord@2.0.1
         with:
-          args: "${{ steps.check_age.outputs.old_prs }}"
+          args: "${{ env.old_prs }}"
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
