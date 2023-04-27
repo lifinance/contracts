@@ -44,7 +44,7 @@ jobs:
 
       - name: Send Discord message
         if: steps.check_age.outputs.old_prs != ''
-        uses: Ilshidur/action-discord@2.1.0
+        uses: Ilshidur/action-discord@0.3.2
         with:
           args: "${{ steps.check_age.outputs.old_prs }}"
         env:
