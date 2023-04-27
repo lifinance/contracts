@@ -28,7 +28,7 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
 
     struct Storage {
         mapping(address => bool) allowedRouters;
-        bool initialized;
+        bool initialized; // no longer used but kept here to maintain the same storage layout
         address anyNative;
         mapping(address => address) anyTokenAddresses;
     }
@@ -78,8 +78,6 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
             }
         }
 
-        s.initialized = true;
-
         emit MultichainInitialized();
     }
 
@@ -91,10 +89,6 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
-
-        if (!s.initialized) {
-            revert NotInitialized();
-        }
 
         for (uint64 i; i < mappings.length; ) {
             s.anyTokenAddresses[mappings[i].tokenAddress] = mappings[i]
@@ -117,10 +111,6 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
-
-        if (!s.initialized) {
-            revert NotInitialized();
-        }
 
         uint256 len = routers.length;
         for (uint256 i = 0; i < len; ) {
