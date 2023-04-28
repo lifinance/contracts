@@ -18,15 +18,18 @@ contract TestHopFacet is HopFacetOptimized {
     }
 }
 
-contract HopFacetOptimizedL1Test is TestBaseFacet {
-    // These values are for Mainnet
-    address internal constant USDC_BRIDGE =
-        0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a;
+contract HopFacetOptimizedGoerliTest is TestBaseFacet {
+    // These values are for Goerli
     address internal constant DAI_BRIDGE =
-        0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1;
+        0xAa1603822b43e592e33b58d34B4423E1bcD8b4dC; // Wrapped DAI Bridge
+    // 0x2d6fd82C7f531328BCaCA96EF985325C0894dB62 // DAI Bridge
+    address internal constant USDC_BRIDGE =
+        0x53B94FAf104A484ff4E7c66bFe311fd48ce3D887; // Wrapped USDT Bridge
+    // 0x4A26dE45BD65ef6e5535846b92a8575E0A0e5CEd // USDT Bridge
     address internal constant NATIVE_BRIDGE =
-        0xb8901acB165ed027E32754E0FFe830802919727f;
-    uint256 internal constant DSTCHAIN_ID = 137;
+        0xd9e10C6b1bd26dE4E2749ce8aFe8Dd64294BcBF5; // Wrapped Native Bridge
+    // 0xC8A4FB931e8D77df8497790381CA7d228E68a41b // Native Bridge
+    uint256 internal constant DSTCHAIN_ID = 59140; // Linea
     // -----
 
     TestHopFacet internal hopFacet;
@@ -34,7 +37,18 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
     HopFacetOptimized.HopData internal validHopData;
 
     function setUp() public {
+        customRpcUrlForForking = "ETH_NODE_URI_GOERLI";
+        customBlockNumberForForking = 8907340;
+        ADDRESS_USDC = 0xfad6367E97217cC51b4cd838Cc086831f81d38C2; // USDT
+        ADDRESS_DAI = 0xb93cba7013f4557cDFB590fD152d24Ef4063485f;
+        ADDRESS_WETH = 0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6;
+        ADDRESS_UNISWAP = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+
         initTestBase();
+
+        defaultUSDCAmount = 100000;
+        defaultDAIAmount = 100000;
+
         hopFacet = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](7);
         functionSelectors[0] = hopFacet
@@ -87,7 +101,7 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
 
         // adjust bridgeData
         bridgeData.bridge = "hop";
-        bridgeData.destinationChainId = 137;
+        bridgeData.destinationChainId = DSTCHAIN_ID;
 
         // produce valid HopData
         validHopData = HopFacetOptimized.HopData({
@@ -101,16 +115,28 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
             relayerFee: 0,
             nativeFee: 0
         });
+
+        addToMessageValue = 10000000000000000;
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
+            // fee parameter Native
+            validHopData.relayerFee = 10000000000000000;
+            validHopData.relayer = 0x81682250D4566B2986A2B33e23e7c52D401B7aB7;
+
             hopFacet.startBridgeTokensViaHopL1Native{
-                value: bridgeData.minAmount
+                value: bridgeData.minAmount + validHopData.relayerFee
             }(bridgeData, validHopData);
         } else {
+            // fee parameter ERC20
+            validHopData.nativeFee = 10000000000000000;
+            validHopData.relayer = 0xB47dE784aB8702eC35c5eAb225D6f6cE476DdD28;
+
             validHopData.hopBridge = IHopBridge(USDC_BRIDGE);
-            hopFacet.startBridgeTokensViaHopL1ERC20(bridgeData, validHopData);
+            hopFacet.startBridgeTokensViaHopL1ERC20{
+                value: validHopData.nativeFee
+            }(bridgeData, validHopData);
         }
     }
 
@@ -141,9 +167,13 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         // reset swap data
         setDefaultSwapDataSingleETHtoUSDC();
 
+        bridgeData.minAmount = defaultUSDCAmount = 100000;
+
         // update HopData
         validHopData.amountOutMin = defaultUSDCAmount;
         validHopData.hopBridge = IHopBridge(USDC_BRIDGE);
+        validHopData.nativeFee = 10000000000000000;
+        validHopData.relayer = 0xB47dE784aB8702eC35c5eAb225D6f6cE476DdD28;
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -161,9 +191,13 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
 
         // execute call in child contract
         hopFacet.swapAndStartBridgeTokensViaHopL1ERC20{
-            value: swapData[0].fromAmount
+            value: swapData[0].fromAmount + validHopData.nativeFee
         }(bridgeData, swapData, validHopData);
     }
+
+    function testBase_CanSwapAndBridgeNativeTokens() public view override {}
+
+    function testBase_CanSwapAndBridgeTokens() public view override {}
 
     function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
         public

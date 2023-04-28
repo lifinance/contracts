@@ -10,7 +10,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 /// @title Hop Facet (Optimized)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract HopFacetOptimized is ILiFi, SwapperV2 {
     /// Types ///
 
@@ -21,6 +21,9 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         uint256 destinationAmountOutMin;
         uint256 destinationDeadline;
         IHopBridge hopBridge;
+        address relayer;
+        uint256 relayerFee;
+        uint256 nativeFee;
     }
 
     /// External Methods ///
@@ -49,7 +52,7 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
     function startBridgeTokensViaHopL1ERC20(
         ILiFi.BridgeData calldata _bridgeData,
         HopData calldata _hopData
-    ) external {
+    ) external payable {
         // Deposit assets
         LibAsset.transferFromERC20(
             _bridgeData.sendingAssetId,
@@ -58,14 +61,14 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
             _bridgeData.minAmount
         );
         // Bridge assets
-        _hopData.hopBridge.sendToL2(
+        _hopData.hopBridge.sendToL2{ value: _hopData.nativeFee }(
             _bridgeData.destinationChainId,
             _bridgeData.receiver,
             _bridgeData.minAmount,
             _hopData.destinationAmountOutMin,
             _hopData.destinationDeadline,
-            address(0),
-            0
+            _hopData.relayer,
+            _hopData.relayerFee
         );
         emit LiFiTransferStarted(_bridgeData);
     }
@@ -78,14 +81,16 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         HopData calldata _hopData
     ) external payable {
         // Bridge assets
-        _hopData.hopBridge.sendToL2{ value: _bridgeData.minAmount }(
+        _hopData.hopBridge.sendToL2{
+            value: _bridgeData.minAmount + _hopData.relayerFee
+        }(
             _bridgeData.destinationChainId,
             _bridgeData.receiver,
             _bridgeData.minAmount,
             _hopData.destinationAmountOutMin,
             _hopData.destinationDeadline,
-            address(0),
-            0
+            _hopData.relayer,
+            _hopData.relayerFee
         );
         emit LiFiTransferStarted(_bridgeData);
     }
@@ -104,18 +109,19 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(msg.sender),
+            _hopData.nativeFee
         );
 
         // Bridge assets
-        _hopData.hopBridge.sendToL2(
+        _hopData.hopBridge.sendToL2{ value: _hopData.nativeFee }(
             _bridgeData.destinationChainId,
             _bridgeData.receiver,
             _bridgeData.minAmount,
             _hopData.destinationAmountOutMin,
             _hopData.destinationDeadline,
-            address(0),
-            0
+            _hopData.relayer,
+            _hopData.relayerFee
         );
         emit LiFiTransferStarted(_bridgeData);
     }
@@ -143,8 +149,8 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
             _bridgeData.minAmount,
             _hopData.destinationAmountOutMin,
             _hopData.destinationDeadline,
-            address(0),
-            0
+            _hopData.relayer,
+            _hopData.relayerFee
         );
 
         emit LiFiTransferStarted(_bridgeData);
