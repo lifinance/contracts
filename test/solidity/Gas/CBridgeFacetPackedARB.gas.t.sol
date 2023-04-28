@@ -74,7 +74,7 @@ contract CBridgeGasARBTest is Test, DiamondTest {
             .selector;
 
         addFacet(diamond, address(cBridgeFacetPacked), functionSelectors);
-        cBridgeFacetPacked = CBridgeFacetPacked(address(diamond));
+        cBridgeFacetPacked = CBridgeFacetPacked(payable(address(diamond)));
 
         /// Perpare parameters
         transactionId = "someID";

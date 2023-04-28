@@ -22,7 +22,9 @@ contract DeployScript is UpdateScriptBase {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        CBridgeFacetPacked(facet).setApprovalForBridge(tokensToApprove);
+        CBridgeFacetPacked(payable(facet)).setApprovalForBridge(
+            tokensToApprove
+        );
 
         facets = loupe.facetAddresses();
 
