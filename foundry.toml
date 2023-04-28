@@ -40,6 +40,7 @@ nova = "${ETH_NODE_URI_NOVA}"
 goerli = "${ETH_NODE_URI_GOERLI}"
 mumbai = "${ETH_NODE_URI_MUMBAI}"
 consensys-zkevm-testnet = "${ETH_NODE_URI_CONSENSYS_ZKEVM_TESTNET}"
+bsctest = "${ETH_NODE_URI_BSCTEST}"
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}" }

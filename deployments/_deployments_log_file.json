@@ -25,6 +25,19 @@
           }
         ]
       }
+    },
+    "bsctest": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF1d67E1dddc87E2858C87EBd5b19f99a4E297541",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-28 15:53:01",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -933,6 +946,21 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-04-18 11:36:36",
             "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "LiFiDiamond": {
+    "bsctest": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-28 16:11:36",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000f1d67e1dddc87e2858c87ebd5b19f99a4e297541",
             "VERIFIED": "false"
           }
         ]

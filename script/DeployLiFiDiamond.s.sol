@@ -25,7 +25,6 @@ contract DeployScript is DeployScriptBase {
         string memory json = vm.readFile(path);
         address diamondCut = json.readAddress(".DiamondCutFacet");
 
-
         constructorArgs = abi.encode(deployerAddress, diamondCut);
 
         vm.startBroadcast(deployerPrivateKey);
