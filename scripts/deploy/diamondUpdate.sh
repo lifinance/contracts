@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 diamondUpdate() {
   # load required resources
   source .env
@@ -36,9 +35,9 @@ diamondUpdate() {
     if [[ "$PRODUCTION" == "true" ]]; then
       # make sure that PRODUCTION was selected intentionally by user
       gum style \
-      --foreground 212 --border-foreground 213 --border double \
-      --align center --width 50 --margin "1 2" --padding "2 4" \
-      '!!! ATTENTION !!!'
+        --foreground 212 --border-foreground 213 --border double \
+        --align center --width 50 --margin "1 2" --padding "2 4" \
+        '!!! ATTENTION !!!'
 
       echo "Your environment variable PRODUCTION is set to true"
       echo "This means you will be deploying contracts to production"
@@ -72,7 +71,6 @@ diamondUpdate() {
     return 1
   fi
 
-
   # if no SCRIPT was passed to this function, ask user to select it
   if [[ -z "$SCRIPT" ]]; then
     echo "Please select which facet you would like to update"
@@ -80,7 +78,7 @@ diamondUpdate() {
   fi
 
   # set flag for mutable/immutable diamond
-  USE_MUTABLE_DIAMOND=$( [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]] && echo true || echo false )
+  USE_MUTABLE_DIAMOND=$([[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]] && echo true || echo false)
 
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
@@ -101,28 +99,28 @@ diamondUpdate() {
     # try to execute call
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
-      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy)
+      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy -g 150)
     else
       # do not print output to console
-      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy) 2>/dev/null
+      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy -g 150) 2>/dev/null
     fi
     # check the return code the last call
     if [ $? -eq 0 ]; then
-        # extract the "logs" property and its contents from return data
-        CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-        if [[ "$DEBUG" == *"true"* ]]; then
-          echo "[debug] CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
-        fi
+      # extract the "logs" property and its contents from return data
+      CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+      if [[ "$DEBUG" == *"true"* ]]; then
+        echo "[debug] CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
+      fi
 
-        # extract the "returns" property and its contents from logs
-        RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2> /dev/null)
-        #echo "[debug] RETURN_DATA: $RETURN_DATA"
+      # extract the "returns" property and its contents from logs
+      RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
+      #echo "[debug] RETURN_DATA: $RETURN_DATA"
 
-        # get the facet addresses that are known to the diamond from the return data
-        FACETS=$(echo $RETURN_DATA | jq -r '.facets.value')
-        if [[ $FACETS != "{}" ]]; then
-          break # exit the loop if the operation was successful
-        fi
+      # get the facet addresses that are known to the diamond from the return data
+      FACETS=$(echo $RETURN_DATA | jq -r '.facets.value')
+      if [[ $FACETS != "{}" ]]; then
+        break # exit the loop if the operation was successful
+      fi
     fi
 
     attempts=$((attempts + 1)) # increment attempts

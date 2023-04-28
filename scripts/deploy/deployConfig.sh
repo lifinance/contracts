@@ -38,7 +38,7 @@ EXCLUDE_NETWORKS="consensys-zkevm-testnet"
 DEBUG=false
 
 # defines if newly deployed contracts should be verified or not
-VERIFY_CONTRACTS=true
+VERIFY_CONTRACTS=false
 
 # contract verification will be deactivated for any network listed here
 DO_NOT_VERIFY_IN_THESE_NETWORKS=""
