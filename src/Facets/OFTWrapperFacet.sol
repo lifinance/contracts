@@ -186,9 +186,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             if (_bridgeData.receiver == NON_EVM_ADDRESS) {
                 receiver = _oftWrapperData.receiver;
             } else {
-                receiver = bytes32(
-                    uint256(uint160(_bridgeData.receiver)) << 96
-                );
+                receiver = bytes32(uint256(uint160(_bridgeData.receiver)));
             }
 
             return
@@ -253,7 +251,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             receiver = _oftWrapperData.receiver;
         } else {
-            receiver = bytes32(uint256(uint160(_bridgeData.receiver)) << 96);
+            receiver = bytes32(uint256(uint160(_bridgeData.receiver)));
         }
 
         IOFTWrapper.LzCallParams memory lzCallParams = IOFTWrapper
