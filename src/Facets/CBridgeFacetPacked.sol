@@ -14,7 +14,7 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 /// @title CBridge Facet Packed
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
     /// Storage ///
 
@@ -59,6 +59,9 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
             );
         }
     }
+
+    // This is needed to receive native asset if a refund asset is a native asset
+    receive() external payable {}
 
     /// @notice Triggers a cBridge refund with calldata produced by cBridge API
     /// @param _callTo The address to execute the calldata on

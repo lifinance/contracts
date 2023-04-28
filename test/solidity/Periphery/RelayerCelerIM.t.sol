@@ -17,7 +17,9 @@ interface Ownable {
 
 contract MockLiquidityBridge is TestBase {
     function mockWithdraw(uint256 _amount) external {
-        deal(msg.sender, _amount);
+        // same call as in cbridge implementation
+        (bool sent, ) = msg.sender.call{ value: _amount, gas: 50000 }("");
+        require(sent, "failed to send native token");
     }
 }
 
