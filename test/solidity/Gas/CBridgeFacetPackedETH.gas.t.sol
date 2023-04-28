@@ -83,7 +83,7 @@ contract CBridgeGasETHTest is Test, DiamondTest {
             .selector;
 
         addFacet(diamond, address(cBridgeFacetPacked), functionSelectors);
-        cBridgeFacetPacked = CBridgeFacetPacked(address(diamond));
+        cBridgeFacetPacked = CBridgeFacetPacked(payable(address(diamond)));
 
         /// Perpare CBridgeFacet
         cBridgeFacet = new CBridgeFacet(cbridge);
