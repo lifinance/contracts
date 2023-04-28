@@ -36,7 +36,7 @@ contract DeployScriptBase is Script, DSTest {
             keccak256(abi.encodePacked(contractName)) ==
             keccak256(abi.encodePacked("LiFiDiamond")) &&
             deployToDefaultDiamondAddress
-        ) salt = vm.envBytes32("TARGET_DEPLOYSALT");
+        ) salt = vm.envBytes32("DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT");
         else salt = keccak256(abi.encodePacked(saltPrefix, contractName));
         factory = CREATE3Factory(factoryAddress);
         predicted = factory.getDeployed(deployerAddress, salt);
