@@ -8,7 +8,6 @@ import { LibAccess } from "../Libraries/LibAccess.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { CannotBridgeToSameNetwork } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErrors.sol";

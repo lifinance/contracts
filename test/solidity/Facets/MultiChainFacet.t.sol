@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20, LiFiDiamond } from "../utils/TestBaseFacet.sol";
-import { OnlyContractOwner, NotInitialized, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
+import { OnlyContractOwner } from "src/Errors/GenericErrors.sol";
 import { IMultichainToken } from "src/Interfaces/IMultichainToken.sol";
 import { MultichainFacet } from "lifi/Facets/MultichainFacet.sol";
 

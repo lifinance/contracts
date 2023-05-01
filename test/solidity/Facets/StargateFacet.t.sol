@@ -2,13 +2,12 @@
 pragma solidity 0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, LiFiDiamond } from "../utils/TestBaseFacet.sol";
-import { OnlyContractOwner, InvalidConfig, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
+import { OnlyContractOwner, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 import { IStargateRouter } from "lifi/Interfaces/IStargateRouter.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 
-// Stub CBridgeFacet Contract
+// Stub StargateFacet Contract
 contract TestStargateFacet is StargateFacet {
     /// @notice Initialize the contract.
     /// @param _router The contract address of the stargatefacet router on the source chain.

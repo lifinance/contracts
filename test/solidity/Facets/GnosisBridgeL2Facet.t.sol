@@ -2,7 +2,6 @@
 pragma solidity 0.8.17;
 
 import { LibSwap, LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
-import { InsufficientBalance } from "src/Errors/GenericErrors.sol";
 import { GnosisBridgeL2Facet } from "lifi/Facets/GnosisBridgeL2Facet.sol";
 import { IXDaiBridgeL2 } from "lifi/Interfaces/IXDaiBridgeL2.sol";
 

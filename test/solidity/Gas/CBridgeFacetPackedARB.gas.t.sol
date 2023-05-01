@@ -5,8 +5,6 @@ import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
-import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { console } from "../utils/Console.sol";
 

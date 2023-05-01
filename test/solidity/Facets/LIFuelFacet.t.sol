@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { ILiFi, LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
 import { ServiceFeeCollector } from "lifi/Periphery/ServiceFeeCollector.sol";
 import { LIFuelFacet } from "lifi/Facets/LIFuelFacet.sol";
-import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InvalidAmount } from "src/Errors/GenericErrors.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 
 // Stub LIFuelFacet Contract

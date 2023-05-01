@@ -4,7 +4,7 @@ pragma solidity 0.8.17;
 import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InvalidAmount } from "src/Errors/GenericErrors.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
+import { LiFiDiamond } from "../utils/DiamondTest.sol";
 
 // Stub HopFacet Contract
 contract TestHopFacet is HopFacet {

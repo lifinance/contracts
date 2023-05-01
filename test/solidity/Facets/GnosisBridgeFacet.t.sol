@@ -6,8 +6,6 @@ import { InsufficientBalance } from "src/Errors/GenericErrors.sol";
 import { GnosisBridgeFacet } from "lifi/Facets/GnosisBridgeFacet.sol";
 import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
 
-// import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-
 // Stub GnosisBridgeFacet Contract
 contract TestGnosisBridgeFacet is GnosisBridgeFacet {
     constructor(IXDaiBridge _xDaiBridge) GnosisBridgeFacet(_xDaiBridge) {}

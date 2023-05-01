@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
 import { SquidFacet } from "lifi/Facets/SquidFacet.sol";
 import { ISquidRouter } from "lifi/Interfaces/ISquidRouter.sol";
 import { ISquidMulticall } from "lifi/Interfaces/ISquidMulticall.sol";

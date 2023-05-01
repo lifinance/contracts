@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, console } from "../utils/TestBaseFacet.sol";
 import { ThorSwapFacet } from "lifi/Facets/ThorSwapFacet.sol";
 import { IThorSwap } from "lifi/Interfaces/IThorSwap.sol";
 

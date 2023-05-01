@@ -6,7 +6,7 @@ import { IStargateRouter } from "../Interfaces/IStargateRouter.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InformationMismatch, InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 

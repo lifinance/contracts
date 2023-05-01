@@ -5,7 +5,7 @@ import { DSTest } from "ds-test/test.sol";
 import { console } from "../utils/Console.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { IFusePool, IFToken, FusePoolZap } from "lifi/Periphery/FusePoolZap.sol";
+import { FusePoolZap } from "lifi/Periphery/FusePoolZap.sol";
 
 contract FusePoolZapTest is DSTest {
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
