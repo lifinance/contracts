@@ -52,10 +52,6 @@ contract AxelarFacet is ReentrancyGuard {
     );
     event ChainNameRegistered(uint256 indexed chainID, string chainName);
 
-    /// Errors
-
-    error SymbolDoesNotExist();
-
     /// Constructor ///
 
     /// @notice Initialize the contract.
