@@ -30,11 +30,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bool initialized;
     }
 
-    struct PoolIdConfig {
-        address token;
-        uint16 poolId;
-    }
-
     struct ChainIdConfig {
         uint256 chainId;
         uint16 layerZeroChainId;
@@ -62,7 +57,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Errors ///
 
     error UnknownLayerZeroChain();
-    error InvalidStargateRouter();
 
     /// Events ///
 
