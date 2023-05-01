@@ -1,0 +1,36 @@
+{
+  "LiFiDiamond": {
+    "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+      "Name": "DiamondCutFacet",
+      "Version": "1.0.0"
+    },
+    "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
+      "Name": "DiamondLoupeFacet",
+      "Version": "1.0.0"
+    },
+    "0x2327f3FBeC98B836012639545bE35e6e8F83892a": {
+      "Name": "OwnershipFacet",
+      "Version": "1.0.0"
+    },
+    "0x4f90dC98674a7bc597E70D1D4B8D72D75Be09732": {
+      "Name": "DexManagerFacet",
+      "Version": "1.0.0"
+    },
+    "0x8F1f3113DbF717A53eDFDdf3a7E4168E45Fd62F5": {
+      "Name": "AccessManagerFacet",
+      "Version": "1.0.0"
+    },
+    "0x756061F9c646a755233c63f5bc6e7Ad0D3B54Fc3": {
+      "Name": "WithdrawFacet",
+      "Version": "1.0.0"
+    },
+    "0x8E4097eCfcc60F25fF2D7EE4d472ECa4A28a8425": {
+      "Name": "PeripheryRegistryFacet",
+      "Version": "1.0.0"
+    },
+    "0x6622D02754559BF2A6A4f5cc3469846900Dcd395": {
+      "Name": "AcrossFacet",
+      "Version": "1.0.0"
+    }
+  }
+}

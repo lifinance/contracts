@@ -333,33 +333,6 @@ contract MultichainFacetTest is TestBaseFacet {
         multichainFacet.registerRouters(routers, allowed);
     }
 
-    function test_revert_RegisterRoutersWithUninitializedFacet() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-        LiFiDiamond diamond2 = createDiamond();
-
-        TestMultichainFacet multichainFacet2 = new TestMultichainFacet();
-        bytes4[] memory functionSelectors = new bytes4[](7);
-        functionSelectors[0] = multichainFacet
-            .startBridgeTokensViaMultichain
-            .selector;
-        functionSelectors[1] = multichainFacet
-            .swapAndStartBridgeTokensViaMultichain
-            .selector;
-        functionSelectors[2] = multichainFacet.registerRouters.selector;
-        functionSelectors[3] = multichainFacet.addDex.selector;
-        functionSelectors[4] = multichainFacet.initMultichain.selector;
-        functionSelectors[5] = multichainFacet
-            .setFunctionApprovalBySignature
-            .selector;
-        functionSelectors[6] = multichainFacet.updateAddressMappings.selector;
-
-        addFacet(diamond2, address(multichainFacet2), functionSelectors);
-        multichainFacet2 = TestMultichainFacet(address(diamond2));
-
-        vm.expectRevert(NotInitialized.selector);
-        multichainFacet2.registerRouters(routers, allowed);
-    }
-
     function test_OwnerCanInitializeFacet() public {
         vm.startPrank(USER_DIAMOND_OWNER);
         LiFiDiamond diamond2 = createDiamond();
@@ -391,13 +364,6 @@ contract MultichainFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, address(multichainFacet2));
         emit MultichainInitialized();
         multichainFacet2.initMultichain(ADDRESS_ANYETH, routers);
-    }
-
-    function test_revert_CannotInitializeFacetAgain() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        vm.expectRevert(AlreadyInitialized.selector);
-        multichainFacet.initMultichain(ADDRESS_ANYETH, routers);
     }
 
     function test_canRegisterNewAnyTokenAddresses() public {

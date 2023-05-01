@@ -8,7 +8,7 @@ MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC=60
 MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT=5
 
 # the maximum number of attempts to verify contract
-MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=5
+MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=30
 
 # the maximum number of attempts to execute a script (e.g. diamondUpdate)
 MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=5
@@ -31,13 +31,14 @@ BYTECODE_STORAGE_PATH="deployments/_bytecode_storage.json"
 # any networks listed here will be excluded from actions that are applied to "all networks"
 # exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,consensys-zkevm-testnet"
 # exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
-EXCLUDE_NETWORKS="gnosis,okx,moonbeam,celo,fuse,cronos,velas,harmony,evmos,boba,nova,bsctest,goerli,sepolia,mumbai,consensys-zkevm-testnet"
+#EXCLUDE_NETWORKS="gnosis,okx,moonbeam,celo,fuse,cronos,velas,harmony,evmos,boba,nova,bsctest,goerli,sepolia,mumbai,consensys-zkevm-testnet"
+EXCLUDE_NETWORKS="consensys-zkevm-testnet"
 
 # will output more detailed information for debugging purposes
-DEBUG=true
+DEBUG=false
 
 # defines if newly deployed contracts should be verified or not
-VERIFY_CONTRACTS=false
+VERIFY_CONTRACTS=true
 
 # contract verification will be deactivated for any network listed here
 DO_NOT_VERIFY_IN_THESE_NETWORKS=""

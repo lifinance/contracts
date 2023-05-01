@@ -60,17 +60,18 @@ diamondUpdate() {
     echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
   fi
 
+  # get file suffix based on value in variable ENVIRONMENT
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
   # get diamond address from deployments script
   DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "./deployments/${NETWORK}.${FILE_SUFFIX}json")
 
   # if no diamond address was found, throw an error and exit the script
   if [[ "$DIAMOND_ADDRESS" == "null" ]]; then
-    echo "[error] could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting updatePeriphery script now"
+    error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting updatePeriphery script now"
     return 1
   fi
 
-  # get file suffix based on value in variable ENVIRONMENT
-  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # if no SCRIPT was passed to this function, ask user to select it
   if [[ -z "$SCRIPT" ]]; then
@@ -89,7 +90,7 @@ diamondUpdate() {
   # check if update script exists
   local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
-    echo "[error] could not find update script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting update.
+    error "could not find update script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting update.
     return 1
   fi
 
@@ -109,11 +110,13 @@ diamondUpdate() {
     if [ $? -eq 0 ]; then
         # extract the "logs" property and its contents from return data
         CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
-         echo "[debug] CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
+        if [[ "$DEBUG" == *"true"* ]]; then
+          echo "[debug] CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
+        fi
 
         # extract the "returns" property and its contents from logs
         RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2> /dev/null)
-        echo "[debug] RETURN_DATA: $RETURN_DATA"
+        #echo "[debug] RETURN_DATA: $RETURN_DATA"
 
         # get the facet addresses that are known to the diamond from the return data
         FACETS=$(echo $RETURN_DATA | jq -r '.facets.value')
@@ -128,49 +131,13 @@ diamondUpdate() {
 
   # check if call was executed successfully or used all attempts
   if [ $attempts -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
-    echo "[error] failed to execute $SCRIPT on network $NETWORK in $ENVIRONMENT environment"
+    error "failed to execute $SCRIPT on network $NETWORK in $ENVIRONMENT environment"
     return 1
   fi
 
-  # log return data
-  if [[ "$DEBUG" == *"true"* ]]; then
-      echo "[debug] return data: $RAW_RETURN_DATA"
-      echo "[debug] FACETS: $FACETS"
-      echo "[debug] FACETS2: ${FACETS[*]}"
-
-  fi
-
   # save facet addresses
-  saveDiamond "$NETWORK" "$USE_MUTABLE_DIAMOND" "$FACETS"
+  saveDiamond "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS"
 
   echo "[info] $SCRIPT successfully executed on network $NETWORK in $ENVIRONMENT environment"
   return 0
-}
-
-saveDiamond() {
-	source .env
-
-	if [[ -z "$PRODUCTION" ]]; then
-		FILE_SUFFIX="staging."
-	fi
-
-  # store function arguments in variables
-	NETWORK=$1
-	USE_MUTABLE_DIAMOND=$2
-	FACETS=$(echo $3 | tr -d '[' | tr -d ']' | tr -d ',')
-	FACETS=$(printf '"%s",' $FACETS | sed 's/,*$//')
-
-  # define path for json file based on which diamond was used
-  if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
-  else
-    DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
-  fi
-
-	# create an empty json if it does not exist
-	if [[ ! -e $DIAMOND_FILE ]]; then
-		echo "{}" >"$DIAMOND_FILE"
-	fi
-	result=$(cat "$DIAMOND_FILE" | jq -r ". + {\"facets\": [$FACETS] }" || cat "$DIAMOND_FILE")
-	printf %s "$result" >"$DIAMOND_FILE"
 }

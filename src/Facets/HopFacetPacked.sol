@@ -2,88 +2,186 @@ pragma solidity 0.8.17;
 
 import { IHopBridge } from "../Interfaces/IHopBridge.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ERC20 } from "solmate/utils/SafeTransferLib.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
+import { WETH } from "solmate/tokens/WETH.sol";
+
+interface L2_AmmWrapper {
+    function bridge() external view returns (address);
+
+    function l2CanonicalToken() external view returns (address);
+
+    function hToken() external view returns (address);
+
+    function exchangeAddress() external view returns (address);
+}
+
+interface Swap {
+    function swap(
+        uint8 tokenIndexFrom,
+        uint8 tokenIndexTo,
+        uint256 dx,
+        uint256 minDy,
+        uint256 deadline
+    ) external returns (uint256);
+}
 
 /// @title Hop Facet (Optimized for Rollups)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-/// @custom:version 1.0.1
-contract HopFacetPacked is ILiFi {
+/// @custom:version 1.0.3
+contract HopFacetPacked is ILiFi, TransferrableOwnership {
+    /// Storage ///
+
+    address public immutable nativeBridge;
+    address public immutable nativeL2CanonicalToken;
+    address public immutable nativeHToken;
+    address public immutable nativeExchangeAddress;
+
+    /// Errors ///
+    error Invalid();
+
+    /// Events ///
+
+    event LiFiHopTransfer(bytes8 _transactionId);
+
+    /// Constructor ///
+
+    /// @notice Initialize the contract.
+    /// @param _owner The contract owner to approve tokens.
+    constructor(
+        address _owner,
+        address _wrapper
+    ) TransferrableOwnership(_owner) {
+        bool wrapperIsSet = _wrapper != address(0);
+        if (block.chainid == 1 && wrapperIsSet) revert Invalid();
+
+        nativeL2CanonicalToken = wrapperIsSet
+            ? L2_AmmWrapper(_wrapper).l2CanonicalToken()
+            : address(0);
+        nativeHToken = wrapperIsSet
+            ? L2_AmmWrapper(_wrapper).hToken()
+            : address(0);
+        nativeExchangeAddress = wrapperIsSet
+            ? L2_AmmWrapper(_wrapper).exchangeAddress()
+            : address(0);
+        nativeBridge = wrapperIsSet
+            ? L2_AmmWrapper(_wrapper).bridge()
+            : address(0);
+    }
+
     /// External Methods ///
+
+    /// @dev Only meant to be called outside of the context of the diamond
+    /// @notice Sets approval for the Hop Bridge to spend the specified token
+    /// @param bridges The Hop Bridges to approve
+    /// @param tokensToApprove The tokens to approve to approve to the Hop Bridges
+    function setApprovalForHopBridges(
+        address[] calldata bridges,
+        address[] calldata tokensToApprove
+    ) external onlyOwner {
+        for (uint256 i; i < bridges.length; i++) {
+            // Give Hop approval to bridge tokens
+            LibAsset.maxApproveERC20(
+                IERC20(tokensToApprove[i]),
+                address(bridges[i]),
+                type(uint256).max
+            );
+        }
+    }
 
     /// @notice Bridges Native tokens via Hop Protocol from L2
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaHopL2NativePacked() external payable {
-        require(
-            msg.data.length >= 120,
-            "callData length smaller than required"
+        // first 4 bytes are function signature
+        // transactionId: bytes8(msg.data[4:12]),
+        // receiver: address(bytes20(msg.data[12:32])),
+        // destinationChainId: uint256(uint32(bytes4(msg.data[32:36]))),
+        // bonderFee: uint256(uint128(bytes16(msg.data[36:52]))),
+        // amountOutMin: uint256(uint128(bytes16(msg.data[52:68]))),
+        // destinationAmountOutMin: uint256(uint128(bytes16(msg.data[68:84]))),
+        // destinationDeadline: uint256(uint32(bytes4(msg.data[84:88]))),
+        // hopBridge: address(bytes20(msg.data[88:108]))
+        // => total calldata length required: 108
+
+        // Wrap ETH
+        WETH(payable(nativeL2CanonicalToken)).deposit{ value: msg.value }();
+
+        // Exchange WETH for hToken
+        uint256 swapAmount = Swap(nativeExchangeAddress).swap(
+            0,
+            1,
+            msg.value,
+            uint256(uint128(bytes16(msg.data[52:68]))),
+            block.timestamp
         );
 
-        _startBridgeTokensViaHopL2Native({
-            // first 4 bytes are function signature
-            transactionId: bytes32(bytes8(msg.data[4:12])),
-            integrator: string(msg.data[12:28]), // bytes16 > string
-            receiver: address(bytes20(msg.data[28:48])),
-            destinationChainId: uint256(uint32(bytes4(msg.data[48:52]))),
-            bonderFee: uint256(uint128(bytes16(msg.data[52:68]))),
-            amountOutMin: uint256(uint128(bytes16(msg.data[68:84]))),
-            destinationAmountOutMin: uint256(
-                uint128(bytes16(msg.data[84:100]))
-            ),
-            hopBridge: address(bytes20(msg.data[100:120]))
-            // => total calldata length required: 120
-        });
+        // Bridge assets
+        IHopBridge(nativeBridge).send(
+            uint256(uint32(bytes4(msg.data[32:36]))),
+            address(bytes20(msg.data[12:32])),
+            swapAmount,
+            uint256(uint128(bytes16(msg.data[36:52]))),
+            uint256(uint128(bytes16(msg.data[68:84]))),
+            uint256(uint32(bytes4(msg.data[84:88])))
+        );
+
+        emit LiFiHopTransfer(bytes8(msg.data[4:12]));
     }
 
     /// @notice Bridges Native tokens via Hop Protocol from L2
     /// @param transactionId Custom transaction ID for tracking
-    /// @param integrator LI.FI partner name
     /// @param receiver Receiving wallet address
     /// @param destinationChainId Receiving chain
     /// @param bonderFee Fees payed to hop bonder
     /// @param amountOutMin Source swap minimal accepted amount
     /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param destinationDeadline Destination swap maximal time
     /// @param hopBridge Address of the Hop L2_AmmWrapper
     function startBridgeTokensViaHopL2NativeMin(
-        bytes32 transactionId,
-        string calldata integrator,
+        bytes8 transactionId,
         address receiver,
         uint256 destinationChainId,
         uint256 bonderFee,
         uint256 amountOutMin,
         uint256 destinationAmountOutMin,
+        uint256 destinationDeadline,
         address hopBridge
     ) external payable {
-        _startBridgeTokensViaHopL2Native(
-            transactionId,
-            integrator,
-            receiver,
+        // Bridge assets
+        IHopBridge(hopBridge).swapAndSend{ value: msg.value }(
             destinationChainId,
+            receiver,
+            msg.value,
             bonderFee,
             amountOutMin,
+            block.timestamp,
             destinationAmountOutMin,
-            hopBridge
+            destinationDeadline
         );
+
+        emit LiFiHopTransfer(transactionId);
     }
 
     /// @notice Bridges Native tokens via Hop Protocol from L2
     /// @param transactionId Custom transaction ID for tracking
-    /// @param integrator LI.FI partner name
     /// @param receiver Receiving wallet address
     /// @param destinationChainId Receiving chain
     /// @param bonderFee Fees payed to hop bonder
     /// @param amountOutMin Source swap minimal accepted amount
     /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param destinationDeadline Destination swap maximal time
     /// @param hopBridge Address of the Hop L2_AmmWrapper
-    function encoder_startBridgeTokensViaHopL2NativePacked(
-        bytes32 transactionId,
-        string calldata integrator,
+    function encode_startBridgeTokensViaHopL2NativePacked(
+        bytes8 transactionId,
         address receiver,
         uint256 destinationChainId,
         uint256 bonderFee,
         uint256 amountOutMin,
         uint256 destinationAmountOutMin,
+        uint256 destinationDeadline,
         address hopBridge
     ) external pure returns (bytes memory) {
         require(
@@ -102,105 +200,163 @@ contract HopFacetPacked is ILiFi {
             destinationAmountOutMin <= type(uint128).max,
             "destinationAmountOutMin value passed too big to fit in uint128"
         );
+        require(
+            destinationDeadline <= type(uint32).max,
+            "destinationDeadline value passed too big to fit in uint32"
+        );
 
         return
             bytes.concat(
                 HopFacetPacked.startBridgeTokensViaHopL2NativePacked.selector,
                 bytes8(transactionId),
-                bytes16(bytes(integrator)),
                 bytes20(receiver),
                 bytes4(uint32(destinationChainId)),
                 bytes16(uint128(bonderFee)),
                 bytes16(uint128(amountOutMin)),
                 bytes16(uint128(destinationAmountOutMin)),
+                bytes4(uint32(destinationDeadline)),
                 bytes20(hopBridge)
             );
+    }
+
+    /// @notice Decodes calldata for startBridgeTokensViaHopL2NativePacked
+    /// @param _data the calldata to decode
+    function decode_startBridgeTokensViaHopL2NativePacked(
+        bytes calldata _data
+    )
+        external
+        pure
+        returns (BridgeData memory, HopFacetOptimized.HopData memory)
+    {
+        require(
+            _data.length >= 108,
+            "data passed in is not the correct length"
+        );
+
+        BridgeData memory bridgeData;
+        HopFacetOptimized.HopData memory hopData;
+
+        bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
+        bridgeData.receiver = address(bytes20(_data[12:32]));
+        bridgeData.destinationChainId = uint256(uint32(bytes4(_data[32:36])));
+        bridgeData.minAmount = uint256(uint128(bytes16(_data[56:72])));
+        hopData.bonderFee = uint256(uint128(bytes16(_data[36:52])));
+        hopData.amountOutMin = uint256(uint128(bytes16(_data[52:68])));
+        hopData.destinationAmountOutMin = uint256(
+            uint128(bytes16(_data[68:84]))
+        );
+        hopData.destinationDeadline = uint256(uint32(bytes4(_data[84:88])));
+        hopData.hopBridge = IHopBridge(address(bytes20(_data[88:108])));
+
+        return (bridgeData, hopData);
     }
 
     /// @notice Bridges ERC20 tokens via Hop Protocol from L2
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaHopL2ERC20Packed() external {
-        require(
-            msg.data.length >= 156,
-            "callData length smaller than required"
+        // first 4 bytes are function signature
+        // transactionId: bytes8(msg.data[4:12]),
+        // receiver: address(bytes20(msg.data[12:32])),
+        // destinationChainId: uint256(uint32(bytes4(msg.data[32:36]))),
+        // sendingAssetId: address(bytes20(msg.data[36:56])),
+        // amount: uint256(uint128(bytes16(msg.data[56:72]))),
+        // bonderFee: uint256(uint128(bytes16(msg.data[72:88]))),
+        // amountOutMin: uint256(uint128(bytes16(msg.data[88:104]))),
+        // destinationAmountOutMin: uint256(uint128(bytes16(msg.data[104:120]))),
+        // destinationDeadline: uint256(uint32(bytes4(msg.data[120:124]))),
+        // hopBridge: address(bytes20(msg.data[124:144]))
+        // => total calldata length required: 144
+
+        uint256 amount = uint256(uint128(bytes16(msg.data[56:72])));
+
+        // Deposit assets
+        ERC20(address(bytes20(msg.data[36:56]))).transferFrom(
+            msg.sender,
+            address(this),
+            amount
         );
 
-        _startBridgeTokensViaHopL2ERC20({
-            // first 4 bytes are function signature
-            transactionId: bytes32(bytes8(msg.data[4:12])),
-            integrator: string(msg.data[12:28]), // bytes16 > string
-            receiver: address(bytes20(msg.data[28:48])),
-            destinationChainId: uint256(uint32(bytes4(msg.data[48:52]))),
-            sendingAssetId: address(bytes20(msg.data[52:72])),
-            amount: uint256(uint128(bytes16(msg.data[72:88]))),
-            bonderFee: uint256(uint128(bytes16(msg.data[88:104]))),
-            amountOutMin: uint256(uint128(bytes16(msg.data[104:120]))),
-            destinationAmountOutMin: uint256(
-                uint128(bytes16(msg.data[120:136]))
-            ),
-            hopBridge: address(bytes20(msg.data[136:156]))
-            // => total calldata length required: 156
-        });
+        // Bridge assets
+        IHopBridge(address(bytes20(msg.data[124:144]))).swapAndSend(
+            uint256(uint32(bytes4(msg.data[32:36]))),
+            address(bytes20(msg.data[12:32])),
+            amount,
+            uint256(uint128(bytes16(msg.data[72:88]))),
+            uint256(uint128(bytes16(msg.data[88:104]))),
+            block.timestamp,
+            uint256(uint128(bytes16(msg.data[104:120]))),
+            uint256(uint32(bytes4(msg.data[120:124])))
+        );
+
+        emit LiFiHopTransfer(bytes8(msg.data[4:12]));
     }
 
     /// @notice Bridges ERC20 tokens via Hop Protocol from L2
     /// @param transactionId Custom transaction ID for tracking
-    /// @param integrator LI.FI partner name
     /// @param receiver Receiving wallet address
     /// @param destinationChainId Receiving chain
     /// @param sendingAssetId Address of the source asset to bridge
-    /// @param amount Amount of the source asset to bridge
+    /// @param minAmount Amount of the source asset to bridge
     /// @param bonderFee Fees payed to hop bonder
     /// @param amountOutMin Source swap minimal accepted amount
     /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param destinationDeadline Destination swap maximal time
     /// @param hopBridge Address of the Hop L2_AmmWrapper
     function startBridgeTokensViaHopL2ERC20Min(
-        bytes32 transactionId,
-        string calldata integrator,
+        bytes8 transactionId,
         address receiver,
         uint256 destinationChainId,
         address sendingAssetId,
-        uint256 amount,
+        uint256 minAmount,
         uint256 bonderFee,
         uint256 amountOutMin,
         uint256 destinationAmountOutMin,
+        uint256 destinationDeadline,
         address hopBridge
     ) external {
-        _startBridgeTokensViaHopL2ERC20(
-            transactionId,
-            integrator,
-            receiver,
+        // Deposit assets
+        ERC20(sendingAssetId).transferFrom(
+            msg.sender,
+            address(this),
+            minAmount
+        );
+
+        // Bridge assets
+        IHopBridge(hopBridge).swapAndSend(
             destinationChainId,
-            sendingAssetId,
-            amount,
+            receiver,
+            minAmount,
             bonderFee,
             amountOutMin,
+            block.timestamp,
             destinationAmountOutMin,
-            hopBridge
+            destinationDeadline
         );
+
+        emit LiFiHopTransfer(transactionId);
     }
 
     /// @notice Bridges ERC20 tokens via Hop Protocol from L2
     /// @param transactionId Custom transaction ID for tracking
-    /// @param integrator LI.FI partner name
     /// @param receiver Receiving wallet address
     /// @param destinationChainId Receiving chain
     /// @param sendingAssetId Address of the source asset to bridge
-    /// @param amount Amount of the source asset to bridge
+    /// @param minAmount Amount of the source asset to bridge
     /// @param bonderFee Fees payed to hop bonder
     /// @param amountOutMin Source swap minimal accepted amount
     /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param destinationDeadline Destination swap maximal time
     /// @param hopBridge Address of the Hop L2_AmmWrapper
-    function encoder_startBridgeTokensViaHopL2ERC20Packed(
+    function encode_startBridgeTokensViaHopL2ERC20Packed(
         bytes32 transactionId,
-        string calldata integrator,
         address receiver,
         uint256 destinationChainId,
         address sendingAssetId,
-        uint256 amount,
+        uint256 minAmount,
         uint256 bonderFee,
         uint256 amountOutMin,
         uint256 destinationAmountOutMin,
+        uint256 destinationDeadline,
         address hopBridge
     ) external pure returns (bytes memory) {
         require(
@@ -208,7 +364,7 @@ contract HopFacetPacked is ILiFi {
             "destinationChainId value passed too big to fit in uint32"
         );
         require(
-            amount <= type(uint128).max,
+            minAmount <= type(uint128).max,
             "amount value passed too big to fit in uint128"
         );
         require(
@@ -223,250 +379,355 @@ contract HopFacetPacked is ILiFi {
             destinationAmountOutMin <= type(uint128).max,
             "destinationAmountOutMin value passed too big to fit in uint128"
         );
+        require(
+            destinationDeadline <= type(uint32).max,
+            "destinationDeadline value passed too big to fit in uint32"
+        );
 
         return
             bytes.concat(
                 HopFacetPacked.startBridgeTokensViaHopL2ERC20Packed.selector,
                 bytes8(transactionId),
-                bytes16(bytes(integrator)),
                 bytes20(receiver),
                 bytes4(uint32(destinationChainId)),
                 bytes20(sendingAssetId),
-                bytes16(uint128(amount)),
+                bytes16(uint128(minAmount)),
                 bytes16(uint128(bonderFee)),
                 bytes16(uint128(amountOutMin)),
                 bytes16(uint128(destinationAmountOutMin)),
+                bytes4(uint32(destinationDeadline)),
                 bytes20(hopBridge)
             );
     }
 
+    /// @notice Decodes calldata for startBridgeTokensViaHopL2ERC20Packed
+    /// @param _data the calldata to decode
+    function decode_startBridgeTokensViaHopL2ERC20Packed(
+        bytes calldata _data
+    )
+        external
+        pure
+        returns (BridgeData memory, HopFacetOptimized.HopData memory)
+    {
+        require(
+            _data.length >= 144,
+            "data passed in is not the correct length"
+        );
+
+        BridgeData memory bridgeData;
+        HopFacetOptimized.HopData memory hopData;
+
+        bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
+        bridgeData.receiver = address(bytes20(_data[12:32]));
+        bridgeData.destinationChainId = uint256(uint32(bytes4(_data[32:36])));
+        bridgeData.sendingAssetId = address(bytes20(_data[36:56]));
+        bridgeData.minAmount = uint256(uint128(bytes16(_data[56:72])));
+        hopData.bonderFee = uint256(uint128(bytes16(_data[72:88])));
+        hopData.amountOutMin = uint256(uint128(bytes16(_data[88:104])));
+        hopData.destinationAmountOutMin = uint256(
+            uint128(bytes16(_data[104:120]))
+        );
+        hopData.destinationDeadline = uint256(uint32(bytes4(_data[120:124])));
+        hopData.hopBridge = IHopBridge(address(bytes20(_data[124:144])));
+
+        return (bridgeData, hopData);
+    }
+
+    /// @notice Bridges Native tokens via Hop Protocol from L1
+    /// No params, all data will be extracted from manually encoded callData
+    function startBridgeTokensViaHopL1NativePacked() external payable {
+        // first 4 bytes are function signature
+        // transactionId: bytes8(msg.data[4:12]),
+        // receiver: address(bytes20(msg.data[12:32])),
+        // destinationChainId: uint256(uint32(bytes4(msg.data[32:36]))),
+        // destinationAmountOutMin: uint256(uint128(bytes16(msg.data[36:52]))),
+        // relayer: address(bytes20(msg.data[52:72])),
+        // relayerFee: uint256(uint128(bytes16(msg.data[72:88]))),
+        // hopBridge: address(bytes20(msg.data[88:108]))
+        // => total calldata length required: 108
+
+        // Bridge assets
+        IHopBridge(address(bytes20(msg.data[88:108]))).sendToL2{
+            value: msg.value
+        }(
+            uint256(uint32(bytes4(msg.data[32:36]))),
+            address(bytes20(msg.data[12:32])),
+            msg.value,
+            uint256(uint128(bytes16(msg.data[36:52]))),
+            block.timestamp + 7 * 24 * 60 * 60,
+            address(bytes20(msg.data[52:72])),
+            uint256(uint128(bytes16(msg.data[72:88])))
+        );
+
+        emit LiFiHopTransfer(bytes8(msg.data[4:12]));
+    }
+
     /// @notice Bridges Native tokens via Hop Protocol from L1
     /// @param transactionId Custom transaction ID for tracking
-    /// @param integrator LI.FI partner name
     /// @param receiver Receiving wallet address
     /// @param destinationChainId Receiving chain
     /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param relayer needed for gas spikes
+    /// @param relayerFee needed for gas spikes
     /// @param hopBridge Address of the Hop Bridge
     function startBridgeTokensViaHopL1NativeMin(
-        bytes32 transactionId,
-        string memory integrator,
+        bytes8 transactionId,
         address receiver,
         uint256 destinationChainId,
         uint256 destinationAmountOutMin,
+        address relayer,
+        uint256 relayerFee,
         address hopBridge
     ) external payable {
-        _startBridgeTokensViaHopL1Native(
-            transactionId,
-            integrator,
-            receiver,
-            destinationChainId,
-            destinationAmountOutMin,
-            hopBridge
-        );
-    }
-
-    /// @notice Bridges ERC20 tokens via Hop Protocol from L1
-    /// @param transactionId Custom transaction ID for tracking
-    /// @param integrator LI.FI partner name
-    /// @param receiver Receiving wallet address
-    /// @param destinationChainId Receiving chain
-    /// @param sendingAssetId Address of the source asset to bridge
-    /// @param amount Amount of the source asset to bridge
-    /// @param destinationAmountOutMin Destination swap minimal accepted amount
-    /// @param hopBridge Address of the Hop Bridge
-    function startBridgeTokensViaHopL1ERC20Min(
-        bytes32 transactionId,
-        string calldata integrator,
-        address receiver,
-        uint256 destinationChainId,
-        address sendingAssetId,
-        uint256 amount,
-        uint256 destinationAmountOutMin,
-        address hopBridge
-    ) external {
-        _startBridgeTokensViaHopL1ERC20(
-            transactionId,
-            integrator,
-            receiver,
-            destinationChainId,
-            sendingAssetId,
-            amount,
-            destinationAmountOutMin,
-            hopBridge
-        );
-    }
-
-    /// Internal Methods ///
-
-    function _startBridgeTokensViaHopL2Native(
-        bytes32 transactionId,
-        string memory integrator,
-        address receiver,
-        uint256 destinationChainId,
-        uint256 bonderFee,
-        uint256 amountOutMin,
-        uint256 destinationAmountOutMin,
-        address hopBridge
-    ) private {
-        // Bridge assets
-        uint256 deadline = (destinationChainId == 1 || destinationChainId == 5)
-            ? 0
-            : block.timestamp + 60 * 20;
-        IHopBridge(hopBridge).swapAndSend{ value: msg.value }(
-            destinationChainId,
-            receiver,
-            msg.value,
-            bonderFee,
-            amountOutMin,
-            block.timestamp,
-            destinationAmountOutMin,
-            deadline
-        );
-
-        emit LiFiTransferStarted(
-            BridgeData({
-                transactionId: transactionId,
-                bridge: "hop",
-                integrator: integrator,
-                referrer: address(0),
-                sendingAssetId: address(0),
-                receiver: receiver,
-                minAmount: msg.value,
-                destinationChainId: destinationChainId,
-                hasSourceSwaps: false,
-                hasDestinationCall: false
-            })
-        );
-    }
-
-    function _startBridgeTokensViaHopL2ERC20(
-        bytes32 transactionId,
-        string memory integrator,
-        address receiver,
-        uint256 destinationChainId,
-        address sendingAssetId,
-        uint256 amount,
-        uint256 bonderFee,
-        uint256 amountOutMin,
-        uint256 destinationAmountOutMin,
-        address hopBridge
-    ) private {
-        // Deposit assets
-        SafeERC20.safeTransferFrom(
-            IERC20(sendingAssetId),
-            msg.sender,
-            address(this),
-            amount
-        );
-
-        // Bridge assets
-        uint256 deadline = (destinationChainId == 1 || destinationChainId == 5)
-            ? 0
-            : block.timestamp + 60 * 20;
-        IHopBridge(hopBridge).swapAndSend(
-            destinationChainId,
-            receiver,
-            amount,
-            bonderFee,
-            amountOutMin,
-            block.timestamp,
-            destinationAmountOutMin,
-            deadline
-        );
-
-        emit LiFiTransferStarted(
-            BridgeData({
-                transactionId: transactionId,
-                bridge: "hop",
-                integrator: integrator,
-                referrer: address(0),
-                sendingAssetId: sendingAssetId,
-                receiver: receiver,
-                minAmount: amount,
-                destinationChainId: destinationChainId,
-                hasSourceSwaps: false,
-                hasDestinationCall: false
-            })
-        );
-    }
-
-    function _startBridgeTokensViaHopL1Native(
-        bytes32 transactionId,
-        string memory integrator,
-        address receiver,
-        uint256 destinationChainId,
-        uint256 destinationAmountOutMin,
-        address hopBridge
-    ) private {
         // Bridge assets
         IHopBridge(hopBridge).sendToL2{ value: msg.value }(
             destinationChainId,
             receiver,
             msg.value,
             destinationAmountOutMin,
-            block.timestamp + 60 * 20,
-            address(0),
-            0
+            block.timestamp + 7 * 24 * 60 * 60,
+            relayer,
+            relayerFee
         );
 
-        emit LiFiTransferStarted(
-            BridgeData({
-                transactionId: transactionId,
-                bridge: "hop",
-                integrator: integrator,
-                referrer: address(0),
-                sendingAssetId: address(0),
-                receiver: receiver,
-                minAmount: msg.value,
-                destinationChainId: destinationChainId,
-                hasSourceSwaps: false,
-                hasDestinationCall: false
-            })
-        );
+        emit LiFiHopTransfer(transactionId);
     }
 
-    function _startBridgeTokensViaHopL1ERC20(
-        bytes32 transactionId,
-        string memory integrator,
+    /// @notice Bridges Native tokens via Hop Protocol from L1
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param relayer needed for gas spikes
+    /// @param relayerFee needed for gas spikes
+    /// @param hopBridge Address of the Hop Bridge
+    function encode_startBridgeTokensViaHopL1NativePacked(
+        bytes8 transactionId,
         address receiver,
         uint256 destinationChainId,
-        address sendingAssetId,
-        uint256 amount,
         uint256 destinationAmountOutMin,
+        address relayer,
+        uint256 relayerFee,
         address hopBridge
-    ) private {
+    ) external pure returns (bytes memory) {
+        require(
+            destinationChainId <= type(uint32).max,
+            "destinationChainId value passed too big to fit in uint32"
+        );
+        require(
+            destinationAmountOutMin <= type(uint128).max,
+            "destinationAmountOutMin value passed too big to fit in uint128"
+        );
+        require(
+            relayerFee <= type(uint128).max,
+            "relayerFee value passed too big to fit in uint128"
+        );
+
+        return
+            bytes.concat(
+                HopFacetPacked.startBridgeTokensViaHopL1NativePacked.selector,
+                bytes8(transactionId),
+                bytes20(receiver),
+                bytes4(uint32(destinationChainId)),
+                bytes16(uint128(destinationAmountOutMin)),
+                bytes20(relayer),
+                bytes16(uint128(relayerFee)),
+                bytes20(hopBridge)
+            );
+    }
+
+    /// @notice Decodes calldata for startBridgeTokensViaHopL1NativePacked
+    /// @param _data the calldata to decode
+    function decode_startBridgeTokensViaHopL1NativePacked(
+        bytes calldata _data
+    )
+        external
+        pure
+        returns (BridgeData memory, HopFacetOptimized.HopData memory)
+    {
+        require(
+            _data.length >= 108,
+            "data passed in is not the correct length"
+        );
+
+        BridgeData memory bridgeData;
+        HopFacetOptimized.HopData memory hopData;
+
+        bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
+        bridgeData.receiver = address(bytes20(_data[12:32]));
+        bridgeData.destinationChainId = uint256(uint32(bytes4(_data[32:36])));
+        hopData.destinationAmountOutMin = uint256(
+            uint128(bytes16(_data[36:52]))
+        );
+        // relayer = address(bytes20(_data[52:72]));
+        // relayerFee = uint256(uint128(bytes16(_data[72:88])));
+        hopData.hopBridge = IHopBridge(address(bytes20(_data[88:108])));
+
+        return (bridgeData, hopData);
+    }
+
+    /// @notice Bridges Native tokens via Hop Protocol from L1
+    /// No params, all data will be extracted from manually encoded callData
+    function startBridgeTokensViaHopL1ERC20Packed() external payable {
+        // first 4 bytes are function signature
+        // transactionId: bytes8(msg.data[4:12]),
+        // receiver: address(bytes20(msg.data[12:32])),
+        // destinationChainId: uint256(uint32(bytes4(msg.data[32:36]))),
+        // sendingAssetId: address(bytes20(msg.data[36:56])),
+        // amount: uint256(uint128(bytes16(msg.data[56:72]))),
+        // destinationAmountOutMin: uint256(uint128(bytes16(msg.data[72:88]))),
+        // relayer: address(bytes20(msg.data[88:108])),
+        // relayerFee: uint256(uint128(bytes16(msg.data[108:124]))),
+        // hopBridge: address(bytes20(msg.data[124:144]))
+        // => total calldata length required: 144
+
+        uint256 amount = uint256(uint128(bytes16(msg.data[56:72])));
+
         // Deposit assets
-        SafeERC20.safeTransferFrom(
-            IERC20(sendingAssetId),
+        ERC20(address(bytes20(msg.data[36:56]))).transferFrom(
             msg.sender,
             address(this),
             amount
         );
 
         // Bridge assets
+        IHopBridge(address(bytes20(msg.data[124:144]))).sendToL2(
+            uint256(uint32(bytes4(msg.data[32:36]))),
+            address(bytes20(msg.data[12:32])),
+            amount,
+            uint256(uint128(bytes16(msg.data[72:88]))),
+            block.timestamp + 7 * 24 * 60 * 60,
+            address(bytes20(msg.data[88:108])),
+            uint256(uint128(bytes16(msg.data[108:124])))
+        );
+
+        emit LiFiHopTransfer(bytes8(msg.data[4:12]));
+    }
+
+    /// @notice Bridges ERC20 tokens via Hop Protocol from L1
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param sendingAssetId Address of the source asset to bridge
+    /// @param minAmount Amount of the source asset to bridge
+    /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param relayer needed for gas spikes
+    /// @param relayerFee needed for gas spikes
+    /// @param hopBridge Address of the Hop Bridge
+    function startBridgeTokensViaHopL1ERC20Min(
+        bytes8 transactionId,
+        address receiver,
+        uint256 destinationChainId,
+        address sendingAssetId,
+        uint256 minAmount,
+        uint256 destinationAmountOutMin,
+        address relayer,
+        uint256 relayerFee,
+        address hopBridge
+    ) external {
+        // Deposit assets
+        ERC20(sendingAssetId).transferFrom(
+            msg.sender,
+            address(this),
+            minAmount
+        );
+
+        // Bridge assets
         IHopBridge(hopBridge).sendToL2(
             destinationChainId,
             receiver,
-            amount,
+            minAmount,
             destinationAmountOutMin,
-            block.timestamp + 60 * 20,
-            address(0),
-            0
+            block.timestamp + 7 * 24 * 60 * 60,
+            relayer,
+            relayerFee
         );
 
-        emit LiFiTransferStarted(
-            BridgeData({
-                transactionId: transactionId,
-                bridge: "hop",
-                integrator: integrator,
-                referrer: address(0),
-                sendingAssetId: sendingAssetId,
-                receiver: receiver,
-                minAmount: amount,
-                destinationChainId: destinationChainId,
-                hasSourceSwaps: false,
-                hasDestinationCall: false
-            })
+        emit LiFiHopTransfer(transactionId);
+    }
+
+    /// @notice Bridges ERC20 tokens via Hop Protocol from L1
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param sendingAssetId Address of the source asset to bridge
+    /// @param minAmount Amount of the source asset to bridge
+    /// @param destinationAmountOutMin Destination swap minimal accepted amount
+    /// @param relayer needed for gas spikes
+    /// @param relayerFee needed for gas spikes
+    /// @param hopBridge Address of the Hop Bridge
+    function encode_startBridgeTokensViaHopL1ERC20Packed(
+        bytes8 transactionId,
+        address receiver,
+        uint256 destinationChainId,
+        address sendingAssetId,
+        uint256 minAmount,
+        uint256 destinationAmountOutMin,
+        address relayer,
+        uint256 relayerFee,
+        address hopBridge
+    ) external pure returns (bytes memory) {
+        require(
+            destinationChainId <= type(uint32).max,
+            "destinationChainId value passed too big to fit in uint32"
         );
+        require(
+            minAmount <= type(uint128).max,
+            "amount value passed too big to fit in uint128"
+        );
+        require(
+            destinationAmountOutMin <= type(uint128).max,
+            "destinationAmountOutMin value passed too big to fit in uint128"
+        );
+        require(
+            relayerFee <= type(uint128).max,
+            "relayerFee value passed too big to fit in uint128"
+        );
+
+        return
+            bytes.concat(
+                HopFacetPacked.startBridgeTokensViaHopL1ERC20Packed.selector,
+                bytes8(transactionId),
+                bytes20(receiver),
+                bytes4(uint32(destinationChainId)),
+                bytes20(sendingAssetId),
+                bytes16(uint128(minAmount)),
+                bytes16(uint128(destinationAmountOutMin)),
+                bytes20(relayer),
+                bytes16(uint128(relayerFee)),
+                bytes20(hopBridge)
+            );
+    }
+
+    /// @notice Decodes calldata for startBridgeTokensViaHopL1ERC20Packed
+    /// @param _data the calldata to decode
+    function decode_startBridgeTokensViaHopL1ERC20Packed(
+        bytes calldata _data
+    )
+        external
+        pure
+        returns (BridgeData memory, HopFacetOptimized.HopData memory)
+    {
+        require(
+            _data.length >= 144,
+            "data passed in is not the correct length"
+        );
+
+        BridgeData memory bridgeData;
+        HopFacetOptimized.HopData memory hopData;
+
+        bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
+        bridgeData.receiver = address(bytes20(_data[12:32]));
+        bridgeData.destinationChainId = uint256(uint32(bytes4(_data[32:36])));
+        bridgeData.sendingAssetId = address(bytes20(_data[36:56]));
+        bridgeData.minAmount = uint256(uint128(bytes16(_data[56:72])));
+        hopData.destinationAmountOutMin = uint256(
+            uint128(bytes16(_data[72:88]))
+        );
+        // relayer = address(bytes20(_data[88:108]));
+        // relayerFee = uint256(uint128(bytes16(_data[108:124])));
+        hopData.hopBridge = IHopBridge(address(bytes20(_data[124:144])));
+
+        return (bridgeData, hopData);
     }
 }

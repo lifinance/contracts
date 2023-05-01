@@ -13,7 +13,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Across Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -108,7 +108,9 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount,
                 _bridgeData.destinationChainId,
                 _acrossData.relayerFeePct,
-                _acrossData.quoteTimestamp
+                _acrossData.quoteTimestamp,
+                "",
+                0
             );
         } else {
             LibAsset.maxApproveERC20(
@@ -122,7 +124,9 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount,
                 _bridgeData.destinationChainId,
                 _acrossData.relayerFeePct,
-                _acrossData.quoteTimestamp
+                _acrossData.quoteTimestamp,
+                "",
+                0
             );
         }
 
