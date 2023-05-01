@@ -23,9 +23,6 @@ interface CelerToken {
 contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    /// @dev The contract address of the cBridge Message Bus
-    IMessageBus private immutable cBridgeMessageBus;
-
     /// @dev The contract address of the RelayerCelerIM
     RelayerCelerIM private immutable relayer;
 
@@ -56,15 +53,9 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Constructor ///
 
     /// @notice Initialize the contract.
-    /// @param _messageBus The contract address of the cBridge Message Bus
     /// @param _relayer The contract address of the RelayerCelerIM
     /// @param _cfUSDC The contract address of the Celer Flow USDC
-    constructor(
-        IMessageBus _messageBus,
-        RelayerCelerIM _relayer,
-        address _cfUSDC
-    ) {
-        cBridgeMessageBus = _messageBus;
+    constructor(RelayerCelerIM _relayer, address _cfUSDC) {
         relayer = _relayer;
         cfUSDC = _cfUSDC;
     }

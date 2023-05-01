@@ -10,10 +10,9 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 // Stub CelerIMFacet Contract
 contract TestCelerIMFacet is CelerIMFacet {
     constructor(
-        IMessageBus _messageBus,
         RelayerCelerIM _relayer,
         address _cfUSDC
-    ) CelerIMFacet(_messageBus, _relayer, _cfUSDC) {}
+    ) CelerIMFacet(_relayer, _cfUSDC) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -99,11 +98,7 @@ contract CelerIMFacetTest is TestBaseFacet {
             address(diamond)
         );
 
-        celerIMFacet = new TestCelerIMFacet(
-            IMessageBus(CBRIDGE_MESSAGEBUS_ETH),
-            relayer,
-            CFUSDC
-        );
+        celerIMFacet = new TestCelerIMFacet(relayer, CFUSDC);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = celerIMFacet
             .startBridgeTokensViaCelerIM
