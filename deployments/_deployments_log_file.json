@@ -168,6 +168,19 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF1d67E1dddc87E2858C87EBd5b19f99a4E297541",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:14:11",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -334,6 +347,19 @@
             "ADDRESS": "0x49d195D3138D4E0E2b4ea88484C54AEE45B04B9F",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-04-28 13:49:59",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x49d195D3138D4E0E2b4ea88484C54AEE45B04B9F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:14:42",
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "false"
           }
@@ -523,6 +549,19 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x44beA2Ab010d1CedC4E60E97DA8F88b8840951B0",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:15:00",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "DexManagerFacet": {
@@ -689,6 +728,19 @@
             "ADDRESS": "0x64D41a7B52CA910f4995b1df33ea68471138374b",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-04-28 13:12:47",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x64D41a7B52CA910f4995b1df33ea68471138374b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:15:38",
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "false"
           }
@@ -865,6 +917,19 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xfaA5f885a54D22C8571806fC001E53F0191f5Aff",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:17:21",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -1031,6 +1096,19 @@
             "ADDRESS": "0x428C4abf8BB3ECc893bD3E0Be12b0f363c6e81aA",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-04-28 13:13:17",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x428C4abf8BB3ECc893bD3E0Be12b0f363c6e81aA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:17:42",
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "false"
           }
@@ -1207,6 +1285,19 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2EfC66F1ff37fc5277De5526Ab5CB7650f2DD518",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:17:59",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamondImmutable": {
@@ -1365,6 +1456,19 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:18:19",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000f1d67e1dddc87e2858c87ebd5b19f99a4e297541",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "AcrossFacet": {
@@ -1460,6 +1564,19 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-01 13:05:19",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000bbc6009feffc27ce705322832cb2068f8c1e0a58000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddead0000",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0xb0199ce3c4fD19aF0AdCbe8C589ea1f699c295fb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 16:53:47",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000069b5c72837769ef1e7c164abc6515dcff217f9200000000000000000000000007ceb23fd6bc0add59e62ac25578270cff1b9f619",
             "VERIFIED": "false"
           }
         ]
@@ -1618,6 +1735,19 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-01 13:06:11",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000841ce48f9446c8e281d3f1444cb859b4a6d0738c",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xA1Edc2eD671Dfa77eD2dCD2ee012F82e4807A75a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:20:37",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000088dcdc47d2f83a99cf0000fdf667a468bb958a78",
             "VERIFIED": "false"
           }
         ]
@@ -1819,6 +1949,19 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2fF4484bcaEf13e4a1Db84E6af882c9d66c97e3F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:21:03",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "HopFacetOptimized": {
@@ -1914,6 +2057,19 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x98DbA11bea75Ef4616BBd81572aF4456DE05CC16",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:21:30",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "HyphenFacet": {
@@ -1964,6 +2120,19 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-04-28 17:12:25",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000856cb5c3cbbe9e2e21293a644aa1f9363cee11e8",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x416E2d3E39dF69bBc30244eC90477fD042812E6B",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:21:56",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a5c2568b10a0e826bfa892cf21ba7218310180b",
             "VERIFIED": "false"
           }
         ]
@@ -2139,6 +2308,19 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6e118Db5ab7018FcF195e1310074688B8A1912B3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:22:27",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "MultichainFacet": {
@@ -2293,6 +2475,19 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x4cf6c406F004b7B588ec8638fBd2cC2215D87C90",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:23:19",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "NXTPFacet": {
@@ -2425,6 +2620,19 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x238502aDc8ca550723CBE78543c8B757599A21cC",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:23:46",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006090de2ec76eb1dc3b5d632734415c93c44fd113",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "StargateFacet": {
@@ -2462,6 +2670,19 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-04-28 17:24:24",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000af5191b0de278c7286d6c7cc6ab6bb8a73ba2cd6",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x7E4A13BFe1200Fdc5E0FFa7eC65eFaBd8B17bc26",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:24:14",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000045a01e4e04f14f7a4a6702c74187c5f6222033cd",
             "VERIFIED": "false"
           }
         ]
@@ -2632,6 +2853,19 @@
             "ADDRESS": "0x0654EbA982ec082036A3D0f59964D302f1ba5cdA",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-01 14:54:32",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x0654EbA982ec082036A3D0f59964D302f1ba5cdA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:25:23",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
             "VERIFIED": "false"
           }
@@ -2808,6 +3042,19 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2120c7A5CCf73d6Fb5C7e9B2A0d4B3A4f587E7a4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:25:47",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000000654eba982ec082036a3d0f59964d302f1ba5cda",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -2979,6 +3226,19 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xB49EaD76FE09967D7CA0dbCeF3C3A06eb3Aa0cB4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:26:12",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "Receiver": {
@@ -3133,6 +3393,19 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-01 14:55:48",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000002120c7a5ccf73d6fb5c7e9b2a0d4b3a4f587e7a400000000000000000000000000000000000000000000000000000000000186a0",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC4B590a0E2d7e965a2Fb3647d672B5DD97E8d068",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:27:25",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce4400000000000000000000000045a01e4e04f14f7a4a6702c74187c5f6222033cd00000000000000000000000011984dc4465481512eb5b777e44061c158cf22590000000000000000000000002120c7a5ccf73d6fb5c7e9b2a0d4b3a4f587e7a400000000000000000000000000000000000000000000000000000000000186a0",
             "VERIFIED": "false"
           }
         ]
@@ -3303,6 +3576,19 @@
             "ADDRESS": "0x4b0B89b90fF83247aEa12469CeA9A6222e09d54c",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-01 14:56:17",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4b0B89b90fF83247aEa12469CeA9A6222e09d54c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:27:42",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
             "VERIFIED": "false"
           }
@@ -3676,6 +3962,19 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x55c51beF79d16F5f0875E11207B17E885c21c13d",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:20:13",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006f015f16de9fc8791b234ef68d486d2bf203fba8000000000000000000000000c8e0b617c388c7e800a7643addd01218e14a727a",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "CBridgeFacetPacked": {
@@ -3741,6 +4040,19 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-04-28 17:26:23",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000304acf330bbe08d1e512eefaa92f6a57871fd895",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x8aD0B427864f072B9416dcD06B2f653895cFE03C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-01 15:24:47",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000006f015f16de9fc8791b234ef68d486d2bf203fba8",
             "VERIFIED": "false"
           }
         ]
