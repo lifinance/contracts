@@ -27,6 +27,18 @@
     "0x2EfC66F1ff37fc5277De5526Ab5CB7650f2DD518": {
       "Name": "PeripheryRegistryFacet",
       "Version": "1.0.0"
+    },
+    "0xA1Edc2eD671Dfa77eD2dCD2ee012F82e4807A75a": {
+      "Name": "CBridgeFacet",
+      "Version": "1.0.0"
+    },
+    "0x2fF4484bcaEf13e4a1Db84E6af882c9d66c97e3F": {
+      "Name": "GenericSwapFacet",
+      "Version": "1.0.0"
+    },
+    "0x6e118Db5ab7018FcF195e1310074688B8A1912B3": {
+      "Name": "LIFuelFacet",
+      "Version": "1.0.0"
     }
   }
 }

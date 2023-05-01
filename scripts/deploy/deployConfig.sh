@@ -5,13 +5,13 @@
 MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC=60
 
 # the maximum number of attempts to deploy a single contract
-MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT=5
+MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT=20
 
 # the maximum number of attempts to verify contract
 MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=30
 
 # the maximum number of attempts to execute a script (e.g. diamondUpdate)
-MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=5
+MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=20
 
 # the root directory of all contract src files
 CONTRACT_DIRECTORY="src/"

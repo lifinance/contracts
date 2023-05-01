@@ -24,75 +24,38 @@ contract DeployScript is UpdateScriptBase {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        bytes4[] memory emptyExclude;
+        bytes4[] memory exclude;
 
         // Diamond Loupe
-        cut.push(
-            IDiamondCut.FacetCut({
-                facetAddress: address(diamondLoupe),
-                action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: getSelectors(
-                    "DiamondLoupeFacet",
-                    emptyExclude
-                )
-            })
+        buildDiamondCut(
+            getSelectors("DiamondLoupeFacet", exclude),
+            diamondLoupe
         );
 
         // Ownership Facet
-        cut.push(
-            IDiamondCut.FacetCut({
-                facetAddress: address(ownership),
-                action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: getSelectors("OwnershipFacet", emptyExclude)
-            })
-        );
+        buildDiamondCut(getSelectors("OwnershipFacet", exclude), ownership);
 
         // Withdraw Facet
-        cut.push(
-            IDiamondCut.FacetCut({
-                facetAddress: withdraw,
-                action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: getSelectors("WithdrawFacet", emptyExclude)
-            })
-        );
+        buildDiamondCut(getSelectors("WithdrawFacet", exclude), withdraw);
 
         // Dex Manager Facet
-        cut.push(
-            IDiamondCut.FacetCut({
-                facetAddress: dexMgr,
-                action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: getSelectors(
-                    "DexManagerFacet",
-                    emptyExclude
-                )
-            })
-        );
+        buildDiamondCut(getSelectors("DexManagerFacet", exclude), dexMgr);
 
         // Access Manager Facet
-        cut.push(
-            IDiamondCut.FacetCut({
-                facetAddress: accessMgr,
-                action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: getSelectors(
-                    "AccessManagerFacet",
-                    emptyExclude
-                )
-            })
+        buildDiamondCut(
+            getSelectors("AccessManagerFacet", exclude),
+            accessMgr
         );
 
         // PeripheryRegistry
-        cut.push(
-            IDiamondCut.FacetCut({
-                facetAddress: peripheryRgs,
-                action: IDiamondCut.FacetCutAction.Add,
-                functionSelectors: getSelectors(
-                    "PeripheryRegistryFacet",
-                    emptyExclude
-                )
-            })
+        buildDiamondCut(
+            getSelectors("PeripheryRegistry", exclude),
+            peripheryRgs
         );
 
-        cutter.diamondCut(cut, address(0), "");
+        if (cut.length > 0) {
+            cutter.diamondCut(cut, address(0), "");
+        }
 
         facets = loupe.facetAddresses();
 

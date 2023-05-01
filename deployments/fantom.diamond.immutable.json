@@ -1,5 +1,8 @@
 {
-  "facets": [
-    "null"
-  ]
+  "LiFiDiamondImmutable": {
+    "null": {
+      "Name": "CelerIMFacet",
+      "Version": "1.0.0"
+    }
+  }
 }
