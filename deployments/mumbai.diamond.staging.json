@@ -1,5 +1,32 @@
 {
-  "facets": [
-    "null"
-  ]
+  "LiFiDiamond": {
+    "0x9F3cdB0393Dec04Ed20bd86fB0e8e1e98F719Bfe": {
+      "Name": "DiamondCutFacet",
+      "Version": ""
+    },
+    "0xc66318d5B52E2Ad57132C0Ea8aAC587C64ebA5c1": {
+      "Name": "DiamondLoupeFacet",
+      "Version": ""
+    },
+    "0x5325FDD97Bc285221cEfFe5c8578F4cff27EF364": {
+      "Name": "OwnershipFacet",
+      "Version": ""
+    },
+    "0x73Db174c969F0696A6c655d09e45f0b9a5D3E046": {
+      "Name": "WithdrawFacet",
+      "Version": ""
+    },
+    "0x995d928EC803D21e0C880Edd95587387BFD2292C": {
+      "Name": "DexManagerFacet",
+      "Version": ""
+    },
+    "0x76D86ce01E4c2f345fa7468394654609299531b5": {
+      "Name": "AccessManagerFacet",
+      "Version": ""
+    },
+    "0xEE752f4D8CcBb687754AD6EC174877dC6b016E3b": {
+      "Name": "PeripheryRegistryFacet",
+      "Version": ""
+    }
+  }
 }

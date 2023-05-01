@@ -23,19 +23,37 @@ contract TestAcrossFacet is AcrossFacet {
     }
 }
 
+// Mock SpokePool contract
+contract SpokePoolMock is IAcrossSpokePool {
+    function deposit(
+        address recipient,
+        address originToken,
+        uint256 amount,
+        uint256 destinationChainId,
+        uint64 relayerFeePct,
+        uint32 quoteTimestamp,
+        bytes memory message,
+        uint256 maxCount
+    ) external payable override {
+        if (msg.value == 0) {
+            ERC20(originToken).transferFrom(msg.sender, address(this), amount);
+        }
+    }
+}
+
 contract AcrossFacetTest is TestBaseFacet {
-    // These values are for Optimism_Kovan
     address internal constant ETH_HOLDER =
         0xb5d85CBf7cB3EE0D56b3bB207D5Fc4B82f43F511;
     address internal constant WETH_HOLDER =
         0xD022510A3414f255150Aa54b2e42DB6129a20d9E;
     address internal constant SPOKE_POOL =
-        0x4D9079Bb4165aeb4084c526a32695dCfd2F77381;
+        0x7CE9f4189d0b0b04B834a5BDeDE8E518Ad1d7dC0;
     // -----
     AcrossFacet.AcrossData internal validAcrossData;
     TestAcrossFacet internal acrossFacet;
 
     function setUp() public {
+        customBlockNumberForForking = 17074050;
         initTestBase();
 
         acrossFacet = new TestAcrossFacet(IAcrossSpokePool(SPOKE_POOL));
@@ -73,6 +91,11 @@ contract AcrossFacetTest is TestBaseFacet {
             relayerFeePct: 0,
             quoteTimestamp: uint32(block.timestamp)
         });
+
+        // TODO: Remove this mock once routes are enabled on mainnet
+        SpokePoolMock spokePoolMock = new SpokePoolMock();
+        vm.etch(SPOKE_POOL, address(spokePoolMock).code);
+        vm.label(SPOKE_POOL, "SpokePool");
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {

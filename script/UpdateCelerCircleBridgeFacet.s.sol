@@ -4,20 +4,20 @@ pragma solidity ^0.8.17;
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
-import { PackedEncoderDecoderFacet } from "lifi/Facets/PackedEncoderDecoderFacet.sol";
+import { CelerCircleBridgeFacet } from "lifi/Facets/CelerCircleBridgeFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     function run() public returns (address[] memory facets) {
-        address facet = json.readAddress(".PackedEncoderDecoderFacet");
+        address facet = json.readAddress(".CelerCircleBridgeFacet");
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // PackedEncoderDecoder
+        // CelerCircleBridgeFacet
         bytes4[] memory exclude;
         buildDiamondCut(
-            getSelectors("PackedEncoderDecoderFacet", exclude),
+            getSelectors("CelerCircleBridgeFacet", exclude),
             facet
         );
         if (cut.length > 0) {

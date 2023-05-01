@@ -19,11 +19,11 @@ contract DeployScript is DeployScriptBase {
             "/config/synapse.json"
         );
         string memory json = vm.readFile(path);
-        address synapseBridge = json.readAddress(
+        address synapseRouter = json.readAddress(
             string.concat(".", network, ".router")
         );
 
-        constructorArgs = abi.encode(synapseBridge);
+        constructorArgs = abi.encode(synapseRouter);
 
         vm.startBroadcast(deployerPrivateKey);
 
