@@ -42,17 +42,7 @@ contract LIFuelFacetTest is TestBaseFacet {
             .setFunctionApprovalBySignature
             .selector;
 
-        bytes4[] memory peripheryRegistryFunctionSelectors = new bytes4[](1);
-        peripheryRegistryFunctionSelectors[0] = peripheryRegistry
-            .registerPeripheryContract
-            .selector;
-
         addFacet(diamond, address(lifuelFacet), functionSelectors);
-        addFacet(
-            diamond,
-            address(peripheryRegistry),
-            peripheryRegistryFunctionSelectors
-        );
 
         lifuelFacet = TestLIFuelFacet(address(diamond));
         peripheryRegistry = PeripheryRegistryFacet(address(diamond));

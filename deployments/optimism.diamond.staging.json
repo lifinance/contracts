@@ -1,12 +1,40 @@
 {
-  "facets": [
-    "0x707e71E5a1b55C8d75bfCB1DF25AEF315b6ED030",
-    "0x096ECa0de7375Ff5b72319489F7f9A35839c0735",
-    "0x1a3b3AB93b691C0f3b61F8ea40e3fe98f8e319C9",
-    "0x1C57D36688580071F382c85c17FB32eB5321E4CA",
-    "0x385cc61B889679A611de73CE218E5c6A69C1D635",
-    "0xBE17E6fA0C580C1c4417002676232BC1a4bb231e",
-    "0xc2e9E962dB85C1C9444908e432e9C3ee6DAF1643",
-    "0x8249f33E868ED8019A57689abD877d634756852f"
-  ]
+  "LiFiDiamond": {
+    "0x707e71E5a1b55C8d75bfCB1DF25AEF315b6ED030": {
+      "Name": "DiamondCutFacet",
+      "Version": ""
+    },
+    "0x096ECa0de7375Ff5b72319489F7f9A35839c0735": {
+      "Name": "DiamondLoupeFacet",
+      "Version": ""
+    },
+    "0x1a3b3AB93b691C0f3b61F8ea40e3fe98f8e319C9": {
+      "Name": "OwnershipFacet",
+      "Version": ""
+    },
+    "0x1C57D36688580071F382c85c17FB32eB5321E4CA": {
+      "Name": "WithdrawFacet",
+      "Version": ""
+    },
+    "0x385cc61B889679A611de73CE218E5c6A69C1D635": {
+      "Name": "DexManagerFacet",
+      "Version": ""
+    },
+    "0xBE17E6fA0C580C1c4417002676232BC1a4bb231e": {
+      "Name": "AccessManagerFacet",
+      "Version": ""
+    },
+    "0xc2e9E962dB85C1C9444908e432e9C3ee6DAF1643": {
+      "Name": "PeripheryRegistryFacet",
+      "Version": ""
+    },
+    "0x8249f33E868ED8019A57689abD877d634756852f": {
+      "Name": "AmarokFacet",
+      "Version": ""
+    },
+    "0x3667588283c5245c3E627e5174Fbc9d6Ab92Ead2": {
+      "Name": "",
+      "Version": ""
+    }
+  }
 }

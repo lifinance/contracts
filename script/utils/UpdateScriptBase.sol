@@ -73,7 +73,8 @@ contract UpdateScriptBase is Script {
         for (uint256 i; i < newSelectors.length; i++) {
             if (loupe.facetAddress(newSelectors[i]) == address(0)) {
                 selectorsToAdd.push(newSelectors[i]);
-            } else {
+                // Don't replace if the new facet address is the same as the old facet address
+            } else if (loupe.facetAddress(newSelectors[i]) != newFacet) {
                 selectorsToReplace.push(newSelectors[i]);
                 oldFacet = loupe.facetAddress(newSelectors[i]);
             }

@@ -23,7 +23,7 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".cBridge")
         );
 
-        constructorArgs = abi.encode(cBridge);
+        constructorArgs = abi.encode(cBridge, deployerAddress);
 
         vm.startBroadcast(deployerPrivateKey);
 
