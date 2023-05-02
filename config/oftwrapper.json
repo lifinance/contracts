@@ -1,0 +1,56 @@
+{
+  "wrappers": {
+    "mainnet": "0x2eF002aa0AB6761B6aEa8d639DcdAa20d79b768c",
+    "bsc": "0x2eF002aa0AB6761B6aEa8d639DcdAa20d79b768c",
+    "polygon": "0x2eF002aa0AB6761B6aEa8d639DcdAa20d79b768c",
+    "arbitrum": "0x2eF002aa0AB6761B6aEa8d639DcdAa20d79b768c",
+    "optimism": "0x2eF002aa0AB6761B6aEa8d639DcdAa20d79b768c",
+    "fantom": "0x2eF002aa0AB6761B6aEa8d639DcdAa20d79b768c",
+    "avalanche": "0x2eF002aa0AB6761B6aEa8d639DcdAa20d79b768c",
+    "moonbeam": "0x2eF002aa0AB6761B6aEa8d639DcdAa20d79b768c",
+    "goerli": "0xDCbbEC8fB151E631F499CED845829c4db470f390",
+    "bscTestnet": "0xFEC8D14791AD618CffbFc1c3F181534092f95612"
+  },
+  "chains": [
+    {
+      "chainId": 1,
+      "lzChainId": 101
+    },
+    {
+      "chainId": 137,
+      "lzChainId": 109
+    },
+    {
+      "chainId": 56,
+      "lzChainId": 102
+    },
+    {
+      "chainId": 43114,
+      "lzChainId": 106
+    },
+    {
+      "chainId": 42161,
+      "lzChainId": 110
+    },
+    {
+      "chainId": 250,
+      "lzChainId": 112
+    },
+    {
+      "chainId": 10,
+      "lzChainId": 111
+    },
+    {
+      "chainId": 1284,
+      "lzChainId": 126
+    },
+    {
+      "chainId": 5,
+      "lzChainId": 10121
+    },
+    {
+      "chainId": 97,
+      "lzChainId": 10102
+    }
+  ]
+}
