@@ -66,5 +66,6 @@ NOTIFICATION_SOUNDS=true
 
 # if this flag is set to true, "LiFiDiamond" will be deployed to address 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE
 DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=true
-# fixed salt to deploy to the 0x123 address
+
+# fixed salt that is used to deploy a mutable diamond to our established 0x123.. address - DO NOT CHANGE THIS VALUE !!!
 DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=0xc726deb4bf42c6ef5d0b4e3080ace43aed9b270938861f7cacf900eba890fa66
