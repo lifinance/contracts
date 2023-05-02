@@ -5,6 +5,8 @@ on:
     branches:
       - "master"
       - "staging"
+      - "develop"
+      - "LF-2938-2"
 
 env:
   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
@@ -23,7 +25,7 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
-      
+
       - name: Install Solidity Libs
         run: forge install
 
