@@ -256,5 +256,13 @@
         "RelayerCelerIM": "1.0.0"
       }
     }
+  },
+  "bsctest": {
+    "production": {
+      "LiFiDiamond": {
+        "LiFiDiamond": "1.0.0",
+        "DiamondCutFacet": "1.0.0"
+      }
+    }
   }
 }
