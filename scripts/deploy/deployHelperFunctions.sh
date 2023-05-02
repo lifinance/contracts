@@ -2255,6 +2255,3 @@ function test_tmp(){
   echo ""
 }
 
-
-
-

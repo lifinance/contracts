@@ -11,6 +11,7 @@
 # - return master log to store all deployments (and return latest when inquired)
 # - add use case to only remove a facet
 # - check if use case 4 will also check if a contract is added to diamond already
+# - create use case to deploy and add all periphery (or check if target state use case covers it)
 
 
 
@@ -50,6 +51,7 @@ deployMaster() {
   source scripts/sync-sigs.sh
   source scripts/deploy/diamondUpdate.sh
   source scripts/deploy/deployFacetAndAddToDiamond.sh
+  source scripts/deploy/deployPeripheryContracts.sh
   source scripts/deploy/updatePeriphery.sh
 
   # determine environment: check if .env variable "PRODUCTION" is set to true
@@ -477,3 +479,4 @@ deployMaster() {
 }
 
 deployMaster
+
