@@ -24,7 +24,7 @@
       "Name": "",
       "Version": ""
     },
-    "0x6622D02754559BF2A6A4f5cc3469846900Dcd395": {
+    "0x87Fd8d05a4364937E16d56442a259a440D6E165e": {
       "Name": "",
       "Version": ""
     },
@@ -60,9 +60,9 @@
       "Name": "",
       "Version": ""
     },
-    "0x54f015D8615192f0F4B42f1eEE193CAA01AD42FE": {
+    "0xEe1e83541054b0090fA42A16FB2c34CcdA5276C7": {
       "Name": "CelerIMFacet",
-      "Version": "1.0.0"
+      "Version": ""
     },
     "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
       "Name": "",
@@ -94,6 +94,10 @@
     },
     "0x5D3675D698A3DD53E3457951e1dEbEF717A29A72": {
       "Name": "HopFacetPacked",
+      "Version": ""
+    },
+    "0xb0199ce3c4fD19aF0AdCbe8C589ea1f699c295fb": {
+      "Name": "",
       "Version": ""
     }
   }
