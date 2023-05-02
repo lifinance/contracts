@@ -227,30 +227,6 @@ contract HopFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_RegisterBridgeWithUninitializedFacet() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-        LiFiDiamond diamond2 = createDiamond();
-
-        TestHopFacet hopFacet2 = new TestHopFacet();
-        bytes4[] memory functionSelectors = new bytes4[](6);
-        functionSelectors[0] = hopFacet2.startBridgeTokensViaHop.selector;
-        functionSelectors[1] = hopFacet2
-            .swapAndStartBridgeTokensViaHop
-            .selector;
-        functionSelectors[2] = hopFacet2.initHop.selector;
-        functionSelectors[3] = hopFacet2.registerBridge.selector;
-        functionSelectors[4] = hopFacet2.addDex.selector;
-        functionSelectors[5] = hopFacet2
-            .setFunctionApprovalBySignature
-            .selector;
-
-        addFacet(diamond2, address(hopFacet2), functionSelectors);
-        hopFacet2 = TestHopFacet(address(diamond2));
-
-        vm.expectRevert(NotInitialized.selector);
-        hopFacet2.registerBridge(ADDRESS_USDC, address(0));
-    }
-
     function test_OwnerCanInitializeFacet() public {
         vm.startPrank(USER_DIAMOND_OWNER);
         LiFiDiamond diamond2 = createDiamond();
@@ -280,18 +256,6 @@ contract HopFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, address(hopFacet2));
         emit HopInitialized(configs);
         hopFacet2.initHop(configs);
-    }
-
-    function testRevert_CannotInitializeFacetAgain() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        HopFacet.Config[] memory configs = new HopFacet.Config[](3);
-        configs[0] = HopFacet.Config(ADDRESS_USDC, USDC_BRIDGE);
-        configs[1] = HopFacet.Config(ADDRESS_DAI, DAI_BRIDGE);
-        configs[2] = HopFacet.Config(address(0), NATIVE_BRIDGE);
-
-        vm.expectRevert(AlreadyInitialized.selector);
-        hopFacet.initHop(configs);
     }
 
     function test_BridgeFromL2ToL1() public {

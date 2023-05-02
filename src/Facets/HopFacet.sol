@@ -23,7 +23,7 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     struct Storage {
         mapping(address => IHopBridge) bridges;
-        bool initialized;
+        bool initialized; // no longer used but kept here to maintain the same storage layout
     }
 
     struct Config {
@@ -56,18 +56,12 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         Storage storage s = getStorage();
 
-        if (s.initialized) {
-            revert AlreadyInitialized();
-        }
-
         for (uint256 i = 0; i < configs.length; i++) {
             if (configs[i].bridge == address(0)) {
                 revert InvalidConfig();
             }
             s.bridges[configs[i].assetId] = IHopBridge(configs[i].bridge);
         }
-
-        s.initialized = true;
 
         emit HopInitialized(configs);
     }
@@ -81,10 +75,6 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
-
-        if (!s.initialized) {
-            revert NotInitialized();
-        }
 
         if (bridge == address(0)) {
             revert InvalidConfig();
