@@ -97,7 +97,7 @@ deploySingleContract() {
   logBytecode "$CONTRACT" "$VERSION" "$BYTECODE"
 
   # if selected contract is "LiFiDiamondImmutable" then use an adjusted salt for deployment to prevent clashes due to same bytecode
-  if [[ $CONTRACT = "LiFiDiamondImmutable" ]]; then
+  if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then
     # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
     BYTECODE="$BYTECODE""ffffffffffffffffffffffffffffffffffffff"
   fi
@@ -116,14 +116,18 @@ deploySingleContract() {
   # create salt that is used to deploy contract
   local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
 
-  # get predicted contract address based on salt
-  local CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT")
+  # get predicted contract address based on salt (or special case for LiFiDiamond)
+  if [[ $CONTRACT == "LiFiDiamond" && $DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS == "true" ]]; then
+    CONTRACT_ADDRESS="0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
+  else
+    CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT")
+  fi
 
   # check if predicted address already contains bytecode
   local IS_DEPLOYED=$(doesAddressContainBytecode "$NETWORK" "$CONTRACT_ADDRESS")
 
   if [[ $IS_DEPLOYED == "true" ]]; then
-    echo "[info] contract $CONTRACT is already deployed to address $CONTRACT_ADDRESS. Change SALT in .env if you want to redeploy to fresh address"
+    echo "[info] contract $CONTRACT is already deployed to address $CONTRACT_ADDRESS. Change SALT in .env if you want to redeploy to a new address"
 
     # save contract in network-specific deployment files
     saveContract "$NETWORK" "$CONTRACT" "$CONTRACT_ADDRESS" "$FILE_SUFFIX"
@@ -137,7 +141,7 @@ deploySingleContract() {
   while [ $attempts -le "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; do
     echo "[info] trying to deploy $CONTRACT now - attempt ${attempts} (max attempts: $MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT) "
     # try to execute call
-    RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+    RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
 
     # check the return code the last call
     if [ $? -eq 0 ]; then
