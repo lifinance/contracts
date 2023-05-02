@@ -116,7 +116,7 @@ async function main() {
 
 main()
   .then(() => {
-    console.error('Success')
+    console.log('Success')
     process.exit(0)
   })
   .catch((error) => {
