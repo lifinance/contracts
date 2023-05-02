@@ -119,7 +119,7 @@ abstract contract TestBaseFacet is TestBase {
         assertBalanceChange(
             address(0),
             USER_SENDER,
-            -int256((1 ether + addToMessageValue))
+            -int256((defaultNativeAmount + addToMessageValue))
         )
         assertBalanceChange(address(0), USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
@@ -128,7 +128,7 @@ abstract contract TestBaseFacet is TestBase {
         vm.startPrank(USER_SENDER);
         // customize bridgeData
         bridgeData.sendingAssetId = address(0);
-        bridgeData.minAmount = 1 ether;
+        bridgeData.minAmount = defaultNativeAmount;
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);

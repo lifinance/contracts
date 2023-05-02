@@ -115,14 +115,16 @@ contract HopFacetTest is TestBaseFacet {
             // fee parameter Native
             validHopData.relayerFee = 10000000000000000;
             validHopData.relayer = 0x81682250D4566B2986A2B33e23e7c52D401B7aB7;
+        } else {
+            // fee parameter ERC20
+            validHopData.relayer = 0xB47dE784aB8702eC35c5eAb225D6f6cE476DdD28;
+        }
 
+        if (isNative) {
             hopFacet.startBridgeTokensViaHop{
                 value: bridgeData.minAmount + validHopData.nativeFee
             }(bridgeData, validHopData);
         } else {
-            // fee parameter ERC20
-            validHopData.relayer = 0xB47dE784aB8702eC35c5eAb225D6f6cE476DdD28;
-
             hopFacet.startBridgeTokensViaHop{ value: validHopData.nativeFee }(
                 bridgeData,
                 validHopData
