@@ -93,7 +93,10 @@ contract HopGasTest is Test, DiamondTest {
             0, // not needed
             0, // not needed
             amountOutMin,
-            deadline
+            deadline,
+            address(0),
+            0,
+            0
         );
 
         vm.startPrank(WHALE);

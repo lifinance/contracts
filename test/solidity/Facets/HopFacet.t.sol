@@ -29,8 +29,6 @@ contract HopFacetTest is TestBaseFacet {
         0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1;
     address internal constant NATIVE_BRIDGE =
         0xb8901acB165ed027E32754E0FFe830802919727f;
-    address internal constant CONNEXT_HANDLER =
-        0xB4C1340434920d70aD774309C75f9a4B679d801e;
     uint256 internal constant DSTCHAIN_ID = 137;
     // -----
 
@@ -79,7 +77,7 @@ contract HopFacetTest is TestBaseFacet {
 
         // adjust bridgeData
         bridgeData.bridge = "hop";
-        bridgeData.destinationChainId = 137;
+        bridgeData.destinationChainId = DSTCHAIN_ID;
 
         // produce valid HopData
         validHopData = HopFacet.HopData({
@@ -87,7 +85,10 @@ contract HopFacetTest is TestBaseFacet {
             amountOutMin: 0,
             deadline: block.timestamp + 60 * 20,
             destinationAmountOutMin: 0,
-            destinationDeadline: block.timestamp + 60 * 20
+            destinationDeadline: block.timestamp + 60 * 20,
+            relayer: address(0),
+            relayerFee: 0,
+            nativeFee: 0
         });
     }
 
@@ -182,7 +183,7 @@ contract HopFacetTest is TestBaseFacet {
                 hopFacet.swapAndStartBridgeTokensViaHop.selector,
                 bridgeData,
                 swapData,
-                validBridgeData
+                validHopData
             )
         );
     }
@@ -335,7 +336,10 @@ contract HopFacetTest is TestBaseFacet {
             amountOutMin: 0,
             deadline: block.timestamp + 60 * 20,
             destinationAmountOutMin: 0,
-            destinationDeadline: block.timestamp + 60 * 20
+            destinationDeadline: block.timestamp + 60 * 20,
+            relayer: address(0),
+            relayerFee: 0,
+            nativeFee: 0
         });
 
         // activate token whale account and approve USDC

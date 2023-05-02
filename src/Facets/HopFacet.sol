@@ -13,7 +13,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Hop Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -37,6 +37,9 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 deadline;
         uint256 destinationAmountOutMin;
         uint256 destinationDeadline;
+        address relayer;
+        uint256 relayerFee;
+        uint256 nativeFee;
     }
 
     /// Events ///
@@ -135,7 +138,8 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(msg.sender),
+            _hopData.nativeFee
         );
         _startBridge(_bridgeData, _hopData);
     }
@@ -161,10 +165,10 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId))
-            ? _bridgeData.minAmount
-            : 0;
+            ? _bridgeData.minAmount + _hopData.relayerFee
+            : _hopData.nativeFee;
 
-        if (block.chainid == 1) {
+        if (block.chainid == 1 || block.chainid == 5) {
             // Ethereum L1
             bridge.sendToL2{ value: value }(
                 _bridgeData.destinationChainId,
@@ -172,8 +176,8 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount,
                 _hopData.destinationAmountOutMin,
                 _hopData.destinationDeadline,
-                address(0),
-                0
+                _hopData.relayer,
+                _hopData.relayerFee
             );
         } else {
             // L2
