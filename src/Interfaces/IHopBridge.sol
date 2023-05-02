@@ -22,4 +22,13 @@ interface IHopBridge {
         uint256 destinationAmountOutMin,
         uint256 destinationDeadline
     ) external payable;
+
+    function send(
+        uint256 chainId,
+        address recipient,
+        uint256 amount,
+        uint256 bonderFee,
+        uint256 amountOutMin,
+        uint256 deadline
+    ) external;
 }

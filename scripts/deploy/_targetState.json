@@ -43,7 +43,7 @@
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
         "NXTPFacet": "1.0.0",
         "StargateFacet": "1.0.0",
         "HopFacet": "1.0.0",
@@ -74,7 +74,7 @@
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
         "NXTPFacet": "1.0.0",
         "StargateFacet": "1.0.0",
         "HopFacet": "1.0.0",
@@ -254,6 +254,14 @@
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
         "RelayerCelerIM": "1.0.0"
+      }
+    }
+  },
+  "bsctest": {
+    "production": {
+      "LiFiDiamond": {
+        "LiFiDiamond": "1.0.0",
+        "DiamondCutFacet": "1.0.0"
       }
     }
   }

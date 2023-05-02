@@ -34,19 +34,11 @@ contract DeployScript is DeployScriptBase {
             "json"
         );
         json = vm.readFile(path);
-        address executor = json.readAddress(".Executor");
-        if (executor == address(0))
-            revert("Executor not found in deployments file");
         address diamond = json.readAddress(".LiFiDiamond");
         if (diamond == address(0))
             revert("LiFiDiamond not found in deployments file");
 
-        constructorArgs = abi.encode(
-            deployerAddress,
-            messageBus,
-            diamond,
-            executor
-        );
+        constructorArgs = abi.encode(deployerAddress, messageBus, diamond);
 
         vm.startBroadcast(deployerPrivateKey);
 

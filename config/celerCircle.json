@@ -1,7 +1,7 @@
 {
   "mainnet": {
     "circleBridgeProxy": "0x6065a982f04f759b7d2d042d2864e569fad84214",
-    "usdc": "0x7EA2be2df7BA6E54B1A9C70676f668455E329d29",
+    "usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     "domain": 0
   },
   "avalanche": {

@@ -530,7 +530,9 @@ function saveDiamond() {
 
     # check if contract was found in log file
     if [[ $? -ne 0 ]]; then
-      warning "could not find information about this contract in log file: NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, ADDRESS=$FACET_ADDRESS"
+      if [[ "$DEBUG" == *"true"* ]]; then
+        warning "could not find information about this facet in log file while creating diamond.json deploy file: NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, ADDRESS=$FACET_ADDRESS"
+      fi
 
       # try to find name of contract from network-specific deployments file
       # load JSON FILE that contains deployment addresses
@@ -2250,12 +2252,9 @@ function test_getContractNameFromDeploymentLogs() {
   echo "should return 'LiFiDiamond': $(getContractNameFromDeploymentLogs "mainnet" "production" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE")"
 }
 function test_tmp(){
-  warning "this is a warning"
-  red "this is an error"
-
+  echo ""
 }
 
-#test_tmp
 
 
 

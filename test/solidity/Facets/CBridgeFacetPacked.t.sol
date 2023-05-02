@@ -1,6 +1,7 @@
 pragma solidity 0.8.17;
 
 import "ds-test/test.sol";
+import { TestBase } from "../utils/TestBase.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { Test } from "forge-std/Test.sol";
@@ -9,6 +10,14 @@ import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { console } from "../utils/Console.sol";
+
+contract MockLiquidityBridge is TestBase {
+    function mockWithdraw(uint256 _amount) external {
+        // same call as in cbridge implementation
+        (bool sent, ) = msg.sender.call{ value: _amount, gas: 50000 }("");
+        require(sent, "failed to send native token");
+    }
+}
 
 contract CBridgeFacetPackedTest is Test, DiamondTest {
     address internal constant CBRIDGE_ROUTER =
@@ -53,7 +62,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
         standAlone = new CBridgeFacetPacked(cbridge, address(this));
         usdc = ERC20(USDC_ADDRESS);
 
-        bytes4[] memory functionSelectors = new bytes4[](8);
+        bytes4[] memory functionSelectors = new bytes4[](9);
         functionSelectors[0] = cBridgeFacetPacked
             .startBridgeTokensViaCBridgeNativePacked
             .selector;
@@ -78,9 +87,10 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
         functionSelectors[7] = cBridgeFacetPacked
             .decode_startBridgeTokensViaCBridgeERC20Packed
             .selector;
+        functionSelectors[8] = cBridgeFacetPacked.triggerRefund.selector;
 
         addFacet(diamond, address(cBridgeFacetPacked), functionSelectors);
-        cBridgeFacetPacked = CBridgeFacetPacked(address(diamond));
+        cBridgeFacetPacked = CBridgeFacetPacked(payable(address(diamond)));
 
         /// Perpare parameters
         transactionId = "someID";
@@ -388,5 +398,38 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
             "maxSlippage does not match"
         );
         assertEq(decodedCBridgeData.nonce, nonce, "nonce does not match");
+    }
+
+    function test_CanTriggerRefund() public {
+        uint256 REFUND_AMOUNT = 0.1 ether;
+        address USER_RECEIVER = 0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
+        deal(CBRIDGE_ROUTER, REFUND_AMOUNT); // fund router
+
+        uint256 preRefundBalance = address(USER_RECEIVER).balance;
+
+        // replace bridge
+        vm.allowCheatcodes(CBRIDGE_ROUTER);
+        MockLiquidityBridge lb = new MockLiquidityBridge();
+        vm.etch(CBRIDGE_ROUTER, address(lb).code);
+
+        // refund
+        standAlone.triggerRefund(
+            payable(CBRIDGE_ROUTER), // Celer Liquidity Bridge
+            abi.encodeWithSelector(
+                MockLiquidityBridge.mockWithdraw.selector,
+                REFUND_AMOUNT
+            ), // Calldata
+            address(0), // Native asset
+            payable(USER_RECEIVER), // Address to refund to
+            REFUND_AMOUNT
+        );
+
+        // validate
+        uint256 postRefundBalance = address(USER_RECEIVER).balance;
+        assertEq(
+            postRefundBalance - preRefundBalance,
+            REFUND_AMOUNT,
+            "Refund amount should be correct"
+        );
     }
 }

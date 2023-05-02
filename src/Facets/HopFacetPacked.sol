@@ -6,12 +6,43 @@ import { ERC20 } from "solmate/utils/SafeTransferLib.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
+import { WETH } from "solmate/tokens/WETH.sol";
+
+interface L2_AmmWrapper {
+    function bridge() external view returns (address);
+
+    function l2CanonicalToken() external view returns (address);
+
+    function hToken() external view returns (address);
+
+    function exchangeAddress() external view returns (address);
+}
+
+interface Swap {
+    function swap(
+        uint8 tokenIndexFrom,
+        uint8 tokenIndexTo,
+        uint256 dx,
+        uint256 minDy,
+        uint256 deadline
+    ) external returns (uint256);
+}
 
 /// @title Hop Facet (Optimized for Rollups)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-/// @custom:version 1.0.2
+/// @custom:version 1.0.3
 contract HopFacetPacked is ILiFi, TransferrableOwnership {
+    /// Storage ///
+
+    address public immutable nativeBridge;
+    address public immutable nativeL2CanonicalToken;
+    address public immutable nativeHToken;
+    address public immutable nativeExchangeAddress;
+
+    /// Errors ///
+    error Invalid();
+
     /// Events ///
 
     event LiFiHopTransfer(bytes8 _transactionId);
@@ -20,7 +51,26 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Initialize the contract.
     /// @param _owner The contract owner to approve tokens.
-    constructor(address _owner) TransferrableOwnership(_owner) {}
+    constructor(
+        address _owner,
+        address _wrapper
+    ) TransferrableOwnership(_owner) {
+        bool wrapperIsSet = _wrapper != address(0);
+        if (block.chainid == 1 && wrapperIsSet) revert Invalid();
+
+        nativeL2CanonicalToken = wrapperIsSet
+            ? L2_AmmWrapper(_wrapper).l2CanonicalToken()
+            : address(0);
+        nativeHToken = wrapperIsSet
+            ? L2_AmmWrapper(_wrapper).hToken()
+            : address(0);
+        nativeExchangeAddress = wrapperIsSet
+            ? L2_AmmWrapper(_wrapper).exchangeAddress()
+            : address(0);
+        nativeBridge = wrapperIsSet
+            ? L2_AmmWrapper(_wrapper).bridge()
+            : address(0);
+    }
 
     /// External Methods ///
 
@@ -56,16 +106,24 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         // hopBridge: address(bytes20(msg.data[88:108]))
         // => total calldata length required: 108
 
+        // Wrap ETH
+        WETH(payable(nativeL2CanonicalToken)).deposit{ value: msg.value }();
+
+        // Exchange WETH for hToken
+        uint256 swapAmount = Swap(nativeExchangeAddress).swap(
+            0,
+            1,
+            msg.value,
+            uint256(uint128(bytes16(msg.data[52:68]))),
+            block.timestamp
+        );
+
         // Bridge assets
-        IHopBridge(address(bytes20(msg.data[88:108]))).swapAndSend{
-            value: msg.value
-        }(
+        IHopBridge(nativeBridge).send(
             uint256(uint32(bytes4(msg.data[32:36]))),
             address(bytes20(msg.data[12:32])),
-            msg.value,
+            swapAmount,
             uint256(uint128(bytes16(msg.data[36:52]))),
-            uint256(uint128(bytes16(msg.data[52:68]))),
-            block.timestamp,
             uint256(uint128(bytes16(msg.data[68:84]))),
             uint256(uint32(bytes4(msg.data[84:88])))
         );

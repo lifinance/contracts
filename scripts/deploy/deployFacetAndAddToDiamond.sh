@@ -99,15 +99,15 @@ function deployFacetAndAddToDiamond() {
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $FACET_CONTRACT_NAME for $DIAMOND_CONTRACT_NAME now...."
 
   # deploy facet
-  deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION"
+  deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
 
-  # TODO: reactivate or remove
   # check if function call was successful
   if [ $? -ne 0 ]
   then
+    if [[ "$DEBUG" == *"true"* ]]; then
+      warning "this call was not successful: deploySingleContract $FACET_CONTRACT_NAME $NETWORK $ENVIRONMENT $VERSION false"
+    fi
     return 1
-  #else
-  #  echo "[info] deployment of facet $FACET_CONTRACT_NAME to network $NETWORK successful :)"
   fi
 
   # prepare update script name
@@ -116,15 +116,13 @@ function deployFacetAndAddToDiamond() {
   # update diamond
   diamondUpdate "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "$UPDATE_SCRIPT" true
 
-  # TODO: reactivate or remove
-  # check if function call was successful
-  #if [ $? -ne 0 ]
-  #then
-  #  error "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME could not be added to $DIAMOND_CONTRACT_NAME on network $NETWORK. Please check for errors and repeat."
-  #  return 1
-  #else
-  #  echo "[info] $FACET_CONTRACT_NAME successfully added to $DIAMOND_CONTRACT_NAME on network $NETWORK"
-  #fi
+  if [ $? -ne 0 ]
+  then
+    if [[ "$DEBUG" == *"true"* ]]; then
+      warning "this call was not successful: diamondUpdate $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT true"
+    fi
+    return 1
+  fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME successfully deployed and added to $DIAMOND_CONTRACT_NAME"
   return 0
