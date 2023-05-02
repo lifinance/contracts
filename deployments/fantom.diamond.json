@@ -64,9 +64,9 @@
       "Name": "LIFuelFacet",
       "Version": ""
     },
-    "0x54f015D8615192f0F4B42f1eEE193CAA01AD42FE": {
-      "Name": "",
-      "Version": ""
+    "0xEe1e83541054b0090fA42A16FB2c34CcdA5276C7": {
+      "Name": "CelerIMFacet",
+      "Version": "1.0.0"
     }
   }
 }
