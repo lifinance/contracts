@@ -96,7 +96,10 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
             deadline: block.timestamp + 60 * 20,
             destinationAmountOutMin: 0,
             destinationDeadline: block.timestamp + 60 * 20,
-            hopBridge: IHopBridge(NATIVE_BRIDGE)
+            hopBridge: IHopBridge(NATIVE_BRIDGE),
+            relayer: address(0),
+            relayerFee: 0,
+            nativeFee: 0
         });
     }
 

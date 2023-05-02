@@ -10,7 +10,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
-import { console } from "test/solidity/utils/Console.sol"; // TODO: REMOVE
+import { console } from "test/solidity/utils/Console.sol";
 import { NoSwapDataProvided, InformationMismatch, NativeAssetTransferFailed, ReentrancyError, InsufficientBalance, CannotBridgeToSameNetwork, InvalidReceiver, InvalidAmount, InvalidConfig, InvalidSendingToken, AlreadyInitialized, NotInitialized, UnAuthorized } from "src/Errors/GenericErrors.sol";
 
 contract TestFacet {
