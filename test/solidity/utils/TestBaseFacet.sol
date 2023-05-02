@@ -198,9 +198,9 @@ abstract contract TestBaseFacet is TestBase {
         path[0] = ADDRESS_USDC;
         path[1] = ADDRESS_WETH;
 
-        uint256 amountOut = 1 ether;
+        uint256 amountOut = defaultNativeAmount;
 
-        // Calculate DAI amount
+        // Calculate USDC input amount
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
         uint256 amountIn = amounts[0];
 

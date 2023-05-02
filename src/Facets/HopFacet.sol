@@ -139,7 +139,7 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender),
-            _hopData.nativeFee
+            _hopData.nativeFee + _hopData.relayerFee
         );
         _startBridge(_bridgeData, _hopData);
     }
@@ -165,7 +165,7 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId))
-            ? _bridgeData.minAmount + _hopData.relayerFee
+            ? _bridgeData.minAmount + _hopData.nativeFee
             : _hopData.nativeFee;
 
         if (block.chainid == 1 || block.chainid == 5) {

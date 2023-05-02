@@ -50,6 +50,8 @@ contract HopFacetTest is TestBaseFacet {
         // smaler amounts because of limited liquidity
         defaultUSDCAmount = 100000;
         defaultDAIAmount = 100000;
+        defaultNativeAmount = 0.01 ether;
+        setDefaultBridgeData();
 
         hopFacet = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](6);
@@ -101,7 +103,7 @@ contract HopFacetTest is TestBaseFacet {
             destinationDeadline: block.timestamp + 60 * 20,
             relayer: address(0),
             relayerFee: 0,
-            nativeFee: 0
+            nativeFee: 10000000000000000
         });
 
         // native fee expected to be payed on top
@@ -115,11 +117,10 @@ contract HopFacetTest is TestBaseFacet {
             validHopData.relayer = 0x81682250D4566B2986A2B33e23e7c52D401B7aB7;
 
             hopFacet.startBridgeTokensViaHop{
-                value: bridgeData.minAmount + validHopData.relayerFee
+                value: bridgeData.minAmount + validHopData.nativeFee
             }(bridgeData, validHopData);
         } else {
             // fee parameter ERC20
-            validHopData.nativeFee = 10000000000000000;
             validHopData.relayer = 0xB47dE784aB8702eC35c5eAb225D6f6cE476DdD28;
 
             hopFacet.startBridgeTokensViaHop{ value: validHopData.nativeFee }(
@@ -132,21 +133,22 @@ contract HopFacetTest is TestBaseFacet {
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
-        if (isNative) {
+        if (bridgeData.sendingAssetId == address(0)) {
+            // fee parameter Native
+            validHopData.relayerFee = 10000000000000000;
+            validHopData.relayer = 0x81682250D4566B2986A2B33e23e7c52D401B7aB7;
+        } else {
             // fee parameter ERC20
-            validHopData.nativeFee = 10000000000000000;
             validHopData.relayer = 0xB47dE784aB8702eC35c5eAb225D6f6cE476DdD28;
+        }
 
+        if (isNative) {
             hopFacet.swapAndStartBridgeTokensViaHop{
                 value: swapData[0].fromAmount + validHopData.nativeFee
             }(bridgeData, swapData, validHopData);
         } else {
-            // fee parameter Native
-            validHopData.relayerFee = 10000000000000000;
-            validHopData.relayer = 0x81682250D4566B2986A2B33e23e7c52D401B7aB7;
-
             hopFacet.swapAndStartBridgeTokensViaHop{
-                value: validHopData.relayerFee
+                value: validHopData.nativeFee
             }(bridgeData, swapData, validHopData);
         }
     }
