@@ -26,7 +26,7 @@
         ]
       }
     },
-    "gnosis": {
+    "bsctest": {
       "production": {
         "1.0.0": [
           {
@@ -3843,6 +3843,21 @@
       }
     }
   },
+  "LiFiDiamond": {
+    "bsctest": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-28 16:11:36",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000f1d67e1dddc87e2858c87ebd5b19f99a4e297541",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
   "CelerCircleBridgeFacet": {
     "avalanche": {
       "production": {
@@ -3883,17 +3898,6 @@
             "VERIFIED": "true"
           }
         ]
-      },
-      "production": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x3a60730cbcD91715E31830f125bB3eF1FA0a2c66",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-04-28 16:52:13",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b6f6d86a8f9879a9c87f643768d9efc38c1da6e7",
-            "VERIFIED": "false"
-          }
-        ]
       }
     },
     "polygon": {
@@ -3909,7 +3913,7 @@
         ]
       }
     }
-  },
+  }, 
   "AxelarFacet": {
     "avalanche": {
       "production": {
