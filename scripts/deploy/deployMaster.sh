@@ -36,7 +36,8 @@
 # known limitations:
 #   - we currently cannot replace any of the core facets with our scripts
 #   - log can contain several entries of the same contract in same version - need to define which of those to return
-
+  source scripts/deploy/deployPeripheryContracts.sh
+  source scripts/deploy/updatePeriphery.sh
 
 deployMaster() {
   # load env variables
@@ -50,6 +51,7 @@ deployMaster() {
   source scripts/sync-sigs.sh
   source scripts/deploy/diamondUpdate.sh
   source scripts/deploy/deployFacetAndAddToDiamond.sh
+  source scripts/deploy/deployPeripheryContracts.sh
   source scripts/deploy/updatePeriphery.sh
 
   # determine environment: check if .env variable "PRODUCTION" is set to true
@@ -476,4 +478,13 @@ deployMaster() {
   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 }
 
-deployMaster
+#deployMaster
+
+
+DIAMOND_CONTRACT_NAME="LiFiDiamond"
+NETWORK="polygon"
+ENVIRONMENT="staging"
+
+
+deployPeripheryContracts "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+updatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""

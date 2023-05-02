@@ -51,9 +51,15 @@ deployPeripheryContracts() {
       # contract not found in log file (= has not been deployed to this network/environment)
       # check if contract is present in target state JSON (=should be deployed)
       TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME")
+      RETURN_VALUE="$?"
+
+      if [[ "$DEBUG" == *"true"* ]]; then
+        echo "[debug] target version for $CONTRACT extracted from target state: $TARGET_VERSION (current version in repo: $CURRENT_VERSION)"
+      fi
+
 
       # check return code of findContractVersionInTargetState
-      if [[ "$?" -ne 0 ]]; then
+      if [[ "$RETURN_VALUE" -ne 0 ]]; then
         # no matching entry found in target state file, no deployment needed
         echo "[info] contract $CONTRACT not found in target state file > no deployment needed"
       else
@@ -86,5 +92,6 @@ deployPeripheryContracts() {
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< periphery contracts deployed (please check for warnings)"
   return 0
 }
+
 
 
