@@ -11,6 +11,7 @@
 # - return master log to store all deployments (and return latest when inquired)
 # - add use case to only remove a facet
 # - check if use case 4 will also check if a contract is added to diamond already
+# - create use case to deploy and add all periphery (or check if target state use case covers it)
 
 
 
@@ -36,8 +37,7 @@
 # known limitations:
 #   - we currently cannot replace any of the core facets with our scripts
 #   - log can contain several entries of the same contract in same version - need to define which of those to return
-  source scripts/deploy/deployPeripheryContracts.sh
-  source scripts/deploy/updatePeriphery.sh
+
 
 deployMaster() {
   # load env variables
@@ -478,13 +478,5 @@ deployMaster() {
   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 }
 
-#deployMaster
+deployMaster
 
-
-DIAMOND_CONTRACT_NAME="LiFiDiamond"
-NETWORK="bsc"
-ENVIRONMENT="staging"
-
-
-deployPeripheryContracts "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
-updatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
