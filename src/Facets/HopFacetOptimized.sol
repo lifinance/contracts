@@ -10,7 +10,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 /// @title Hop Facet (Optimized)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-/// @custom:version 1.0.1
+/// @custom:version 2.0.0
 contract HopFacetOptimized is ILiFi, SwapperV2 {
     /// Types ///
 
@@ -82,7 +82,7 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
     ) external payable {
         // Bridge assets
         _hopData.hopBridge.sendToL2{
-            value: _bridgeData.minAmount + _hopData.relayerFee
+            value: _bridgeData.minAmount + _hopData.nativeFee
         }(
             _bridgeData.destinationChainId,
             _bridgeData.receiver,
@@ -135,15 +135,18 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         LibSwap.SwapData[] calldata _swapData,
         HopData calldata _hopData
     ) external payable {
+
         // Deposit and swap assets
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(msg.sender),
+            _hopData.nativeFee
         );
+
         // Bridge assets
-        _hopData.hopBridge.sendToL2{ value: _bridgeData.minAmount }(
+        _hopData.hopBridge.sendToL2{ value: _bridgeData.minAmount + _hopData.nativeFee }(
             _bridgeData.destinationChainId,
             _bridgeData.receiver,
             _bridgeData.minAmount,

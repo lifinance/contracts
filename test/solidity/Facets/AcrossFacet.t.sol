@@ -26,14 +26,14 @@ contract TestAcrossFacet is AcrossFacet {
 // Mock SpokePool contract
 contract SpokePoolMock is IAcrossSpokePool {
     function deposit(
-        address,    // recipient
+        address, // recipient
         address originToken,
         uint256 amount,
-        uint256,    // destinationChainId
-        uint64,     // relayerFeePct
-        uint32,     // quoteTimestamp
+        uint256, // destinationChainId
+        uint64, // relayerFeePct
+        uint32, // quoteTimestamp
         bytes memory, // message
-        uint256     // maxCount
+        uint256 // maxCount
     ) external payable override {
         if (msg.value == 0) {
             ERC20(originToken).transferFrom(msg.sender, address(this), amount);

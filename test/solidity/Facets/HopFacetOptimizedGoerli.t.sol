@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { ILiFi, LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { ILiFi, LibAllowList, TestBaseFacet, console, ERC20, LibSwap } from "../utils/TestBaseFacet.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 
@@ -114,7 +114,14 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
             nativeFee: 0
         });
 
-        addToMessageValue = 10000000000000000;
+        addToMessageValue = 10_000_000_000_000_000;
+
+        vm.label(0xd9e10C6b1bd26dE4E2749ce8aFe8Dd64294BcBF5, "L1BridgeWrapper");
+
+        // set native fee value (native Fee is added to all TX on Goerli > Linea)
+        validHopData.nativeFee = 10000000000000000;
+
+        // relayerFee zusätzlich bei Native tx
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -124,11 +131,11 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
             validHopData.relayer = 0x81682250D4566B2986A2B33e23e7c52D401B7aB7;
 
             hopFacet.startBridgeTokensViaHopL1Native{
-                value: bridgeData.minAmount + validHopData.relayerFee
+                value: bridgeData.minAmount + validHopData.nativeFee
             }(bridgeData, validHopData);
         } else {
             // fee parameter ERC20
-            validHopData.nativeFee = 10000000000000000;
+
             validHopData.relayer = 0xB47dE784aB8702eC35c5eAb225D6f6cE476DdD28;
 
             validHopData.hopBridge = IHopBridge(USDC_BRIDGE);
@@ -142,13 +149,20 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
         bool isNative
     ) internal override {
         if (isNative || bridgeData.sendingAssetId == address(0)) {
+            // minimumFee is: 10_000_000_000_000_000
+            validHopData.relayerFee = 10_000_000_000_000_000;
+            validHopData.relayer = 0x81682250D4566B2986A2B33e23e7c52D401B7aB7;
             validHopData.hopBridge = IHopBridge(NATIVE_BRIDGE);
             hopFacet.swapAndStartBridgeTokensViaHopL1Native{
-                value: swapData[0].fromAmount
+                value: validHopData.nativeFee
             }(bridgeData, swapData, validHopData);
         } else {
+            validHopData.nativeFee = 10_000_000_000_000_000;
+            validHopData.relayer = 0xB47dE784aB8702eC35c5eAb225D6f6cE476DdD28;
             validHopData.hopBridge = IHopBridge(USDC_BRIDGE);
-            hopFacet.swapAndStartBridgeTokensViaHopL1ERC20(
+            hopFacet.swapAndStartBridgeTokensViaHopL1ERC20{
+                value: validHopData.nativeFee
+            }(
                 bridgeData,
                 swapData,
                 validHopData
@@ -193,9 +207,139 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
         }(bridgeData, swapData, validHopData);
     }
 
-    function testBase_CanSwapAndBridgeNativeTokens() public view override {}
+    function testBase_CanSwapAndBridgeNativeTokens() public override {
+        vm.startPrank(USER_SENDER);
+        // store initial balances
+        uint256 initialUSDCBalance = usdc.balanceOf(USER_SENDER);
 
-    function testBase_CanSwapAndBridgeTokens() public view override {}
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WETH;
+
+        uint256 amountOut = 100_000_000_000_000_000;
+
+        // Calculate DAI amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+        callTo: address(uniswap),
+        approveTo: address(uniswap),
+        sendingAssetId: ADDRESS_USDC,
+        receivingAssetId: address(0),
+        fromAmount: amountIn,
+        callData: abi.encodeWithSelector(
+                uniswap.swapTokensForExactETH.selector,
+                amountOut,
+                amountIn,
+                path,
+                _facetTestContractAddress,
+                block.timestamp + 20 minutes
+            ),
+        requiresDeposit: true
+        })
+        );
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_USDC,
+            address(0),
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
+        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
+        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, amountIn);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        // check balances after call
+        assertEq(
+            usdc.balanceOf(USER_SENDER),
+            initialUSDCBalance - swapData[0].fromAmount
+        );
+    }
+
+    function testBase_CanSwapAndBridgeTokens() public override {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.minAmount = defaultUSDCAmount;
+
+        // set swap data (based on updated amount)
+        delete swapData;
+        // Swap DAI -> USDC
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
+
+
+        uint256 amountOut = defaultUSDCAmount;
+
+        // Calculate DAI amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        swapData.push(
+                LibSwap.SwapData({
+            callTo: address(uniswap),
+            approveTo: address(uniswap),
+            sendingAssetId: ADDRESS_DAI,
+            receivingAssetId: ADDRESS_USDC,
+            fromAmount: amountIn,
+            callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForTokens.selector,
+                    amountIn,
+                    amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+            requiresDeposit: true
+            })
+        );
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_DAI,
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
+    }
 
     function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
         public
