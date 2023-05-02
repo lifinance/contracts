@@ -998,6 +998,19 @@
           }
         ]
       }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xEe1e83541054b0090fA42A16FB2c34CcdA5276C7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-02 15:40:51",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000004066d196a423b2b3b8b054f4f40efb47a74e200c0000000000000000000000006a3fe66d2439893556663cfeeaaf202692d06440000000000000000000000000317f8d18fb16e49a958becd0ea72f8e153d25654",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
