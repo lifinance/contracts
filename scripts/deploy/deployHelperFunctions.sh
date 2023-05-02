@@ -1,5 +1,5 @@
 #!/bin/bash
-#TODO: sort & comment functions
+#TODO: comment functions
 
 # load env variables
 source .env
@@ -8,8 +8,6 @@ source .env
 source scripts/deploy/deployConfig.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
-
-
 
 # >>>>> logging
 function logContractDeploymentInfo_BACKUP {
@@ -582,11 +580,6 @@ function saveContract() {
 }
 # <<<<< reading and manipulation of deployment log files
 
-
-
-
-
-
 # >>>>> working with directories and reading other files
 function checkIfFileExists(){
     # read function arguments into variables
@@ -779,7 +772,6 @@ function getOptimizerRuns() {
 
     }
 # <<<<< working with directories and reading other files
-
 
 # >>>>> writing to blockchain & verification
 function verifyContract() {
@@ -1380,19 +1372,25 @@ function getUserSelectedNetwork() {
   return 0
 }
 function determineEnvironment() {
-  # check if env variable "PRODUCTION" is true (or not set at all), otherwise deploy as staging
   if [[ "$PRODUCTION" == "true" ]]; then
     # make sure that PRODUCTION was selected intentionally by user
-    gum style \
-    --foreground 212 --border-foreground 213 --border double \
-    --align center --width 50 --margin "1 2" --padding "2 4" \
-    '!!! ATTENTION !!!'
-
-    echo "Your environment variable PRODUCTION is set to true"
-    echo "This means you will be deploying contracts to production"
     echo "    "
-    echo "Do you want to skip?"
-    gum confirm && exit 1 || echo "OK, continuing to deploy to PRODUCTION"
+    echo "    "
+    printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!";
+    printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true";
+    printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production";
+    printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+    echo "    "
+    printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?";
+    PROD_SELECTION=$(gum choose \
+        "yes" \
+        "no" \
+        )
+
+    if [[ $PROD_SELECTION != "no" ]]; then
+      echo "...exiting script"
+      exit 0
+    fi
 
     echo "production"
   else
@@ -1419,10 +1417,6 @@ function warning() {
   printf '\033[33m[warning] %s\033[0m\n' "$1";
 }
 # <<<<< output to console
-
-
-
-
 
 # >>>>> Reading and manipulation of target state JSON file
 function addContractVersionToTargetState() {
@@ -1898,6 +1892,7 @@ function getFacetAddressFromDiamond() {
 }
 # <<<<<< read from blockchain
 
+# >>>>>> miscellaneous
 function getRPCUrl(){
   # read function arguments into variables
   local NETWORK=$1
@@ -1910,7 +1905,7 @@ function getRPCUrl(){
 }
 function playNotificationSound() {
   if [[ "$NOTIFICATION_SOUNDS" == *"true"* ]]; then
-    afplay ./scripts/deploy/notification.mp3
+    afplay ./scripts/deploy/resources/notification.mp3
   fi
 }
 function deployAndAddContractToDiamond() {
@@ -1963,6 +1958,7 @@ function deployAndAddContractToDiamond() {
   # there was an error if we reach this code
   return 1
 }
+# <<<<<< miscellaneous
 
 
 # >>>>>> helpers to set/update deployment files/logs/etc
