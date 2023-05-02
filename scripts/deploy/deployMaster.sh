@@ -482,7 +482,7 @@ deployMaster() {
 
 
 DIAMOND_CONTRACT_NAME="LiFiDiamond"
-NETWORK="polygon"
+NETWORK="bsc"
 ENVIRONMENT="staging"
 
 
