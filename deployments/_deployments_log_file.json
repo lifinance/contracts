@@ -514,6 +514,15 @@
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x4cf6c406F004b7B588ec8638fBd2cC2215D87C90",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-27 12:15:27",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "true"
+          }
         ]
       }
     }
@@ -971,6 +980,62 @@
             "TIMESTAMP": "2023-04-28 16:11:36",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000f1d67e1dddc87e2858c87ebd5b19f99a4e297541",
             "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "CelerCircleBridgeFacet": {
+    "avalanche": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xf72169Fb511739CeFea9eBEffc5d39Dba1b33cD3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-25 15:58:21",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009744ae566c64b6b6f7f9a4dd50f7496df6fef990000000000000000000000000b97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xf72169Fb511739CeFea9eBEffc5d39Dba1b33cD3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-25 16:06:40",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006065a982f04f759b7d2d042d2864e569fad84214000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "WormholeFacet": {
+    "bsc": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb414f9BBCd4B359c9B4a1d8138Cd573F96E5896C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-27 16:23:36",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b6f6d86a8f9879a9c87f643768d9efc38c1da6e7",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb414f9BBCd4B359c9B4a1d8138Cd573F96E5896C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-04-27 16:31:46",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000005a58505a96d1dbf8df91cb21b54419fc36e93fde",
+            "VERIFIED": "true"
           }
         ]
       }
