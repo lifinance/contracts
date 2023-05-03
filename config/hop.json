@@ -263,13 +263,13 @@
         "name": "ETH",
         "bridge": "0x3E4a3a4796d16c0Cd582C382691998f7c06420B6",
         "token": "0x0000000000000000000000000000000000000000",
-        "ammWrapper": "0x0000000000000000000000000000000000000000"
+        "ammWrapper": "0xC08055b634D43F2176d721E26A3428D3b7E7DdB5"
       },
       {
         "name": "USDC",
         "bridge": "0x884d1Aa15F9957E1aEAA86a82a72e49Bc2bfCbe3",
         "token": "0xf56dc6695cF1f5c364eDEbC7Dc7077ac9B586068",
-        "ammWrapper": "0x0000000000000000000000000000000000000000"
+        "ammWrapper": "0x50d7d8B850e0e880295800790551928F4546BfE2"
       },
       {
         "name": "USDT",
