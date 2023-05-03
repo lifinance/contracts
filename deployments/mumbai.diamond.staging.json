@@ -27,6 +27,14 @@
     "0xEE752f4D8CcBb687754AD6EC174877dC6b016E3b": {
       "Name": "PeripheryRegistryFacet",
       "Version": ""
+    },
+    "0x010E49Df94969E03845eEe0C92ab89A40E0125D9": {
+      "Name": "AcrossFacet",
+      "Version": "1.0.1"
+    },
+    "0x5f4E2f294aE3177215ffd4A06D7A920D0fbCEeb2": {
+      "Name": "CircleBridgeFacet",
+      "Version": "1.0.0"
     }
   }
 }

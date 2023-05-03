@@ -980,10 +980,10 @@ function removeFacetFromDiamond() {
     # call diamond
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$PRIVATE_KEY" --rpc-url "${!RPC}" --legacy
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy
     else
       # do not print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$PRIVATE_KEY" --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
     fi
 
     # check the return code the last call
@@ -1581,12 +1581,13 @@ function getContractAddressFromSalt() {
   local SALT=$1
   local NETWORK=$2
   local CONTRACT_NAME=$3
+  local ENVIRONMENT=$4
 
   # get RPC URL
   local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
 
   # get deployer address
-  local DEPLOYER_ADDRESS=$(getDeployerAddress)
+  local DEPLOYER_ADDRESS=$(getDeployerAddress "$ENVIRONMENT")
 
 
   # get actual deploy salt (as we do in DeployScriptBase:  keccak256(abi.encodePacked(saltPrefix, contractName));)
@@ -1607,12 +1608,17 @@ function getContractAddressFromSalt() {
 
 }
 function getDeployerAddress() {
-    # prepare web3 code to be executed
-    jsCode="const Web3 = require('web3');
-      const web3 = new Web3();
-      const deployerAddress = (web3.eth.accounts.privateKeyToAccount('$PRIVATE_KEY')).address
-      const checksumAddress = web3.utils.toChecksumAddress(deployerAddress);
-      console.log(checksumAddress);"
+  # read function arguments into variables
+  local ENVIRONMENT=$1
+
+  PRIV_KEY="$(getPrivateKey "$ENVIRONMENT")"
+
+  # prepare web3 code to be executed
+  jsCode="const Web3 = require('web3');
+    const web3 = new Web3();
+    const deployerAddress = (web3.eth.accounts.privateKeyToAccount('$PRIV_KEY')).address
+    const checksumAddress = web3.utils.toChecksumAddress(deployerAddress);
+    console.log(checksumAddress);"
 
     # execute code using web3
     DEPLOYER_ADDRESS=$(node -e "$jsCode")
@@ -1623,12 +1629,13 @@ function getDeployerAddress() {
 function getDeployerBalance() {
   # read function arguments into variables
   local NETWORK=$1
+  local ENVIRONMENT=$2
 
   # get RPC URL
   RPC_URL=$(getRPCUrl "$NETWORK")
 
   # get deployer address
-  ADDRESS=$(getDeployerAddress)
+  ADDRESS=$(getDeployerAddress "$ENVIRONMENT")
 
   # get balance in given network
   BALANCE=$(cast balance "$ADDRESS" --rpc-url "$RPC_URL")
@@ -1957,6 +1964,35 @@ function deployAndAddContractToDiamond() {
 
   # there was an error if we reach this code
   return 1
+}
+function getPrivateKey() {
+  # read function arguments into variables
+  ENVIRONMENT="$1"
+
+  echo "ENVIRONMENT: $ENVIRONMENT"
+
+  # check environment value
+  if [[ "$ENVIRONMENT" == *"staging"* ]]; then
+    # check if env variable is set/available
+    if [[ -z "$PRIVATE_KEY" ]]; then
+      error "could not find PRIVATE_KEY value in your .env file"
+      return 1
+    else
+      echo "$PRIVATE_KEY"
+      return 0
+    fi
+  else
+    # check if env variable is set/available
+    if [[ -z "$PRIVATE_KEY_PRODUCTION" ]]; then
+      error "could not find PRIVATE_KEY_PRODUCTION value in your .env file"
+      return 1
+    else
+      echo "$PRIVATE_KEY_PRODUCTION"
+      return 0
+    fi
+  fi
+
+
 }
 # <<<<<< miscellaneous
 

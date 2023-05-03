@@ -53,7 +53,7 @@ function updatePeriphery() {
       exit 1
     fi
     # get deployer wallet balance
-    BALANCE=$(getDeployerBalance "$NETWORK")
+    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
 
     echo "[info] selected network: $NETWORK"
     echo "[info] deployer wallet balance in this network: $BALANCE"

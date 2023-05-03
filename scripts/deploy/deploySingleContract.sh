@@ -19,23 +19,6 @@ deploySingleContract() {
   # load env variables
   source .env
 
-  # if no NETWORK was passed to this function, ask user to select it
-  if [[ -z "$NETWORK" ]]; then
-    NETWORK=$(getUserSelectedNetwork)
-
-    # check the return code the last call
-    if [ $? -ne 0 ]; then
-      echo "$NETWORK" # will contain an error message
-      exit 1
-    fi
-    # get deployer wallet balance
-    BALANCE=$(getDeployerBalance "$NETWORK")
-
-    echo "[info] selected network: $NETWORK"
-    echo "[info] deployer wallet balance in this network: $BALANCE"
-    echo ""
-  fi
-
   # if no ENVIRONMENT was passed to this function, determine it
   if [[ -z "$ENVIRONMENT" ]]; then
     if [[ "$PRODUCTION" == "true" ]]; then
@@ -62,6 +45,23 @@ deploySingleContract() {
     else
       ENVIRONMENT="staging"
     fi
+  fi
+
+  # if no NETWORK was passed to this function, ask user to select it
+  if [[ -z "$NETWORK" ]]; then
+    NETWORK=$(getUserSelectedNetwork)
+
+    # check the return code the last call
+    if [ $? -ne 0 ]; then
+      echo "$NETWORK" # will contain an error message
+      exit 1
+    fi
+    # get deployer wallet balance
+    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
+
+    echo "[info] selected network: $NETWORK"
+    echo "[info] deployer wallet balance in this network: $BALANCE"
+    echo ""
   fi
 
   if [[ -z "$CONTRACT" ]]; then
