@@ -10,6 +10,7 @@ import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
+import { console } from "forge-std/console.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
@@ -26,37 +27,78 @@ contract DeployScript is UpdateScriptBase {
 
         bytes4[] memory exclude;
 
-        // Diamond Loupe
-        buildDiamondCut(
-            getSelectors("DiamondLoupeFacet", exclude),
-            diamondLoupe
+        (bool loupeExists, ) = address(loupe).staticcall(
+            abi.encodeWithSelector(loupe.facetAddresses.selector)
         );
+
+        // Diamond Loupe
+        bytes4[] memory loupeSelectors = getSelectors(
+            "DiamondLoupeFacet",
+            exclude
+        );
+
+        if (!loupeExists) {
+            buildInitialCut(loupeSelectors, diamondLoupe);
+        }
 
         // Ownership Facet
-        buildDiamondCut(getSelectors("OwnershipFacet", exclude), ownership);
+        bytes4[] memory ownershipSelectors = getSelectors(
+            "OwnershipFacet",
+            exclude
+        );
+        if (loupeExists) {
+            buildDiamondCut(ownershipSelectors, ownership);
+        } else {
+            buildInitialCut(ownershipSelectors, ownership);
+        }
 
         // Withdraw Facet
-        buildDiamondCut(getSelectors("WithdrawFacet", exclude), withdraw);
+        bytes4[] memory withdrawSelectors = getSelectors(
+            "WithdrawFacet",
+            exclude
+        );
+        if (loupeExists) {
+            buildDiamondCut(withdrawSelectors, withdraw);
+        } else {
+            buildInitialCut(withdrawSelectors, withdraw);
+        }
 
         // Dex Manager Facet
-        buildDiamondCut(getSelectors("DexManagerFacet", exclude), dexMgr);
+        bytes4[] memory dexMgrSelectors = getSelectors(
+            "DexManagerFacet",
+            exclude
+        );
+        if (loupeExists) {
+            buildDiamondCut(dexMgrSelectors, dexMgr);
+        } else {
+            buildInitialCut(dexMgrSelectors, dexMgr);
+        }
 
         // Access Manager Facet
-        buildDiamondCut(
-            getSelectors("AccessManagerFacet", exclude),
-            accessMgr
+        bytes4[] memory accessMgrSelectors = getSelectors(
+            "AccessManagerFacet",
+            exclude
         );
+        if (loupeExists) {
+            buildDiamondCut(accessMgrSelectors, accessMgr);
+        } else {
+            buildInitialCut(accessMgrSelectors, accessMgr);
+        }
 
         // PeripheryRegistry
-        buildDiamondCut(
-            getSelectors("PeripheryRegistry", exclude),
-            peripheryRgs
+        bytes4[] memory peripheryRgsSelectors = getSelectors(
+            "PeripheryRegistryFacet",
+            exclude
         );
+        if (loupeExists) {
+            buildDiamondCut(peripheryRgsSelectors, peripheryRgs);
+        } else {
+            buildInitialCut(peripheryRgsSelectors, peripheryRgs);
+        }
 
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }
-
         facets = loupe.facetAddresses();
 
         vm.stopBroadcast();

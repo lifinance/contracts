@@ -2,7 +2,7 @@
   "LiFiDiamondImmutable": {
     "0xF1d67E1dddc87E2858C87EBd5b19f99a4E297541": {
       "Name": "DiamondCutFacet",
-      "Version": "1.0.0"
+      "Version": ""
     },
     "0x49d195D3138D4E0E2b4ea88484C54AEE45B04B9F": {
       "Name": "DiamondLoupeFacet",
