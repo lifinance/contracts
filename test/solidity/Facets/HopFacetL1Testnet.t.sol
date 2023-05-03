@@ -135,6 +135,7 @@ contract HopFacetTest is TestBaseFacet {
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
+        // parameters based on the asset which is transferred via hop
         if (bridgeData.sendingAssetId == address(0)) {
             // fee parameter Native
             validHopData.relayerFee = 10000000000000000;
@@ -144,6 +145,7 @@ contract HopFacetTest is TestBaseFacet {
             validHopData.relayer = 0xB47dE784aB8702eC35c5eAb225D6f6cE476DdD28;
         }
 
+        // parameters based on the asset the user is starting the transfer with
         if (isNative) {
             hopFacet.swapAndStartBridgeTokensViaHop{
                 value: swapData[0].fromAmount + validHopData.nativeFee
