@@ -101,8 +101,6 @@ abstract contract TestBaseFacet is TestBase {
     {
         vm.startPrank(USER_SENDER);
 
-        bridgeData.minAmount = defaultUSDCAmount;
-
         // approval
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
@@ -121,7 +119,7 @@ abstract contract TestBaseFacet is TestBase {
         assertBalanceChange(
             address(0),
             USER_SENDER,
-            -int256((1 ether + addToMessageValue))
+            -int256((defaultNativeAmount + addToMessageValue))
         )
         assertBalanceChange(address(0), USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
@@ -130,7 +128,7 @@ abstract contract TestBaseFacet is TestBase {
         vm.startPrank(USER_SENDER);
         // customize bridgeData
         bridgeData.sendingAssetId = address(0);
-        bridgeData.minAmount = 1 ether;
+        bridgeData.minAmount = defaultNativeAmount;
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -200,9 +198,9 @@ abstract contract TestBaseFacet is TestBase {
         path[0] = ADDRESS_USDC;
         path[1] = ADDRESS_WETH;
 
-        uint256 amountOut = 1 ether;
+        uint256 amountOut = defaultNativeAmount;
 
-        // Calculate DAI amount
+        // Calculate USDC input amount
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
         uint256 amountIn = amounts[0];
 

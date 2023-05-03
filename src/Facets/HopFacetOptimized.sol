@@ -135,7 +135,6 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         LibSwap.SwapData[] calldata _swapData,
         HopData calldata _hopData
     ) external payable {
-
         // Deposit and swap assets
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -146,7 +145,9 @@ contract HopFacetOptimized is ILiFi, SwapperV2 {
         );
 
         // Bridge assets
-        _hopData.hopBridge.sendToL2{ value: _bridgeData.minAmount + _hopData.nativeFee }(
+        _hopData.hopBridge.sendToL2{
+            value: _bridgeData.minAmount + _hopData.nativeFee
+        }(
             _bridgeData.destinationChainId,
             _bridgeData.receiver,
             _bridgeData.minAmount,

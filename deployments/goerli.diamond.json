@@ -32,9 +32,9 @@
       "Name": "GenericSwapFacet",
       "Version": ""
     },
-    "0x031B8a761d66A97786655ebFac6476dbF0f71FA5": {
+    "0x4Dc509f0BB4db1faeba81f5F13583Ff3d95F938D": {
       "Name": "HopFacet",
-      "Version": ""
+      "Version": "2.0.0"
     },
     "0x2f7f1a1C392e58012B84cfA673df73101666314D": {
       "Name": "HyphenFacet",
