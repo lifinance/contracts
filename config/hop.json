@@ -220,20 +220,79 @@
     "tokens": [
       {
         "name": "ETH",
-        "bridge": "0xC8A4FB931e8D77df8497790381CA7d228E68a41b",
+        "bridge": "0xd9e10C6b1bd26dE4E2749ce8aFe8Dd64294BcBF5",
         "token": "0x0000000000000000000000000000000000000000",
         "ammWrapper": "0x0000000000000000000000000000000000000000"
       },
       {
         "name": "USDC",
-        "bridge": "0x7D269D3E0d61A05a0bA976b7DBF8805bF844AF3F",
-        "token": "0x98339D8C260052B7ad81c28c16C0b98420f2B46a",
+        "bridge": "0x889CD829cE211c92b31fDFE1d75299482839ea2b",
+        "token": "0x07865c6e87b9f70255377e024ace6630c1eaa37f",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "USDT",
+        "bridge": "0x53B94FAf104A484ff4E7c66bFe311fd48ce3D887",
+        "token": "0xfad6367E97217cC51b4cd838Cc086831f81d38C2",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "DAI",
+        "bridge": "0xAa1603822b43e592e33b58d34B4423E1bcD8b4dC",
+        "token": "0xb93cba7013f4557cDFB590fD152d24Ef4063485f",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "UNI",
+        "bridge": "0x9D3A7fB18CA7F1237F977Dc5572883f8b24F5638",
+        "token": "0x41E5E6045f91B61AACC99edca0967D518fB44CFB",
         "ammWrapper": "0x0000000000000000000000000000000000000000"
       },
       {
         "name": "HOP",
-        "bridge": "0x13B7F51BD865410c3AcC4d56083C5B56aB38D203",
-        "token": "0x7191061D5d4C60f598214cC6913502184BAddf18",
+        "bridge": "0x9051Dc48d27dAb53DbAB9E844f8E48c469603938",
+        "token": "0x38aF6928BF1Fd6B3c768752e716C49eb8206e20c",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      }
+    ]
+  },
+  "consensys-zkevm-testnet": {
+    "chainId": 59140,
+    "tokens": [
+      {
+        "name": "ETH",
+        "bridge": "0x3E4a3a4796d16c0Cd582C382691998f7c06420B6",
+        "token": "0x0000000000000000000000000000000000000000",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "USDC",
+        "bridge": "0x884d1Aa15F9957E1aEAA86a82a72e49Bc2bfCbe3",
+        "token": "0xf56dc6695cF1f5c364eDEbC7Dc7077ac9B586068",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "USDT",
+        "bridge": "0xdb16fbF595C02EeF7D9233d38C232495734F3D85",
+        "token": "0x1990BC6dfe2ef605Bfc08f5A23564dB75642Ad73",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "DAI",
+        "bridge": "0xf11EBB94EC986EA891Aec29cfF151345C83b33Ec",
+        "token": "0x8741Ba6225A6BF91f9D73531A98A89807857a2B3",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "UNI",
+        "bridge": "0xb07c6505e1E41112494123e40330c5Ac09817CFB",
+        "token": "0x7823E8DCC8bfc23EA3AC899EB86921f90e80F499",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "HOP",
+        "bridge": "0x2E9bB44C9CB774939462eF874Fc854D8df524F13",
+        "token": "0x6F03052743CD99ce1b29265E377e320CD24Eb632",
         "ammWrapper": "0x0000000000000000000000000000000000000000"
       }
     ]
