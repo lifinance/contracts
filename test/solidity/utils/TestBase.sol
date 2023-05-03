@@ -92,6 +92,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     LibSwap.SwapData[] internal swapData;
     uint256 internal defaultDAIAmount;
     uint256 internal defaultUSDCAmount;
+    uint256 internal defaultNativeAmount;
     // tokenAddress => userAddress => balance
     mapping(address => mapping(address => uint256)) internal initialBalances;
     uint256 internal addToMessageValue;
@@ -205,8 +206,9 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         vm.deal(USER_SENDER, 1000 ether);
 
         // initiate variables
-        defaultDAIAmount = 100 * 10**dai.decimals();
-        defaultUSDCAmount = 100 * 10**usdc.decimals();
+        defaultDAIAmount = 100 * 10 ** dai.decimals();
+        defaultUSDCAmount = 100 * 10 ** usdc.decimals();
+        defaultNativeAmount = 1 ether;
 
         // set path for logfile (esp. interesting for fuzzing tests)
         logFilePath = "./test/logs/";
