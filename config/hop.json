@@ -256,7 +256,7 @@
       }
     ]
   },
-  "consensys-zkevm-testnet": {
+  "lineatest": {
     "chainId": 59140,
     "tokens": [
       {
