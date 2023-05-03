@@ -31,6 +31,9 @@ function updatePeriphery() {
     echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
   fi
 
+  # get file suffix based on value in variable ENVIRONMENT
+  FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
   # get diamond address from deployments script
   DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "./deployments/${NETWORK}.${FILE_SUFFIX}json")
 
@@ -39,9 +42,6 @@ function updatePeriphery() {
     error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting updatePeriphery script now"
     return 1
   fi
-
-  # get file suffix based on value in variable ENVIRONMENT
-  FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then

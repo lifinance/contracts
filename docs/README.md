@@ -22,6 +22,7 @@
 - [MakerTeleport Facet](./MakerTeleportFacet.md)
 - [Multichain Facet](./MultichainFacet.md)
 - [NXTP Facet](./NXTPFacet.md)
+- [OFTWrapper Facet](./OFTWrapperFacet.md)
 - [OmniBridge Facet](./OmniBridgeFacet.md)
 - [Optimism Bridge Facet](./OptimismBridgeFacet.md)
 - [Periphery Registry Facet](./PeripheryRegistryFacet.md)

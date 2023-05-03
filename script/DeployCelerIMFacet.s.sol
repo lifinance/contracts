@@ -44,13 +44,14 @@ contract DeployScript is DeployScriptBase {
         );
         json = vm.readFile(path);
         address relayer = json.readAddress(".RelayerCelerIM");
-        if (relayer == address(0))
+        if (relayer == address(32)) {
             revert(
                 string.concat(
                     "Relayer address not found in deployment file for network ",
                     network
                 )
             );
+        }
 
         constructorArgs = abi.encode(messageBus, relayer, cfUSDC);
 

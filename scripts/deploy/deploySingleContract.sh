@@ -7,6 +7,7 @@ deploySingleContract() {
   # load config & helper functions
   source scripts/deploy/deployConfig.sh
   source scripts/deploy/deployHelperFunctions.sh
+  source scripts/deploy/resources/contractSpecificReminders.sh
 
   # read function arguments into variables
   CONTRACT="$1"
@@ -39,16 +40,23 @@ deploySingleContract() {
   if [[ -z "$ENVIRONMENT" ]]; then
     if [[ "$PRODUCTION" == "true" ]]; then
       # make sure that PRODUCTION was selected intentionally by user
-      gum style \
-        --foreground 212 --border-foreground 213 --border double \
-        --align center --width 50 --margin "1 2" --padding "2 4" \
-        '!!! ATTENTION !!!'
-
-      echo "Your environment variable PRODUCTION is set to true"
-      echo "This means you will be deploying contracts to production"
       echo "    "
-      echo "Do you want to skip?"
-      gum confirm && exit 1 || echo "OK, continuing to deploy to PRODUCTION"
+      echo "    "
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!";
+      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true";
+      printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production";
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+      echo "    "
+      printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?";
+      PROD_SELECTION=$(gum choose \
+          "yes" \
+          "no" \
+          )
+
+      if [[ $PROD_SELECTION != "no" ]]; then
+        echo "...exiting script"
+        exit 0
+      fi
 
       ENVIRONMENT="production"
     else
@@ -63,6 +71,15 @@ deploySingleContract() {
   else
     SCRIPT="Deploy"$CONTRACT
   fi
+
+  # Display contract-specific information, if existing
+  if grep -q "^$CONTRACT=" "$CONTRACT_REMINDERS"; then
+    echo ""
+    warning "Please read the following information carefully: "
+    warning "${!CONTRACT}"
+    echo ""
+  fi
+
 
   # check if deploy script exists
   local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""

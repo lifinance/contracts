@@ -22,8 +22,10 @@ contract DeployScript is DeployScriptBase {
         address messageBus = json.readAddress(
             string.concat(".", network, ".messageBus")
         );
-        if (messageBus == address(0))
+
+        if (messageBus == address(32)) {
             revert("MessageBus not found in cBridge config file");
+        }
 
         path = string.concat(
             root,
@@ -35,8 +37,9 @@ contract DeployScript is DeployScriptBase {
         );
         json = vm.readFile(path);
         address diamond = json.readAddress(".LiFiDiamond");
-        if (diamond == address(0))
+        if (diamond == address(32)) {
             revert("LiFiDiamond not found in deployments file");
+        }
 
         constructorArgs = abi.encode(deployerAddress, messageBus, diamond);
 

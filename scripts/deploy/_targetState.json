@@ -28,7 +28,7 @@
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "LiFiDiamondImmutable": "1.0.0",
@@ -88,7 +88,7 @@
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "LiFiDiamondImmutable": "1.0.0",
@@ -197,24 +197,42 @@
     "production": {
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       }
     }
   },
   "polygon": {
+    "staging": {
+      "LiFiDiamond": {
+        "Executor": "1.0.0",
+        "Receiver": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "FeeCollector": "1.0.0",
+        "ServiceFeeCollector": "1.0.0"
+      }
+    },
     "production": {
       "LiFiDiamond": {
         "HopFacetPacked": "1.0.1",
         "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       }
     }
   },
   "bsc": {
+    "staging": {
+      "LiFiDiamond": {
+        "Executor": "1.0.0",
+        "Receiver": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "FeeCollector": "1.0.0",
+        "ServiceFeeCollector": "1.0.0"
+      }
+    },
     "production": {
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       }
     }
   },
@@ -222,7 +240,7 @@
     "production": {
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       }
     }
   },
@@ -230,7 +248,7 @@
     "production": {
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       }
     }
   },
@@ -238,14 +256,14 @@
     "production": {
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       }
     }
   },
   "gnosis": {
     "production": {
       "LiFiDiamond": {
-         "HopFacetPacked": "1.0.1"
+        "HopFacetPacked": "1.0.1"
       }
     }
   },
@@ -253,7 +271,7 @@
     "production": {
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       }
     }
   },
