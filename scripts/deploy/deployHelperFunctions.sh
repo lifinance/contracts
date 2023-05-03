@@ -462,7 +462,7 @@ function getContractInfoFromDiamondDeploymentLogByName(){
   error "could not find contract info"
   return 1
 }
-function saveDiamond_OLD() {
+function saveDiamond_DEPRECATED() {
   :'
   This contract version only saves the facet addresses as an array in the JSON file
   without any further information (such as version or name, like in the new function)
@@ -494,7 +494,7 @@ function saveDiamond_OLD() {
 	result=$(cat "$DIAMOND_FILE" | jq -r ". + {\"facets\": [$FACETS] }" || cat "$DIAMOND_FILE")
 	printf %s "$result" >"$DIAMOND_FILE"
 }
-function saveDiamond() {
+function saveDiamondFacets() {
   # read function arguments into variables
   NETWORK=$1
   ENVIRONMENT=$2
@@ -547,10 +547,164 @@ function saveDiamond() {
     fi
 
     # add new entry to JSON file
-    result=$(cat "$DIAMOND_FILE" | jq -r ".$DIAMOND_NAME += $JSON_ENTRY" || cat "$DIAMOND_FILE")
+    result=$(cat "$DIAMOND_FILE" | jq -r --argjson json_entry "$JSON_ENTRY" '.[$diamond_name] |= . + {Facets: (.Facets + $json_entry)}' --arg diamond_name "$DIAMOND_NAME" || cat "$DIAMOND_FILE")
+
     printf %s "$result" >"$DIAMOND_FILE"
   done
+
+  # add information about registered periphery contracts
+  saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
  }
+function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
+  # read function arguments into variables
+  NETWORK=$1
+  ENVIRONMENT=$2
+  USE_MUTABLE_DIAMOND=$3
+
+  # get file suffix based on value in variable ENVIRONMENT
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
+  # define path for json file based on which diamond was used
+  if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
+   DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
+   DIAMOND_NAME="LiFiDiamond"
+  else
+   DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
+   DIAMOND_NAME="LiFiDiamondImmutable"
+  fi
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME")
+
+  echo "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
+  echo "DEPLOYER_ADDRESS: $(getDeployerAddress "$ENVIRONMENT")"
+
+  if [[ -z "$DIAMOND_ADDRESS" ]]; then
+    error "could not find address for $DIAMOND_NAME in network-specific log file for network $NETWORK (ENVIRONMENT=$ENVIRONMENT)"
+    return 1
+  fi
+
+  # get a list of all periphery contracts
+  PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
+
+  MULTICALL_DATA="["
+
+  # loop through periphery contracts
+  for CONTRACT in $PERIPHERY_CONTRACTS; do
+    echo "CONTRACT: $CONTRACT"
+
+    # Build the function call for the contract
+    #DATA=$(echo -n "0x$(echo -n "getPeripheryContract()" | xxd -p -c 256)")
+    CALLDATA=$(cast calldata "getPeripheryContract(string)" "$CONTRACT")
+
+    echo "CALLDATA: $CALLDATA"
+
+    #target structure [(address,calldata),(address,calldata)]
+
+    # Add the call data and target address to the call array
+    MULTICALL_DATA=$MULTICALL_DATA"($DIAMOND_ADDRESS,$CALLDATA),"
+
+  done
+
+  # remove trailing comma and add trailing bracket
+  MULTICALL_DATA=${MULTICALL_DATA%?}"]"
+
+  echo "MULTICALL_DATA: $MULTICALL_DATA"
+
+  MULTICALL_ADDRESS="0xcA11bde05977b3631167028862bE2a173976CA11"
+
+  PRIV_KEY=$(getPrivateKey "$ENVIRONMENT")
+
+  echo "PRIV_KEY: $PRIV_KEY"
+
+  attempts=1
+
+  echo "before call"
+
+    while [ $attempts -lt 11 ]; do
+      echo "Trying to execute multicall now - attempt ${attempts}"
+      # try to execute call
+      MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key "$PRIV_KEY" --rpc-url "https://polygon-rpc.com" --legacy)
+
+      # check the return code the last call
+      if [ $? -eq 0 ]; then
+        break # exit the loop if the operation was successful
+      fi
+
+      attempts=$((attempts + 1)) # increment attempts
+      sleep 1                    # wait for 1 second before trying the operation again
+    done
+
+    if [ $attempts -eq 11 ]; then
+      echo "Failed to execute multicall"
+      exit 1
+    fi
+
+
+  #MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key "$PRIV_KEY" --rpc-url  "https://opt-mainnet.g.alchemy.com/v2/4y-BIUvj_mTGWHrsHZncoJyNolNjJrsT" --legacy)
+  echo "after call"
+
+
+  echo ""
+  echo ""
+
+  echo "MULTICALL_RESULTS: $MULTICALL_RESULTS"
+
+
+
+
+
+
+    # check if diamond returns an address for this contract
+
+    #
+
+  }
+function saveDiamondPeriphery() {
+     # read function arguments into variables
+     NETWORK=$1
+     ENVIRONMENT=$2
+     USE_MUTABLE_DIAMOND=$3
+
+     # get file suffix based on value in variable ENVIRONMENT
+     local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
+     # get RPC URL
+     RPC_URL=$(getRPCUrl "$NETWORK")
+
+     # define path for json file based on which diamond was used
+     if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
+      DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
+      DIAMOND_NAME="LiFiDiamond"
+     else
+      DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
+      DIAMOND_NAME="LiFiDiamondImmutable"
+     fi
+     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME")
+
+     # make sure diamond address is available
+     if [[ -z "$DIAMOND_ADDRESS" ]]; then
+       error "could not find address for $DIAMOND_NAME in network-specific log file for network $NETWORK (ENVIRONMENT=$ENVIRONMENT)"
+       return 1
+     fi
+
+     # get a list of all periphery contracts
+     PERIPHERY_CONTRACTS=$(getContractNamesInFolder "src/Periphery/")
+     #PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
+
+     # loop through periphery contracts
+     for CONTRACT in $PERIPHERY_CONTRACTS; do
+      # get the address of this contract from diamond (will return ZERO_ADDRESS, if not registered)
+      ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" --rpc-url "$RPC_URL")
+
+      # check if address is ZERO_ADDRESS
+      if [[ "$ADDRESS" == $ZERO_ADDRESS ]]; then
+       ADDRESS=""
+      fi
+
+      # add new entry to JSON file
+      result=$(cat "$DIAMOND_FILE" | jq -r ".$DIAMOND_NAME.Periphery += {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$DIAMOND_FILE")
+      printf %s "$result" >"$DIAMOND_FILE"
+     done
+     }
 function saveContract() {
   # read function arguments into variables
   NETWORK=$1
@@ -1976,8 +2130,6 @@ function getPrivateKey() {
   # read function arguments into variables
   ENVIRONMENT="$1"
 
-  echo "ENVIRONMENT: $ENVIRONMENT"
-
   # check environment value
   if [[ "$ENVIRONMENT" == *"staging"* ]]; then
     # check if env variable is set/available
@@ -1998,8 +2150,6 @@ function getPrivateKey() {
       return 0
     fi
   fi
-
-
 }
 # <<<<<< miscellaneous
 
@@ -2051,7 +2201,7 @@ function updateDiamondLogsInAllNetworks(){
         local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "${!RPC_URL}") 2>/dev/null
 
         # call saveDiamond function
-        saveDiamond "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES"
+        saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES"
 
         # check result
         if [[ $? -ne 0 ]]; then
@@ -2297,4 +2447,3 @@ function test_getContractNameFromDeploymentLogs() {
 function test_tmp(){
   echo ""
 }
-

@@ -2,7 +2,6 @@
 
 # TODO
 
-# - if environment set to production, read variable PRIVATE_KEY_PRODUCTION
 # - add verify contract use case (use bytecode and settings from storage)
 # - create function that checks if contract is deployed (get bytecode, predict address, check bytecode at address)
 # - return master log to store all deployments (and return latest when inquired)
@@ -11,7 +10,6 @@
 # - create use case to deploy and add all periphery (or check if target state use case covers it)
 # - merging two branches with deployments in same network (does it cause merge-conflicts?)
 # - which periphery facets are added to a diamond (add to log)
-# - add warning if "null" address is written to log
 # - check gas price and execute only when gas price is below ....
 # - re-organize scripts
 #     >>> script/UpdateHopFacetConfig.s.sol
