@@ -22,6 +22,10 @@ function logContractDeploymentInfo_BACKUP {
   local ADDRESS="$8"
   local VERIFIED=$9
 
+  if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
+    error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT). Please check and manually update the log with the correct address. "
+  fi
+
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
     echo ""
@@ -79,7 +83,7 @@ function logContractDeploymentInfo {
   local VERIFIED="$9"
 
   if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
-    error "no address was logged for deployment of $CONTRACT on network $NETWORK (environment=$ENVIRONMENT). Please check and manually update the log with the correct address. "
+    error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT). Please check and manually update the log with the correct address. "
   fi
 
   # logging for debug purposes
@@ -548,35 +552,38 @@ function saveDiamond() {
   done
  }
 function saveContract() {
-   # read function arguments into variables
-   NETWORK=$1
-   CONTRACT=$2
-   ADDRESS=$3
-   FILE_SUFFIX=$4
+  # read function arguments into variables
+  NETWORK=$1
+  CONTRACT=$2
+  ADDRESS=$3
+  FILE_SUFFIX=$4
 
-   # load JSON FILE that contains deployment addresses
-   # TODO: use log FILE instead???
-   ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+  # load JSON FILE that contains deployment addresses
+  ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
 
-   # logging for debug purposes
-   if [[ "$DEBUG" == *"true"* ]]; then
-     echo ""
-     echo "[debug] in function saveContract"
-     echo "[debug] NETWORK=$NETWORK"
-     echo "[debug] CONTRACT=$CONTRACT"
-     echo "[debug] ADDRESS=$ADDRESS"
-     echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-     echo "[debug] ADDRESSES_FILE=$ADDRESSES_FILE"
-   fi
+  # logging for debug purposes
+  if [[ "$DEBUG" == *"true"* ]]; then
+   echo ""
+   echo "[debug] in function saveContract"
+   echo "[debug] NETWORK=$NETWORK"
+   echo "[debug] CONTRACT=$CONTRACT"
+   echo "[debug] ADDRESS=$ADDRESS"
+   echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
+   echo "[debug] ADDRESSES_FILE=$ADDRESSES_FILE"
+  fi
 
-   # create an empty json if it does not exist
-   if [[ ! -e $ADDRESSES_FILE ]]; then
-     echo "{}" >"$ADDRESSES_FILE"
-   fi
+  if [[ "$ADDRESS" == *"null"* || -z "$ADDRESS"  ]]; then
+    error "trying to write a 'null' address to log file (NETWORK=$NETWORK, CONTRACT=$CONTRACT, ADDRESS=$ADDRESS)"
+  fi
 
-   # add new address to address log FILE
-   RESULT=$(cat "$ADDRESSES_FILE" | jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$ADDRESSES_FILE")
-   printf %s "$RESULT" >"$ADDRESSES_FILE"
+  # create an empty json if it does not exist
+  if [[ ! -e $ADDRESSES_FILE ]]; then
+   echo "{}" >"$ADDRESSES_FILE"
+  fi
+
+  # add new address to address log FILE
+  RESULT=$(cat "$ADDRESSES_FILE" | jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$ADDRESSES_FILE")
+  printf %s "$RESULT" >"$ADDRESSES_FILE"
 }
 # <<<<< reading and manipulation of deployment log files
 

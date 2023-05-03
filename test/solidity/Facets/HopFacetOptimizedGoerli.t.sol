@@ -116,7 +116,10 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
 
         addToMessageValue = 10_000_000_000_000_000;
 
-        vm.label(0xd9e10C6b1bd26dE4E2749ce8aFe8Dd64294BcBF5, "L1BridgeWrapper");
+        vm.label(
+            0xd9e10C6b1bd26dE4E2749ce8aFe8Dd64294BcBF5,
+            "L1BridgeWrapper"
+        );
 
         // set native fee value (native Fee is added to all TX on Goerli > Linea)
         validHopData.nativeFee = 10000000000000000;
@@ -162,11 +165,7 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
             validHopData.hopBridge = IHopBridge(USDC_BRIDGE);
             hopFacet.swapAndStartBridgeTokensViaHopL1ERC20{
                 value: validHopData.nativeFee
-            }(
-                bridgeData,
-                swapData,
-                validHopData
-            );
+            }(bridgeData, swapData, validHopData);
         }
     }
 
@@ -232,21 +231,21 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
         delete swapData;
         swapData.push(
             LibSwap.SwapData({
-        callTo: address(uniswap),
-        approveTo: address(uniswap),
-        sendingAssetId: ADDRESS_USDC,
-        receivingAssetId: address(0),
-        fromAmount: amountIn,
-        callData: abi.encodeWithSelector(
-                uniswap.swapTokensForExactETH.selector,
-                amountOut,
-                amountIn,
-                path,
-                _facetTestContractAddress,
-                block.timestamp + 20 minutes
-            ),
-        requiresDeposit: true
-        })
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
         );
 
         //prepare check for events
@@ -294,7 +293,6 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
         path[0] = ADDRESS_DAI;
         path[1] = ADDRESS_USDC;
 
-
         uint256 amountOut = defaultUSDCAmount;
 
         // Calculate DAI amount
@@ -302,13 +300,13 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
         uint256 amountIn = amounts[0];
 
         swapData.push(
-                LibSwap.SwapData({
-            callTo: address(uniswap),
-            approveTo: address(uniswap),
-            sendingAssetId: ADDRESS_DAI,
-            receivingAssetId: ADDRESS_USDC,
-            fromAmount: amountIn,
-            callData: abi.encodeWithSelector(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
                     uniswap.swapExactTokensForTokens.selector,
                     amountIn,
                     amountOut,
@@ -316,7 +314,7 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
                     _facetTestContractAddress,
                     block.timestamp + 20 minutes
                 ),
-            requiresDeposit: true
+                requiresDeposit: true
             })
         );
 
