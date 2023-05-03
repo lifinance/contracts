@@ -6,7 +6,6 @@ on:
       - "master"
       - "staging"
       - "develop"
-      - "LF-2938-2"
 
 env:
   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
