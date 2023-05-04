@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-diamondUpdate() {
+diamondUpdateFacet() {
   # load required resources
   source .env
   source scripts/deploy/resources/deployConfig.sh
@@ -75,7 +75,7 @@ diamondUpdate() {
 
   # if no diamond address was found, throw an error and exit the script
   if [[ "$DIAMOND_ADDRESS" == "null" ]]; then
-    error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting updatePeriphery script now"
+    error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting diamondUpdatePeripheryscript now"
     return 1
   fi
 

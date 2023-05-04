@@ -1,6 +1,6 @@
 #!/bin/bash
 
-function syncDEXs {
+function diamondSyncDEXs {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script syncDEXs now...."
   # load env variables

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-function updatePeriphery() {
+function diamondUpdatePeriphery() {
   echo ""
-  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running updatePeriphery now...."
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running diamondUpdatePeriphery now...."
 
   # load required resources
   source .env
@@ -39,7 +39,7 @@ function updatePeriphery() {
 
   # if no diamond address was found, throw an error and exit the script
   if [[ "$DIAMOND_ADDRESS" == "null" ]]; then
-    error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting updatePeriphery script now"
+    error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting diamondUpdatePeriphery script now"
     return 1
   fi
 
@@ -136,7 +136,7 @@ function updatePeriphery() {
     fi
   fi
 
-  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< updatePeriphery completed"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"
 }
 
 register() {

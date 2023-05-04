@@ -8,4 +8,4 @@ for x in "${EXCLUDE[@]}"; do
 done
 
 SELECTORS=$(jq --argjson exclude "$filter" -r '.methodIdentifiers | . | del(.. | select(. == $exclude[])) | join(",")'  ./out/$1.sol/$1.json)
-cast abi-encode "f(bytes4[])" "[$SELECTORS]" 
+cast abi-encode "f(bytes4[])" "[$SELECTORS]"

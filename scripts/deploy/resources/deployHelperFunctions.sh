@@ -2167,7 +2167,7 @@ function deployAndAddContractToDiamond() {
     RETURN_CODE1=$?
 
     # update periphery registry in diamond
-    updatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" false false "$CONTRACT"
+    diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" false false "$CONTRACT"
     RETURN_CODE2=$?
 
     if [[ "$RETURN_CODE1" -eq 0 || "$RETURN_CODE2" -eq 0 ]]; then

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-update() {
+diamondUpdateSgConfig() {
   # load env variables
 	source .env
 
@@ -52,4 +52,4 @@ update() {
   echo "$SCRIPT successfully executed on network $NETWORK"
 }
 
-update
+

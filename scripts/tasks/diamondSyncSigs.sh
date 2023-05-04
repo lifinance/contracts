@@ -1,6 +1,6 @@
 #!/bin/bash
 
-function syncSIGs {
+function diamondSyncSigs {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script syncSIGs now...."
   # load env variables

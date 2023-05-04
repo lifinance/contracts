@@ -26,10 +26,7 @@
 # - for immutable diamond we need to run some specific script - add to deploy script
 
 # - add fancy stuff
-#   - script runtime
 #   -  add low balance warnings and currency symbols for deployer wallet balance
-
-
 
 scriptMaster() {
   # load env variables
@@ -39,12 +36,9 @@ scriptMaster() {
   source scripts/deploy/deploySingleContract.sh
   source scripts/deploy/deployAllContracts.sh
   source scripts/deploy/resources/deployHelperFunctions.sh
-  source scripts/tasks/sync-dexs.sh
-  source scripts/tasks/sync-sigs.sh
-  source scripts/tasks/diamondUpdate.sh
   source scripts/deploy/deployFacetAndAddToDiamond.sh
   source scripts/deploy/deployPeripheryContracts.sh
-  source scripts/tasks/updatePeriphery.sh
+  for script in scripts/tasks/*.sh; do [ -f "$script" ] && source "$script"; done # sources all scripts in folder scripts/tasks/
 
   # determine environment: check if .env variable "PRODUCTION" is set to true
   if [[ "$PRODUCTION" == "true" ]]; then
@@ -74,7 +68,7 @@ scriptMaster() {
 
   # ask user to choose a deploy use case
   echo ""
-  echo "You are deploying from this address: $(getDeployerAddress "$ENVIRONMENT")"
+  echo "You are executing transactions from this address: $(getDeployerAddress "$ENVIRONMENT")"
   echo ""
   echo "Please choose one of the following options:"
   local SELECTION=$(gum choose \
@@ -87,6 +81,7 @@ scriptMaster() {
     "7) Verify all unverified contracts" \
     )
 
+  #---------------------------------------------------------------------------------------------------------------------
   # use case 1: Deploy one specific contract to one network
   if [[ "$SELECTION" == *"1)"* ]]; then
     echo ""
@@ -120,7 +115,6 @@ scriptMaster() {
           )
     fi
 
-    #TODO: add code to select a contract version (or use latest as default)
     # get current contract version
     local VERSION=$(getCurrentContractVersion "$CONTRACT")
 
@@ -141,6 +135,8 @@ scriptMaster() {
 
     # check if last command was executed successfully, otherwise exit script with error message
     checkFailure $? "deploy contract $CONTRACT to network $NETWORK"
+
+  #---------------------------------------------------------------------------------------------------------------------
   # use case 2: Deploy one specific contract to all networks (=new contract)
   elif [[ "$SELECTION" == *"2)"* ]]; then
     echo ""
@@ -198,6 +194,7 @@ scriptMaster() {
 
     playNotificationSound
 
+  #---------------------------------------------------------------------------------------------------------------------
   # use case 3: Deploy all contracts to one selected network (=new network)
   elif [[ "$SELECTION" == *"3)"* ]]; then
     echo ""
@@ -221,6 +218,7 @@ scriptMaster() {
 
     playNotificationSound
 
+  #---------------------------------------------------------------------------------------------------------------------
   # use case 4: Deploy all (missing) contracts for all networks (actual vs. target)
   elif [[ "$SELECTION" == *"4)"* ]]; then
     echo ""
@@ -237,41 +235,24 @@ scriptMaster() {
 
   playNotificationSound
 
-
-
+  #---------------------------------------------------------------------------------------------------------------------
   # use case 5: Execute a script
   elif [[ "$SELECTION" == *"5)"* ]]; then
     echo ""
-    echo "Please select which script you would like to execute"
-
-    local SELECTION2=$(gum choose \
-      "1) Run diamondUpdate.sh script" \
-      "2) Run updatePeriphery.sh script" \
-      "3) Run sync-dexs.sh script" \
-      "4) Run sync-sigs.sh script" \
-      )
-
-    if [[ "$SELECTION2" == *"1)"* ]]; then
-      echo ""
-      echo "[info] selected use case: Run diamondUpdate.sh script"
-      diamondUpdate "" "$ENVIRONMENT"
-    elif [[ "$SELECTION2" == *"2)"* ]]; then
-      echo ""
-      echo "[info] selected use case: Run updatePeriphery.sh script"
-      updatePeriphery "" "$ENVIRONMENT" "" false true ""
-    elif [[ "$SELECTION2" == *"3)"* ]]; then
-      echo ""
-      echo "[info] selected use case: Run sync-dexs.sh script"
-      syncDEXs "" "$ENVIRONMENT" "" true
-    elif [[ "$SELECTION2" == *"4)"* ]]; then
-      echo ""
-      echo "[info] selected use case: Run sync-sigs.sh script"
-      syncSIGs "" "$ENVIRONMENT" "" true
-    else
-      error "invalid use case selected ('$SELECTION2') - exiting script"
+    SCRIPT=$(ls -1p "$TASKS_SCRIPT_DIRECTORY" | grep -v "/$" | sed -e 's/\.sh$//'| fzf --prompt "Please select the script you would like to execute: ")
+    #SCRIPT=$(ls -1p "$TASKS_SCRIPT_DIRECTORY" | grep -v "/$"  fzf --prompt "Please select the script you would like to execute: ")
+    if [[ -z "$SCRIPT" ]]; then
+      error "invalid value selected - exiting script now"
       exit 1
     fi
 
+
+    echo "[info] selected script: $SCRIPT"
+
+    # execute the selected script
+    eval "$SCRIPT"
+
+  #---------------------------------------------------------------------------------------------------------------------
   # use case 6: Update _targetState.json file
   elif [[ "$SELECTION" == *"6)"* ]]; then
     echo ""
@@ -279,24 +260,24 @@ scriptMaster() {
 
     # ask user to select a diamond type for which to update contract versions
     echo "[info] Please select for which diamond type you want to update contract version(s):"
-    SELECTION=$(gum choose \
+    SELECTION_DIAMOND_TYPE=$(gum choose \
       "1) Mutable"\
       "2) Immutable"\
       "3) Both"\
 
       )
-    echo "[info] selected option: $SELECTION"
+    echo "[info] selected option: $SELECTION_DIAMOND_TYPE"
 
     echo ""
     echo "Please choose one of the following options:"
-    local SELECTION2=$(gum choose \
+    local SELECTION_UPDATE_CASE=$(gum choose \
       "1) Add a new contract to all (not-excluded) networks"\
       "2) Update the version of a contract on all (not-excluded) networks"\
       "3) Add a new network with all (not-excluded) contracts"\
       )
-    echo "$SELECTION2"
+    echo "[info] selected option: $SELECTION_UPDATE_CASE"
 
-    if [[ "$SELECTION2" == *"1)"* ]]; then
+    if [[ "$SELECTION_UPDATE_CASE" == *"1)"* ]]; then
       # case: "1) 1) Add a new contract to all networks"
 
       # get names of all contracts
@@ -326,34 +307,25 @@ scriptMaster() {
       echo "Please enter the new contract version or just press enter to use current contract version ($CURRENT_VERSION):"
       read NEW_VERSION
 
-
       # determine the version
       USE_VERSION="${NEW_VERSION:-$CURRENT_VERSION}"
       echo "[info] selected version: $USE_VERSION"
 
       echo ""
-      echo "Please select an environment:"
-      local ENVIRONMENT=$(gum choose \
-        "staging"\
-        "production"\
-        )
-      echo "[info] selected environment: $ENVIRONMENT"
-
-      echo ""
       echo "[info] now adding contract version to target state file"
       # update target state json
-      if [[ "$SELECTION" == *"1)"* ]]; then
+      if [[ "$SELECTION_DIAMOND_TYPE" == *"1)"* ]]; then
         addNewContractVersionToAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamond" "$USE_VERSION" true
-      elif [[ "$SELECTION" == *"2)"* ]]; then
+      elif [[ "$SELECTION_DIAMOND_TYPE" == *"2)"* ]]; then
         addNewContractVersionToAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamondImmutable" "$USE_VERSION" true
-      elif [[ "$SELECTION" == *"3)"* ]]; then
+      elif [[ "$SELECTION_DIAMOND_TYPE" == *"3)"* ]]; then
         addNewContractVersionToAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamond" "$USE_VERSION" true
         addNewContractVersionToAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamondImmutable" "$USE_VERSION" true
       else
-        error "invalid value selected: $SELECTION - exiting script now"
+        error "invalid value selected: $SELECTION_DIAMOND_TYPE - exiting script now"
         exit 1
       fi
-    elif [[ "$SELECTION2" == *"2)"* ]]; then
+    elif [[ "$SELECTION_UPDATE_CASE" == *"2)"* ]]; then
       # case: "2) Update the version of a contract on all networks"
       # get names of all contracts
       ALL_CONTRACT_NAMES=($(getAllContractNames))
@@ -382,55 +354,35 @@ scriptMaster() {
       echo "Please enter the new contract version (current contract version=$CURRENT_VERSION):"
       read NEW_VERSION
 
-
       echo ""
-      echo "Please select an environment:"
-      local ENVIRONMENT=$(gum choose \
-        "staging"\
-        "production"\
-        )
-      echo "[info] selected environment: $ENVIRONMENT"
-
-      # TODO: add determine diamond type
-
-      echo ""
-      echo "[info] now updating contract version "
+      echo "[info] now updating $SELECTED_CONTRACT to version $NEW_VERSION "
 
       # update target state json
-      if [[ "$SELECTION" == *"1)"* ]]; then
+      if [[ "$SELECTION_DIAMOND_TYPE" == *"1)"* ]]; then
         updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamond" "$NEW_VERSION"
-      elif [[ "$SELECTION" == *"2)"* ]]; then
+      elif [[ "$SELECTION_DIAMOND_TYPE" == *"2)"* ]]; then
         updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamondImmutable" "$NEW_VERSION"
-      elif [[ "$SELECTION" == *"3)"* ]]; then
+      elif [[ "$SELECTION_DIAMOND_TYPE" == *"3)"* ]]; then
         updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamond" "$NEW_VERSION"
         updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamondImmutable" "$NEW_VERSION"
       else
-        error "invalid value selected: $SELECTION - exiting script now"
+        error "invalid value selected: $SELECTION_DIAMOND_TYPE - exiting script now"
         exit 1
       fi
-    elif [[ "$SELECTION2" == *"3)"* ]]; then
+    elif [[ "$SELECTION_UPDATE_CASE" == *"3)"* ]]; then
       # case: "3) Add a new network with all (included) contracts"
-      # TODO: adapt here for diamond contract type
       echo "Please enter the name of the new network:"
       read NETWORK_NAME
       echo ""
       echo "[info] selected network: $NETWORK_NAME"
 
-      echo "Please select an environment:"
-      local ENVIRONMENT=$(gum choose \
-        "staging"\
-        "production"\
-        )
-      echo "[info] selected environment: $ENVIRONMENT"
-      echo ""
-
       echo "[info] now adding a new network '$NETWORK_NAME' with all contracts to target state file (selected diamond type: $SELECTION)"
       # update target state json
-      if [[ "$SELECTION" == *"1)"* ]]; then
+      if [[ "$SELECTION_DIAMOND_TYPE" == *"1)"* ]]; then
         addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamond"
-      elif [[ "$SELECTION" == *"2)"* ]]; then
+      elif [[ "$SELECTION_DIAMOND_TYPE" == *"2)"* ]]; then
         addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamondImmutable"
-      elif [[ "$SELECTION" == *"3)"* ]]; then
+      elif [[ "$SELECTION_DIAMOND_TYPE" == *"3)"* ]]; then
         addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamond"
         addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamondImmutable"
       else
@@ -448,11 +400,13 @@ scriptMaster() {
         exit 1
       fi
     else
-      error "invalid use case selected ('$SELECTION2') - exiting script"
+      error "invalid use case selected ('$SELECTION_UPDATE_CASE') - exiting script"
       exit 1
     fi
     echo ""
     echo "[info] ...Batch update _targetState.json file successfully completed"
+
+  #---------------------------------------------------------------------------------------------------------------------
   # use case 7: Verify all unverified contracts
   elif [[ "$SELECTION" == *"7)"* ]]; then
     verifyAllUnverifiedContractsInLogFile

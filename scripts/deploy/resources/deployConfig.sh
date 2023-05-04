@@ -22,6 +22,9 @@ CONTRACT_DIRECTORY="src/"
 # the directory of all deploy and update scripts
 DEPLOY_SCRIPT_DIRECTORY="scripts/deploy/facets/"
 
+# the directory of all task scripts
+TASKS_SCRIPT_DIRECTORY="scripts/tasks/"
+
 # the path of the JSON file that contains the target state
 TARGET_STATE_PATH="scripts/deploy/_targetState.json"
 

@@ -2,7 +2,7 @@
 
 
 
-update() {
+diamondMakeImmutable() {
   # load env variables
 	source .env
 
@@ -71,5 +71,4 @@ checkFailure() {
 	fi
 }
 
-update
 
