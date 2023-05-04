@@ -28,6 +28,30 @@
       "0x2EfC66F1ff37fc5277De5526Ab5CB7650f2DD518": {
         "Name": "PeripheryRegistryFacet",
         "Version": ""
+      },
+      "0xbd8D369470169f9976c5bCc60318955836843a71": {
+        "Name": "AmarokFacet",
+        "Version": ""
+      },
+      "0xA1Edc2eD671Dfa77eD2dCD2ee012F82e4807A75a": {
+        "Name": "CBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x2fF4484bcaEf13e4a1Db84E6af882c9d66c97e3F": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x6e118Db5ab7018FcF195e1310074688B8A1912B3": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
+      },
+      "0x4cf6c406F004b7B588ec8638fBd2cC2215D87C90": {
+        "Name": "MultichainFacet",
+        "Version": "1.0.1"
+      },
+      "0x238502aDc8ca550723CBE78543c8B757599A21cC": {
+        "Name": "NXTPFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
