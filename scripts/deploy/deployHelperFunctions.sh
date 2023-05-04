@@ -2171,7 +2171,8 @@ function updateDiamondLogsInAllNetworks(){
 
     # get RPC URL
     local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
-    echo "RPC_URL: ${!RPC_URL}"
+    RPC_URL=${!RPC_URL}
+    echo "RPC_URL: RPC_URL"
 
     for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
       echo " current ENVIRONMENT: $ENVIRONMENT"
@@ -2195,13 +2196,49 @@ function updateDiamondLogsInAllNetworks(){
           echo "    diamond address: $DIAMOND_ADDRESS"
         fi
 
-
+        echo "    RPC_URL: $RPC_URL"
 
         # get list of facets
-        local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "${!RPC_URL}") 2>/dev/null
+        # execute script
+        attempts=1 # initialize attempts to 0
+
+        while [ $attempts -lt 11 ]; do
+          echo "    Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt ${attempts}"
+          # try to execute call
+          KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
+
+          # check the return code the last call
+          if [ $? -eq 0 ]; then
+            break # exit the loop if the operation was successful
+          fi
+
+          attempts=$((attempts + 1)) # increment attempts
+          sleep 1                    # wait for 1 second before trying the operation again
+        done
+
+        if [ $attempts -eq 11 ]; then
+          echo "Failed to get facets"
+        fi
+
+
+
+
 
         # call saveDiamond function
-        saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES"
+        echo "    NETWORK: $NETWORK"
+        echo "    ENVIRONMENT: $ENVIRONMENT"
+        echo "    USE_MUTABLE_DIAMOND: $USE_MUTABLE_DIAMOND"
+        echo "    KNOWN_FACET_ADDRESSES: $KNOWN_FACET_ADDRESSES"
+
+
+        if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
+          echo "    no facets found"
+          saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
+        else
+          saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES"
+        fi
+
+
 
         # check result
         if [[ $? -ne 0 ]]; then
@@ -2216,6 +2253,7 @@ function updateDiamondLogsInAllNetworks(){
     done
   echo ""
   done
+  playNotificationSound
 }
 # <<<<<< read from blockchain
 
@@ -2447,3 +2485,5 @@ function test_getContractNameFromDeploymentLogs() {
 function test_tmp(){
   echo ""
 }
+
+updateDiamondLogsInAllNetworks

@@ -2,6 +2,9 @@
 
 # TODO
 
+
+
+
 # - add verify contract use case (use bytecode and settings from storage)
 # - create function that checks if contract is deployed (get bytecode, predict address, check bytecode at address)
 # - return master log to store all deployments (and return latest when inquired)
