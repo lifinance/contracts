@@ -470,5 +470,5 @@ scriptMaster() {
   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 }
 
-deployMaster
+scriptMaster
 

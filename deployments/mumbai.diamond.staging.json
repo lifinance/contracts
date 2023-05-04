@@ -36,6 +36,10 @@
       "0x5f4E2f294aE3177215ffd4A06D7A920D0fbCEeb2": {
         "Name": "CircleBridgeFacet",
         "Version": ""
+      },
+      "0xe191D7d6B18746D81F3628593486fA03975708a7": {
+        "Name": "AxelarFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

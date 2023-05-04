@@ -145,7 +145,8 @@
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.0",
+        "Executor": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "AcrossFacet": "1.0.0",
@@ -632,7 +633,7 @@
       }
     }
   },
-  "bsctest": {
+  "bsc-testnet": {
     "production": {
       "LiFiDiamond": {
         "LiFiDiamond": "1.0.0",

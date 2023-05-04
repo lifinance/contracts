@@ -943,7 +943,11 @@ function verifyContract() {
   ARGS=$4
 
   # get API key for blockchain explorer
-  API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
+  if [[ "$NETWORK" == "bsc-testnet" ]]; then
+    API_KEY="BSC_ETHERSCAN_API_KEY"
+  else
+    API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
+  fi
 
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
@@ -957,12 +961,18 @@ function verifyContract() {
     echo "[debug] blockexplorer API_KEY value=${!API_KEY}"
   fi
 
-  if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" &&  "$NETWORK" == *"$DO_NOT_VERIFY_IN_THESE_NETWORKS"* ]]; then
-    echo " it is true that the string '$NETWORK' is a substring of '$DO_NOT_VERIFY_IN_THESE_NETWORKS' "
-      if [[ "$DEBUG" == *"true"* ]]; then
-        echo "[debug] network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
-        return 0
-      fi
+  if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
+      case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
+          *,"$NETWORK",*)
+              if [[ "$DEBUG" == *"true"* ]]; then
+                echo "[debug] network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
+                return 1
+              fi
+              ;;
+          *)
+              # Match not found, proceed with verification
+              ;;
+      esac
   fi
 
   # verify contract using forge
@@ -1027,20 +1037,20 @@ function verifyAllUnverifiedContractsInLogFile() {
     # Loop through the array of second-level keys
     for NETWORK in "${NETWORKS[@]}"; do
 
-     # Read ENVIRONMENT keys for the network
-     ENVIRONMENTS=($(jq -r ".${CONTRACT}.${NETWORK} | keys[]" "$LOG_FILE_PATH"))
+      # Read ENVIRONMENT keys for the network
+      ENVIRONMENTS=($(jq -r --arg contract "$CONTRACT" --arg network "$NETWORK" '.[$contract][$network] | keys[]' "$LOG_FILE_PATH"))
 
       # go through all environments
       for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
 
          # Read VERSION keys for the network
-         VERSIONS=($(jq -r ".${CONTRACT}.${NETWORK}.${ENVIRONMENT} | keys[]" "$LOG_FILE_PATH"))
+         VERSIONS=($(jq -r --arg contract "$CONTRACT" --arg network "$NETWORK" --arg environment "$ENVIRONMENT" '.[$contract][$network][$environment] | keys[]' "$LOG_FILE_PATH"))
 
         # go through all versions
         for VERSION in "${VERSIONS[@]}"; do
 
           # get values of current entry
-          ENTRY=$(cat "$LOG_FILE_PATH" | jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][0]')
+          ENTRY=$(cat "$LOG_FILE_PATH" | jq -r --arg contract "$CONTRACT" --arg network "$NETWORK" --arg environment "$ENVIRONMENT" --arg version "$VERSION" '.[$contract][$network][$environment][$version][0]')
 
           # extract necessary information from log
           ADDRESS=$(echo "$ENTRY" | awk -F'"' '/"ADDRESS":/{print $4}')

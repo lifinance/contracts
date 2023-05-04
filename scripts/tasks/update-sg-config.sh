@@ -33,7 +33,7 @@ update() {
   while [ $attempts -lt 11 ]; do
     echo "Trying to execute $SCRIPT now - attempt ${attempts}"
     # try to execute call
-    NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy
+    NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script scripts/deploy/facets/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy
 
     # check the return code the last call
     if [ $? -eq 0 ]; then

@@ -20,7 +20,7 @@ MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=5
 CONTRACT_DIRECTORY="src/"
 
 # the directory of all deploy and update scripts
-DEPLOY_SCRIPT_DIRECTORY="scripts/deploy/facets"
+DEPLOY_SCRIPT_DIRECTORY="scripts/deploy/facets/"
 
 # the path of the JSON file that contains the target state
 TARGET_STATE_PATH="scripts/deploy/_targetState.json"
@@ -41,13 +41,13 @@ CONTRACT_REMINDERS="scripts/deploy/resources/contractSpecificReminders.sh"
 EXCLUDE_NETWORKS="lineatest"
 
 # will output more detailed information for debugging purposes
-DEBUG=false
+DEBUG=true
 
 # defines if newly deployed contracts should be verified or not
 VERIFY_CONTRACTS=false
 
 # contract verification will be deactivated for any network listed here
-DO_NOT_VERIFY_IN_THESE_NETWORKS=""
+DO_NOT_VERIFY_IN_THESE_NETWORKS="gnosis,testNetwork,aurora"
 
 # the path to the file that contains a list of all networks
 NETWORKS_FILE_PATH="./networks"
