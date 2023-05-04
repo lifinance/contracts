@@ -1,40 +1,52 @@
 {
   "LiFiDiamond": {
-    "0x707e71E5a1b55C8d75bfCB1DF25AEF315b6ED030": {
-      "Name": "DiamondCutFacet",
-      "Version": ""
+    "Facets": {
+      "0x707e71E5a1b55C8d75bfCB1DF25AEF315b6ED030": {
+        "Name": "DiamondCutFacet",
+        "Version": ""
+      },
+      "0x096ECa0de7375Ff5b72319489F7f9A35839c0735": {
+        "Name": "DiamondLoupeFacet",
+        "Version": ""
+      },
+      "0x1a3b3AB93b691C0f3b61F8ea40e3fe98f8e319C9": {
+        "Name": "OwnershipFacet",
+        "Version": ""
+      },
+      "0x1C57D36688580071F382c85c17FB32eB5321E4CA": {
+        "Name": "WithdrawFacet",
+        "Version": ""
+      },
+      "0x385cc61B889679A611de73CE218E5c6A69C1D635": {
+        "Name": "DexManagerFacet",
+        "Version": ""
+      },
+      "0xBE17E6fA0C580C1c4417002676232BC1a4bb231e": {
+        "Name": "AccessManagerFacet",
+        "Version": ""
+      },
+      "0xc2e9E962dB85C1C9444908e432e9C3ee6DAF1643": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": ""
+      },
+      "0x8249f33E868ED8019A57689abD877d634756852f": {
+        "Name": "AmarokFacet",
+        "Version": ""
+      },
+      "0x3667588283c5245c3E627e5174Fbc9d6Ab92Ead2": {
+        "Name": "",
+        "Version": ""
+      }
     },
-    "0x096ECa0de7375Ff5b72319489F7f9A35839c0735": {
-      "Name": "DiamondLoupeFacet",
-      "Version": ""
-    },
-    "0x1a3b3AB93b691C0f3b61F8ea40e3fe98f8e319C9": {
-      "Name": "OwnershipFacet",
-      "Version": ""
-    },
-    "0x1C57D36688580071F382c85c17FB32eB5321E4CA": {
-      "Name": "WithdrawFacet",
-      "Version": ""
-    },
-    "0x385cc61B889679A611de73CE218E5c6A69C1D635": {
-      "Name": "DexManagerFacet",
-      "Version": ""
-    },
-    "0xBE17E6fA0C580C1c4417002676232BC1a4bb231e": {
-      "Name": "AccessManagerFacet",
-      "Version": ""
-    },
-    "0xc2e9E962dB85C1C9444908e432e9C3ee6DAF1643": {
-      "Name": "PeripheryRegistryFacet",
-      "Version": ""
-    },
-    "0x8249f33E868ED8019A57689abD877d634756852f": {
-      "Name": "AmarokFacet",
-      "Version": ""
-    },
-    "0x3667588283c5245c3E627e5174Fbc9d6Ab92Ead2": {
-      "Name": "",
-      "Version": ""
+    "Periphery": {
+      "AxelarExecutor": "",
+      "ERC20Proxy": "0x5F9a7Ce82722e7641d2b8533472181f89f5f6936",
+      "Executor": "0x6c565C1f41270fD11D41b47f1fD0Fa3a9F395D33",
+      "FeeCollector": "",
+      "FusePoolZap": "",
+      "Receiver": "0x4d394812874749f3cD36753F1b688926c849A814",
+      "RelayerCelerIM": "",
+      "ServiceFeeCollector": "0x0874Be3949ABF784C11E5f822F1a54c8655904C1"
     }
   }
 }

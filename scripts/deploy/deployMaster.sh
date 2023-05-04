@@ -1,40 +1,35 @@
 #!/bin/bash
 
-# USER INFO
-# - target state must be updated before running the script (e.g. deploying new contract etc.)
-# - existing facets will be replaced if a new facet is added
-
-
 # TODO
+
+
+
+
 # - add verify contract use case (use bytecode and settings from storage)
 # - create function that checks if contract is deployed (get bytecode, predict address, check bytecode at address)
+# - return master log to store all deployments (and return latest when inquired)
+# - add use case to only remove a facet
+# - check if use case 4 will also check if a contract is added to diamond already
+# - create use case to deploy and add all periphery (or check if target state use case covers it)
+# - merging two branches with deployments in same network (does it cause merge-conflicts?)
+# - re-organize scripts
+#     >>> script/UpdateHopFacetConfig.s.sol
 
 
-# - implement all deploy use cases
-#   - use case 4 is still missing
-# - improve logging (use external library for console logging)
+
 
 # - clean code
 #   - local before variables
-#   - variable names uppercase
 #   - make environment / file suffix global variables
 #   - add function descriptions in helper functions
 
-# - update docs / notion
-#   - add info about SALT env variable to deploy new contracts
 # - write article
 # - for immutable diamond we need to run some specific script - add to deploy script
 
 # - add fancy stuff
 #   - script runtime
 #   -  add low balance warnings and currency symbols for deployer wallet balance
-#   - create a easy-readable file that shows which facets are added to diamond (nice-to-have)
 
-# - offer to exclude bytecode verification and adapt ensureENV for networks for which we dont have a functioning block explorer
-
-# known limitations:
-#   - we currently cannot replace any of the core facets with our scripts
-#   - log can contain several entries of the same contract in same version - need to define which of those to return
 
 
 deployMaster() {
@@ -49,21 +44,29 @@ deployMaster() {
   source scripts/sync-sigs.sh
   source scripts/deploy/diamondUpdate.sh
   source scripts/deploy/deployFacetAndAddToDiamond.sh
+  source scripts/deploy/deployPeripheryContracts.sh
   source scripts/deploy/updatePeriphery.sh
 
   # determine environment: check if .env variable "PRODUCTION" is set to true
   if [[ "$PRODUCTION" == "true" ]]; then
     # make sure that PRODUCTION was selected intentionally by user
-    gum style \
-    --foreground 212 --border-foreground 213 --border double \
-    --align center --width 50 --margin "1 2" --padding "2 4" \
-    '!!! ATTENTION !!!'
-
-    echo "Your environment variable PRODUCTION is set to true"
-    echo "This means you will be deploying contracts to production"
     echo "    "
-    echo "Do you want to skip?"
-    gum confirm && exit 1 || echo "OK, continuing to execute in PRODUCTION environment"
+    echo "    "
+    printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!";
+    printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true";
+    printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production";
+    printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+    echo "    "
+    printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?";
+    PROD_SELECTION=$(gum choose \
+        "yes" \
+        "no" \
+        )
+
+    if [[ $PROD_SELECTION != "no" ]]; then
+      echo "...exiting script"
+      exit 0
+    fi
 
     ENVIRONMENT="production"
   else
@@ -71,6 +74,8 @@ deployMaster() {
   fi
 
   # ask user to choose a deploy use case
+  echo ""
+  echo "You are deploying from this address: $(getDeployerAddress "$ENVIRONMENT")"
   echo ""
   echo "Please choose one of the following options:"
   local SELECTION=$(gum choose \
@@ -95,7 +100,7 @@ deployMaster() {
     echo "[info] loading deployer wallet balance..."
 
     # get deployer wallet balance
-    BALANCE=$(getDeployerBalance "$NETWORK")
+    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
 
     echo "[info] deployer wallet balance in this network: $BALANCE"
     echo ""
@@ -105,14 +110,16 @@ deployMaster() {
     SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
-    # check if new contract should be added to diamond after deployment
-    echo ""
-    echo "Do you want to add this contract to a diamond after deployment?"
-    local ADD_TO_DIAMOND=$(gum choose \
-        "yes - to LiFiDiamond"\
-        "yes - to LiFiDiamondImmutable"\
-        " no - do not update any diamond"\
-        )
+    # check if new contract should be added to diamond after deployment (only check for
+    if [[ ! "$CONTRACT" == *"LiFiDiamond"* ]]; then
+      echo ""
+      echo "Do you want to add this contract to a diamond after deployment?"
+      ADD_TO_DIAMOND=$(gum choose \
+          "yes - to LiFiDiamond"\
+          "yes - to LiFiDiamondImmutable"\
+          " no - do not update any diamond"\
+          )
+    fi
 
     #TODO: add code to select a contract version (or use latest as default)
     # get current contract version
@@ -145,13 +152,15 @@ deployMaster() {
     local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment
-    echo ""
-    echo "Do you want to add this contract to a diamond after deployment?"
-    local ADD_TO_DIAMOND=$(gum choose \
-        "yes - to LiFiDiamond"\
-        "yes - to LiFiDiamondImmutable"\
-        " no - do not update any diamond"\
-        )
+    if [[ ! "$CONTRACT" == *"LiFiDiamond"* ]]; then
+      echo ""
+      echo "Do you want to add this contract to a diamond after deployment?"
+      local ADD_TO_DIAMOND=$(gum choose \
+          "yes - to LiFiDiamond"\
+          "yes - to LiFiDiamondImmutable"\
+          " no - do not update any diamond"\
+          )
+    fi
 
     #TODO: add code to select a contract version (or use latest as default)
 
@@ -168,7 +177,7 @@ deployMaster() {
       echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now deploying contract $CONTRACT to network $NETWORK...."
 
       # get deployer wallet balance
-      BALANCE=$(getDeployerBalance "$NETWORK")
+      BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
       echo "[info] deployer wallet balance in this network: $BALANCE"
       echo ""
 
@@ -198,7 +207,7 @@ deployMaster() {
     # get user-selected network from list
     local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
     # get deployer wallet balance
-    BALANCE=$(getDeployerBalance "$NETWORK")
+    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
 
     echo "[info] selected network: $NETWORK"
     echo "[info] deployer wallet balance in this network: $BALANCE"
@@ -463,3 +472,4 @@ deployMaster() {
 }
 
 deployMaster
+

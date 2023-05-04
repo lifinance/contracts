@@ -1,5 +1,5 @@
 #!/bin/bash
-#TODO: sort & comment functions
+#TODO: comment functions
 
 # load env variables
 source .env
@@ -8,8 +8,6 @@ source .env
 source scripts/deploy/deployConfig.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
-
-
 
 # >>>>> logging
 function logContractDeploymentInfo_BACKUP {
@@ -23,6 +21,10 @@ function logContractDeploymentInfo_BACKUP {
   local ENVIRONMENT="$7"
   local ADDRESS="$8"
   local VERIFIED=$9
+
+  if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
+    error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT). Please check and manually update the log with the correct address. "
+  fi
 
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
@@ -81,7 +83,7 @@ function logContractDeploymentInfo {
   local VERIFIED="$9"
 
   if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
-    error "no address was logged for deployment of $CONTRACT on network $NETWORK (environment=$ENVIRONMENT). Please check and manually update the log with the correct address. "
+    error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT). Please check and manually update the log with the correct address. "
   fi
 
   # logging for debug purposes
@@ -436,7 +438,7 @@ function getContractInfoFromDiamondDeploymentLogByName(){
   ADDRESSES_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
 
   # Read top-level keys into an array
-  FACET_ADDRESSES=($(jq -r ".${DIAMOND_TYPE} | keys[]" "$ADDRESSES_FILE"))
+  FACET_ADDRESSES=($(jq -r ".${DIAMOND_TYPE}.Facets | keys[]" "$ADDRESSES_FILE"))
 
   # Loop through the array of top-level keys
   for FACET_ADDRESS in "${FACET_ADDRESSES[@]}"; do
@@ -460,7 +462,7 @@ function getContractInfoFromDiamondDeploymentLogByName(){
   error "could not find contract info"
   return 1
 }
-function saveDiamond_OLD() {
+function saveDiamond_DEPRECATED() {
   :'
   This contract version only saves the facet addresses as an array in the JSON file
   without any further information (such as version or name, like in the new function)
@@ -492,7 +494,7 @@ function saveDiamond_OLD() {
 	result=$(cat "$DIAMOND_FILE" | jq -r ". + {\"facets\": [$FACETS] }" || cat "$DIAMOND_FILE")
 	printf %s "$result" >"$DIAMOND_FILE"
 }
-function saveDiamond() {
+function saveDiamondFacets() {
   # read function arguments into variables
   NETWORK=$1
   ENVIRONMENT=$2
@@ -545,47 +547,199 @@ function saveDiamond() {
     fi
 
     # add new entry to JSON file
-    result=$(cat "$DIAMOND_FILE" | jq -r ".$DIAMOND_NAME += $JSON_ENTRY" || cat "$DIAMOND_FILE")
+    result=$(cat "$DIAMOND_FILE" | jq -r --argjson json_entry "$JSON_ENTRY" '.[$diamond_name] |= . + {Facets: (.Facets + $json_entry)}' --arg diamond_name "$DIAMOND_NAME" || cat "$DIAMOND_FILE")
+
     printf %s "$result" >"$DIAMOND_FILE"
   done
+
+  # add information about registered periphery contracts
+  saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
  }
+function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
+  # read function arguments into variables
+  NETWORK=$1
+  ENVIRONMENT=$2
+  USE_MUTABLE_DIAMOND=$3
+
+  # get file suffix based on value in variable ENVIRONMENT
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
+  # define path for json file based on which diamond was used
+  if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
+   DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
+   DIAMOND_NAME="LiFiDiamond"
+  else
+   DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
+   DIAMOND_NAME="LiFiDiamondImmutable"
+  fi
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME")
+
+  echo "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
+  echo "DEPLOYER_ADDRESS: $(getDeployerAddress "$ENVIRONMENT")"
+
+  if [[ -z "$DIAMOND_ADDRESS" ]]; then
+    error "could not find address for $DIAMOND_NAME in network-specific log file for network $NETWORK (ENVIRONMENT=$ENVIRONMENT)"
+    return 1
+  fi
+
+  # get a list of all periphery contracts
+  PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
+
+  MULTICALL_DATA="["
+
+  # loop through periphery contracts
+  for CONTRACT in $PERIPHERY_CONTRACTS; do
+    echo "CONTRACT: $CONTRACT"
+
+    # Build the function call for the contract
+    #DATA=$(echo -n "0x$(echo -n "getPeripheryContract()" | xxd -p -c 256)")
+    CALLDATA=$(cast calldata "getPeripheryContract(string)" "$CONTRACT")
+
+    echo "CALLDATA: $CALLDATA"
+
+    #target structure [(address,calldata),(address,calldata)]
+
+    # Add the call data and target address to the call array
+    MULTICALL_DATA=$MULTICALL_DATA"($DIAMOND_ADDRESS,$CALLDATA),"
+
+  done
+
+  # remove trailing comma and add trailing bracket
+  MULTICALL_DATA=${MULTICALL_DATA%?}"]"
+
+  echo "MULTICALL_DATA: $MULTICALL_DATA"
+
+  MULTICALL_ADDRESS="0xcA11bde05977b3631167028862bE2a173976CA11"
+
+  PRIV_KEY=$(getPrivateKey "$ENVIRONMENT")
+
+  echo "PRIV_KEY: $PRIV_KEY"
+
+  attempts=1
+
+  echo "before call"
+
+    while [ $attempts -lt 11 ]; do
+      echo "Trying to execute multicall now - attempt ${attempts}"
+      # try to execute call
+      MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key "$PRIV_KEY" --rpc-url "https://polygon-rpc.com" --legacy)
+
+      # check the return code the last call
+      if [ $? -eq 0 ]; then
+        break # exit the loop if the operation was successful
+      fi
+
+      attempts=$((attempts + 1)) # increment attempts
+      sleep 1                    # wait for 1 second before trying the operation again
+    done
+
+    if [ $attempts -eq 11 ]; then
+      echo "Failed to execute multicall"
+      exit 1
+    fi
+
+
+  #MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key "$PRIV_KEY" --rpc-url  "https://opt-mainnet.g.alchemy.com/v2/4y-BIUvj_mTGWHrsHZncoJyNolNjJrsT" --legacy)
+  echo "after call"
+
+
+  echo ""
+  echo ""
+
+  echo "MULTICALL_RESULTS: $MULTICALL_RESULTS"
+
+
+
+
+
+
+    # check if diamond returns an address for this contract
+
+    #
+
+  }
+function saveDiamondPeriphery() {
+     # read function arguments into variables
+     NETWORK=$1
+     ENVIRONMENT=$2
+     USE_MUTABLE_DIAMOND=$3
+
+     # get file suffix based on value in variable ENVIRONMENT
+     local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
+     # get RPC URL
+     RPC_URL=$(getRPCUrl "$NETWORK")
+
+     # define path for json file based on which diamond was used
+     if [[ "$USE_MUTABLE_DIAMOND" == "true" ]]; then
+      DIAMOND_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
+      DIAMOND_NAME="LiFiDiamond"
+     else
+      DIAMOND_FILE="./deployments/${NETWORK}.diamond.immutable.${FILE_SUFFIX}json"
+      DIAMOND_NAME="LiFiDiamondImmutable"
+     fi
+     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME")
+
+     # make sure diamond address is available
+     if [[ -z "$DIAMOND_ADDRESS" ]]; then
+       error "could not find address for $DIAMOND_NAME in network-specific log file for network $NETWORK (ENVIRONMENT=$ENVIRONMENT)"
+       return 1
+     fi
+
+     # get a list of all periphery contracts
+     PERIPHERY_CONTRACTS=$(getContractNamesInFolder "src/Periphery/")
+     #PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
+
+     # loop through periphery contracts
+     for CONTRACT in $PERIPHERY_CONTRACTS; do
+      # get the address of this contract from diamond (will return ZERO_ADDRESS, if not registered)
+      ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" --rpc-url "$RPC_URL")
+
+      # check if address is ZERO_ADDRESS
+      if [[ "$ADDRESS" == $ZERO_ADDRESS ]]; then
+       ADDRESS=""
+      fi
+
+      # add new entry to JSON file
+      result=$(cat "$DIAMOND_FILE" | jq -r ".$DIAMOND_NAME.Periphery += {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$DIAMOND_FILE")
+      printf %s "$result" >"$DIAMOND_FILE"
+     done
+     }
 function saveContract() {
-   # read function arguments into variables
-   NETWORK=$1
-   CONTRACT=$2
-   ADDRESS=$3
-   FILE_SUFFIX=$4
+  # read function arguments into variables
+  NETWORK=$1
+  CONTRACT=$2
+  ADDRESS=$3
+  FILE_SUFFIX=$4
 
-   # load JSON FILE that contains deployment addresses
-   # TODO: use log FILE instead???
-   ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+  # load JSON FILE that contains deployment addresses
+  ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
 
-   # logging for debug purposes
-   if [[ "$DEBUG" == *"true"* ]]; then
-     echo ""
-     echo "[debug] in function saveContract"
-     echo "[debug] NETWORK=$NETWORK"
-     echo "[debug] CONTRACT=$CONTRACT"
-     echo "[debug] ADDRESS=$ADDRESS"
-     echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-     echo "[debug] ADDRESSES_FILE=$ADDRESSES_FILE"
-   fi
+  # logging for debug purposes
+  if [[ "$DEBUG" == *"true"* ]]; then
+   echo ""
+   echo "[debug] in function saveContract"
+   echo "[debug] NETWORK=$NETWORK"
+   echo "[debug] CONTRACT=$CONTRACT"
+   echo "[debug] ADDRESS=$ADDRESS"
+   echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
+   echo "[debug] ADDRESSES_FILE=$ADDRESSES_FILE"
+  fi
 
-   # create an empty json if it does not exist
-   if [[ ! -e $ADDRESSES_FILE ]]; then
-     echo "{}" >"$ADDRESSES_FILE"
-   fi
+  if [[ "$ADDRESS" == *"null"* || -z "$ADDRESS"  ]]; then
+    error "trying to write a 'null' address to log file (NETWORK=$NETWORK, CONTRACT=$CONTRACT, ADDRESS=$ADDRESS)"
+  fi
 
-   # add new address to address log FILE
-   RESULT=$(cat "$ADDRESSES_FILE" | jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$ADDRESSES_FILE")
-   printf %s "$RESULT" >"$ADDRESSES_FILE"
+  # create an empty json if it does not exist
+  if [[ ! -e $ADDRESSES_FILE ]]; then
+   echo "{}" >"$ADDRESSES_FILE"
+  fi
+
+  # add new address to address log FILE
+  RESULT=$(cat "$ADDRESSES_FILE" | jq -r ". + {\"$CONTRACT\": \"$ADDRESS\"}" || cat "$ADDRESSES_FILE")
+  printf %s "$RESULT" >"$ADDRESSES_FILE"
 }
 # <<<<< reading and manipulation of deployment log files
-
-
-
-
-
 
 # >>>>> working with directories and reading other files
 function checkIfFileExists(){
@@ -779,7 +933,6 @@ function getOptimizerRuns() {
 
     }
 # <<<<< working with directories and reading other files
-
 
 # >>>>> writing to blockchain & verification
 function verifyContract() {
@@ -988,10 +1141,10 @@ function removeFacetFromDiamond() {
     # call diamond
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$PRIVATE_KEY" --rpc-url "${!RPC}" --legacy
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy
     else
       # do not print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$PRIVATE_KEY" --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
     fi
 
     # check the return code the last call
@@ -1380,19 +1533,25 @@ function getUserSelectedNetwork() {
   return 0
 }
 function determineEnvironment() {
-  # check if env variable "PRODUCTION" is true (or not set at all), otherwise deploy as staging
   if [[ "$PRODUCTION" == "true" ]]; then
     # make sure that PRODUCTION was selected intentionally by user
-    gum style \
-    --foreground 212 --border-foreground 213 --border double \
-    --align center --width 50 --margin "1 2" --padding "2 4" \
-    '!!! ATTENTION !!!'
-
-    echo "Your environment variable PRODUCTION is set to true"
-    echo "This means you will be deploying contracts to production"
     echo "    "
-    echo "Do you want to skip?"
-    gum confirm && exit 1 || echo "OK, continuing to deploy to PRODUCTION"
+    echo "    "
+    printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!";
+    printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true";
+    printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production";
+    printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+    echo "    "
+    printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?";
+    PROD_SELECTION=$(gum choose \
+        "yes" \
+        "no" \
+        )
+
+    if [[ $PROD_SELECTION != "no" ]]; then
+      echo "...exiting script"
+      exit 0
+    fi
 
     echo "production"
   else
@@ -1419,10 +1578,6 @@ function warning() {
   printf '\033[33m[warning] %s\033[0m\n' "$1";
 }
 # <<<<< output to console
-
-
-
-
 
 # >>>>> Reading and manipulation of target state JSON file
 function addContractVersionToTargetState() {
@@ -1587,12 +1742,13 @@ function getContractAddressFromSalt() {
   local SALT=$1
   local NETWORK=$2
   local CONTRACT_NAME=$3
+  local ENVIRONMENT=$4
 
   # get RPC URL
   local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
 
   # get deployer address
-  local DEPLOYER_ADDRESS=$(getDeployerAddress)
+  local DEPLOYER_ADDRESS=$(getDeployerAddress "$ENVIRONMENT")
 
 
   # get actual deploy salt (as we do in DeployScriptBase:  keccak256(abi.encodePacked(saltPrefix, contractName));)
@@ -1613,12 +1769,17 @@ function getContractAddressFromSalt() {
 
 }
 function getDeployerAddress() {
-    # prepare web3 code to be executed
-    jsCode="const Web3 = require('web3');
-      const web3 = new Web3();
-      const deployerAddress = (web3.eth.accounts.privateKeyToAccount('$PRIVATE_KEY')).address
-      const checksumAddress = web3.utils.toChecksumAddress(deployerAddress);
-      console.log(checksumAddress);"
+  # read function arguments into variables
+  local ENVIRONMENT=$1
+
+  PRIV_KEY="$(getPrivateKey "$ENVIRONMENT")"
+
+  # prepare web3 code to be executed
+  jsCode="const Web3 = require('web3');
+    const web3 = new Web3();
+    const deployerAddress = (web3.eth.accounts.privateKeyToAccount('$PRIV_KEY')).address
+    const checksumAddress = web3.utils.toChecksumAddress(deployerAddress);
+    console.log(checksumAddress);"
 
     # execute code using web3
     DEPLOYER_ADDRESS=$(node -e "$jsCode")
@@ -1629,12 +1790,13 @@ function getDeployerAddress() {
 function getDeployerBalance() {
   # read function arguments into variables
   local NETWORK=$1
+  local ENVIRONMENT=$2
 
   # get RPC URL
   RPC_URL=$(getRPCUrl "$NETWORK")
 
   # get deployer address
-  ADDRESS=$(getDeployerAddress)
+  ADDRESS=$(getDeployerAddress "$ENVIRONMENT")
 
   # get balance in given network
   BALANCE=$(cast balance "$ADDRESS" --rpc-url "$RPC_URL")
@@ -1731,6 +1893,8 @@ function getPeripheryAddressFromDiamond() {
   fi
 }
 function getFacetFunctionSelectorsFromDiamond() {
+  # THIS FUNCTION NEEDS TO BE UPDATED/FIXED BEFORE BEING USED AGAIN
+
   # read function arguments into variables
   local DIAMOND_ADDRESS="$1"
   local FACET_NAME="$2"
@@ -1753,11 +1917,11 @@ function getFacetFunctionSelectorsFromDiamond() {
   # get RPC URL
   local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
 
-  # get a list of all facet addresses that are registered with the diamond
+  # get path of diamond log file
   local DIAMOND_FILE_PATH="deployments/$NETWORK.diamond.${FILE_SUFFIX}json"
 
   # search in DIAMOND_FILE_PATH for the given address
-  if jq -e ".facets | index(\"$FACET_ADDRESS\")" "$DIAMOND_FILE_PATH" >/dev/null; then
+  if jq -e ".facets | index(\"$FACET_ADDRESS\")" "$DIAMOND_FILE_PATH" >/dev/null; then # << this does not yet reflect the new file structure !!!!!!
     # get function selectors from diamond (function facetFunctionSelectors)
     local ATTEMPTS=1
     while [[ -z "$FUNCTION_SELECTORS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
@@ -1896,8 +2060,51 @@ function getFacetAddressFromDiamond() {
 
   echo "$RESULT"
 }
+function getCurrentGasPrice() {
+  # read function arguments into variables
+  local NETWORK=$1
+
+  # get RPC URL for given network
+  RPC_URL=$(getRPCUrl "$NETWORK")
+
+  GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL")
+
+  echo "$GAS_PRICE"
+}
 # <<<<<< read from blockchain
 
+# >>>>>> miscellaneous
+function doNotContinueUnlessGasIsBelowThreshold() {
+  # read function arguments into variables
+  local NETWORK=$1
+
+  if [[ "$NETWORK" != "mainnet" ]]; then
+    return 0
+  fi
+
+  echo "ensuring gas price is below maximum threshold as defined in config (for mainnet only)"
+
+  # Start the do-while loop
+  while true
+  do
+    # Get the current gas price
+    CURRENT_GAS_PRICE=$(getCurrentGasPrice "mainnet")
+
+    # Check if the counter variable has reached 10
+    if [ "$MAINNET_MAXIMUM_GAS_PRICE" -gt "$CURRENT_GAS_PRICE" ]
+    then
+      # If the counter variable has reached 10, exit the loop
+      echo "gas price ($CURRENT_GAS_PRICE) is below maximum threshold ($MAINNET_MAXIMUM_GAS_PRICE) - continuing with script execution"
+      return
+    else
+      echo "gas price ($CURRENT_GAS_PRICE) is above maximum ($MAINNET_MAXIMUM_GAS_PRICE) - waiting..."
+      echo ""
+    fi
+
+    # wait 5 seconds before checking gas price again
+    sleep 5
+  done
+}
 function getRPCUrl(){
   # read function arguments into variables
   local NETWORK=$1
@@ -1910,7 +2117,7 @@ function getRPCUrl(){
 }
 function playNotificationSound() {
   if [[ "$NOTIFICATION_SOUNDS" == *"true"* ]]; then
-    afplay ./scripts/deploy/notification.mp3
+    afplay ./scripts/deploy/resources/notification.mp3
   fi
 }
 function deployAndAddContractToDiamond() {
@@ -1963,6 +2170,32 @@ function deployAndAddContractToDiamond() {
   # there was an error if we reach this code
   return 1
 }
+function getPrivateKey() {
+  # read function arguments into variables
+  ENVIRONMENT="$1"
+
+  # check environment value
+  if [[ "$ENVIRONMENT" == *"staging"* ]]; then
+    # check if env variable is set/available
+    if [[ -z "$PRIVATE_KEY" ]]; then
+      error "could not find PRIVATE_KEY value in your .env file"
+      return 1
+    else
+      echo "$PRIVATE_KEY"
+      return 0
+    fi
+  else
+    # check if env variable is set/available
+    if [[ -z "$PRIVATE_KEY_PRODUCTION" ]]; then
+      error "could not find PRIVATE_KEY_PRODUCTION value in your .env file"
+      return 1
+    else
+      echo "$PRIVATE_KEY_PRODUCTION"
+      return 0
+    fi
+  fi
+}
+# <<<<<< miscellaneous
 
 
 # >>>>>> helpers to set/update deployment files/logs/etc
@@ -1982,7 +2215,8 @@ function updateDiamondLogsInAllNetworks(){
 
     # get RPC URL
     local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
-    echo "RPC_URL: ${!RPC_URL}"
+    RPC_URL=${!RPC_URL}
+    echo "RPC_URL: RPC_URL"
 
     for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
       echo " current ENVIRONMENT: $ENVIRONMENT"
@@ -2006,13 +2240,38 @@ function updateDiamondLogsInAllNetworks(){
           echo "    diamond address: $DIAMOND_ADDRESS"
         fi
 
-
+        echo "    RPC_URL: $RPC_URL"
 
         # get list of facets
-        local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "${!RPC_URL}") 2>/dev/null
+        # execute script
+        attempts=1 # initialize attempts to 0
 
-        # call saveDiamond function
-        saveDiamond "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES"
+        while [ $attempts -lt 11 ]; do
+          echo "    Trying to get facets for diamond $DIAMOND_ADDRESS now - attempt ${attempts}"
+          # try to execute call
+          KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facetAddresses() returns (address[])" --rpc-url "$RPC_URL") 2>/dev/null
+
+          # check the return code the last call
+          if [ $? -eq 0 ]; then
+            break # exit the loop if the operation was successful
+          fi
+
+          attempts=$((attempts + 1)) # increment attempts
+          sleep 1                    # wait for 1 second before trying the operation again
+        done
+
+        if [ $attempts -eq 11 ]; then
+          echo "Failed to get facets"
+        fi
+
+        if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
+          echo "    no facets found"
+          saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
+        else
+          saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES"
+        fi
+
+
 
         # check result
         if [[ $? -ne 0 ]]; then
@@ -2027,8 +2286,9 @@ function updateDiamondLogsInAllNetworks(){
     done
   echo ""
   done
+  playNotificationSound
 }
-# <<<<<< read from blockchain
+# <<<<<< helpers to set/update deployment files/logs/etc
 
 
 
@@ -2237,7 +2497,7 @@ function test_getContractAddressFromDeploymentLogs() {
   echo "should be '': $(getContractAddressFromDeploymentLogs "testNetwork" "production" "LiFiDiamond")"
 }
 function test_getContractInfoFromDiamondDeploymentLogByName() {
-  getContractInfoFromDiamondDeploymentLogByName "testNetwork" "production" "LiFiDiamond" "OwnershipFacet"
+  getContractInfoFromDiamondDeploymentLogByName "mainnet" "production" "LiFiDiamond" "OwnershipFacet"
   getContractInfoFromDiamondDeploymentLogByName "testNetwork" "production" "LiFiDiamond" "noFacet"
 }
 function test_updateAllContractsToTargetState() {
@@ -2258,7 +2518,4 @@ function test_getContractNameFromDeploymentLogs() {
 function test_tmp(){
   echo ""
 }
-
-
-
 

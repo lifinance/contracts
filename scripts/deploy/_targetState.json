@@ -28,7 +28,7 @@
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "LiFiDiamondImmutable": "1.0.0",
@@ -86,7 +86,7 @@
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "LiFiDiamondImmutable": "1.0.0",
@@ -193,6 +193,7 @@
     "production": {
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
+<<<<<<< HEAD
         "RelayerCelerIM": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -226,14 +227,27 @@
         "LIFuelFacet": "1.0.0",
         "AmarokFacet": "1.0.0",
         "CelerCircleBridgeFacet": "1.0.0"
+=======
+        "RelayerCelerIM": "1.0.1"
+>>>>>>> 3b16a29c66e83919edb05cfe72d946ef9765e12f
       }
     }
   },
   "polygon": {
+    "staging": {
+      "LiFiDiamond": {
+        "Executor": "1.0.0",
+        "Receiver": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "FeeCollector": "1.0.0",
+        "ServiceFeeCollector": "1.0.0"
+      }
+    },
     "production": {
       "LiFiDiamond": {
         "HopFacetPacked": "1.0.1",
         "CelerIMFacet": "1.0.0",
+<<<<<<< HEAD
         "RelayerCelerIM": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -262,13 +276,26 @@
         "LIFuelFacet": "1.0.0",
         "AmarokFacet": "1.0.0",
         "AcrossFacet": "1.0.3"
+=======
+        "RelayerCelerIM": "1.0.1"
+>>>>>>> 3b16a29c66e83919edb05cfe72d946ef9765e12f
       }
     }
   },
   "bsc": {
+    "staging": {
+      "LiFiDiamond": {
+        "Executor": "1.0.0",
+        "Receiver": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "FeeCollector": "1.0.0",
+        "ServiceFeeCollector": "1.0.0"
+      }
+    },
     "production": {
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
+<<<<<<< HEAD
         "RelayerCelerIM": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -296,6 +323,9 @@
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
         "AmarokFacet": "1.0.0"
+=======
+        "RelayerCelerIM": "1.0.1"
+>>>>>>> 3b16a29c66e83919edb05cfe72d946ef9765e12f
       }
     }
   },
@@ -303,6 +333,7 @@
     "production": {
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
+<<<<<<< HEAD
         "RelayerCelerIM": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -350,6 +381,9 @@
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0"
+=======
+        "RelayerCelerIM": "1.0.1"
+>>>>>>> 3b16a29c66e83919edb05cfe72d946ef9765e12f
       }
     }
   },
@@ -357,6 +391,7 @@
     "production": {
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
+<<<<<<< HEAD
         "RelayerCelerIM": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -383,6 +418,9 @@
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
         "CelerCircleBridgeFacet": "1.0.0"
+=======
+        "RelayerCelerIM": "1.0.1"
+>>>>>>> 3b16a29c66e83919edb05cfe72d946ef9765e12f
       }
     }
   },
@@ -390,6 +428,7 @@
     "production": {
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
+<<<<<<< HEAD
         "RelayerCelerIM": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -556,6 +595,9 @@
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0"
+=======
+        "RelayerCelerIM": "1.0.1"
+>>>>>>> 3b16a29c66e83919edb05cfe72d946ef9765e12f
       }
     }
   },
@@ -563,6 +605,7 @@
     "production": {
       "LiFiDiamond": {
         "HopFacetPacked": "1.0.1"
+<<<<<<< HEAD
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -585,6 +628,8 @@
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
         "AmarokFacet": "1.0.0"
+=======
+>>>>>>> 3b16a29c66e83919edb05cfe72d946ef9765e12f
       }
     }
   },
@@ -592,6 +637,7 @@
     "production": {
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
+<<<<<<< HEAD
         "RelayerCelerIM": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -610,6 +656,9 @@
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0"
+=======
+        "RelayerCelerIM": "1.0.1"
+>>>>>>> 3b16a29c66e83919edb05cfe72d946ef9765e12f
       }
     }
   },

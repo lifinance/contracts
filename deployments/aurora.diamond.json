@@ -1,52 +1,64 @@
 {
   "LiFiDiamond": {
-    "0xf7993A8df974AD022647E63402d6315137c58ABf": {
-      "Name": "DiamondCutFacet",
-      "Version": ""
+    "Facets": {
+      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+        "Name": "DiamondCutFacet",
+        "Version": ""
+      },
+      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
+        "Name": "DiamondLoupeFacet",
+        "Version": ""
+      },
+      "0x2327f3FBeC98B836012639545bE35e6e8F83892a": {
+        "Name": "OwnershipFacet",
+        "Version": ""
+      },
+      "0x756061F9c646a755233c63f5bc6e7Ad0D3B54Fc3": {
+        "Name": "WithdrawFacet",
+        "Version": ""
+      },
+      "0x4f90dC98674a7bc597E70D1D4B8D72D75Be09732": {
+        "Name": "DexManagerFacet",
+        "Version": ""
+      },
+      "0x8F1f3113DbF717A53eDFDdf3a7E4168E45Fd62F5": {
+        "Name": "AccessManagerFacet",
+        "Version": ""
+      },
+      "0x3b2B473B2e390aAEB76FF00A4278045DA25e2Bfb": {
+        "Name": "CBridgeFacet",
+        "Version": ""
+      },
+      "0x7dB3E450d818cE91CeC519425385BCf8C4CFFda9": {
+        "Name": "GenericSwapFacet",
+        "Version": ""
+      },
+      "0x8E4097eCfcc60F25fF2D7EE4d472ECa4A28a8425": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": ""
+      },
+      "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59": {
+        "Name": "LIFuelFacet",
+        "Version": ""
+      },
+      "0xEe1e83541054b0090fA42A16FB2c34CcdA5276C7": {
+        "Name": "CelerIMFacet",
+        "Version": ""
+      }
     },
-    "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
-      "Name": "DiamondLoupeFacet",
-      "Version": ""
-    },
-    "0x2327f3FBeC98B836012639545bE35e6e8F83892a": {
-      "Name": "OwnershipFacet",
-      "Version": ""
-    },
-    "0x756061F9c646a755233c63f5bc6e7Ad0D3B54Fc3": {
-      "Name": "WithdrawFacet",
-      "Version": ""
-    },
-    "0x4f90dC98674a7bc597E70D1D4B8D72D75Be09732": {
-      "Name": "DexManagerFacet",
-      "Version": ""
-    },
-    "0x8F1f3113DbF717A53eDFDdf3a7E4168E45Fd62F5": {
-      "Name": "AccessManagerFacet",
-      "Version": ""
-    },
-    "0x3b2B473B2e390aAEB76FF00A4278045DA25e2Bfb": {
-      "Name": "CBridgeFacet",
-      "Version": ""
-    },
-    "0x7dB3E450d818cE91CeC519425385BCf8C4CFFda9": {
-      "Name": "GenericSwapFacet",
-      "Version": ""
-    },
-    "0x8E4097eCfcc60F25fF2D7EE4d472ECa4A28a8425": {
-      "Name": "PeripheryRegistryFacet",
-      "Version": ""
-    },
-    "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
-      "Name": "",
-      "Version": ""
-    },
-    "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59": {
-      "Name": "LIFuelFacet",
-      "Version": ""
-    },
-    "0x54f015D8615192f0F4B42f1eEE193CAA01AD42FE": {
-      "Name": "CelerIMFacet",
-      "Version": "1.0.0"
+    "Periphery": {
+      "AxelarExecutor": "",
+      "ERC20Proxy": "0x856FF421D9b354ba1E909e26655E159F5Bd04F2E",
+      "Executor": "0x4F6a9cACA8cd1e6025972Bcaf6BFD8504de69B52",
+      "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
+      "FusePoolZap": "",
+      "Receiver": "0x74674DAFd6f4495e7F63F7637E94b8B89B2f01dB",
+      "RelayerCelerIM": "0x6A3fE66D2439893556663cFeeAaF202692d06440",
+      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
   }
 }

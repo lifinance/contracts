@@ -37,7 +37,11 @@
       "Version": ""
     },
     "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59": {
-      "Name": "LiFuelFacet",
+      "Name": "LIFuelFacet",
+      "Version": ""
+    },
+    "0x4Dc509f0BB4db1faeba81f5F13583Ff3d95F938D": {
+      "Name": "HopFacet",
       "Version": ""
     }
   }

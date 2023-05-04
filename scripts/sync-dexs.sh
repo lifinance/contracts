@@ -25,16 +25,23 @@ function syncDEXs {
   if [[ -z "$ENVIRONMENT" ]]; then
     if [[ "$PRODUCTION" == "true" ]]; then
       # make sure that PRODUCTION was selected intentionally by user
-      gum style \
-      --foreground 212 --border-foreground 213 --border double \
-      --align center --width 50 --margin "1 2" --padding "2 4" \
-      '!!! ATTENTION !!!'
-
-      echo "Your environment variable PRODUCTION is set to true"
-      echo "This means you will be deploying contracts to production"
       echo "    "
-      echo "Do you want to skip?"
-      gum confirm && exit 1 || echo "OK, continuing to deploy to PRODUCTION"
+      echo "    "
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!";
+      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true";
+      printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production";
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+      echo "    "
+      printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?";
+      PROD_SELECTION=$(gum choose \
+          "yes" \
+          "no" \
+          )
+
+      if [[ $PROD_SELECTION != "no" ]]; then
+        echo "...exiting script"
+        exit 0
+      fi
 
       ENVIRONMENT="production"
     else
@@ -118,6 +125,9 @@ function syncDEXs {
     local ATTEMPTS=1
     while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
       echo "[info] Trying to add missing DEXs now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
+
+      # ensure that gas price is below maximum threshold (for mainnet only)
+      doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
       # call diamond
       if [[ "$DEBUG" == *"true"* ]]; then

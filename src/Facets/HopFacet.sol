@@ -13,7 +13,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Hop Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -23,7 +23,7 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     struct Storage {
         mapping(address => IHopBridge) bridges;
-        bool initialized;
+        bool initialized; // no longer used but kept here to maintain the same storage layout
     }
 
     struct Config {
@@ -37,6 +37,9 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 deadline;
         uint256 destinationAmountOutMin;
         uint256 destinationDeadline;
+        address relayer;
+        uint256 relayerFee;
+        uint256 nativeFee;
     }
 
     /// Events ///
@@ -53,18 +56,12 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         Storage storage s = getStorage();
 
-        if (s.initialized) {
-            revert AlreadyInitialized();
-        }
-
         for (uint256 i = 0; i < configs.length; i++) {
             if (configs[i].bridge == address(0)) {
                 revert InvalidConfig();
             }
             s.bridges[configs[i].assetId] = IHopBridge(configs[i].bridge);
         }
-
-        s.initialized = true;
 
         emit HopInitialized(configs);
     }
@@ -78,10 +75,6 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
-
-        if (!s.initialized) {
-            revert NotInitialized();
-        }
 
         if (bridge == address(0)) {
             revert InvalidConfig();
@@ -135,7 +128,8 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(msg.sender),
+            _hopData.nativeFee
         );
         _startBridge(_bridgeData, _hopData);
     }
@@ -161,10 +155,10 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         uint256 value = LibAsset.isNativeAsset(address(sendingAssetId))
-            ? _bridgeData.minAmount
-            : 0;
+            ? _hopData.nativeFee + _bridgeData.minAmount
+            : _hopData.nativeFee;
 
-        if (block.chainid == 1) {
+        if (block.chainid == 1 || block.chainid == 5) {
             // Ethereum L1
             bridge.sendToL2{ value: value }(
                 _bridgeData.destinationChainId,
@@ -172,8 +166,8 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount,
                 _hopData.destinationAmountOutMin,
                 _hopData.destinationDeadline,
-                address(0),
-                0
+                _hopData.relayer,
+                _hopData.relayerFee
             );
         } else {
             // L2
