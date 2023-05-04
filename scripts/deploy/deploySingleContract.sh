@@ -19,23 +19,6 @@ deploySingleContract() {
   # load env variables
   source .env
 
-  # if no NETWORK was passed to this function, ask user to select it
-  if [[ -z "$NETWORK" ]]; then
-    NETWORK=$(getUserSelectedNetwork)
-
-    # check the return code the last call
-    if [ $? -ne 0 ]; then
-      echo "$NETWORK" # will contain an error message
-      exit 1
-    fi
-    # get deployer wallet balance
-    BALANCE=$(getDeployerBalance "$NETWORK")
-
-    echo "[info] selected network: $NETWORK"
-    echo "[info] deployer wallet balance in this network: $BALANCE"
-    echo ""
-  fi
-
   # if no ENVIRONMENT was passed to this function, determine it
   if [[ -z "$ENVIRONMENT" ]]; then
     if [[ "$PRODUCTION" == "true" ]]; then
@@ -62,6 +45,23 @@ deploySingleContract() {
     else
       ENVIRONMENT="staging"
     fi
+  fi
+
+  # if no NETWORK was passed to this function, ask user to select it
+  if [[ -z "$NETWORK" ]]; then
+    NETWORK=$(getUserSelectedNetwork)
+
+    # check the return code the last call
+    if [ $? -ne 0 ]; then
+      echo "$NETWORK" # will contain an error message
+      exit 1
+    fi
+    # get deployer wallet balance
+    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
+
+    echo "[info] selected network: $NETWORK"
+    echo "[info] deployer wallet balance in this network: $BALANCE"
+    echo ""
   fi
 
   if [[ -z "$CONTRACT" ]]; then
@@ -157,6 +157,10 @@ deploySingleContract() {
 
   while [ $attempts -le "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; do
     echo "[info] trying to deploy $CONTRACT now - attempt ${attempts} (max attempts: $MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT) "
+
+    # ensure that gas price is below maximum threshold (for mainnet only)
+    doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
+
     # try to execute call
     RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS forge script script/$SCRIPT.s.sol -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
 

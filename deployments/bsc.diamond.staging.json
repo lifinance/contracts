@@ -1,44 +1,56 @@
 {
   "LiFiDiamond": {
-    "0x3968cF36Ea531D35B82F56C23A1D933b7711b31f": {
-      "Name": "DiamondCutFacet",
-      "Version": ""
+    "Facets": {
+      "0x3968cF36Ea531D35B82F56C23A1D933b7711b31f": {
+        "Name": "DiamondCutFacet",
+        "Version": ""
+      },
+      "0xF3bd241Bd31cc84D1A2824E3ffB481961FC1456A": {
+        "Name": "DiamondLoupeFacet",
+        "Version": ""
+      },
+      "0x6B5183628Fb571145385C01AD64779D2F17e759a": {
+        "Name": "OwnershipFacet",
+        "Version": ""
+      },
+      "0xeb244dc26396846aDD8eaF5A0e3Bc6617B58482e": {
+        "Name": "WithdrawFacet",
+        "Version": ""
+      },
+      "0xcd14Ea63191E4B27ECA7c98C29c373E015a5545A": {
+        "Name": "DexManagerFacet",
+        "Version": ""
+      },
+      "0x50F6AC46EB6cA7840e75fE5aFa50B8a3D6deeD26": {
+        "Name": "AccessManagerFacet",
+        "Version": ""
+      },
+      "0x99dC88607d3D6C2e08C9bC7fdDDFDcE438339E05": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": ""
+      },
+      "0x95d1a0D0B807257d58aDF1Ec6A129219EF289e3E": {
+        "Name": "SquidFacet",
+        "Version": ""
+      },
+      "0xefB4cE435C9FA3dE51f292Ac4905f91fbA2BE65D": {
+        "Name": "CelerIMFacet",
+        "Version": ""
+      },
+      "0xb414f9BBCd4B359c9B4a1d8138Cd573F96E5896C": {
+        "Name": "WormholeFacet",
+        "Version": "1.0.0"
+      }
     },
-    "0xF3bd241Bd31cc84D1A2824E3ffB481961FC1456A": {
-      "Name": "DiamondLoupeFacet",
-      "Version": ""
-    },
-    "0x6B5183628Fb571145385C01AD64779D2F17e759a": {
-      "Name": "OwnershipFacet",
-      "Version": ""
-    },
-    "0xeb244dc26396846aDD8eaF5A0e3Bc6617B58482e": {
-      "Name": "WithdrawFacet",
-      "Version": ""
-    },
-    "0xcd14Ea63191E4B27ECA7c98C29c373E015a5545A": {
-      "Name": "DexManagerFacet",
-      "Version": ""
-    },
-    "0x50F6AC46EB6cA7840e75fE5aFa50B8a3D6deeD26": {
-      "Name": "AccessManagerFacet",
-      "Version": ""
-    },
-    "0x99dC88607d3D6C2e08C9bC7fdDDFDcE438339E05": {
-      "Name": "PeripheryRegistryFacet",
-      "Version": ""
-    },
-    "0x95d1a0D0B807257d58aDF1Ec6A129219EF289e3E": {
-      "Name": "SquidFacet",
-      "Version": ""
-    },
-    "0xefB4cE435C9FA3dE51f292Ac4905f91fbA2BE65D": {
-      "Name": "CelerIMFacet",
-      "Version": ""
-    },
-    "0xb414f9BBCd4B359c9B4a1d8138Cd573F96E5896C": {
-      "Name": "WormholeFacet",
-      "Version": "1.0.0"
+    "Periphery": {
+      "AxelarExecutor": "",
+      "ERC20Proxy": "0x69d37e186A7E25eB4D02a5b957686B1F2005CB6c",
+      "Executor": "0x4DE055c2b7054b9B3Aa7c3891aacB9dE4F489D66",
+      "FeeCollector": "0x316A8D31a1ECb50C725209c7Eed8C67ad5f34271",
+      "FusePoolZap": "",
+      "Receiver": "0x8329b7f56e286CeBD280e675F343D57D704266F1",
+      "RelayerCelerIM": "0xF40B8ADeD37698A13bA6D61082207E4CE242598C",
+      "ServiceFeeCollector": "0x3D3355A9571f877AFBd1ff712340F73052abb5AB"
     }
   }
 }

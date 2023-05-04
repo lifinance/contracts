@@ -53,7 +53,7 @@ function updatePeriphery() {
       exit 1
     fi
     # get deployer wallet balance
-    BALANCE=$(getDeployerBalance "$NETWORK")
+    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
 
     echo "[info] selected network: $NETWORK"
     echo "[info] deployer wallet balance in this network: $BALANCE"
@@ -153,6 +153,10 @@ register() {
     # try to execute call
     if [[ "$DEBUG" == *"true"* ]]; then
       echo "[info] trying to register periphery contract $CONTRACT_NAME in diamond on network $NETWORK now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
+
+      # ensure that gas price is below maximum threshold (for mainnet only)
+      doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
+
       # print output to console
       cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $PRIVATE_KEY --rpc-url "${!RPC}" --legacy
     else

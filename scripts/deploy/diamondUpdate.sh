@@ -14,23 +14,6 @@ diamondUpdate() {
   local SCRIPT="$4"
   local REPLACE_EXISTING_FACET="$5"
 
-  # if no NETWORK was passed to this function, ask user to select it
-  if [[ -z "$NETWORK" ]]; then
-    NETWORK=$(getUserSelectedNetwork)
-
-    # check the return code the last call
-    if [ $? -ne 0 ]; then
-      echo "$NETWORK" # will contain an error message
-      exit 1
-    fi
-    # get deployer wallet balance
-    BALANCE=$(getDeployerBalance "$NETWORK")
-
-    echo "[info] selected network: $NETWORK"
-    echo "[info] deployer wallet balance in this network: $BALANCE"
-    echo ""
-  fi
-
   # if no ENVIRONMENT was passed to this function, determine it
   if [[ -z "$ENVIRONMENT" ]]; then
     if [[ "$PRODUCTION" == "true" ]]; then
@@ -57,6 +40,23 @@ diamondUpdate() {
     else
       ENVIRONMENT="staging"
     fi
+  fi
+
+  # if no NETWORK was passed to this function, ask user to select it
+  if [[ -z "$NETWORK" ]]; then
+    NETWORK=$(getUserSelectedNetwork)
+
+    # check the return code the last call
+    if [ $? -ne 0 ]; then
+      echo "$NETWORK" # will contain an error message
+      exit 1
+    fi
+    # get deployer wallet balance
+    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
+
+    echo "[info] selected network: $NETWORK"
+    echo "[info] deployer wallet balance in this network: $BALANCE"
+    echo ""
   fi
 
   # if no DIAMOND_CONTRACT_NAME was passed to this function, ask user to select diamond type
@@ -143,7 +143,7 @@ diamondUpdate() {
   fi
 
   # save facet addresses
-  saveDiamond "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS"
+  saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS"
 
   echo "[info] $SCRIPT successfully executed on network $NETWORK in $ENVIRONMENT environment"
   return 0

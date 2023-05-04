@@ -96,6 +96,9 @@ function syncSIGs {
   while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "[info] trying to add function selectors now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
 
+    # ensure that gas price is below maximum threshold (for mainnet only)
+    doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
+
     # call diamond
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
