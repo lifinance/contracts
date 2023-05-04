@@ -127,6 +127,19 @@ contract UpdateScriptBase is Script {
         }
     }
 
+    function buildInitialCut(
+        bytes4[] memory newSelectors,
+        address newFacet
+    ) internal {
+        cut.push(
+            IDiamondCut.FacetCut({
+                facetAddress: newFacet,
+                action: IDiamondCut.FacetCutAction.Add,
+                functionSelectors: newSelectors
+            })
+        );
+    }
+
     function toHexDigit(uint8 d) internal pure returns (bytes1) {
         if (0 <= d && d <= 9) {
             return bytes1(uint8(bytes1("0")) + d);

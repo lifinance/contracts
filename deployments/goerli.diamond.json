@@ -34,8 +34,8 @@
         "Version": ""
       },
       "0x4Dc509f0BB4db1faeba81f5F13583Ff3d95F938D": {
-        "Name": "",
-        "Version": ""
+        "Name": "HopFacet",
+        "Version": "2.0.0"
       },
       "0x2f7f1a1C392e58012B84cfA673df73101666314D": {
         "Name": "HyphenFacet",
