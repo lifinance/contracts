@@ -12,8 +12,6 @@
 # - check if use case 4 will also check if a contract is added to diamond already
 # - create use case to deploy and add all periphery (or check if target state use case covers it)
 # - merging two branches with deployments in same network (does it cause merge-conflicts?)
-# - which periphery facets are added to a diamond (add to log)
-# - check gas price and execute only when gas price is below ....
 # - re-organize scripts
 #     >>> script/UpdateHopFacetConfig.s.sol
 
