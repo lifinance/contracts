@@ -1,80 +1,96 @@
 {
   "LiFiDiamondImmutable": {
-    "0xF1d67E1dddc87E2858C87EBd5b19f99a4E297541": {
-      "Name": "DiamondCutFacet",
-      "Version": "1.0.0"
+    "Facets": {
+      "0xF1d67E1dddc87E2858C87EBd5b19f99a4E297541": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0x49d195D3138D4E0E2b4ea88484C54AEE45B04B9F": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0x44beA2Ab010d1CedC4E60E97DA8F88b8840951B0": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x428C4abf8BB3ECc893bD3E0Be12b0f363c6e81aA": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0x64D41a7B52CA910f4995b1df33ea68471138374b": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xfaA5f885a54D22C8571806fC001E53F0191f5Aff": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x2EfC66F1ff37fc5277De5526Ab5CB7650f2DD518": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0xCd063F35ed6f6d9B036284475B7779FdCf1Dd76C": {
+        "Name": "AcrossFacet",
+        "Version": "1.0.0"
+      },
+      "0xbd8D369470169f9976c5bCc60318955836843a71": {
+        "Name": "AmarokFacet",
+        "Version": "1.0.1"
+      },
+      "0xA1Edc2eD671Dfa77eD2dCD2ee012F82e4807A75a": {
+        "Name": "CBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x2fF4484bcaEf13e4a1Db84E6af882c9d66c97e3F": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x5459Fe34F4B391938C45C909F62aD7E12978bD8F": {
+        "Name": "HopFacetOptimized",
+        "Version": ""
+      },
+      "0x8dc41bf0F9D2D9c3118bcE5DD81f4e0d122fE4EB": {
+        "Name": "HopFacet",
+        "Version": "1.0.0"
+      },
+      "0x416E2d3E39dF69bBc30244eC90477fD042812E6B": {
+        "Name": "HyphenFacet",
+        "Version": "1.0.0"
+      },
+      "0x6e118Db5ab7018FcF195e1310074688B8A1912B3": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
+      },
+      "0x4cf6c406F004b7B588ec8638fBd2cC2215D87C90": {
+        "Name": "MultichainFacet",
+        "Version": ""
+      },
+      "0x238502aDc8ca550723CBE78543c8B757599A21cC": {
+        "Name": "NXTPFacet",
+        "Version": "1.0.0"
+      },
+      "0x7E4A13BFe1200Fdc5E0FFa7eC65eFaBd8B17bc26": {
+        "Name": "StargateFacet",
+        "Version": "1.0.0"
+      },
+      "0xA57862295BdF8A680fda893B9bd3b935236d18bA": {
+        "Name": "HopFacetPacked",
+        "Version": "1.0.1"
+      },
+      "0xb0199ce3c4fD19aF0AdCbe8C589ea1f699c295fb": {
+        "Name": "AcrossFacet",
+        "Version": ""
+      }
     },
-    "0x49d195D3138D4E0E2b4ea88484C54AEE45B04B9F": {
-      "Name": "DiamondLoupeFacet",
-      "Version": "1.0.0"
-    },
-    "0x44beA2Ab010d1CedC4E60E97DA8F88b8840951B0": {
-      "Name": "OwnershipFacet",
-      "Version": "1.0.0"
-    },
-    "0x428C4abf8BB3ECc893bD3E0Be12b0f363c6e81aA": {
-      "Name": "WithdrawFacet",
-      "Version": "1.0.0"
-    },
-    "0x64D41a7B52CA910f4995b1df33ea68471138374b": {
-      "Name": "DexManagerFacet",
-      "Version": "1.0.0"
-    },
-    "0xfaA5f885a54D22C8571806fC001E53F0191f5Aff": {
-      "Name": "AccessManagerFacet",
-      "Version": "1.0.0"
-    },
-    "0x2EfC66F1ff37fc5277De5526Ab5CB7650f2DD518": {
-      "Name": "PeripheryRegistryFacet",
-      "Version": "1.0.0"
-    },
-    "0xCd063F35ed6f6d9B036284475B7779FdCf1Dd76C": {
-      "Name": "AcrossFacet",
-      "Version": "1.0.0"
-    },
-    "0xbd8D369470169f9976c5bCc60318955836843a71": {
-      "Name": "AmarokFacet",
-      "Version": "1.0.1"
-    },
-    "0xA1Edc2eD671Dfa77eD2dCD2ee012F82e4807A75a": {
-      "Name": "CBridgeFacet",
-      "Version": "1.0.0"
-    },
-    "0x2fF4484bcaEf13e4a1Db84E6af882c9d66c97e3F": {
-      "Name": "GenericSwapFacet",
-      "Version": "1.0.0"
-    },
-    "0xc21228EFF985D5648DBe46B986653CE66f9F7B7B": {
-      "Name": "HopFacetOptimized",
-      "Version": "1.0.0"
-    },
-    "0x8dc41bf0F9D2D9c3118bcE5DD81f4e0d122fE4EB": {
-      "Name": "HopFacet",
-      "Version": "1.0.0"
-    },
-    "0x416E2d3E39dF69bBc30244eC90477fD042812E6B": {
-      "Name": "HyphenFacet",
-      "Version": "1.0.0"
-    },
-    "0x6e118Db5ab7018FcF195e1310074688B8A1912B3": {
-      "Name": "LIFuelFacet",
-      "Version": "1.0.0"
-    },
-    "0x0e439865644b3A14e31E6dAA3F868535EaFC322B": {
-      "Name": "MultichainFacet",
-      "Version": "1.0.0"
-    },
-    "0x238502aDc8ca550723CBE78543c8B757599A21cC": {
-      "Name": "NXTPFacet",
-      "Version": "1.0.0"
-    },
-    "0x7E4A13BFe1200Fdc5E0FFa7eC65eFaBd8B17bc26": {
-      "Name": "StargateFacet",
-      "Version": "1.0.0"
-    },
-    "0xA57862295BdF8A680fda893B9bd3b935236d18bA": {
-      "Name": "HopFacetPacked",
-      "Version": "1.0.1"
+    "Periphery": {
+      "AxelarExecutor": "",
+      "ERC20Proxy": "0x0654EbA982ec082036A3D0f59964D302f1ba5cdA",
+      "Executor": "0x2120c7A5CCf73d6Fb5C7e9B2A0d4B3A4f587E7a4",
+      "FeeCollector": "0xB49EaD76FE09967D7CA0dbCeF3C3A06eb3Aa0cB4",
+      "FusePoolZap": "",
+      "Receiver": "0xC4B590a0E2d7e965a2Fb3647d672B5DD97E8d068",
+      "RelayerCelerIM": "0x34D16bE69CB282c7160abaB1dC02ACfA45f7006c",
+      "ServiceFeeCollector": "0x4b0B89b90fF83247aEa12469CeA9A6222e09d54c"
     }
   }
 }
