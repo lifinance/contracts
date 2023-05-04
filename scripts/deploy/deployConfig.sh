@@ -44,7 +44,7 @@ EXCLUDE_NETWORKS="lineatest"
 DEBUG=false
 
 # defines if newly deployed contracts should be verified or not
-VERIFY_CONTRACTS=true
+VERIFY_CONTRACTS=false
 
 # contract verification will be deactivated for any network listed here
 DO_NOT_VERIFY_IN_THESE_NETWORKS=""
@@ -71,4 +71,4 @@ DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=true
 DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=0xc726deb4bf42c6ef5d0b4e3080ace43aed9b270938861f7cacf900eba890fa66
 
 # Defines the maximum gas price for mainnet transactions (otherwise the script will wait until gas price is down)
-MAINNET_MAXIMUM_GAS_PRICE=54000000000 # = 50 Gwei
+MAINNET_MAXIMUM_GAS_PRICE=50000000000 # = 50 Gwei
