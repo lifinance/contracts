@@ -519,6 +519,19 @@
           }
         ]
       }
+    },
+    "goerli": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x4Dc509f0BB4db1faeba81f5F13583Ff3d95F938D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-02 16:12:47",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "HyphenFacet": {

@@ -46,6 +46,7 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
 
         defaultUSDCAmount = 100000;
         defaultDAIAmount = 100000;
+        setDefaultBridgeData();
 
         hopFacet = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](7);

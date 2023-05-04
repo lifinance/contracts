@@ -1,7 +1,6 @@
 mainnet
 polygon
 bsc
-bsctest
 gnosis
 fantom
 okx
@@ -18,8 +17,9 @@ harmony
 evmos
 aurora
 boba
+nova
 goerli
+bsctest
 sepolia
 mumbai
-nova
-consensys-zkevm-testnet
+lineatest

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # defines the environment (true=production, false=staging)
-PRODUCTION=false
+PRODUCTION=true
 
 # the maximum time in seconds that the script will wait for blockchain to sync contract deployment
 # we use this as double check to make sure that a contract was actually deployed
@@ -35,10 +35,10 @@ BYTECODE_STORAGE_PATH="deployments/_bytecode_storage.json"
 CONTRACT_REMINDERS="scripts/deploy/resources/contractSpecificReminders.sh"
 
 # any networks listed here will be excluded from actions that are applied to "all networks"
-# exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,consensys-zkevm-testnet"
+# exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,lineatest"
 # exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
-#EXCLUDE_NETWORKS="gnosis,okx,moonbeam,celo,fuse,cronos,velas,harmony,evmos,boba,nova,bsctest,goerli,sepolia,mumbai,consensys-zkevm-testnet"
-EXCLUDE_NETWORKS="consensys-zkevm-testnet"
+#EXCLUDE_NETWORKS="gnosis,okx,moonbeam,celo,fuse,cronos,velas,harmony,evmos,boba,nova,bsctest,goerli,sepolia,mumbai,lineatest"
+EXCLUDE_NETWORKS="lineatest"
 
 # will output more detailed information for debugging purposes
 DEBUG=false
