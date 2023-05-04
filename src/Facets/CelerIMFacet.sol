@@ -19,7 +19,7 @@ interface CelerToken {
 /// @title CelerIM Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging tokens and data through CBridge
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -183,10 +183,14 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         } else {
             // Case 'yes': Bridge + Destination call - Send to relayer
+
+            // save address of original recipient
             address receiver = _bridgeData.receiver;
+
             // Set relayer as a receiver
             _bridgeData.receiver = address(relayer);
 
+            // send token transfer
             (bytes32 transferId, address bridgeAddress) = relayer
                 .sendTokenTransfer{ value: msgValue }(
                 _bridgeData,
@@ -197,7 +201,7 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             relayer.forwardSendMessageWithTransfer{
                 value: _celerIMData.messageBusFee
             }(
-                receiver,
+                _bridgeData.receiver,
                 uint64(_bridgeData.destinationChainId),
                 bridgeAddress,
                 transferId,
