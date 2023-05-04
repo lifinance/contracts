@@ -215,6 +215,19 @@
           }
         ]
       }
+    },
+    "mumbai": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xA8427B94C563269703889BDACDcA3664Df188970",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-04 19:56:46",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -391,6 +404,17 @@
             "TIMESTAMP": "2023-04-17 16:48:25",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000fd9e2642a170add10f53ee14a93fcf2f31924944000000000000000000000000a6fa4fb5f76172d178d61b04b0ecd319c5d1c0aa",
             "VERIFIED": "true"
+          }
+        ]
+      },
+      "staging": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x2c29ca74714d34C5fd34A824da9C021005B1fB91",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-04 19:59:23",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000fd9e2642a170add10f53ee14a93fcf2f31924944000000000000000000000000a6fa4fb5f76172d178d61b04b0ecd319c5d1c0aa",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -722,6 +746,19 @@
             "TIMESTAMP": "2023-04-12 14:21:21",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000053bf833a5d6c4dda888f69c22c88c9f356a41614",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mumbai": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xEe8538b8E097804De85284a801BD076875e435fA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-04 22:11:53",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000817436a076060d158204d955e5403b6ed0a5fac0",
+            "VERIFIED": "false"
           }
         ]
       }

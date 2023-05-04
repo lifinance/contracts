@@ -1,5 +1,4 @@
 #!/bin/bash
-#TODO: comment functions
 
 # load env variables
 source .env
@@ -535,7 +534,7 @@ function saveDiamondFacets() {
     # check if contract was found in log file
     if [[ $? -ne 0 ]]; then
       if [[ "$DEBUG" == *"true"* ]]; then
-        warning "could not find information about this facet in log file while creating diamond.json deploy file: NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, ADDRESS=$FACET_ADDRESS"
+        warning "could not find any information about this facet address ($FACET_ADDRESS) in log file while creating $NETWORK.diamond.json file: (ENVIRONMENT=$ENVIRONMENT), "
       fi
 
       # try to find name of contract from network-specific deployments file
@@ -968,9 +967,6 @@ function verifyContract() {
                 echo "[debug] network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
                 return 1
               fi
-              ;;
-          *)
-              # Match not found, proceed with verification
               ;;
       esac
   fi

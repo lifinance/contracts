@@ -4,7 +4,7 @@
 
 # - update master script to be able to call all other scripts
 #   >>> including the solidity update config scripts
-
+# - integrate diamondMakeImmutable in master script
 
 # - add verify contract use case (use bytecode and settings from storage)
 # - create function that checks if contract is deployed (get bytecode, predict address, check bytecode at address)
@@ -75,7 +75,7 @@ scriptMaster() {
     "1) Deploy one specific contract to one network"\
     "2) Deploy one specific contract to all (not-excluded) networks (=new contract)"\
     "3) Deploy all contracts to one selected network (=new network)" \
-    "4) Deploy all (missing) contracts for all networks (actual vs. target) - NOT YET IMPLEMENTED" \
+    "4) Deploy all (missing) contracts for all networks (actual vs. target) - NOT YET ACTIVATED" \
     "5) Execute a script" \
     "6) Batch update _targetState.json file" \
     "7) Verify all unverified contracts" \
@@ -277,6 +277,14 @@ scriptMaster() {
       )
     echo "[info] selected option: $SELECTION_UPDATE_CASE"
 
+    echo ""
+    echo "Please select the environment that should be updated:"
+    local ENVIRONMENT=$(gum choose \
+      "staging"\
+      "production"\
+      )
+    echo "[info] selected environment: $ENVIRONMENT"
+
     if [[ "$SELECTION_UPDATE_CASE" == *"1)"* ]]; then
       # case: "1) 1) Add a new contract to all networks"
 
@@ -376,7 +384,7 @@ scriptMaster() {
       echo ""
       echo "[info] selected network: $NETWORK_NAME"
 
-      echo "[info] now adding a new network '$NETWORK_NAME' with all contracts to target state file (selected diamond type: $SELECTION)"
+      echo "[info] now adding a new network '$NETWORK_NAME' with all contracts to target state file (selected diamond type: $SELECTION_DIAMOND_TYPE)"
       # update target state json
       if [[ "$SELECTION_DIAMOND_TYPE" == *"1)"* ]]; then
         addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamond"
@@ -386,7 +394,7 @@ scriptMaster() {
         addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamond"
         addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamondImmutable"
       else
-        error "invalid value selected: $SELECTION - exiting script now"
+        error "invalid value selected: $SELECTION_DIAMOND_TYPE - exiting script now"
         exit 1
       fi
 

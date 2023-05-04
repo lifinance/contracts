@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/console.sol";
-import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
+import { UpdateScriptBase } from "../../deploy/facets/utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 

@@ -25,6 +25,9 @@ DEPLOY_SCRIPT_DIRECTORY="scripts/deploy/facets/"
 # the directory of all task scripts
 TASKS_SCRIPT_DIRECTORY="scripts/tasks/"
 
+# the directory of all (facet) config scripts
+CONFIG_SCRIPT_DIRECTORY="scripts/tasks/solidity/"
+
 # the path of the JSON file that contains the target state
 TARGET_STATE_PATH="scripts/deploy/_targetState.json"
 
@@ -44,7 +47,7 @@ CONTRACT_REMINDERS="scripts/deploy/resources/contractSpecificReminders.sh"
 EXCLUDE_NETWORKS="lineatest"
 
 # will output more detailed information for debugging purposes
-DEBUG=true
+DEBUG=false
 
 # defines if newly deployed contracts should be verified or not
 VERIFY_CONTRACTS=false
