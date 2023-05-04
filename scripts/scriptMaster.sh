@@ -2,7 +2,8 @@
 
 # TODO
 
-
+# - update master script to be able to call all other scripts
+#   >>> including the solidity update config scripts
 
 
 # - add verify contract use case (use bytecode and settings from storage)
@@ -12,8 +13,6 @@
 # - check if use case 4 will also check if a contract is added to diamond already
 # - create use case to deploy and add all periphery (or check if target state use case covers it)
 # - merging two branches with deployments in same network (does it cause merge-conflicts?)
-# - re-organize scripts
-#     >>> script/UpdateHopFacetConfig.s.sol
 
 
 
@@ -32,20 +31,20 @@
 
 
 
-deployMaster() {
+scriptMaster() {
   # load env variables
   source .env
 
   # load deploy scripts & helper functions
   source scripts/deploy/deploySingleContract.sh
   source scripts/deploy/deployAllContracts.sh
-  source scripts/deploy/deployHelperFunctions.sh
-  source scripts/sync-dexs.sh
-  source scripts/sync-sigs.sh
-  source scripts/deploy/diamondUpdate.sh
+  source scripts/deploy/resources/deployHelperFunctions.sh
+  source scripts/tasks/sync-dexs.sh
+  source scripts/tasks/sync-sigs.sh
+  source scripts/tasks/diamondUpdate.sh
   source scripts/deploy/deployFacetAndAddToDiamond.sh
   source scripts/deploy/deployPeripheryContracts.sh
-  source scripts/deploy/updatePeriphery.sh
+  source scripts/tasks/updatePeriphery.sh
 
   # determine environment: check if .env variable "PRODUCTION" is set to true
   if [[ "$PRODUCTION" == "true" ]]; then
@@ -107,7 +106,7 @@ deployMaster() {
     checkRequiredVariablesInDotEnv $NETWORK
 
     # get user-selected deploy script and contract from list
-    SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+    SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment (only check for

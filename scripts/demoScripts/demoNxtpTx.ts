@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { node_url } from '../utils/network'
+import { node_url } from '../../utils/network'
 import { providers, Wallet, utils, Contract, constants } from 'ethers'
 import { NxtpSdk, NxtpSdkEvents } from '@connext/nxtp-sdk'
 import { ChainId, Token } from '@uniswap/sdk'

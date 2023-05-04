@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # defines the environment (true=production, false=staging)
-PRODUCTION=true
+PRODUCTION=false
 
 # the maximum time in seconds that the script will wait for blockchain to sync contract deployment
 # we use this as double check to make sure that a contract was actually deployed
@@ -20,7 +20,7 @@ MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=5
 CONTRACT_DIRECTORY="src/"
 
 # the directory of all deploy and update scripts
-DEPLOY_SCRIPT_DIRECTORY="script/"
+DEPLOY_SCRIPT_DIRECTORY="scripts/deploy/facets"
 
 # the path of the JSON file that contains the target state
 TARGET_STATE_PATH="scripts/deploy/_targetState.json"

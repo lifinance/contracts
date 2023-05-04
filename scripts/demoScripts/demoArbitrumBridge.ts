@@ -13,7 +13,7 @@ import {
   ERC20__factory,
   IGatewayRouter__factory,
 } from '../typechain'
-import { node_url } from '../utils/network'
+import { node_url } from '../../utils/network'
 import chalk from 'chalk'
 import config from '../config/arbitrum'
 

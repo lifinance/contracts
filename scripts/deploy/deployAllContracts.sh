@@ -4,15 +4,15 @@ deployAllContracts() {
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start deployAllContracts"
 
   # load required resources
-  source scripts/deploy/deployConfig.sh
-  source scripts/deploy/deployHelperFunctions.sh
+  source scripts/deploy/resources/deployConfig.sh
+  source scripts/deploy/resources/deployHelperFunctions.sh
   source scripts/deploy/deployPeripheryContracts.sh
   source scripts/deploy/deployCoreFacets.sh
-  source scripts/deploy/diamondUpdate.sh
-  source scripts/sync-dexs.sh
-  source scripts/sync-sigs.sh
+  source scripts/tasks/diamondUpdate.sh
+  source scripts/tasks/sync-dexs.sh
+  source scripts/tasks/sync-sigs.sh
   source scripts/deploy/deployFacetAndAddToDiamond.sh
-  source scripts/deploy/updatePeriphery.sh
+  source scripts/tasks/updatePeriphery.sh
 
   # read function arguments into variables
   local NETWORK="$1"

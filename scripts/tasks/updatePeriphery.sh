@@ -6,8 +6,8 @@ function updatePeriphery() {
 
   # load required resources
   source .env
-  source scripts/deploy/deployConfig.sh
-  source scripts/deploy/deployHelperFunctions.sh
+  source scripts/deploy/resources/deployConfig.sh
+  source scripts/deploy/resources/deployHelperFunctions.sh
 
   # read function arguments into variables
   local NETWORK="$1"

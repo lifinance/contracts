@@ -1,4 +1,4 @@
-import deployments from '../deployments/polygon.staging.json'
+import deployments from '../../deployments/polygon.staging.json'
 import {
   SquidFacet__factory,
   ILiFi,

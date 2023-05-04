@@ -5,8 +5,8 @@
 # $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true)
 deploySingleContract() {
   # load config & helper functions
-  source scripts/deploy/deployConfig.sh
-  source scripts/deploy/deployHelperFunctions.sh
+  source scripts/deploy/resources/deployConfig.sh
+  source scripts/deploy/resources/deployHelperFunctions.sh
   source scripts/deploy/resources/contractSpecificReminders.sh
 
   # read function arguments into variables
@@ -66,7 +66,7 @@ deploySingleContract() {
 
   if [[ -z "$CONTRACT" ]]; then
     # get user-selected deploy script and contract from list
-    SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+    SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
   else
     SCRIPT="Deploy"$CONTRACT

@@ -52,7 +52,7 @@ contract UpdateScriptBase is Script {
         bytes4[] memory _exclude
     ) internal returns (bytes4[] memory selectors) {
         string[] memory cmd = new string[](3);
-        cmd[0] = "scripts/contract-selectors.sh";
+        cmd[0] = "scripts/tasks/contract-selectors.sh";
         cmd[1] = _facetName;
         string memory exclude;
         for (uint256 i; i < _exclude.length; i++) {

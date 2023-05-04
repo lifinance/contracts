@@ -8,8 +8,8 @@ deployCoreFacets() {
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying core facets now...."
 
   # load config & helper functions
-  source scripts/deploy/deployConfig.sh
-  source scripts/deploy/deployHelperFunctions.sh
+  source scripts/deploy/resources/deployConfig.sh
+  source scripts/deploy/resources/deployHelperFunctions.sh
   source scripts/deploy/deploySingleContract.sh
 
   # read function arguments into variables

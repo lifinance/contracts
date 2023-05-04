@@ -1,6 +1,6 @@
 import { providers, Wallet, utils, constants, Contract } from 'ethers'
 import { CBridgeFacet__factory, ERC20__factory } from '../typechain'
-import { node_url } from '../utils/network'
+import { node_url } from '../../utils/network'
 import chalk from 'chalk'
 import * as deployment from '../export/deployments-staging.json'
 

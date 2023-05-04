@@ -4,9 +4,9 @@ import {
   ERC20__factory,
   IDeBridgeGate__factory,
 } from '../typechain'
-import { node_url } from '../utils/network'
+import { node_url } from '../../utils/network'
 import chalk from 'chalk'
-import { config } from '../config/debridge.json'
+import { config } from '../../config/debridge.json'
 
 const msg = (msg: string) => {
   console.log(chalk.green(msg))

@@ -1,6 +1,6 @@
 import { providers, Wallet, utils, constants, Contract } from 'ethers'
 import { HopFacet__factory, ERC20__factory } from '../typechain'
-import { node_url } from '../utils/network'
+import { node_url } from '../../utils/network'
 import * as deployment from '../export/deployments-staging.json'
 import { Chain, Hop } from '@hop-protocol/sdk'
 import { parseUnits } from 'ethers/lib/utils'

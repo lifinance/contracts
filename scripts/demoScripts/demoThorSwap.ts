@@ -1,4 +1,4 @@
-import deployments from '../deployments/mainnet.staging.json'
+import deployments from '../../deployments/mainnet.staging.json'
 import {
   ThorSwapFacet__factory,
   ILiFi,

@@ -1,6 +1,6 @@
 import { providers, Wallet, utils, constants, Contract } from 'ethers'
 import { AmarokFacet__factory, ERC20__factory } from '../typechain'
-import { node_url } from '../utils/network'
+import { node_url } from '../../utils/network'
 import config from '../config/amarok'
 import chalk from 'chalk'
 

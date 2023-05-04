@@ -4,8 +4,8 @@
 diamondUpdate() {
   # load required resources
   source .env
-  source scripts/deploy/deployConfig.sh
-  source scripts/deploy/deployHelperFunctions.sh
+  source scripts/deploy/resources/deployConfig.sh
+  source scripts/deploy/resources/deployHelperFunctions.sh
 
   # read function arguments into variables
   local NETWORK="$1"
@@ -83,7 +83,7 @@ diamondUpdate() {
   # if no SCRIPT was passed to this function, ask user to select it
   if [[ -z "$SCRIPT" ]]; then
     echo "Please select which facet you would like to update"
-    SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Update Script")
+    SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
   fi
 
   # set flag for mutable/immutable diamond

@@ -7,7 +7,7 @@ function syncSIGs {
 	source .env
 
 	# load config & helper functions
-  source scripts/deploy/deployHelperFunctions.sh
+  source scripts/deploy/resources/deployHelperFunctions.sh
 
   # read function arguments into variables
   local NETWORK="$1"

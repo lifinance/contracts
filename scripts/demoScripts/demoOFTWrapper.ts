@@ -1,7 +1,7 @@
 import { providers, Wallet, utils, constants, BigNumber } from 'ethers'
 import { OFTWrapperFacet__factory, ERC20__factory } from '../typechain'
-import { node_url } from '../utils/network'
-import deployments from '../deployments/goerli.staging.json'
+import { node_url } from '../../utils/network'
+import deployments from '../../deployments/goerli.staging.json'
 import chalk from 'chalk'
 
 const msg = (msg: string) => {
