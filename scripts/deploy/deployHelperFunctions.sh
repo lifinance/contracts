@@ -2058,9 +2058,51 @@ function getFacetAddressFromDiamond() {
 
   echo "$RESULT"
 }
+function getCurrentGasPrice() {
+  # read function arguments into variables
+  local NETWORK=$1
+
+  # get RPC URL for given network
+  RPC_URL=$(getRPCUrl "$NETWORK")
+
+  GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL")
+
+  echo "$GAS_PRICE"
+}
 # <<<<<< read from blockchain
 
 # >>>>>> miscellaneous
+function doNotContinueUnlessGasIsBelowThreshold() {
+  # read function arguments into variables
+  local NETWORK=$1
+
+  if [[ "$NETWORK" != "mainnet" ]]; then
+    return 0
+  fi
+
+  echo "ensuring gas price is below maximum threshold as defined in config (for mainnet only)"
+
+  # Start the do-while loop
+  while true
+  do
+    # Get the current gas price
+    CURRENT_GAS_PRICE=$(getCurrentGasPrice "mainnet")
+
+    # Check if the counter variable has reached 10
+    if [ "$MAINNET_MAXIMUM_GAS_PRICE" -gt "$CURRENT_GAS_PRICE" ]
+    then
+      # If the counter variable has reached 10, exit the loop
+      echo "gas price ($CURRENT_GAS_PRICE) is below maximum threshold ($MAINNET_MAXIMUM_GAS_PRICE) - continuing with script execution"
+      return
+    else
+      echo "gas price ($CURRENT_GAS_PRICE) is above maximum ($MAINNET_MAXIMUM_GAS_PRICE) - waiting..."
+      echo ""
+    fi
+
+    # wait 5 seconds before checking gas price again
+    sleep 5
+  done
+}
 function getRPCUrl(){
   # read function arguments into variables
   local NETWORK=$1
@@ -2220,17 +2262,6 @@ function updateDiamondLogsInAllNetworks(){
           echo "Failed to get facets"
         fi
 
-
-
-
-
-        # call saveDiamond function
-        echo "    NETWORK: $NETWORK"
-        echo "    ENVIRONMENT: $ENVIRONMENT"
-        echo "    USE_MUTABLE_DIAMOND: $USE_MUTABLE_DIAMOND"
-        echo "    KNOWN_FACET_ADDRESSES: $KNOWN_FACET_ADDRESSES"
-
-
         if [[ -z $KNOWN_FACET_ADDRESSES ]]; then
           echo "    no facets found"
           saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
@@ -2255,7 +2286,7 @@ function updateDiamondLogsInAllNetworks(){
   done
   playNotificationSound
 }
-# <<<<<< read from blockchain
+# <<<<<< helpers to set/update deployment files/logs/etc
 
 
 
@@ -2486,4 +2517,3 @@ function test_tmp(){
   echo ""
 }
 
-updateDiamondLogsInAllNetworks

@@ -22,12 +22,9 @@
 
 # - clean code
 #   - local before variables
-#   - variable names uppercase
 #   - make environment / file suffix global variables
 #   - add function descriptions in helper functions
 
-# - update docs / notion
-#   - add info about SALT env variable to deploy new contracts
 # - write article
 # - for immutable diamond we need to run some specific script - add to deploy script
 
