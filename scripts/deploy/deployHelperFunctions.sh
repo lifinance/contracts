@@ -438,7 +438,7 @@ function getContractInfoFromDiamondDeploymentLogByName(){
   ADDRESSES_FILE="./deployments/${NETWORK}.diamond.${FILE_SUFFIX}json"
 
   # Read top-level keys into an array
-  FACET_ADDRESSES=($(jq -r ".${DIAMOND_TYPE} | keys[]" "$ADDRESSES_FILE"))
+  FACET_ADDRESSES=($(jq -r ".${DIAMOND_TYPE}.Facets | keys[]" "$ADDRESSES_FILE"))
 
   # Loop through the array of top-level keys
   for FACET_ADDRESS in "${FACET_ADDRESSES[@]}"; do
@@ -1893,6 +1893,8 @@ function getPeripheryAddressFromDiamond() {
   fi
 }
 function getFacetFunctionSelectorsFromDiamond() {
+  # THIS FUNCTION NEEDS TO BE UPDATED/FIXED BEFORE BEING USED AGAIN
+
   # read function arguments into variables
   local DIAMOND_ADDRESS="$1"
   local FACET_NAME="$2"
@@ -1915,11 +1917,11 @@ function getFacetFunctionSelectorsFromDiamond() {
   # get RPC URL
   local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
 
-  # get a list of all facet addresses that are registered with the diamond
+  # get path of diamond log file
   local DIAMOND_FILE_PATH="deployments/$NETWORK.diamond.${FILE_SUFFIX}json"
 
   # search in DIAMOND_FILE_PATH for the given address
-  if jq -e ".facets | index(\"$FACET_ADDRESS\")" "$DIAMOND_FILE_PATH" >/dev/null; then
+  if jq -e ".facets | index(\"$FACET_ADDRESS\")" "$DIAMOND_FILE_PATH" >/dev/null; then # << this does not yet reflect the new file structure !!!!!!
     # get function selectors from diamond (function facetFunctionSelectors)
     local ATTEMPTS=1
     while [[ -z "$FUNCTION_SELECTORS" && $ATTEMPTS -le $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION ]]; do
@@ -2495,7 +2497,7 @@ function test_getContractAddressFromDeploymentLogs() {
   echo "should be '': $(getContractAddressFromDeploymentLogs "testNetwork" "production" "LiFiDiamond")"
 }
 function test_getContractInfoFromDiamondDeploymentLogByName() {
-  getContractInfoFromDiamondDeploymentLogByName "testNetwork" "production" "LiFiDiamond" "OwnershipFacet"
+  getContractInfoFromDiamondDeploymentLogByName "mainnet" "production" "LiFiDiamond" "OwnershipFacet"
   getContractInfoFromDiamondDeploymentLogByName "testNetwork" "production" "LiFiDiamond" "noFacet"
 }
 function test_updateAllContractsToTargetState() {
