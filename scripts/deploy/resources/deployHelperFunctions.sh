@@ -1231,11 +1231,34 @@ function updateAllContractsToTargetState() {
         if [[ "$?" -ne 0 ]]; then
           echo ""
           echo "[info]     diamond address not found - need to deploy diamond first"
-          # TODO: activate
-          #deploySingleContract "$DIAMOND_NAME" "$NETWORK" "$ENVIRONMENT" "$TARGET_VERSION" "true" 2>/dev/null
+
+          # deploy diamond contract
+          deploySingleContract "$DIAMOND_NAME" "$NETWORK" "$ENVIRONMENT" "$TARGET_VERSION" "true" 2>/dev/null
+
+          # check if last command was executed successfully, otherwise exit script with error message
+          checkFailure $? "deploy contract $DIAMOND_NAME to network $NETWORK"
+
+          # get new diamond address from log
           DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME")
-          echo "[info]     diamond contract deployed"
+
+          echo "[info]     diamond contract deployed to $DIAMOND_ADDRESS - deploying core facets now"
           echo ""
+
+          # deploy and add core facets
+          echo ""
+          deployCoreFacets "$NETWORK" "$ENVIRONMENT" 2>/dev/null
+
+          # check if last command was executed successfully, otherwise exit script with error message
+          checkFailure $? "deploy core facets to network $NETWORK"
+          echo "[info]     core facets deployed - updating $DIAMOND_NAME now"
+
+          # update diamond with core facets
+          echo ""
+          diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "UpdateCoreFacets" false 2>/dev/null
+
+          # check if last command was executed successfully, otherwise exit script with error message
+          checkFailure $? "update core facets in $DIAMOND_NAME on network $NETWORK"
+          echo "[info]     core facets added to $DIAMOND_NAME"
         else
           # check if diamond matches current version
           # (need to do that first, otherwise facets might be updated to old diamond before diamond gets updated)
@@ -1297,7 +1320,7 @@ function updateAllContractsToTargetState() {
           # remove "
           TARGET_VERSION=$(echo "$TARGET_VERSION" | sed 's/^"//;s/"$//')
 
-          # determine contract type (diamond, periphery or facet)
+          # determine contract type (periphery or facet)
           if [[ "$CONTRACT" == *"Facet"* ]]; then
             CONTRACT_TYPE="Facet"
           else

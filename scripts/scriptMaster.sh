@@ -2,7 +2,7 @@
 
 # TODO
 
-# - update master script to be able to call all other scripts
+# - make helper functions robust for networks with -
 #   >>> including the solidity update config scripts
 # - integrate diamondMakeImmutable in master script
 
@@ -157,8 +157,6 @@ scriptMaster() {
           )
     fi
 
-    #TODO: add code to select a contract version (or use latest as default)
-
     # get current contract version
     local VERSION=$(getCurrentContractVersion "$CONTRACT")
 
@@ -224,14 +222,12 @@ scriptMaster() {
     echo ""
     echo "[info] selected use case: Deploy all (missing) contracts for all networks"
 
-    #TODO: implement
     error "this use case is not yet implemented"
     exit 1
-    # go through each network in target state
-      # get list of contracts in array
-      # go through each contract
-        # compare actual vs. target
-        # deploy if needed
+
+    #TODO: activate once log and target state are populated
+    # go through each entry in target state and check if contract is deployed in correct version
+    # updateAllContractsToTargetState
 
   playNotificationSound
 

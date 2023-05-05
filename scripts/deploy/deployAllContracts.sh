@@ -44,9 +44,6 @@ deployAllContracts() {
   deployCoreFacets "$NETWORK" "$ENVIRONMENT"
   echo ""
 
-  # prepare deploy script name for diamond
-  local DIAMOND_SCRIPT="Deploy""$DIAMOND_CONTRACT_NAME"
-
   # get current diamond contract version
   local VERSION=$(getCurrentContractVersion "$DIAMOND_CONTRACT_NAME")
 
