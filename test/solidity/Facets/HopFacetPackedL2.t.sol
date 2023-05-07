@@ -231,7 +231,11 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
             );
 
         assertEq(decodedBridgeData.transactionId, transactionId);
-        assertEq(decodedHopData.destinationAmountOutMin, amountOutMinNative);
+        assertEq(decodedBridgeData.receiver, RECEIVER);
+        assertEq(decodedBridgeData.destinationChainId, destinationChainId);
+
+        assertEq(decodedHopData.bonderFee, amountBonderFeeNative);
+        assertEq(decodedHopData.amountOutMin, amountOutMinNative);
     }
 
     function testStartBridgeTokensViaHopL2NativeMin() public {
