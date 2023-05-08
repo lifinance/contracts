@@ -368,7 +368,8 @@
         "Executor": "1.0.0",
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "LIFuelFacet": "1.0.0"
+        "LIFuelFacet": "1.0.0",
+        "Receiver": "1.0.0"
       }
     }
   },
@@ -649,7 +650,8 @@
         "Executor": "1.0.0",
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "LIFuelFacet": "1.0.0"
+        "LIFuelFacet": "1.0.0",
+        "Receiver": "1.0.0"
       }
     }
   },
