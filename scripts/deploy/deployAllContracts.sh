@@ -4,7 +4,7 @@ deployAllContracts() {
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start deployAllContracts"
 
   # load required resources
-  source scripts/deploy/resources/deployConfig.sh
+  source scripts/config.sh
   source scripts/deploy/resources/deployHelperFunctions.sh
   source scripts/deploy/deployPeripheryContracts.sh
   source scripts/deploy/deployCoreFacets.sh

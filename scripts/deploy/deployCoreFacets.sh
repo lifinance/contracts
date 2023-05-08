@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # deploys all "core facet" contracts to the given network/environment
-# core facets are contracts that are listed under CORE_FACETS in deployConfig.sh
+# core facets are contracts that are listed under CORE_FACETS in config.sh
 deployCoreFacets() {
   echo ""
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying core facets now...."
 
   # load config & helper functions
-  source scripts/deploy/resources/deployConfig.sh
+  source scripts/config.sh
   source scripts/deploy/resources/deployHelperFunctions.sh
   source scripts/deploy/deploySingleContract.sh
 

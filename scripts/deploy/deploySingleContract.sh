@@ -5,7 +5,7 @@
 # $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true)
 deploySingleContract() {
   # load config & helper functions
-  source scripts/deploy/resources/deployConfig.sh
+  source scripts/config.sh
   source scripts/deploy/resources/deployHelperFunctions.sh
   source scripts/deploy/resources/contractSpecificReminders.sh
 

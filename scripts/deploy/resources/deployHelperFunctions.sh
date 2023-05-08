@@ -4,7 +4,7 @@
 source .env
 
 # load scripts
-source scripts/deploy/resources/deployConfig.sh
+source scripts/config.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 

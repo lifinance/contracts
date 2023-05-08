@@ -30,7 +30,7 @@ contract DeployScriptBase is Script, DSTest {
         fileSuffix = vm.envString("FILE_SUFFIX");
 
         // if LiFiDiamond should be deployed to 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE
-        // then set this value in deployConfig.sh:
+        // then set this value in config.sh:
         // DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=true
         if (
             keccak256(abi.encodePacked(contractName)) ==
