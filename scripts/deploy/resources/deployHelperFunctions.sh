@@ -761,6 +761,14 @@ function checkRequiredVariablesInDotEnv() {
       local PRIVATE_KEY="$PRIVATE_KEY"
       local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
       local RPC_URL="${!RPC}"
+
+      # special handling for BSC testnet
+      # uses same block explorer key as bsc mainnet
+      if [[ "$NETWORK" == "bsc-testnet" ]]; then
+        NETWORK="bsc"
+        RPC_URL="${!ETH_NODE_URI_BSCTEST}"
+      fi
+
       local BLOCKEXPLORER_API="$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")""_ETHERSCAN_API_KEY"
       local BLOCKEXPLORER_API_KEY="${!BLOCKEXPLORER_API}"
 
