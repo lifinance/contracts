@@ -38,6 +38,7 @@ scriptMaster() {
   source scripts/deploy/resources/deployHelperFunctions.sh
   source scripts/deploy/deployFacetAndAddToDiamond.sh
   source scripts/deploy/deployPeripheryContracts.sh
+  source scripts/config.sh
   for script in scripts/tasks/*.sh; do [ -f "$script" ] && source "$script"; done # sources all scripts in folder scripts/tasks/
 
   # determine environment: check if .env variable "PRODUCTION" is set to true
