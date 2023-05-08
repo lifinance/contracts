@@ -77,9 +77,9 @@
         "Name": "AmarokFacet",
         "Version": "1.0.1"
       },
-      "0xEe1e83541054b0090fA42A16FB2c34CcdA5276C7": {
+      "0xa1531BaCEb6178fd05bD80795C9C75Ac02438E49": {
         "Name": "CelerIMFacet",
-        "Version": ""
+        "Version": "1.0.1"
       },
       "0xA57862295BdF8A680fda893B9bd3b935236d18bA": {
         "Name": "HopFacetPacked",
@@ -109,7 +109,7 @@
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
       "FusePoolZap": "",
       "Receiver": "0x74674DAFd6f4495e7F63F7637E94b8B89B2f01dB",
-      "RelayerCelerIM": "0x6A3fE66D2439893556663cFeeAaF202692d06440",
+      "RelayerCelerIM": "0xB1Fe861ceae7BF4C40515cEEB851f2785d2A1008",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
   }
