@@ -4,15 +4,15 @@ deployAllContracts() {
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start deployAllContracts"
 
   # load required resources
-  source scripts/deploy/deployConfig.sh
-  source scripts/deploy/deployHelperFunctions.sh
+  source scripts/config.sh
+  source scripts/deploy/resources/deployHelperFunctions.sh
   source scripts/deploy/deployPeripheryContracts.sh
   source scripts/deploy/deployCoreFacets.sh
-  source scripts/deploy/diamondUpdate.sh
-  source scripts/sync-dexs.sh
-  source scripts/sync-sigs.sh
+  source scripts/tasks/diamondUpdateFacet.sh
+  source scripts/tasks/diamondSyncDEXs.sh
+  source scripts/tasks/diamondSyncSigs.sh
   source scripts/deploy/deployFacetAndAddToDiamond.sh
-  source scripts/deploy/updatePeriphery.sh
+  source scripts/tasks/diamondUpdatePeriphery.sh
 
   # read function arguments into variables
   local NETWORK="$1"
@@ -44,9 +44,6 @@ deployAllContracts() {
   deployCoreFacets "$NETWORK" "$ENVIRONMENT"
   echo ""
 
-  # prepare deploy script name for diamond
-  local DIAMOND_SCRIPT="Deploy""$DIAMOND_CONTRACT_NAME"
-
   # get current diamond contract version
   local VERSION=$(getCurrentContractVersion "$DIAMOND_CONTRACT_NAME")
 
@@ -62,7 +59,7 @@ deployAllContracts() {
   echo ""
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now updating core facets in diamond contract"
-  diamondUpdate "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateCoreFacets" false
+  diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateCoreFacets" false
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets update completed"
 
   # check if last command was executed successfully, otherwise exit script with error message
@@ -107,7 +104,7 @@ deployAllContracts() {
   deployPeripheryContracts "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
   # update periphery registry
-  updatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
+  diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
 
   echo ""
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"

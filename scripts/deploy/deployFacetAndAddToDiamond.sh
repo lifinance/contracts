@@ -6,8 +6,8 @@ function deployFacetAndAddToDiamond() {
   source .env
 
   # load config & helper functions
-  source scripts/deploy/deployConfig.sh
-  source scripts/deploy/deployHelperFunctions.sh
+  source scripts/config.sh
+  source scripts/deploy/resources/deployHelperFunctions.sh
   source scripts/deploy/deploySingleContract.sh
 
   # read function arguments into variables
@@ -114,12 +114,12 @@ function deployFacetAndAddToDiamond() {
   local UPDATE_SCRIPT="Update$FACET_CONTRACT_NAME"
 
   # update diamond
-  diamondUpdate "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "$UPDATE_SCRIPT" true
+  diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "$UPDATE_SCRIPT" true
 
   if [ $? -ne 0 ]
   then
     if [[ "$DEBUG" == *"true"* ]]; then
-      warning "this call was not successful: diamondUpdate $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT true"
+      warning "this call was not successful: diamondUpdateFacet $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT true"
     fi
     return 1
   fi
