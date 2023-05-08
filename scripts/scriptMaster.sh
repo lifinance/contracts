@@ -236,8 +236,7 @@ scriptMaster() {
   # use case 5: Execute a script
   elif [[ "$SELECTION" == *"5)"* ]]; then
     echo ""
-    SCRIPT=$(ls -1p "$TASKS_SCRIPT_DIRECTORY" | grep -v "/$" | sed -e 's/\.sh$//'| fzf --prompt "Please select the script you would like to execute: ")
-    #SCRIPT=$(ls -1p "$TASKS_SCRIPT_DIRECTORY" | grep -v "/$"  fzf --prompt "Please select the script you would like to execute: ")
+    SCRIPT=$(ls -1p "$TASKS_SCRIPT_DIRECTORY" | grep -v "/$" | sed -e 's/\.sh$//'| gum filter --placeholder "Please select the script you would like to execute: ")
     if [[ -z "$SCRIPT" ]]; then
       error "invalid value selected - exiting script now"
       exit 1
@@ -247,7 +246,7 @@ scriptMaster() {
     echo "[info] selected script: $SCRIPT"
 
     # execute the selected script
-    eval "$SCRIPT"
+    eval "$SCRIPT" "$ENVIRONMENT"
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 6: Update _targetState.json file

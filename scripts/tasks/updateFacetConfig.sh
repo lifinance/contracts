@@ -18,7 +18,7 @@ updateFacetConfig() {
   echo "[info] selected network: $NETWORK"
 
   # get deployer wallet balance
-  echo "[info] loading deployer wallet balance..."
+  echo "[info] loading deployer wallet balance for network $NETWORK..."
   BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
   echo "[info] deployer wallet balance in this network: $BALANCE"
   echo ""
