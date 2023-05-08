@@ -8,6 +8,7 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 import { WETH } from "solmate/tokens/WETH.sol";
 
+// solhint-disable-next-line contract-name-camelcase
 interface L2_AmmWrapper {
     function bridge() external view returns (address);
 
@@ -31,7 +32,7 @@ interface Swap {
 /// @title Hop Facet (Optimized for Rollups)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-/// @custom:version 1.0.3
+/// @custom:version 1.0.4
 contract HopFacetPacked is ILiFi, TransferrableOwnership {
     /// Storage ///
 
@@ -100,11 +101,12 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         // receiver: address(bytes20(msg.data[12:32])),
         // destinationChainId: uint256(uint32(bytes4(msg.data[32:36]))),
         // bonderFee: uint256(uint128(bytes16(msg.data[36:52]))),
-        // amountOutMin: uint256(uint128(bytes16(msg.data[52:68]))),
-        // destinationAmountOutMin: uint256(uint128(bytes16(msg.data[68:84]))),
-        // destinationDeadline: uint256(uint32(bytes4(msg.data[84:88]))),
-        // hopBridge: address(bytes20(msg.data[88:108]))
-        // => total calldata length required: 108
+        // amountOutMin: uint256(uint128(bytes16(msg.data[52:68])))
+        // => total calldata length required: 68
+
+        uint256 destinationChainId = uint256(uint32(bytes4(msg.data[32:36])));
+        uint256 amountOutMin = uint256(uint128(bytes16(msg.data[52:68])));
+        bool toL1 = destinationChainId == 1;
 
         // Wrap ETH
         WETH(payable(nativeL2CanonicalToken)).deposit{ value: msg.value }();
@@ -114,21 +116,24 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             0,
             1,
             msg.value,
-            uint256(uint128(bytes16(msg.data[52:68]))),
+            amountOutMin,
             block.timestamp
         );
 
         // Bridge assets
+        // solhint-disable-next-line check-send-result
         IHopBridge(nativeBridge).send(
-            uint256(uint32(bytes4(msg.data[32:36]))),
-            address(bytes20(msg.data[12:32])),
+            destinationChainId,
+            address(bytes20(msg.data[12:32])), // receiver
             swapAmount,
-            uint256(uint128(bytes16(msg.data[36:52]))),
-            uint256(uint128(bytes16(msg.data[68:84]))),
-            uint256(uint32(bytes4(msg.data[84:88])))
+            uint256(uint128(bytes16(msg.data[36:52]))), // bonderFee
+            toL1 ? 0 : amountOutMin,
+            toL1 ? 0 : block.timestamp + 7 * 24 * 60 * 60
         );
 
-        emit LiFiHopTransfer(bytes8(msg.data[4:12]));
+        emit LiFiHopTransfer(
+            bytes8(msg.data[4:12]) // transactionId
+        );
     }
 
     /// @notice Bridges Native tokens via Hop Protocol from L2
@@ -204,6 +209,10 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             destinationDeadline <= type(uint32).max,
             "destinationDeadline value passed too big to fit in uint32"
         );
+        require(
+            hopBridge != address(0),
+            "hopBridge value passed is address zero"
+        );
 
         return
             bytes.concat(
@@ -212,10 +221,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
                 bytes20(receiver),
                 bytes4(uint32(destinationChainId)),
                 bytes16(uint128(bonderFee)),
-                bytes16(uint128(amountOutMin)),
-                bytes16(uint128(destinationAmountOutMin)),
-                bytes4(uint32(destinationDeadline)),
-                bytes20(hopBridge)
+                bytes16(uint128(amountOutMin))
             );
     }
 
@@ -229,7 +235,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         returns (BridgeData memory, HopFacetOptimized.HopData memory)
     {
         require(
-            _data.length >= 108,
+            _data.length >= 68,
             "data passed in is not the correct length"
         );
 
@@ -239,14 +245,8 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         bridgeData.transactionId = bytes32(bytes8(_data[4:12]));
         bridgeData.receiver = address(bytes20(_data[12:32]));
         bridgeData.destinationChainId = uint256(uint32(bytes4(_data[32:36])));
-        bridgeData.minAmount = uint256(uint128(bytes16(_data[56:72])));
         hopData.bonderFee = uint256(uint128(bytes16(_data[36:52])));
         hopData.amountOutMin = uint256(uint128(bytes16(_data[52:68])));
-        hopData.destinationAmountOutMin = uint256(
-            uint128(bytes16(_data[68:84]))
-        );
-        hopData.destinationDeadline = uint256(uint32(bytes4(_data[84:88])));
-        hopData.hopBridge = IHopBridge(address(bytes20(_data[88:108])));
 
         return (bridgeData, hopData);
     }
