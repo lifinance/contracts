@@ -1,46 +1,31 @@
 {
-  "hardhat": {
-    "acrossSpokePool": "0x4D9079Bb4165aeb4084c526a32695dCfd2F77381",
-    "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
-  },
-  "boba": {
-    "acrossSpokePool": "0xBbc6009fEfFc27ce705322832Cb2068F8C1e0A58",
-    "weth": "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000"
+  "mainnet": {
+    "acrossSpokePool": "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5",
+    "weth": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
   },
   "arbitrum": {
-    "acrossSpokePool": "0xB88690461dDbaB6f04Dfad7df66B7725942FEb9C",
+    "acrossSpokePool": "0xe35e9842fceaca96570b734083f4a58e8f7c5f2a",
     "weth": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
   },
   "optimism": {
-    "acrossSpokePool": "0xa420b2d1c0841415A695b81E5B867BCD07Dff8C9",
+    "acrossSpokePool": "0x6f26Bf09B1C792e3228e5467807a900A503c0281",
     "weth": "0x4200000000000000000000000000000000000006"
   },
   "polygon": {
-    "acrossSpokePool": "0x69B5c72837769eF1e7C164Abc6515DcFf217F920",
+    "acrossSpokePool": "0x9295ee1d8C5b022Be115A2AD3c30C72E34e7F096",
     "weth": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
   },
-  "mainnet": {
-    "acrossSpokePool": "0x4D9079Bb4165aeb4084c526a32695dCfd2F77381",
-    "weth": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
-  },
-  "rinkeby": {
-    "acrossSpokePool": "0x90743806D7A66b37F31FAfd7b3447210aB55640f",
-    "weth": "0xDf032Bc4B9dC2782Bb09352007D4C57B75160B15"
-  },
-  "kovan": {
-    "acrossSpokePool": "0x73549B5639B04090033c1E77a22eE9Aa44C2eBa0",
-    "weth": "0xF3A6679B266899042276804930B3bFBaf807F15b"
+
+  "goerli": {
+    "acrossSpokePool": "0xEc88d3C08E2939562Ff8188B4e30A52236C3FF09",
+    "weth": "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6"
   },
   "arbitrumTestnet": {
-    "acrossSpokePool": "0x3BED21dAe767e4Df894B31b14aD32369cE4bad8b",
-    "weth": ""
-  },
-  "optimisticKovan": {
-    "acrossSpokePool": "0x2b7b7bAE341089103dD22fa4e8D7E4FA63E11084",
-    "weth": "0x4200000000000000000000000000000000000006"
+    "acrossSpokePool": "0x3baD7AD0728f9917d1Bf08af5782dCbD516cDd96",
+    "weth": "0xe39Ab88f8A4777030A534146A9Ca3B52bd5D43A3"
   },
   "mumbai": {
-    "acrossSpokePool": "0xFd9e2642a170aDD10F53Ee14a93FcF2F31924944",
-    "weth": "0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa"
+    "acrossSpokePool": "0x45fF03629D024b7763275e732a2d80202c18b31C",
+    "weth": "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889"
   }
 }

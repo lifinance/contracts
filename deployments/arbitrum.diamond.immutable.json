@@ -77,9 +77,9 @@
         "Name": "StargateFacet",
         "Version": "1.0.0"
       },
-      "0xb0199ce3c4fD19aF0AdCbe8C589ea1f699c295fb": {
+      "0x2A7568Fd6dffA6F7578cdF010398BffAa53cc7c0": {
         "Name": "AcrossFacet",
-        "Version": ""
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

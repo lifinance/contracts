@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": ""
       },
-      "0xb0199ce3c4fD19aF0AdCbe8C589ea1f699c295fb": {
+      "0x2A7568Fd6dffA6F7578cdF010398BffAa53cc7c0": {
         "Name": "AcrossFacet",
-        "Version": ""
+        "Version": "2.0.0"
       },
       "0xbd8D369470169f9976c5bCc60318955836843a71": {
         "Name": "AmarokFacet",

@@ -39,7 +39,7 @@
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "AcrossFacet": "1.0.3",
+        "AcrossFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "HyphenFacet": "1.0.0",
@@ -97,7 +97,7 @@
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "AcrossFacet": "1.0.3",
+        "AcrossFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "HyphenFacet": "1.0.0",
@@ -204,7 +204,7 @@
         "AccessManagerFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
-        "AcrossFacet": "1.0.3",
+        "AcrossFacet": "2.0.0",
         "AxelarFacet": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
@@ -272,7 +272,7 @@
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
         "AmarokFacet": "1.0.0",
-        "AcrossFacet": "1.0.3"
+        "AcrossFacet": "2.0.0"
       }
     }
   },
@@ -586,7 +586,6 @@
         "AccessManagerFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
-        "AcrossFacet": "1.0.3",
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "MultichainFacet": "",
