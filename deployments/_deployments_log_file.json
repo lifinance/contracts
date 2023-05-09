@@ -557,6 +557,15 @@
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "true"
           }
+        ],
+        "2.0.0": [
+          {
+            "ADDRESS": "0xc673c3df4fff2C499009E5fCa94bc446f5B07772",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-09 22:26:39",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
         ]
       }
     },
@@ -569,6 +578,15 @@
             "TIMESTAMP": "2023-04-12 14:05:40",
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "true"
+          }
+        ],
+        "2.0.0": [
+          {
+            "ADDRESS": "0xc673c3df4fff2C499009E5fCa94bc446f5B07772",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-09 22:15:49",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
           }
         ]
       }

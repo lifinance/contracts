@@ -45,9 +45,9 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0x5459Fe34F4B391938C45C909F62aD7E12978bD8F": {
+      "0xc673c3df4fff2C499009E5fCa94bc446f5B07772": {
         "Name": "HopFacetOptimized",
-        "Version": ""
+        "Version": "2.0.0"
       },
       "0x4Dc509f0BB4db1faeba81f5F13583Ff3d95F938D": {
         "Name": "HopFacet",

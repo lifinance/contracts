@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # defines the environment (true=production, false=staging)
-PRODUCTION=false
+PRODUCTION=true
 
 # the maximum time in seconds that the script will wait for blockchain to sync contract deployment
 # we use this as double check to make sure that a contract was actually deployed
@@ -47,7 +47,7 @@ CONTRACT_REMINDERS="scripts/deploy/resources/contractSpecificReminders.sh"
 EXCLUDE_NETWORKS="lineatest"
 
 # will output more detailed information for debugging purposes
-DEBUG=false
+DEBUG=true
 
 # defines if newly deployed contracts should be verified or not
 VERIFY_CONTRACTS=false
