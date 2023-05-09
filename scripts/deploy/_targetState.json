@@ -272,6 +272,8 @@
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
         "AmarokFacet": "1.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "HopFacetPacked": "1.0.4",
         "AcrossFacet": "2.0.0"
       }
     }

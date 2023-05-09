@@ -220,12 +220,6 @@
         "d_contractName": "l2Bridge"
       },
       {
-        "a_tokenAddress": "0xc5102fE9359FD9a28f877a67E36B0F050d81a3CC",
-        "b_contractAddress": "0x0000000000000000000000000000000000000000",
-        "c_tokenName": "HOP",
-        "d_contractName": "l2SaddleSwap"
-      },
-      {
         "a_tokenAddress": "0xEC70Dcb4A1EFa46b8F2D97C310C9c4790ba5ffA8",
         "b_contractAddress": "0x16e08C02e4B78B0a5b3A917FF5FeaeDd349a5a95",
         "c_tokenName": "rETH",
@@ -351,12 +345,6 @@
         "b_contractAddress": "0x03D7f750777eC48d39D080b020D83Eb2CB4e3547",
         "c_tokenName": "HOP",
         "d_contractName": "l2Bridge"
-      },
-      {
-        "a_tokenAddress": "0xc5102fE9359FD9a28f877a67E36B0F050d81a3CC",
-        "b_contractAddress": "0x0000000000000000000000000000000000000000",
-        "c_tokenName": "HOP",
-        "d_contractName": "l2SaddleSwap"
       },
       {
         "a_tokenAddress": "0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4",
@@ -508,12 +496,6 @@
         "b_contractAddress": "0x6F03052743CD99ce1b29265E377e320CD24Eb632",
         "c_tokenName": "HOP",
         "d_contractName": "l2Bridge"
-      },
-      {
-        "a_tokenAddress": "0xc5102fE9359FD9a28f877a67E36B0F050d81a3CC",
-        "b_contractAddress": "0x0000000000000000000000000000000000000000",
-        "c_tokenName": "HOP",
-        "d_contractName": "l2SaddleSwap"
       }
     ]
   },
@@ -629,12 +611,6 @@
         "b_contractAddress": "0x58c61AeE5eD3D748a1467085ED2650B697A66234",
         "c_tokenName": "HOP",
         "d_contractName": "l2Bridge"
-      },
-      {
-        "a_tokenAddress": "0xc5102fE9359FD9a28f877a67E36B0F050d81a3CC",
-        "b_contractAddress": "0x0000000000000000000000000000000000000000",
-        "c_tokenName": "HOP",
-        "d_contractName": "l2SaddleSwap"
       }
     ]
   },
@@ -901,12 +877,6 @@
         "d_contractName": "l2Bridge"
       },
       {
-        "a_tokenAddress": "0x6F03052743CD99ce1b29265E377e320CD24Eb632",
-        "b_contractAddress": "0x0000000000000000000000000000000000000000",
-        "c_tokenName": "HOP",
-        "d_contractName": "l2SaddleSwap"
-      },
-      {
         "a_tokenAddress": "0xf56dc6695cF1f5c364eDEbC7Dc7077ac9B586068",
         "b_contractAddress": "0x50d7d8B850e0e880295800790551928F4546BfE2",
         "c_tokenName": "USDC",
@@ -925,34 +895,16 @@
         "d_contractName": "l2Bridge"
       },
       {
-        "a_tokenAddress": "0x1990BC6dfe2ef605Bfc08f5A23564dB75642Ad73",
-        "b_contractAddress": "0x0000000000000000000000000000000000000000",
-        "c_tokenName": "USDT",
-        "d_contractName": "l2SaddleSwap"
-      },
-      {
         "a_tokenAddress": "0x8741Ba6225A6BF91f9D73531A98A89807857a2B3",
         "b_contractAddress": "0xf11EBB94EC986EA891Aec29cfF151345C83b33Ec",
         "c_tokenName": "DAI",
         "d_contractName": "l2Bridge"
       },
       {
-        "a_tokenAddress": "0x8741Ba6225A6BF91f9D73531A98A89807857a2B3",
-        "b_contractAddress": "0x0000000000000000000000000000000000000000",
-        "c_tokenName": "DAI",
-        "d_contractName": "l2SaddleSwap"
-      },
-      {
         "a_tokenAddress": "0x7823E8DCC8bfc23EA3AC899EB86921f90e80F499",
         "b_contractAddress": "0xb07c6505e1E41112494123e40330c5Ac09817CFB",
         "c_tokenName": "UNI",
         "d_contractName": "l2Bridge"
-      },
-      {
-        "a_tokenAddress": "0x7823E8DCC8bfc23EA3AC899EB86921f90e80F499",
-        "b_contractAddress": "0x0000000000000000000000000000000000000000",
-        "c_tokenName": "UNI",
-        "d_contractName": "l2SaddleSwap"
       }
     ]
   },
