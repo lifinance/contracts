@@ -17,7 +17,7 @@ interface IMultichainERC20 {
 /// @title Multichain Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Multichain (Prev. AnySwap)
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// Storage ///
 

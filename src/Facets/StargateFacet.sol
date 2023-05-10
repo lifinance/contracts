@@ -13,7 +13,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Stargate Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 

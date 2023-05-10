@@ -19,7 +19,7 @@ interface CelerToken {
 /// @title CelerIM Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging tokens and data through CBridge
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 

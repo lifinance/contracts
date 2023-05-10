@@ -14,7 +14,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title MakerTeleport Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Maker Teleport
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract MakerTeleportFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeCast for uint256;
 

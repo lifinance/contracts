@@ -7,7 +7,7 @@ import { IDiamondCut } from "./Interfaces/IDiamondCut.sol";
 /// @title LIFI Diamond
 /// @author LI.FI (https://li.fi)
 /// @notice Base EIP-2535 Diamond Proxy Contract.
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract LiFiDiamond {
     constructor(address _contractOwner, address _diamondCutFacet) payable {
         LibDiamond.setContractOwner(_contractOwner);

@@ -14,7 +14,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 /// @title Axelar Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for cross-chain contract calls via Axelar Network
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract AxelarFacet is ReentrancyGuard {
     /// Storage ///
 
