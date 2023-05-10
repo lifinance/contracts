@@ -44,13 +44,13 @@
     },
     "Periphery": {
       "AxelarExecutor": "",
-      "ERC20Proxy": "0x69d37e186A7E25eB4D02a5b957686B1F2005CB6c",
-      "Executor": "0x4DE055c2b7054b9B3Aa7c3891aacB9dE4F489D66",
-      "FeeCollector": "0x316A8D31a1ECb50C725209c7Eed8C67ad5f34271",
+      "ERC20Proxy": "0xf90a432dD1D0541470BC9C440d9dEc3659755238",
+      "Executor": "0xdCbf065502Cfc7f32B3B28E26d38a5Bc5d5bA6f2",
+      "FeeCollector": "0x7f98D45c7902f079fDb65811B633522e2d227BB6",
       "FusePoolZap": "",
-      "Receiver": "0x8329b7f56e286CeBD280e675F343D57D704266F1",
+      "Receiver": "0x5Bc89B57039b23A035c3914E3FD6b86cFe73afBA",
       "RelayerCelerIM": "0xF40B8ADeD37698A13bA6D61082207E4CE242598C",
-      "ServiceFeeCollector": "0x3D3355A9571f877AFBd1ff712340F73052abb5AB"
+      "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d"
     }
   }
 }

@@ -37,6 +37,9 @@ contract DeployScript is UpdateScriptBase {
             tokensToApprove.push(c.token);
         }
 
+        bridges.push(HopFacetPacked(facet).exchangeAddress());
+        tokensToApprove.push(HopFacetPacked(facet).l2CanonicalToken());
+
         vm.startBroadcast(deployerPrivateKey);
 
         HopFacetPacked(facet).setApprovalForHopBridges(
