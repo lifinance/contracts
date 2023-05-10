@@ -12,9 +12,11 @@ contract CallVerificationFacet {
     /// @notice Extracts the bridge data from the calldata
     /// @param data The calldata to extract the bridge data from
     /// @return bridgeData The bridge data extracted from the calldata
-    function extractBridgeData(
-        bytes calldata data
-    ) external pure returns (ILiFi.BridgeData memory) {
+    function extractBridgeData(bytes calldata data)
+        external
+        pure
+        returns (ILiFi.BridgeData memory)
+    {
         ILiFi.BridgeData memory bridgeData;
         bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
         return bridgeData;
@@ -23,9 +25,11 @@ contract CallVerificationFacet {
     /// @notice Extracts the swap data from the calldata
     /// @param data The calldata to extract the swap data from
     /// @return swapData The swap data extracted from the calldata
-    function extractSwapData(
-        bytes calldata data
-    ) external pure returns (LibSwap.SwapData[] memory) {
+    function extractSwapData(bytes calldata data)
+        external
+        pure
+        returns (LibSwap.SwapData[] memory)
+    {
         LibSwap.SwapData[] memory swapData;
         (, swapData) = abi.decode(
             data[4:],
@@ -37,9 +41,7 @@ contract CallVerificationFacet {
     /// @notice Extracts the bridge data and swap data from the calldata
     /// @param data The calldata to extract the bridge data and swap data from
     /// @return bridgeData The bridge data extracted from the calldata
-    function extractData(
-        bytes calldata data
-    )
+    function extractData(bytes calldata data)
         external
         pure
         returns (ILiFi.BridgeData memory, LibSwap.SwapData[] memory)
@@ -56,12 +58,15 @@ contract CallVerificationFacet {
     /// @notice Extracts the main parameters from the calldata
     /// @param data The calldata to extract the main parameters from
     /// @return receiver The receiver extracted from the calldata
-    function extractMainParameters(
-        bytes calldata data
-    )
+    function extractMainParameters(bytes calldata data)
         external
         pure
-        returns (address, uint256, uint256, ILiFi.BridgeData memory)
+        returns (
+            address,
+            uint256,
+            uint256,
+            ILiFi.BridgeData memory
+        )
     {
         ILiFi.BridgeData memory bridgeData;
         (bridgeData) = abi.decode(data[4:], (ILiFi.BridgeData));
@@ -76,9 +81,12 @@ contract CallVerificationFacet {
     /// @notice Validates the calldata
     /// @param data The calldata to validate
     /// @param receiver The receiver to validate
+    ///        or 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF to ignore
     /// @param sendingAssetId The sending asset id to validate
-    /// @param amount The amount to validate
+    ///        or 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF to ignore
+    /// @param amount The amount to validate or type(uint256).max to ignore
     /// @param destinationChainId The destination chain id to validate
+    ///        or type(uint256).max to ignore
     /// @return isValid Whether the calldata is validate
     function validateCalldata(
         bytes calldata data,
@@ -90,10 +98,15 @@ contract CallVerificationFacet {
         ILiFi.BridgeData memory bridgeData;
         (bridgeData) = abi.decode(data[4:], (ILiFi.BridgeData));
         return
-            (bridgeData.receiver == address(0xfff) ||
+            (bridgeData.receiver ==
+                0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF ||
                 bridgeData.receiver == receiver) &&
-            bridgeData.sendingAssetId == sendingAssetId &&
-            bridgeData.minAmount == amount &&
-            bridgeData.destinationChainId == destinationChainId;
+            (bridgeData.sendingAssetId ==
+                0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF ||
+                bridgeData.sendingAssetId == sendingAssetId) &&
+            (bridgeData.minAmount == type(uint256).max ||
+                bridgeData.minAmount == amount) &&
+            (bridgeData.destinationChainId == type(uint256).max ||
+                bridgeData.destinationChainId == destinationChainId);
     }
 }
