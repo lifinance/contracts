@@ -118,7 +118,7 @@ function diamondUpdatePeriphery() {
 
         if [ "$KNOWN_ADDRESS" != "$CONTRACT_ADDRESS" ]; then
           # register contract
-          register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS"
+          register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS" "$ENVIRONMENT"
           LAST_CALL=$?
 
           if [ $LAST_CALL -eq 0 ]; then
@@ -161,6 +161,7 @@ register() {
   local CONTRACT_NAME=$3
   local ADDR=$4
   local RPC="ETH_NODE_URI_$NETWORK"
+  local ENVIRONMENT=$5
 
   # register periphery contract
   local ATTEMPTS=1
@@ -174,10 +175,10 @@ register() {
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
       # print output to console
-      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $PRIVATE_KEY --rpc-url "${!RPC}" --legacy
+      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $(getPrivateKey "$ENVIRONMENT") --rpc-url "${!RPC}" --legacy
     else
       # do not print output to console
-      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $PRIVATE_KEY --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
+      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $(getPrivateKey "$ENVIRONMENT") --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
     fi
 
     # check the return code the last call
