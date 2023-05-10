@@ -110,14 +110,22 @@ function diamondUpdatePeriphery() {
     if [[ "$?" -eq 0 ]]; then
       # get address
       local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT_NAME "$CONTRACT" '.[$CONTRACT_NAME] // "0x"' "$ADDRS")
+
       # check if address available, otherwise throw error and skip iteration
       if [ "$CONTRACT_ADDRESS" != "0x" ]; then
-        # register contract
-        register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS"
-        LAST_CALL=$?
+        # check if has already been added to diamond
+        KNOWN_ADDRESS=$(getPeripheryAddressFromDiamond "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT")
 
-        if [ $LAST_CALL -eq 0 ]; then
-          echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
+        if [ "$KNOWN_ADDRESS" != "$CONTRACT_ADDRESS" ]; then
+          # register contract
+          register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS"
+          LAST_CALL=$?
+
+          if [ $LAST_CALL -eq 0 ]; then
+            echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
+          fi
+        else
+          echo "[info] contract $CONTRACT is already registered on diamond $DIAMOND_ADDRESS - no action needed"
         fi
       else
         warning "no address found for periphery contract $CONTRACT in this file: $ADDRS >> please deploy contract first"
