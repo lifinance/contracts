@@ -47,7 +47,7 @@ CONTRACT_REMINDERS="scripts/deploy/resources/contractSpecificReminders.sh"
 EXCLUDE_NETWORKS="lineatest"
 
 # will output more detailed information for debugging purposes
-DEBUG=true
+DEBUG=false
 
 # defines if newly deployed contracts should be verified or not
 VERIFY_CONTRACTS=false
