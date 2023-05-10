@@ -82,7 +82,8 @@ function logContractDeploymentInfo {
   local VERIFIED="$9"
 
   if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
-    error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT). Please check and manually update the log with the correct address. "
+    error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT) to master log file. Log will not be updated. Please check and run this script again to secure deploy log data."
+    return 1
   fi
 
   # logging for debug purposes
@@ -726,7 +727,8 @@ function saveContract() {
   fi
 
   if [[ "$ADDRESS" == *"null"* || -z "$ADDRESS"  ]]; then
-    error "trying to write a 'null' address to log file (NETWORK=$NETWORK, CONTRACT=$CONTRACT, ADDRESS=$ADDRESS)"
+    error "trying to write a 'null' address to $ADDRESSES_FILE for $CONTRACT. Log file will not be updated."
+    return 1
   fi
 
   # create an empty json if it does not exist
@@ -2048,14 +2050,6 @@ function doesAddressContainBytecode() {
   NODE_URL_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)"
   NODE_URL=${!NODE_URL_KEY}
 
-  # logging for debug purposes
-#  if [[ "$DEBUG" == *"true"* ]]; then
-#    echo ""
-#    echo "[debug] in function doesAddressContainBytecode"
-#    echo "[debug] NETWORK=$NETWORK"
-#    echo "[debug] ADDRESS=$ADDRESS"
-#  fi
-
   # check if NODE_URL is available
   if [ -z "$NODE_URL" ]; then
       echo "[error]: no node url found for NETWORK $NETWORK. Please update your .env FILE and make sure it has a value for the following key: $NODE_URL_KEY"
@@ -2115,7 +2109,7 @@ function doNotContinueUnlessGasIsBelowThreshold() {
   # read function arguments into variables
   local NETWORK=$1
 
-  if [[ "$NETWORK" != "mainnet" ]]; then
+  if [ "$NETWORK" != "mainnet" ]; then
     return 0
   fi
 
@@ -2132,7 +2126,7 @@ function doNotContinueUnlessGasIsBelowThreshold() {
     then
       # If the counter variable has reached 10, exit the loop
       echo "gas price ($CURRENT_GAS_PRICE) is below maximum threshold ($MAINNET_MAXIMUM_GAS_PRICE) - continuing with script execution"
-      return
+      return 0
     else
       echo "gas price ($CURRENT_GAS_PRICE) is above maximum ($MAINNET_MAXIMUM_GAS_PRICE) - waiting..."
       echo ""

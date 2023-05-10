@@ -172,7 +172,8 @@ deploySingleContract() {
 
       # print return data only if debug mode is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        echo $CLEAN__RETURN_DATA | jq 2>/dev/null
+        echo "CLEAN_RETURN_DATA:"
+        echo $CLEAN__RETURN_DATA
       fi
 
       # extract the "returns" field and its contents from the return data (+hide errors)
@@ -210,6 +211,18 @@ deploySingleContract() {
   # check if call was executed successfully or used all ATTEMPTS
   if [ $attempts -gt "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; then
     error "failed to deploy $CONTRACT to network $NETWORK in $ENVIRONMENT environment"
+
+    # end this script according to flag
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
+  # check if address is available, otherwise do not continue
+  if [[ -z  "$ADDRESS" || "$ADDRESS" == "null" ]]; then
+    warning "failed to obtain address of newly deployed contract $CONTRACT. There may be an issue within the deploy script. Please check and try again"
 
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" ]]; then

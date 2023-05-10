@@ -57,7 +57,7 @@
       "FeeCollector": "",
       "FusePoolZap": "",
       "Receiver": "",
-      "RelayerCelerIM": "",
+      "RelayerCelerIM": "0xC072a97eb5e746b466dB76D8e182ea3eA49A0907",
       "ServiceFeeCollector": ""
     }
   }

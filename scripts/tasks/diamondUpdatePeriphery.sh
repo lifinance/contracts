@@ -136,6 +136,14 @@ function diamondUpdatePeriphery() {
     fi
   fi
 
+  # update diamond log file
+  if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
+    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" true
+  else
+    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" false
+  fi
+
+
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"
 }
 
