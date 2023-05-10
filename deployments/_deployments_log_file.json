@@ -1830,5 +1830,20 @@
         ]
       }
     }
+  },
+  "GravityFacet": {
+    "mumbai": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5282a38ef10557d7Cb44Ca2B6c61772E26A0a497",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-10 16:00:43",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000020",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
   }
 }

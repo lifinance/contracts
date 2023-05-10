@@ -611,10 +611,6 @@ function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
 
   MULTICALL_ADDRESS="0xcA11bde05977b3631167028862bE2a173976CA11"
 
-  PRIV_KEY=$(getPrivateKey "$ENVIRONMENT")
-
-  echo "PRIV_KEY: $PRIV_KEY"
-
   attempts=1
 
   echo "before call"
@@ -622,7 +618,7 @@ function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
     while [ $attempts -lt 11 ]; do
       echo "Trying to execute multicall now - attempt ${attempts}"
       # try to execute call
-      MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key "$PRIV_KEY" --rpc-url "https://polygon-rpc.com" --legacy)
+      MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key $(getPrivateKey "$ENVIRONMENT") --rpc-url "https://polygon-rpc.com" --legacy)
 
       # check the return code the last call
       if [ $? -eq 0 ]; then

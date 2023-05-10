@@ -1,5 +1,9 @@
 #!/bin/bash
 
+#TODO:
+# - update script
+# - call with ENVIRONMENT
+# - add private key distinction
 
 updateERC20Proxy() {
 	source .env
