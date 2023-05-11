@@ -9,43 +9,36 @@ import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    struct Config {
-        address ammWrapper;
-        address bridge;
-        string name;
-        address token;
+    struct Approval {
+        address a_tokenAddress;
+        address b_contractAddress;
+        string c_tokenName;
+        string d_contractName;
     }
 
-    address[] internal bridges;
-    address[] internal tokensToApprove;
+    address[] internal contractAddresses;
+    address[] internal tokenAddresses;
 
     function run() public returns (address[] memory facets) {
         address facet = json.readAddress(".HopFacetOptimized");
 
         path = string.concat(root, "/config/hop.json");
         json = vm.readFile(path);
-        bytes memory rawConfig = json.parseRaw(
-            string.concat(".", network, ".tokens")
+        bytes memory rawApprovals = json.parseRaw(
+            string.concat(".", network, ".approvals")
         );
-        Config[] memory configs = abi.decode(rawConfig, (Config[]));
+        Approval[] memory approvals = abi.decode(rawApprovals, (Approval[]));
 
-        // Loop through all items in the config and
-        // add the tokens and bridges to their respective arrays
-        for (uint256 i = 0; i < configs.length; i++) {
-            // if the token is address(0) (native) then skip it
-            if (configs[i].token == address(0)) continue;
-            bridges.push(
-                configs[i].ammWrapper == address(0)
-                    ? configs[i].bridge
-                    : configs[i].ammWrapper
-            );
-            tokensToApprove.push(configs[i].token);
+        // Loop through all items and split them in arrays
+        for (uint256 i = 0; i < approvals.length; i++) {
+            contractAddresses.push(approvals[i].b_contractAddress);
+            tokenAddresses.push(approvals[i].a_tokenAddress);
         }
 
         bytes memory callData = abi.encodeWithSelector(
             HopFacetOptimized.setApprovalForBridges.selector,
-            bridges,
-            tokensToApprove
+            contractAddresses,
+            tokenAddresses
         );
 
         vm.startBroadcast(deployerPrivateKey);

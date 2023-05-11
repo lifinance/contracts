@@ -9,15 +9,15 @@ import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    struct Config {
-        address ammWrapper;
-        address bridge;
-        string name;
-        address token;
+    struct Approval {
+        address a_tokenAddress;
+        address b_contractAddress;
+        string c_tokenName;
+        string d_contractName;
     }
 
-    address[] internal bridges;
-    address[] internal tokensToApprove;
+    address[] internal contractAddresses;
+    address[] internal tokenAddresses;
 
     function run() public returns (address[] memory facets) {
         address facet = json.readAddress(".HopFacetPacked");
@@ -25,23 +25,26 @@ contract DeployScript is UpdateScriptBase {
         // load config
         path = string.concat(root, "/config/hop.json");
         json = vm.readFile(path);
-        bytes memory rawConfig = json.parseRaw(
-            string.concat(".", network, ".tokens")
+        bytes memory rawApprovals = json.parseRaw(
+            string.concat(".", network, ".approvals")
         );
-        Config[] memory configs = abi.decode(rawConfig, (Config[]));
+        Approval[] memory approvals = abi.decode(rawApprovals, (Approval[]));
 
-        // parse config
-        for (uint256 i = 0; i < configs.length; i++) {
-            Config memory c = configs[i];
-            bridges.push(c.ammWrapper == address(0) ? c.bridge : c.ammWrapper);
-            tokensToApprove.push(c.token);
+        // Loop through all items and split them in arrays
+        for (uint256 i = 0; i < approvals.length; i++) {
+            contractAddresses.push(approvals[i].b_contractAddress);
+            tokenAddresses.push(approvals[i].a_tokenAddress);
         }
+
+        bridges.push(HopFacetPacked(facet).exchangeAddress());
+        tokensToApprove.push(HopFacetPacked(facet).l2CanonicalToken());
 
         vm.startBroadcast(deployerPrivateKey);
 
+        // Call Facet directly to update standalone version
         HopFacetPacked(facet).setApprovalForHopBridges(
-            bridges,
-            tokensToApprove
+            contractAddresses,
+            tokenAddresses
         );
 
         facets = loupe.facetAddresses();
