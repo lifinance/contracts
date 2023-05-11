@@ -14,8 +14,7 @@ contract CallVerificationFacet {
     /// @return bridgeData The bridge data extracted from the calldata
     function extractBridgeData(
         bytes calldata data
-    ) external pure returns (ILiFi.BridgeData memory) {
-        ILiFi.BridgeData memory bridgeData;
+    ) external pure returns (ILiFi.BridgeData memory bridgeData) {
         bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
         return bridgeData;
     }
@@ -25,8 +24,7 @@ contract CallVerificationFacet {
     /// @return swapData The swap data extracted from the calldata
     function extractSwapData(
         bytes calldata data
-    ) external pure returns (LibSwap.SwapData[] memory) {
-        LibSwap.SwapData[] memory swapData;
+    ) external pure returns (LibSwap.SwapData[] memory swapData) {
         (, swapData) = abi.decode(
             data[4:],
             (ILiFi.BridgeData, LibSwap.SwapData[])
@@ -37,15 +35,17 @@ contract CallVerificationFacet {
     /// @notice Extracts the bridge data and swap data from the calldata
     /// @param data The calldata to extract the bridge data and swap data from
     /// @return bridgeData The bridge data extracted from the calldata
+    /// @return swapData The swap data extracted from the calldata
     function extractData(
         bytes calldata data
     )
         external
         pure
-        returns (ILiFi.BridgeData memory, LibSwap.SwapData[] memory)
+        returns (
+            ILiFi.BridgeData memory bridgeData,
+            LibSwap.SwapData[] memory swapData
+        )
     {
-        ILiFi.BridgeData memory bridgeData;
-        LibSwap.SwapData[] memory swapData;
         (bridgeData, swapData) = abi.decode(
             data[4:],
             (ILiFi.BridgeData, LibSwap.SwapData[])
@@ -55,15 +55,22 @@ contract CallVerificationFacet {
 
     /// @notice Extracts the main parameters from the calldata
     /// @param data The calldata to extract the main parameters from
-    /// @return receiver The receiver extracted from the calldata
+    /// @return receiver The receiver extracted from the calld
+    /// @return minAmount The min amount extracted from the calldata
+    /// @return destinationChainId The destination chain id extracted from the calldata
+    /// @return bridgeData The bridge data extracted from the calldata
     function extractMainParameters(
         bytes calldata data
     )
         external
         pure
-        returns (address, uint256, uint256, ILiFi.BridgeData memory)
+        returns (
+            address receiver,
+            uint256 minAmount,
+            uint256 destinationChainId,
+            ILiFi.BridgeData memory bridgeData
+        )
     {
-        ILiFi.BridgeData memory bridgeData;
         (bridgeData) = abi.decode(data[4:], (ILiFi.BridgeData));
         return (
             bridgeData.receiver,
@@ -89,7 +96,7 @@ contract CallVerificationFacet {
         address sendingAssetId,
         uint256 amount,
         uint256 destinationChainId
-    ) external pure returns (bool) {
+    ) external pure returns (bool isValid) {
         ILiFi.BridgeData memory bridgeData;
         (bridgeData) = abi.decode(data[4:], (ILiFi.BridgeData));
         return
