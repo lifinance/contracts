@@ -162,7 +162,7 @@ deploySingleContract() {
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
     # try to execute call
-    RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+    RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$ENVIRONMENT") forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
 
     # check the return code the last call
     if [ $? -eq 0 ]; then
@@ -172,7 +172,8 @@ deploySingleContract() {
 
       # print return data only if debug mode is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        echo $CLEAN__RETURN_DATA | jq 2>/dev/null
+        echo "CLEAN_RETURN_DATA:"
+        echo $CLEAN__RETURN_DATA
       fi
 
       # extract the "returns" field and its contents from the return data (+hide errors)
@@ -210,6 +211,18 @@ deploySingleContract() {
   # check if call was executed successfully or used all ATTEMPTS
   if [ $attempts -gt "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; then
     error "failed to deploy $CONTRACT to network $NETWORK in $ENVIRONMENT environment"
+
+    # end this script according to flag
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
+  # check if address is available, otherwise do not continue
+  if [[ -z  "$ADDRESS" || "$ADDRESS" == "null" ]]; then
+    warning "failed to obtain address of newly deployed contract $CONTRACT. There may be an issue within the deploy script. Please check and try again"
 
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" ]]; then
