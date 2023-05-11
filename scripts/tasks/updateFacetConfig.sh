@@ -7,7 +7,7 @@ updateFacetConfig() {
   source scripts/deploy/resources/deployHelperFunctions.sh
 
   # read function arguments into variables
-  ENVIRONMENT="$1"
+  ENVIRONMENT="$2"
 
   # get user-selected network from list
   NETWORK=$(cat ./networks | gum filter --placeholder "Network")
