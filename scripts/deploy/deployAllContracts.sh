@@ -67,11 +67,11 @@ deployAllContracts() {
 
   # run sync dexs script
   echo ""
-  syncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+  diamondSyncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
   # run sync sigs script
   echo ""
-  syncSIGs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+  diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
   # deploy all non-core facets (that are in target_state.JSON) and add to diamond
   echo ""
