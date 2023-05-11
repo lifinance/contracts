@@ -246,7 +246,7 @@ scriptMaster() {
     echo "[info] selected script: $SCRIPT"
 
     # execute the selected script
-    eval "$SCRIPT" "$ENVIRONMENT"
+    eval "$SCRIPT" '""' "$ENVIRONMENT"
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 6: Update _targetState.json file
