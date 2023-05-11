@@ -22,7 +22,7 @@ contract CallVerificationFacetTest is TestBase {
             minAmount: 1 ether,
             destinationChainId: 137,
             hasSourceSwaps: false,
-            hasDestinationCall: false
+            hasDestinationCall: true
         });
 
         swapData.push(
@@ -125,6 +125,22 @@ contract CallVerificationFacetTest is TestBase {
         );
         assertTrue(validCall);
         assertFalse(invalidCall);
+    }
+
+    function test_CanValidateDestinationCalldata() public {
+        bytes memory callData = abi.encodeWithSelector(
+            HyphenFacet.swapAndStartBridgeTokensViaHyphen.selector,
+            bridgeData,
+            swapData
+        );
+
+        bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
+        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
+            fullCalldata,
+            swapData[0].callData
+        );
+
+        assertTrue(validCall);
     }
 
     function checkBridgeData(ILiFi.BridgeData memory data) internal {

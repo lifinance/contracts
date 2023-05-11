@@ -12,9 +12,11 @@ contract CalldataVerificationFacet {
     /// @notice Extracts the bridge data from the calldata
     /// @param data The calldata to extract the bridge data from
     /// @return bridgeData The bridge data extracted from the calldata
-    function extractBridgeData(
-        bytes calldata data
-    ) external pure returns (ILiFi.BridgeData memory bridgeData) {
+    function extractBridgeData(bytes calldata data)
+        external
+        pure
+        returns (ILiFi.BridgeData memory bridgeData)
+    {
         bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
         return bridgeData;
     }
@@ -22,9 +24,11 @@ contract CalldataVerificationFacet {
     /// @notice Extracts the swap data from the calldata
     /// @param data The calldata to extract the swap data from
     /// @return swapData The swap data extracted from the calldata
-    function extractSwapData(
-        bytes calldata data
-    ) external pure returns (LibSwap.SwapData[] memory swapData) {
+    function extractSwapData(bytes calldata data)
+        external
+        pure
+        returns (LibSwap.SwapData[] memory swapData)
+    {
         (, swapData) = abi.decode(
             data[4:],
             (ILiFi.BridgeData, LibSwap.SwapData[])
@@ -36,9 +40,7 @@ contract CalldataVerificationFacet {
     /// @param data The calldata to extract the bridge data and swap data from
     /// @return bridgeData The bridge data extracted from the calldata
     /// @return swapData The swap data extracted from the calldata
-    function extractData(
-        bytes calldata data
-    )
+    function extractData(bytes calldata data)
         external
         pure
         returns (
@@ -59,9 +61,7 @@ contract CalldataVerificationFacet {
     /// @return minAmount The min amount extracted from the calldata
     /// @return destinationChainId The destination chain id extracted from the calldata
     /// @return bridgeData The bridge data extracted from the calldata
-    function extractMainParameters(
-        bytes calldata data
-    )
+    function extractMainParameters(bytes calldata data)
         external
         pure
         returns (
@@ -110,5 +110,29 @@ contract CalldataVerificationFacet {
                 bridgeData.minAmount == amount) &&
             (bridgeData.destinationChainId == type(uint256).max ||
                 bridgeData.destinationChainId == destinationChainId);
+    }
+
+    /// @notice Validates the destination calldata
+    /// @param data The calldata to validate
+    /// @param dstCalldata The destination calldata to validate
+    /// @return isValid Whether the destination calldata is validate
+    function validateDestinationCalldata(
+        bytes calldata data,
+        bytes calldata dstCalldata
+    ) external pure returns (bool isValid) {
+        ILiFi.BridgeData memory bridgeData;
+        LibSwap.SwapData[] memory swapData;
+        (bridgeData, swapData) = abi.decode(
+            data[4:],
+            (ILiFi.BridgeData, LibSwap.SwapData[])
+        );
+
+        if (!bridgeData.hasDestinationCall) {
+            return false;
+        }
+
+        bytes memory dstCalldataToCheck = swapData[swapData.length - 1]
+            .callData;
+        return keccak256(dstCalldataToCheck) == keccak256(dstCalldata);
     }
 }
