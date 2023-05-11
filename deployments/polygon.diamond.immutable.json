@@ -76,6 +76,14 @@
       "0x9ed68a0a9DC366cdB71eF3e520Dd18d734F05064": {
         "Name": "AllBridgeFacet",
         "Version": "1.0.0"
+      },
+      "0x58FBa880b973edB5E4f6Aa4e2bD3b15c865b9B18": {
+        "Name": "HopFacetPacked",
+        "Version": "1.0.4"
+      },
+      "0xc673c3df4fff2C499009E5fCa94bc446f5B07772": {
+        "Name": "HopFacetOptimized",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

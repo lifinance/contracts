@@ -1,37 +1,9 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0x89CC712618caEE61F3C4e64b1f8D4dA543ad1ec3": {
+      "null": {
         "Name": "",
         "Version": ""
-      },
-      "0xdEA13d154FCC23fc968eA2FF048eA85139656378": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x2B9B9e7b9a25A6A0B17735c78Ef1010af95598d3": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x1c7F6C2Aaa37069F3f3D07B73f3122f5D3B405f5": {
-        "Name": "",
-        "Version": ""
-      },
-      "0xd78165C16285833D0d0807317acC860b9d2f4Dd8": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x9CDd3879244960925E81C67088549662CFaB52a9": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x3eB0E3769edB5D7b72904DaBD6B46B8BAB41E55A": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x67c40A4da7B00B68bA6DE2D33B9af6A693F3d8C5": {
-        "Name": "AcrossFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -41,7 +13,7 @@
       "FeeCollector": "",
       "FusePoolZap": "",
       "Receiver": "",
-      "RelayerCelerIM": "",
+      "RelayerCelerIM": "0xC072a97eb5e746b466dB76D8e182ea3eA49A0907",
       "ServiceFeeCollector": ""
     }
   }

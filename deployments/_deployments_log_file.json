@@ -557,6 +557,15 @@
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "true"
           }
+        ],
+        "2.0.0": [
+          {
+            "ADDRESS": "0xc673c3df4fff2C499009E5fCa94bc446f5B07772",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-09 22:26:39",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
         ]
       }
     },
@@ -569,6 +578,28 @@
             "TIMESTAMP": "2023-04-12 14:05:40",
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "true"
+          }
+        ],
+        "2.0.0": [
+          {
+            "ADDRESS": "0xc673c3df4fff2C499009E5fCa94bc446f5B07772",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-09 22:15:49",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xc673c3df4fff2C499009E5fCa94bc446f5B07772",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-09 17:35:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -1293,6 +1324,15 @@
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.4": [
+          {
+            "ADDRESS": "0x58FBa880b973edB5E4f6Aa4e2bD3b15c865b9B18",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-09 17:44:22",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000c315239cfb05f1e130e7e28e603cea4c014c57f0",
+            "VERIFIED": "false"
+          }
         ]
       }
     },
@@ -1510,6 +1550,19 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-05 14:07:45",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000c1a2d967dfaa6a10f3461bc21864c23c1dd51eea0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "mumbai": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xC072a97eb5e746b466dB76D8e182ea3eA49A0907",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-10 14:29:46",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0000000000000000000000000ad204986d6cb67a5bc76a3cb8974823f43cb9aaa00000000000000000000000020d3d73d4df2a18f3ca03110d133b703271de8f6",
             "VERIFIED": "false"
           }
         ]
@@ -1799,6 +1852,34 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-04 16:10:05",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000004f4495243837681061c4743b74b3eedf548d56a5",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "mumbai": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF592c7d7a9c871eA92888e3B02fCc0f3F5724225",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-10 13:11:48",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0000000000000000000000000bf62ef1486468a6bd26dd669c06db43ded5b849b",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "GravityFacet": {
+    "mumbai": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5282a38ef10557d7Cb44Ca2B6c61772E26A0a497",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-10 16:00:43",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000020",
             "VERIFIED": "false"
           }
         ]
