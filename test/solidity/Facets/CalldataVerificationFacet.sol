@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import { CallVerificationFacet } from "lifi/Facets/CallVerificationFacet.sol";
+import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
 import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { TestBase } from "../utils/TestBase.sol";
 
 contract CallVerificationFacetTest is TestBase {
-    CallVerificationFacet internal callVerificationFacet;
+    CalldataVerificationFacet internal calldataVerificationFacet;
 
     function setUp() public {
-        callVerificationFacet = new CallVerificationFacet();
+        calldataVerificationFacet = new CalldataVerificationFacet();
         bridgeData = ILiFi.BridgeData({
             transactionId: keccak256("id"),
             bridge: "acme",
@@ -45,7 +45,7 @@ contract CallVerificationFacetTest is TestBase {
         );
 
         bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
-        ILiFi.BridgeData memory returnedData = callVerificationFacet
+        ILiFi.BridgeData memory returnedData = calldataVerificationFacet
             .extractBridgeData(fullCalldata);
 
         checkBridgeData(returnedData);
@@ -59,7 +59,7 @@ contract CallVerificationFacetTest is TestBase {
         );
 
         bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
-        LibSwap.SwapData[] memory returnedData = callVerificationFacet
+        LibSwap.SwapData[] memory returnedData = calldataVerificationFacet
             .extractSwapData(fullCalldata);
 
         checkSwapData(returnedData);
@@ -76,7 +76,7 @@ contract CallVerificationFacetTest is TestBase {
         (
             ILiFi.BridgeData memory returnedBridgeData,
             LibSwap.SwapData[] memory returnedSwapData
-        ) = callVerificationFacet.extractData(fullCalldata);
+        ) = calldataVerificationFacet.extractData(fullCalldata);
 
         checkBridgeData(returnedBridgeData);
         checkSwapData(returnedSwapData);
@@ -94,7 +94,7 @@ contract CallVerificationFacetTest is TestBase {
             uint256 returnedMinAmount,
             uint256 returnedDestinationChainId,
             ILiFi.BridgeData memory returnedBridgeData
-        ) = callVerificationFacet.extractMainParameters(fullCalldata);
+        ) = calldataVerificationFacet.extractMainParameters(fullCalldata);
 
         checkBridgeData(returnedBridgeData);
         assertEq(returnedReceiver, bridgeData.receiver);
@@ -109,14 +109,14 @@ contract CallVerificationFacetTest is TestBase {
         );
 
         bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
-        bool validCall = callVerificationFacet.validateCalldata(
+        bool validCall = calldataVerificationFacet.validateCalldata(
             fullCalldata,
             bridgeData.receiver,
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
             bridgeData.destinationChainId
         );
-        bool invalidCall = callVerificationFacet.validateCalldata(
+        bool invalidCall = calldataVerificationFacet.validateCalldata(
             fullCalldata,
             address(0xb33f),
             bridgeData.sendingAssetId,
