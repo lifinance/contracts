@@ -1,0 +1,18 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "null": {
+        "Name": "",
+        "Version": ""
+      }
+    },
+    "Periphery": {
+      "AxelarExecutor": "",
+      "ERC20Proxy": "",
+      "Executor": "",
+      "FeeCollector": "",
+      "FusePoolZap": "",
+      "Receiver": ""
+    }
+  }
+}
