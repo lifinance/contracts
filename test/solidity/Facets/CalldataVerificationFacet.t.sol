@@ -90,16 +90,50 @@ contract CallVerificationFacetTest is TestBase {
 
         bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
         (
-            address returnedReceiver,
-            uint256 returnedMinAmount,
-            uint256 returnedDestinationChainId,
-            ILiFi.BridgeData memory returnedBridgeData
+            string memory bridge,
+            address sendingAssetId,
+            address receiver,
+            uint256 minAmount,
+            uint256 destinationChainId,
+            bool hasSourceSwaps,
+            bool hasDestinationCall
         ) = calldataVerificationFacet.extractMainParameters(fullCalldata);
 
-        checkBridgeData(returnedBridgeData);
-        assertEq(returnedReceiver, bridgeData.receiver);
-        assertEq(returnedMinAmount, bridgeData.minAmount);
-        assertEq(returnedDestinationChainId, bridgeData.destinationChainId);
+        assertEq(bridge, bridgeData.bridge);
+        assertEq(receiver, bridgeData.receiver);
+        assertEq(sendingAssetId, bridgeData.sendingAssetId);
+        assertEq(minAmount, bridgeData.minAmount);
+        assertEq(destinationChainId, bridgeData.destinationChainId);
+        assertEq(hasSourceSwaps, bridgeData.hasSourceSwaps);
+        assertEq(hasDestinationCall, bridgeData.hasDestinationCall);
+    }
+
+    function test_CanExtractMainParametersWithSwap() public {
+        bridgeData.hasSourceSwaps = true;
+        bytes memory callData = abi.encodeWithSelector(
+            HyphenFacet.swapAndStartBridgeTokensViaHyphen.selector,
+            bridgeData,
+            swapData
+        );
+
+        bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
+        (
+            string memory bridge,
+            address sendingAssetId,
+            address receiver,
+            uint256 minAmount,
+            uint256 destinationChainId,
+            bool hasSourceSwaps,
+            bool hasDestinationCall
+        ) = calldataVerificationFacet.extractMainParameters(fullCalldata);
+
+        assertEq(bridge, bridgeData.bridge);
+        assertEq(receiver, bridgeData.receiver);
+        assertEq(sendingAssetId, swapData[0].sendingAssetId);
+        assertEq(minAmount, swapData[0].fromAmount);
+        assertEq(destinationChainId, bridgeData.destinationChainId);
+        assertEq(hasSourceSwaps, bridgeData.hasSourceSwaps);
+        assertEq(hasDestinationCall, bridgeData.hasDestinationCall);
     }
 
     function test_CanValidateCalldata() public {
