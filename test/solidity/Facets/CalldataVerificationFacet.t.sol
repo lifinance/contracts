@@ -65,7 +65,8 @@ contract CallVerificationFacetTest is TestBase {
         checkSwapData(returnedData);
     }
 
-    function test_CatExtractBridgeAndSwapData() public {
+    function test_CanExtractBridgeAndSwapData() public {
+        bridgeData.hasSourceSwaps = true;
         bytes memory callData = abi.encodeWithSelector(
             HyphenFacet.swapAndStartBridgeTokensViaHyphen.selector,
             bridgeData,
@@ -80,6 +81,22 @@ contract CallVerificationFacetTest is TestBase {
 
         checkBridgeData(returnedBridgeData);
         checkSwapData(returnedSwapData);
+    }
+
+    function test_CanExtractBridgeAndSwapDataNoSwaps() public {
+        bytes memory callData = abi.encodeWithSelector(
+            HyphenFacet.startBridgeTokensViaHyphen.selector,
+            bridgeData
+        );
+
+        bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
+        (
+            ILiFi.BridgeData memory returnedBridgeData,
+            LibSwap.SwapData[] memory returnedSwapData
+        ) = calldataVerificationFacet.extractData(fullCalldata);
+
+        checkBridgeData(returnedBridgeData);
+        assertEq(returnedSwapData.length, 0);
     }
 
     function test_CanExtractMainParameters() public {
