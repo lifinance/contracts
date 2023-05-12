@@ -622,6 +622,7 @@
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "HopFacet": "1.0.0",
+        "HopFacetOptimized": "2.0.0",
         "MultichainFacet": "1.0.1",
         "NXTPFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
