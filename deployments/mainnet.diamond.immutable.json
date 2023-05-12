@@ -41,9 +41,9 @@
         "Name": "CBridgeFacet",
         "Version": ""
       },
-      "0xb0199ce3c4fD19aF0AdCbe8C589ea1f699c295fb": {
+      "0x2A7568Fd6dffA6F7578cdF010398BffAa53cc7c0": {
         "Name": "AcrossFacet",
-        "Version": ""
+        "Version": "2.0.0"
       },
       "0x987f67811Ef841da0466746E10B4139Daff95053": {
         "Name": "ArbitrumBridgeFacet",
@@ -73,27 +73,39 @@
         "Name": "HopFacetOptimized",
         "Version": ""
       },
-      "0x98DbA11bea75Ef4616BBd81572aF4456DE05CC16": {
+      "0x4Dc509f0BB4db1faeba81f5F13583Ff3d95F938D": {
         "Name": "HopFacet",
-        "Version": ""
+        "Version": "2.0.0"
       },
       "0x6e118Db5ab7018FcF195e1310074688B8A1912B3": {
-        "Name": "",
+        "Name": "LIFuelFacet",
         "Version": ""
       },
       "0x4cf6c406F004b7B588ec8638fBd2cC2215D87C90": {
-        "Name": "",
+        "Name": "MultichainFacet",
         "Version": ""
+      },
+      "0xE8Ff7BFEF5DacB57E87bC2d0B6CCFefBE5f546BC": {
+        "Name": "OptimismBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x0D062790F26947074B27da07346E4FF9FDf946EE": {
+        "Name": "PolygonBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x7E4A13BFe1200Fdc5E0FFa7eC65eFaBd8B17bc26": {
+        "Name": "StargateFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "AxelarExecutor": "",
+      "AxelarExecutor": "0x22C604b970DB9e4fD3b94914906bAf221013C9Bb",
       "ERC20Proxy": "",
       "Executor": "",
       "FeeCollector": "",
       "FusePoolZap": "",
       "Receiver": "",
-      "RelayerCelerIM": "",
+      "RelayerCelerIM": "0x34D16bE69CB282c7160abaB1dC02ACfA45f7006c",
       "ServiceFeeCollector": ""
     }
   }
