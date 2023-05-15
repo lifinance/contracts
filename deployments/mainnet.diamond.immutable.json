@@ -69,9 +69,9 @@
         "Name": "GnosisBridgeFacet",
         "Version": ""
       },
-      "0x5459Fe34F4B391938C45C909F62aD7E12978bD8F": {
+      "0xc673c3df4fff2C499009E5fCa94bc446f5B07772": {
         "Name": "HopFacetOptimized",
-        "Version": ""
+        "Version": "2.0.0"
       },
       "0x4Dc509f0BB4db1faeba81f5F13583Ff3d95F938D": {
         "Name": "HopFacet",
@@ -95,6 +95,22 @@
       },
       "0x7E4A13BFe1200Fdc5E0FFa7eC65eFaBd8B17bc26": {
         "Name": "StargateFacet",
+        "Version": "1.0.0"
+      },
+      "0x238502aDc8ca550723CBE78543c8B757599A21cC": {
+        "Name": "NXTPFacet",
+        "Version": "1.0.0"
+      },
+      "0x58FBa880b973edB5E4f6Aa4e2bD3b15c865b9B18": {
+        "Name": "HopFacetPacked",
+        "Version": "1.0.4"
+      },
+      "0x416E2d3E39dF69bBc30244eC90477fD042812E6B": {
+        "Name": "HyphenFacet",
+        "Version": "1.0.0"
+      },
+      "0xC1E20466AD79BAe875568eb08ABaaEA1F0E25b7E": {
+        "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
       }
     },
