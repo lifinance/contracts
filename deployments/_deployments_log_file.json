@@ -462,6 +462,19 @@
           }
         ]
       }
+    },
+    "mainnet": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x2A7568Fd6dffA6F7578cdF010398BffAa53cc7c0",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-12 11:21:17",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000005c7bcd6e7de5423a257d81b442095a1a6ced35c5000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "CBridgeFacet": {
@@ -701,6 +714,19 @@
           }
         ]
       }
+    },
+    "mainnet": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x4Dc509f0BB4db1faeba81f5F13583Ff3d95F938D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-12 11:33:38",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "HyphenFacet": {
@@ -861,6 +887,19 @@
           }
         ]
       }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x238502aDc8ca550723CBE78543c8B757599A21cC",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-12 11:41:37",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000031efc4aeaa7c39e54a33fdc3c46ee2bd70ae0a09",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "StargateFacet": {
@@ -898,6 +937,19 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-04 22:11:53",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000817436a076060d158204d955e5403b6ed0a5fac0",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x7E4A13BFe1200Fdc5E0FFa7eC65eFaBd8B17bc26",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-12 11:52:31",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000008731d54e9d02c286767d56ac03e8037c07e01e98",
             "VERIFIED": "true"
           }
         ]
@@ -964,6 +1016,19 @@
             "ADDRESS": "0x0654EbA982ec082036A3D0f59964D302f1ba5cdA",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-04 16:11:17",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x0654EbA982ec082036A3D0f59964D302f1ba5cdA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-12 11:59:53",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
             "VERIFIED": "true"
           }
@@ -1049,6 +1114,19 @@
           }
         ]
       }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2120c7A5CCf73d6Fb5C7e9B2A0d4B3A4f587E7a4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-12 12:01:07",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000000654eba982ec082036a3d0f59964d302f1ba5cda",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -1111,6 +1189,19 @@
             "ADDRESS": "0xB49EaD76FE09967D7CA0dbCeF3C3A06eb3Aa0cB4",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-04 15:48:29",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xB49EaD76FE09967D7CA0dbCeF3C3A06eb3Aa0cB4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-12 12:02:51",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
             "VERIFIED": "true"
           }
@@ -1209,6 +1300,19 @@
           }
         ]
       }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC4B590a0E2d7e965a2Fb3647d672B5DD97E8d068",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-12 12:04:16",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000008731d54e9d02c286767d56ac03e8037c07e01e980000000000000000000000008898b472c54c31894e3b9bb83cea802a5d0e63c60000000000000000000000002120c7a5ccf73d6fb5c7e9b2a0d4b3a4f587e7a400000000000000000000000000000000000000000000000000000000000186a0",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "ServiceFeeCollector": {
@@ -1271,6 +1375,19 @@
             "ADDRESS": "0x4b0B89b90fF83247aEa12469CeA9A6222e09d54c",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-04 16:13:39",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4b0B89b90fF83247aEa12469CeA9A6222e09d54c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-12 12:10:54",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
             "VERIFIED": "true"
           }
@@ -1893,6 +2010,51 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-10 16:00:43",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000020",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "OmniBridgeFacet": {
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC1E20466AD79BAe875568eb08ABaaEA1F0E25b7E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-12 11:44:50",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000088ad09518695c6c3712ac10a214be5109a655671000000000000000000000000a6439ca0fcba1d0f80df0be6a17220fed9c9038a",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "OptimismBridgeFacet": {
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xE8Ff7BFEF5DacB57E87bC2d0B6CCFefBE5f546BC",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-12 11:46:17",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "PolygonBridgeFacet": {
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x0D062790F26947074B27da07346E4FF9FDf946EE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-12 11:49:16",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000a0c68c638235ee32657e8f720a23cec1bfc77c7700000000000000000000000040ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf",
             "VERIFIED": "true"
           }
         ]
