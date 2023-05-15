@@ -3,9 +3,11 @@ pragma solidity 0.8.17;
 
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
 import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
+import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { TestBase } from "../utils/TestBase.sol";
+import "forge-std/console.sol";
 
 contract CallVerificationFacetTest is TestBase {
     CalldataVerificationFacet internal calldataVerificationFacet;
@@ -179,19 +181,46 @@ contract CallVerificationFacetTest is TestBase {
     }
 
     function test_CanValidateDestinationCalldata() public {
+        AmarokFacet.AmarokData memory amarokData = AmarokFacet.AmarokData({
+            callData: bytes("foobarbytes"),
+            callTo: address(0xdeadbeef),
+            relayerFee: 0,
+            slippageTol: 0,
+            delegate: address(0xdeadbeef),
+            destChainDomainId: 1234
+        });
+
         bytes memory callData = abi.encodeWithSelector(
-            HyphenFacet.swapAndStartBridgeTokensViaHyphen.selector,
+            AmarokFacet.startBridgeTokensViaAmarok.selector,
             bridgeData,
-            swapData
+            amarokData
         );
 
-        bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
+        bytes memory callDataWithSwap = abi.encodeWithSelector(
+            AmarokFacet.swapAndStartBridgeTokensViaAmarok.selector,
+            bridgeData,
+            swapData,
+            amarokData
+        );
+
         bool validCall = calldataVerificationFacet.validateDestinationCalldata(
-            fullCalldata,
-            swapData[0].callData
+            callData,
+            bytes("foobarbytes")
+        );
+        bool validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                callDataWithSwap,
+                bytes("foobarbytes")
+            );
+
+        bool badCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            bytes("badbytes")
         );
 
         assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
     }
 
     function checkBridgeData(ILiFi.BridgeData memory data) internal {

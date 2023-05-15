@@ -3,6 +3,9 @@ pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { AmarokFacet } from "./AmarokFacet.sol";
+import { StargateFacet } from "./StargateFacet.sol";
+import { CelerIMFacet } from "./CelerIMFacet.sol";
 
 /// @title A title that should describe the contract/interface
 /// @author Li.Finance (https://li.finance)
@@ -12,9 +15,11 @@ contract CalldataVerificationFacet {
     /// @notice Extracts the bridge data from the calldata
     /// @param data The calldata to extract the bridge data from
     /// @return bridgeData The bridge data extracted from the calldata
-    function extractBridgeData(
-        bytes calldata data
-    ) external pure returns (ILiFi.BridgeData memory bridgeData) {
+    function extractBridgeData(bytes calldata data)
+        external
+        pure
+        returns (ILiFi.BridgeData memory bridgeData)
+    {
         bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
         return bridgeData;
     }
@@ -22,9 +27,11 @@ contract CalldataVerificationFacet {
     /// @notice Extracts the swap data from the calldata
     /// @param data The calldata to extract the swap data from
     /// @return swapData The swap data extracted from the calldata
-    function extractSwapData(
-        bytes calldata data
-    ) external pure returns (LibSwap.SwapData[] memory swapData) {
+    function extractSwapData(bytes calldata data)
+        external
+        pure
+        returns (LibSwap.SwapData[] memory swapData)
+    {
         (, swapData) = abi.decode(
             data[4:],
             (ILiFi.BridgeData, LibSwap.SwapData[])
@@ -36,9 +43,7 @@ contract CalldataVerificationFacet {
     /// @param data The calldata to extract the bridge data and swap data from
     /// @return bridgeData The bridge data extracted from the calldata
     /// @return swapData The swap data extracted from the calldata
-    function extractData(
-        bytes calldata data
-    )
+    function extractData(bytes calldata data)
         external
         pure
         returns (
@@ -66,9 +71,7 @@ contract CalldataVerificationFacet {
     /// @return destinationChainId The destination chain id extracted from the calldata
     /// @return hasSourceSwaps Whether the calldata has source swaps
     /// @return hasDestinationCall Whether the calldata has a destination call
-    function extractMainParameters(
-        bytes calldata data
-    )
+    function extractMainParameters(bytes calldata data)
         external
         pure
         returns (
@@ -148,19 +151,73 @@ contract CalldataVerificationFacet {
         bytes calldata data,
         bytes calldata dstCalldata
     ) external pure returns (bool isValid) {
-        ILiFi.BridgeData memory bridgeData;
-        LibSwap.SwapData[] memory swapData;
-        (bridgeData, swapData) = abi.decode(
-            data[4:],
-            (ILiFi.BridgeData, LibSwap.SwapData[])
-        );
+        bytes4 selector = abi.decode(data, (bytes4));
 
-        if (!bridgeData.hasDestinationCall) {
-            return false;
+        // Case: Amarok
+        if (selector == AmarokFacet.startBridgeTokensViaAmarok.selector) {
+            (, AmarokFacet.AmarokData memory amarokData) = abi.decode(
+                data[4:],
+                (ILiFi.BridgeData, AmarokFacet.AmarokData)
+            );
+
+            return keccak256(dstCalldata) == keccak256(amarokData.callData);
+        }
+        if (
+            selector == AmarokFacet.swapAndStartBridgeTokensViaAmarok.selector
+        ) {
+            (, , AmarokFacet.AmarokData memory amarokData) = abi.decode(
+                data[4:],
+                (ILiFi.BridgeData, LibSwap.SwapData[], AmarokFacet.AmarokData)
+            );
+            return keccak256(dstCalldata) == keccak256(amarokData.callData);
         }
 
-        bytes memory dstCalldataToCheck = swapData[swapData.length - 1]
-            .callData;
-        return keccak256(dstCalldataToCheck) == keccak256(dstCalldata);
+        // Case: Stargate
+        if (selector == StargateFacet.startBridgeTokensViaStargate.selector) {
+            (, StargateFacet.StargateData memory stargateData) = abi.decode(
+                data[4:],
+                (ILiFi.BridgeData, StargateFacet.StargateData)
+            );
+            return keccak256(dstCalldata) == keccak256(stargateData.callData);
+        }
+        if (
+            selector ==
+            StargateFacet.swapAndStartBridgeTokensViaStargate.selector
+        ) {
+            (, , StargateFacet.StargateData memory stargateData) = abi.decode(
+                data[4:],
+                (
+                    ILiFi.BridgeData,
+                    LibSwap.SwapData[],
+                    StargateFacet.StargateData
+                )
+            );
+            return keccak256(dstCalldata) == keccak256(stargateData.callData);
+        }
+        // Case: Celer
+        if (selector == CelerIMFacet.startBridgeTokensViaCelerIM.selector) {
+            (, CelerIMFacet.CelerIMData memory celerIMData) = abi.decode(
+                data[4:],
+                (ILiFi.BridgeData, CelerIMFacet.CelerIMData)
+            );
+            return keccak256(dstCalldata) == keccak256(celerIMData.callData);
+        }
+        if (
+            selector ==
+            CelerIMFacet.swapAndStartBridgeTokensViaCelerIM.selector
+        ) {
+            (, , CelerIMFacet.CelerIMData memory celerIMData) = abi.decode(
+                data[4:],
+                (
+                    ILiFi.BridgeData,
+                    LibSwap.SwapData[],
+                    CelerIMFacet.CelerIMData
+                )
+            );
+            return keccak256(dstCalldata) == keccak256(celerIMData.callData);
+        }
+
+        // All other cases
+        return false;
     }
 }
