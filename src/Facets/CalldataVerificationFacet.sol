@@ -15,11 +15,9 @@ contract CalldataVerificationFacet {
     /// @notice Extracts the bridge data from the calldata
     /// @param data The calldata to extract the bridge data from
     /// @return bridgeData The bridge data extracted from the calldata
-    function extractBridgeData(bytes calldata data)
-        external
-        pure
-        returns (ILiFi.BridgeData memory bridgeData)
-    {
+    function extractBridgeData(
+        bytes calldata data
+    ) external pure returns (ILiFi.BridgeData memory bridgeData) {
         bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
         return bridgeData;
     }
@@ -27,11 +25,9 @@ contract CalldataVerificationFacet {
     /// @notice Extracts the swap data from the calldata
     /// @param data The calldata to extract the swap data from
     /// @return swapData The swap data extracted from the calldata
-    function extractSwapData(bytes calldata data)
-        external
-        pure
-        returns (LibSwap.SwapData[] memory swapData)
-    {
+    function extractSwapData(
+        bytes calldata data
+    ) external pure returns (LibSwap.SwapData[] memory swapData) {
         (, swapData) = abi.decode(
             data[4:],
             (ILiFi.BridgeData, LibSwap.SwapData[])
@@ -43,7 +39,9 @@ contract CalldataVerificationFacet {
     /// @param data The calldata to extract the bridge data and swap data from
     /// @return bridgeData The bridge data extracted from the calldata
     /// @return swapData The swap data extracted from the calldata
-    function extractData(bytes calldata data)
+    function extractData(
+        bytes calldata data
+    )
         external
         pure
         returns (
@@ -71,7 +69,9 @@ contract CalldataVerificationFacet {
     /// @return destinationChainId The destination chain id extracted from the calldata
     /// @return hasSourceSwaps Whether the calldata has source swaps
     /// @return hasDestinationCall Whether the calldata has a destination call
-    function extractMainParameters(bytes calldata data)
+    function extractMainParameters(
+        bytes calldata data
+    )
         external
         pure
         returns (
