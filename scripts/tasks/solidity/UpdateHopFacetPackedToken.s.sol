@@ -36,9 +36,6 @@ contract DeployScript is UpdateScriptBase {
             tokenAddresses.push(approvals[i].a_tokenAddress);
         }
 
-        bridges.push(HopFacetPacked(facet).exchangeAddress());
-        tokensToApprove.push(HopFacetPacked(facet).l2CanonicalToken());
-
         vm.startBroadcast(deployerPrivateKey);
 
         // Call Facet directly to update standalone version
