@@ -65,7 +65,7 @@ contract CalldataVerificationFacet {
     /// @return bridge The bridge extracted from the calldata
     /// @return sendingAssetId The sending asset id extracted from the calldata
     /// @return receiver The receiver extracted from the calldata
-    /// @return minAmount The min amount extracted from the calldata
+    /// @return amount The min amountfrom the calldata
     /// @return destinationChainId The destination chain id extracted from the calldata
     /// @return hasSourceSwaps Whether the calldata has source swaps
     /// @return hasDestinationCall Whether the calldata has a destination call
