@@ -164,17 +164,23 @@ contract CallVerificationFacetTest is TestBase {
         bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
         bool validCall = calldataVerificationFacet.validateCalldata(
             fullCalldata,
-            bridgeData.receiver,
+            bridgeData.bridge,
             bridgeData.sendingAssetId,
+            bridgeData.receiver,
             bridgeData.minAmount,
-            bridgeData.destinationChainId
+            bridgeData.destinationChainId,
+            bridgeData.hasSourceSwaps,
+            bridgeData.hasDestinationCall
         );
         bool invalidCall = calldataVerificationFacet.validateCalldata(
             fullCalldata,
-            address(0xb33f),
+            bridgeData.bridge,
             bridgeData.sendingAssetId,
+            address(0xb33f),
             bridgeData.minAmount,
-            bridgeData.destinationChainId
+            bridgeData.destinationChainId,
+            bridgeData.hasSourceSwaps,
+            bridgeData.hasDestinationCall
         );
         assertTrue(validCall);
         assertFalse(invalidCall);
