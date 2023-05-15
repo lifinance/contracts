@@ -285,7 +285,7 @@ scriptMaster() {
       # case: "1) 1) Add a new contract to all networks"
 
       # get names of all contracts
-      ALL_CONTRACT_NAMES=($(getAllContractNames))
+      ALL_CONTRACT_NAMES=($(getAllContractNames "false"))
 
       # Prompt the user to select a contract to be updated
       echo ""
@@ -332,7 +332,7 @@ scriptMaster() {
     elif [[ "$SELECTION_UPDATE_CASE" == *"2)"* ]]; then
       # case: "2) Update the version of a contract on all networks"
       # get names of all contracts
-      ALL_CONTRACT_NAMES=($(getAllContractNames))
+      ALL_CONTRACT_NAMES=($(getAllContractNames "false"))
 
       # Prompt the user to select a contract to be updated
       echo ""

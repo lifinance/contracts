@@ -198,7 +198,8 @@
     "production": {
       "LiFiDiamond": {
         "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.0",
+        "LiFiDiamond": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -591,7 +592,7 @@
         "DexManagerFacet": "1.0.0",
         "AccessManagerFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "MultichainFacet": "",
