@@ -981,22 +981,25 @@ function verifyContract() {
   MAX_RETRIES=$MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION
   RETRY_COUNT=0
   COMMAND_STATUS=1
+  CONTRACT_FILE_PATH=$(getContractFilePath "$CONTRACT")
+  FULL_PATH="$CONTRACT_FILE_PATH"":""$CONTRACT"
+
 
   while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]
   do
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT -e "${!API_KEY}"
+        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}"
       else
-        forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT -e "${!API_KEY}" >/dev/null 2>&1
+        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}" >/dev/null 2>&1
       fi
     else
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT --constructor-args $ARGS -e "${!API_KEY}"
+        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}"
       else
-        forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT --constructor-args $ARGS -e "${!API_KEY}"  >/dev/null 2>&1
+        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}"  >/dev/null 2>&1
       fi
     fi
     COMMAND_STATUS=$?
@@ -2545,4 +2548,7 @@ function test_getContractNameFromDeploymentLogs() {
 function test_tmp(){
   echo ""
 }
+
+#getContractFilePath "CelerIMFacet"
+#verifyContract "arbitrum" "CelerIMFacet" "0xa1531BaCEb6178fd05bD80795C9C75Ac02438E49" "0x0000000000000000000000003ad9d0648cdaa2426331e894e980d0a5ed16257f000000000000000000000000b1fe861ceae7bf4c40515ceeb851f2785d2a10080000000000000000000000000000000000000000000000000000000000000020"
 
