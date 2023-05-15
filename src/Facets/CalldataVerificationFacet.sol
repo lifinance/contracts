@@ -7,17 +7,19 @@ import { AmarokFacet } from "./AmarokFacet.sol";
 import { StargateFacet } from "./StargateFacet.sol";
 import { CelerIMFacet } from "./CelerIMFacet.sol";
 
-/// @title A title that should describe the contract/interface
-/// @author Li.Finance (https://li.finance)
+/// @title Calldata Verification Facet
+/// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
-/// @custom:version 0.0.1
+/// @custom:version 1.0.0
 contract CalldataVerificationFacet {
     /// @notice Extracts the bridge data from the calldata
     /// @param data The calldata to extract the bridge data from
     /// @return bridgeData The bridge data extracted from the calldata
-    function extractBridgeData(
-        bytes calldata data
-    ) external pure returns (ILiFi.BridgeData memory bridgeData) {
+    function extractBridgeData(bytes calldata data)
+        external
+        pure
+        returns (ILiFi.BridgeData memory bridgeData)
+    {
         bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
         return bridgeData;
     }
@@ -25,9 +27,11 @@ contract CalldataVerificationFacet {
     /// @notice Extracts the swap data from the calldata
     /// @param data The calldata to extract the swap data from
     /// @return swapData The swap data extracted from the calldata
-    function extractSwapData(
-        bytes calldata data
-    ) external pure returns (LibSwap.SwapData[] memory swapData) {
+    function extractSwapData(bytes calldata data)
+        external
+        pure
+        returns (LibSwap.SwapData[] memory swapData)
+    {
         (, swapData) = abi.decode(
             data[4:],
             (ILiFi.BridgeData, LibSwap.SwapData[])
@@ -39,9 +43,7 @@ contract CalldataVerificationFacet {
     /// @param data The calldata to extract the bridge data and swap data from
     /// @return bridgeData The bridge data extracted from the calldata
     /// @return swapData The swap data extracted from the calldata
-    function extractData(
-        bytes calldata data
-    )
+    function extractData(bytes calldata data)
         external
         pure
         returns (
@@ -69,16 +71,14 @@ contract CalldataVerificationFacet {
     /// @return destinationChainId The destination chain id extracted from the calldata
     /// @return hasSourceSwaps Whether the calldata has source swaps
     /// @return hasDestinationCall Whether the calldata has a destination call
-    function extractMainParameters(
-        bytes calldata data
-    )
+    function extractMainParameters(bytes calldata data)
         public
         pure
         returns (
             string memory bridge,
             address sendingAssetId,
             address receiver,
-            uint256 minAmount,
+            uint256 amount,
             uint256 destinationChainId,
             bool hasSourceSwaps,
             bool hasDestinationCall
@@ -94,17 +94,17 @@ contract CalldataVerificationFacet {
                 (ILiFi.BridgeData, LibSwap.SwapData[])
             );
             sendingAssetId = swapData[0].sendingAssetId;
-            minAmount = swapData[0].fromAmount;
+            amount = swapData[0].fromAmount;
         } else {
             sendingAssetId = bridgeData.sendingAssetId;
-            minAmount = bridgeData.minAmount;
+            amount = bridgeData.minAmount;
         }
 
         return (
             bridgeData.bridge,
             sendingAssetId,
             bridgeData.receiver,
-            minAmount,
+            amount,
             bridgeData.destinationChainId,
             bridgeData.hasSourceSwaps,
             bridgeData.hasDestinationCall
@@ -145,18 +145,25 @@ contract CalldataVerificationFacet {
             bridgeData.hasDestinationCall
         ) = extractMainParameters(data);
         return
+            // Check bridge
             (keccak256(abi.encodePacked(bridge)) ==
                 keccak256(abi.encodePacked("")) ||
                 keccak256(abi.encodePacked(bridgeData.bridge)) ==
                 keccak256(abi.encodePacked(bridge))) &&
+            // Check sendingAssetId
             (sendingAssetId == 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF ||
                 bridgeData.sendingAssetId == sendingAssetId) &&
+            // Check receiver
             (receiver == 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF ||
                 bridgeData.receiver == receiver) &&
+            // Check amount
             (amount == type(uint256).max || bridgeData.minAmount == amount) &&
+            // Check destinationChainId
             (destinationChainId == type(uint256).max ||
                 bridgeData.destinationChainId == destinationChainId) &&
+            // Check hasSourceSwaps
             bridgeData.hasSourceSwaps == hasSourceSwaps &&
+            // Check hasDestinationCall
             bridgeData.hasDestinationCall == hasDestinationCall;
     }
 
