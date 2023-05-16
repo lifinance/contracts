@@ -37,8 +37,8 @@
         "Name": "AxelarFacet",
         "Version": ""
       },
-      "0xA1Edc2eD671Dfa77eD2dCD2ee012F82e4807A75a": {
-        "Name": "CBridgeFacet",
+      "0x3e08304D9e3feb632D2Ee027634785d51fBF9870": {
+        "Name": "",
         "Version": ""
       },
       "0x2fF4484bcaEf13e4a1Db84E6af882c9d66c97e3F": {
@@ -67,6 +67,10 @@
       },
       "0x3a60730cbcD91715E31830f125bB3eF1FA0a2c66": {
         "Name": "WormholeFacet",
+        "Version": ""
+      },
+      "0x58FBa880b973edB5E4f6Aa4e2bD3b15c865b9B18": {
+        "Name": "",
         "Version": ""
       }
     },

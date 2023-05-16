@@ -13,8 +13,7 @@ contract DeployScript is DeployScriptBase {
     address internal diamondImmutable;
     DiamondCutFacet internal cutter;
 
-    constructor() DeployScriptBase("LiFiDiamondImmutable") {
-    }
+    constructor() DeployScriptBase("LiFiDiamondImmutable") {}
 
     function run()
         public

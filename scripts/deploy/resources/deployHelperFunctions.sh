@@ -7,6 +7,9 @@ source .env
 source scripts/config.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
+RED='\033[0;31m'       # Red color
+GREEN='\033[0;32m'     # Green color
+NC='\033[0m'           # No color
 
 # >>>>> logging
 function logContractDeploymentInfo_BACKUP {
@@ -498,7 +501,7 @@ function getContractInfoFromDiamondDeploymentLogByName(){
 
     if [[ "$CONTRACT_NAME" == "$CONTRACT" ]]; then
       # Read version from log file
-      VERSION=$(jq -r ".${DIAMOND_TYPE}.\"${FACET_ADDRESS}\".Version" "$ADDRESSES_FILE")
+      VERSION=$(jq -r ".${DIAMOND_TYPE}.Facets.\"${FACET_ADDRESS}\".Version" "$ADDRESSES_FILE")
 
       # create JSON entry from information
       JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
@@ -595,7 +598,7 @@ function saveDiamondFacets() {
     # check if contract was found in log file
     if [[ $? -ne 0 ]]; then
       if [[ "$DEBUG" == *"true"* ]]; then
-        warning "could not find any information about this facet address ($FACET_ADDRESS) in log file while creating $NETWORK.diamond.json file: (ENVIRONMENT=$ENVIRONMENT), "
+        warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
       fi
 
       # try to find name of contract from network-specific deployments file
@@ -2586,6 +2589,9 @@ function printDeploymentsStatusV2() {
     if [[ "$CONTRACT" == "LiFiDiamond" || "$CONTRACT" == "LiFiDiamondImmutable" ]] ; then
       continue
     fi
+#    if [[ "$CONTRACT" != "NXTPFacet" ]] ; then
+#      continue
+#    fi
 
     # get current contract version
     CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
@@ -2597,13 +2603,18 @@ function printDeploymentsStatusV2() {
       if [ "$NETWORK" == "lineatest" ] ; then
         continue
       fi
+#      if [ "$NETWORK" != "mainnet" ] ; then
+#        continue
+#      fi
 
       # (re-)set entry values
       TARGET_ENTRY_1="  -  "
       TARGET_ENTRY_2="  -  "
-      DEPLOYED_ENTRY_1="   -  "
-      DEPLOYED_ENTRY_2="   - "
+      DEPLOYED_ENTRY_1="  -  "
+      DEPLOYED_ENTRY_2="  -  "
       KNOWN_VERSION=""
+      MUTABLE_ENTRY_COMBINED=""
+      IMMUTABLE_ENTRY_COMBINED=""
 
       # check if contract has entry in target state
       TARGET_VERSION_DIAMOND=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamond")
@@ -2631,16 +2642,16 @@ function printDeploymentsStatusV2() {
         KNOWN_VERSION=$(echo "$LOG_INFO_DIAMOND" | jq -r '.[].Version')
         if [ "$KNOWN_VERSION" == "null" ] ; then
           DEPLOYED_ENTRY_1="unknown"
-        else
+        elif [ "$KNOWN_VERSION" != "" ] ; then
           DEPLOYED_ENTRY_1=$KNOWN_VERSION
         fi
       fi
       if [ "$RETURN_CODE4" -eq 0 ] ; then
         KNOWN_VERSION=$(echo "$LOG_INFO_DIAMOND_IMMUTABLE" | jq -r '.[].Version')
-        KNOWN_VERSION_TMP=$KNOWN_VERSION
+
         if [ "$KNOWN_VERSION" == "null" ] ; then
           DEPLOYED_ENTRY_2="unknown"
-        else
+        elif [ "$KNOWN_VERSION" != "" ] ; then
           DEPLOYED_ENTRY_2=$KNOWN_VERSION
         fi
       fi
@@ -2648,10 +2659,29 @@ function printDeploymentsStatusV2() {
       # print new line if any entry was found in either target state or diamond deploy log
       if [[ "$RETURN_CODE1" -eq 0 || "$RETURN_CODE2" -eq 0 || "$RETURN_CODE3" -eq 0 || "$RETURN_CODE4" -eq 0  ]]; then
         # prepare entries (to preserve formatting)
-        TARGET_ENTRY_COMBINED="$TARGET_ENTRY_1"" : ""$DEPLOYED_ENTRY_1"
-        DEPLOYED_ENTRY_COMBINED="$TARGET_ENTRY_2"" : ""$DEPLOYED_ENTRY_2"
+        MUTABLE_ENTRY_COMBINED="$TARGET_ENTRY_1"" : ""$DEPLOYED_ENTRY_1"
+        IMMUTABLE_ENTRY_COMBINED="$TARGET_ENTRY_2"" : ""$DEPLOYED_ENTRY_2"
 
-        printf "|%-${FACET_COLUMN_WIDTH}s| %-17s | %-17s |\n" "  -$NETWORK" " $TARGET_ENTRY_COMBINED" " $DEPLOYED_ENTRY_COMBINED"
+        # determine color codes
+        COLOR_CODE_1=$NC
+        COLOR_CODE_2=$NC
+        if [[ "$TARGET_ENTRY_1" != *"-"* && "$DEPLOYED_ENTRY_1" != *"-"* ]]; then
+          if [[ "$TARGET_ENTRY_1" == "$DEPLOYED_ENTRY_1" ]]; then
+            COLOR_CODE_1=$GREEN
+          else
+            COLOR_CODE_1=$RED
+          fi
+        fi
+        if [[ "$TARGET_ENTRY_2" != *"-"* && "$DEPLOYED_ENTRY_2" != *"-"* ]]; then
+          if [[ "$TARGET_ENTRY_2" == "$DEPLOYED_ENTRY_2" ]]; then
+            COLOR_CODE_2=$GREEN
+          else
+            COLOR_CODE_2=$RED
+          fi
+        fi
+
+        # print new line in table view
+        printf "|%-${FACET_COLUMN_WIDTH}s| $COLOR_CODE_1 %-15s $NC | $COLOR_CODE_2 %-15s $NC |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED"
       fi
     done
 
@@ -2986,12 +3016,34 @@ function test_getContractNameFromDeploymentLogs() {
   echo "should return 'LiFiDiamond': $(getContractNameFromDeploymentLogs "mainnet" "production" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE")"
 }
 function test_tmp(){
-  PARAMETER=$1
-  error_message=$(echo "$PARAMETER" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
-  echo "Error message: $error_message"
-}
+      LOG_INFO_DIAMOND=$(getContractInfoFromDiamondDeploymentLogByName "mainnet" "production" "LiFiDiamond" "AmarokFacet" )
+      RETURN_CODE3=$?
+      echo "LOG_INFO_DIAMOND: $LOG_INFO_DIAMOND"
 
-#printDeploymentsStatusV2 "production"
-#getHighestDeployedContractVersionFromMasterLog "optimism" "production" "HopFacetOptimized"
-#findContractVersionInTargetState "mainnet" "production" "OmniBridgeFacet" "LiFiDiamondImmutable"
-#getContractInfoFromDiamondDeploymentLogByName "mainnet" "production" "LiFiDiamondImmutable" "AccessManagerFacet"
+      LOG_INFO_DIAMOND_IMMUTABLE=$(getContractInfoFromDiamondDeploymentLogByName "mainnet" "production" "LiFiDiamondImmutable" "AmarokFacet" )
+      RETURN_CODE4=$?
+      echo "LOG_INFO_DIAMOND_IMMUTABLE: $LOG_INFO_DIAMOND_IMMUTABLE"
+
+      # check if entry was found in diamond deployment log (if version == null, replace with "unknown")
+      if [ "$RETURN_CODE3" -eq 0 ] ; then
+        KNOWN_VERSION=$(echo "$LOG_INFO_DIAMOND" | jq -r '.[].Version')
+        echo "KNOWN_VERSION: $KNOWN_VERSION"
+        if [ "$KNOWN_VERSION" == "null" ] ; then
+          DEPLOYED_ENTRY_1="unknown"
+        fi
+      fi
+      # check if entry was found in diamond deployment log (if version == null, replace with "unknown")
+      if [ "$RETURN_CODE4" -eq 0 ] ; then
+        KNOWN_VERSION2=$(echo "$LOG_INFO_DIAMOND_IMMUTABLE" | jq -r '.[].Version')
+        echo "KNOWN_VERSION2: $KNOWN_VERSION2"
+        if [ "$KNOWN_VERSION2" == "null" ] ; then
+          DEPLOYED_ENTRY_2="unknown"
+        fi
+      fi
+}
+#test_tmp
+printDeploymentsStatus "production"
+#updateDiamondLogsInAllNetworks
+
+#findContractInMasterLogByAddress "mainnet" "production" "0x238502aDc8ca550723CBE78543c8B757599A21cC"
+#getContractInfoFromDiamondDeploymentLogByName "mainnet" "production" "LiFiDiamondImmutable" "NXTPFacet"
