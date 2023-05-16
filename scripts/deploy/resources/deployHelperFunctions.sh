@@ -2074,8 +2074,6 @@ function doesAddressContainBytecode() {
     web3.eth.getCode('$CHECKSUM_ADDRESS', (error, RESULT) => { console.log(RESULT); });"
   contract_code=$(node -e "$jsCode")
 
-  echo "contract_code: ($contract_code)"
-
   # return ƒalse if ADDRESS does not contain CONTRACT code, otherwise true
   if [[ "$contract_code" == "0x" || "$contract_code" == "" ]]; then
     echo "false"
