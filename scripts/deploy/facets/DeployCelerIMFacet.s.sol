@@ -23,9 +23,14 @@ contract DeployScript is DeployScriptBase {
         address messageBus = json.readAddress(
             string.concat(".", network, ".messageBus")
         );
-        address cfUSDC = json.readAddress(
-            string.concat(".", network, ".cfUSDC")
-        );
+
+        address cfUSDC;
+        if (
+            keccak256(abi.encodePacked(network)) ==
+            keccak256(abi.encodePacked("mainnet"))
+        ) {
+            cfUSDC = json.readAddress(string.concat(".", network, ".cfUSDC"));
+        }
         if (messageBus == address(32))
             revert(
                 string.concat(
