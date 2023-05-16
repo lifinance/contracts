@@ -171,7 +171,6 @@ deploySingleContract() {
     fi
 
     # check return data for error message (regardless of return code as this is not 100% reliable)
-    #if [[ $RAW_RETURN_DATA =~ \?([^\\]+)\\0\" ]]; then
     if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
       # try to extract error message and throw error
       ERROR_MESSAGE=$(echo "$RAW_RETURN_DATA" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
