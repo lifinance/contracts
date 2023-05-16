@@ -551,6 +551,16 @@ function saveDiamondFacets() {
   USE_MUTABLE_DIAMOND=$3
   FACETS=$4
 
+  # logging for debug purposes
+  if [[ "$DEBUG" == *"true"* ]]; then
+   echo ""
+   echo "[debug] in function saveDiamondFacets"
+   echo "[debug] NETWORK=$NETWORK"
+   echo "[debug] ENVIRONMENT=$ENVIRONMENT"
+   echo "[debug] USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
+   echo "[debug] FACETS=$FACETS"
+  fi
+
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
@@ -732,9 +742,21 @@ function saveDiamondPeriphery() {
        return 1
      fi
 
+    # logging for debug purposes
+    if [[ "$DEBUG" == *"true"* ]]; then
+     echo ""
+     echo "[debug] in function saveDiamondPeriphery"
+     echo "[debug] NETWORK=$NETWORK"
+     echo "[debug] ENVIRONMENT=$ENVIRONMENT"
+     echo "[debug] USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
+     echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
+     echo "[debug] RPC_URL=$RPC_URL"
+     echo "[debug] DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+     echo "[debug] DIAMOND_FILE=$DIAMOND_FILE"
+    fi
+
      # get a list of all periphery contracts
      PERIPHERY_CONTRACTS=$(getContractNamesInFolder "src/Periphery/")
-     #PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
 
      # loop through periphery contracts
      for CONTRACT in $PERIPHERY_CONTRACTS; do
@@ -2969,7 +2991,7 @@ function test_tmp(){
   echo "Error message: $error_message"
 }
 
-printDeploymentsStatusV2 "production"
+#printDeploymentsStatusV2 "production"
 #getHighestDeployedContractVersionFromMasterLog "optimism" "production" "HopFacetOptimized"
 #findContractVersionInTargetState "mainnet" "production" "OmniBridgeFacet" "LiFiDiamondImmutable"
 #getContractInfoFromDiamondDeploymentLogByName "mainnet" "production" "LiFiDiamondImmutable" "AccessManagerFacet"
