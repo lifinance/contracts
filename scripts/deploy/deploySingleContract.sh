@@ -167,15 +167,19 @@ deploySingleContract() {
 
     # print return data only if debug mode is activated
     if [[ "$DEBUG" == *"true"* ]]; then
-      echo "RAW_RETURN_DATA:"
-      echo "$RAW_RETURN_DATA"
+      echo "[debug] RAW_RETURN_DATA: $RAW_RETURN_DATA"
     fi
 
     # check return data for error message (regardless of return code as this is not 100% reliable)
-    if [[ $RAW_RETURN_DATA =~ \?([^\\]+)\\0\" ]]; then
-        # extract error message and throw error
-        ERROR_MESSAGE=$(echo "$RAW_RETURN_DATA" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
+    #if [[ $RAW_RETURN_DATA =~ \?([^\\]+)\\0\" ]]; then
+    if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
+      # try to extract error message and throw error
+      ERROR_MESSAGE=$(echo "$RAW_RETURN_DATA" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
+      if [[ $ERROR_MESSAGE == "" ]]; then
+        error "execution of deploy script failed. Could not extract error message. RAW_RETURN_DATA: $RAW_RETURN_DATA"
+      else
         error "execution of deploy script failed with message: $ERROR_MESSAGE"
+      fi
 
     # check the return code the last call
     elif [ $RETURN_CODE -eq 0 ]; then

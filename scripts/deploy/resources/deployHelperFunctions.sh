@@ -2232,18 +2232,23 @@ function getPrivateKey() {
   fi
 }
 function logWithTimestamp() {
-  MESSAGE=$1
+MESSAGE=$1
 
-  # Get the current time in seconds since the Unix epoch
-  CURRENT_TIME=$(date +%s)
+# Get the current date and time with nanoseconds
+CURRENT_DATE_TIME=$(date +"%Y-%m-%d %H:%M:%S")
 
-  # Get the current milliseconds
-  CURRENT_MILLISECONDS=$(date +%N | cut -b1-3)
+# Extract the nanoseconds part
+NANOSECONDS=${CURRENT_DATE_TIME#*.}
 
-  # Combine the seconds and milliseconds
-  TIMESTAMP="${CURRENT_TIME}${CURRENT_MILLISECONDS}"
+# Extract the first three characters to approximate milliseconds
+MILLISECONDS=${NANOSECONDS::3}
 
-  echo "[$TIMESTAMP] $MESSAGE"
+# Combine the date, time, and milliseconds approximation
+DATE_TIME_WITH_MILLISECONDS="${CURRENT_DATE_TIME%.*}"
+
+echo "[$DATE_TIME_WITH_MILLISECONDS] $MESSAGE"
+echo $(date +%FT%T.%3N%z)
+
 }
 # <<<<<< miscellaneous
 
@@ -2579,4 +2584,3 @@ function test_tmp(){
 #  echo "No error message found."
 #fi
 }
-

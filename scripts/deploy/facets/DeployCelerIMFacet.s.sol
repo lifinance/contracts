@@ -25,10 +25,11 @@ contract DeployScript is DeployScriptBase {
         );
 
         address cfUSDC;
-        if (keccak256(abi.encodePacked(network)) == keccak256(abi.encodePacked("mainnet"))) {
-            cfUSDC = json.readAddress(
-                string.concat(".", network, ".cfUSDC")
-            );
+        if (
+            keccak256(abi.encodePacked(network)) ==
+            keccak256(abi.encodePacked("mainnet"))
+        ) {
+            cfUSDC = json.readAddress(string.concat(".", network, ".cfUSDC"));
         }
         if (messageBus == address(32))
             revert(
