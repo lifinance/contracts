@@ -2231,25 +2231,7 @@ function getPrivateKey() {
     fi
   fi
 }
-function logWithTimestamp() {
-MESSAGE=$1
 
-# Get the current date and time with nanoseconds
-CURRENT_DATE_TIME=$(date +"%Y-%m-%d %H:%M:%S")
-
-# Extract the nanoseconds part
-NANOSECONDS=${CURRENT_DATE_TIME#*.}
-
-# Extract the first three characters to approximate milliseconds
-MILLISECONDS=${NANOSECONDS::3}
-
-# Combine the date, time, and milliseconds approximation
-DATE_TIME_WITH_MILLISECONDS="${CURRENT_DATE_TIME%.*}"
-
-echo "[$DATE_TIME_WITH_MILLISECONDS] $MESSAGE"
-echo $(date +%FT%T.%3N%z)
-
-}
 # <<<<<< miscellaneous
 
 
@@ -2576,11 +2558,4 @@ function test_tmp(){
   error_message=$(echo "$PARAMETER" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
   echo "Error message: $error_message"
 
-
-#if [[ $PARAMETER =~ .*\x00\x00\x00\x00\x00(.*)\x00\" ]]; then
-#  error_message="${BASH_REMATCH[1]}"
-#  echo "Error message: $error_message"
-#else
-#  echo "No error message found."
-#fi
 }
