@@ -2042,6 +2042,12 @@ function doesAddressContainBytecode() {
   NETWORK="$1"
   ADDRESS="$2"
 
+  # check address value
+  if [[ "$ADDRESS" == "null" || "$ADDRESS" == "" ]]; then
+      echo "[warning]: trying to verify deployment at invalid address: ($ADDRESS)"
+      return 1
+  fi
+
   # get correct node URL for given NETWORK
   NODE_URL_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)"
   NODE_URL=${!NODE_URL_KEY}
@@ -2051,6 +2057,7 @@ function doesAddressContainBytecode() {
       echo "[error]: no node url found for NETWORK $NETWORK. Please update your .env FILE and make sure it has a value for the following key: $NODE_URL_KEY"
       return 1
   fi
+
 
   # make sure address is in correct checksum format
   jsCode="const Web3 = require('web3');
@@ -2067,8 +2074,10 @@ function doesAddressContainBytecode() {
     web3.eth.getCode('$CHECKSUM_ADDRESS', (error, RESULT) => { console.log(RESULT); });"
   contract_code=$(node -e "$jsCode")
 
+  echo "contract_code: ($contract_code)"
+
   # return ƒalse if ADDRESS does not contain CONTRACT code, otherwise true
-  if [[ $contract_code == "0x" ]]; then
+  if [[ "$contract_code" == "0x" || "$contract_code" == "" ]]; then
     echo "false"
   else
     echo "true"
@@ -2221,6 +2230,20 @@ function getPrivateKey() {
       return 0
     fi
   fi
+}
+function logWithTimestamp() {
+  MESSAGE=$1
+
+  # Get the current time in seconds since the Unix epoch
+  CURRENT_TIME=$(date +%s)
+
+  # Get the current milliseconds
+  CURRENT_MILLISECONDS=$(date +%N | cut -b1-3)
+
+  # Combine the seconds and milliseconds
+  TIMESTAMP="${CURRENT_TIME}${CURRENT_MILLISECONDS}"
+
+  echo "[$TIMESTAMP] $MESSAGE"
 }
 # <<<<<< miscellaneous
 
@@ -2543,6 +2566,17 @@ function test_getContractNameFromDeploymentLogs() {
   echo "should return 'LiFiDiamond': $(getContractNameFromDeploymentLogs "mainnet" "production" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE")"
 }
 function test_tmp(){
-  echo ""
+
+  PARAMETER=$1
+  error_message=$(echo "$PARAMETER" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
+  echo "Error message: $error_message"
+
+
+#if [[ $PARAMETER =~ .*\x00\x00\x00\x00\x00(.*)\x00\" ]]; then
+#  error_message="${BASH_REMATCH[1]}"
+#  echo "Error message: $error_message"
+#else
+#  echo "No error message found."
+#fi
 }
 

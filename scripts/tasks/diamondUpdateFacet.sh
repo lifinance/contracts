@@ -151,3 +151,5 @@ diamondUpdateFacet() {
   echo "[info] $SCRIPT successfully executed on network $NETWORK in $ENVIRONMENT environment"
   return 0
 }
+
+#diamondUpdateFacet "mumbai" "staging" "LiFiDiamond" "UpdateAxelarFacet" "true"

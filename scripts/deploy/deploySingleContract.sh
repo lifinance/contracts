@@ -163,18 +163,25 @@ deploySingleContract() {
 
     # try to execute call
     RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$ENVIRONMENT") forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+    RETURN_CODE=$?
+
+    # print return data only if debug mode is activated
+    if [[ "$DEBUG" == *"true"* ]]; then
+      echo "RAW_RETURN_DATA:"
+      echo "$RAW_RETURN_DATA"
+    fi
+
+    # check return data for error message (regardless of return code as this is not 100% reliable)
+    if [[ $RAW_RETURN_DATA =~ \?([^\\]+)\\0\" ]]; then
+        # extract error message and throw error
+        ERROR_MESSAGE=$(echo "$RAW_RETURN_DATA" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
+        error "execution of deploy script failed with message: $ERROR_MESSAGE"
 
     # check the return code the last call
-    if [ $? -eq 0 ]; then
+    elif [ $RETURN_CODE -eq 0 ]; then
       # clean tx return data
       CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
       checkFailure $? "clean return data (original data: $RAW_RETURN_DATA)"
-
-      # print return data only if debug mode is activated
-      if [[ "$DEBUG" == *"true"* ]]; then
-        echo "CLEAN_RETURN_DATA:"
-        echo $CLEAN__RETURN_DATA
-      fi
 
       # extract the "returns" field and its contents from the return data (+hide errors)
       RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
@@ -192,7 +199,7 @@ deploySingleContract() {
         fi
         # wait for 10 seconds to allow blockchain to sync
         if [[ "$DEBUG" == *"true"* ]]; then
-          echo "[info] waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconcs)"
+          echo "[info] waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"
         fi
         sleep 10
         COUNT=$((COUNT + 10))
