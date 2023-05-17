@@ -1011,9 +1011,6 @@ function verifyContract() {
     RETRY_COUNT=$((RETRY_COUNT+1))
   done
 
-  echo "COMMAND_STATUS of FOUNDRY verification: $COMMAND_STATUS"
-
-
   # check the return status of the contract verification call
   if [ $COMMAND_STATUS -ne 0 ]
   then
@@ -1029,8 +1026,6 @@ function verifyContract() {
     "$CONTRACT" \
     --chain-id "$CHAIN_ID" \
     --verifier sourcify
-
-  echo "COMMAND_STATUS of SOURCIFY verification: $?"
 
   echo "[info] checking Sourcify verification now"
   forge verify-check $ADDRESS \
