@@ -3,31 +3,31 @@
     "Facets": {
       "0xF1d67E1dddc87E2858C87EBd5b19f99a4E297541": {
         "Name": "DiamondCutFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x49d195D3138D4E0E2b4ea88484C54AEE45B04B9F": {
         "Name": "DiamondLoupeFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x44beA2Ab010d1CedC4E60E97DA8F88b8840951B0": {
         "Name": "OwnershipFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x428C4abf8BB3ECc893bD3E0Be12b0f363c6e81aA": {
         "Name": "WithdrawFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x64D41a7B52CA910f4995b1df33ea68471138374b": {
         "Name": "DexManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xfaA5f885a54D22C8571806fC001E53F0191f5Aff": {
         "Name": "AccessManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x2EfC66F1ff37fc5277De5526Ab5CB7650f2DD518": {
         "Name": "PeripheryRegistryFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xCd063F35ed6f6d9B036284475B7779FdCf1Dd76C": {
         "Name": "",
@@ -35,7 +35,7 @@
       },
       "0xbd8D369470169f9976c5bCc60318955836843a71": {
         "Name": "AmarokFacet",
-        "Version": ""
+        "Version": "1.0.1"
       },
       "0xA1Edc2eD671Dfa77eD2dCD2ee012F82e4807A75a": {
         "Name": "CBridgeFacet",
@@ -47,11 +47,11 @@
       },
       "0x987f67811Ef841da0466746E10B4139Daff95053": {
         "Name": "ArbitrumBridgeFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x55c51beF79d16F5f0875E11207B17E885c21c13d": {
         "Name": "AxelarFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xf72169Fb511739CeFea9eBEffc5d39Dba1b33cD3": {
         "Name": "CelerCircleBridgeFacet",
@@ -63,11 +63,11 @@
       },
       "0x2fF4484bcaEf13e4a1Db84E6af882c9d66c97e3F": {
         "Name": "GenericSwapFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x5fda594b67d38E05fb4C9A1a4Cf3B22f48c8de4E": {
         "Name": "GnosisBridgeFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xc673c3df4fff2C499009E5fCa94bc446f5B07772": {
         "Name": "HopFacetOptimized",
@@ -79,11 +79,11 @@
       },
       "0x6e118Db5ab7018FcF195e1310074688B8A1912B3": {
         "Name": "LIFuelFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x4cf6c406F004b7B588ec8638fBd2cC2215D87C90": {
         "Name": "MultichainFacet",
-        "Version": ""
+        "Version": "1.0.1"
       },
       "0xE8Ff7BFEF5DacB57E87bC2d0B6CCFefBE5f546BC": {
         "Name": "OptimismBridgeFacet",
@@ -119,7 +119,7 @@
       }
     },
     "Periphery": {
-      "AxelarExecutor": "0x22C604b970DB9e4fD3b94914906bAf221013C9Bb",
+      "AxelarExecutor": "0x8aD0B427864f072B9416dcD06B2f653895cFE03C",
       "ERC20Proxy": "0x0654EbA982ec082036A3D0f59964D302f1ba5cdA",
       "Executor": "0x2120c7A5CCf73d6Fb5C7e9B2A0d4B3A4f587E7a4",
       "FeeCollector": "0xB49EaD76FE09967D7CA0dbCeF3C3A06eb3Aa0cB4",
