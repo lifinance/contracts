@@ -25,16 +25,17 @@ deploySingleContract() {
       # make sure that PRODUCTION was selected intentionally by user
       echo "    "
       echo "    "
-      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!";
-      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true";
-      printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production";
-      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!"
+      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true"
+      printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production"
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
       echo "    "
-      printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?";
-      PROD_SELECTION=$(gum choose \
+      printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?"
+      PROD_SELECTION=$(
+        gum choose \
           "yes" \
-          "no" \
-          )
+          "no"
+      )
 
       if [[ $PROD_SELECTION != "no" ]]; then
         echo "...exiting script"
@@ -79,7 +80,6 @@ deploySingleContract() {
     warning "${!CONTRACT}"
     echo ""
   fi
-
 
   # check if deploy script exists
   local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
@@ -138,18 +138,6 @@ deploySingleContract() {
     CONTRACT_ADDRESS="0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
   else
     CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT")
-  fi
-
-  # check if predicted address already contains bytecode
-  local IS_DEPLOYED=$(doesAddressContainBytecode "$NETWORK" "$CONTRACT_ADDRESS")
-
-  if [[ $IS_DEPLOYED == "true" ]]; then
-    echo "[info] contract $CONTRACT is already deployed to address $CONTRACT_ADDRESS. Change SALT in .env if you want to redeploy to a new address"
-
-    # save contract in network-specific deployment files
-    saveContract "$NETWORK" "$CONTRACT" "$CONTRACT_ADDRESS" "$FILE_SUFFIX"
-
-    return 0
   fi
 
   # execute script
@@ -221,7 +209,7 @@ deploySingleContract() {
   fi
 
   # check if address is available, otherwise do not continue
-  if [[ -z  "$ADDRESS" || "$ADDRESS" == "null" ]]; then
+  if [[ -z "$ADDRESS" || "$ADDRESS" == "null" ]]; then
     warning "failed to obtain address of newly deployed contract $CONTRACT. There may be an issue within the deploy script. Please check and try again"
 
     # end this script according to flag

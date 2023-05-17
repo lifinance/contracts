@@ -101,7 +101,7 @@
         "Name": "NXTPFacet",
         "Version": "1.0.0"
       },
-      "0x58FBa880b973edB5E4f6Aa4e2bD3b15c865b9B18": {
+      "0x0aE0a1Ae2703A27bC518fd7d9DCB3F6C69CfccD2": {
         "Name": "HopFacetPacked",
         "Version": "1.0.4"
       },
@@ -113,7 +113,7 @@
         "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x3e08304D9e3feb632D2Ee027634785d51fBF9870": {
+      "0x5E3DC14bfc5aF89C2c34A24E2c1ba6430B9F4Fd2": {
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.1"
       }
