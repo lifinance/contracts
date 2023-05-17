@@ -158,6 +158,9 @@ abstract contract TestBaseFacet is TestBase {
         // reset swap data
         setDefaultSwapDataSingleDAItoUSDC();
 
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit AssetSwapped(
@@ -169,11 +172,9 @@ abstract contract TestBaseFacet is TestBase {
             bridgeData.minAmount,
             block.timestamp
         );
+
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
-
-        // approval
-        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
@@ -226,6 +227,9 @@ abstract contract TestBaseFacet is TestBase {
             })
         );
 
+        // approval
+        usdc.approve(_facetTestContractAddress, amountIn);
+
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit AssetSwapped(
@@ -243,9 +247,6 @@ abstract contract TestBaseFacet is TestBase {
         //     therefore the test is designed to only check if an event was emitted but not match the parameters
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
-
-        // approval
-        usdc.approve(_facetTestContractAddress, amountIn);
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
