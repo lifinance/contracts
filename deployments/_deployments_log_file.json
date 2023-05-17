@@ -638,7 +638,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:26:20",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000045ff03629d024b7763275e732a2d80202c18b31c0000000000000000000000009c3c9283d3e44854697cd22d3faa240cfb032889",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       },
@@ -768,7 +768,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:31:52",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000f89354f314faf344abd754924438ba798e306df2",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -900,7 +900,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:33:42",
             "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1024,7 +1024,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:35:32",
             "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1135,7 +1135,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:39:22",
             "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1189,7 +1189,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:41:11",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b831f0848a055b146a0b13d54cffa6c1fe201b83",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1243,7 +1243,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:43:06",
             "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1332,7 +1332,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:45:00",
             "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1425,7 +1425,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:47:13",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000046c45f027af8e0f47f6c579f586cd0c6c3e92893",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1503,7 +1503,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:49:24",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000817436a076060d158204d955e5403b6ed0a5fac0",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1635,7 +1635,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:52:54",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1767,7 +1767,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:54:11",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000000654eba982ec082036a3d0f59964d302f1ba5cda",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1886,7 +1886,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:55:26",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2031,7 +2031,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:56:45",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000817436a076060d158204d955e5403b6ed0a5fac000000000000000000000000000000000000000000000000000000000000000200000000000000000000000002120c7a5ccf73d6fb5c7e9b2a0d4b3a4f587e7a400000000000000000000000000000000000000000000000000000000000186a0",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2150,7 +2150,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:58:03",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2231,7 +2231,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:37:30",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000000e0e3d2c5c292161999474247956ef542cabf8dd",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2355,7 +2355,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:28:09",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000020",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2771,7 +2771,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-16 12:20:15",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ad204986d6cb67a5bc76a3cb8974823f43cb9aaa000000000000000000000000c072a97eb5e746b466db76d8e182ea3ea49a09070000000000000000000000000000000000000000000000000000000000000000",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -3028,7 +3028,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 13:51:32",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000bf62ef1486468a6bd26dd669c06db43ded5b849b",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -3200,40 +3200,14 @@
   },
   "AxelarFacet": {
     "mumbai": {
-      "production": {
+      "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x55c51beF79d16F5f0875E11207B17E885c21c13d",
+            "ADDRESS": "0xC28F52D9DE2B644025C4B4ADF2389dB726de2Fd6",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-05-15 13:30:02",
+            "TIMESTAMP": "2023-05-16 08:20:42",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000bf62ef1486468a6bd26dd669c06db43ded5b849b000000000000000000000000be406f0189a0b4cf3a05c286473d23791dd44cc6",
-            "VERIFIED": "false"
-          }
-        ]
-      }
-    },
-    "goerli": {
-      "production": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x55c51beF79d16F5f0875E11207B17E885c21c13d",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-05-15 14:58:33",
-            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020",
-            "VERIFIED": "false"
-          }
-        ]
-      }
-    },
-    "lineatest": {
-      "production": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x55c51beF79d16F5f0875E11207B17E885c21c13d",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-05-15 16:10:17",
-            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -3267,21 +3241,6 @@
       }
     }
   },
-  "AxelarFacet": {
-    "mumbai": {
-      "staging": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0xC28F52D9DE2B644025C4B4ADF2389dB726de2Fd6",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-05-16 08:20:42",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000bf62ef1486468a6bd26dd669c06db43ded5b849b000000000000000000000000be406f0189a0b4cf3a05c286473d23791dd44cc6",
-            "VERIFIED": "false"
-          }
-        ]
-      }
-    }
-  },
   "CircleBridgeFacet": {
     "mumbai": {
       "staging": {
@@ -3291,7 +3250,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-16 10:35:31",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
