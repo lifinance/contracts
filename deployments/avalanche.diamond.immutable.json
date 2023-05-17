@@ -37,9 +37,9 @@
         "Name": "",
         "Version": ""
       },
-      "0xA57862295BdF8A680fda893B9bd3b935236d18bA": {
-        "Name": "",
-        "Version": ""
+      "0x0aE0a1Ae2703A27bC518fd7d9DCB3F6C69CfccD2": {
+        "Name": "HopFacetPacked",
+        "Version": "1.0.4"
       },
       "0x4cf6c406F004b7B588ec8638fBd2cC2215D87C90": {
         "Name": "MultichainFacet",
@@ -63,7 +63,7 @@
       },
       "0xA1Edc2eD671Dfa77eD2dCD2ee012F82e4807A75a": {
         "Name": "CBridgeFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x2fF4484bcaEf13e4a1Db84E6af882c9d66c97e3F": {
         "Name": "GenericSwapFacet",
@@ -96,6 +96,10 @@
       "0x7d53476094DD1A61b6b4c57A47b45EF759C21039": {
         "Name": "",
         "Version": ""
+      },
+      "0x5E3DC14bfc5aF89C2c34A24E2c1ba6430B9F4Fd2": {
+        "Name": "CBridgeFacetPacked",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {

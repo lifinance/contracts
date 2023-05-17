@@ -14,12 +14,15 @@ contract DeployScript is UpdateScriptBase {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        bytes4[] memory exclude = new bytes4[](5);
-        exclude[0] = 0x23452b9c;
-        exclude[1] = 0x7200b829;
-        exclude[2] = 0x8da5cb5b;
-        exclude[3] = 0xe30c3978;
-        exclude[4] = 0xf2fde38b;
+        CBridgeFacetPacked cbridge;
+        bytes4[] memory exclude = new bytes4[](7);
+        exclude[0] = cbridge.cancelOwnershipTransfer.selector;
+        exclude[1] = cbridge.transferOwnership.selector;
+        exclude[2] = cbridge.confirmOwnershipTransfer.selector;
+        exclude[3] = cbridge.owner.selector;
+        exclude[4] = cbridge.pendingOwner.selector;
+        exclude[5] = cbridge.setApprovalForBridge.selector;
+        exclude[6] = cbridge.triggerRefund.selector;
         buildDiamondCut(getSelectors("CBridgeFacetPacked", exclude), facet);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
