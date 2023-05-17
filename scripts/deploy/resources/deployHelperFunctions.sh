@@ -981,30 +981,22 @@ function verifyContract() {
   MAX_RETRIES=$MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION
   RETRY_COUNT=0
   COMMAND_STATUS=1
-  CONTRACT_FILE_PATH=$(getContractFilePath "$CONTRACT")
-  FULL_PATH="$CONTRACT_FILE_PATH"":""$CONTRACT"
-  CHAIN_ID=$(getChainId "$NETWORK")
-
-  if [ $? -ne 0 ]; then
-    warning "could not find chainId for network $NETWORK (was this network recently added? Then update helper function 'getChainId'"
-  fi
-
 
   while [ $COMMAND_STATUS -ne 0 -a $RETRY_COUNT -lt $MAX_RETRIES ]
   do
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}"
+        forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT -e "${!API_KEY}"
       else
-        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}" >/dev/null 2>&1
+        forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT -e "${!API_KEY}" >/dev/null 2>&1
       fi
     else
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}"
+        forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT --constructor-args $ARGS -e "${!API_KEY}"
       else
-        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}"  >/dev/null 2>&1
+        forge verify-contract --watch --chain $NETWORK $ADDRESS $CONTRACT --constructor-args $ARGS -e "${!API_KEY}"  >/dev/null 2>&1
       fi
     fi
     COMMAND_STATUS=$?
@@ -1015,34 +1007,13 @@ function verifyContract() {
   if [ $COMMAND_STATUS -ne 0 ]
   then
     warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified"
+    return 1
   else
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
   fi
 
-  echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
-  forge verify-contract \
-    "$ADDRESS" \
-    "$CONTRACT" \
-    --chain-id "$CHAIN_ID" \
-    --verifier sourcify
-
-  echo "COMMAND_STATUS of SOURCIFY verification: $?"
-
-  echo "[info] checking Sourcify verification now"
-  forge verify-check $ADDRESS \
-    --chain-id "$CHAIN_ID" \
-    --verifier sourcify
-
-  if [ $COMMAND_STATUS -ne 0 ]; then
-    # verification apparently failed
-    warning "[info] $CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify"
-    return 1
-  else
-    # verification successful
-    echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
-    return 0
-  fi
-
+  # return command status 0 (to make sure failed verification does not stop script)
+  return 0
 }
 function verifyAllUnverifiedContractsInLogFile() {
   # Check if target state FILE exists
@@ -2071,12 +2042,6 @@ function doesAddressContainBytecode() {
   NETWORK="$1"
   ADDRESS="$2"
 
-  # check address value
-  if [[ "$ADDRESS" == "null" || "$ADDRESS" == "" ]]; then
-      echo "[warning]: trying to verify deployment at invalid address: ($ADDRESS)"
-      return 1
-  fi
-
   # get correct node URL for given NETWORK
   NODE_URL_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)"
   NODE_URL=${!NODE_URL_KEY}
@@ -2086,7 +2051,6 @@ function doesAddressContainBytecode() {
       echo "[error]: no node url found for NETWORK $NETWORK. Please update your .env FILE and make sure it has a value for the following key: $NODE_URL_KEY"
       return 1
   fi
-
 
   # make sure address is in correct checksum format
   jsCode="const Web3 = require('web3');
@@ -2104,7 +2068,7 @@ function doesAddressContainBytecode() {
   contract_code=$(node -e "$jsCode")
 
   # return ƒalse if ADDRESS does not contain CONTRACT code, otherwise true
-  if [[ "$contract_code" == "0x" || "$contract_code" == "" ]]; then
+  if [[ $contract_code == "0x" ]]; then
     echo "false"
   else
     echo "true"
@@ -2258,120 +2222,6 @@ function getPrivateKey() {
     fi
   fi
 }
-
-function getChainId() {
-  # read function arguments into variables
-  NETWORK="$1"
-
-  # return chainId
-  case $NETWORK in
-    "mainnet")
-      echo "1"
-      return 0
-      ;;
-    "bsc")
-      echo "56"
-      return 0
-      ;;
-    "polygon")
-      echo "137"
-      return 0
-      ;;
-    "gnosis")
-      echo "100"
-      return 0
-      ;;
-    "fantom")
-      echo "250"
-      return 0
-      ;;
-    "okx")
-      echo "66"
-      return 0
-      ;;
-    "avalanche")
-      echo "43114"
-      return 0
-      ;;
-    "arbitrum")
-      echo "42161"
-      return 0
-      ;;
-    "optimism")
-      echo "10"
-      return 0
-      ;;
-    "moonriver")
-      echo "1285"
-      return 0
-      ;;
-    "moonbeam")
-      echo "1284"
-      return 0
-      ;;
-    "celo")
-      echo "42220"
-      return 0
-      ;;
-    "fuse")
-      echo "122"
-      return 0
-      ;;
-    "cronos")
-      echo "25"
-      return 0
-      ;;
-    "velas")
-      echo "106"
-      return 0
-      ;;
-    "harmony")
-      echo "1666600000"
-      return 0
-      ;;
-    "evmos")
-      echo "9001"
-      return 0
-      ;;
-    "aurora")
-      echo "1313161554"
-      return 0
-      ;;
-    "boba")
-      echo "288"
-      return 0
-      ;;
-    "nova")
-      echo "87"
-      return 0
-      ;;
-    "goerli")
-      echo "5"
-      return 0
-      ;;
-    "bsc-testnet")
-      echo "97"
-      return 0
-      ;;
-    "sepolia")
-      echo "11155111"
-      return 0
-      ;;
-    "mumbai")
-      echo "80001"
-      return 0
-      ;;
-    "lineatest")
-      echo "59140"
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-
-}
-
 # <<<<<< miscellaneous
 
 
@@ -2693,7 +2543,6 @@ function test_getContractNameFromDeploymentLogs() {
   echo "should return 'LiFiDiamond': $(getContractNameFromDeploymentLogs "mainnet" "production" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE")"
 }
 function test_tmp(){
-  PARAMETER=$1
-  error_message=$(echo "$PARAMETER" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
-  echo "Error message: $error_message"
+  echo ""
 }
+
