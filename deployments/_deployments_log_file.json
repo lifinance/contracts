@@ -2762,6 +2762,19 @@
           }
         ]
       }
+    },
+    "mumbai": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xff368b29b81dFCa5402B20369f206418315dd212",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-16 12:20:15",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ad204986d6cb67a5bc76a3cb8974823f43cb9aaa000000000000000000000000c072a97eb5e746b466db76d8e182ea3ea49a09070000000000000000000000000000000000000000000000000000000000000000",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "CelerCircleBridgeFacet": {
@@ -3248,6 +3261,36 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:18:04",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000020",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "AxelarFacet": {
+    "mumbai": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC28F52D9DE2B644025C4B4ADF2389dB726de2Fd6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-16 08:20:42",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000bf62ef1486468a6bd26dd669c06db43ded5b849b000000000000000000000000be406f0189a0b4cf3a05c286473d23791dd44cc6",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "CircleBridgeFacet": {
+    "mumbai": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xd41e9FFd9B9491CD41A3AbcFe5E751Ee53CC4da7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-16 10:35:31",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
             "VERIFIED": "false"
           }
         ]
