@@ -2,11 +2,13 @@
 
 # TODO
 
+# - enrich diamond deploy log with version info for periphery contracts and diamond contract version
+#   >> minimize search master deploy log (takes a lot of time)
+
 # - make helper functions robust for networks with -
 #   >>> including the solidity update config scripts
 # - integrate diamondMakeImmutable in master script
 
-# - add verify contract use case (use bytecode and settings from storage)
 # - create function that checks if contract is deployed (get bytecode, predict address, check bytecode at address)
 # - return master log to store all deployments (and return latest when inquired)
 # - add use case to only remove a facet

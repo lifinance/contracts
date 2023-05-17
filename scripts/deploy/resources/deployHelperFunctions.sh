@@ -244,16 +244,6 @@ function findContractInMasterLog() {
   ENVIRONMENT="$3"
   VERSION="$4"
 
-  # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echo "[debug] in function findContractInMasterLog()"
-    echo "[debug] CONTRACT=$CONTRACT"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] VERSION=$VERSION"
-  fi
-
   # Check if log file exists
   if [ ! -f "$LOG_FILE_PATH" ]; then
     error "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run script again."
@@ -490,27 +480,76 @@ function getContractInfoFromDiamondDeploymentLogByName(){
     return 1
   fi
 
-  # Read top-level keys into an array
-  FACET_ADDRESSES=($(jq -r ".${DIAMOND_TYPE}.Facets | keys[]" "$ADDRESSES_FILE"))
+  # handling for facet contracts
+  if [[ "$CONTRACT" == *"Facet"* ]]; then
+    # Read top-level keys into an array
+    FACET_ADDRESSES=($(jq -r ".${DIAMOND_TYPE}.Facets | keys[]" "$ADDRESSES_FILE"))
 
-  # Loop through the array of top-level keys
-  for FACET_ADDRESS in "${FACET_ADDRESSES[@]}"; do
+    # Loop through the array of top-level keys
+    for FACET_ADDRESS in "${FACET_ADDRESSES[@]}"; do
 
-    # Read name from log file
-    CONTRACT_NAME=$(jq -r ".${DIAMOND_TYPE}.Facets.\"${FACET_ADDRESS}\".Name" "$ADDRESSES_FILE")
+      # Read name from log file
+      CONTRACT_NAME=$(jq -r ".${DIAMOND_TYPE}.Facets.\"${FACET_ADDRESS}\".Name" "$ADDRESSES_FILE")
 
-    if [[ "$CONTRACT_NAME" == "$CONTRACT" ]]; then
-      # Read version from log file
-      VERSION=$(jq -r ".${DIAMOND_TYPE}.Facets.\"${FACET_ADDRESS}\".Version" "$ADDRESSES_FILE")
+      if [[ "$CONTRACT_NAME" == "$CONTRACT" ]]; then
+        # Read version from log file
+        VERSION=$(jq -r ".${DIAMOND_TYPE}.Facets.\"${FACET_ADDRESS}\".Version" "$ADDRESSES_FILE")
 
-      # create JSON entry from information
-      JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
+        # create JSON entry from information
+        JSON_ENTRY="{\"$FACET_ADDRESS\": {\"Name\": \"$CONTRACT_NAME\", \"Version\": \"$VERSION\"}}"
 
-      # return JSON entry
-      echo "$JSON_ENTRY"
+        # return JSON entry
+        echo "$JSON_ENTRY"
+        return 0
+      fi
+    done
+  elif [[ "$CONTRACT" == *"LiFiDiamond"* ]]; then
+    # handling for diamond contracts
+    # get current version of diamond
+    VERSION=$(getCurrentContractVersion "$CONTRACT")
+
+    # try to find diamond address in master log file
+    RESULT=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
+
+    # check if contract info was found in log file
+    if [[ $? -eq 0 ]]; then
+      # extract address
+      ADDRESS=$(echo "$RESULT" | jq -r ".ADDRESS ")
+
+      # create JSON entry to match the return format for other contract types
+      RESULT="{\"$ADDRESS\": {\"Name\": \"$CONTRACT\", \"Version\": \"$VERSION\"}}"
+
+      echo "$RESULT"
       return 0
     fi
-  done
+  else
+    # handling for periphery contracts
+
+    # Read top-level keys into an array
+    PERIPHERY_CONTRACTS=($(jq -r ".${DIAMOND_TYPE}.Periphery | keys[]" "$ADDRESSES_FILE"))
+
+    # Loop through the array of top-level keys
+    for PERIPHERY_CONTRACT in "${PERIPHERY_CONTRACTS[@]}"; do
+
+      # skip if contract name doesnt match with the one we are looking for
+      if [[ "$PERIPHERY_CONTRACT" != "$CONTRACT" ]]; then
+        continue
+      fi
+
+      # Read address from log file
+      ADDRESS=$(jq -r ".${DIAMOND_TYPE}.Periphery.${CONTRACT}" "$ADDRESSES_FILE")
+
+      # check if we can find the version of that contract/address in the deploy log
+      RESULT=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$ADDRESS")
+
+      if [[ $? -ne 0 ]]; then
+        return 1
+      else
+        echo "$RESULT"
+        return 0
+      fi
+    done
+  fi
 
   error "could not find contract info"
   return 1
@@ -2553,6 +2592,9 @@ function printDeploymentsStatus() {
 function printDeploymentsStatusV2() {
   # read function arguments into variables
   ENVIRONMENT="$1"
+
+  OUTPUT_FILE_PATH="target_vs_deployed.txt"
+
   echo ""
   echo "+------------------------------------------------------------------------------+"
   echo "+------------------------- TARGET STATE vs. ACTUAL STATE ----------------------+"
@@ -2565,17 +2607,17 @@ function printDeploymentsStatusV2() {
   echo "|      Contract (latest version)       | target : deployed | target : deployed |"
   echo "+--------------------------------------+-------------------+-------------------+"
 
-  echo "" > output.txt
-  echo "+------------------------------------------------------------------------------+" > output.txt
-  echo "+------------------------- TARGET STATE vs. ACTUAL STATE ----------------------+" > output.txt
-  echo "+                                                                              +" > output.txt
-  echo "+ (will only list networks for which an entry exists in target or deploy log)  +" > output.txt
-  echo "+------------------------------------------------------------------------------+" > output.txt
-  printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT" > output.txt
-  echo "+--------------------------------------+-------------------+-------------------+" > output.txt
-  echo "|                                      |      mutable      |     immutable     |" > output.txt
-  echo "|      Contract (latest version)       | target : deployed | target : deployed |" > output.txt
-  echo "+--------------------------------------+-------------------+-------------------+" > output.txt
+  echo "" > $OUTPUT_FILE_PATH
+  echo "+------------------------------------------------------------------------------+" >> $OUTPUT_FILE_PATH
+  echo "+------------------------- TARGET STATE vs. ACTUAL STATE ----------------------+" >> $OUTPUT_FILE_PATH
+  echo "+                                                                              +" >> $OUTPUT_FILE_PATH
+  echo "+ (will only list networks for which an entry exists in target or deploy log)  +" >> $OUTPUT_FILE_PATH
+  echo "+------------------------------------------------------------------------------+" >> $OUTPUT_FILE_PATH
+  printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT" >> $OUTPUT_FILE_PATH
+  echo "+--------------------------------------+-------------------+-------------------+" >> $OUTPUT_FILE_PATH
+  echo "|                                      |      mutable      |     immutable     |" >> $OUTPUT_FILE_PATH
+  echo "|      Contract (latest version)       | target : deployed | target : deployed |" >> $OUTPUT_FILE_PATH
+  echo "+--------------------------------------+-------------------+-------------------+" >> $OUTPUT_FILE_PATH
 
 
   # Check if target state FILE exists
@@ -2596,29 +2638,17 @@ function printDeploymentsStatusV2() {
 
   # go through all contracts
   for CONTRACT in ${ALL_CONTRACTS[*]} ; do
-
-#    # TODO: tmp - remove
-    if [[ "$CONTRACT" == "LiFiDiamond" || "$CONTRACT" == "LiFiDiamondImmutable" ]] ; then
-      continue
-    fi
-#    if [[ "$CONTRACT" != "GenericSwapFacet" ]] ; then
-#      continue
-#    fi
-
     # get current contract version
     CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" ""
-    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" "" > output.txt
+    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" "" >> $OUTPUT_FILE_PATH
 
     # go through all networks
     for NETWORK in ${NETWORKS[*]} ; do
       # TODO: tmp - remove
-      if [ "$NETWORK" == "lineatest" ] ; then
+      if [ "$NETWORK" != "lineatest" ] ; then
         continue
       fi
-#      if [ "$NETWORK" != "mainnet" ] ; then
-#        continue
-#      fi
 
       # (re-)set entry values
       TARGET_ENTRY_1="  -  "
@@ -2643,7 +2673,6 @@ function printDeploymentsStatusV2() {
         TARGET_ENTRY_2=$TARGET_VERSION_DIAMOND_IMMUTABLE
       fi
 
-      #TODO: issue: cannot extract Diamond version from diamond deploy log file
       # check if contract has entry in diamond deployment log
       LOG_INFO_DIAMOND=$(getContractInfoFromDiamondDeploymentLogByName "$NETWORK" "$ENVIRONMENT" "LiFiDiamond" "$CONTRACT" )
       RETURN_CODE3=$?
@@ -2695,16 +2724,18 @@ function printDeploymentsStatusV2() {
 
         # print new line in table view
         printf "|%-${FACET_COLUMN_WIDTH}s| $COLOR_CODE_1 %-15s $NC | $COLOR_CODE_2 %-15s $NC |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED"
-        printf "|%-${FACET_COLUMN_WIDTH}s| $COLOR_CODE_1 %-15s $NC | $COLOR_CODE_2 %-15s $NC |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED" > output.txt
+        printf "|%-${FACET_COLUMN_WIDTH}s| %-17s | %-17s |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED" >> $OUTPUT_FILE_PATH
       fi
     done
 
     # print empty line
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" ""
+    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" "" >> $OUTPUT_FILE_PATH
   done
 
   # print closing line
   echo "+--------------------------------------+-------------------+-------------------+"
+  echo "+--------------------------------------+-------------------+-------------------+" >> $OUTPUT_FILE_PATH
   return 0
 
   playNotificationSound
@@ -2785,9 +2816,8 @@ function updateDiamondLogsInAllNetworks(){
           saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND"
         else
           saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$KNOWN_FACET_ADDRESSES"
+          # saveDiamondPeriphery is executed as part of saveDiamondFacets
         fi
-
-
 
         # check result
         if [[ $? -ne 0 ]]; then
@@ -3059,4 +3089,3 @@ function test_tmp(){
 }
 
 printDeploymentsStatusV2 "production"
-#updateDiamondLogsInAllNetworks # TODO WHY IT DOESNT UPDATE GOERLI?
