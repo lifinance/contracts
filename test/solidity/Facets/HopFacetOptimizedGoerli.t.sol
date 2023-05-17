@@ -249,6 +249,9 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
             })
         );
 
+        // approval
+        usdc.approve(_facetTestContractAddress, amountIn);
+
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit AssetSwapped(
@@ -266,9 +269,6 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
         //     therefore the test is designed to only check if an event was emitted but not match the parameters
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
-
-        // approval
-        usdc.approve(_facetTestContractAddress, amountIn);
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
@@ -319,6 +319,9 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
             })
         );
 
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit AssetSwapped(
@@ -332,9 +335,6 @@ contract HopFacetOptimizedGoerliTest is TestBaseFacet {
         );
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
-
-        // approval
-        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
