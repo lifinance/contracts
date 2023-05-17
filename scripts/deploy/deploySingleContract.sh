@@ -25,17 +25,16 @@ deploySingleContract() {
       # make sure that PRODUCTION was selected intentionally by user
       echo "    "
       echo "    "
-      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!"
-      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true"
-      printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production"
-      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!";
+      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true";
+      printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production";
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
       echo "    "
-      printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?"
-      PROD_SELECTION=$(
-        gum choose \
+      printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?";
+      PROD_SELECTION=$(gum choose \
           "yes" \
-          "no"
-      )
+          "no" \
+          )
 
       if [[ $PROD_SELECTION != "no" ]]; then
         echo "...exiting script"
@@ -80,6 +79,7 @@ deploySingleContract() {
     warning "${!CONTRACT}"
     echo ""
   fi
+
 
   # check if deploy script exists
   local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
@@ -140,6 +140,18 @@ deploySingleContract() {
     CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT")
   fi
 
+  # check if predicted address already contains bytecode
+  local IS_DEPLOYED=$(doesAddressContainBytecode "$NETWORK" "$CONTRACT_ADDRESS")
+
+  if [[ $IS_DEPLOYED == "true" ]]; then
+    echo "[info] contract $CONTRACT is already deployed to address $CONTRACT_ADDRESS. Change SALT in .env if you want to redeploy to a new address"
+
+    # save contract in network-specific deployment files
+    saveContract "$NETWORK" "$CONTRACT" "$CONTRACT_ADDRESS" "$FILE_SUFFIX"
+
+    return 0
+  fi
+
   # execute script
   attempts=1
 
@@ -151,28 +163,18 @@ deploySingleContract() {
 
     # try to execute call
     RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$ENVIRONMENT") forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
-    RETURN_CODE=$?
-
-    # print return data only if debug mode is activated
-    if [[ "$DEBUG" == *"true"* ]]; then
-      echo "[debug] RAW_RETURN_DATA: $RAW_RETURN_DATA"
-    fi
-
-    # check return data for error message (regardless of return code as this is not 100% reliable)
-    if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
-      # try to extract error message and throw error
-      ERROR_MESSAGE=$(echo "$RAW_RETURN_DATA" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
-      if [[ $ERROR_MESSAGE == "" ]]; then
-        error "execution of deploy script failed. Could not extract error message. RAW_RETURN_DATA: $RAW_RETURN_DATA"
-      else
-        error "execution of deploy script failed with message: $ERROR_MESSAGE"
-      fi
 
     # check the return code the last call
-    elif [ $RETURN_CODE -eq 0 ]; then
+    if [ $? -eq 0 ]; then
       # clean tx return data
       CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
       checkFailure $? "clean return data (original data: $RAW_RETURN_DATA)"
+
+      # print return data only if debug mode is activated
+      if [[ "$DEBUG" == *"true"* ]]; then
+        echo "CLEAN_RETURN_DATA:"
+        echo $CLEAN__RETURN_DATA
+      fi
 
       # extract the "returns" field and its contents from the return data (+hide errors)
       RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
@@ -190,7 +192,7 @@ deploySingleContract() {
         fi
         # wait for 10 seconds to allow blockchain to sync
         if [[ "$DEBUG" == *"true"* ]]; then
-          echo "[info] waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"
+          echo "[info] waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconcs)"
         fi
         sleep 10
         COUNT=$((COUNT + 10))
@@ -219,7 +221,7 @@ deploySingleContract() {
   fi
 
   # check if address is available, otherwise do not continue
-  if [[ -z "$ADDRESS" || "$ADDRESS" == "null" ]]; then
+  if [[ -z  "$ADDRESS" || "$ADDRESS" == "null" ]]; then
     warning "failed to obtain address of newly deployed contract $CONTRACT. There may be an issue within the deploy script. Please check and try again"
 
     # end this script according to flag
