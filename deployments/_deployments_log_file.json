@@ -628,6 +628,17 @@
       }
     },
     "goerli": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-15 14:50:17",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000f1d67e1dddc87e2858c87ebd5b19f99a4e297541",
+            "VERIFIED": "false"
+          }
+        ]
+      },
       "production": {
         "1.0.0": [
           {

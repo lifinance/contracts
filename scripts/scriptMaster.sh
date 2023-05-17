@@ -80,6 +80,7 @@ scriptMaster() {
     "5) Execute a script" \
     "6) Batch update _targetState.json file" \
     "7) Verify all unverified contracts" \
+    "8) Review deploy status (vs. target state)" \
     )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -415,6 +416,11 @@ scriptMaster() {
   elif [[ "$SELECTION" == *"7)"* ]]; then
     verifyAllUnverifiedContractsInLogFile
     playNotificationSound
+
+  #---------------------------------------------------------------------------------------------------------------------
+  # use case 8: Review deploy status (vs. target state)
+  elif [[ "$SELECTION" == *"8)"* ]]; then
+    printDeploymentsStatusV2 "$ENVIRONMENT"
   else
     error "invalid use case selected ('$SELECTION') - exiting script"
     exit 1

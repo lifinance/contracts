@@ -2565,6 +2565,18 @@ function printDeploymentsStatusV2() {
   echo "|      Contract (latest version)       | target : deployed | target : deployed |"
   echo "+--------------------------------------+-------------------+-------------------+"
 
+  echo "" > output.txt
+  echo "+------------------------------------------------------------------------------+" > output.txt
+  echo "+------------------------- TARGET STATE vs. ACTUAL STATE ----------------------+" > output.txt
+  echo "+                                                                              +" > output.txt
+  echo "+ (will only list networks for which an entry exists in target or deploy log)  +" > output.txt
+  echo "+------------------------------------------------------------------------------+" > output.txt
+  printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT" > output.txt
+  echo "+--------------------------------------+-------------------+-------------------+" > output.txt
+  echo "|                                      |      mutable      |     immutable     |" > output.txt
+  echo "|      Contract (latest version)       | target : deployed | target : deployed |" > output.txt
+  echo "+--------------------------------------+-------------------+-------------------+" > output.txt
+
 
   # Check if target state FILE exists
   if [ ! -f "$TARGET_STATE_PATH" ]; then
@@ -2589,13 +2601,14 @@ function printDeploymentsStatusV2() {
     if [[ "$CONTRACT" == "LiFiDiamond" || "$CONTRACT" == "LiFiDiamondImmutable" ]] ; then
       continue
     fi
-#    if [[ "$CONTRACT" != "NXTPFacet" ]] ; then
+#    if [[ "$CONTRACT" != "GenericSwapFacet" ]] ; then
 #      continue
 #    fi
 
     # get current contract version
     CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" ""
+    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" "" > output.txt
 
     # go through all networks
     for NETWORK in ${NETWORKS[*]} ; do
@@ -2622,7 +2635,6 @@ function printDeploymentsStatusV2() {
       TARGET_VERSION_DIAMOND_IMMUTABLE=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamondImmutable")
       RETURN_CODE2=$?
 
-      #TODO: issue: cannot extract Diamond version from diamond deploy log file
       # if entry was found in target state, prepare data for entry in table (if not default value will be used to preserve formatting)
       if [ "$RETURN_CODE1" -eq 0 ] ; then
         TARGET_ENTRY_1=$TARGET_VERSION_DIAMOND
@@ -2631,6 +2643,7 @@ function printDeploymentsStatusV2() {
         TARGET_ENTRY_2=$TARGET_VERSION_DIAMOND_IMMUTABLE
       fi
 
+      #TODO: issue: cannot extract Diamond version from diamond deploy log file
       # check if contract has entry in diamond deployment log
       LOG_INFO_DIAMOND=$(getContractInfoFromDiamondDeploymentLogByName "$NETWORK" "$ENVIRONMENT" "LiFiDiamond" "$CONTRACT" )
       RETURN_CODE3=$?
@@ -2682,6 +2695,7 @@ function printDeploymentsStatusV2() {
 
         # print new line in table view
         printf "|%-${FACET_COLUMN_WIDTH}s| $COLOR_CODE_1 %-15s $NC | $COLOR_CODE_2 %-15s $NC |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED"
+        printf "|%-${FACET_COLUMN_WIDTH}s| $COLOR_CODE_1 %-15s $NC | $COLOR_CODE_2 %-15s $NC |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED" > output.txt
       fi
     done
 
@@ -2716,12 +2730,14 @@ function updateDiamondLogsInAllNetworks(){
     # get RPC URL
     local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
     RPC_URL=${!RPC_URL}
-    echo "RPC_URL: RPC_URL"
+    echo "RPC_URL: $RPC_URL"
 
     for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
+      echo " -----------------------"
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
       for DIAMOND in "${DIAMONDS[@]}"; do
+        echo "  -----------------------"
         echo "  current DIAMOND: $DIAMOND"
 
         # define diamond type flag
@@ -3041,9 +3057,6 @@ function test_tmp(){
         fi
       fi
 }
-#test_tmp
-printDeploymentsStatus "production"
-#updateDiamondLogsInAllNetworks
 
-#findContractInMasterLogByAddress "mainnet" "production" "0x238502aDc8ca550723CBE78543c8B757599A21cC"
-#getContractInfoFromDiamondDeploymentLogByName "mainnet" "production" "LiFiDiamondImmutable" "NXTPFacet"
+printDeploymentsStatusV2 "production"
+#updateDiamondLogsInAllNetworks # TODO WHY IT DOESNT UPDATE GOERLI?
