@@ -37,9 +37,9 @@
         "Name": "AmarokFacet",
         "Version": ""
       },
-      "0x3e08304D9e3feb632D2Ee027634785d51fBF9870": {
-        "Name": "CBridgeFacetPacked",
-        "Version": ""
+      "0xA1Edc2eD671Dfa77eD2dCD2ee012F82e4807A75a": {
+        "Name": "CBridgeFacet",
+        "Version": "1.0.0"
       },
       "0x2A7568Fd6dffA6F7578cdF010398BffAa53cc7c0": {
         "Name": "AcrossFacet",
@@ -112,6 +112,10 @@
       "0xC1E20466AD79BAe875568eb08ABaaEA1F0E25b7E": {
         "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
+      },
+      "0x3e08304D9e3feb632D2Ee027634785d51fBF9870": {
+        "Name": "CBridgeFacetPacked",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {

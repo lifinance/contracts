@@ -61,9 +61,9 @@
         "Name": "",
         "Version": ""
       },
-      "0x3e08304D9e3feb632D2Ee027634785d51fBF9870": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.1"
+      "0xA1Edc2eD671Dfa77eD2dCD2ee012F82e4807A75a": {
+        "Name": "CBridgeFacet",
+        "Version": "1.0.0"
       },
       "0x2fF4484bcaEf13e4a1Db84E6af882c9d66c97e3F": {
         "Name": "GenericSwapFacet",
@@ -96,6 +96,10 @@
       "0x7d53476094DD1A61b6b4c57A47b45EF759C21039": {
         "Name": "",
         "Version": ""
+      },
+      "0x3e08304D9e3feb632D2Ee027634785d51fBF9870": {
+        "Name": "CBridgeFacetPacked",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
