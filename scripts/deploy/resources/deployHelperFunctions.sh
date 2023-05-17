@@ -2753,6 +2753,11 @@ function updateDiamondLogsInAllNetworks(){
     echo ""
     echo "current Network: $NETWORK"
 
+    # >>>>  limit here to a certain network, if needed
+    if [[ $NETWORK == "optimism" ]]; then
+      continue
+    fi
+
     # get RPC URL
     local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
     RPC_URL=${!RPC_URL}
@@ -2762,9 +2767,19 @@ function updateDiamondLogsInAllNetworks(){
       echo " -----------------------"
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
+      # >>>>  limit here to a certain diamond type, if needed
+#      if [[ $ENVIRONMENT == "staging" ]]; then
+#        continue
+#      fi
+
       for DIAMOND in "${DIAMONDS[@]}"; do
         echo "  -----------------------"
         echo "  current DIAMOND: $DIAMOND"
+
+        # >>>>  limit here to a certain diamond type, if needed
+#        if [[ $DIAMOND == "LiFiDiamond" ]]; then
+#          continue
+#        fi
 
         # define diamond type flag
         if [[ $DIAMOND == "LiFiDiamondImmutable" ]]; then
