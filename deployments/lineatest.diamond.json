@@ -1,48 +1,60 @@
 {
   "LiFiDiamond": {
-    "0xf7993A8df974AD022647E63402d6315137c58ABf": {
-      "Name": "DiamondCutFacet",
-      "Version": ""
+    "Facets": {
+      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xF3bd241Bd31cc84D1A2824E3ffB481961FC1456A": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x6B5183628Fb571145385C01AD64779D2F17e759a": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xeb244dc26396846aDD8eaF5A0e3Bc6617B58482e": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xcd14Ea63191E4B27ECA7c98C29c373E015a5545A": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x50F6AC46EB6cA7840e75fE5aFa50B8a3D6deeD26": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x67168314911e4aADD97daaF9560b7C7bE41BD519": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x7F1Ea7aEf6fCc44a885CeA0A3526e0c3aD7300B1": {
+        "Name": "HopFacetOptimized",
+        "Version": ""
+      },
+      "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x4Dc509f0BB4db1faeba81f5F13583Ff3d95F938D": {
+        "Name": "HopFacet",
+        "Version": ""
+      }
     },
-    "0xF3bd241Bd31cc84D1A2824E3ffB481961FC1456A": {
-      "Name": "DiamondLoupeFacet",
-      "Version": ""
-    },
-    "0x6B5183628Fb571145385C01AD64779D2F17e759a": {
-      "Name": "OwnershipFacet",
-      "Version": ""
-    },
-    "0xeb244dc26396846aDD8eaF5A0e3Bc6617B58482e": {
-      "Name": "WithdrawFacet",
-      "Version": ""
-    },
-    "0xcd14Ea63191E4B27ECA7c98C29c373E015a5545A": {
-      "Name": "DexManagerFacet",
-      "Version": ""
-    },
-    "0x50F6AC46EB6cA7840e75fE5aFa50B8a3D6deeD26": {
-      "Name": "AccessManagerFacet",
-      "Version": ""
-    },
-    "0x67168314911e4aADD97daaF9560b7C7bE41BD519": {
-      "Name": "PeripheryRegistryFacet",
-      "Version": ""
-    },
-    "0x7F1Ea7aEf6fCc44a885CeA0A3526e0c3aD7300B1": {
-      "Name": "HopFacetOptimized",
-      "Version": ""
-    },
-    "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
-      "Name": "",
-      "Version": ""
-    },
-    "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59": {
-      "Name": "LIFuelFacet",
-      "Version": ""
-    },
-    "0x4Dc509f0BB4db1faeba81f5F13583Ff3d95F938D": {
-      "Name": "HopFacet",
-      "Version": ""
+    "Periphery": {
+      "AxelarExecutor": "0x7874B8E5D2a9416A6C4e8585fA2ECddE6909CA4c",
+      "ERC20Proxy": "0xb1a4D9b49c079c2709000B83cB22FfE01B104d8C",
+      "Executor": "0x0c6D2c414A92D61fC2eA41942b4de319943F4E33",
+      "FeeCollector": "0x0158F4203C70a896d0Ac9e9D1b551C633383Aa34",
+      "FusePoolZap": "",
+      "Receiver": "0x4d394812874749f3cD36753F1b688926c849A814",
+      "RelayerCelerIM": "",
+      "ServiceFeeCollector": "0x0874Be3949ABF784C11E5f822F1a54c8655904C1"
     }
   }
 }

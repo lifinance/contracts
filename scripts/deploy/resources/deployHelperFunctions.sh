@@ -3088,4 +3088,4 @@ function test_tmp(){
       fi
 }
 
-printDeploymentsStatusV2 "production"
+#printDeploymentsStatusV2 "production"
