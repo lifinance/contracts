@@ -1011,12 +1011,16 @@ function verifyContract() {
     RETRY_COUNT=$((RETRY_COUNT+1))
   done
 
+  echo "COMMAND_STATUS of FOUNDRY verification: $COMMAND_STATUS"
+
+
   # check the return status of the contract verification call
   if [ $COMMAND_STATUS -ne 0 ]
   then
     warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified"
   else
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
+    return 0
   fi
 
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
@@ -1033,7 +1037,7 @@ function verifyContract() {
     --chain-id "$CHAIN_ID" \
     --verifier sourcify
 
-  if [ $COMMAND_STATUS -ne 0 ]; then
+  if [ $? -ne 0 ]; then
     # verification apparently failed
     warning "[info] $CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify"
     return 1
@@ -1042,7 +1046,6 @@ function verifyContract() {
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
     return 0
   fi
-
 }
 function verifyAllUnverifiedContractsInLogFile() {
   # Check if target state FILE exists
@@ -2697,3 +2700,4 @@ function test_tmp(){
   error_message=$(echo "$PARAMETER" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
   echo "Error message: $error_message"
 }
+
