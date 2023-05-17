@@ -4,82 +4,119 @@
 +                                                                              +
 + (will only list networks for which an entry exists in target or deploy log)  +
 +------------------------------------------------------------------------------+
-+-------------------------- ENVIRONMENT: production ---------------------------+
++-------------------------- ENVIRONMENT: staging    ---------------------------+
 +--------------------------------------+-------------------+-------------------+
 |                                      |      mutable      |     immutable     |
 |      Contract (latest version)       | target : deployed | target : deployed |
 +--------------------------------------+-------------------+-------------------+
 | LiFiDiamond (1.0.0)                  |                   |                   |
 |                                      |                   |                   |
+|  -goerli                             |  1.0.0 :   -      |    -   :   -      |
+|  -mumbai                             |  1.0.0 :   -      |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | LiFiDiamondImmutable (1.0.0)         |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   : 1.0.0    |  1.0.0 : 1.0.0    |
+|  -goerli                             |    -   : 1.0.0    |    -   : 1.0.0    |
+|  -mumbai                             |    -   : 1.0.0    |    -   : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | AccessManagerFacet (1.0.0)           |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -mainnet                            |    -   :   -      |    -   :   -      |
+|  -polygon                            |    -   :   -      |    -   :   -      |
+|  -bsc                                |    -   :   -      |    -   :   -      |
+|  -optimism                           |    -   :   -      |    -   :   -      |
+|  -goerli                             |  1.0.0 :   -      |    -   :   -      |
+|  -mumbai                             |  1.0.0 :   -      |    -   : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | DexManagerFacet (1.0.0)              |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -mainnet                            |    -   :   -      |    -   :   -      |
+|  -polygon                            |    -   :   -      |    -   :   -      |
+|  -bsc                                |    -   :   -      |    -   :   -      |
+|  -optimism                           |    -   :   -      |    -   :   -      |
+|  -goerli                             |  1.0.0 :   -      |    -   :   -      |
+|  -mumbai                             |  1.0.0 :   -      |    -   : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | DiamondCutFacet (1.0.0)              |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -mainnet                            |    -   :   -      |    -   :   -      |
+|  -polygon                            |    -   :   -      |    -   :   -      |
+|  -bsc                                |    -   :   -      |    -   :   -      |
+|  -optimism                           |    -   :   -      |    -   :   -      |
+|  -goerli                             |  1.0.0 :   -      |    -   :   -      |
+|  -mumbai                             |  1.0.0 :   -      |    -   : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | DiamondLoupeFacet (1.0.0)            |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -mainnet                            |    -   :   -      |    -   :   -      |
+|  -polygon                            |    -   :   -      |    -   :   -      |
+|  -bsc                                |    -   :   -      |    -   :   -      |
+|  -optimism                           |    -   :   -      |    -   :   -      |
+|  -goerli                             |  1.0.0 :   -      |    -   :   -      |
+|  -mumbai                             |  1.0.0 :   -      |    -   : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | OwnershipFacet (1.0.0)               |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -mainnet                            |    -   :   -      |    -   :   -      |
+|  -polygon                            |    -   :   -      |    -   :   -      |
+|  -bsc                                |    -   :   -      |    -   :   -      |
+|  -optimism                           |    -   :   -      |    -   :   -      |
+|  -goerli                             |  1.0.0 :   -      |    -   :   -      |
+|  -mumbai                             |  1.0.0 :   -      |    -   : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | PeripheryRegistryFacet (1.0.0)       |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -mainnet                            |    -   :   -      |    -   :   -      |
+|  -polygon                            |    -   :   -      |    -   :   -      |
+|  -bsc                                |    -   :   -      |    -   :   -      |
+|  -optimism                           |    -   :   -      |    -   :   -      |
+|  -goerli                             |  1.0.0 :   -      |    -   :   -      |
+|  -mumbai                             |  1.0.0 :   -      |    -   : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | WithdrawFacet (1.0.0)                |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -mainnet                            |    -   :   -      |    -   :   -      |
+|  -polygon                            |    -   :   -      |    -   :   -      |
+|  -bsc                                |    -   :   -      |    -   :   -      |
+|  -optimism                           |    -   :   -      |    -   :   -      |
+|  -goerli                             |  1.0.0 :   -      |    -   :   -      |
+|  -mumbai                             |  1.0.0 :   -      |    -   : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | AcrossFacet (2.0.0)                  |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  2.0.0 : 2.0.0    |
+|  -mumbai                             |    -   : 2.0.0    |  1.0.0 :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | AllBridgeFacet (1.0.0)               |                   |                   |
 |                                      |                   |                   |
+|  -polygon                            |    -   :   -      |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | AmarokFacet (1.0.1)                  |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.1    |
+|  -optimism                           |    -   :   -      |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | ArbitrumBridgeFacet (1.0.0)          |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | AxelarFacet (1.0.0)                  |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -mumbai                             |    -   : 1.0.0    |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | CBridgeFacet (1.0.0)                 |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | CBridgeFacetPacked (1.0.1)           |                   |                   |
@@ -88,11 +125,13 @@
 |                                      |                   |                   |
 | CelerCircleBridgeFacet (1.0.1)       |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.1    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | CelerIMFacet (1.0.1)                 |                   |                   |
 |                                      |                   |                   |
+|  -polygon                            |    -   :   -      |    -   :   -      |
+|  -bsc                                |    -   :   -      |    -   :   -      |
+|  -mumbai                             |    -   : 1.0.1    |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | CircleBridgeFacet (1.0.0)            |                   |                   |
@@ -105,12 +144,10 @@
 |                                      |                   |                   |
 | GenericSwapFacet (1.0.0)             |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | GnosisBridgeFacet (1.0.0)            |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | GnosisBridgeL2Facet (1.0.0)          |                   |                   |
@@ -123,11 +160,11 @@
 |                                      |                   |                   |
 | HopFacet (2.0.0)                     |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | HopFacetOptimized (2.0.0)            |                   |                   |
 |                                      |                   |                   |
+|  -mumbai                             |    -   :   -      |  1.0.0 :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | HopFacetPacked (1.0.4)               |                   |                   |
@@ -140,7 +177,6 @@
 |                                      |                   |                   |
 | LIFuelFacet (1.0.0)                  |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | MakerTeleportFacet (1.0.0)           |                   |                   |
@@ -149,12 +185,10 @@
 |                                      |                   |                   |
 | MultichainFacet (1.0.1)              |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.1 : 1.0.1    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | NXTPFacet (1.0.0)                    |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | OFTWrapperFacet (1.0.0)              |                   |                   |
@@ -163,62 +197,71 @@
 |                                      |                   |                   |
 | OmniBridgeFacet (1.0.0)              |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | OptimismBridgeFacet (1.0.0)          |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | PolygonBridgeFacet (1.0.0)           |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | RoninBridgeFacet (1.0.0)             |                   |                   |
 |                                      |                   |                   |
+|  -mainnet                            |    -   :   -      |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | SquidFacet (1.0.0)                   |                   |                   |
 |                                      |                   |                   |
+|  -bsc                                |    -   :   -      |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | StargateFacet (1.0.0)                |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -goerli                             |    -   :   -      |    -   :   -      |
+|  -mumbai                             |    -   : 1.0.0    |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | SynapseBridgeFacet (1.0.0)           |                   |                   |
 |                                      |                   |                   |
+|  -polygon                            |    -   :   -      |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | ThorSwapFacet (1.0.0)                |                   |                   |
 |                                      |                   |                   |
+|  -mainnet                            |    -   :   -      |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | WormholeFacet (1.0.0)                |                   |                   |
 |                                      |                   |                   |
+|  -polygon                            |    -   : 1.0.0    |    -   :   -      |
+|  -bsc                                |    -   : 1.0.0    |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | AxelarExecutor (1.0.0)               |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -mumbai                             |    -   :   -      |  1.0.0 :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | ERC20Proxy (1.0.0)                   |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -polygon                            |  1.0.0 :   -      |    -   :   -      |
+|  -bsc                                |  1.0.0 :   -      |    -   :   -      |
+|  -mumbai                             |    -   :   -      |  1.0.0 :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | Executor (1.0.0)                     |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -polygon                            |  1.0.0 :   -      |    -   :   -      |
+|  -bsc                                |  1.0.0 : 1.0.0    |    -   :   -      |
+|  -mumbai                             |  1.0.0 :   -      |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | FeeCollector (1.0.0)                 |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -polygon                            |  1.0.0 : 1.0.0    |    -   :   -      |
+|  -bsc                                |  1.0.0 : 1.0.0    |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | FusePoolZap (1.0.0)                  |                   |                   |
@@ -227,16 +270,20 @@
 |                                      |                   |                   |
 | Receiver (1.0.0)                     |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -polygon                            |  1.0.0 : 1.0.0    |    -   :   -      |
+|  -bsc                                |  1.0.0 : 1.0.0    |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | RelayerCelerIM (1.0.1)               |                   |                   |
 |                                      |                   |                   |
+|  -goerli                             |  1.0.0 :   -      |  1.0.0 :   -      |
+|  -mumbai                             |  1.0.0 : 1.0.1    |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 | ServiceFeeCollector (1.0.0)          |                   |                   |
 |                                      |                   |                   |
-|  -lineatest                          |    -   :   -      |  1.0.0 : 1.0.0    |
+|  -polygon                            |  1.0.0 : 1.0.0    |    -   :   -      |
+|  -bsc                                |  1.0.0 : 1.0.0    |    -   :   -      |
 |                                      |                   |                   |
 |                                      |                   |                   |
 +--------------------------------------+-------------------+-------------------+

@@ -2593,7 +2593,7 @@ function printDeploymentsStatusV2() {
   # read function arguments into variables
   ENVIRONMENT="$1"
 
-  OUTPUT_FILE_PATH="target_vs_deployed.txt"
+  OUTPUT_FILE_PATH="target_vs_deployed_""$ENVIRONMENT"".txt"
 
   echo ""
   echo "+------------------------------------------------------------------------------+"
@@ -2645,10 +2645,6 @@ function printDeploymentsStatusV2() {
 
     # go through all networks
     for NETWORK in ${NETWORKS[*]} ; do
-      # TODO: tmp - remove
-      if [ "$NETWORK" != "lineatest" ] ; then
-        continue
-      fi
 
       # (re-)set entry values
       TARGET_ENTRY_1="  -  "
@@ -2748,7 +2744,6 @@ function updateDiamondLogsInAllNetworks(){
   # get array with all network names
   local NETWORKS=($(getIncludedNetworksArray))
 
-  #
   ENVIRONMENTS=("production" "staging")
   DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable")
 
@@ -3087,5 +3082,3 @@ function test_tmp(){
         fi
       fi
 }
-
-#printDeploymentsStatusV2 "production"
