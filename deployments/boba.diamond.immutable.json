@@ -29,10 +29,6 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0xb0199ce3c4fD19aF0AdCbe8C589ea1f699c295fb": {
-        "Name": "AcrossFacet",
-        "Version": ""
-      },
       "0xA1Edc2eD671Dfa77eD2dCD2ee012F82e4807A75a": {
         "Name": "CBridgeFacet",
         "Version": "1.0.0"

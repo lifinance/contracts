@@ -29,10 +29,6 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0xCd063F35ed6f6d9B036284475B7779FdCf1Dd76C": {
-        "Name": "",
-        "Version": ""
-      },
       "0xbd8D369470169f9976c5bCc60318955836843a71": {
         "Name": "AmarokFacet",
         "Version": "1.0.1"
@@ -56,10 +52,6 @@
       "0xf72169Fb511739CeFea9eBEffc5d39Dba1b33cD3": {
         "Name": "CelerCircleBridgeFacet",
         "Version": "1.0.1"
-      },
-      "0x7d53476094DD1A61b6b4c57A47b45EF759C21039": {
-        "Name": "CelerIMFacet",
-        "Version": ""
       },
       "0x2fF4484bcaEf13e4a1Db84E6af882c9d66c97e3F": {
         "Name": "GenericSwapFacet",

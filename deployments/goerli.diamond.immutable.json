@@ -41,10 +41,6 @@
         "Name": "ArbitrumBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x55c51beF79d16F5f0875E11207B17E885c21c13d": {
-        "Name": "AxelarFacet",
-        "Version": ""
-      },
       "0xA1Edc2eD671Dfa77eD2dCD2ee012F82e4807A75a": {
         "Name": "CBridgeFacet",
         "Version": "1.0.0"

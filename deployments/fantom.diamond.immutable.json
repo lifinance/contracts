@@ -1,10 +1,6 @@
 {
   "LiFiDiamondImmutable": {
     "Facets": {
-      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
-        "Name": "",
-        "Version": ""
-      },
       "0xfaA5f885a54D22C8571806fC001E53F0191f5Aff": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
