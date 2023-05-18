@@ -23,10 +23,6 @@
     "gateway": "0x304acf330bbE08d1e512eefaa92F6a57871fD895",
     "gasService": "0x2d5d7d31F671F86C782533cc367F14109a082712"
   },
-  "ropsten": {
-    "gateway": "0xBC6fcce7c5487d43830a219CA6E7B83238B41e71",
-    "gasService": "0xbE406F0189A0B4cf3A05C286473D23791Dd44Cc6"
-  },
   "bscTestnet": {
     "gateway": "0x4D147dCb984e6affEEC47e44293DA442580A3Ec0",
     "gasService": "0xbE406F0189A0B4cf3A05C286473D23791Dd44Cc6"
