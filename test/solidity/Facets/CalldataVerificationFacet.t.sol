@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
 import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
+import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { TestBase } from "../utils/TestBase.sol";
@@ -125,6 +126,35 @@ contract CallVerificationFacetTest is TestBase {
         assertEq(destinationChainId, bridgeData.destinationChainId);
         assertEq(hasSourceSwaps, bridgeData.hasSourceSwaps);
         assertEq(hasDestinationCall, bridgeData.hasDestinationCall);
+    }
+
+    function test_CatExtractGenericSwapParameters() public {
+        bytes memory callData = abi.encodeWithSelector(
+            GenericSwapFacet.swapTokensGeneric.selector,
+            "txid",
+            "acme",
+            "acme",
+            payable(address(1234)),
+            1 ether,
+            swapData
+        );
+
+        (
+            address sendingAssetId,
+            uint256 amount,
+            address receiver,
+            address receivingAssetId,
+            uint256 receivingAmount
+        ) = calldataVerificationFacet.extractGenericSwapParameters(callData);
+
+        assertEq(sendingAssetId, swapData[0].sendingAssetId);
+        assertEq(amount, swapData[0].fromAmount);
+        assertEq(receiver, address(1234));
+        assertEq(
+            receivingAssetId,
+            swapData[swapData.length - 1].receivingAssetId
+        );
+        assertEq(receivingAmount, 1 ether);
     }
 
     function test_CanExtractMainParametersWithSwap() public {
