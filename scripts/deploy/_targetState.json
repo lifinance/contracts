@@ -289,7 +289,7 @@
   "mainnet": {
     "production": {
       "LiFiDiamond": {
-        "CelerIMFacet": "1.0.0",
+        "CelerIMFacet": "1.0.1",
         "RelayerCelerIM": "1.0.0",
         "LiFiDiamond": "1.0.0"
       },
@@ -489,7 +489,7 @@
   "avalanche": {
     "production": {
       "LiFiDiamond": {
-        "CelerIMFacet": "1.0.0",
+        "CelerIMFacet": "1.0.1",
         "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
