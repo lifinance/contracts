@@ -46,31 +46,31 @@
         "Version": ""
       },
       "0x2f7f1a1C392e58012B84cfA673df73101666314D": {
-        "Name": "HyphenFacet",
+        "Name": "",
         "Version": ""
       },
       "0x6444cC208FB4f9059813Ad795faD0c07dB8793a2": {
-        "Name": "MultichainFacet",
+        "Name": "",
         "Version": ""
       },
       "0x26cDC2C58bDC2D3028A7a37F5D7e479eB7bf025C": {
-        "Name": "NXTPFacet",
+        "Name": "",
         "Version": ""
       },
       "0x80A5ca3Cd907376FEF5E57B0E9032b27Db82201B": {
-        "Name": "OmniBridgeFacet",
+        "Name": "",
         "Version": ""
       },
       "0x87C10910DA7258E55dA2C5d43739fB68B12E6a4b": {
-        "Name": "OptimismBridgeFacet",
+        "Name": "",
         "Version": ""
       },
       "0x2FD7d88c4abfC35749C75F9eEEb68cb8F41e3CaC": {
-        "Name": "PolygonBridgeFacet",
+        "Name": "",
         "Version": ""
       },
       "0x353268a8eb912BE2079876bc1faca109e89E5308": {
-        "Name": "StargateFacet",
+        "Name": "",
         "Version": ""
       },
       "0x8E4097eCfcc60F25fF2D7EE4d472ECa4A28a8425": {
@@ -90,7 +90,7 @@
         "Version": ""
       },
       "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59": {
-        "Name": "LIFuelFacet",
+        "Name": "",
         "Version": ""
       },
       "0xbCe268B24155dF2a18982984e9716136278f38d6": {
@@ -102,7 +102,7 @@
         "Version": ""
       },
       "0x5D3675D698A3DD53E3457951e1dEbEF717A29A72": {
-        "Name": "HopFacetPacked",
+        "Name": "",
         "Version": ""
       },
       "0xF156dc1077213AA92a3Ed6008a7FF8aEA2633186": {
