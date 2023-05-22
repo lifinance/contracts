@@ -2648,10 +2648,9 @@ function printDeploymentsStatusV2() {
 
   # go through all contracts
   for CONTRACT in ${ALL_CONTRACTS[*]} ; do
-      # TODO REMOVE
-      if [ "$CONTRACT" != "MultichainFacet" ] ; then
-        continue
-      fi
+#      if [ "$CONTRACT" != "LiFiDiamondImmutable" ] ; then
+#        continue
+#      fi
 
 
     # get current contract version
@@ -2661,7 +2660,6 @@ function printDeploymentsStatusV2() {
 
     # go through all networks
     for NETWORK in ${NETWORKS[*]} ; do
-      # TODO REMOVE
 #      if [[ "$NETWORK" != "nova" && "$NETWORK" != "harmony" ]] ; then
 #        continue
 #      fi
@@ -2719,6 +2717,13 @@ function printDeploymentsStatusV2() {
         # prepare entries (to preserve formatting)
         MUTABLE_ENTRY_COMBINED="$TARGET_ENTRY_1"" : ""$DEPLOYED_ENTRY_1"
         IMMUTABLE_ENTRY_COMBINED="$TARGET_ENTRY_2"" : ""$DEPLOYED_ENTRY_2"
+
+        if [ "$CONTRACT" != "LiFiDiamond" ] ; then
+          MUTABLE_ENTRY_COMBINED=""
+        elif [ "$CONTRACT" != "LiFiDiamondImmutable" ] ; then
+          IMMUTABLE_ENTRY_COMBINED=""
+        fi
+
 
         # determine color codes
         COLOR_CODE_1=$NC
