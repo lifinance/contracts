@@ -4,6 +4,7 @@
 
 # - enrich diamond deploy log with version info for periphery contracts and diamond contract version
 #   >> minimize search master deploy log (takes a lot of time)
+# - replace debug outputs with new helper method
 
 # - make helper functions robust for networks with -
 #   >>> including the solidity update config scripts
@@ -437,4 +438,3 @@ scriptMaster() {
 }
 
 scriptMaster
-

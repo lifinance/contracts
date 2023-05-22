@@ -56,7 +56,7 @@
     },
     "Periphery": {
       "AxelarExecutor": "",
-      "ERC20Proxy": "",
+      "ERC20Proxy": "0x006E78DB49Ad2a7650fF84FA86916A0805DF6D0A",
       "Executor": "0x4DE055c2b7054b9B3Aa7c3891aacB9dE4F489D66",
       "FeeCollector": "",
       "FusePoolZap": "",

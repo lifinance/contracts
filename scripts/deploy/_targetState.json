@@ -173,7 +173,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
         "RelayerCelerIM": "1.0.0",
-        "Executor": "1.0.0"
+        "Executor": "1.0.0",
+        "ERC20Proxy": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "AcrossFacet": "1.0.0",

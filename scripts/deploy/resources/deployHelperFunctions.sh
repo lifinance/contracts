@@ -9,6 +9,9 @@ source scripts/config.sh
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 RED='\033[0;31m'       # Red color
 GREEN='\033[0;32m'     # Green color
+GRAY='\033[0;37m'       # Light gray color
+BLUE='\033[1;34m' # Light blue color
+
 NC='\033[0m'           # No color
 
 # >>>>> logging
@@ -1773,6 +1776,15 @@ function checkFailure() {
 }
 
 # >>>>> output to console
+function echoDebug() {
+  # read function arguments into variables
+  MESSAGE=$1
+
+  # write message to console if debug flag is set to true
+  if [[ $DEBUG == "true" ]]; then
+    printf "$BLUE[debug] %s$NC\n" "$MESSAGE";
+  fi
+}
 function error() {
   printf '\033[31m[error] %s\033[0m\n' "$1";
 }
