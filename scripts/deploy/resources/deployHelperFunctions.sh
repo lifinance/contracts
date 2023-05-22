@@ -34,16 +34,16 @@ function logContractDeploymentInfo_BACKUP {
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
     echo ""
-    echo "[debug] in function logContractDeploymentInfo"
-    echo "[debug] CONTRACT=$CONTRACT"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] TIMESTAMP=$TIMESTAMP"
-    echo "[debug] VERSION=$VERSION"
-    echo "[debug] OPTIMIZER_RUNS=$OPTIMIZER_RUNS"
-    echo "[debug] CONSTRUCTOR_ARGS=$CONSTRUCTOR_ARGS"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] ADDRESS=$ADDRESS"
-    echo "[debug] VERIFIED=$VERIFIED"
+    echoDebug "in function logContractDeploymentInfo"
+    echoDebug "CONTRACT=$CONTRACT"
+    echoDebug "NETWORK=$NETWORK"
+    echoDebug "TIMESTAMP=$TIMESTAMP"
+    echoDebug "VERSION=$VERSION"
+    echoDebug "OPTIMIZER_RUNS=$OPTIMIZER_RUNS"
+    echoDebug "CONSTRUCTOR_ARGS=$CONSTRUCTOR_ARGS"
+    echoDebug "ENVIRONMENT=$ENVIRONMENT"
+    echoDebug "ADDRESS=$ADDRESS"
+    echoDebug "VERIFIED=$VERIFIED"
     echo ""
   fi
 
@@ -95,16 +95,16 @@ function logContractDeploymentInfo {
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
     echo ""
-    echo "[debug] in function logContractDeploymentInfo"
-    echo "[debug] CONTRACT=$CONTRACT"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] TIMESTAMP=$TIMESTAMP"
-    echo "[debug] VERSION=$VERSION"
-    echo "[debug] OPTIMIZER_RUNS=$OPTIMIZER_RUNS"
-    echo "[debug] CONSTRUCTOR_ARGS=$CONSTRUCTOR_ARGS"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] ADDRESS=$ADDRESS"
-    echo "[debug] VERIFIED=$VERIFIED"
+    echoDebug "in function logContractDeploymentInfo"
+    echoDebug "CONTRACT=$CONTRACT"
+    echoDebug "NETWORK=$NETWORK"
+    echoDebug "TIMESTAMP=$TIMESTAMP"
+    echoDebug "VERSION=$VERSION"
+    echoDebug "OPTIMIZER_RUNS=$OPTIMIZER_RUNS"
+    echoDebug "CONSTRUCTOR_ARGS=$CONSTRUCTOR_ARGS"
+    echoDebug "ENVIRONMENT=$ENVIRONMENT"
+    echoDebug "ADDRESS=$ADDRESS"
+    echoDebug "VERIFIED=$VERIFIED"
     echo ""
   fi
 
@@ -173,9 +173,9 @@ function logBytecode {
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
     echo ""
-    echo "[debug] in function logBytecode"
-    echo "[debug] CONTRACT=$CONTRACT"
-    echo "[debug] VERSION=$VERSION"
+    echoDebug "in function logBytecode"
+    echoDebug "CONTRACT=$CONTRACT"
+    echoDebug "VERSION=$VERSION"
     echo ""
   fi
 
@@ -210,7 +210,7 @@ function logBytecode {
       return 1
     else
       if [[ "$DEBUG" == *"true"* ]]; then
-        echo "[debug] bytecode already exists in log, no action needed"
+        echoDebug "bytecode already exists in log, no action needed"
       fi
       return 0
     fi
@@ -599,11 +599,11 @@ function saveDiamondFacets() {
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
    echo ""
-   echo "[debug] in function saveDiamondFacets"
-   echo "[debug] NETWORK=$NETWORK"
-   echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-   echo "[debug] USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
-   echo "[debug] FACETS=$FACETS"
+   echoDebug "in function saveDiamondFacets"
+   echoDebug "NETWORK=$NETWORK"
+   echoDebug "ENVIRONMENT=$ENVIRONMENT"
+   echoDebug "USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
+   echoDebug "FACETS=$FACETS"
   fi
 
   # get file suffix based on value in variable ENVIRONMENT
@@ -790,14 +790,14 @@ function saveDiamondPeriphery() {
     # logging for debug purposes
     if [[ "$DEBUG" == *"true"* ]]; then
      echo ""
-     echo "[debug] in function saveDiamondPeriphery"
-     echo "[debug] NETWORK=$NETWORK"
-     echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-     echo "[debug] USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
-     echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-     echo "[debug] RPC_URL=$RPC_URL"
-     echo "[debug] DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-     echo "[debug] DIAMOND_FILE=$DIAMOND_FILE"
+     echoDebug "in function saveDiamondPeriphery"
+     echoDebug "NETWORK=$NETWORK"
+     echoDebug "ENVIRONMENT=$ENVIRONMENT"
+     echoDebug "USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
+     echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+     echoDebug "RPC_URL=$RPC_URL"
+     echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+     echoDebug "DIAMOND_FILE=$DIAMOND_FILE"
     fi
 
      # get a list of all periphery contracts
@@ -831,12 +831,12 @@ function saveContract() {
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
    echo ""
-   echo "[debug] in function saveContract"
-   echo "[debug] NETWORK=$NETWORK"
-   echo "[debug] CONTRACT=$CONTRACT"
-   echo "[debug] ADDRESS=$ADDRESS"
-   echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-   echo "[debug] ADDRESSES_FILE=$ADDRESSES_FILE"
+   echoDebug "in function saveContract"
+   echoDebug "NETWORK=$NETWORK"
+   echoDebug "CONTRACT=$CONTRACT"
+   echoDebug "ADDRESS=$ADDRESS"
+   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+   echoDebug "ADDRESSES_FILE=$ADDRESSES_FILE"
   fi
 
   if [[ "$ADDRESS" == *"null"* || -z "$ADDRESS"  ]]; then
@@ -1077,20 +1077,20 @@ function verifyContract() {
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
     echo ""
-    echo "[debug] in function verifyContract"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] CONTRACT=$CONTRACT"
-    echo "[debug] ADDRESS=$ADDRESS"
-    echo "[debug] ARGS=$ARGS"
-    echo "[debug] blockexplorer API_KEY=${API_KEY}"
-    echo "[debug] blockexplorer API_KEY value=${!API_KEY}"
+    echoDebug "in function verifyContract"
+    echoDebug "NETWORK=$NETWORK"
+    echoDebug "CONTRACT=$CONTRACT"
+    echoDebug "ADDRESS=$ADDRESS"
+    echoDebug "ARGS=$ARGS"
+    echoDebug "blockexplorer API_KEY=${API_KEY}"
+    echoDebug "blockexplorer API_KEY value=${!API_KEY}"
   fi
 
   if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
       case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
           *,"$NETWORK",*)
               if [[ "$DEBUG" == *"true"* ]]; then
-                echo "[debug] network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
+                echoDebug "network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
                 return 1
               fi
               ;;
@@ -2027,10 +2027,10 @@ function doesDiamondHaveCoreFacetsRegistered() {
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
     echo ""
-    echo "[debug] in function doesDiamondHaveCoreFacetsRegistered"
-    echo "[debug] DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
+    echoDebug "in function doesDiamondHaveCoreFacetsRegistered"
+    echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+    echoDebug "NETWORK=$NETWORK"
+    echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
     echo ""
   fi
 
@@ -2046,7 +2046,7 @@ function doesDiamondHaveCoreFacetsRegistered() {
   # get a list of all facets that the diamond knows
   local KNOWN_FACET_ADDRESSES=$(cast call "$DIAMOND_ADDRESS" "facets() returns ((address,bytes4[])[])" --rpc-url "$RPC_URL") 2>/dev/null
   if [ $? -ne 0 ]; then
-    echo "[debug] not all core facets are registered in the diamond"
+    echoDebug "not all core facets are registered in the diamond"
     return 1
   fi
 
@@ -2069,7 +2069,7 @@ function doesDiamondHaveCoreFacetsRegistered() {
     # check if the address is not included in the diamond
     if ! [[ " ${ADDRESSES[@]} " =~ " ${FACET_ADDRESS} " ]]; then
       if [[ "$DEBUG" == *"true"* ]]; then
-          echo "[debug] not all core facets are registered in the diamond"
+          echoDebug "not all core facets are registered in the diamond"
       fi
 
       # not included, return error code
@@ -2344,12 +2344,12 @@ function deployAndAddContractToDiamond() {
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
     echo ""
-    echo "[debug] in function deployAndAddContractToDiamond"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] CONTRACT=$CONTRACT"
-    echo "[debug] DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
-    echo "[debug] VERSION=$VERSION"
+    echoDebug "in function deployAndAddContractToDiamond"
+    echoDebug "NETWORK=$NETWORK"
+    echoDebug "ENVIRONMENT=$ENVIRONMENT"
+    echoDebug "CONTRACT=$CONTRACT"
+    echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
+    echoDebug "VERSION=$VERSION"
     echo ""
   fi
 

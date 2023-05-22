@@ -23,14 +23,12 @@ deployCoreFacets() {
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echo "[debug] in function deployCoreFacets"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-    echo ""
-  fi
+  echo ""
+  echoDebug "in function deployCoreFacets"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echo ""
 
   # get list of all core facet contracts
   IFS=',' read -ra FACETS_ARRAY <<< "$CORE_FACETS"

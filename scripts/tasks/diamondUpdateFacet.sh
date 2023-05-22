@@ -94,7 +94,7 @@ diamondUpdateFacet() {
 
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
-    echo "[debug] updating $DIAMOND_CONTRACT_NAME on $NETWORK with address $DIAMOND_ADDRESS in $ENVIRONMENT environment with script $SCRIPT (FILE_SUFFIX=$FILE_SUFFIX, USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND)"
+    echoDebug "updating $DIAMOND_CONTRACT_NAME on $NETWORK with address $DIAMOND_ADDRESS in $ENVIRONMENT environment with script $SCRIPT (FILE_SUFFIX=$FILE_SUFFIX, USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND)"
   fi
 
   # check if update script exists
@@ -121,12 +121,12 @@ diamondUpdateFacet() {
         # extract the "logs" property and its contents from return data
         CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
         if [[ "$DEBUG" == *"true"* ]]; then
-          echo "[debug] CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
+          echoDebug "CLEAN_RETURN_DATA: $CLEAN_RETURN_DATA"
         fi
 
         # extract the "returns" property and its contents from logs
         RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2> /dev/null)
-        #echo "[debug] RETURN_DATA: $RETURN_DATA"
+        #echoDebug "RETURN_DATA: $RETURN_DATA"
 
         # get the facet addresses that are known to the diamond from the return data
         FACETS=$(echo $RETURN_DATA | jq -r '.facets.value')

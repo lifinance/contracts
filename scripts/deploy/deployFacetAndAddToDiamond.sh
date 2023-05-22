@@ -85,16 +85,14 @@ function deployFacetAndAddToDiamond() {
   fi
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echo "[debug] in function deployFacetAndAddToDiamond"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-    echo "[debug] FACET_CONTRACT_NAME=$FACET_CONTRACT_NAME"
-    echo "[debug] DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] VERSION=$VERSION"
-  fi
+  echo ""
+  echoDebug "in function deployFacetAndAddToDiamond"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echoDebug "FACET_CONTRACT_NAME=$FACET_CONTRACT_NAME"
+  echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "VERSION=$VERSION"
 
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $FACET_CONTRACT_NAME for $DIAMOND_CONTRACT_NAME now...."
 
@@ -104,9 +102,7 @@ function deployFacetAndAddToDiamond() {
   # check if function call was successful
   if [ $? -ne 0 ]
   then
-    if [[ "$DEBUG" == *"true"* ]]; then
-      warning "this call was not successful: deploySingleContract $FACET_CONTRACT_NAME $NETWORK $ENVIRONMENT $VERSION false"
-    fi
+    warning "this call was not successful: deploySingleContract $FACET_CONTRACT_NAME $NETWORK $ENVIRONMENT $VERSION false"
     return 1
   fi
 
@@ -118,9 +114,7 @@ function deployFacetAndAddToDiamond() {
 
   if [ $? -ne 0 ]
   then
-    if [[ "$DEBUG" == *"true"* ]]; then
-      warning "this call was not successful: diamondUpdateFacet $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT true"
-    fi
+    warning "this call was not successful: diamondUpdateFacet $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT true"
     return 1
   fi
 

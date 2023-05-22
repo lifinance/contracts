@@ -75,11 +75,11 @@ function diamondSyncSigs {
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
     echo ""
-    echo "[debug] in function syncSIGs"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
-    echo "[debug] DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+    echoDebug "in function syncSIGs"
+    echoDebug "NETWORK=$NETWORK"
+    echoDebug "ENVIRONMENT=$ENVIRONMENT"
+    echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
+    echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
     echo ""
   fi
 

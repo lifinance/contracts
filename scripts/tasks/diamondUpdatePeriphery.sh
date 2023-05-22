@@ -81,13 +81,13 @@ function diamondUpdatePeriphery() {
 
   # logging for debug purposes
   if [[ "$DEBUG" == *"true"* ]]; then
-    echo "[debug] in function updatePeriphery"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-    echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-    echo "[debug] UPDATE_ALL=$UPDATE_ALL"
-    echo "[debug] CONTRACTS=($CONTRACTS)"
+    echoDebug "in function updatePeriphery"
+    echoDebug "NETWORK=$NETWORK"
+    echoDebug "ENVIRONMENT=$ENVIRONMENT"
+    echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+    echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+    echoDebug "UPDATE_ALL=$UPDATE_ALL"
+    echoDebug "CONTRACTS=($CONTRACTS)"
     echo ""
   fi
 
