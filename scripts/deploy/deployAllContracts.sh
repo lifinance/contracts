@@ -25,14 +25,12 @@ deployAllContracts() {
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echo "[debug] in function deployAllContracts"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-    echo ""
-  fi
+  echo ""
+  echoDebug "in function deployAllContracts"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echo ""
 
   # ask user which diamond type to deploy
   echo ""

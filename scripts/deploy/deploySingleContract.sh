@@ -185,10 +185,9 @@ deploySingleContract() {
           break 2 # exit both loops if the operation was successful
         fi
         # wait for 10 seconds to allow blockchain to sync
-        if [[ "$DEBUG" == *"true"* ]]; then
-          echo "[info] waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"
-        fi
+        echoDebug "waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"
         sleep 10
+
         COUNT=$((COUNT + 10))
       done
 
