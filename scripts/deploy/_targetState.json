@@ -205,7 +205,6 @@
         "WithdrawFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "AcrossFacet": "2.0.0",
-        "AxelarFacet": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "GnosisBridgeFacet": "1.0.0",
@@ -551,7 +550,6 @@
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "AmarokFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0"
       }
     }
