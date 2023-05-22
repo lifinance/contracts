@@ -4,10 +4,13 @@ pragma solidity 0.8.17;
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
 import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
+import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
+import { CelerIMFacet } from "lifi/Facets/CelerIMFacet.sol";
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { TestBase } from "../utils/TestBase.sol";
+import { MsgDataTypes } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import "forge-std/console.sol";
 
 contract CallVerificationFacetTest is TestBase {
@@ -216,7 +219,7 @@ contract CallVerificationFacetTest is TestBase {
         assertFalse(invalidCall);
     }
 
-    function test_CanValidateDestinationCalldata() public {
+    function test_CanValidateAmarokDestinationCalldata() public {
         AmarokFacet.AmarokData memory amarokData = AmarokFacet.AmarokData({
             callData: bytes("foobarbytes"),
             callTo: address(0xdeadbeef),
@@ -241,16 +244,113 @@ contract CallVerificationFacetTest is TestBase {
 
         bool validCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
+            abi.encode(address(0xdeadbeef)),
             bytes("foobarbytes")
         );
         bool validCallWithSwap = calldataVerificationFacet
             .validateDestinationCalldata(
                 callDataWithSwap,
+                abi.encode(address(0xdeadbeef)),
                 bytes("foobarbytes")
             );
 
         bool badCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
+            abi.encode(address(0xdeadbeef)),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+    }
+
+    function test_CanValidateStargateDestinationCalldata() public {
+        StargateFacet.StargateData memory sgData = StargateFacet.StargateData({
+            srcPoolId: 1,
+            dstPoolId: 2,
+            minAmountLD: 3,
+            dstGasForCall: 4,
+            lzFee: 5,
+            refundAddress: payable(address(0x1234)),
+            callTo: abi.encode(address(0xdeadbeef)),
+            callData: bytes("foobarbytes")
+        });
+
+        bytes memory callData = abi.encodeWithSelector(
+            StargateFacet.startBridgeTokensViaStargate.selector,
+            bridgeData,
+            sgData
+        );
+
+        bytes memory callDataWithSwap = abi.encodeWithSelector(
+            StargateFacet.swapAndStartBridgeTokensViaStargate.selector,
+            bridgeData,
+            swapData,
+            sgData
+        );
+
+        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            abi.encode(address(0xdeadbeef)),
+            bytes("foobarbytes")
+        );
+        bool validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                callDataWithSwap,
+                abi.encode(address(0xdeadbeef)),
+                bytes("foobarbytes")
+            );
+
+        bool badCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            abi.encode(address(0xdeadbeef)),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+    }
+
+    function test_CanValidateCelerIMDestinationCalldata() public {
+        CelerIMFacet.CelerIMData memory cimData = CelerIMFacet.CelerIMData({
+            maxSlippage: 1,
+            nonce: 2,
+            callTo: abi.encode(address(0xdeadbeef)),
+            callData: bytes("foobarbytes"),
+            messageBusFee: 3,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
+
+        bytes memory callData = abi.encodeWithSelector(
+            CelerIMFacet.startBridgeTokensViaCelerIM.selector,
+            bridgeData,
+            cimData
+        );
+
+        bytes memory callDataWithSwap = abi.encodeWithSelector(
+            CelerIMFacet.swapAndStartBridgeTokensViaCelerIM.selector,
+            bridgeData,
+            swapData,
+            cimData
+        );
+
+        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            abi.encode(address(0xdeadbeef)),
+            bytes("foobarbytes")
+        );
+        bool validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                callDataWithSwap,
+                abi.encode(address(0xdeadbeef)),
+                bytes("foobarbytes")
+            );
+
+        bool badCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            abi.encode(address(0xdeadbeef)),
             bytes("badbytes")
         );
 

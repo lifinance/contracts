@@ -15,9 +15,11 @@ contract CalldataVerificationFacet {
     /// @notice Extracts the bridge data from the calldata
     /// @param data The calldata to extract the bridge data from
     /// @return bridgeData The bridge data extracted from the calldata
-    function extractBridgeData(
-        bytes calldata data
-    ) external pure returns (ILiFi.BridgeData memory bridgeData) {
+    function extractBridgeData(bytes calldata data)
+        external
+        pure
+        returns (ILiFi.BridgeData memory bridgeData)
+    {
         bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
         return bridgeData;
     }
@@ -25,9 +27,11 @@ contract CalldataVerificationFacet {
     /// @notice Extracts the swap data from the calldata
     /// @param data The calldata to extract the swap data from
     /// @return swapData The swap data extracted from the calldata
-    function extractSwapData(
-        bytes calldata data
-    ) external pure returns (LibSwap.SwapData[] memory swapData) {
+    function extractSwapData(bytes calldata data)
+        external
+        pure
+        returns (LibSwap.SwapData[] memory swapData)
+    {
         (, swapData) = abi.decode(
             data[4:],
             (ILiFi.BridgeData, LibSwap.SwapData[])
@@ -39,9 +43,7 @@ contract CalldataVerificationFacet {
     /// @param data The calldata to extract the bridge data and swap data from
     /// @return bridgeData The bridge data extracted from the calldata
     /// @return swapData The swap data extracted from the calldata
-    function extractData(
-        bytes calldata data
-    )
+    function extractData(bytes calldata data)
         external
         pure
         returns (
@@ -69,9 +71,7 @@ contract CalldataVerificationFacet {
     /// @return destinationChainId The destination chain id extracted from the calldata
     /// @return hasSourceSwaps Whether the calldata has source swaps
     /// @return hasDestinationCall Whether the calldata has a destination call
-    function extractMainParameters(
-        bytes calldata data
-    )
+    function extractMainParameters(bytes calldata data)
         public
         pure
         returns (
@@ -118,9 +118,7 @@ contract CalldataVerificationFacet {
     /// @return receiver The receiver extracted from the calldata
     /// @return receivingAssetId The receiving asset id extracted from the calldata
     /// @return receivingAmount The receiving amount extracted from the calldata
-    function extractGenericSwapParameters(
-        bytes calldata data
-    )
+    function extractGenericSwapParameters(bytes calldata data)
         public
         pure
         returns (
@@ -206,10 +204,12 @@ contract CalldataVerificationFacet {
 
     /// @notice Validates the destination calldata
     /// @param data The calldata to validate
+    /// @param callTo The call to address to validate
     /// @param dstCalldata The destination calldata to validate
     /// @return isValid Whether the destination calldata is validate
     function validateDestinationCalldata(
         bytes calldata data,
+        bytes calldata callTo,
         bytes calldata dstCalldata
     ) external pure returns (bool isValid) {
         bytes4 selector = abi.decode(data, (bytes4));
@@ -221,7 +221,9 @@ contract CalldataVerificationFacet {
                 (ILiFi.BridgeData, AmarokFacet.AmarokData)
             );
 
-            return keccak256(dstCalldata) == keccak256(amarokData.callData);
+            return
+                keccak256(dstCalldata) == keccak256(amarokData.callData) &&
+                abi.decode(callTo, (address)) == amarokData.callTo;
         }
         if (
             selector == AmarokFacet.swapAndStartBridgeTokensViaAmarok.selector
@@ -230,7 +232,9 @@ contract CalldataVerificationFacet {
                 data[4:],
                 (ILiFi.BridgeData, LibSwap.SwapData[], AmarokFacet.AmarokData)
             );
-            return keccak256(dstCalldata) == keccak256(amarokData.callData);
+            return
+                keccak256(dstCalldata) == keccak256(amarokData.callData) &&
+                abi.decode(callTo, (address)) == amarokData.callTo;
         }
 
         // Case: Stargate
@@ -239,7 +243,9 @@ contract CalldataVerificationFacet {
                 data[4:],
                 (ILiFi.BridgeData, StargateFacet.StargateData)
             );
-            return keccak256(dstCalldata) == keccak256(stargateData.callData);
+            return
+                keccak256(dstCalldata) == keccak256(stargateData.callData) &&
+                keccak256(callTo) == keccak256(stargateData.callTo);
         }
         if (
             selector ==
@@ -253,7 +259,9 @@ contract CalldataVerificationFacet {
                     StargateFacet.StargateData
                 )
             );
-            return keccak256(dstCalldata) == keccak256(stargateData.callData);
+            return
+                keccak256(dstCalldata) == keccak256(stargateData.callData) &&
+                keccak256(callTo) == keccak256(stargateData.callTo);
         }
         // Case: Celer
         if (selector == CelerIMFacet.startBridgeTokensViaCelerIM.selector) {
@@ -261,7 +269,9 @@ contract CalldataVerificationFacet {
                 data[4:],
                 (ILiFi.BridgeData, CelerIMFacet.CelerIMData)
             );
-            return keccak256(dstCalldata) == keccak256(celerIMData.callData);
+            return
+                keccak256(dstCalldata) == keccak256(celerIMData.callData) &&
+                keccak256(callTo) == keccak256(celerIMData.callTo);
         }
         if (
             selector ==
@@ -275,7 +285,9 @@ contract CalldataVerificationFacet {
                     CelerIMFacet.CelerIMData
                 )
             );
-            return keccak256(dstCalldata) == keccak256(celerIMData.callData);
+            return
+                keccak256(dstCalldata) == keccak256(celerIMData.callData) &&
+                keccak256(callTo) == keccak256(celerIMData.callTo);
         }
 
         // All other cases
