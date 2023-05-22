@@ -2648,6 +2648,12 @@ function printDeploymentsStatusV2() {
 
   # go through all contracts
   for CONTRACT in ${ALL_CONTRACTS[*]} ; do
+      # TODO REMOVE
+      if [ "$CONTRACT" != "MultichainFacet" ] ; then
+        continue
+      fi
+
+
     # get current contract version
     CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" ""
@@ -2655,6 +2661,10 @@ function printDeploymentsStatusV2() {
 
     # go through all networks
     for NETWORK in ${NETWORKS[*]} ; do
+      # TODO REMOVE
+      if [[ "$NETWORK" != "nova" && "$NETWORK" != "harmony" ]] ; then
+        continue
+      fi
 
       # (re-)set entry values
       TARGET_ENTRY_1="  -  "
@@ -2688,18 +2698,18 @@ function printDeploymentsStatusV2() {
       # check if entry was found in diamond deployment log (if version == null, replace with "unknown")
       if [ "$RETURN_CODE3" -eq 0 ] ; then
         KNOWN_VERSION=$(echo "$LOG_INFO_DIAMOND" | jq -r '.[].Version')
-        if [ "$KNOWN_VERSION" == "null" ] ; then
-          DEPLOYED_ENTRY_1="unknown"
-        elif [ "$KNOWN_VERSION" != "" ] ; then
+        if [[ "$KNOWN_VERSION" == "null" || "$KNOWN_VERSION" == "" ]] ; then
+          DEPLOYED_ENTRY_1="n/a"
+        else
           DEPLOYED_ENTRY_1=$KNOWN_VERSION
         fi
       fi
       if [ "$RETURN_CODE4" -eq 0 ] ; then
         KNOWN_VERSION=$(echo "$LOG_INFO_DIAMOND_IMMUTABLE" | jq -r '.[].Version')
 
-        if [ "$KNOWN_VERSION" == "null" ] ; then
-          DEPLOYED_ENTRY_2="unknown"
-        elif [ "$KNOWN_VERSION" != "" ] ; then
+        if [[ "$KNOWN_VERSION" == "null" || "$KNOWN_VERSION" == "" ]] ; then
+          DEPLOYED_ENTRY_2="n/a"
+        else
           DEPLOYED_ENTRY_2=$KNOWN_VERSION
         fi
       fi
