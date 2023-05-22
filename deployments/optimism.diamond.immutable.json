@@ -63,7 +63,7 @@
       },
       "0x4cf6c406F004b7B588ec8638fBd2cC2215D87C90": {
         "Name": "MultichainFacet",
-        "Version": ""
+        "Version": "1.0.1"
       },
       "0x238502aDc8ca550723CBE78543c8B757599A21cC": {
         "Name": "NXTPFacet",

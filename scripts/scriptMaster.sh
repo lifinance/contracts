@@ -2,11 +2,13 @@
 
 # TODO
 
+# - enrich diamond deploy log with version info for periphery contracts and diamond contract version
+#   >> minimize search master deploy log (takes a lot of time)
+
 # - make helper functions robust for networks with -
 #   >>> including the solidity update config scripts
 # - integrate diamondMakeImmutable in master script
 
-# - add verify contract use case (use bytecode and settings from storage)
 # - create function that checks if contract is deployed (get bytecode, predict address, check bytecode at address)
 # - return master log to store all deployments (and return latest when inquired)
 # - add use case to only remove a facet
@@ -80,6 +82,7 @@ scriptMaster() {
     "5) Execute a script" \
     "6) Batch update _targetState.json file" \
     "7) Verify all unverified contracts" \
+    "8) Review deploy status (vs. target state)" \
     )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -285,7 +288,7 @@ scriptMaster() {
       # case: "1) 1) Add a new contract to all networks"
 
       # get names of all contracts
-      ALL_CONTRACT_NAMES=($(getAllContractNames))
+      ALL_CONTRACT_NAMES=($(getAllContractNames "false"))
 
       # Prompt the user to select a contract to be updated
       echo ""
@@ -332,7 +335,7 @@ scriptMaster() {
     elif [[ "$SELECTION_UPDATE_CASE" == *"2)"* ]]; then
       # case: "2) Update the version of a contract on all networks"
       # get names of all contracts
-      ALL_CONTRACT_NAMES=($(getAllContractNames))
+      ALL_CONTRACT_NAMES=($(getAllContractNames "false"))
 
       # Prompt the user to select a contract to be updated
       echo ""
@@ -415,6 +418,11 @@ scriptMaster() {
   elif [[ "$SELECTION" == *"7)"* ]]; then
     verifyAllUnverifiedContractsInLogFile
     playNotificationSound
+
+  #---------------------------------------------------------------------------------------------------------------------
+  # use case 8: Review deploy status (vs. target state)
+  elif [[ "$SELECTION" == *"8)"* ]]; then
+    printDeploymentsStatusV2 "$ENVIRONMENT"
   else
     error "invalid use case selected ('$SELECTION') - exiting script"
     exit 1

@@ -98,10 +98,10 @@
         "Version": ""
       },
       "0xb0199ce3c4fD19aF0AdCbe8C589ea1f699c295fb": {
-        "Name": "AcrossFacet",
+        "Name": "",
         "Version": ""
       },
-      "0x5Ca7D3e5689A976266245AD2b50c674f60d6195d": {
+      "0x58FBa880b973edB5E4f6Aa4e2bD3b15c865b9B18": {
         "Name": "",
         "Version": ""
       }
@@ -113,7 +113,7 @@
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
       "FusePoolZap": "",
       "Receiver": "0x74674DAFd6f4495e7F63F7637E94b8B89B2f01dB",
-      "RelayerCelerIM": "0xB1Fe861ceae7BF4C40515cEEB851f2785d2A1008",
+      "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
   }
