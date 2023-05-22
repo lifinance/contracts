@@ -285,6 +285,19 @@
           }
         ]
       }
+    },
+    "mumbai": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x543aF89b0EeaDaa74D71f572E92ec41ca98bEd22",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-16 13:17:57",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -557,6 +570,19 @@
             "TIMESTAMP": "2023-05-18 12:38:50",
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mumbai": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x26C707aD4fF84cf0e726B26fB02258611a8c7075",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-16 13:44:11",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea000000000000000000000000032540902f1f4e88497582aae6ecc8bd75f0d58ee",
+            "VERIFIED": "false"
           }
         ]
       }

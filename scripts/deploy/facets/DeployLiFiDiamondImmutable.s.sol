@@ -13,22 +13,7 @@ contract DeployScript is DeployScriptBase {
     address internal diamondImmutable;
     DiamondCutFacet internal cutter;
 
-    constructor() DeployScriptBase("LiFiDiamondImmutable") {
-        network = vm.envString("NETWORK");
-        fileSuffix = vm.envString("FILE_SUFFIX");
-
-        string memory path = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".",
-            fileSuffix,
-            "json"
-        );
-        string memory json = vm.readFile(path);
-        diamondImmutable = json.readAddress(".LiFiDiamondImmutable");
-        cutter = DiamondCutFacet(diamondImmutable);
-    }
+    constructor() DeployScriptBase("LiFiDiamondImmutable") {}
 
     function run()
         public
