@@ -4256,6 +4256,17 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x006E78DB49Ad2a7650fF84FA86916A0805DF6D0A",
+            "OPTIMIZER_RUNS": "80",
+            "TIMESTAMP": "2023-05-22 11:45:16",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "goerli": {

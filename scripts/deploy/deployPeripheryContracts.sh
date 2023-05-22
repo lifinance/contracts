@@ -25,12 +25,10 @@ deployPeripheryContracts() {
   #TODO: add code to fill variables for standalone call
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo "[debug] in function deployPeripheryContracts"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-  fi
+  echoDebug "in function deployPeripheryContracts"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
 
   # get names of all periphery contracts (that are not excluded in config)
   PERIPHERY_CONTRACTS=$(getIncludedPeripheryContractsArray)
@@ -53,9 +51,7 @@ deployPeripheryContracts() {
       TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME")
       RETURN_VALUE="$?"
 
-      if [[ "$DEBUG" == *"true"* ]]; then
-        echo "[debug] target version for $CONTRACT extracted from target state: $TARGET_VERSION (current version in repo: $CURRENT_VERSION)"
-      fi
+      echoDebug "target version for $CONTRACT extracted from target state: $TARGET_VERSION (current version in repo: $CURRENT_VERSION)"
 
 
       # check return code of findContractVersionInTargetState
