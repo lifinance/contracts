@@ -1134,6 +1134,7 @@ function verifyContract() {
     warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified"
   else
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
+    return 0
   fi
 
   echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
@@ -1143,14 +1144,12 @@ function verifyContract() {
     --chain-id "$CHAIN_ID" \
     --verifier sourcify
 
-  echo "COMMAND_STATUS of SOURCIFY verification: $?"
-
   echo "[info] checking Sourcify verification now"
   forge verify-check $ADDRESS \
     --chain-id "$CHAIN_ID" \
     --verifier sourcify
 
-  if [ $COMMAND_STATUS -ne 0 ]; then
+  if [ $? -ne 0 ]; then
     # verification apparently failed
     warning "[info] $CONTRACT on $NETWORK with address $ADDRESS could not be verified using Sourcify"
     return 1
@@ -1159,7 +1158,6 @@ function verifyContract() {
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified using Sourcify"
     return 0
   fi
-
 }
 function verifyAllUnverifiedContractsInLogFile() {
   # Check if target state FILE exists
@@ -3097,3 +3095,4 @@ function test_tmp(){
         fi
       fi
 }
+
