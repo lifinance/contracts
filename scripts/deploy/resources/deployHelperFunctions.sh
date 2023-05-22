@@ -32,20 +32,18 @@ function logContractDeploymentInfo_BACKUP {
   fi
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echoDebug "in function logContractDeploymentInfo"
-    echoDebug "CONTRACT=$CONTRACT"
-    echoDebug "NETWORK=$NETWORK"
-    echoDebug "TIMESTAMP=$TIMESTAMP"
-    echoDebug "VERSION=$VERSION"
-    echoDebug "OPTIMIZER_RUNS=$OPTIMIZER_RUNS"
-    echoDebug "CONSTRUCTOR_ARGS=$CONSTRUCTOR_ARGS"
-    echoDebug "ENVIRONMENT=$ENVIRONMENT"
-    echoDebug "ADDRESS=$ADDRESS"
-    echoDebug "VERIFIED=$VERIFIED"
-    echo ""
-  fi
+  echo ""
+  echoDebug "in function logContractDeploymentInfo"
+  echoDebug "CONTRACT=$CONTRACT"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "TIMESTAMP=$TIMESTAMP"
+  echoDebug "VERSION=$VERSION"
+  echoDebug "OPTIMIZER_RUNS=$OPTIMIZER_RUNS"
+  echoDebug "CONSTRUCTOR_ARGS=$CONSTRUCTOR_ARGS"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "ADDRESS=$ADDRESS"
+  echoDebug "VERIFIED=$VERIFIED"
+  echo ""
 
   # Check if log FILE exists, if not create it
   if [ ! -f "$LOG_FILE_PATH" ]; then
@@ -71,9 +69,7 @@ function logContractDeploymentInfo_BACKUP {
       '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, VERIFIED: $VERIFIED  }]' \
       "$LOG_FILE_PATH" > tmpfile && mv tmpfile "$LOG_FILE_PATH"
 
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo "[info] contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
-  fi
+  echoDebug "contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
 } # will add, if entry exists already
 function logContractDeploymentInfo {
   # read function arguments into variables
@@ -93,20 +89,18 @@ function logContractDeploymentInfo {
   fi
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echoDebug "in function logContractDeploymentInfo"
-    echoDebug "CONTRACT=$CONTRACT"
-    echoDebug "NETWORK=$NETWORK"
-    echoDebug "TIMESTAMP=$TIMESTAMP"
-    echoDebug "VERSION=$VERSION"
-    echoDebug "OPTIMIZER_RUNS=$OPTIMIZER_RUNS"
-    echoDebug "CONSTRUCTOR_ARGS=$CONSTRUCTOR_ARGS"
-    echoDebug "ENVIRONMENT=$ENVIRONMENT"
-    echoDebug "ADDRESS=$ADDRESS"
-    echoDebug "VERIFIED=$VERIFIED"
-    echo ""
-  fi
+  echo ""
+  echoDebug "in function logContractDeploymentInfo"
+  echoDebug "CONTRACT=$CONTRACT"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "TIMESTAMP=$TIMESTAMP"
+  echoDebug "VERSION=$VERSION"
+  echoDebug "OPTIMIZER_RUNS=$OPTIMIZER_RUNS"
+  echoDebug "CONSTRUCTOR_ARGS=$CONSTRUCTOR_ARGS"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "ADDRESS=$ADDRESS"
+  echoDebug "VERIFIED=$VERIFIED"
+  echo ""
 
   # Check if log FILE exists, if not create it
   if [ ! -f "$LOG_FILE_PATH" ]; then
@@ -148,9 +142,7 @@ function logContractDeploymentInfo {
        "$LOG_FILE_PATH" > tmpfile && mv tmpfile "$LOG_FILE_PATH"
   fi
 
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo "[info] contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
-  fi
+  echoDebug "contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
 } # will replace, if entry exists already
 function getBytecodeFromLog() {
 
@@ -171,13 +163,11 @@ function logBytecode {
   local BYTECODE="$3"
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echoDebug "in function logBytecode"
-    echoDebug "CONTRACT=$CONTRACT"
-    echoDebug "VERSION=$VERSION"
-    echo ""
-  fi
+  echo ""
+  echoDebug "in function logBytecode"
+  echoDebug "CONTRACT=$CONTRACT"
+  echoDebug "VERSION=$VERSION"
+  echo ""
 
   # Check if log FILE exists, if not create it
   if [ ! -f "$BYTECODE_STORAGE_PATH" ]; then
@@ -200,18 +190,14 @@ function logBytecode {
     echo "$JSON" > "$BYTECODE_STORAGE_PATH"
 
     # if DEBUG
-    if [[ "$DEBUG" == *"true"* ]]; then
-      echo "[info] bytecode added to storage file (CONTRACT=$CONTRACT, VERSION=$VERSION)"
-    fi
+    echoDebug "bytecode added to storage file (CONTRACT=$CONTRACT, VERSION=$VERSION)"
   else
     # match found - check if bytecode matches
     if [ "$BYTECODE" != "$LOG_RESULT" ]; then
       warning "existing bytecode in log differs from bytecode produced by this run. Please check why this happens (e.g. code changed without version bump). Bytecode storage not updated."
       return 1
     else
-      if [[ "$DEBUG" == *"true"* ]]; then
-        echoDebug "bytecode already exists in log, no action needed"
-      fi
+      echoDebug "bytecode already exists in log, no action needed"
       return 0
     fi
   fi
@@ -597,14 +583,12 @@ function saveDiamondFacets() {
   FACETS=$4
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-   echo ""
-   echoDebug "in function saveDiamondFacets"
-   echoDebug "NETWORK=$NETWORK"
-   echoDebug "ENVIRONMENT=$ENVIRONMENT"
-   echoDebug "USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
-   echoDebug "FACETS=$FACETS"
-  fi
+  echo ""
+  echoDebug "in function saveDiamondFacets"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
+  echoDebug "FACETS=$FACETS"
 
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -639,9 +623,7 @@ function saveDiamondFacets() {
 
     # check if contract was found in log file
     if [[ $? -ne 0 ]]; then
-      if [[ "$DEBUG" == *"true"* ]]; then
-        warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
-      fi
+      warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
 
       # try to find name of contract from network-specific deployments file
       # load JSON FILE that contains deployment addresses
@@ -788,7 +770,6 @@ function saveDiamondPeriphery() {
      fi
 
     # logging for debug purposes
-    if [[ "$DEBUG" == *"true"* ]]; then
      echo ""
      echoDebug "in function saveDiamondPeriphery"
      echoDebug "NETWORK=$NETWORK"
@@ -798,7 +779,6 @@ function saveDiamondPeriphery() {
      echoDebug "RPC_URL=$RPC_URL"
      echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
      echoDebug "DIAMOND_FILE=$DIAMOND_FILE"
-    fi
 
      # get a list of all periphery contracts
      PERIPHERY_CONTRACTS=$(getContractNamesInFolder "src/Periphery/")
@@ -829,15 +809,13 @@ function saveContract() {
   ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-   echo ""
-   echoDebug "in function saveContract"
-   echoDebug "NETWORK=$NETWORK"
-   echoDebug "CONTRACT=$CONTRACT"
-   echoDebug "ADDRESS=$ADDRESS"
-   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
-   echoDebug "ADDRESSES_FILE=$ADDRESSES_FILE"
-  fi
+  echo ""
+  echoDebug "in function saveContract"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "CONTRACT=$CONTRACT"
+  echoDebug "ADDRESS=$ADDRESS"
+  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echoDebug "ADDRESSES_FILE=$ADDRESSES_FILE"
 
   if [[ "$ADDRESS" == *"null"* || -z "$ADDRESS"  ]]; then
     error "trying to write a 'null' address to $ADDRESSES_FILE for $CONTRACT. Log file will not be updated."
@@ -1075,24 +1053,20 @@ function verifyContract() {
   fi
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echoDebug "in function verifyContract"
-    echoDebug "NETWORK=$NETWORK"
-    echoDebug "CONTRACT=$CONTRACT"
-    echoDebug "ADDRESS=$ADDRESS"
-    echoDebug "ARGS=$ARGS"
-    echoDebug "blockexplorer API_KEY=${API_KEY}"
-    echoDebug "blockexplorer API_KEY value=${!API_KEY}"
-  fi
+  echo ""
+  echoDebug "in function verifyContract"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "CONTRACT=$CONTRACT"
+  echoDebug "ADDRESS=$ADDRESS"
+  echoDebug "ARGS=$ARGS"
+  echoDebug "blockexplorer API_KEY=${API_KEY}"
+  echoDebug "blockexplorer API_KEY value=${!API_KEY}"
 
   if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
       case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
           *,"$NETWORK",*)
-              if [[ "$DEBUG" == *"true"* ]]; then
-                echoDebug "network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
-                return 1
-              fi
+              echoDebug "network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
+              return 1
               ;;
       esac
   fi
@@ -1326,9 +1300,7 @@ function removeFacetFromDiamond() {
     fi
   fi
 
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo "[info] successfully removed $FACET_NAME from $DIAMOND_ADDRESS on network $NETWORK"
-  fi
+  echoDebug "successfully removed $FACET_NAME from $DIAMOND_ADDRESS on network $NETWORK"
 } # needs to be fixed before using again
 # <<<<< writing to blockchain & verification
 
@@ -1809,15 +1781,11 @@ function addContractVersionToTargetState() {
   # check if entry should be updated and log warning if debug flag is set
   if [[ -n "$ENTRY_EXISTS" ]]; then
     if [[ "$UPDATE_EXISTING" == *"false"* ]]; then
-      if [[ "$DEBUG" == *"true"* ]]; then
-        echo "[warning]: target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, and CONTRACT_NAME:$CONTRACT_NAME."
-      fi
+      warning "target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, and CONTRACT_NAME:$CONTRACT_NAME."
       # exit script
       return 1
     else
-      if [[ "$DEBUG" == *"true"* ]]; then
-        echo "[warning]: target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, and CONTRACT_NAME:$CONTRACT_NAME. Updating version."
-      fi
+      warning "target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, and CONTRACT_NAME:$CONTRACT_NAME. Updating version."
     fi
   fi
 
@@ -2024,16 +1992,6 @@ function doesDiamondHaveCoreFacetsRegistered() {
   local NETWORK="$2"
   local FILE_SUFFIX="$3"
 
-  # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echoDebug "in function doesDiamondHaveCoreFacetsRegistered"
-    echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-    echoDebug "NETWORK=$NETWORK"
-    echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
-    echo ""
-  fi
-
   # get file with deployment addresses
   DEPLOYMENTS_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
 
@@ -2068,9 +2026,7 @@ function doesDiamondHaveCoreFacetsRegistered() {
     local FACET_ADDRESS=$(jq -r ".$FACET_NAME" "$DEPLOYMENTS_FILE")
     # check if the address is not included in the diamond
     if ! [[ " ${ADDRESSES[@]} " =~ " ${FACET_ADDRESS} " ]]; then
-      if [[ "$DEBUG" == *"true"* ]]; then
-          echoDebug "not all core facets are registered in the diamond"
-      fi
+      echoDebug "not all core facets are registered in the diamond"
 
       # not included, return error code
       return 1
@@ -2342,16 +2298,14 @@ function deployAndAddContractToDiamond() {
   VERSION="$5"
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echoDebug "in function deployAndAddContractToDiamond"
-    echoDebug "NETWORK=$NETWORK"
-    echoDebug "ENVIRONMENT=$ENVIRONMENT"
-    echoDebug "CONTRACT=$CONTRACT"
-    echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
-    echoDebug "VERSION=$VERSION"
-    echo ""
-  fi
+  echo ""
+  echoDebug "in function deployAndAddContractToDiamond"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "CONTRACT=$CONTRACT"
+  echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
+  echoDebug "VERSION=$VERSION"
+  echo ""
 
   # check which type of contract we are deploying
   if [[ "$CONTRACT" == *"Facet"* ]]; then
