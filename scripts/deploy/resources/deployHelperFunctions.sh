@@ -2662,9 +2662,9 @@ function printDeploymentsStatusV2() {
     # go through all networks
     for NETWORK in ${NETWORKS[*]} ; do
       # TODO REMOVE
-      if [[ "$NETWORK" != "nova" && "$NETWORK" != "harmony" ]] ; then
-        continue
-      fi
+#      if [[ "$NETWORK" != "nova" && "$NETWORK" != "harmony" ]] ; then
+#        continue
+#      fi
 
       # (re-)set entry values
       TARGET_ENTRY_1="  -  "
@@ -2699,7 +2699,7 @@ function printDeploymentsStatusV2() {
       if [ "$RETURN_CODE3" -eq 0 ] ; then
         KNOWN_VERSION=$(echo "$LOG_INFO_DIAMOND" | jq -r '.[].Version')
         if [[ "$KNOWN_VERSION" == "null" || "$KNOWN_VERSION" == "" ]] ; then
-          DEPLOYED_ENTRY_1="n/a"
+          DEPLOYED_ENTRY_1=" n/a"
         else
           DEPLOYED_ENTRY_1=$KNOWN_VERSION
         fi
@@ -2708,7 +2708,7 @@ function printDeploymentsStatusV2() {
         KNOWN_VERSION=$(echo "$LOG_INFO_DIAMOND_IMMUTABLE" | jq -r '.[].Version')
 
         if [[ "$KNOWN_VERSION" == "null" || "$KNOWN_VERSION" == "" ]] ; then
-          DEPLOYED_ENTRY_2="n/a"
+          DEPLOYED_ENTRY_2=" n/a"
         else
           DEPLOYED_ENTRY_2=$KNOWN_VERSION
         fi
