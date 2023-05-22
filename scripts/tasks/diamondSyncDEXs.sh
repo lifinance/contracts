@@ -73,15 +73,13 @@ function diamondSyncDEXs {
   RPC_URL=$(getRPCUrl "$NETWORK")
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echoDebug "in function syncDEXs"
-    echoDebug "NETWORK=$NETWORK"
-    echoDebug "ENVIRONMENT=$ENVIRONMENT"
-    echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
-    echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-    echo ""
-  fi
+  echo ""
+  echoDebug "in function syncDEXs"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
+  echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+  echo ""
 
   echo "[info] now syncing DEXs for $DIAMOND_CONTRACT_NAME on network $NETWORK with address $DIAMOND_ADDRESS"
 

@@ -80,16 +80,14 @@ function diamondUpdatePeriphery() {
   fi
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echoDebug "in function updatePeriphery"
-    echoDebug "NETWORK=$NETWORK"
-    echoDebug "ENVIRONMENT=$ENVIRONMENT"
-    echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-    echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
-    echoDebug "UPDATE_ALL=$UPDATE_ALL"
-    echoDebug "CONTRACTS=($CONTRACTS)"
-    echo ""
-  fi
+  echoDebug "in function updatePeriphery"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echoDebug "UPDATE_ALL=$UPDATE_ALL"
+  echoDebug "CONTRACTS=($CONTRACTS)"
+  echo ""
 
   # get path of deployment file to extract contract addresses from it
   if [[ -z "$FILE_SUFFIX" ]]; then
@@ -169,7 +167,7 @@ register() {
   while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     # try to execute call
     if [[ "$DEBUG" == *"true"* ]]; then
-      echo "[info] trying to register periphery contract $CONTRACT_NAME in diamond on network $NETWORK now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
+      echoDebug "trying to register periphery contract $CONTRACT_NAME in diamond on network $NETWORK now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
 
       # ensure that gas price is below maximum threshold (for mainnet only)
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
