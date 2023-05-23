@@ -77,11 +77,10 @@ contract CallVerificationFacetTest is TestBase {
             swapData
         );
 
-        bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
         (
             ILiFi.BridgeData memory returnedBridgeData,
             LibSwap.SwapData[] memory returnedSwapData
-        ) = calldataVerificationFacet.extractData(fullCalldata);
+        ) = calldataVerificationFacet.extractData(callData);
 
         checkBridgeData(returnedBridgeData);
         checkSwapData(returnedSwapData);
@@ -93,11 +92,10 @@ contract CallVerificationFacetTest is TestBase {
             bridgeData
         );
 
-        bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
         (
             ILiFi.BridgeData memory returnedBridgeData,
             LibSwap.SwapData[] memory returnedSwapData
-        ) = calldataVerificationFacet.extractData(fullCalldata);
+        ) = calldataVerificationFacet.extractData(callData);
 
         checkBridgeData(returnedBridgeData);
         assertEq(returnedSwapData.length, 0);
@@ -109,7 +107,6 @@ contract CallVerificationFacetTest is TestBase {
             bridgeData
         );
 
-        bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
         (
             string memory bridge,
             address sendingAssetId,
@@ -118,7 +115,7 @@ contract CallVerificationFacetTest is TestBase {
             uint256 destinationChainId,
             bool hasSourceSwaps,
             bool hasDestinationCall
-        ) = calldataVerificationFacet.extractMainParameters(fullCalldata);
+        ) = calldataVerificationFacet.extractMainParameters(callData);
 
         assertEq(bridge, bridgeData.bridge);
         assertEq(receiver, bridgeData.receiver);
@@ -166,7 +163,6 @@ contract CallVerificationFacetTest is TestBase {
             swapData
         );
 
-        bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
         (
             string memory bridge,
             address sendingAssetId,
@@ -175,7 +171,7 @@ contract CallVerificationFacetTest is TestBase {
             uint256 destinationChainId,
             bool hasSourceSwaps,
             bool hasDestinationCall
-        ) = calldataVerificationFacet.extractMainParameters(fullCalldata);
+        ) = calldataVerificationFacet.extractMainParameters(callData);
 
         assertEq(bridge, bridgeData.bridge);
         assertEq(receiver, bridgeData.receiver);
@@ -192,9 +188,8 @@ contract CallVerificationFacetTest is TestBase {
             bridgeData
         );
 
-        bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
         bool validCall = calldataVerificationFacet.validateCalldata(
-            fullCalldata,
+            callData,
             bridgeData.bridge,
             bridgeData.sendingAssetId,
             bridgeData.receiver,
@@ -204,7 +199,7 @@ contract CallVerificationFacetTest is TestBase {
             bridgeData.hasDestinationCall
         );
         bool invalidCall = calldataVerificationFacet.validateCalldata(
-            fullCalldata,
+            callData,
             bridgeData.bridge,
             bridgeData.sendingAssetId,
             address(0xb33f),
