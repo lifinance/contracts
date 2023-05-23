@@ -85,7 +85,11 @@ deploySingleContract() {
   local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
-    return 1
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
+    fi
   fi
 
   # get current contract version
@@ -137,6 +141,19 @@ deploySingleContract() {
   else
     CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT")
   fi
+
+  # check if all required data (e.g. config data / contract addresses) is available
+  checkDeployRequirements "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
+
+  # do not continue if data required for deployment is missing
+  if [ $? -ne 0 ]; then
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
 
   # execute script
   attempts=1
@@ -231,6 +248,7 @@ deploySingleContract() {
 
   # check if log entry exists for this file
   LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
+  LOG_ENTRY_RETURN_CODE=$?
   VERIFIED_LOG=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED")
 
   # verify contract, if needed
@@ -253,7 +271,7 @@ deploySingleContract() {
   fi
 
   # check if log entry was found
-  if [ $? -eq 0 ]; then
+  if [ "$LOG_ENTRY_RETURN_CODE" -eq 0 ]; then
       echoDebug "log entry already exists:"
       echoDebug "$LOG_ENTRY"
       echoDebug "Now checking if contract was verified just now and update log, if so"

@@ -2700,6 +2700,110 @@ function printDeploymentsStatusV2() {
 
   playNotificationSound
 }
+function checkDeployRequirements() {
+  # read function arguments into variables
+  NETWORK="$1"
+  ENVIRONMENT="$2"
+  CONTRACT="$3"
+
+  echo ""
+  echoDebug "checking if all information required for deployment is available for $CONTRACT on $NETWORK in $ENVIRONMENT environment"
+
+  # get file suffix based on value in variable ENVIRONMENT
+  local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+
+  # part 1: check configData requirements
+  CONFIG_REQUIREMENTS=($(jq -r --arg CONTRACT "$CONTRACT" '.[$CONTRACT].configData | select(type == "object") | keys[]' "$DEPLOY_REQUIREMENTS_PATH"))
+
+  # check if configData requirements were found
+  if [ ${#CONFIG_REQUIREMENTS[@]} -gt 0 ]; then
+        # go through array with requirements
+        for REQUIREMENT in "${CONFIG_REQUIREMENTS[@]}"; do
+          # get configFileName
+          CONFIG_FILE=$(jq -r --arg CONTRACT "$CONTRACT" --arg REQUIREMENT "$REQUIREMENT" '.[$CONTRACT].configData[$REQUIREMENT].configFileName' "$DEPLOY_REQUIREMENTS_PATH")
+
+          # get keyInConfigFile
+          KEY_IN_FILE=$(jq -r --arg CONTRACT "$CONTRACT" --arg REQUIREMENT "$REQUIREMENT" '.[$CONTRACT].configData[$REQUIREMENT].keyInConfigFile' "$DEPLOY_REQUIREMENTS_PATH")
+          # replace '<NETWORK>' with actual network, if needed
+          KEY_IN_FILE=${KEY_IN_FILE//<NETWORK>/$NETWORK}
+
+          # get full config file path
+          CONFIG_FILE_PATH="$DEPLOY_CONFIG_FILE_PATH""$CONFIG_FILE"
+
+          # check if file exists
+          if ! checkIfFileExists "$CONFIG_FILE_PATH" >/dev/null; then
+            error "file does not exist: $CONFIG_FILE_PATH (access attempted by function 'checkDeployRequirements')"
+            return 1
+          fi
+
+          # try to read value from config file
+          VALUE=$(jq -r "$KEY_IN_FILE" "$CONFIG_FILE_PATH")
+
+          # check if data is available in config file
+          if [[ "$VALUE" != "null" && "$VALUE" != ""  ]]; then
+            echoDebug "address information for parameter $REQUIREMENT found in $CONFIG_FILE_PATH"
+          else
+            echoDebug "address information for parameter $REQUIREMENT not found in $CONFIG_FILE_PATH"
+
+            # check if it's allowed to deploy with zero address
+            DEPLOY_FLAG=$(jq -r --arg CONTRACT "$CONTRACT" --arg REQUIREMENT "$REQUIREMENT" '.[$CONTRACT].configData[$REQUIREMENT].allowToDeployWithZeroAddress' "$DEPLOY_REQUIREMENTS_PATH")
+
+            # continue with script depending on DEPLOY_FLAG
+            if [[ "$DEPLOY_FLAG" == "true" ]]; then
+              # if yes, deployment is OK
+              warning "contract $CONTRACT will be deployed with zero address as argument for parameter $REQUIREMENT since this information was missing in $CONFIG_FILE_PATH for network $NETWORK"
+            else
+              # if no, return "do not deploy"
+              error "contract $CONTRACT cannot be deployed with zero address as argument for parameter $REQUIREMENT and this information is missing in $CONFIG_FILE_PATH for network $NETWORK"
+              return 1
+            fi
+          fi
+        done
+  fi
+
+  # part 2: check required contractAddresses
+  # read names of required contract addresses into array
+  DEPENDENCIES=($(jq -r --arg CONTRACT "$CONTRACT" '.[$CONTRACT].contractAddresses | select(type == "object") | keys[]' "$DEPLOY_REQUIREMENTS_PATH"))
+
+  # check if dependencies were found
+  if [ ${#DEPENDENCIES[@]} -gt 0 ]; then
+    # get file name for network deploy log
+    ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+
+    # check if file exists
+    if ! checkIfFileExists "$ADDRESSES_FILE" >/dev/null; then
+      error "file does not exist: $ADDRESSES_FILE (access attempted by function 'checkDeployRequirements')"
+      return 1
+    fi
+    # go through array
+    for DEPENDENCY in "${DEPENDENCIES[@]}"; do
+      # get contract address from deploy file
+      echoDebug "now looking for address of contract $DEPENDENCY in file $ADDRESSES_FILE"
+      ADDRESS=$(jq -r --arg DEPENDENCY "$DEPENDENCY" '.[$DEPENDENCY]' "$ADDRESSES_FILE")
+
+      # check if contract address is available in log file
+      if [[ "$ADDRESS" != "null" && "$ADDRESS" == *"0x"*  ]]; then
+        echoDebug "address information for contract $DEPENDENCY found"
+      else
+        echoDebug "address information for contract $DEPENDENCY not found"
+
+        # check if it's allowed to deploy with zero address
+        DEPLOY_FLAG=$(jq -r --arg CONTRACT "$CONTRACT" --arg DEPENDENCY "$DEPENDENCY" '.[$CONTRACT].contractAddresses[$DEPENDENCY].allowToDeployWithZeroAddress' "$DEPLOY_REQUIREMENTS_PATH")
+
+        # continue with script depending on DEPLOY_FLAG
+        if [[ "$DEPLOY_FLAG" == "true" ]]; then
+          # if yes, deployment is OK
+          warning "contract $CONTRACT will be deployed with zero address as argument for parameter $DEPENDENCY since this information was missing in $ADDRESSES_FILE for network $NETWORK"
+        else
+          # if no, return "do not deploy"
+          error "contract $CONTRACT cannot be deployed with zero address as argument for parameter $DEPENDENCY and this information is missing in $ADDRESSES_FILE for network $NETWORK"
+          return 1
+        fi
+      fi
+    done
+  fi
+  return 0
+}
 # <<<<<< miscellaneous
 
 
@@ -3061,4 +3165,3 @@ function test_tmp(){
         fi
       fi
 }
-
