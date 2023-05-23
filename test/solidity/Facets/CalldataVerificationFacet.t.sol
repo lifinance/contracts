@@ -44,6 +44,20 @@ contract CallVerificationFacetTest is TestBase {
         );
     }
 
+    function test_IgnoresExtraBytes() public view {
+        bytes memory callData = abi.encodeWithSelector(
+            HyphenFacet.swapAndStartBridgeTokensViaHyphen.selector,
+            bridgeData,
+            swapData
+        );
+
+        bytes memory fullCalldata = bytes.concat(callData, "extra stuff");
+        calldataVerificationFacet.extractBridgeData(fullCalldata);
+        calldataVerificationFacet.extractSwapData(fullCalldata);
+        calldataVerificationFacet.extractData(fullCalldata);
+        calldataVerificationFacet.extractMainParameters(fullCalldata);
+    }
+
     function test_CanExtractBridgeData() public {
         bytes memory callData = abi.encodeWithSelector(
             HyphenFacet.startBridgeTokensViaHyphen.selector,
