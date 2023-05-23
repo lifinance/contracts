@@ -50,9 +50,8 @@ contract CallVerificationFacetTest is TestBase {
             bridgeData
         );
 
-        bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
         ILiFi.BridgeData memory returnedData = calldataVerificationFacet
-            .extractBridgeData(fullCalldata);
+            .extractBridgeData(callData);
 
         checkBridgeData(returnedData);
     }
@@ -64,9 +63,8 @@ contract CallVerificationFacetTest is TestBase {
             swapData
         );
 
-        bytes memory fullCalldata = bytes.concat(callData, "extra stuff"); // Add extra bytes because Hyphen does not have call specific data
         LibSwap.SwapData[] memory returnedData = calldataVerificationFacet
-            .extractSwapData(fullCalldata);
+            .extractSwapData(callData);
 
         checkSwapData(returnedData);
     }
