@@ -85,7 +85,11 @@ deploySingleContract() {
   local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
-    return 1
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
+    fi
   fi
 
   # get current contract version
@@ -137,6 +141,19 @@ deploySingleContract() {
   else
     CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT")
   fi
+
+  # check if all required data (e.g. config data / contract addresses) is available
+  checkDeployRequirements "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
+
+  # do not continue if data required for deployment is missing
+  if [ $? -ne 0 ]; then
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
 
   # execute script
   attempts=1

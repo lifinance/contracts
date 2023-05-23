@@ -40,6 +40,9 @@ BYTECODE_STORAGE_PATH="deployments/_bytecode_storage.json"
 # the path of the JSON file that contains the bytecode storage file
 CONTRACT_REMINDERS="scripts/deploy/resources/contractSpecificReminders.sh"
 
+# the path of the JSON file that contains deploy requirements per contract
+DEPLOY_REQUIREMENTS_PATH="scripts/deploy/resources/deployRequirements.sh"
+
 # any networks listed here will be excluded from actions that are applied to "all networks"
 # exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,lineatest"
 # exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
