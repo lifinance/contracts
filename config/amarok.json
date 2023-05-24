@@ -24,14 +24,78 @@
     "domain": "1886350457"
   },
   "moonbeam": {
-    "connextHandler": "tbd",
+    "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "1650811245"
   },
   "arbitrum": {
     "connextHandler": "0xEE9deC2712cCE65174B561151701Bf54b99C24C8",
     "domain": "1634886255"
   },
+  "fantom": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "okx": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "avalanche": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "moonriver": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "celo": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "fuse": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "cronos": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "velas": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "harmony": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "evmos": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "aurora": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "boba": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
   "nova": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "bsc-testnet": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "sepolia": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "mumbai": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "lineatest": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   }

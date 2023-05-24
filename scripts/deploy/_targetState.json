@@ -134,7 +134,7 @@
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -163,7 +163,8 @@
         "AmarokFacet": "1.0.1",
         "HopFacetOptimized": "2.0.0",
         "HopFacetPacked": "1.0.4",
-        "AcrossFacet": "2.0.0"
+        "AcrossFacet": "2.0.0",
+        "RelayerCelerIM": "1.0.1"
       }
     },
     "staging": {
@@ -176,7 +177,7 @@
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0",
+        "RelayerCelerIM": "1.0.1",
         "Executor": "1.0.0",
         "ERC20Proxy": "1.0.0"
       },
@@ -199,7 +200,7 @@
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -230,7 +231,8 @@
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
         "AmarokFacet": "1.0.1",
-        "CelerCircleBridgeFacet": "1.0.1"
+        "CelerCircleBridgeFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.1"
       }
     },
     "staging": {
@@ -243,10 +245,10 @@
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       }
     }
   },
@@ -518,7 +520,9 @@
         "CelerCircleBridgeFacet": "1.0.1",
         "CBridgeFacetPacked": "1.0.1",
         "HopFacetPacked": "1.0.4",
-        "RelayerCelerIM": "1.0.1"
+        "RelayerCelerIM": "1.0.1",
+        "AmarokFacet": "1.0.0",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
