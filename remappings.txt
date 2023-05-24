@@ -2,7 +2,6 @@
 @connext/=node_modules/@connext/
 @eth-optimism/=node_modules/@hop-protocol/sdk/node_modules/@eth-optimism/
 @openzeppelin/contracts/=node_modules/@openzeppelin/contracts/
-@uniswap/v3-periphery/=node_modules/@uniswap/v3-periphery/
 create3-factory/=lib/create3-factory/src/
 ds-test/=lib/ds-test/src/
 eth-gas-reporter/=node_modules/eth-gas-reporter/
