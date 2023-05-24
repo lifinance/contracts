@@ -5761,6 +5761,15 @@
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "false"
           }
+        ],
+        "1.0.4": [
+          {
+            "ADDRESS": "0x0aE0a1Ae2703A27bC518fd7d9DCB3F6C69CfccD2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-24 17:07:14",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce4400000000000000000000000003d7f750777ec48d39d080b020d83eb2cb4e3547",
+            "VERIFIED": "false"
+          }
         ]
       }
     },
