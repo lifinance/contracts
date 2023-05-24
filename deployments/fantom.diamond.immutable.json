@@ -9,8 +9,8 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x2EfC66F1ff37fc5277De5526Ab5CB7650f2DD518": {
-        "Name": "PeripheryRegistryFacet",
+      "0x44beA2Ab010d1CedC4E60E97DA8F88b8840951B0": {
+        "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
       "0x428C4abf8BB3ECc893bD3E0Be12b0f363c6e81aA": {
@@ -60,6 +60,10 @@
       "0xa1531BaCEb6178fd05bD80795C9C75Ac02438E49": {
         "Name": "CelerIMFacet",
         "Version": "1.0.1"
+      },
+      "0x2EfC66F1ff37fc5277De5526Ab5CB7650f2DD518": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
