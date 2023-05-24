@@ -56,7 +56,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -117,7 +118,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -324,7 +326,8 @@
         "LIFuelFacet": "1.0.0",
         "AmarokFacet": "1.0.0",
         "CelerCircleBridgeFacet": "1.0.1",
-        "RelayerCelerIM": "1.0.1"
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -372,7 +375,8 @@
         "HopFacetOptimized": "2.0.0",
         "HopFacetPacked": "1.0.4",
         "AcrossFacet": "2.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -416,7 +420,8 @@
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
         "AmarokFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -449,7 +454,8 @@
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -507,7 +513,7 @@
         "LIFuelFacet": "1.0.0",
         "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "1.0.1",
-        "AmarokFacet": "1.0.0",
+        "AmarokFacet": "1.0.1",
         "CelerIMFacet": "1.0.1"
       }
     }
@@ -537,7 +543,8 @@
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -758,7 +765,8 @@
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
         "Receiver": "1.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
