@@ -1,8 +1,8 @@
 @axelar-network/=node_modules/@axelar-network/
 @connext/=node_modules/@connext/
 @eth-optimism/=node_modules/@hop-protocol/sdk/node_modules/@eth-optimism/
-@openzeppelin/=node_modules/@openzeppelin/
-@uniswap/=node_modules/@uniswap/
+@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/
+@uniswap/v3-periphery/=node_modules/@uniswap/v3-periphery/
 create3-factory/=lib/create3-factory/src/
 ds-test/=lib/ds-test/src/
 eth-gas-reporter/=node_modules/eth-gas-reporter/
