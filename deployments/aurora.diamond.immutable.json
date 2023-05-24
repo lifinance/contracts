@@ -40,6 +40,10 @@
       "0x6e118Db5ab7018FcF195e1310074688B8A1912B3": {
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
+      },
+      "0xa1531BaCEb6178fd05bD80795C9C75Ac02438E49": {
+        "Name": "CelerIMFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {

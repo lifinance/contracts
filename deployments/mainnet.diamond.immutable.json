@@ -29,6 +29,10 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
+      "0x5E3DC14bfc5aF89C2c34A24E2c1ba6430B9F4Fd2": {
+        "Name": "CBridgeFacetPacked",
+        "Version": "1.0.1"
+      },
       "0xbd8D369470169f9976c5bCc60318955836843a71": {
         "Name": "AmarokFacet",
         "Version": "1.0.1"
@@ -51,6 +55,10 @@
       },
       "0xf72169Fb511739CeFea9eBEffc5d39Dba1b33cD3": {
         "Name": "CelerCircleBridgeFacet",
+        "Version": "1.0.1"
+      },
+      "0xDe7c6a3feDAe11B413237Be6ba0FE7db3D029F58": {
+        "Name": "CelerIMFacet",
         "Version": "1.0.1"
       },
       "0x2fF4484bcaEf13e4a1Db84E6af882c9d66c97e3F": {
@@ -104,10 +112,6 @@
       "0xC1E20466AD79BAe875568eb08ABaaEA1F0E25b7E": {
         "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
-      },
-      "0x5E3DC14bfc5aF89C2c34A24E2c1ba6430B9F4Fd2": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.1"
       }
     },
     "Periphery": {

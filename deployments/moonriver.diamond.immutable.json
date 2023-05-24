@@ -48,6 +48,10 @@
       "0x238502aDc8ca550723CBE78543c8B757599A21cC": {
         "Name": "NXTPFacet",
         "Version": "1.0.0"
+      },
+      "0xa1531BaCEb6178fd05bD80795C9C75Ac02438E49": {
+        "Name": "CelerIMFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
