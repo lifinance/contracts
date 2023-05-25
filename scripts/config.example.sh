@@ -81,3 +81,6 @@ DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=0xc726deb4bf42c6ef5d0b4e3080ace43aed9b2709388
 
 # Defines the maximum gas price for mainnet transactions (otherwise the script will wait until gas price is down)
 MAINNET_MAXIMUM_GAS_PRICE=50000000000 # = 50 Gwei
+
+# contains the ID of the production target state Google spreadsheet
+TARGET_STATE_SPREADSHEET_ID=""
