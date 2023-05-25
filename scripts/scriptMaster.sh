@@ -82,7 +82,8 @@ scriptMaster() {
       "5) Execute a script" \
       "6) Batch update _targetState.json file" \
       "7) Verify all unverified contracts" \
-      "8) Review deploy status (vs. target state)"
+      "8) Review deploy status (vs. target state)" \
+      "9) Create updated target state from Google Docs (updates PRODUCTION only)"
   )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -426,6 +427,13 @@ scriptMaster() {
   # use case 8: Review deploy status (vs. target state)
   elif [[ "$SELECTION" == *"8)"* ]]; then
     printDeploymentsStatusV2 "$ENVIRONMENT"
+
+  #---------------------------------------------------------------------------------------------------------------------
+  # use case 9: Create updated target state from Google Docs
+  elif [[ "$SELECTION" == *"9)"* ]]; then
+    parseTargetStateGoogleSpreadsheet
+
+
   else
     error "invalid use case selected ('$SELECTION') - exiting script"
     exit 1

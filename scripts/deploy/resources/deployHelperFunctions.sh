@@ -1035,6 +1035,133 @@ function getOptimizerRuns() {
       echo "$VERSION"
 
     }
+function parseTargetStateGoogleSpreadsheet() {
+  # read function arguments into variables
+  SPREADSHEET_ID="1FWAcFBNHK1ZNd5QF5Cq8_6lpmLiIMUFgxaym8_Yq-1s"
+  SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}"
+  EXPORT_PARAMS="/export?exportFormat=csv"
+
+  # load google sheets into CSV file
+  CSV_FILE_PATH="newTest.csv"
+  curl -L "$SPREADSHEET_URL""$EXPORT_PARAMS" -o $CSV_FILE_PATH 2>/dev/null
+
+  echo "Creating target state from this Google sheet now: $SPREADSHEET_URL"
+  echo ""
+
+  ENVIRONMENT="production"
+
+  #
+  LINE_NUMBER=0
+  while IFS= read -r LINE; do
+      ((LINE_NUMBER++))  # Increment the line number
+
+
+      # Catch the line that contains the facet names
+      if [[ LINE_NUMBER -eq "7" ]]; then
+        # Remove the "Facets:" and "EXAMPLE" from the line
+        STRING_TO_REMOVE="Facets:,EXAMPLE,,"
+        FACET_LINE=$(echo "$LINE" | sed "s/^${STRING_TO_REMOVE}//")
+
+        # Split the line by comma into an array
+        IFS=',' read -ra LINE_ARRAY <<< "$FACET_LINE"
+
+        # Create an iterable array that only contains facet names
+        FACET_ARRAY=()
+        for ((i=0; i<${#LINE_ARRAY[@]}; i+=2)); do
+            FACET_NAME=${LINE_ARRAY[i]}
+            if [[ ! -z $FACET_NAME ]]; then
+                FACET_ARRAY+=("$FACET_NAME")
+            fi
+        done
+#        break
+      fi
+
+      # lines containing network-specific data will start earliest in line 86
+      if [[ $((LINE_NUMBER)) -gt 85 ]]; then
+        # extract network name
+        NETWORK=$(echo "$LINE" | cut -d',' -f1)
+
+
+        # check if this line contains data (=starts with a network name)
+        if [[ ! -z "$NETWORK" ]]; then
+          echo ""
+          echo "NETWORK: $NETWORK"
+
+          # Split the line by comma into an array
+          IFS=',' read -ra LINE_ARRAY <<< "$LINE"
+
+          # we
+          FACET_INDEX=0
+          # iterate through the array (start with index 2 to skip network name and example columns)
+          for ((INDEX=3; INDEX<${#LINE_ARRAY[@]}; INDEX+=1)); do
+            # read cell value and current facet into variables
+            CELL_VALUE=${LINE_ARRAY[$INDEX]}
+            FACET=${FACET_ARRAY[$FACET_INDEX]}
+
+            # increase facet index for next iteration
+            if ((INDEX % 2 == 0)); then
+              ((FACET_INDEX += 1))
+            fi
+
+            # end the loop if FACET is empty (=reached the end of the facet columns)
+            if [[ -z "$FACET" ]]; then
+              break
+            fi
+
+            # determine diamond type based on odd/even column index
+            if ((INDEX % 2 == 0)); then
+              DIAMOND_TYPE="LiFiDiamondImmutable"
+            else
+              DIAMOND_TYPE="LiFiDiamond"
+            fi
+
+
+            # get current contract version and save in variable
+            CURRENT_VERSION=$(getCurrentContractVersion "$FACET")
+
+            # check if cell value is "latest" >> find version
+            if [[ "$CELL_VALUE" == "latest" ]]; then
+
+              # make sure version was returned properly
+             if [[ "$?" -ne 0 ]]; then
+               warning "could not find current contract version for contract $FACET"
+             fi
+
+              # echo warning that sheet needs to be updated
+              warning "the latest version for contract $FACET is $CURRENT_VERSION. Please update this for network $NETWORK in the Google sheet"
+
+              # use current version for target state
+              VERSION=$CURRENT_VERSION
+            else
+              # check if cell value looks like a version tag
+              if isVersionTag "$CELL_VALUE"; then
+
+                # check if current version in repo is higher than version in target state
+                if [[ "$CURRENT_VERSION" > "$CELL_VALUE" ]]; then
+                  warning "target state requests outdated version ($CELL_VALUE) for contract $FACET in network $NETWORK for $DIAMOND_TYPE. Current version is $CURRENT_VERSION. Update target state file?"
+                fi
+
+                # store cell value as target version
+                VERSION=$CELL_VALUE
+              else
+                continue
+              fi
+            fi
+
+            # if code reached here that means we should have a valid target state entry that needs to be added
+            addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$FACET" "$DIAMOND_TYPE" "$VERSION" true
+            echo "addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$FACET" "$DIAMOND_TYPE" "$VERSION" true"
+
+          done
+        fi
+      fi
+  done < "$CSV_FILE_PATH"
+
+  # delete CSV file
+  rm $CSV_FILE_PATH # TODO activate
+
+  return 0
+}
 # <<<<< working with directories and reading other files
 
 # >>>>> writing to blockchain & verification
@@ -1785,7 +1912,7 @@ function addContractVersionToTargetState() {
       # exit script
       return 1
     else
-      warning "target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, and CONTRACT_NAME:$CONTRACT_NAME. Updating version."
+      echoDebug "target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, and CONTRACT_NAME:$CONTRACT_NAME. Updating version."
     fi
   fi
 
@@ -2362,7 +2489,6 @@ function getPrivateKey() {
     fi
   fi
 }
-
 function getChainId() {
   # read function arguments into variables
   NETWORK="$1"
@@ -2557,7 +2683,7 @@ function printDeploymentsStatusV2() {
   # read function arguments into variables
   ENVIRONMENT="$1"
 
-  OUTPUT_FILE_PATH="target_vs_deployed_""$ENVIRONMENT"".txt"
+  CSV_FILE_PATH_FILE_PATH="target_vs_deployed_""$ENVIRONMENT"".txt"
 
   echo ""
   echo "+------------------------------------------------------------------------------+"
@@ -2571,17 +2697,17 @@ function printDeploymentsStatusV2() {
   echo "|      Contract (latest version)       | target : deployed | target : deployed |"
   echo "+--------------------------------------+-------------------+-------------------+"
 
-  echo "" > $OUTPUT_FILE_PATH
-  echo "+------------------------------------------------------------------------------+" >> $OUTPUT_FILE_PATH
-  echo "+------------------------- TARGET STATE vs. ACTUAL STATE ----------------------+" >> $OUTPUT_FILE_PATH
-  echo "+                                                                              +" >> $OUTPUT_FILE_PATH
-  echo "+ (will only list networks for which an entry exists in target or deploy log)  +" >> $OUTPUT_FILE_PATH
-  echo "+------------------------------------------------------------------------------+" >> $OUTPUT_FILE_PATH
-  printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT" >> $OUTPUT_FILE_PATH
-  echo "+--------------------------------------+-------------------+-------------------+" >> $OUTPUT_FILE_PATH
-  echo "|                                      |      mutable      |     immutable     |" >> $OUTPUT_FILE_PATH
-  echo "|      Contract (latest version)       | target : deployed | target : deployed |" >> $OUTPUT_FILE_PATH
-  echo "+--------------------------------------+-------------------+-------------------+" >> $OUTPUT_FILE_PATH
+  echo "" > $CSV_FILE_PATH_FILE_PATH
+  echo "+------------------------------------------------------------------------------+" >> $CSV_FILE_PATH_FILE_PATH
+  echo "+------------------------- TARGET STATE vs. ACTUAL STATE ----------------------+" >> $CSV_FILE_PATH_FILE_PATH
+  echo "+                                                                              +" >> $CSV_FILE_PATH_FILE_PATH
+  echo "+ (will only list networks for which an entry exists in target or deploy log)  +" >> $CSV_FILE_PATH_FILE_PATH
+  echo "+------------------------------------------------------------------------------+" >> $CSV_FILE_PATH_FILE_PATH
+  printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT" >> $CSV_FILE_PATH_FILE_PATH
+  echo "+--------------------------------------+-------------------+-------------------+" >> $CSV_FILE_PATH_FILE_PATH
+  echo "|                                      |      mutable      |     immutable     |" >> $CSV_FILE_PATH_FILE_PATH
+  echo "|      Contract (latest version)       | target : deployed | target : deployed |" >> $CSV_FILE_PATH_FILE_PATH
+  echo "+--------------------------------------+-------------------+-------------------+" >> $CSV_FILE_PATH_FILE_PATH
 
 
   # Check if target state FILE exists
@@ -2605,7 +2731,7 @@ function printDeploymentsStatusV2() {
     # get current contract version
     CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" ""
-    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" "" >> $OUTPUT_FILE_PATH
+    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" "" >> $CSV_FILE_PATH_FILE_PATH
 
     # go through all networks
     for NETWORK in ${NETWORKS[*]} ; do
@@ -2684,18 +2810,18 @@ function printDeploymentsStatusV2() {
 
         # print new line in table view
         printf "|%-${FACET_COLUMN_WIDTH}s| $COLOR_CODE_1 %-15s $NC | $COLOR_CODE_2 %-15s $NC |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED"
-        printf "|%-${FACET_COLUMN_WIDTH}s| %-17s | %-17s |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED" >> $OUTPUT_FILE_PATH
+        printf "|%-${FACET_COLUMN_WIDTH}s| %-17s | %-17s |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED" >> $CSV_FILE_PATH_FILE_PATH
       fi
     done
 
     # print empty line
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" ""
-    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" "" >> $OUTPUT_FILE_PATH
+    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" "" >> $CSV_FILE_PATH_FILE_PATH
   done
 
   # print closing line
   echo "+--------------------------------------+-------------------+-------------------+"
-  echo "+--------------------------------------+-------------------+-------------------+" >> $OUTPUT_FILE_PATH
+  echo "+--------------------------------------+-------------------+-------------------+" >> $CSV_FILE_PATH_FILE_PATH
   return 0
 
   playNotificationSound
@@ -2803,6 +2929,19 @@ function checkDeployRequirements() {
     done
   fi
   return 0
+}
+function isVersionTag() {
+  # read function arguments into variable
+  local STRING=$1
+
+  # define version tag pattern
+  local PATTERN="^[0-9]+\.[0-9]+\.[0-9]+$"
+
+  if [[ $STRING =~ $PATTERN ]]; then
+      return 0
+  else
+      return 1
+  fi
 }
 # <<<<<< miscellaneous
 
