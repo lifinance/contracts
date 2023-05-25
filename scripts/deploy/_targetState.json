@@ -57,7 +57,8 @@
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacetPacked": "1.0.1",
-        "RelayerCelerIM": "1.0.1"
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -524,7 +525,6 @@
         "LIFuelFacet": "1.0.0",
         "CelerCircleBridgeFacet": "1.0.1",
         "CBridgeFacetPacked": "1.0.1",
-        "HopFacetPacked": "1.0.4",
         "RelayerCelerIM": "1.0.1",
         "AmarokFacet": "1.0.1",
         "CelerIMFacet": "1.0.1"
