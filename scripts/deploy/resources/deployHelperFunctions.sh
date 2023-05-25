@@ -1036,9 +1036,14 @@ function getOptimizerRuns() {
 
     }
 function parseTargetStateGoogleSpreadsheet() {
-  # read function arguments into variables
-  SPREADSHEET_ID="1FWAcFBNHK1ZNd5QF5Cq8_6lpmLiIMUFgxaym8_Yq-1s"
-  SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}"
+  # ensure spreadsheet ID is available
+  if [[ -z "$TARGET_STATE_SPREADSHEET_ID" ]]; then
+    error "your .env file is missing key 'TARGET_STATE_SPREADSHEET_ID'. Please add it."
+    exit 1
+  fi
+
+  # construct spreadsheet URL
+  SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/${TARGET_STATE_SPREADSHEET_ID}"
   EXPORT_PARAMS="/export?exportFormat=csv"
 
   # load google sheets into CSV file
@@ -1048,13 +1053,14 @@ function parseTargetStateGoogleSpreadsheet() {
   echo "Creating target state from this Google sheet now: $SPREADSHEET_URL"
   echo ""
 
+  # we currently only support production environment
   ENVIRONMENT="production"
 
-  #
+  # process the CSV file line by line
   LINE_NUMBER=0
   while IFS= read -r LINE; do
-      ((LINE_NUMBER++))  # Increment the line number
-
+      # Increment the line number
+      ((LINE_NUMBER++))
 
       # Catch the line that contains the facet names
       if [[ LINE_NUMBER -eq "7" ]]; then
@@ -1082,7 +1088,7 @@ function parseTargetStateGoogleSpreadsheet() {
         NETWORK=$(echo "$LINE" | cut -d',' -f1)
 
 
-        # check if this line contains data (=starts with a network name)
+        # check if this line contains data (=starts with a network name), otherwise skip to next line
         if [[ ! -z "$NETWORK" ]]; then
           echo ""
           echo "NETWORK: $NETWORK"
@@ -1158,7 +1164,7 @@ function parseTargetStateGoogleSpreadsheet() {
   done < "$CSV_FILE_PATH"
 
   # delete CSV file
-  rm $CSV_FILE_PATH # TODO activate
+  rm $CSV_FILE_PATH
 
   return 0
 }
