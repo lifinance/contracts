@@ -9,7 +9,10 @@ import { DeBridgeFacet } from "lifi/Facets/DeBridgeFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+    {
         address facet = json.readAddress(".DeBridgeFacet");
 
         vm.startBroadcast(deployerPrivateKey);

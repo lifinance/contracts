@@ -9,7 +9,10 @@ import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+    {
         address facet = json.readAddress(".CBridgeFacetPacked");
 
         vm.startBroadcast(deployerPrivateKey);

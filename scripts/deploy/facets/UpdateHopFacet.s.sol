@@ -23,7 +23,10 @@ contract DeployScript is UpdateScriptBase {
 
     Bridge[] internal bridges;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+    {
         address facet = json.readAddress(".HopFacet");
 
         path = string.concat(root, "/config/hop.json");

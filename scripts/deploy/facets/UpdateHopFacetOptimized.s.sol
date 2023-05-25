@@ -19,7 +19,10 @@ contract DeployScript is UpdateScriptBase {
     address[] internal contractAddresses;
     address[] internal tokenAddresses;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+    {
         address facet = json.readAddress(".HopFacetOptimized");
 
         path = string.concat(root, "/config/hop.json");

@@ -15,7 +15,10 @@ import { console } from "forge-std/console.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+    {
         address diamondLoupe = json.readAddress(".DiamondLoupeFacet");
         address ownership = json.readAddress(".OwnershipFacet");
         address withdraw = json.readAddress(".WithdrawFacet");

@@ -9,7 +9,10 @@ import { AxelarFacet } from "lifi/Facets/AxelarFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+    {
         address facet = json.readAddress(".AxelarFacet");
 
         vm.startBroadcast(deployerPrivateKey);

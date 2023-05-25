@@ -14,7 +14,10 @@ contract DeployScript is UpdateScriptBase {
         address bridge;
     }
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+    {
         address facet = json.readAddress(".OptimismBridgeFacet");
 
         path = string.concat(root, "/config/optimism.json");

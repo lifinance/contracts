@@ -14,7 +14,10 @@ contract DeployScript is UpdateScriptBase {
         uint16 wormholeChainId;
     }
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+    {
         address facet = json.readAddress(".WormholeFacet");
 
         path = string.concat(root, "/config/wormhole.json");

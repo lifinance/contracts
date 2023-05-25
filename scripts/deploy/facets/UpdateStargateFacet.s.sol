@@ -15,7 +15,10 @@ contract DeployScript is UpdateScriptBase {
         uint16 layerZeroChainId;
     }
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+    {
         address facet = json.readAddress(".StargateFacet");
 
         path = string.concat(root, "/config/stargate.json");

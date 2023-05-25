@@ -9,7 +9,10 @@ import { GravityFacet } from "lifi/Facets/GravityFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+    {
         address facetAddress = json.readAddress(".GravityFacet");
 
         vm.startBroadcast(deployerPrivateKey);
