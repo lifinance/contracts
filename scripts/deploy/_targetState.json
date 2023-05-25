@@ -14,7 +14,7 @@
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
         "NXTPFacet": "1.0.0",
         "StargateFacet": "1.0.0",
         "HopFacet": "1.0.0",
@@ -56,7 +56,9 @@
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "CBridgeFacetPacked": "1.0.1",
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -104,7 +106,7 @@
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
         "NXTPFacet": "1.0.0",
         "StargateFacet": "1.0.0",
         "HopFacet": "2.0.0",
@@ -117,7 +119,9 @@
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "CBridgeFacetPacked": "1.0.1",
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -289,7 +293,7 @@
   "mainnet": {
     "production": {
       "LiFiDiamond": {
-        "CelerIMFacet": "1.0.0",
+        "CelerIMFacet": "1.0.1",
         "RelayerCelerIM": "1.0.0",
         "LiFiDiamond": "1.0.0"
       },
@@ -322,9 +326,14 @@
         "ArbitrumBridgeFacet": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "AmarokFacet": "1.0.0",
+        "AmarokFacet": "1.0.1",
         "CelerCircleBridgeFacet": "1.0.1",
-        "RelayerCelerIM": "1.0.1"
+        "RelayerCelerIM": "1.0.1",
+        "CBridgeFacetPacked": "1.0.1",
+        "HopFacetOptimized": "2.0.0",
+        "HopFacetPacked": "1.0.4",
+        "HyphenFacet": "1.0.0",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -368,11 +377,14 @@
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "AmarokFacet": "1.0.0",
+        "AmarokFacet": "1.0.1",
         "HopFacetOptimized": "2.0.0",
         "HopFacetPacked": "1.0.4",
         "AcrossFacet": "2.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "AllBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.1",
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -403,7 +415,7 @@
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
         "NXTPFacet": "1.0.0",
         "StargateFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
@@ -415,8 +427,11 @@
         "WormholeFacet": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "AmarokFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "AmarokFacet": "1.0.1",
+        "CBridgeFacetPacked": "1.0.1",
+        "HopFacetPacked": "1.0.4",
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -449,7 +464,9 @@
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "MultichainFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -472,14 +489,15 @@
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "Receiver": "1.0.0"
+        "Receiver": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   },
   "avalanche": {
     "production": {
       "LiFiDiamond": {
-        "CelerIMFacet": "1.0.0",
+        "CelerIMFacet": "1.0.1",
         "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
@@ -506,8 +524,9 @@
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
         "CelerCircleBridgeFacet": "1.0.1",
+        "CBridgeFacetPacked": "1.0.1",
         "RelayerCelerIM": "1.0.1",
-        "AmarokFacet": "1.0.0",
+        "AmarokFacet": "1.0.1",
         "CelerIMFacet": "1.0.1"
       }
     }
@@ -537,7 +556,9 @@
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "MultichainFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -585,7 +606,8 @@
         "Executor": "1.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
-        "ServiceFeeCollector": "1.0.0"
+        "ServiceFeeCollector": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -608,7 +630,8 @@
         "Receiver": "1.0.0",
         "Executor": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "LIFuelFacet": "1.0.0"
+        "LIFuelFacet": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -631,7 +654,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "LIFuelFacet": "1.0.0"
+        "LIFuelFacet": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -677,7 +701,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "LIFuelFacet": "1.0.0"
+        "LIFuelFacet": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -701,7 +726,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "LIFuelFacet": "1.0.0"
+        "LIFuelFacet": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -722,6 +748,7 @@
         "GenericSwapFacet": "1.0.0",
         "HopFacet": "2.0.0",
         "HopFacetOptimized": "2.0.0",
+        "HopFacetPacked": "1.0.4",
         "MultichainFacet": "1.0.1",
         "NXTPFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
@@ -731,7 +758,7 @@
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "AmarokFacet": "1.0.0"
+        "AmarokFacet": "1.0.1"
       }
     }
   },
@@ -758,7 +785,8 @@
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
         "Receiver": "1.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },

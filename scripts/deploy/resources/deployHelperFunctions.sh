@@ -227,37 +227,41 @@ function checkIfJSONContainsEntry {
   fi
 }
 function findContractInMasterLog() {
-  # read function arguments into variables
-  CONTRACT="$1"
-  NETWORK="$2"
-  ENVIRONMENT="$3"
-  VERSION="$4"
+# read function arguments into variables
+CONTRACT="$1"
+NETWORK="$2"
+ENVIRONMENT="$3"
+VERSION="$4"
 
-  # Check if log file exists
-  if [ ! -f "$LOG_FILE_PATH" ]; then
-    error "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run script again."
-    exit 1
-  fi
+# Check if log file exists
+if [ ! -f "$LOG_FILE_PATH" ]; then
+  error "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run the script again."
+  exit 1
+fi
 
-  # find matching entry
-  local TARGET_STATE_FILE=$(cat "$LOG_FILE_PATH")
-  local RESULT=$(echo "$TARGET_STATE_FILE" | jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][0]')
+# Process JSON data incrementally using jq
+jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '
+  . as $data |
+  keys[] as $contract |
+  $data[$contract] |
+  keys[] as $network |
+  $data[$contract][$network] |
+  keys[] as $environment |
+  $data[$contract][$network][$environment] |
+  keys[] as $version |
+  select($contract == $CONTRACT and $network == $NETWORK and $environment == $ENVIRONMENT and $version == $VERSION) |
+  $data[$contract][$network][$environment][$version][0]
+' "$LOG_FILE_PATH" |
+while IFS= read -r entry; do
+  found=true
+  echo "$entry"
+done
 
-  if [[ "$RESULT" != "null" ]]; then
-      # entry found - return TARGET_STATE_FILE and success error code
-      echo "${RESULT[@]}"
-      return 0
-      #INFO:
-      # returns the following values if a matching entry was found:
-      # - ADDRESS
-      # - OPTIMIZER_RUNS
-      # - TIMESTAMP
-      # - CONSTRUCTOR_ARGS
-  else
-      # entry not found - issue error message and return error code
-      echo "[info] No matching entry found in deployments log file for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
-      return 1
-  fi
+if ! $found; then
+  echo "[info] No matching entry found in deployments log file for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
+  exit 1
+fi
+
 }
 function findContractInMasterLogByAddress() {
   # read function arguments into variables
@@ -2726,7 +2730,7 @@ function printDeploymentsStatusV2() {
   local ALL_CONTRACTS=$(getAllContractNames "false")
 
   # get a list of all networks
-  local NETWORKS=$(getAllNetworksArray)
+  local NETWORKS=$(getIncludedNetworksArray)
 
   # define column width for table
   FACET_COLUMN_WIDTH=38
@@ -2734,6 +2738,11 @@ function printDeploymentsStatusV2() {
 
   # go through all contracts
   for CONTRACT in ${ALL_CONTRACTS[*]} ; do
+#      if [ "$CONTRACT" != "LiFiDiamondImmutable" ] ; then
+#        continue
+#      fi
+
+
     # get current contract version
     CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" ""
@@ -2741,6 +2750,9 @@ function printDeploymentsStatusV2() {
 
     # go through all networks
     for NETWORK in ${NETWORKS[*]} ; do
+#      if [[ "$NETWORK" != "nova" && "$NETWORK" != "harmony" ]] ; then
+#        continue
+#      fi
 
       # (re-)set entry values
       TARGET_ENTRY_1="  -  "
@@ -2774,18 +2786,18 @@ function printDeploymentsStatusV2() {
       # check if entry was found in diamond deployment log (if version == null, replace with "unknown")
       if [ "$RETURN_CODE3" -eq 0 ] ; then
         KNOWN_VERSION=$(echo "$LOG_INFO_DIAMOND" | jq -r '.[].Version')
-        if [ "$KNOWN_VERSION" == "null" ] ; then
-          DEPLOYED_ENTRY_1="unknown"
-        elif [ "$KNOWN_VERSION" != "" ] ; then
+        if [[ "$KNOWN_VERSION" == "null" || "$KNOWN_VERSION" == "" ]] ; then
+          DEPLOYED_ENTRY_1=" n/a"
+        else
           DEPLOYED_ENTRY_1=$KNOWN_VERSION
         fi
       fi
       if [ "$RETURN_CODE4" -eq 0 ] ; then
         KNOWN_VERSION=$(echo "$LOG_INFO_DIAMOND_IMMUTABLE" | jq -r '.[].Version')
 
-        if [ "$KNOWN_VERSION" == "null" ] ; then
-          DEPLOYED_ENTRY_2="unknown"
-        elif [ "$KNOWN_VERSION" != "" ] ; then
+        if [[ "$KNOWN_VERSION" == "null" || "$KNOWN_VERSION" == "" ]] ; then
+          DEPLOYED_ENTRY_2=" n/a"
+        else
           DEPLOYED_ENTRY_2=$KNOWN_VERSION
         fi
       fi
@@ -2795,6 +2807,13 @@ function printDeploymentsStatusV2() {
         # prepare entries (to preserve formatting)
         MUTABLE_ENTRY_COMBINED="$TARGET_ENTRY_1"" : ""$DEPLOYED_ENTRY_1"
         IMMUTABLE_ENTRY_COMBINED="$TARGET_ENTRY_2"" : ""$DEPLOYED_ENTRY_2"
+
+        if [ "$CONTRACT" == "LiFiDiamond" ] ; then
+          IMMUTABLE_ENTRY_COMBINED=""
+        elif [ "$CONTRACT" == "LiFiDiamondImmutable" ] ; then
+          MUTABLE_ENTRY_COMBINED=""
+        fi
+
 
         # determine color codes
         COLOR_CODE_1=$NC
