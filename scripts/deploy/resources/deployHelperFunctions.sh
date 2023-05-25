@@ -2683,7 +2683,7 @@ function printDeploymentsStatusV2() {
   # read function arguments into variables
   ENVIRONMENT="$1"
 
-  CSV_FILE_PATH_FILE_PATH="target_vs_deployed_""$ENVIRONMENT"".txt"
+  OUTPUT_FILE_PATH="target_vs_deployed_""$ENVIRONMENT"".txt"
 
   echo ""
   echo "+------------------------------------------------------------------------------+"
@@ -2697,17 +2697,17 @@ function printDeploymentsStatusV2() {
   echo "|      Contract (latest version)       | target : deployed | target : deployed |"
   echo "+--------------------------------------+-------------------+-------------------+"
 
-  echo "" > $CSV_FILE_PATH_FILE_PATH
-  echo "+------------------------------------------------------------------------------+" >> $CSV_FILE_PATH_FILE_PATH
-  echo "+------------------------- TARGET STATE vs. ACTUAL STATE ----------------------+" >> $CSV_FILE_PATH_FILE_PATH
-  echo "+                                                                              +" >> $CSV_FILE_PATH_FILE_PATH
-  echo "+ (will only list networks for which an entry exists in target or deploy log)  +" >> $CSV_FILE_PATH_FILE_PATH
-  echo "+------------------------------------------------------------------------------+" >> $CSV_FILE_PATH_FILE_PATH
-  printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT" >> $CSV_FILE_PATH_FILE_PATH
-  echo "+--------------------------------------+-------------------+-------------------+" >> $CSV_FILE_PATH_FILE_PATH
-  echo "|                                      |      mutable      |     immutable     |" >> $CSV_FILE_PATH_FILE_PATH
-  echo "|      Contract (latest version)       | target : deployed | target : deployed |" >> $CSV_FILE_PATH_FILE_PATH
-  echo "+--------------------------------------+-------------------+-------------------+" >> $CSV_FILE_PATH_FILE_PATH
+  echo "" > $OUTPUT_FILE_PATH
+  echo "+------------------------------------------------------------------------------+" >> $OUTPUT_FILE_PATH
+  echo "+------------------------- TARGET STATE vs. ACTUAL STATE ----------------------+" >> $OUTPUT_FILE_PATH
+  echo "+                                                                              +" >> $OUTPUT_FILE_PATH
+  echo "+ (will only list networks for which an entry exists in target or deploy log)  +" >> $OUTPUT_FILE_PATH
+  echo "+------------------------------------------------------------------------------+" >> $OUTPUT_FILE_PATH
+  printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT" >> $OUTPUT_FILE_PATH
+  echo "+--------------------------------------+-------------------+-------------------+" >> $OUTPUT_FILE_PATH
+  echo "|                                      |      mutable      |     immutable     |" >> $OUTPUT_FILE_PATH
+  echo "|      Contract (latest version)       | target : deployed | target : deployed |" >> $OUTPUT_FILE_PATH
+  echo "+--------------------------------------+-------------------+-------------------+" >> $OUTPUT_FILE_PATH
 
 
   # Check if target state FILE exists
@@ -2731,7 +2731,7 @@ function printDeploymentsStatusV2() {
     # get current contract version
     CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" ""
-    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" "" >> $CSV_FILE_PATH_FILE_PATH
+    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" "" >> $OUTPUT_FILE_PATH
 
     # go through all networks
     for NETWORK in ${NETWORKS[*]} ; do
@@ -2810,18 +2810,18 @@ function printDeploymentsStatusV2() {
 
         # print new line in table view
         printf "|%-${FACET_COLUMN_WIDTH}s| $COLOR_CODE_1 %-15s $NC | $COLOR_CODE_2 %-15s $NC |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED"
-        printf "|%-${FACET_COLUMN_WIDTH}s| %-17s | %-17s |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED" >> $CSV_FILE_PATH_FILE_PATH
+        printf "|%-${FACET_COLUMN_WIDTH}s| %-17s | %-17s |\n" "  -$NETWORK" " $MUTABLE_ENTRY_COMBINED" " $IMMUTABLE_ENTRY_COMBINED" >> $OUTPUT_FILE_PATH
       fi
     done
 
     # print empty line
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" ""
-    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" "" >> $CSV_FILE_PATH_FILE_PATH
+    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" "" "" "" "" >> $OUTPUT_FILE_PATH
   done
 
   # print closing line
   echo "+--------------------------------------+-------------------+-------------------+"
-  echo "+--------------------------------------+-------------------+-------------------+" >> $CSV_FILE_PATH_FILE_PATH
+  echo "+--------------------------------------+-------------------+-------------------+" >> $OUTPUT_FILE_PATH
   return 0
 
   playNotificationSound
