@@ -1038,7 +1038,7 @@ function getOptimizerRuns() {
 function parseTargetStateGoogleSpreadsheet() {
   # ensure spreadsheet ID is available
   if [[ -z "$TARGET_STATE_SPREADSHEET_ID" ]]; then
-    error "your .env file is missing key 'TARGET_STATE_SPREADSHEET_ID'. Please add it."
+    error "your config.sh file is missing key 'TARGET_STATE_SPREADSHEET_ID'. Please add it."
     exit 1
   fi
 
