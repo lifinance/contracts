@@ -797,5 +797,18 @@
         "DiamondCutFacet": "1.0.0"
       }
     }
+  },
+  "polygonzkevm": {
+    "production": {
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0"
+      }
+    }
   }
 }

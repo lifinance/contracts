@@ -36,6 +36,7 @@ evmos = "${ETH_NODE_URI_EVMOS}"
 aurora = "${ETH_NODE_URI_AURORA}"
 boba = "${ETH_NODE_URI_BOBA}"
 nova = "${ETH_NODE_URI_NOVA}"
+polygonzkevm = "${ETH_NODE_URI_POLYGONZKEVM}"
 
 # testnets
 goerli = "${ETH_NODE_URI_GOERLI}"
