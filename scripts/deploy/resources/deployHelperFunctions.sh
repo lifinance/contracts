@@ -1039,6 +1039,139 @@ function getOptimizerRuns() {
       echo "$VERSION"
 
     }
+function parseTargetStateGoogleSpreadsheet() {
+  # ensure spreadsheet ID is available
+  if [[ -z "$TARGET_STATE_SPREADSHEET_ID" ]]; then
+    error "your config.sh file is missing key 'TARGET_STATE_SPREADSHEET_ID'. Please add it."
+    exit 1
+  fi
+
+  # construct spreadsheet URL
+  SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/${TARGET_STATE_SPREADSHEET_ID}"
+  EXPORT_PARAMS="/export?exportFormat=csv"
+
+  # load google sheets into CSV file
+  CSV_FILE_PATH="newTest.csv"
+  curl -L "$SPREADSHEET_URL""$EXPORT_PARAMS" -o $CSV_FILE_PATH 2>/dev/null
+
+  echo "Creating target state from this Google sheet now: $SPREADSHEET_URL"
+  echo ""
+
+  # we currently only support production environment
+  ENVIRONMENT="production"
+
+  # process the CSV file line by line
+  LINE_NUMBER=0
+  while IFS= read -r LINE; do
+      # Increment the line number
+      ((LINE_NUMBER++))
+
+      # Catch the line that contains the facet names
+      if [[ LINE_NUMBER -eq "7" ]]; then
+        # Remove the "Facets:" and "EXAMPLE" from the line
+        STRING_TO_REMOVE="Facets:,EXAMPLE,,"
+        FACET_LINE=$(echo "$LINE" | sed "s/^${STRING_TO_REMOVE}//")
+
+        # Split the line by comma into an array
+        IFS=',' read -ra LINE_ARRAY <<< "$FACET_LINE"
+
+        # Create an iterable array that only contains facet names
+        FACET_ARRAY=()
+        for ((i=0; i<${#LINE_ARRAY[@]}; i+=2)); do
+            FACET_NAME=${LINE_ARRAY[i]}
+            if [[ ! -z $FACET_NAME ]]; then
+                FACET_ARRAY+=("$FACET_NAME")
+            fi
+        done
+#        break
+      fi
+
+      # lines containing network-specific data will start earliest in line 86
+      if [[ $((LINE_NUMBER)) -gt 85 ]]; then
+        # extract network name
+        NETWORK=$(echo "$LINE" | cut -d',' -f1)
+
+
+        # check if this line contains data (=starts with a network name), otherwise skip to next line
+        if [[ ! -z "$NETWORK" ]]; then
+          echo ""
+          echo "NETWORK: $NETWORK"
+
+          # Split the line by comma into an array
+          IFS=',' read -ra LINE_ARRAY <<< "$LINE"
+
+          # we
+          FACET_INDEX=0
+          # iterate through the array (start with index 2 to skip network name and example columns)
+          for ((INDEX=3; INDEX<${#LINE_ARRAY[@]}; INDEX+=1)); do
+            # read cell value and current facet into variables
+            CELL_VALUE=${LINE_ARRAY[$INDEX]}
+            FACET=${FACET_ARRAY[$FACET_INDEX]}
+
+            # increase facet index for next iteration
+            if ((INDEX % 2 == 0)); then
+              ((FACET_INDEX += 1))
+            fi
+
+            # end the loop if FACET is empty (=reached the end of the facet columns)
+            if [[ -z "$FACET" ]]; then
+              break
+            fi
+
+            # determine diamond type based on odd/even column index
+            if ((INDEX % 2 == 0)); then
+              DIAMOND_TYPE="LiFiDiamondImmutable"
+            else
+              DIAMOND_TYPE="LiFiDiamond"
+            fi
+
+
+            # get current contract version and save in variable
+            CURRENT_VERSION=$(getCurrentContractVersion "$FACET")
+
+            # check if cell value is "latest" >> find version
+            if [[ "$CELL_VALUE" == "latest" ]]; then
+
+              # make sure version was returned properly
+             if [[ "$?" -ne 0 ]]; then
+               warning "could not find current contract version for contract $FACET"
+             fi
+
+              # echo warning that sheet needs to be updated
+              warning "the latest version for contract $FACET is $CURRENT_VERSION. Please update this for network $NETWORK in the Google sheet"
+
+              # use current version for target state
+              VERSION=$CURRENT_VERSION
+            else
+              # check if cell value looks like a version tag
+              if isVersionTag "$CELL_VALUE"; then
+
+                # check if current version in repo is higher than version in target state
+                if [[ "$CURRENT_VERSION" > "$CELL_VALUE" ]]; then
+                  warning "target state requests outdated version ($CELL_VALUE) for contract $FACET in network $NETWORK for $DIAMOND_TYPE. Current version is $CURRENT_VERSION. Update target state file?"
+                fi
+
+                # store cell value as target version
+                VERSION=$CELL_VALUE
+              else
+                continue
+              fi
+            fi
+
+            # if code reached here that means we should have a valid target state entry that needs to be added
+            addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$FACET" "$DIAMOND_TYPE" "$VERSION" true
+            echo "addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$FACET" "$DIAMOND_TYPE" "$VERSION" true"
+
+          done
+        fi
+      fi
+  done < "$CSV_FILE_PATH"
+
+  # delete CSV file
+  rm $CSV_FILE_PATH
+
+  return 0
+}
 # <<<<< working with directories and reading other files
 
 # >>>>> writing to blockchain & verification
@@ -1789,7 +1922,7 @@ function addContractVersionToTargetState() {
       # exit script
       return 1
     else
-      warning "target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, and CONTRACT_NAME:$CONTRACT_NAME. Updating version."
+      echoDebug "target state file already contains an entry for NETWORK:$NETWORK, ENVIRONMENT:$ENVIRONMENT, DIAMOND_NAME:$DIAMOND_NAME, and CONTRACT_NAME:$CONTRACT_NAME. Updating version."
     fi
   fi
 
@@ -2366,7 +2499,6 @@ function getPrivateKey() {
     fi
   fi
 }
-
 function getChainId() {
   # read function arguments into variables
   NETWORK="$1"
@@ -2822,6 +2954,19 @@ function checkDeployRequirements() {
     done
   fi
   return 0
+}
+function isVersionTag() {
+  # read function arguments into variable
+  local STRING=$1
+
+  # define version tag pattern
+  local PATTERN="^[0-9]+\.[0-9]+\.[0-9]+$"
+
+  if [[ $STRING =~ $PATTERN ]]; then
+      return 0
+  else
+      return 1
+  fi
 }
 # <<<<<< miscellaneous
 
