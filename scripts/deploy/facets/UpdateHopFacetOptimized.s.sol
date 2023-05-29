@@ -21,7 +21,10 @@ contract DeployScript is UpdateScriptBase {
 
     function run()
         public
-        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+        returns (
+            address[] memory facets,
+            IDiamondCut.FacetCut[] memory facetCut
+        )
     {
         address facet = json.readAddress(".HopFacetOptimized");
 
@@ -44,11 +47,14 @@ contract DeployScript is UpdateScriptBase {
             tokenAddresses
         );
 
-        vm.startBroadcast(deployerPrivateKey);
-
         // Hop Optimized
         bytes4[] memory exclude;
         buildDiamondCut(getSelectors("HopFacetOptimized", exclude), facet);
+        if (noBroadcast) {
+            return (facets, cut);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(facet), callData);
         }

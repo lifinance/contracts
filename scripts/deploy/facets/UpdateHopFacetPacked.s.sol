@@ -11,11 +11,12 @@ contract DeployScript is UpdateScriptBase {
 
     function run()
         public
-        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+        returns (
+            address[] memory facets,
+            IDiamondCut.FacetCut[] memory facetCut
+        )
     {
         address facet = json.readAddress(".HopFacetPacked");
-
-        vm.startBroadcast(deployerPrivateKey);
 
         bytes4[] memory exclude = new bytes4[](5);
         exclude[0] = 0x23452b9c;
@@ -24,6 +25,11 @@ contract DeployScript is UpdateScriptBase {
         exclude[3] = 0xe30c3978;
         exclude[4] = 0xf2fde38b;
         buildDiamondCut(getSelectors("HopFacetPacked", exclude), facet);
+        if (noBroadcast) {
+            return (facets, cut);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }

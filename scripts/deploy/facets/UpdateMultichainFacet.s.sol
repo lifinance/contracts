@@ -11,7 +11,10 @@ contract DeployScript is UpdateScriptBase {
 
     function run()
         public
-        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+        returns (
+            address[] memory facets,
+            IDiamondCut.FacetCut[] memory facetCut
+        )
     {
         address facet = json.readAddress(".MultichainFacet");
 
@@ -42,12 +45,15 @@ contract DeployScript is UpdateScriptBase {
             routers
         );
 
-        vm.startBroadcast(deployerPrivateKey);
-
         // add facet and call init function
         bytes4[] memory exclude = new bytes4[](1);
         exclude[0] = MultichainFacet.initMultichain.selector;
         buildDiamondCut(getSelectors("MultichainFacet", exclude), facet);
+        if (noBroadcast) {
+            return (facets, cut);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(facet), callData);
         }

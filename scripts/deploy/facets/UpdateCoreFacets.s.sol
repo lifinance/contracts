@@ -17,7 +17,10 @@ contract DeployScript is UpdateScriptBase {
 
     function run()
         public
-        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+        returns (
+            address[] memory facets,
+            IDiamondCut.FacetCut[] memory facetCut
+        )
     {
         address diamondLoupe = json.readAddress(".DiamondLoupeFacet");
         address ownership = json.readAddress(".OwnershipFacet");
@@ -25,8 +28,6 @@ contract DeployScript is UpdateScriptBase {
         address dexMgr = json.readAddress(".DexManagerFacet");
         address accessMgr = json.readAddress(".AccessManagerFacet");
         address peripheryRgs = json.readAddress(".PeripheryRegistryFacet");
-
-        vm.startBroadcast(deployerPrivateKey);
 
         bytes4[] memory exclude;
 
@@ -98,7 +99,11 @@ contract DeployScript is UpdateScriptBase {
         } else {
             buildInitialCut(peripheryRgsSelectors, peripheryRgs);
         }
+        if (noBroadcast) {
+            return (facets, cut);
+        }
 
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }

@@ -16,7 +16,10 @@ contract DeployScript is UpdateScriptBase {
 
     function run()
         public
-        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+        returns (
+            address[] memory facets,
+            IDiamondCut.FacetCut[] memory facetCut
+        )
     {
         address facet = json.readAddress(".OptimismBridgeFacet");
 
@@ -36,12 +39,15 @@ contract DeployScript is UpdateScriptBase {
             standardBridge
         );
 
-        vm.startBroadcast(deployerPrivateKey);
-
         // OptimismBridge
         bytes4[] memory exclude = new bytes4[](1);
         exclude[0] = OptimismBridgeFacet.initOptimism.selector;
         buildDiamondCut(getSelectors("OptimismBridgeFacet", exclude), facet);
+        if (noBroadcast) {
+            return (facets, cut);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(facet), callData);
         }

@@ -11,7 +11,10 @@ contract DeployScript is UpdateScriptBase {
 
     function run()
         public
-        returns (address[] memory facets, IDiamondCut.FacetCut[] memory cut)
+        returns (
+            address[] memory facets,
+            IDiamondCut.FacetCut[] memory facetCut
+        )
     {
         string memory path = string.concat(
             root,
@@ -24,11 +27,14 @@ contract DeployScript is UpdateScriptBase {
         string memory json = vm.readFile(path);
         address facet = json.readAddress(".MakerTeleportFacet");
 
-        vm.startBroadcast(deployerPrivateKey);
-
         // MakerTeleport
         bytes4[] memory exclude;
         buildDiamondCut(getSelectors("MakerTeleportFacet", exclude), facet);
+        if (noBroadcast) {
+            return (facets, cut);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }
