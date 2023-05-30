@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# TODO:
+# - update script
+# - call with environment
+# - add private key distinction for call
 
 
 diamondMakeImmutable() {
@@ -64,11 +68,5 @@ diamondMakeImmutable() {
   echo "The diamond contract on network $NETWORK with address $DIAMOND is now immutable"
 }
 
-checkFailure() {
-	if [[ $? -ne 0 ]]; then
-		echo "Failed to make $DIAMOND immutable"
-		exit 1
-	fi
-}
 
 

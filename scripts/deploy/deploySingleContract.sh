@@ -25,16 +25,17 @@ deploySingleContract() {
       # make sure that PRODUCTION was selected intentionally by user
       echo "    "
       echo "    "
-      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!";
-      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true";
-      printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production";
-      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!"
+      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true"
+      printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production"
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
       echo "    "
-      printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?";
-      PROD_SELECTION=$(gum choose \
+      printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?"
+      PROD_SELECTION=$(
+        gum choose \
           "yes" \
-          "no" \
-          )
+          "no"
+      )
 
       if [[ $PROD_SELECTION != "no" ]]; then
         echo "...exiting script"
@@ -80,12 +81,15 @@ deploySingleContract() {
     echo ""
   fi
 
-
   # check if deploy script exists
   local FULL_SCRIPT_PATH=""$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT"".s.sol""
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
-    return 1
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
+    fi
   fi
 
   # get current contract version
@@ -95,17 +99,15 @@ deploySingleContract() {
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echo "[debug] in function deploySingleContract"
-    echo "[debug] CONTRACT=$CONTRACT"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] SCRIPT=$SCRIPT"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] VERSION=$VERSION"
-    echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-    echo ""
-  fi
+  echo ""
+  echoDebug "in function deploySingleContract"
+  echoDebug "CONTRACT=$CONTRACT"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "SCRIPT=$SCRIPT"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "VERSION=$VERSION"
+  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echo ""
 
   # prepare bytecode
   BYTECODE=$(forge inspect "$CONTRACT" bytecode)
@@ -140,17 +142,18 @@ deploySingleContract() {
     CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT")
   fi
 
-  # check if predicted address already contains bytecode
-  local IS_DEPLOYED=$(doesAddressContainBytecode "$NETWORK" "$CONTRACT_ADDRESS")
+  # check if all required data (e.g. config data / contract addresses) is available
+  checkDeployRequirements "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
 
-  if [[ $IS_DEPLOYED == "true" ]]; then
-    echo "[info] contract $CONTRACT is already deployed to address $CONTRACT_ADDRESS. Change SALT in .env if you want to redeploy to a new address"
-
-    # save contract in network-specific deployment files
-    saveContract "$NETWORK" "$CONTRACT" "$CONTRACT_ADDRESS" "$FILE_SUFFIX"
-
-    return 0
+  # do not continue if data required for deployment is missing
+  if [ $? -ne 0 ]; then
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
+    fi
   fi
+
 
   # execute script
   attempts=1
@@ -162,18 +165,27 @@ deploySingleContract() {
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
     # try to execute call
-    RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+    RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$ENVIRONMENT") forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+    RETURN_CODE=$?
+
+    # print return data only if debug mode is activated
+    echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+
+    # check return data for error message (regardless of return code as this is not 100% reliable)
+    if [[ $RAW_RETURN_DATA == *"\"logs\":[]"* && $RAW_RETURN_DATA == *"\"returns\":{}"* ]]; then
+      # try to extract error message and throw error
+      ERROR_MESSAGE=$(echo "$RAW_RETURN_DATA" | sed -n 's/.*0\\0\\0\\0\\0\(.*\)\\0\".*/\1/p')
+      if [[ $ERROR_MESSAGE == "" ]]; then
+        error "execution of deploy script failed. Could not extract error message. RAW_RETURN_DATA: $RAW_RETURN_DATA"
+      else
+        error "execution of deploy script failed with message: $ERROR_MESSAGE"
+      fi
 
     # check the return code the last call
-    if [ $? -eq 0 ]; then
+    elif [ $RETURN_CODE -eq 0 ]; then
       # clean tx return data
       CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
       checkFailure $? "clean return data (original data: $RAW_RETURN_DATA)"
-
-      # print return data only if debug mode is activated
-      if [[ "$DEBUG" == *"true"* ]]; then
-        echo $CLEAN__RETURN_DATA | jq 2>/dev/null
-      fi
 
       # extract the "returns" field and its contents from the return data (+hide errors)
       RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
@@ -190,10 +202,9 @@ deploySingleContract() {
           break 2 # exit both loops if the operation was successful
         fi
         # wait for 10 seconds to allow blockchain to sync
-        if [[ "$DEBUG" == *"true"* ]]; then
-          echo "[info] waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconcs)"
-        fi
+        echoDebug "waiting 10 seconds for blockchain to sync bytecode (max wait time: $MAX_WAITING_TIME_FOR_BLOCKCHAIN_SYNC seconds)"
         sleep 10
+
         COUNT=$((COUNT + 10))
       done
 
@@ -219,21 +230,32 @@ deploySingleContract() {
     fi
   fi
 
+  # check if address is available, otherwise do not continue
+  if [[ -z "$ADDRESS" || "$ADDRESS" == "null" ]]; then
+    warning "failed to obtain address of newly deployed contract $CONTRACT. There may be an issue within the deploy script. Please check and try again"
+
+    # end this script according to flag
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
   # extract constructor arguments from return data
   CONSTRUCTOR_ARGS=$(echo $RETURN_DATA | jq -r '.constructorArgs.value // "0x"')
   echo "[info] $CONTRACT deployed to $NETWORK at address $ADDRESS"
 
-  # save contract in network-specific deployment files
-  saveContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$FILE_SUFFIX"
+  # check if log entry exists for this file
+  LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
+  LOG_ENTRY_RETURN_CODE=$?
+  VERIFIED_LOG=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED")
 
-  # prepare information for logfile entry
-  TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
-  OPTIMIZER=$(getOptimizerRuns)
-
+  # verify contract, if needed
   VERIFIED=false
 
-  # verify contract
-  if [[ $VERIFY_CONTRACTS == "true" ]]; then
+  # check if contract verification is enabled in config and contract not yet verified according to log file
+  if [[ $VERIFY_CONTRACTS == "true" && "$VERIFIED_LOG" != "true" ]]; then
     echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS"
     if [[ $DEBUG == "true" ]]; then
       verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"
@@ -248,8 +270,44 @@ deploySingleContract() {
     fi
   fi
 
-  # write to logfile
-  logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED
+  # check if log entry was found
+  if [ "$LOG_ENTRY_RETURN_CODE" -eq 0 ]; then
+    echoDebug "log entry already exists:"
+    echoDebug "$LOG_ENTRY"
+    echoDebug "Now checking if contract was verified just now and update log, if so"
+
+    # check if contract was verified during this script execution
+    if [[ $VERIFIED == "true" ]]; then
+      echoDebug "contract was just verified. Updating VERIFIED flag in log entry now."
+
+      # extract values from existing log entry
+      ADDRESS=$(echo "$LOG_ENTRY" | jq -r ".ADDRESS")
+      OPTIMIZER_RUNS=$(echo "$LOG_ENTRY" | jq -r ".OPTIMIZER_RUNS")
+      TIMESTAMP=$(echo "$LOG_ENTRY" | jq -r ".TIMESTAMP")
+      CONSTRUCTOR_ARGS=$(echo "$LOG_ENTRY" | jq -r ".CONSTRUCTOR_ARGS")
+      TIMESTAMP=$(echo "$LOG_ENTRY" | jq -r ".TIMESTAMP")
+
+      # update VERIFIED info in log file
+      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED
+    else
+      echoDebug "contract was not verified just now. No further action needed."
+    fi
+
+    # end script here
+    return 0
+  else
+    echoDebug "log entry does not exist yet and will be written now"
+
+    # prepare information for logfile entry
+    TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
+    OPTIMIZER=$(getOptimizerRuns)
+
+    # write to logfile
+    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED
+  fi
+
+  # save contract in network-specific deployment files
+  saveContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$FILE_SUFFIX"
 
   return 0
 }

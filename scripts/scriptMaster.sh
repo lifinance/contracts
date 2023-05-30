@@ -2,20 +2,20 @@
 
 # TODO
 
+# - enrich diamond deploy log with version info for periphery contracts and diamond contract version
+#   >> minimize search master deploy log (takes a lot of time)
+# - replace debug outputs with new helper method
+
 # - make helper functions robust for networks with -
 #   >>> including the solidity update config scripts
 # - integrate diamondMakeImmutable in master script
 
-# - add verify contract use case (use bytecode and settings from storage)
 # - create function that checks if contract is deployed (get bytecode, predict address, check bytecode at address)
 # - return master log to store all deployments (and return latest when inquired)
 # - add use case to only remove a facet
 # - check if use case 4 will also check if a contract is added to diamond already
 # - create use case to deploy and add all periphery (or check if target state use case covers it)
 # - merging two branches with deployments in same network (does it cause merge-conflicts?)
-
-
-
 
 # - clean code
 #   - local before variables
@@ -46,16 +46,17 @@ scriptMaster() {
     # make sure that PRODUCTION was selected intentionally by user
     echo "    "
     echo "    "
-    printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!";
-    printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true";
-    printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production";
-    printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+    printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!"
+    printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true"
+    printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production"
+    printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
     echo "    "
-    printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?";
-    PROD_SELECTION=$(gum choose \
+    printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?"
+    PROD_SELECTION=$(
+      gum choose \
         "yes" \
-        "no" \
-        )
+        "no"
+    )
 
     if [[ $PROD_SELECTION != "no" ]]; then
       echo "...exiting script"
@@ -72,15 +73,18 @@ scriptMaster() {
   echo "You are executing transactions from this address: $(getDeployerAddress "$ENVIRONMENT")"
   echo ""
   echo "Please choose one of the following options:"
-  local SELECTION=$(gum choose \
-    "1) Deploy one specific contract to one network"\
-    "2) Deploy one specific contract to all (not-excluded) networks (=new contract)"\
-    "3) Deploy all contracts to one selected network (=new network)" \
-    "4) Deploy all (missing) contracts for all networks (actual vs. target) - NOT YET ACTIVATED" \
-    "5) Execute a script" \
-    "6) Batch update _targetState.json file" \
-    "7) Verify all unverified contracts" \
-    )
+  local SELECTION=$(
+    gum choose \
+      "1) Deploy one specific contract to one network" \
+      "2) Deploy one specific contract to all (not-excluded) networks (=new contract)" \
+      "3) Deploy all contracts to one selected network (=new network)" \
+      "4) Deploy all (missing) contracts for all networks (actual vs. target) - NOT YET ACTIVATED" \
+      "5) Execute a script" \
+      "6) Batch update _targetState.json file" \
+      "7) Verify all unverified contracts" \
+      "8) Review deploy status (vs. target state)" \
+      "9) Create updated target state from Google Docs (updates PRODUCTION only)"
+  )
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 1: Deploy one specific contract to one network
@@ -109,11 +113,12 @@ scriptMaster() {
     if [[ ! "$CONTRACT" == *"LiFiDiamond"* ]]; then
       echo ""
       echo "Do you want to add this contract to a diamond after deployment?"
-      ADD_TO_DIAMOND=$(gum choose \
-          "yes - to LiFiDiamond"\
-          "yes - to LiFiDiamondImmutable"\
-          " no - do not update any diamond"\
-          )
+      ADD_TO_DIAMOND=$(
+        gum choose \
+          "yes - to LiFiDiamond" \
+          "yes - to LiFiDiamondImmutable" \
+          " no - do not update any diamond"
+      )
     fi
 
     # get current contract version
@@ -144,18 +149,19 @@ scriptMaster() {
     echo "[info] selected use case: Deploy one specific contract to all networks"
 
     # get user-selected deploy script and contract from list
-    local SCRIPT=$(ls -1 script | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
+    local SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment
     if [[ ! "$CONTRACT" == *"LiFiDiamond"* ]]; then
       echo ""
       echo "Do you want to add this contract to a diamond after deployment?"
-      local ADD_TO_DIAMOND=$(gum choose \
-          "yes - to LiFiDiamond"\
-          "yes - to LiFiDiamondImmutable"\
-          " no - do not update any diamond"\
-          )
+      local ADD_TO_DIAMOND=$(
+        gum choose \
+          "yes - to LiFiDiamond" \
+          "yes - to LiFiDiamondImmutable" \
+          " no - do not update any diamond"
+      )
     fi
 
     # get current contract version
@@ -230,23 +236,22 @@ scriptMaster() {
     # go through each entry in target state and check if contract is deployed in correct version
     # updateAllContractsToTargetState
 
-  playNotificationSound
+    playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 5: Execute a script
   elif [[ "$SELECTION" == *"5)"* ]]; then
     echo ""
-    SCRIPT=$(ls -1p "$TASKS_SCRIPT_DIRECTORY" | grep -v "/$" | sed -e 's/\.sh$//'| gum filter --placeholder "Please select the script you would like to execute: ")
+    SCRIPT=$(ls -1p "$TASKS_SCRIPT_DIRECTORY" | grep -v "/$" | sed -e 's/\.sh$//' | gum filter --placeholder "Please select the script you would like to execute: ")
     if [[ -z "$SCRIPT" ]]; then
       error "invalid value selected - exiting script now"
       exit 1
     fi
 
-
     echo "[info] selected script: $SCRIPT"
 
     # execute the selected script
-    eval "$SCRIPT" "$ENVIRONMENT"
+    eval "$SCRIPT" '""' "$ENVIRONMENT"
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 6: Update _targetState.json file
@@ -256,36 +261,39 @@ scriptMaster() {
 
     # ask user to select a diamond type for which to update contract versions
     echo "[info] Please select for which diamond type you want to update contract version(s):"
-    SELECTION_DIAMOND_TYPE=$(gum choose \
-      "1) Mutable"\
-      "2) Immutable"\
-      "3) Both"\
+    SELECTION_DIAMOND_TYPE=$(
+      gum choose \
+        "1) Mutable" \
+        "2) Immutable" \
+        "3) Both"
 
-      )
+    )
     echo "[info] selected option: $SELECTION_DIAMOND_TYPE"
 
     echo ""
     echo "Please choose one of the following options:"
-    local SELECTION_UPDATE_CASE=$(gum choose \
-      "1) Add a new contract to all (not-excluded) networks"\
-      "2) Update the version of a contract on all (not-excluded) networks"\
-      "3) Add a new network with all (not-excluded) contracts"\
-      )
+    local SELECTION_UPDATE_CASE=$(
+      gum choose \
+        "1) Add a new contract to all (not-excluded) networks" \
+        "2) Update the version of a contract on all (not-excluded) networks" \
+        "3) Add a new network with all (not-excluded) contracts"
+    )
     echo "[info] selected option: $SELECTION_UPDATE_CASE"
 
     echo ""
     echo "Please select the environment that should be updated:"
-    local ENVIRONMENT=$(gum choose \
-      "staging"\
-      "production"\
-      )
+    local ENVIRONMENT=$(
+      gum choose \
+        "staging" \
+        "production"
+    )
     echo "[info] selected environment: $ENVIRONMENT"
 
     if [[ "$SELECTION_UPDATE_CASE" == *"1)"* ]]; then
       # case: "1) 1) Add a new contract to all networks"
 
       # get names of all contracts
-      ALL_CONTRACT_NAMES=($(getAllContractNames))
+      ALL_CONTRACT_NAMES=($(getAllContractNames "false"))
 
       # Prompt the user to select a contract to be updated
       echo ""
@@ -332,7 +340,7 @@ scriptMaster() {
     elif [[ "$SELECTION_UPDATE_CASE" == *"2)"* ]]; then
       # case: "2) Update the version of a contract on all networks"
       # get names of all contracts
-      ALL_CONTRACT_NAMES=($(getAllContractNames))
+      ALL_CONTRACT_NAMES=($(getAllContractNames "false"))
 
       # Prompt the user to select a contract to be updated
       echo ""
@@ -395,8 +403,7 @@ scriptMaster() {
       fi
 
       # check if function call was successful
-      if [ $? -eq 0 ]
-      then
+      if [ $? -eq 0 ]; then
         echo "[info] ...success"
         exit 0
       else
@@ -415,6 +422,18 @@ scriptMaster() {
   elif [[ "$SELECTION" == *"7)"* ]]; then
     verifyAllUnverifiedContractsInLogFile
     playNotificationSound
+
+  #---------------------------------------------------------------------------------------------------------------------
+  # use case 8: Review deploy status (vs. target state)
+  elif [[ "$SELECTION" == *"8)"* ]]; then
+    printDeploymentsStatusV2 "$ENVIRONMENT"
+
+  #---------------------------------------------------------------------------------------------------------------------
+  # use case 9: Create updated target state from Google Docs
+  elif [[ "$SELECTION" == *"9)"* ]]; then
+    parseTargetStateGoogleSpreadsheet
+
+
   else
     error "invalid use case selected ('$SELECTION') - exiting script"
     exit 1
@@ -429,4 +448,3 @@ scriptMaster() {
 }
 
 scriptMaster
-

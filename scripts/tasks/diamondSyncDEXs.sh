@@ -73,15 +73,13 @@ function diamondSyncDEXs {
   RPC_URL=$(getRPCUrl "$NETWORK")
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echo "[debug] in function syncDEXs"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
-    echo "[debug] DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-    echo ""
-  fi
+  echo ""
+  echoDebug "in function syncDEXs"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
+  echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+  echo ""
 
   echo "[info] now syncing DEXs for $DIAMOND_CONTRACT_NAME on network $NETWORK with address $DIAMOND_ADDRESS"
 
@@ -92,9 +90,7 @@ function diamondSyncDEXs {
   RESULT=$(cast call "$DIAMOND_ADDRESS" "approvedDexs() returns (address[])" --rpc-url "$RPC_URL")
   DEXS=($(echo ${RESULT:1:${#RESULT}-1} | tr ',' '\n' | tr '[:upper:]' '[:lower:]'))
 
-  if [[ $DEBUG == "true" ]]; then
-    echo "[debug] approved DEXs from diamond with address $DIAMOND_ADDRESS: [$DEXS]"
-  fi
+  echoDebug "approved DEXs from diamond with address $DIAMOND_ADDRESS: [$DEXS]"
 
   # Loop through all DEX addresses from config and check if they are already known by the diamond
   NEW_DEXS=()
@@ -108,9 +104,7 @@ function diamondSyncDEXs {
     fi
   done
 
-  if [[ $DEBUG == "true" ]]; then
-    echo "[debug] new DEXs to be added: [${NEW_DEXS[*]}]"
-  fi
+  echoDebug "new DEXs to be added: [${NEW_DEXS[*]}]"
 
   # add new DEXs to diamond
   if [[ ! ${#NEW_DEXS[@]} -eq 0 ]]; then
@@ -132,10 +126,10 @@ function diamondSyncDEXs {
       # call diamond
       if [[ "$DEBUG" == *"true"* ]]; then
         # print output to console
-        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key ${PRIVATE_KEY} --legacy
+        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$ENVIRONMENT") --legacy
       else
         # do not print output to console
-        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key ${PRIVATE_KEY} --legacy >/dev/null
+        cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$ENVIRONMENT") --legacy >/dev/null
       fi
 
       # check the return code the last call

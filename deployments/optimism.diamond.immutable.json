@@ -45,9 +45,9 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0x5459Fe34F4B391938C45C909F62aD7E12978bD8F": {
+      "0xc673c3df4fff2C499009E5fCa94bc446f5B07772": {
         "Name": "HopFacetOptimized",
-        "Version": ""
+        "Version": "2.0.0"
       },
       "0x4Dc509f0BB4db1faeba81f5F13583Ff3d95F938D": {
         "Name": "HopFacet",
@@ -63,7 +63,7 @@
       },
       "0x4cf6c406F004b7B588ec8638fBd2cC2215D87C90": {
         "Name": "MultichainFacet",
-        "Version": ""
+        "Version": "1.0.1"
       },
       "0x238502aDc8ca550723CBE78543c8B757599A21cC": {
         "Name": "NXTPFacet",
@@ -73,13 +73,21 @@
         "Name": "StargateFacet",
         "Version": "1.0.0"
       },
-      "0xA57862295BdF8A680fda893B9bd3b935236d18bA": {
+      "0x0aE0a1Ae2703A27bC518fd7d9DCB3F6C69CfccD2": {
         "Name": "HopFacetPacked",
-        "Version": "1.0.1"
+        "Version": "1.0.4"
       },
       "0x2A7568Fd6dffA6F7578cdF010398BffAa53cc7c0": {
         "Name": "AcrossFacet",
         "Version": "2.0.0"
+      },
+      "0x5E3DC14bfc5aF89C2c34A24E2c1ba6430B9F4Fd2": {
+        "Name": "CBridgeFacetPacked",
+        "Version": "1.0.1"
+      },
+      "0xa1531BaCEb6178fd05bD80795C9C75Ac02438E49": {
+        "Name": "CelerIMFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
@@ -89,7 +97,7 @@
       "FeeCollector": "0xB49EaD76FE09967D7CA0dbCeF3C3A06eb3Aa0cB4",
       "FusePoolZap": "",
       "Receiver": "0xC4B590a0E2d7e965a2Fb3647d672B5DD97E8d068",
-      "RelayerCelerIM": "0x34D16bE69CB282c7160abaB1dC02ACfA45f7006c",
+      "RelayerCelerIM": "0xB1Fe861ceae7BF4C40515cEEB851f2785d2A1008",
       "ServiceFeeCollector": "0x4b0B89b90fF83247aEa12469CeA9A6222e09d54c"
     }
   }

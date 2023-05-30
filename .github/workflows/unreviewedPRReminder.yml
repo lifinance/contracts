@@ -18,13 +18,19 @@ jobs:
         run: |
           set -x
           # Use GitHub API and jq to parse the data
-          PRS=$(gh api repos/lifinance/contracts/pulls -q '.[] | {number: .number, created_at: .created_at, labels: (.labels | map(.name))}')
+          PRS=$(gh api repos/lifinance/contracts/pulls -q '.[] | {number: .number, created_at: .created_at, labels: (.labels | map(.name)), draft: .draft}')
           echo "PRS: $PRS"
           OLD_PRS=""
           while read -r PR; do
             PR_CREATED_AT=$(echo "$PR" | jq -r '.created_at')
             PR_NUMBER=$(echo "$PR" | jq -r '.number')
             PR_LABELS=$(echo "$PR" | jq -c '.labels')
+            PR_ISDRAFT=$(echo "$PR" | jq -r '.draft')
+
+            # Continue loop if the PR is draft
+            if ((PR_ISDRAFT)); then
+              continue
+            fi
 
             # Continue loop if the PR has the label "WIP"
             if echo "$PR_LABELS" | grep -q "WIP"; then

@@ -80,16 +80,14 @@ function diamondUpdatePeriphery() {
   fi
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo "[debug] in function updatePeriphery"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-    echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-    echo "[debug] UPDATE_ALL=$UPDATE_ALL"
-    echo "[debug] CONTRACTS=($CONTRACTS)"
-    echo ""
-  fi
+  echoDebug "in function updatePeriphery"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echoDebug "UPDATE_ALL=$UPDATE_ALL"
+  echoDebug "CONTRACTS=($CONTRACTS)"
+  echo ""
 
   # get path of deployment file to extract contract addresses from it
   if [[ -z "$FILE_SUFFIX" ]]; then
@@ -110,14 +108,22 @@ function diamondUpdatePeriphery() {
     if [[ "$?" -eq 0 ]]; then
       # get address
       local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT_NAME "$CONTRACT" '.[$CONTRACT_NAME] // "0x"' "$ADDRS")
+
       # check if address available, otherwise throw error and skip iteration
       if [ "$CONTRACT_ADDRESS" != "0x" ]; then
-        # register contract
-        register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS"
-        LAST_CALL=$?
+        # check if has already been added to diamond
+        KNOWN_ADDRESS=$(getPeripheryAddressFromDiamond "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT")
 
-        if [ $LAST_CALL -eq 0 ]; then
-          echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
+        if [ "$KNOWN_ADDRESS" != "$CONTRACT_ADDRESS" ]; then
+          # register contract
+          register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS" "$ENVIRONMENT"
+          LAST_CALL=$?
+
+          if [ $LAST_CALL -eq 0 ]; then
+            echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
+          fi
+        else
+          echo "[info] contract $CONTRACT is already registered on diamond $DIAMOND_ADDRESS - no action needed"
         fi
       else
         warning "no address found for periphery contract $CONTRACT in this file: $ADDRS >> please deploy contract first"
@@ -136,6 +142,14 @@ function diamondUpdatePeriphery() {
     fi
   fi
 
+  # update diamond log file
+  if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
+    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" true
+  else
+    saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" false
+  fi
+
+
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"
 }
 
@@ -145,6 +159,7 @@ register() {
   local CONTRACT_NAME=$3
   local ADDR=$4
   local RPC="ETH_NODE_URI_$NETWORK"
+  local ENVIRONMENT=$5
 
   # register periphery contract
   local ATTEMPTS=1
@@ -152,16 +167,16 @@ register() {
   while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     # try to execute call
     if [[ "$DEBUG" == *"true"* ]]; then
-      echo "[info] trying to register periphery contract $CONTRACT_NAME in diamond on network $NETWORK now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
+      echoDebug "trying to register periphery contract $CONTRACT_NAME in diamond on network $NETWORK now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
 
       # ensure that gas price is below maximum threshold (for mainnet only)
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
       # print output to console
-      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $PRIVATE_KEY --rpc-url "${!RPC}" --legacy
+      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $(getPrivateKey "$ENVIRONMENT") --rpc-url "${!RPC}" --legacy
     else
       # do not print output to console
-      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $PRIVATE_KEY --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
+      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $(getPrivateKey "$ENVIRONMENT") --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
     fi
 
     # check the return code the last call

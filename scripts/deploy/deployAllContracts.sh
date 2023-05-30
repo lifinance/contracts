@@ -25,14 +25,12 @@ deployAllContracts() {
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echo "[debug] in function deployAllContracts"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] FILE_SUFFIX=$FILE_SUFFIX"
-    echo ""
-  fi
+  echo ""
+  echoDebug "in function deployAllContracts"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echo ""
 
   # ask user which diamond type to deploy
   echo ""
@@ -67,11 +65,11 @@ deployAllContracts() {
 
   # run sync dexs script
   echo ""
-  syncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+  diamondSyncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
   # run sync sigs script
   echo ""
-  syncSIGs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+  diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
   # deploy all non-core facets (that are in target_state.JSON) and add to diamond
   echo ""

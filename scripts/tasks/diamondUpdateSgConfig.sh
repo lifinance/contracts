@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# TODO:
+# - update script
+# - call with environment
+# - add private key distinction for call
 
 diamondUpdateSgConfig() {
   # load env variables

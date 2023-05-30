@@ -73,15 +73,13 @@ function diamondSyncSigs {
   RPC_URL=$(getRPCUrl "$NETWORK")
 
   # logging for debug purposes
-  if [[ "$DEBUG" == *"true"* ]]; then
-    echo ""
-    echo "[debug] in function syncSIGs"
-    echo "[debug] NETWORK=$NETWORK"
-    echo "[debug] ENVIRONMENT=$ENVIRONMENT"
-    echo "[debug] DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
-    echo "[debug] DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-    echo ""
-  fi
+  echo ""
+  echoDebug "in function syncSIGs"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
+  echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+  echo ""
 
   # get function selectors (sigs) from config files
   CFG_SIGS=($(jq -r '.[] | @sh' "./config/sigs.json" | tr -d \' | tr '[:upper:]' '[:lower:]' ))
@@ -102,10 +100,10 @@ function diamondSyncSigs {
     # call diamond
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
-      cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key ${PRIVATE_KEY} --legacy
+      cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key $(getPrivateKey "$ENVIRONMENT") --legacy
     else
       # do not print output to console
-      cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key ${PRIVATE_KEY} --legacy >/dev/null 2>&1
+      cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key $(getPrivateKey "$ENVIRONMENT") --legacy >/dev/null 2>&1
     fi
 
     # check the return code of the last call

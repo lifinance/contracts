@@ -14,7 +14,7 @@
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
         "NXTPFacet": "1.0.0",
         "StargateFacet": "1.0.0",
         "HopFacet": "1.0.0",
@@ -27,7 +27,7 @@
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "CelerIMFacet": "1.0.0",
+        "CelerIMFacet": "1.0.1",
         "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
@@ -46,14 +46,19 @@
         "MultichainFacet": "1.0.1",
         "NXTPFacet": "1.0.0",
         "StargateFacet": "1.0.0",
-        "HopFacet": "1.0.0",
+        "HopFacet": "2.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "HopFacetPacked": "1.0.4",
         "LIFuelFacet": "1.0.0",
         "AmarokFacet": "1.0.1",
         "ERC20Proxy": "1.0.0",
         "Executor": "1.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
-        "ServiceFeeCollector": "1.0.0"
+        "ServiceFeeCollector": "1.0.0",
+        "CBridgeFacetPacked": "1.0.1",
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -85,7 +90,7 @@
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "CelerIMFacet": "1.0.0",
+        "CelerIMFacet": "1.0.1",
         "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
@@ -101,17 +106,22 @@
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
         "NXTPFacet": "1.0.0",
         "StargateFacet": "1.0.0",
-        "HopFacet": "1.0.0",
+        "HopFacet": "2.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "HopFacetPacked": "1.0.4",
         "LIFuelFacet": "1.0.0",
         "AmarokFacet": "1.0.1",
         "ERC20Proxy": "1.0.0",
         "Executor": "1.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
-        "ServiceFeeCollector": "1.0.0"
+        "ServiceFeeCollector": "1.0.0",
+        "CBridgeFacetPacked": "1.0.1",
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -126,13 +136,37 @@
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
-        "AcrossFacet": "1.0.0",
-        "AxelarExecutor": "1.0.0",
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "HopFacet": "2.0.0",
+        "CBridgeFacet": "1.0.0",
+        "AxelarFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "HyphenFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
+        "NXTPFacet": "1.0.0",
+        "StargateFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
         "ERC20Proxy": "1.0.0",
-        "HopFacetOptimized": "1.0.0"
+        "AxelarExecutor": "1.0.0",
+        "Executor": "1.0.0",
+        "Receiver": "1.0.0",
+        "FeeCollector": "1.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "AmarokFacet": "1.0.1",
+        "HopFacetOptimized": "2.0.0",
+        "HopFacetPacked": "1.0.4",
+        "AcrossFacet": "2.0.0",
+        "RelayerCelerIM": "1.0.1"
       }
     },
     "staging": {
@@ -145,8 +179,9 @@
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0",
-        "Executor": "1.0.0"
+        "RelayerCelerIM": "1.0.1",
+        "Executor": "1.0.0",
+        "ERC20Proxy": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "AcrossFacet": "1.0.0",
@@ -167,10 +202,39 @@
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
-        "RelayerCelerIM": "1.0.0"
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "AcrossFacet": "2.0.0",
+        "CBridgeFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "GnosisBridgeFacet": "1.0.0",
+        "HopFacet": "2.0.0",
+        "MultichainFacet": "1.0.1",
+        "NXTPFacet": "1.0.0",
+        "OmniBridgeFacet": "1.0.0",
+        "OptimismBridgeFacet": "1.0.0",
+        "PolygonBridgeFacet": "1.0.0",
+        "StargateFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "AxelarExecutor": "1.0.0",
+        "Executor": "1.0.0",
+        "Receiver": "1.0.0",
+        "FeeCollector": "1.0.0",
+        "ArbitrumBridgeFacet": "1.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "AmarokFacet": "1.0.1",
+        "CelerCircleBridgeFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.1"
       }
     },
     "staging": {
@@ -183,19 +247,15 @@
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       }
     }
   },
-  "mainnet": {
+  "lineatest": {
     "production": {
-      "LiFiDiamond": {
-        "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
-      },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
@@ -225,9 +285,55 @@
         "ArbitrumBridgeFacet": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "AmarokFacet": "1.0.0",
-        "CelerCircleBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.1"
+        "AmarokFacet": "1.0.1",
+        "CelerCircleBridgeFacet": "1.0.1"
+      }
+    }
+  },
+  "mainnet": {
+    "production": {
+      "LiFiDiamond": {
+        "CelerIMFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.0",
+        "LiFiDiamond": "1.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "AcrossFacet": "2.0.0",
+        "AxelarFacet": "1.0.0",
+        "CBridgeFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "GnosisBridgeFacet": "1.0.0",
+        "HopFacet": "2.0.0",
+        "MultichainFacet": "1.0.1",
+        "NXTPFacet": "1.0.0",
+        "OmniBridgeFacet": "1.0.0",
+        "OptimismBridgeFacet": "1.0.0",
+        "PolygonBridgeFacet": "1.0.0",
+        "StargateFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "AxelarExecutor": "1.0.0",
+        "Executor": "1.0.0",
+        "Receiver": "1.0.0",
+        "FeeCollector": "1.0.0",
+        "ArbitrumBridgeFacet": "1.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "AmarokFacet": "1.0.1",
+        "CelerCircleBridgeFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.1",
+        "CBridgeFacetPacked": "1.0.1",
+        "HopFacetOptimized": "2.0.0",
+        "HopFacetPacked": "1.0.4",
+        "HyphenFacet": "1.0.0",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -244,8 +350,8 @@
     "production": {
       "LiFiDiamond": {
         "HopFacetPacked": "1.0.1",
-        "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "CelerIMFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -255,7 +361,7 @@
         "AccessManagerFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
-        "HopFacet": "1.0.0",
+        "HopFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
         "AxelarFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
@@ -271,8 +377,14 @@
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "AmarokFacet": "1.0.0",
-        "AcrossFacet": "2.0.0"
+        "AmarokFacet": "1.0.1",
+        "HopFacetOptimized": "2.0.0",
+        "HopFacetPacked": "1.0.4",
+        "AcrossFacet": "2.0.0",
+        "AllBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.1",
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -288,8 +400,8 @@
     },
     "production": {
       "LiFiDiamond": {
-        "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "CelerIMFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -303,7 +415,7 @@
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
         "NXTPFacet": "1.0.0",
         "StargateFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
@@ -315,15 +427,19 @@
         "WormholeFacet": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "AmarokFacet": "1.0.0"
+        "AmarokFacet": "1.0.1",
+        "CBridgeFacetPacked": "1.0.1",
+        "HopFacetPacked": "1.0.4",
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
   "fantom": {
     "production": {
       "LiFiDiamond": {
-        "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "CelerIMFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -347,7 +463,10 @@
         "Receiver": "1.0.0",
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "LIFuelFacet": "1.0.0"
+        "LIFuelFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -370,15 +489,16 @@
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "Receiver": "1.0.0"
+        "Receiver": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   },
   "avalanche": {
     "production": {
       "LiFiDiamond": {
-        "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "CelerIMFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -403,15 +523,19 @@
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "CelerCircleBridgeFacet": "1.0.0"
+        "CelerCircleBridgeFacet": "1.0.1",
+        "CBridgeFacetPacked": "1.0.1",
+        "RelayerCelerIM": "1.0.1",
+        "AmarokFacet": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
   "moonriver": {
     "production": {
       "LiFiDiamond": {
-        "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "CelerIMFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -431,7 +555,10 @@
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "LIFuelFacet": "1.0.0"
+        "LIFuelFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },
@@ -456,7 +583,6 @@
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "AmarokFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0"
       }
     }
@@ -480,7 +606,8 @@
         "Executor": "1.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
-        "ServiceFeeCollector": "1.0.0"
+        "ServiceFeeCollector": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -503,7 +630,8 @@
         "Receiver": "1.0.0",
         "Executor": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "LIFuelFacet": "1.0.0"
+        "LIFuelFacet": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -526,7 +654,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "LIFuelFacet": "1.0.0"
+        "LIFuelFacet": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -572,7 +701,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "LIFuelFacet": "1.0.0"
+        "LIFuelFacet": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -585,7 +715,7 @@
         "DexManagerFacet": "1.0.0",
         "AccessManagerFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "MultichainFacet": "",
@@ -596,7 +726,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "LIFuelFacet": "1.0.0"
+        "LIFuelFacet": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -615,7 +746,9 @@
         "LiFiDiamondImmutable": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
-        "HopFacet": "1.0.0",
+        "HopFacet": "2.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "HopFacetPacked": "1.0.4",
         "MultichainFacet": "1.0.1",
         "NXTPFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
@@ -625,15 +758,15 @@
         "Receiver": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "AmarokFacet": "1.0.0"
+        "AmarokFacet": "1.0.1"
       }
     }
   },
   "aurora": {
     "production": {
       "LiFiDiamond": {
-        "CelerIMFacet": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "CelerIMFacet": "1.0.1",
+        "RelayerCelerIM": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -651,7 +784,9 @@
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "Receiver": "1.0.0"
+        "Receiver": "1.0.0",
+        "RelayerCelerIM": "1.0.1",
+        "CelerIMFacet": "1.0.1"
       }
     }
   },

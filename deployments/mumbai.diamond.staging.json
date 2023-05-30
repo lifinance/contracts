@@ -2,23 +2,23 @@
   "LiFiDiamond": {
     "Facets": {
       "0x9F3cdB0393Dec04Ed20bd86fB0e8e1e98F719Bfe": {
-        "Name": "DiamondCutFacet",
+        "Name": "",
         "Version": ""
       },
       "0xc66318d5B52E2Ad57132C0Ea8aAC587C64ebA5c1": {
-        "Name": "DiamondLoupeFacet",
+        "Name": "",
         "Version": ""
       },
       "0x5325FDD97Bc285221cEfFe5c8578F4cff27EF364": {
-        "Name": "OwnershipFacet",
+        "Name": "",
         "Version": ""
       },
       "0x73Db174c969F0696A6c655d09e45f0b9a5D3E046": {
-        "Name": "WithdrawFacet",
+        "Name": "",
         "Version": ""
       },
       "0x995d928EC803D21e0C880Edd95587387BFD2292C": {
-        "Name": "DexManagerFacet",
+        "Name": "",
         "Version": ""
       },
       "0x76D86ce01E4c2f345fa7468394654609299531b5": {
@@ -26,7 +26,7 @@
         "Version": ""
       },
       "0xEE752f4D8CcBb687754AD6EC174877dC6b016E3b": {
-        "Name": "PeripheryRegistryFacet",
+        "Name": "",
         "Version": ""
       },
       "0x010E49Df94969E03845eEe0C92ab89A40E0125D9": {
@@ -34,12 +34,12 @@
         "Version": ""
       },
       "0x5f4E2f294aE3177215ffd4A06D7A920D0fbCEeb2": {
-        "Name": "CircleBridgeFacet",
+        "Name": "",
         "Version": ""
       },
-      "0xe191D7d6B18746D81F3628593486fA03975708a7": {
+      "0xC28F52D9DE2B644025C4B4ADF2389dB726de2Fd6": {
         "Name": "AxelarFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x2c29ca74714d34C5fd34A824da9C021005B1fB91": {
         "Name": "AcrossFacet",
@@ -48,16 +48,20 @@
       "0xEe8538b8E097804De85284a801BD076875e435fA": {
         "Name": "StargateFacet",
         "Version": "1.0.0"
+      },
+      "0xff368b29b81dFCa5402B20369f206418315dd212": {
+        "Name": "CelerIMFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
       "AxelarExecutor": "",
-      "ERC20Proxy": "",
+      "ERC20Proxy": "0x006E78DB49Ad2a7650fF84FA86916A0805DF6D0A",
       "Executor": "0x4DE055c2b7054b9B3Aa7c3891aacB9dE4F489D66",
       "FeeCollector": "",
       "FusePoolZap": "",
       "Receiver": "",
-      "RelayerCelerIM": "",
+      "RelayerCelerIM": "0xC072a97eb5e746b466dB76D8e182ea3eA49A0907",
       "ServiceFeeCollector": ""
     }
   }
