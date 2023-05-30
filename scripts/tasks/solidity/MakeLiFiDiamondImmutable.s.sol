@@ -73,6 +73,36 @@ contract DeployScript is UpdateScriptBase {
             );
         }
 
+        // get refund wallet address from global config file
+        string memory path = string.concat(
+            root,
+            "/config/global",
+            ".",
+            "json"
+        );
+        string memory json = vm.readFile(path);
+        address refundWallet = json.readAddress(".refundWallet");
+
+        // get function signatures that should be approved for refundWallet
+        // get anyTokenMappings from config and parse into array
+        bytes memory rawConfig = json.parseRaw(".approvedSigsForRefundWallet");
+
+        // parse raw data from config into anyMappings array
+        bytes4[] memory funcSigsToBeApproved = abi.decode(
+            rawConfig,
+            (bytes4)
+        );
+
+        // go through array with function signatures
+        for (i=0; i < funcSigsToBeApproved.length ; i++) {
+            // Register refundWallet as authorized wallet to call these functions
+            AccessManagerFacet(diamond).setCanExecute(
+                funcSigsToBeApproved[i],
+                refundWallet,
+                true
+            );
+        }
+
         // prepare calldata to call transferOwnershipToZeroAddress function (during diamondCut)
         bytes memory callData = abi.encodeWithSelector(
             ImmutableDiamondOwnershipTransfer

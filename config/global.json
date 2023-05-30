@@ -1,3 +1,13 @@
 {
-  "refundWallet": ""
+  "refundWallet": "",
+  "approvedSigsForRefundWallet": [
+    {
+      "sig": "0x0d19e519",
+      "name": "CBridgeFacet.triggerRefund"
+    },
+    {
+      "sig": "0xd9caed12",
+      "name": "WithdrawFacet.withdraw"
+    }
+  ]
 }
