@@ -28,7 +28,7 @@ jobs:
             PR_ISDRAFT=$(echo "$PR" | jq -r '.draft')
 
             # Continue loop if the PR is draft
-            if ((PR_ISDRAFT)); then
+            if [[ "$PR_ISDRAFT" == "true" ]]; then
               continue
             fi
 
