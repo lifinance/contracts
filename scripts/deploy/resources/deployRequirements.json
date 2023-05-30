@@ -220,12 +220,12 @@
     "configData": {
       "anyNative": {
         "configFileName": "multichain.json",
-        "keyInConfigFile": ".<NETWORK>.anyNative",
+        "keyInConfigFile": ".<CHAIN_ID>.anyNative",
         "allowToDeployWithZeroAddress": "false"
       },
       "routers": {
         "configFileName": "multichain.json",
-        "keyInConfigFile": ".<NETWORK>.routers",
+        "keyInConfigFile": ".<CHAIN_ID>.routers",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -354,11 +354,11 @@
     }
   },
   "Executor": {
-   "contractAddresses": {
-     "ERC20Proxy": {
-       "allowToDeployWithZeroAddress": "true"
-     }
-   }
+    "contractAddresses": {
+      "ERC20Proxy": {
+        "allowToDeployWithZeroAddress": "true"
+      }
+    }
   },
   "Receiver": {
     "configData": {
@@ -389,4 +389,3 @@
     }
   }
 }
-

@@ -807,7 +807,9 @@
         "DexManagerFacet": "1.0.0",
         "AccessManagerFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0"
+        "LiFiDiamondImmutable": "1.0.0",
+        "CBridgeFacet": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   }
