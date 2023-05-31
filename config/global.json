@@ -1,5 +1,5 @@
 {
-  "refundWallet": "",
+  "refundWallet": "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0",
   "approvedSigsForRefundWallet": [
     {
       "sig": "0x0d19e519",

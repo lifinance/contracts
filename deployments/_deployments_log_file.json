@@ -2264,6 +2264,19 @@
           }
         ]
       }
+    },
+    "mumbai": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x82b6194cb862EFE466D3E43C6Bd68b3A9a31B5Bb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-05-31 13:39:06",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0000000000000000000000000f1d67e1dddc87e2858c87ebd5b19f99a4e297541",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "AcrossFacet": {
