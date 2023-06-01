@@ -26,14 +26,16 @@ deployUpgradesToSAFE() {
     UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$script".s.sol)
     echo "Fetching Cuts for $script"
     RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$ENVIRONMENT") forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
-    FACET_CUT=$(echo $RAW_RETURN_DATA | jq -r '.returns.facetCut.value')
+    FACET_CUT=$(echo $RAW_RETURN_DATA | jq -r '.returns.cutData.value')
     if [ "$FACET_CUT" != "[]" ]; then
+      # Replace all occurrences of ',' with '","' to create a valid JSON array
+      CUTS+=("$FACET_CUT")
       CUTS+=("$FACET_CUT")
     fi
   done
 
-  echo "CUTS: ${CUTS[@]}"
-  echo $(cast calldata "diamondCut((address,uint8,bytes4[])[],address,bytes)" "${CUTS[@]}")
+  CUTS_JSON=$(jq --compact-output --null-input '$ARGS.positional' --args -- "${CUTS[@]}")
+  ts-node scripts/deploy/gnosisSAFE/proposeTx.ts 0x "$CUTS_JSON"
   # TODO need to split cuts into valid array and cast to calldata
 }
 
