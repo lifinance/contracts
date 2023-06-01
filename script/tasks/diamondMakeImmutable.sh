@@ -99,9 +99,12 @@ diamondMakeImmutable() {
 
   if [ $attempts -eq 11 ]
   then
-      echo "Failed to transfer ownership of periphery contractsfor g"
+      echo "Failed to transfer ownership of periphery contracts"
       exit 1
   fi
+
+    echo "Press button to continue."
+    read
 
 
   # PART 3 - TRANSFER DIAMOND OWNERSHIP & REMOVE DIAMONDCUT FACET  -----------------------------------------------------
