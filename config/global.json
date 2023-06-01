@@ -1,5 +1,6 @@
 {
   "refundWallet": "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0",
+  "withdrawWallet": "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0",
   "approvedSigsForRefundWallet": [
     {
       "sig": "0x0d19e519",
@@ -8,64 +9,6 @@
     {
       "sig": "0xd9caed12",
       "name": "WithdrawFacet.withdraw"
-    }
-  ],
-  "unusableFunctionsToBeRemovedForImmutable": [
-    {
-      "contractName": "OwnershipFacet",
-      "functionIdentifiers": [ "0x23452b9c", "0x7200b829", "0xf2fde38b"]
-    },
-    {
-      "contractName": "WithdrawFacet",
-      "functionIdentifiers": [ "0x1458d7ad"]
-    },
-    {
-      "contractName": "DexManagerFacet",
-      "functionIdentifiers": [ "0x536db266", "0xfcd8e49e", "0x9afc19c7", "0x44e2b18c", "0x124f1ead", "0xc3a6a96b"]
-    },
-    {
-      "contractName": "AccessManagerFacet",
-      "functionIdentifiers": [ "0xa4c3366e"]
-    },
-    {
-      "contractName": "PeripheryRegistryFacet",
-      "functionIdentifiers": [ "0x5c2ed36a"]
-    },
-    {
-      "contractName": "AxelarFacet",
-      "functionIdentifiers": [ "0x733499c9"]
-    },
-    {
-      "contractName": "CBridgeFacetPacked",
-      "functionIdentifiers": [ "0x4c478642"]
-    },
-    {
-      "contractName": "HopFacet",
-      "functionIdentifiers": [ "0x67fdd71e", "0x3961d1ed"]
-    },
-    {
-      "contractName": "HopFacetOptimized",
-      "functionIdentifiers": [ "0x0680ded4"]
-    },
-    {
-      "contractName": "HopFacetPacked",
-      "functionIdentifiers": [ "0x23452b9c", "0x7200b829", "0x3c580fed", "0xf2fde38b"]
-    },
-    {
-      "contractName": "MultichainFacet",
-      "functionIdentifiers": [ "0xdfd83090", "0xdcd5733b", "0xbcd733b3"]
-    },
-    {
-      "contractName": "OFTWrapperFacet",
-      "functionIdentifiers": [ "0xe6f9a2c2", "0xfec34c65"]
-    },
-    {
-      "contractName": "OptimismBridgeFacet",
-      "functionIdentifiers": [ "0x899cc317", "0xdecb09d7"]
-    },
-    {
-      "contractName": "StargateFacet",
-      "functionIdentifiers": [ "0x023f34ae", "0xd35794fd"]
     }
   ]
 
