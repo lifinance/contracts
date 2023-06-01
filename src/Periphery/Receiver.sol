@@ -63,7 +63,6 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
     /// External Methods ///
 
-
     /// @notice Completes a cross-chain transaction with calldata via Amarok facet on the receiving chain.
     /// @dev This function is called from Amarok Router.
     /// @param _transferId The unique ID of this transaction (assigned by Amarok)
