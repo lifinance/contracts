@@ -809,7 +809,12 @@
         "WithdrawFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1"
+        "MultichainFacet": "1.0.1",
+        "ERC20Proxy": "1.0.0",
+        "FeeCollector": "1.0.0",
+        "Executor": "1.0.0",
+        "Receiver": "1.0.0",
+        "ServiceFeeCollector": "1.0.0"
       }
     }
   }
