@@ -7,7 +7,6 @@ import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
-import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 
 contract ImmutableDiamondOwnershipTransfer {
     /// Storage ///
@@ -93,7 +92,7 @@ contract DeployScript is UpdateScriptBase {
         );
 
         // remove cutFacet and transferOwnership to address(0)
-//        cutter.diamondCut(cut, ownershipTransfer, callData);
+        //        cutter.diamondCut(cut, ownershipTransfer, callData);
 
         vm.stopBroadcast();
     }

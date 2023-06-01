@@ -168,12 +168,7 @@ contract UpdateScriptBase is Script {
 
     function approveRefundWallet() internal {
         // get refund wallet address from global config file
-        path = string.concat(
-            root,
-            "/config/global",
-            ".",
-            "json"
-        );
+        path = string.concat(root, "/config/global", ".", "json");
         json = vm.readFile(path);
         address refundWallet = json.readAddress(".refundWallet");
 
