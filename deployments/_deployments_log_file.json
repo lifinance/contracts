@@ -290,9 +290,9 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x543aF89b0EeaDaa74D71f572E92ec41ca98bEd22",
+            "ADDRESS": "0x5e1a9784CAaAcC74510A05D9f2f562DCaD82Ed0c",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-05-16 13:17:57",
+            "TIMESTAMP": "2023-06-01 11:02:55",
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "false"
           }
@@ -578,10 +578,10 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x26C707aD4fF84cf0e726B26fB02258611a8c7075",
+            "ADDRESS": "0xf303Bcd73E69B0d08e3411F5E6D1426F223D41f5",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-05-16 13:44:11",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea000000000000000000000000032540902f1f4e88497582aae6ecc8bd75f0d58ee",
+            "TIMESTAMP": "2023-06-01 11:03:16",
+            "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "false"
           }
         ]
@@ -861,6 +861,19 @@
           }
         ]
       }
+    },
+    "mumbai": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2158a8d8bFD6a60b706e11810883a524Bc724Ef4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-01 11:03:38",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "DexManagerFacet": {
@@ -1136,6 +1149,19 @@
           }
         ]
       }
+    },
+    "mumbai": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x7784605c754f83eE094C95de8685d26129F97200",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-01 11:04:03",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "AccessManagerFacet": {
@@ -1182,11 +1208,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xA8427B94C563269703889BDACDcA3664Df188970",
+            "ADDRESS": "0x7CB6fd05FC6985C55C52B561fe87f6Cc71587df0",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-05-04 19:56:46",
+            "TIMESTAMP": "2023-06-01 11:04:28",
             "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "true"
+            "VERIFIED": "false"
           }
         ]
       }
@@ -1699,6 +1725,19 @@
           }
         ]
       }
+    },
+    "mumbai": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4C28a51Ba06Ab393be7CB2e106Ac6540858048CE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-01 11:04:49",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "PeripheryRegistryFacet": {
@@ -1971,6 +2010,19 @@
             "TIMESTAMP": "2023-05-18 12:45:30",
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mumbai": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4632559Bd1248914DbFF4C9Ac3AC30BA99325636",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-01 11:05:11",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -2274,6 +2326,17 @@
             "TIMESTAMP": "2023-05-31 13:39:06",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0000000000000000000000000f1d67e1dddc87e2858c87ebd5b19f99a4e297541",
             "VERIFIED": "true"
+          }
+        ]
+      },
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xc814Ccd4597c0149B4ceb3e43883eFDf4FE0fd06",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-01 11:05:33",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea00000000000000000000000005e1a9784caaacc74510a05d9f2f562dcad82ed0c",
+            "VERIFIED": "false"
           }
         ]
       }

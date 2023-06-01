@@ -184,10 +184,6 @@
         "ERC20Proxy": "1.0.0"
       },
       "LiFiDiamondImmutable": {
-        "AcrossFacet": "1.0.0",
-        "AxelarExecutor": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "HopFacetOptimized": "1.0.0"
       }
     }
   },

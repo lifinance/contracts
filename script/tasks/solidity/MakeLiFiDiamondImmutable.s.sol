@@ -16,7 +16,6 @@ contract ImmutableDiamondOwnershipTransfer {
         keccak256("com.lifi.facets.ownership");
 
     /// Types ///
-
     struct Storage {
         address newOwner;
     }
@@ -41,19 +40,12 @@ contract ImmutableDiamondOwnershipTransfer {
 }
 
 contract DeployScript is UpdateScriptBase {
-
-    struct FunctionSignature {
-        string name;
-        bytes sig;
-    }
-
     using stdJson for string;
 
     function run()
         public
         returns (LiFiDiamond deployed, bytes memory constructorArgs)
     {
-
         CREATE3Factory factory = CREATE3Factory(
             vm.envAddress("CREATE3_FACTORY_ADDRESS")
         );
@@ -64,8 +56,6 @@ contract DeployScript is UpdateScriptBase {
             vm.addr(deployerPrivateKey),
             salt
         );
-
-
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -102,7 +92,7 @@ contract DeployScript is UpdateScriptBase {
             })
         );
 
-//        // remove cutFacet and transferOwnership to address(0)
+        // remove cutFacet and transferOwnership to address(0)
 //        cutter.diamondCut(cut, ownershipTransfer, callData);
 
         vm.stopBroadcast();

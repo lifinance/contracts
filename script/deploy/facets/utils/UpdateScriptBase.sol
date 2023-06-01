@@ -6,8 +6,14 @@ import { stdJson } from "forge-std/StdJson.sol";
 import "forge-std/console.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
+import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 
 contract UpdateScriptBase is Script {
+    struct FunctionSignature {
+        string name;
+        bytes sig;
+    }
+
     using stdJson for string;
 
     address internal diamond;
@@ -162,20 +168,23 @@ contract UpdateScriptBase is Script {
 
     function approveRefundWallet() internal {
         // get refund wallet address from global config file
-        string memory path = string.concat(
-        root,
-        "/config/global",
-        ".",
-        "json"
+        path = string.concat(
+            root,
+            "/config/global",
+            ".",
+            "json"
         );
-        string memory json = vm.readFile(path);
+        json = vm.readFile(path);
         address refundWallet = json.readAddress(".refundWallet");
 
         // get function signatures that should be approved for refundWallet
         bytes memory rawConfig = json.parseRaw(".approvedSigsForRefundWallet");
 
         // parse raw data from config into FunctionSignature array
-        FunctionSignature[] memory funcSigsToBeApproved = abi.decode(rawConfig, (FunctionSignature[]));
+        FunctionSignature[] memory funcSigsToBeApproved = abi.decode(
+            rawConfig,
+            (FunctionSignature[])
+        );
 
         // go through array with function signatures
         for (uint i = 0; i < funcSigsToBeApproved.length; i++) {
