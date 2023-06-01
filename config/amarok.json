@@ -98,5 +98,9 @@
   "lineatest": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
+  },
+  "polygonzkevm": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
   }
 }
