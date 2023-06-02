@@ -11,10 +11,7 @@ contract DeployScript is UpdateScriptBase {
 
     function run()
         public
-        returns (
-            address[] memory facets,
-            IDiamondCut.FacetCut[] memory facetCut
-        )
+        returns (address[] memory facets, bytes memory cutData)
     {
         address facet = json.readAddress(".CBridgeFacetPacked");
 
@@ -29,7 +26,13 @@ contract DeployScript is UpdateScriptBase {
         exclude[6] = cbridge.triggerRefund.selector;
         buildDiamondCut(getSelectors("CBridgeFacetPacked", exclude), facet);
         if (noBroadcast) {
-            return (facets, cut);
+            cutData = abi.encodeWithSelector(
+                DiamondCutFacet.diamondCut.selector,
+                cut,
+                address(0),
+                ""
+            );
+            return (facets, cutData);
         }
 
         vm.startBroadcast(deployerPrivateKey);

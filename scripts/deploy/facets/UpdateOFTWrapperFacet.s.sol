@@ -16,10 +16,7 @@ contract DeployScript is UpdateScriptBase {
 
     function run()
         public
-        returns (
-            address[] memory facets,
-            IDiamondCut.FacetCut[] memory facetCut
-        )
+        returns (address[] memory facets, bytes memory cutData)
     {
         address facet = json.readAddress(".OFTWrapperFacet");
 
@@ -41,7 +38,13 @@ contract DeployScript is UpdateScriptBase {
         exclude[0] = OFTWrapperFacet.initOFTWrapper.selector;
         buildDiamondCut(getSelectors("OFTWrapperFacet", exclude), facet);
         if (noBroadcast) {
-            return (facets, cut);
+            cutData = abi.encodeWithSelector(
+                DiamondCutFacet.diamondCut.selector,
+                cut,
+                address(facet),
+                callData
+            );
+            return (facets, cutData);
         }
 
         vm.startBroadcast(deployerPrivateKey);

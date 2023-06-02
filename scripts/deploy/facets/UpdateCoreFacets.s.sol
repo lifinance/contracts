@@ -17,10 +17,7 @@ contract DeployScript is UpdateScriptBase {
 
     function run()
         public
-        returns (
-            address[] memory facets,
-            IDiamondCut.FacetCut[] memory facetCut
-        )
+        returns (address[] memory facets, bytes memory cutData)
     {
         address diamondLoupe = json.readAddress(".DiamondLoupeFacet");
         address ownership = json.readAddress(".OwnershipFacet");
@@ -100,7 +97,13 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(peripheryRgsSelectors, peripheryRgs);
         }
         if (noBroadcast) {
-            return (facets, cut);
+            cutData = abi.encodeWithSelector(
+                DiamondCutFacet.diamondCut.selector,
+                cut,
+                address(0),
+                ""
+            );
+            return (facets, cutData);
         }
 
         vm.startBroadcast(deployerPrivateKey);

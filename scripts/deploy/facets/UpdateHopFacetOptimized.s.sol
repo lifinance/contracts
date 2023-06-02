@@ -21,10 +21,7 @@ contract DeployScript is UpdateScriptBase {
 
     function run()
         public
-        returns (
-            address[] memory facets,
-            IDiamondCut.FacetCut[] memory facetCut
-        )
+        returns (address[] memory facets, bytes memory cutData)
     {
         address facet = json.readAddress(".HopFacetOptimized");
 
@@ -51,7 +48,13 @@ contract DeployScript is UpdateScriptBase {
         bytes4[] memory exclude;
         buildDiamondCut(getSelectors("HopFacetOptimized", exclude), facet);
         if (noBroadcast) {
-            return (facets, cut);
+            cutData = abi.encodeWithSelector(
+                DiamondCutFacet.diamondCut.selector,
+                cut,
+                address(facet),
+                callData
+            );
+            return (facets, cutData);
         }
 
         vm.startBroadcast(deployerPrivateKey);
