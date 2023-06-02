@@ -2,6 +2,7 @@
 
 # TODO
 
+# - add support for local dev network
 # - enrich diamond deploy log with version info for periphery contracts and diamond contract version (+ immutable status)
 #   >> minimize search master deploy log (takes a lot of time)
 # - replace debug outputs with new helper method
@@ -94,6 +95,13 @@ scriptMaster() {
 
     # get user-selected network from list
     local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+
+
+    # TODO: to be finalized...
+#    # start local network, if needed
+#    if [[ ! "$NETWORK" == *"localanvil"* ]]; then
+#      anvil -m "$MNEMONIC" >/dev/null
+#    fi
 
     echo "[info] selected network: $NETWORK"
     echo "[info] loading deployer wallet balance..."

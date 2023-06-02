@@ -96,13 +96,13 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(peripheryRgsSelectors, peripheryRgs);
         }
 
-        // approve refundWallet to execute certain functions (as defined in config/global.json)
-        approveRefundWallet();
-
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }
         facets = loupe.facetAddresses();
+
+        // approve refundWallet to execute certain functions (as defined in config/global.json)
+        approveRefundWallet();
 
         vm.stopBroadcast();
     }

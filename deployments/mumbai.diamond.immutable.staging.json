@@ -1,9 +1,37 @@
 {
   "LiFiDiamondImmutable": {
     "Facets": {
-      "null": {
-        "Name": "",
-        "Version": ""
+      "0x677E16c194cF357CEe533A87B30F199a5439Bfb0": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0xCBf391a8F5298b656F6A6d47aA4e52CC6013c3d6": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0x2A7a93DEF554Fe54241b522591D59F13CFF4c653": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x89340A829a8A580448824AB5b3Ac6F12D725ABd3": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0xdd2C511cf01FFA041C3583c32bE44142Af38419d": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xE5a287B67C2f8637Df7c2bB7Ecd62F10C151e19c": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x3dC6809Dfe8873a84B978C7ed965df0D5286050c": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0x501119b135731aA8931648523d7f8CD916BC50C5": {
+        "Name": "CelerIMFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
