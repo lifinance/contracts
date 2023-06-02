@@ -5,6 +5,7 @@ deployUpgradesToSAFE() {
   source scripts/config.sh
   source scripts/deploy/resources/deployHelperFunctions.sh
 
+  ENVIRONMENT="production"
   NETWORK=$(getUserSelectedNetwork)
   DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
   if [ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]; then
@@ -13,8 +14,7 @@ deployUpgradesToSAFE() {
     USE_MUTABLE_DIAMOND=false
 
   fi
-  echo $DIAMOND_CONTRACT_NAME
-  echo $DEPLOY_SCRIPT_DIRECTORY
+  echo "Preparing upgrade proposal for" $DIAMOND_CONTRACT_NAME
   # Get list of Update scripts from ./scripts/deploy/facets where file name starts with "Update" and ends in ".sol" strip path, the worf "Update" and ".s.sol" from the file name
   # separate by new line
 
@@ -24,9 +24,10 @@ deployUpgradesToSAFE() {
   declare -a CUTS
   for script in $SCRIPTS; do
     UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$script".s.sol)
-    echo "Fetching Cuts for $script"
+    echo "Calculating facet cuts for $script..."
     RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$ENVIRONMENT") forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
-    FACET_CUT=$(echo $RAW_RETURN_DATA | jq -r '.returns.cutData.value')
+    CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+    FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
     if [ "$FACET_CUT" != "[]" ]; then
       CUTS+=("$FACET_CUT")
     fi
@@ -35,8 +36,11 @@ deployUpgradesToSAFE() {
   # Convert the array of cuts to a JSON array
   CUTS_JSON=$(jq --compact-output --null-input '$ARGS.positional' --args -- "${CUTS[@]}")
 
-  # Call the proposeTx script ts-node proposeTx.ts diamondAddress cuts rpcUrl
-  ts-node scripts/deploy/gnosisSAFE/proposeTx.ts 0x "$CUTS_JSON" $(getRPCUrl $NETWORK)
+  # Get the diamondAddress
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+
+  # Call the proposeTx script ts-node proposeTx.ts diamondAddress cuts network rpcUrl
+  ts-node scripts/deploy/gnosisSAFE/proposeTx.ts "$DIAMOND_ADDRESS" "$CUTS_JSON" "$NETWORK" $(getRPCUrl $NETWORK)
 }
 
 deployUpgradesToSAFE
