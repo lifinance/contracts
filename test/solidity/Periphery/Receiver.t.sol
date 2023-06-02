@@ -81,36 +81,6 @@ contract ReceiverTest is TestBase {
         receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
     }
 
-    function test_OwnerCanUpdateRecoverGas() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        vm.expectEmit(true, true, true, true, address(receiver));
-        emit RecoverGasSet(1000);
-
-        receiver.setRecoverGas(1000);
-    }
-
-    function test_revert_UpdateRecoverGasNonOwner() public {
-        vm.startPrank(USER_SENDER);
-        vm.expectRevert(UnAuthorized.selector);
-        receiver.setRecoverGas(1000);
-    }
-
-    function test_OwnerCanUpdateExecutorAddress() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        vm.expectEmit(true, true, true, true, address(receiver));
-        emit ExecutorSet(stargateRouter);
-
-        receiver.setExecutor(stargateRouter);
-    }
-
-    function test_revert_UpdateExecutorAddressNonOwner() public {
-        vm.startPrank(USER_SENDER);
-        vm.expectRevert(UnAuthorized.selector);
-        receiver.setExecutor(stargateRouter);
-    }
-
     // AMAROK-RELATED TESTS
     function test_amarok_ExecutesCrossChainMessage() public {
         // create swap data
@@ -260,21 +230,6 @@ contract ReceiverTest is TestBase {
         );
     }
 
-    function test_amarok_OwnerCanUpdateRouterAddress() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        vm.expectEmit(true, true, true, true, address(receiver));
-        emit AmarokRouterSet(stargateRouter);
-
-        receiver.setAmarokRouter(stargateRouter);
-    }
-
-    function test_revert_amarok_UpdateRouterAddressNonOwner() public {
-        vm.startPrank(USER_SENDER);
-        vm.expectRevert(UnAuthorized.selector);
-        receiver.setAmarokRouter(stargateRouter);
-    }
-
     // STARGATE-RELATED TESTS
     function test_stargate_ExecutesCrossChainMessage() public {
         // create swap data
@@ -389,20 +344,5 @@ contract ReceiverTest is TestBase {
             defaultUSDCAmount,
             payload
         );
-    }
-
-    function test_stargate_OwnerCanUpdateRouterAddress() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        vm.expectEmit(true, true, true, true, address(receiver));
-        emit StargateRouterSet(amarokRouter);
-
-        receiver.setStargateRouter(amarokRouter);
-    }
-
-    function test_revert_stargate_UpdateRouterAddressNonOwner() public {
-        vm.startPrank(USER_SENDER);
-        vm.expectRevert(UnAuthorized.selector);
-        receiver.setStargateRouter(amarokRouter);
     }
 }

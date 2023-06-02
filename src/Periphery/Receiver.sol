@@ -8,12 +8,12 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
-import { UnAuthorized } from "../Errors/GenericErrors.sol";
+import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
@@ -22,9 +22,6 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     IExecutor public executor;
     uint256 public recoverGas;
     address public amarokRouter;
-
-    /// Errors ///
-    error ExternalCallFailed();
 
     /// Events ///
     event StargateRouterSet(address indexed router);
@@ -65,34 +62,6 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     }
 
     /// External Methods ///
-
-    /// @notice set stargate router
-    /// @param _sgRouter the stargate router address
-    function setStargateRouter(address _sgRouter) external onlyOwner {
-        sgRouter = _sgRouter;
-        emit StargateRouterSet(_sgRouter);
-    }
-
-    /// @notice Sets the address of the Amarok router
-    /// @param _amarokRouter the Amarok router address
-    function setAmarokRouter(address _amarokRouter) external onlyOwner {
-        amarokRouter = _amarokRouter;
-        emit AmarokRouterSet(_amarokRouter);
-    }
-
-    /// @notice set Executor
-    /// @param _executor the Executor address
-    function setExecutor(address _executor) external onlyOwner {
-        executor = IExecutor(_executor);
-        emit ExecutorSet(_executor);
-    }
-
-    /// @notice set execution recoverGas
-    /// @param _recoverGas recoverGas
-    function setRecoverGas(uint256 _recoverGas) external onlyOwner {
-        recoverGas = _recoverGas;
-        emit RecoverGasSet(_recoverGas);
-    }
 
     /// @notice Completes a cross-chain transaction with calldata via Amarok facet on the receiving chain.
     /// @dev This function is called from Amarok Router.
