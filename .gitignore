@@ -35,3 +35,4 @@ test/logs
 
 # script config
 scripts/config.sh
+script/config.sh
