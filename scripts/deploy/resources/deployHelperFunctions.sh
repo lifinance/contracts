@@ -1052,9 +1052,10 @@ function parseTargetStateGoogleSpreadsheet() {
   # we currently only support production environment
   ENVIRONMENT="production"
 
-  NETWORKS_START_AT_LINE=143
-  PERIPHERY_STARTS_AT_COLUMN=5
+  NETWORKS_START_AT_LINE=123
+  PERIPHERY_STARTS_AT_COLUMN=3
   FACETS_START_AT_COLUMN=21
+  ROW_WITH_CONTRACT_NAMES=11
 
   # process the CSV file line by line
   LINE_NUMBER=0
@@ -1062,14 +1063,10 @@ function parseTargetStateGoogleSpreadsheet() {
     # Increment the line number
     ((LINE_NUMBER++))
 
-#    if [[ $((LINE_NUMBER)) -gt "$NETWORKS_START_AT_LINE" ]]; then
-#      echo "LINE: $LINE_NUMBER >> $LINE"
-#    fi
-
     # Catch the line that contains the contract names
-    if [[ LINE_NUMBER -eq "7" ]]; then
-      # Remove the "Facets:" and "EXAMPLE" from the line
-      STRING_TO_REMOVE="Contracts:,EXAMPLE,,PERIPHERY,,"
+    if [[ LINE_NUMBER -eq "$ROW_WITH_CONTRACT_NAMES" ]]; then
+      # Remove the unneeded values from the line
+      STRING_TO_REMOVE='  Blue = Periphery",EXAMPLE,,'
       CONTRACTS_LINE=$(echo "$LINE" | sed "s/^${STRING_TO_REMOVE}//")
 
       # Split the line by comma into an array
@@ -1115,12 +1112,13 @@ function parseTargetStateGoogleSpreadsheet() {
 
           # skip the iteration if the contract is empty (=empty placeholder column for future contracts)
           if [[ -z "$CONTRACT" ]]; then
-            echoDebug "skipping iteration (probably an empty placeholder column)"
+            echoDebug "skipping iteration (no contract name in column)"
             continue
           fi
 
-          # skip the iteration if the contract is "FACETS" (=structural column without any data)
-          if [[ "$CONTRACT" == "FACETS" ]]; then
+          # skip the iteration if the contract is empty (=empty placeholder column for future contracts)
+          if [[ -z "$CELL_VALUE" ]]; then
+            echoDebug "skipping iteration (no value in cell)"
             continue
           fi
 
@@ -3302,6 +3300,3 @@ function test_tmp() {
     fi
   fi
 }
-
-
-parseTargetStateGoogleSpreadsheet
