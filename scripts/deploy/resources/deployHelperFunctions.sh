@@ -2934,9 +2934,21 @@ function isVersionTag() {
 # <<<<<< miscellaneous
 
 # >>>>>> helpers to set/update deployment files/logs/etc
-function updateDiamondLogsInAllNetworks() {
-  # get array with all network names
-  local NETWORKS=($(getIncludedNetworksArray))
+function updateDiamondLogs() {
+  # read function arguments into variable
+  local NETWORK=$1
+
+  # if no network was passed to this function, update all networks
+  if [[ -z $NETWORK ]]; then
+    # get array with all network names
+    NETWORKS=($(getIncludedNetworksArray))
+  else
+    NETWORKS=($NETWORK)
+  fi
+
+  echo ""
+  echo "Now updating all diamond logs on network(s): ${NETWORKS[*]}"
+  echo ""
 
   ENVIRONMENTS=("production" "staging")
   DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable")
@@ -2947,9 +2959,9 @@ function updateDiamondLogsInAllNetworks() {
     echo "current Network: $NETWORK"
 
     # >>>>  limit here to a certain network, if needed
-    if [[ $NETWORK == "optimism" ]]; then
-      continue
-    fi
+#    if [[ $NETWORK == "optimism" ]]; then
+#      continue
+#    fi
 
     # get RPC URL
     local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
@@ -2960,7 +2972,7 @@ function updateDiamondLogsInAllNetworks() {
       echo " -----------------------"
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
-      # >>>>  limit here to a certain diamond type, if needed
+      # >>>>  limit here to a certain environment, if needed
       #      if [[ $ENVIRONMENT == "staging" ]]; then
       #        continue
       #      fi
