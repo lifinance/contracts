@@ -70,7 +70,7 @@ scriptMaster() {
 
   # ask user to choose a deploy use case
   echo ""
-  echo "You are executing transactions from this address: $(getDeployerAddress "$ENVIRONMENT")"
+  echo "You are executing transactions from this address: $(getDeployerAddress "" "$ENVIRONMENT")"
   echo ""
   echo "Please choose one of the following options:"
   local SELECTION=$(

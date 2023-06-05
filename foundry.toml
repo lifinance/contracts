@@ -43,6 +43,7 @@ goerli = "${ETH_NODE_URI_GOERLI}"
 mumbai = "${ETH_NODE_URI_MUMBAI}"
 lineatest = "${ETH_NODE_URI_LINEATEST}"
 bsc-testnet = "${ETH_NODE_URI_BSCTEST}"
+localanvil = "${ETH_NODE_URI_LOCALANVIL}"
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
