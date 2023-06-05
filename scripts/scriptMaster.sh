@@ -448,7 +448,7 @@ scriptMaster() {
 
     if [[ "$SELECTION_DIAMOND_TYPE" == *"1)"* ]]; then
       # call update diamond log function
-      updateDiamondLogsInAllNetworks
+      updateDiamondLogs
     else
       # get user-selected network from list
       local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
@@ -464,7 +464,7 @@ scriptMaster() {
       checkRequiredVariablesInDotEnv $NETWORK
 
       # call update diamond log function
-      updateDiamondLogsInAllNetworks "$NETWORK"
+      updateDiamondLogs "$NETWORK"
     fi
 
   else

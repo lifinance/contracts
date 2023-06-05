@@ -2934,7 +2934,7 @@ function isVersionTag() {
 # <<<<<< miscellaneous
 
 # >>>>>> helpers to set/update deployment files/logs/etc
-function updateDiamondLogsInAllNetworks() {
+function updateDiamondLogs() {
   # read function arguments into variable
   local NETWORK=$1
 
