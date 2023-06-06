@@ -53,11 +53,13 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Initialize the contract.
     /// @param _owner The contract owner to approve tokens.
+    /// @param _wrapper The address of Hop L2_AmmWrapper for native asset.
     constructor(
         address _owner,
         address _wrapper
     ) TransferrableOwnership(_owner) {
         bool wrapperIsSet = _wrapper != address(0);
+
         if (block.chainid == 1 && wrapperIsSet) {
             revert Invalid();
         }
