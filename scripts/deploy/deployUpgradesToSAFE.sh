@@ -46,6 +46,7 @@ deployUpgradesToSAFE() {
 
   # Call the proposeTx script ts-node proposeTx.ts diamondAddress cuts network rpcUrl
   ts-node scripts/deploy/gnosisSAFE/proposeTx.ts "$DIAMOND_ADDRESS" "$CUTS_JSON" "$NETWORK" $(getRPCUrl $NETWORK)
+  exit 0
 }
 
-deployUpgradesToSAFE
+# deployUpgradesToSAFE
