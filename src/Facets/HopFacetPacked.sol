@@ -86,7 +86,9 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         address[] calldata bridges,
         address[] calldata tokensToApprove
     ) external onlyOwner {
-        for (uint256 i; i < bridges.length; i++) {
+        uint256 numBridges = bridges.length;
+
+        for (uint256 i; i < numBridges; i++) {
             // Give Hop approval to bridge tokens
             LibAsset.maxApproveERC20(
                 IERC20(tokensToApprove[i]),
