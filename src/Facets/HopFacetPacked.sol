@@ -1,6 +1,6 @@
 pragma solidity 0.8.17;
 
-import "../Interfaces/IHopBridge.sol";
+import { IHopBridge, IL2AmmWrapper, ISwap } from "../Interfaces/IHopBridge.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ERC20 } from "solmate/utils/SafeTransferLib.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";

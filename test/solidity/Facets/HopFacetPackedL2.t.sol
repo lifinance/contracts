@@ -1,7 +1,7 @@
 pragma solidity 0.8.17;
 
 import "ds-test/test.sol";
-import "lifi/Interfaces/IHopBridge.sol";
+import { IHopBridge, IL2AmmWrapper } from "lifi/Interfaces/IHopBridge.sol";
 import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
