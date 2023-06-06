@@ -1,33 +1,12 @@
 pragma solidity 0.8.17;
 
-import { IHopBridge } from "../Interfaces/IHopBridge.sol";
+import "../Interfaces/IHopBridge.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ERC20 } from "solmate/utils/SafeTransferLib.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 import { WETH } from "solmate/tokens/WETH.sol";
-
-// solhint-disable-next-line contract-name-camelcase
-interface L2_AmmWrapper {
-    function bridge() external view returns (address);
-
-    function l2CanonicalToken() external view returns (address);
-
-    function hToken() external view returns (address);
-
-    function exchangeAddress() external view returns (address);
-}
-
-interface Swap {
-    function swap(
-        uint8 tokenIndexFrom,
-        uint8 tokenIndexTo,
-        uint256 dx,
-        uint256 minDy,
-        uint256 deadline
-    ) external returns (uint256);
-}
 
 /// @title Hop Facet (Optimized for Rollups)
 /// @author LI.FI (https://li.fi)
@@ -65,16 +44,16 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         }
 
         nativeL2CanonicalToken = wrapperIsSet
-            ? L2_AmmWrapper(_wrapper).l2CanonicalToken()
+            ? IL2AmmWrapper(_wrapper).l2CanonicalToken()
             : address(0);
         nativeHToken = wrapperIsSet
-            ? L2_AmmWrapper(_wrapper).hToken()
+            ? IL2AmmWrapper(_wrapper).hToken()
             : address(0);
         nativeExchangeAddress = wrapperIsSet
-            ? L2_AmmWrapper(_wrapper).exchangeAddress()
+            ? IL2AmmWrapper(_wrapper).exchangeAddress()
             : address(0);
         nativeBridge = wrapperIsSet
-            ? L2_AmmWrapper(_wrapper).bridge()
+            ? IL2AmmWrapper(_wrapper).bridge()
             : address(0);
     }
 
@@ -119,7 +98,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         WETH(payable(nativeL2CanonicalToken)).deposit{ value: msg.value }();
 
         // Exchange WETH for hToken
-        uint256 swapAmount = Swap(nativeExchangeAddress).swap(
+        uint256 swapAmount = ISwap(nativeExchangeAddress).swap(
             0,
             1,
             msg.value,
@@ -271,7 +250,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         );
 
         // Exchange sending asset to hToken
-        uint256 swapAmount = Swap(address(bytes20(msg.data[144:164]))).swap(
+        uint256 swapAmount = ISwap(address(bytes20(msg.data[144:164]))).swap(
             0,
             1,
             amount,
@@ -399,8 +378,8 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
                 bytes16(uint128(destinationAmountOutMin)),
                 bytes4(uint32(destinationDeadline)),
                 bytes20(wrapper),
-                bytes20(L2_AmmWrapper(wrapper).exchangeAddress()),
-                bytes20(L2_AmmWrapper(wrapper).bridge())
+                bytes20(IL2AmmWrapper(wrapper).exchangeAddress()),
+                bytes20(IL2AmmWrapper(wrapper).bridge())
             );
     }
 

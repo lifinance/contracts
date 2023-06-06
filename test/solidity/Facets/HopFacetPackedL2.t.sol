@@ -1,10 +1,10 @@
 pragma solidity 0.8.17;
 
 import "ds-test/test.sol";
-import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
+import "lifi/Interfaces/IHopBridge.sol";
 import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { HopFacetPacked, L2_AmmWrapper } from "lifi/Facets/HopFacetPacked.sol";
+import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { console } from "../utils/Console.sol";
@@ -124,16 +124,16 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
         /// Approval
         address[] memory bridges = new address[](5);
         bridges[0] = HOP_USDC_BRIDGE;
-        bridges[1] = L2_AmmWrapper(USDC_AMM_WRAPPER).exchangeAddress();
-        bridges[2] = L2_AmmWrapper(USDC_AMM_WRAPPER).bridge();
-        bridges[3] = L2_AmmWrapper(NATIVE_AMM_WRAPPER).exchangeAddress();
-        bridges[4] = L2_AmmWrapper(NATIVE_AMM_WRAPPER).bridge();
-        address[] memory tokens = new address[](3);
+        bridges[1] = IL2AmmWrapper(USDC_AMM_WRAPPER).exchangeAddress();
+        bridges[2] = IL2AmmWrapper(USDC_AMM_WRAPPER).bridge();
+        bridges[3] = IL2AmmWrapper(NATIVE_AMM_WRAPPER).exchangeAddress();
+        bridges[4] = IL2AmmWrapper(NATIVE_AMM_WRAPPER).bridge();
+        address[] memory tokens = new address[](5);
         tokens[0] = USDC_ADDRESS;
-        tokens[1] = L2_AmmWrapper(USDC_AMM_WRAPPER).l2CanonicalToken();
-        tokens[2] = L2_AmmWrapper(USDC_AMM_WRAPPER).hToken();
-        tokens[3] = L2_AmmWrapper(NATIVE_AMM_WRAPPER).l2CanonicalToken();
-        tokens[4] = L2_AmmWrapper(NATIVE_AMM_WRAPPER).hToken();
+        tokens[1] = IL2AmmWrapper(USDC_AMM_WRAPPER).l2CanonicalToken();
+        tokens[2] = IL2AmmWrapper(USDC_AMM_WRAPPER).hToken();
+        tokens[3] = IL2AmmWrapper(NATIVE_AMM_WRAPPER).l2CanonicalToken();
+        tokens[4] = IL2AmmWrapper(NATIVE_AMM_WRAPPER).hToken();
 
         // > diamond
         HopFacetOptimized hopFacetOptimized = new HopFacetOptimized();
