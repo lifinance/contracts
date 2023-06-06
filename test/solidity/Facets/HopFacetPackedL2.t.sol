@@ -163,10 +163,7 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
                 RECEIVER,
                 destinationChainId,
                 amountBonderFeeNative,
-                amountOutMinNative,
-                amountOutMinNative,
-                deadline,
-                HOP_NATIVE_BRIDGE
+                amountOutMinNative
             );
 
         // USDC params

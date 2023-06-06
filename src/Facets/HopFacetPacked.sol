@@ -183,18 +183,12 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
     /// @param destinationChainId Receiving chain
     /// @param bonderFee Fees payed to hop bonder
     /// @param amountOutMin Source swap minimal accepted amount
-    /// @param destinationAmountOutMin Destination swap minimal accepted amount
-    /// @param destinationDeadline Destination swap maximal time
-    /// @param hopBridge Address of the Hop L2_AmmWrapper
     function encode_startBridgeTokensViaHopL2NativePacked(
         bytes8 transactionId,
         address receiver,
         uint256 destinationChainId,
         uint256 bonderFee,
-        uint256 amountOutMin,
-        uint256 destinationAmountOutMin,
-        uint256 destinationDeadline,
-        address hopBridge
+        uint256 amountOutMin
     ) external pure returns (bytes memory) {
         require(
             destinationChainId <= type(uint32).max,
@@ -207,18 +201,6 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         require(
             amountOutMin <= type(uint128).max,
             "amountOutMin value passed too big to fit in uint128"
-        );
-        require(
-            destinationAmountOutMin <= type(uint128).max,
-            "destinationAmountOutMin value passed too big to fit in uint128"
-        );
-        require(
-            destinationDeadline <= type(uint32).max,
-            "destinationDeadline value passed too big to fit in uint32"
-        );
-        require(
-            hopBridge != address(0),
-            "hopBridge value passed is address zero"
         );
 
         return
