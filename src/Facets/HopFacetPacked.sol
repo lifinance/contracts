@@ -281,7 +281,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
         // Bridge assets
         // solhint-disable-next-line check-send-result
-        IHopBridge(address(bytes20(msg.data[124:144]))).send(
+        IHopBridge(address(bytes20(msg.data[164:184]))).send(
             destinationChainId,
             address(bytes20(msg.data[12:32])),
             swapAmount,
