@@ -48,12 +48,14 @@ contract DeployScript is UpdateScriptBase {
         bytes4[] memory exclude;
         buildDiamondCut(getSelectors("HopFacetOptimized", exclude), facet);
         if (noBroadcast) {
-            cutData = abi.encodeWithSelector(
-                DiamondCutFacet.diamondCut.selector,
-                cut,
-                address(facet),
-                callData
-            );
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(facet),
+                    callData
+                );
+            }
             return (facets, cutData);
         }
 

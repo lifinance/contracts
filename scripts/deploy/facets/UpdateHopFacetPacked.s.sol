@@ -23,12 +23,14 @@ contract DeployScript is UpdateScriptBase {
         exclude[4] = 0xf2fde38b;
         buildDiamondCut(getSelectors("HopFacetPacked", exclude), facet);
         if (noBroadcast) {
-            cutData = abi.encodeWithSelector(
-                DiamondCutFacet.diamondCut.selector,
-                cut,
-                address(0),
-                ""
-            );
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(0),
+                    ""
+                );
+            }
             return (facets, cutData);
         }
 

@@ -39,12 +39,14 @@ contract DeployScript is UpdateScriptBase {
         exclude[0] = StargateFacet.initStargate.selector;
         buildDiamondCut(getSelectors("StargateFacet", exclude), facet);
         if (noBroadcast) {
-            cutData = abi.encodeWithSelector(
-                DiamondCutFacet.diamondCut.selector,
-                cut,
-                address(facet),
-                callData
-            );
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(facet),
+                    callData
+                );
+            }
             return (facets, cutData);
         }
 

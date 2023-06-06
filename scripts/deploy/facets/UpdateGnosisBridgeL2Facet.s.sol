@@ -19,12 +19,14 @@ contract DeployScript is UpdateScriptBase {
         bytes4[] memory exclude;
         buildDiamondCut(getSelectors("GnosisBridgeL2Facet", exclude), facet);
         if (noBroadcast) {
-            cutData = abi.encodeWithSelector(
-                DiamondCutFacet.diamondCut.selector,
-                cut,
-                address(0),
-                ""
-            );
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(0),
+                    ""
+                );
+            }
             return (facets, cutData);
         }
 

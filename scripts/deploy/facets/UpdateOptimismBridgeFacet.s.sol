@@ -41,12 +41,14 @@ contract DeployScript is UpdateScriptBase {
         exclude[0] = OptimismBridgeFacet.initOptimism.selector;
         buildDiamondCut(getSelectors("OptimismBridgeFacet", exclude), facet);
         if (noBroadcast) {
-            cutData = abi.encodeWithSelector(
-                DiamondCutFacet.diamondCut.selector,
-                cut,
-                address(facet),
-                callData
-            );
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(facet),
+                    callData
+                );
+            }
             return (facets, cutData);
         }
 

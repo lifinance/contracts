@@ -97,12 +97,14 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(peripheryRgsSelectors, peripheryRgs);
         }
         if (noBroadcast) {
-            cutData = abi.encodeWithSelector(
-                DiamondCutFacet.diamondCut.selector,
-                cut,
-                address(0),
-                ""
-            );
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(0),
+                    ""
+                );
+            }
             return (facets, cutData);
         }
 

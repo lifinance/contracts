@@ -47,12 +47,14 @@ contract DeployScript is UpdateScriptBase {
         exclude[0] = MultichainFacet.initMultichain.selector;
         buildDiamondCut(getSelectors("MultichainFacet", exclude), facet);
         if (noBroadcast) {
-            callData = abi.encodeWithSelector(
-                DiamondCutFacet.diamondCut.selector,
-                cut,
-                address(facet),
-                callData
-            );
+            if (cut.length > 0) {
+                callData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(facet),
+                    callData
+                );
+            }
             return (facets, callData);
         }
 

@@ -28,13 +28,18 @@ deployUpgradesToSAFE() {
     RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$ENVIRONMENT") forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
     CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
     FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
-    if [ "$FACET_CUT" != "[]" ]; then
+    if [ "$FACET_CUT" != "0x" ]; then
       CUTS+=("$FACET_CUT")
     fi
   done
 
   # Convert the array of cuts to a JSON array
   CUTS_JSON=$(jq --compact-output --null-input '$ARGS.positional' --args -- "${CUTS[@]}")
+
+  if [ "$CUTS_JSON" == "[]" ]; then
+    echo "Nothing to upgrade"
+    exit 0
+  fi
 
   # Get the diamondAddress
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
