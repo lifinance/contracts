@@ -83,7 +83,8 @@ scriptMaster() {
       "6) Batch update _targetState.json file" \
       "7) Verify all unverified contracts" \
       "8) Review deploy status (vs. target state)" \
-      "9) Create updated target state from Google Docs (updates PRODUCTION only)"
+      "9) Create updated target state from Google Docs (updates PRODUCTION only)" \
+      "10) Update all diamond log files"
   )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -433,6 +434,38 @@ scriptMaster() {
   elif [[ "$SELECTION" == *"9)"* ]]; then
     parseTargetStateGoogleSpreadsheet
 
+  #---------------------------------------------------------------------------------------------------------------------
+  # use case 10: Update all diamond log files
+  elif [[ "$SELECTION" == *"10)"* ]]; then
+    # ask user if logs should be updated only for one network or for all networks
+    echo "Would you like to update all networks or one specific network?"
+    SELECTION_NETWORK=$(
+      gum choose \
+        "1) All networks" \
+        "2) One specific network (selection in next screen)" \
+    )
+    echo "[info] selected option: $SELECTION_NETWORK"
+
+    if [[ "$SELECTION_DIAMOND_TYPE" == *"1)"* ]]; then
+      # call update diamond log function
+      updateDiamondLogs
+    else
+      # get user-selected network from list
+      local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+
+      echo "[info] selected network: $NETWORK"
+      echo "[info] loading deployer wallet balance..."
+
+      # get deployer wallet balance
+      BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
+
+      echo "[info] deployer wallet balance in this network: $BALANCE"
+      echo ""
+      checkRequiredVariablesInDotEnv $NETWORK
+
+      # call update diamond log function
+      updateDiamondLogs "$NETWORK"
+    fi
 
   else
     error "invalid use case selected ('$SELECTION') - exiting script"

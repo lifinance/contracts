@@ -54,6 +54,9 @@
       "0x2C89bbc92BD86F8075d1DEcc58C7F4E0107f286b"
     ]
   },
+  "polygonzkevm": {
+    "cBridge": "0xD46F8E428A06789B5884df54E029e738277388D1"
+  },
   "fantom": {
     "cBridge": "0x374B8a9f3eC5eB2D97ECA84Ea27aCa45aa1C57EF",
     "messageBus": "0xFF4E183a0Ceb4Fa98E63BbF8077B929c8E5A2bA4"
