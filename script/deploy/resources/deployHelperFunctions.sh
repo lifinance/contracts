@@ -227,44 +227,50 @@ function checkIfJSONContainsEntry {
   fi
 }
 function findContractInMasterLog() {
-# read function arguments into variables
-CONTRACT="$1"
-NETWORK="$2"
-ENVIRONMENT="$3"
-VERSION="$4"
+  # read function arguments into variables
+  CONTRACT="$1"
+  NETWORK="$2"
+  ENVIRONMENT="$3"
+  VERSION="$4"
 
-found=false
+  found=false
 
-# Check if log file exists
-if [ ! -f "$LOG_FILE_PATH" ]; then
-  error "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run the script again."
-  exit 1
-fi
+  # Check if log file exists
+  if [ ! -f "$LOG_FILE_PATH" ]; then
+    echo "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run the script again."
+    exit 1
+  fi
 
-# Process JSON data incrementally using jq
-jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '
-  . as $data |
-  keys[] as $contract |
-  $data[$contract] |
-  keys[] as $network |
-  $data[$contract][$network] |
-  keys[] as $environment |
-  $data[$contract][$network][$environment] |
-  keys[] as $version |
-  select($contract == $CONTRACT and $network == $NETWORK and $environment == $ENVIRONMENT and $version == $VERSION) |
-  $data[$contract][$network][$environment][$version][0]
-' "$LOG_FILE_PATH" |
-while IFS= read -r entry; do
-  found=true
-  echo "$entry"
-done
+  # Process JSON data incrementally using jq
+  entries=$(jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '
+    . as $data |
+    keys[] as $contract |
+    $data[$contract] |
+    keys[] as $network |
+    $data[$contract][$network] |
+    keys[] as $environment |
+    $data[$contract][$network][$environment] |
+    keys[] as $version |
+    select($contract == $CONTRACT and $network == $NETWORK and $environment == $ENVIRONMENT and $version == $VERSION) |
+    $data[$contract][$network][$environment][$version][0]
+  ' "$LOG_FILE_PATH")
 
-if ! $found; then
-  echo "[info] No matching entry found in deployments log file for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
-  exit 1
-fi
+  # Loop through the entries
+  while IFS= read -r entry; do
+    if [[ -n "$entry" ]]; then  # If entry is not empty
+      found=true
+      echo "$entry"
+    fi
+  done <<<"$entries"
 
+  if ! $found; then
+    echo "[info] No matching entry found in deployments log file for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
+    exit 1
+  fi
+
+  exit 0
 }
+
 function findContractInMasterLogByAddress() {
   # read function arguments into variables
   NETWORK="$1"

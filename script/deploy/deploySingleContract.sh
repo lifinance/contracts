@@ -110,10 +110,10 @@ deploySingleContract() {
   echo ""
 
   # prepare bytecode
-  BYTECODE=$(forge inspect "$CONTRACT" bytecode)
+#  BYTECODE=$(forge inspect "$CONTRACT" bytecode)
 
   # write bytecode to bytecode storage file
-  logBytecode "$CONTRACT" "$VERSION" "$BYTECODE"
+#  logBytecode "$CONTRACT" "$VERSION" "$BYTECODE"
 
   # if selected contract is "LiFiDiamondImmutable" then use an adjusted salt for deployment to prevent clashes due to same bytecode
   if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then
@@ -141,6 +141,10 @@ deploySingleContract() {
   else
     CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT")
   fi
+
+  # check if address already contains code (=> are we deploying or re-running the script again?)
+  NEW_DEPLOYMENT=$(doesAddressContainBytecode "$NETWORK" "$ADDRESS")
+
 
   # check if all required data (e.g. config data / contract addresses) is available
   checkDeployRequirements "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
@@ -271,7 +275,7 @@ deploySingleContract() {
   fi
 
   # check if log entry was found
-  if [ "$LOG_ENTRY_RETURN_CODE" -eq 0 ]; then
+  if [[ "$LOG_ENTRY_RETURN_CODE" -eq 0 && $NEW_DEPLOYMENT == "false" ]]; then
     echoDebug "log entry already exists:"
     echoDebug "$LOG_ENTRY"
     echoDebug "Now checking if contract was verified just now and update log, if so"
@@ -296,7 +300,7 @@ deploySingleContract() {
     # end script here
     return 0
   else
-    echoDebug "log entry does not exist yet and will be written now"
+    echoDebug "log entry does not exist or contract was re-deployed. Log entry will be (over-)written now."
 
     # prepare information for logfile entry
     TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")

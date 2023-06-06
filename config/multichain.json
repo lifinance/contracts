@@ -1,5 +1,5 @@
 {
-  "324": {
+  "zksyncera": {
     "routers": [
       "0xd51194aa5c2e162371682cb43ed637bca632fac8"
     ],
@@ -45,7 +45,7 @@
       }
     ]
   },
-  "1101": {
+  "polygonzkevm": {
     "routers": [
       "0x218c3c3d49d0e7b37aff0d8bb079de36ae61a4c0"
     ],
@@ -57,7 +57,7 @@
       }
     ]
   },
-  "1313161554": {
+  "aurora": {
     "routers": [
       "0x9fb83c0635de2e815fd1c21b3a292277540c2e8d",
       "0xbfc044a234e45412ecfec2cd6aae2dd0c083a7cd"

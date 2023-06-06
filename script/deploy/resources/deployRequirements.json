@@ -177,7 +177,7 @@
   "HopFacet": {
     "configData": {
       "_router": {
-        "configFileName": "gravity.json",
+        "configFileName": "hop.json",
         "keyInConfigFile": ".<NETWORK>.tokens",
         "allowToDeployWithZeroAddress": "false"
       }
@@ -220,12 +220,12 @@
     "configData": {
       "anyNative": {
         "configFileName": "multichain.json",
-        "keyInConfigFile": ".<CHAIN_ID>.anyNative",
+        "keyInConfigFile": ".<NETWORK>.anyNative",
         "allowToDeployWithZeroAddress": "false"
       },
       "routers": {
         "configFileName": "multichain.json",
-        "keyInConfigFile": ".<CHAIN_ID>.routers",
+        "keyInConfigFile": ".<NETWORK>.routers",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -383,7 +383,7 @@
     "configData": {
       "_cBridgeMessageBusAddress": {
         "configFileName": "cbridge.json",
-        "keyInConfigFile": ".messageBus",
+        "keyInConfigFile": ".<NETWORK>.messageBus",
         "allowToDeployWithZeroAddress": "false"
       }
     }

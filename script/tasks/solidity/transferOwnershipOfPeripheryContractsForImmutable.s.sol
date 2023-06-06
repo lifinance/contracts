@@ -17,13 +17,13 @@ contract DeployScript is Script {
     using stdJson for string;
 
     string internal path;
-    string internal json;
+    string internal diamondLogJSON;
     string internal globalConfigJson;
     uint256 internal deployerPrivateKey;
     string internal network;
     string internal fileSuffix;
     string internal root;
-    address internal diamond;
+    address internal diamondImmutableAddress;
     address internal contractAddress;
 
     constructor() {
@@ -40,15 +40,12 @@ contract DeployScript is Script {
             fileSuffix,
             "json"
         );
-        json = vm.readFile(path);
-        diamond = json.readAddress(".LiFiDiamondImmutable");
+        diamondLogJSON = vm.readFile(path);
+        diamondImmutableAddress = diamondLogJSON.readAddress(".LiFiDiamondImmutable");
     }
 
-    function run() public {
+    function run() public returns (bool) {
         vm.startBroadcast(deployerPrivateKey);
-        console.log(
-            "in script transferOwnershipOfPeripheryContractsForImmutable"
-        );
 
         // get correct path of diamond log
         path = string.concat(
@@ -61,118 +58,93 @@ contract DeployScript is Script {
         );
 
         // read file into json variable
-        json = vm.readFile(path);
+        diamondLogJSON = vm.readFile(path);
 
         // get correct path of diamond log
         path = string.concat(root, "/config/global.json");
 
         // read file into json variable
         globalConfigJson = vm.readFile(path);
-        address refundWalletAddress = json.readAddress(".refundWallet");
-        address withdrawWalletAddress = json.readAddress(".withdrawWallet");
+        address refundWalletAddress = globalConfigJson.readAddress(".refundWallet");
+        address withdrawWalletAddress = globalConfigJson.readAddress(".withdrawWallet");
 
         // ------- ERC20Proxy
         if (
-            PeripheryRegistryFacet(diamond).getPeripheryContract(
+            PeripheryRegistryFacet(diamondImmutableAddress).getPeripheryContract(
                 "ERC20Proxy"
             ) != address(0)
         ) {
-            console.log("ERC20Proxy now");
             // get contract address
-            contractAddress = json.readAddress(".Periphery.ERC20Proxy");
-            address executor = json.readAddress(".Periphery.Executor");
-            console.log("contractAddress: ", contractAddress);
+            contractAddress = diamondLogJSON.readAddress(".LiFiDiamondImmutable.Periphery.ERC20Proxy");
+            address executorAddress = diamondLogJSON.readAddress(".LiFiDiamondImmutable.Periphery.Executor");
 
             // set Executor contract as authorized caller
-            ERC20Proxy(contractAddress).setAuthorizedCaller(executor, true);
+            ERC20Proxy(contractAddress).setAuthorizedCaller(executorAddress, true);
 
             // renounceOwnership
-            console.log("before");
             Ownable(contractAddress).renounceOwnership();
-            console.log("after");
         }
 
         // ------- FeeCollector
         if (
-            PeripheryRegistryFacet(diamond).getPeripheryContract(
+            PeripheryRegistryFacet(diamondImmutableAddress).getPeripheryContract(
                 "FeeCollector"
             ) != address(0)
         ) {
-            console.log("FeeCollector now");
             // get contract address
-            contractAddress = json.readAddress(".Periphery.FeeCollector");
-            console.log("contractAddress: ", contractAddress);
+            contractAddress = diamondLogJSON.readAddress(".LiFiDiamondImmutable.Periphery.FeeCollector");
 
             // transfer ownership to withdraw wallet
-            // TODO: write script to confirm ownership transfers by wallet
-            console.log("before");
-            TransferrableOwnership(contractAddress).transferOwnership(
-                withdrawWalletAddress
-            );
-            console.log("after");
+            TransferrableOwnership(contractAddress).transferOwnership(withdrawWalletAddress);
         }
 
         // ------- Receiver
         if (
-            PeripheryRegistryFacet(diamond).getPeripheryContract("Receiver") !=
+            PeripheryRegistryFacet(diamondImmutableAddress).getPeripheryContract("Receiver") !=
             address(0)
         ) {
-            console.log("Receiver now");
             // get contract address
-            contractAddress = json.readAddress(".Periphery.Receiver");
-            console.log("contractAddress: ", contractAddress);
+            contractAddress = diamondLogJSON.readAddress(".LiFiDiamondImmutable.Periphery.Receiver");
 
             // transfer ownership to refund wallet
-            // TODO: write script to confirm ownership transfers by wallet
-            console.log("before");
             TransferrableOwnership(contractAddress).transferOwnership(
                 refundWalletAddress
             );
-            console.log("after");
         }
 
         // ------- RelayerCelerIM
         if (
-            PeripheryRegistryFacet(diamond).getPeripheryContract(
+            PeripheryRegistryFacet(diamondImmutableAddress).getPeripheryContract(
                 "RelayerCelerIM"
             ) != address(0)
         ) {
-            console.log("RelayerCelerIM now");
             // get contract address
-            contractAddress = json.readAddress(".Periphery.RelayerCelerIM");
-            console.log("contractAddress: ", contractAddress);
+            contractAddress = diamondLogJSON.readAddress(".LiFiDiamondImmutable.Periphery.RelayerCelerIM");
 
             // transfer ownership to refund wallet
-            // TODO: write script to confirm ownership transfers by wallet
-            console.log("before");
             TransferrableOwnership(contractAddress).transferOwnership(
                 refundWalletAddress
             );
-            console.log("after");
         }
 
         // ------- ServiceFeeCollector
         if (
-            PeripheryRegistryFacet(diamond).getPeripheryContract(
+            PeripheryRegistryFacet(diamondImmutableAddress).getPeripheryContract(
                 "ServiceFeeCollector"
             ) != address(0)
         ) {
-            console.log("ServiceFeeCollector now");
             // get contract address
-            contractAddress = json.readAddress(
-                ".Periphery.ServiceFeeCollector"
+            contractAddress = diamondLogJSON.readAddress(
+                ".LiFiDiamondImmutable.Periphery.ServiceFeeCollector"
             );
-            console.log("contractAddress: ", contractAddress);
 
             // transfer ownership to withdraw wallet
-            // TODO: write script to confirm ownership transfers by wallet
-            console.log("before");
             TransferrableOwnership(contractAddress).transferOwnership(
                 withdrawWalletAddress
             );
-            console.log("after");
         }
 
-        vm.stopBroadcast();
+    vm.stopBroadcast();
+    return true;
     }
 }

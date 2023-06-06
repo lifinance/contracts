@@ -193,13 +193,15 @@
         "PeripheryRegistryFacet": "1.0.0",
         "WithdrawFacet": "1.0.0",
         "CelerIMFacet": "1.0.1",
-        "MultichainFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.1",
+        "MultichainFacet": "1.0.1",
+        "HopFacet": "2.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "1.0.0",
         "Receiver": "1.0.0",
         "FeeCollector": "1.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "RelayerCelerIM": "1.0.0"
+        "RelayerCelerIM": "1.0.1"
       }
     }
   },

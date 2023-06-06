@@ -37,9 +37,9 @@ contract DeployScript is UpdateScriptBase {
 
     using stdJson for string;
 
-    function run() public {
+    function run() public returns (bool) {
         vm.startBroadcast(deployerPrivateKey);
-        console.log("in script RemoveUnusableSelectorsFromImmutableDiamond");
+//        console.log("in script RemoveUnusableSelectorsFromImmutableDiamond");
 
         // collect all function selectors that need to be removed
         // core facets
@@ -61,14 +61,14 @@ contract DeployScript is UpdateScriptBase {
         selectors.push(
             PeripheryRegistryFacet.registerPeripheryContract.selector
         );
-        console.log("selectors to be removed: ", selectors.length);
-        console.log(
-            "return function: ",
-            DiamondLoupeFacet(diamond).facetAddress(
-                AxelarFacet.setChainName.selector
-            )
-        );
-        console.log("diamondAddress: ", diamond);
+//        console.log("selectors to be removed: ", selectors.length);
+//        console.log(
+//            "return function: ",
+//            DiamondLoupeFacet(diamond).facetAddress(
+//                AxelarFacet.setChainName.selector
+//            )
+//        );
+//        console.log("diamondAddress: ", diamond);
 
         // add facet-selectors if facet is registered in diamond
         // AxelarFacet
@@ -77,11 +77,9 @@ contract DeployScript is UpdateScriptBase {
                 AxelarFacet.setChainName.selector
             ) != address(0)
         ) {
-            console.log("a");
+//            console.log("in AxelarFacetBranch");
             selectors.push(AxelarFacet.setChainName.selector);
-            console.log("b");
         }
-        console.log("1");
 
         // CBridgeFacetPacked
         if (
@@ -89,16 +87,18 @@ contract DeployScript is UpdateScriptBase {
                 CBridgeFacetPacked.setApprovalForBridge.selector
             ) != address(0)
         ) {
+//            console.log("in CBridgeFacetPackedBranch");
+            // TODO: why is this selector not in louper?
             selectors.push(CBridgeFacetPacked.setApprovalForBridge.selector);
         }
 
         // HopFacet
         if (
             DiamondLoupeFacet(diamond).facetAddress(
-                HopFacet.initHop.selector
+                HopFacet.registerBridge.selector
             ) != address(0)
         ) {
-            selectors.push(HopFacet.initHop.selector);
+//            console.log("in HopFacetBranch");
             selectors.push(HopFacet.registerBridge.selector);
         }
 
@@ -108,6 +108,7 @@ contract DeployScript is UpdateScriptBase {
                 HopFacetOptimized.setApprovalForBridges.selector
             ) != address(0)
         ) {
+//            console.log("in HopFacetOptimizedBranch");
             selectors.push(HopFacetOptimized.setApprovalForBridges.selector);
         }
 
@@ -117,16 +118,17 @@ contract DeployScript is UpdateScriptBase {
                 HopFacetPacked.setApprovalForHopBridges.selector
             ) != address(0)
         ) {
+//            console.log("in HopFacetPackedBranch");
             selectors.push(HopFacetPacked.setApprovalForHopBridges.selector);
         }
 
         // MultichainFacet
         if (
             DiamondLoupeFacet(diamond).facetAddress(
-                MultichainFacet.initMultichain.selector
+                MultichainFacet.registerRouters.selector
             ) != address(0)
         ) {
-            selectors.push(MultichainFacet.initMultichain.selector);
+//            console.log("in MultichainBranch");
             selectors.push(MultichainFacet.registerRouters.selector);
             selectors.push(MultichainFacet.updateAddressMappings.selector);
         }
@@ -134,20 +136,20 @@ contract DeployScript is UpdateScriptBase {
         // OFTWrapperFacet
         if (
             DiamondLoupeFacet(diamond).facetAddress(
-                OFTWrapperFacet.initOFTWrapper.selector
+                OFTWrapperFacet.setOFTLayerZeroChainId.selector
             ) != address(0)
         ) {
-            selectors.push(OFTWrapperFacet.initOFTWrapper.selector);
+//            console.log("in OFTWrapperFacetBranch");
             selectors.push(OFTWrapperFacet.setOFTLayerZeroChainId.selector);
         }
 
         // OptimismBridgeFacet
         if (
             DiamondLoupeFacet(diamond).facetAddress(
-                OptimismBridgeFacet.initOptimism.selector
+                OptimismBridgeFacet.registerOptimismBridge.selector
             ) != address(0)
         ) {
-            selectors.push(OptimismBridgeFacet.initOptimism.selector);
+//            console.log("in OptimismBridgeFacetBranch");
             selectors.push(
                 OptimismBridgeFacet.registerOptimismBridge.selector
             );
@@ -156,14 +158,12 @@ contract DeployScript is UpdateScriptBase {
         // StargateFacet
         if (
             DiamondLoupeFacet(diamond).facetAddress(
-                StargateFacet.initStargate.selector
+                StargateFacet.setLayerZeroChainId.selector
             ) != address(0)
         ) {
-            selectors.push(StargateFacet.initStargate.selector);
+//            console.log("in OptimismBridgeFacetBranch");
             selectors.push(StargateFacet.setLayerZeroChainId.selector);
         }
-
-        console.log("selectors to be removed: ", selectors.length);
 
         cut.push(
             IDiamondCut.FacetCut({
@@ -173,12 +173,10 @@ contract DeployScript is UpdateScriptBase {
             })
         );
 
-        console.log("before");
-
         // remove selectors from diamond contract
         cutter.diamondCut(cut, address(0), "");
 
-        console.log("after");
         vm.stopBroadcast();
+        return true;
     }
 }

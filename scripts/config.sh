@@ -56,7 +56,7 @@ EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,lineatest,bsc-testnet"
 DEBUG=true
 
 # defines if newly deployed contracts should be verified or not
-VERIFY_CONTRACTS=false
+VERIFY_CONTRACTS=true
 
 # contract verification will be deactivated for any network listed here
 DO_NOT_VERIFY_IN_THESE_NETWORKS="gnosis,testNetwork,aurora"
