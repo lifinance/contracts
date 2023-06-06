@@ -286,8 +286,8 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             address(bytes20(msg.data[12:32])),
             swapAmount,
             uint256(uint128(bytes16(msg.data[72:88]))),
-            toL1 ? 0 : amountOutMin,
-            toL1 ? 0 : block.timestamp + 7 * 24 * 60 * 60
+            toL1 ? 0 : uint256(uint128(bytes16(msg.data[104:120]))),
+            toL1 ? 0 : uint256(uint32(bytes4(msg.data[120:124])))
         );
 
         emit LiFiHopTransfer(bytes8(msg.data[4:12]));
