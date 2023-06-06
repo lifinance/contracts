@@ -2949,32 +2949,17 @@ function isVersionTag() {
     return 1
   fi
 }
-function startLocaLAnvilNetwork() {
-  # start network with given MNEMONIC (so we can use pre-determined private keys) and suppress output
-  echo "[info] starting local anvil network"
-  anvil -m "$MNEMONIC" &
-  ANVIL_PROCESS_ID=$!
+function deployCreate3FactoryToAnvil() {
+  # deploy create3Factory
+  echoDebug "deploying create3Factory now"
+  RAW_RETURN_DATA=$(PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url http://localhost:8545 --broadcast --silent)
 
-  echo "ANVIL_PROCESS_ID: $ANVIL_PROCESS_ID"
+  # extract address of deployed factory contract
+  ADDRESS=$(echo "$RAW_RETURN_DATA" | grep -o -E 'Contract Address: 0x[a-fA-F0-9]{40}' | grep -o -E '0x[a-fA-F0-9]{40}')
 
-
-  # add CREATE3Factory repo as submodule
-  echo ""
-  echo ""
-  echo "[info] deploying create3Factory now"
-  ADDRESS=$(PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url http://localhost:8545)
-  wait
-
-  # deploy CREATE3Factory
-  # TODO: find out how to deploy contract to complete
-
-  echo "ADDRESS: $ADDRESS"
-
-  # update address of CREATE3Factory in env variable
+  # update value of CREATE3_FACTORY_ADDRESS .env variable
   export CREATE3_FACTORY_ADDRESS=$ADDRESS
-
-  kill $ANVIL_PROCESS_ID
-
+  echoDebug "$ADDRESS"
 }
 # <<<<<< miscellaneous
 
@@ -3328,4 +3313,4 @@ function test_tmp() {
   fi
 }
 
-startLocaLAnvilNetwork
+#deployCreate3FactoryToAnvil
