@@ -11,7 +11,7 @@ import { WETH } from "solmate/tokens/WETH.sol";
 /// @title Hop Facet (Optimized for Rollups)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-/// @custom:version 1.0.4
+/// @custom:version 1.0.5
 contract HopFacetPacked is ILiFi, TransferrableOwnership {
     /// Storage ///
 
