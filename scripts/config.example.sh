@@ -50,7 +50,7 @@ DEPLOY_CONFIG_FILE_PATH="config/"
 # exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,lineatest"
 # exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
 #EXCLUDE_NETWORKS="gnosis,okx,moonbeam,celo,fuse,cronos,velas,harmony,evmos,boba,nova,bsctest,goerli,sepolia,mumbai,lineatest"
-EXCLUDE_NETWORKS="lineatest"
+EXCLUDE_NETWORKS="lineatest,nova,harmony"
 
 # will output more detailed information for debugging purposes
 DEBUG=true
@@ -59,7 +59,7 @@ DEBUG=true
 VERIFY_CONTRACTS=false
 
 # contract verification will be deactivated for any network listed here
-DO_NOT_VERIFY_IN_THESE_NETWORKS="gnosis,testNetwork,aurora"
+DO_NOT_VERIFY_IN_THESE_NETWORKS="gnosis,testNetwork,aurora,nova,harmony"
 
 # the path to the file that contains a list of all networks
 NETWORKS_FILE_PATH="./networks"
