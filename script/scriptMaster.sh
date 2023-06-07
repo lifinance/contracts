@@ -2,13 +2,12 @@
 
 # TODO
 
-# - add support for local dev network
 # - enrich diamond deploy log with version info for periphery contracts and diamond contract version (+ immutable status)
 #   >> minimize search master deploy log (takes a lot of time)
 # - replace debug outputs with new helper method
 
 # - make helper functions robust for networks with -
-#   >>> including the solidity update config script
+#   >>> including the solidity update config scripts
 # - integrate diamondMakeImmutable in master script
 
 # - create function that checks if contract is deployed (get bytecode, predict address, check bytecode at address)
@@ -42,6 +41,22 @@ scriptMaster() {
   source script/config.sh
   for script in script/tasks/*.sh; do [ -f "$script" ] && source "$script"; done # sources all script in folder script/tasks/
 
+  # start local anvil network if flag in config is set
+  if [[ "$START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP" == "true" ]]; then
+    # check if anvil is already running
+    if pgrep -x "anvil" > /dev/null; then
+      echoDebug "local testnetwork 'localanvil' is running"
+    else
+      echoDebug "Anvil process is not running. Starting network now."
+      $(anvil -m "$MNEMONIC" -f $ETH_NODE_URI_MAINNET --fork-block-number 17427723 >/dev/null) &
+      if pgrep -x "anvil" > /dev/null; then
+        echoDebug "local testnetwork 'localanvil' is running"
+      else
+        error "local testnetwork 'localanvil' could not be started. Exiting script now."
+      fi
+    fi
+  fi
+
   # determine environment: check if .env variable "PRODUCTION" is set to true
   if [[ "$PRODUCTION" == "true" ]]; then
     # make sure that PRODUCTION was selected intentionally by user
@@ -71,7 +86,7 @@ scriptMaster() {
 
   # ask user to choose a deploy use case
   echo ""
-  echo "You are executing transactions from this address: $(getDeployerAddress "$ENVIRONMENT")"
+  echo "You are executing transactions from this address: $(getDeployerAddress "" "$ENVIRONMENT") (except for network 'localanvil')"
   echo ""
   echo "Please choose one of the following options:"
   local SELECTION=$(
@@ -95,13 +110,6 @@ scriptMaster() {
 
     # get user-selected network from list
     local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
-
-
-    # TODO: to be finalized...
-#    # start local network, if needed
-#    if [[ ! "$NETWORK" == *"localanvil"* ]]; then
-#      anvil -m "$MNEMONIC" >/dev/null
-#    fi
 
     echo "[info] selected network: $NETWORK"
     echo "[info] loading deployer wallet balance..."
@@ -445,6 +453,20 @@ scriptMaster() {
   else
     error "invalid use case selected ('$SELECTION') - exiting script"
     exit 1
+  fi
+
+  # cleanup
+  # end local anvil network if flag in config is set
+  if [[ "$END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION" == "true" ]]; then
+    # kills all local anvil network sessions that might still be running
+    killall anvil
+    # delete log files
+    rm deployments/localanvil.json > /dev/null 2>&1
+    rm deployments/localanvil.staging.json > /dev/null 2>&1
+    rm deployments/localanvil.diamond.staging.json > /dev/null 2>&1
+    rm deployments/localanvil.diamond.immutable.staging.json > /dev/null 2>&1
+    rm deployments/localanvil.diamond.json > /dev/null 2>&1
+    rm deployments/localanvil.diamond.immutable.json > /dev/null 2>&1
   fi
 
   # inform user and end script

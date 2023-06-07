@@ -13,7 +13,7 @@ import { ExcessivelySafeCall } from "../Helpers/ExcessivelySafeCall.sol";
 /// @title Axelar Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing using Axelar
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     using LibBytes for bytes;
     using SafeERC20 for IERC20;
@@ -36,15 +36,6 @@ contract AxelarExecutor is IAxelarExecutable, Ownable, ReentrancyGuard {
     /// Constructor ///
     constructor(address _owner, address _gateway) IAxelarExecutable(_gateway) {
         transferOwnership(_owner);
-        emit AxelarGatewaySet(_gateway);
-    }
-
-    /// External Methods ///
-
-    /// @notice set the Axelar gateway
-    /// @param _gateway the Axelar gateway address
-    function setAxelarGateway(address _gateway) external onlyOwner {
-        gateway = IAxelarGateway(_gateway);
         emit AxelarGatewaySet(_gateway);
     }
 

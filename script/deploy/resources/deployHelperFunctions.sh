@@ -674,7 +674,7 @@ function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME")
 
   echo "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
-  echo "DEPLOYER_ADDRESS: $(getDeployerAddress "$ENVIRONMENT")"
+  echo "DEPLOYER_ADDRESS: $(getDeployerAddress "$NETWORK" "$ENVIRONMENT")"
 
   if [[ -z "$DIAMOND_ADDRESS" ]]; then
     error "could not find address for $DIAMOND_NAME in network-specific log file for network $NETWORK (ENVIRONMENT=$ENVIRONMENT)"
@@ -714,10 +714,10 @@ function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
 
   echo "before call"
 
-    while [ $attempts -lt 11 ]; do
-      echo "Trying to execute multicall now - attempt ${attempts}"
-      # try to execute call
-      MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key $(getPrivateKey "$ENVIRONMENT") --rpc-url "https://polygon-rpc.com" --legacy)
+  while [ $attempts -lt 11 ]; do
+    echo "Trying to execute multicall now - attempt ${attempts}"
+    # try to execute call
+    MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "https://polygon-rpc.com" --legacy)
 
       # check the return code the last call
       if [ $? -eq 0 ]; then
@@ -863,9 +863,14 @@ function checkRequiredVariablesInDotEnv() {
       # read function arguments into variables
       local NETWORK=$1
 
-      local PRIVATE_KEY="$PRIVATE_KEY"
-      local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
-      local RPC_URL="${!RPC}"
+  # skip for local network
+  if [[ "$NETWORK" == "localanvil" ]]; then
+    return 0
+  fi
+
+  local PRIVATE_KEY="$PRIVATE_KEY"
+  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  local RPC_URL="${!RPC}"
 
       # special handling for BSC testnet
       # uses same block explorer key as bsc mainnet
@@ -1419,10 +1424,10 @@ function removeFacetFromDiamond() {
     # call diamond
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy
     else
       # do not print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
     fi
 
     # check the return code the last call
@@ -2075,7 +2080,7 @@ function getContractAddressFromSalt() {
   local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<< "$NETWORK")"
 
   # get deployer address
-  local DEPLOYER_ADDRESS=$(getDeployerAddress "$ENVIRONMENT")
+  local DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
 
 
   # get actual deploy salt (as we do in DeployScriptBase:  keccak256(abi.encodePacked(saltPrefix, contractName));)
@@ -2097,9 +2102,10 @@ function getContractAddressFromSalt() {
 }
 function getDeployerAddress() {
   # read function arguments into variables
-  local ENVIRONMENT=$1
+  local NETWORK=$1
+  local ENVIRONMENT=$2
 
-  PRIV_KEY="$(getPrivateKey "$ENVIRONMENT")"
+  PRIV_KEY="$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
 
   # prepare web3 code to be executed
   jsCode="const Web3 = require('web3');
@@ -2123,7 +2129,7 @@ function getDeployerBalance() {
   RPC_URL=$(getRPCUrl "$NETWORK")
 
   # get deployer address
-  ADDRESS=$(getDeployerAddress "$ENVIRONMENT")
+  ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
 
   # get balance in given network
   BALANCE=$(cast balance "$ADDRESS" --rpc-url "$RPC_URL")
@@ -2484,7 +2490,14 @@ function deployAndAddContractToDiamond() {
 }
 function getPrivateKey() {
   # read function arguments into variables
-  ENVIRONMENT="$1"
+  NETWORK="$1"
+  ENVIRONMENT="$2"
+
+  # skip for local network
+  if [[ "$NETWORK" == "localanvil" ]]; then
+    echo "$PRIVATE_KEY_ANVIL"
+    return 0
+  fi
 
   # check environment value
   if [[ "$ENVIRONMENT" == *"staging"* ]]; then
@@ -2975,6 +2988,17 @@ function isVersionTag() {
   else
       return 1
   fi
+}
+function deployCreate3FactoryToAnvil() {
+  # deploy create3Factory
+  RAW_RETURN_DATA=$(PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url http://localhost:8545 --broadcast --silent)
+
+  # extract address of deployed factory contract
+  ADDRESS=$(echo "$RAW_RETURN_DATA" | grep -o -E 'Contract Address: 0x[a-fA-F0-9]{40}' | grep -o -E '0x[a-fA-F0-9]{40}')
+
+  # update value of CREATE3_FACTORY_ADDRESS .env variable
+  export CREATE3_FACTORY_ADDRESS=$ADDRESS
+  echo "$ADDRESS"
 }
 # <<<<<< miscellaneous
 
