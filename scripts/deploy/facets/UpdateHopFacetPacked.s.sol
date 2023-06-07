@@ -9,10 +9,11 @@ import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, bytes memory cutData)
+    {
         address facet = json.readAddress(".HopFacetPacked");
-
-        vm.startBroadcast(deployerPrivateKey);
 
         bytes4[] memory exclude = new bytes4[](5);
         exclude[0] = 0x23452b9c;
@@ -21,6 +22,19 @@ contract DeployScript is UpdateScriptBase {
         exclude[3] = 0xe30c3978;
         exclude[4] = 0xf2fde38b;
         buildDiamondCut(getSelectors("HopFacetPacked", exclude), facet);
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(0),
+                    ""
+                );
+            }
+            return (facets, cutData);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }

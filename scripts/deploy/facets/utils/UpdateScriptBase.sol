@@ -23,6 +23,7 @@ contract UpdateScriptBase is Script {
     string internal fileSuffix;
     string internal path;
     string internal json;
+    bool internal noBroadcast = false;
 
     constructor() {
         deployerPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY"));
@@ -30,6 +31,7 @@ contract UpdateScriptBase is Script {
         network = vm.envString("NETWORK");
         fileSuffix = vm.envString("FILE_SUFFIX");
         bool useDefaultDiamond = vm.envBool("USE_DEF_DIAMOND");
+        noBroadcast = vm.envBool("NO_BROADCAST");
 
         path = string.concat(
             root,

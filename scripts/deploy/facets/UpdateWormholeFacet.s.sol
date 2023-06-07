@@ -14,7 +14,10 @@ contract DeployScript is UpdateScriptBase {
         uint16 wormholeChainId;
     }
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, bytes memory cutData)
+    {
         address facet = json.readAddress(".WormholeFacet");
 
         path = string.concat(root, "/config/wormhole.json");
@@ -27,12 +30,23 @@ contract DeployScript is UpdateScriptBase {
             configs
         );
 
-        vm.startBroadcast(deployerPrivateKey);
-
         // Wormhole
         bytes4[] memory exclude = new bytes4[](1);
         exclude[0] = WormholeFacet.initWormhole.selector;
         buildDiamondCut(getSelectors("WormholeFacet", exclude), facet);
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(facet),
+                    callData
+                );
+            }
+            return (facets, cutData);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(facet), callData);
         }

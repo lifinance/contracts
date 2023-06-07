@@ -9,7 +9,10 @@ import { MultichainFacet } from "lifi/Facets/MultichainFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, bytes memory cutData)
+    {
         address facet = json.readAddress(".MultichainFacet");
 
         path = string.concat(root, "/config/multichain.json");
@@ -39,12 +42,23 @@ contract DeployScript is UpdateScriptBase {
             routers
         );
 
-        vm.startBroadcast(deployerPrivateKey);
-
         // add facet and call init function
         bytes4[] memory exclude = new bytes4[](1);
         exclude[0] = MultichainFacet.initMultichain.selector;
         buildDiamondCut(getSelectors("MultichainFacet", exclude), facet);
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                callData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(facet),
+                    callData
+                );
+            }
+            return (facets, callData);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(facet), callData);
         }
