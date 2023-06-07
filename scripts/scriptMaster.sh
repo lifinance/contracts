@@ -454,9 +454,19 @@ scriptMaster() {
     exit 1
   fi
 
-
   # cleanup
-  killall anvil # kills all local anvil network sessions that might still be running
+  # end local anvil network if flag in config is set
+  if [[ "$END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION" == "true" ]]; then
+    # kills all local anvil network sessions that might still be running
+    killall anvil
+    # delete log files
+    rm deployments/localanvil.json > /dev/null 2>&1
+    rm deployments/localanvil.staging.json > /dev/null 2>&1
+    rm deployments/localanvil.diamond.staging.json > /dev/null 2>&1
+    rm deployments/localanvil.diamond.immutable.staging.json > /dev/null 2>&1
+    rm deployments/localanvil.diamond.json > /dev/null 2>&1
+    rm deployments/localanvil.diamond.immutable.json > /dev/null 2>&1
+  fi
 
   # inform user and end script
   echo ""
