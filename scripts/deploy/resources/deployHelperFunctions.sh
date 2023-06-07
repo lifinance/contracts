@@ -2091,11 +2091,6 @@ function getDeployerBalance() {
   local NETWORK=$1
   local ENVIRONMENT=$2
 
-  # skip for local network
-  if [[ "$NETWORK" == "localanvil" ]]; then
-    return 0
-  fi
-
   # get RPC URL
   RPC_URL=$(getRPCUrl "$NETWORK")
 
@@ -3311,5 +3306,3 @@ function test_tmp() {
     fi
   fi
 }
-
-#deployCreate3FactoryToAnvil

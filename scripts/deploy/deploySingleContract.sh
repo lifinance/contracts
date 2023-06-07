@@ -65,13 +65,6 @@ deploySingleContract() {
     echo ""
   fi
 
-  # deploy CREATE3Factory and replace address from .env if network is localAnvil
-  if [[ "$NETWORK" == "localanvil" ]]; then
-    CREATE3_FACTORY_ADDRESS=$(deployCreate3FactoryToAnvil)
-    echo "new CREATE3_FACTORY_ADDRESS: $CREATE3_FACTORY_ADDRESS"
-  fi
-
-
   if [[ -z "$CONTRACT" ]]; then
     # get user-selected deploy script and contract from list
     SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
