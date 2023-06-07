@@ -2951,7 +2951,6 @@ function isVersionTag() {
 }
 function deployCreate3FactoryToAnvil() {
   # deploy create3Factory
-  echoDebug "deploying create3Factory now"
   RAW_RETURN_DATA=$(PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url http://localhost:8545 --broadcast --silent)
 
   # extract address of deployed factory contract
@@ -2959,7 +2958,7 @@ function deployCreate3FactoryToAnvil() {
 
   # update value of CREATE3_FACTORY_ADDRESS .env variable
   export CREATE3_FACTORY_ADDRESS=$ADDRESS
-  echoDebug "$ADDRESS"
+  echo "$ADDRESS"
 }
 # <<<<<< miscellaneous
 

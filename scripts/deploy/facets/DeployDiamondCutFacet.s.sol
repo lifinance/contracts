@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
+import { DeployScriptBase, console } from "./utils/DeployScriptBase.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 
 contract DeployScript is DeployScriptBase {

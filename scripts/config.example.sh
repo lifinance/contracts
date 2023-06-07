@@ -41,7 +41,7 @@ BYTECODE_STORAGE_PATH="deployments/_bytecode_storage.json"
 CONTRACT_REMINDERS="scripts/deploy/resources/contractSpecificReminders.sh"
 
 # the path of the JSON file that contains deploy requirements per contract
-DEPLOY_REQUIREMENTS_PATH="scripts/deploy/resources/deployRequirements.sh"
+DEPLOY_REQUIREMENTS_PATH="scripts/deploy/resources/deployRequirements.json"
 
 # the path of the JSON files that contains deploy configuration per contract
 DEPLOY_CONFIG_FILE_PATH="config/"

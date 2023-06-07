@@ -48,4 +48,4 @@ function startAndPrepareLocalAnvil {
 #    kill $ANVIL_PROCESS_ID
 }
 
-run
+#run
