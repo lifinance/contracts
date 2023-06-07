@@ -23,7 +23,10 @@ contract DeployScript is UpdateScriptBase {
 
     Bridge[] internal bridges;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, bytes memory cutData)
+    {
         address facet = json.readAddress(".HopFacet");
 
         path = string.concat(root, "/config/hop.json");
@@ -46,12 +49,23 @@ contract DeployScript is UpdateScriptBase {
             bridges
         );
 
-        vm.startBroadcast(deployerPrivateKey);
-
         // Hop
         bytes4[] memory exclude = new bytes4[](1);
         exclude[0] = HopFacet.initHop.selector;
         buildDiamondCut(getSelectors("HopFacet", exclude), facet);
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(facet),
+                    callData
+                );
+            }
+            return (facets, cutData);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(facet), callData);
         }

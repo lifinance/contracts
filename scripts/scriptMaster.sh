@@ -38,6 +38,7 @@ scriptMaster() {
   source scripts/deploy/resources/deployHelperFunctions.sh
   source scripts/deploy/deployFacetAndAddToDiamond.sh
   source scripts/deploy/deployPeripheryContracts.sh
+  source scripts/deploy/deployUpgradesToSAFE.sh
   source scripts/config.sh
   for script in scripts/tasks/*.sh; do [ -f "$script" ] && source "$script"; done # sources all scripts in folder scripts/tasks/
 
@@ -84,12 +85,13 @@ scriptMaster() {
       "7) Verify all unverified contracts" \
       "8) Review deploy status (vs. target state)" \
       "9) Create updated target state from Google Docs (updates PRODUCTION only)" \
-      "10) Update all diamond log files"
+      "10) Update all diamond log files" \
+      "11) Propose upgrade TX to Gnosis SAFE"
   )
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 1: Deploy one specific contract to one network
-  if [[ "$SELECTION" == *"1)"* ]]; then
+  if [[ "$SELECTION" == "1)"* ]]; then
     echo ""
     echo "[info] selected use case: Deploy one specific contract to one network"
 
@@ -111,7 +113,7 @@ scriptMaster() {
     CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment (only check for
-    if [[ ! "$CONTRACT" == *"LiFiDiamond"* ]]; then
+    if [[ ! "$CONTRACT" == "LiFiDiamond"* ]]; then
       echo ""
       echo "Do you want to add this contract to a diamond after deployment?"
       ADD_TO_DIAMOND=$(
@@ -126,11 +128,11 @@ scriptMaster() {
     local VERSION=$(getCurrentContractVersion "$CONTRACT")
 
     # check if contract should be added after deployment
-    if [[ "$ADD_TO_DIAMOND" == *"yes"* ]]; then
+    if [[ "$ADD_TO_DIAMOND" == "yes"* ]]; then
       echo "[info] selected option: $ADD_TO_DIAMOND"
 
       # determine the name of the LiFiDiamond contract and call helper function with correct diamond name
-      if [[ "$ADD_TO_DIAMOND" == *"LiFiDiamondImmutable"* ]]; then
+      if [[ "$ADD_TO_DIAMOND" == "LiFiDiamondImmutable"* ]]; then
         deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamondImmutable" "$VERSION"
       else
         deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamond" "$VERSION"
@@ -145,7 +147,7 @@ scriptMaster() {
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 2: Deploy one specific contract to all networks (=new contract)
-  elif [[ "$SELECTION" == *"2)"* ]]; then
+  elif [[ "$SELECTION" == "2)"* ]]; then
     echo ""
     echo "[info] selected use case: Deploy one specific contract to all networks"
 
@@ -154,7 +156,7 @@ scriptMaster() {
     local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
 
     # check if new contract should be added to diamond after deployment
-    if [[ ! "$CONTRACT" == *"LiFiDiamond"* ]]; then
+    if [[ ! "$CONTRACT" == "LiFiDiamond"* ]]; then
       echo ""
       echo "Do you want to add this contract to a diamond after deployment?"
       local ADD_TO_DIAMOND=$(
@@ -183,9 +185,9 @@ scriptMaster() {
       echo ""
 
       # check if contract should be added after deployment
-      if [[ "$ADD_TO_DIAMOND" == *"yes"* ]]; then
+      if [[ "$ADD_TO_DIAMOND" == "yes"* ]]; then
         # determine the name of the LiFiDiamond contract and call helper function with correct diamond name
-        if [[ "$ADD_TO_DIAMOND" == *"LiFiDiamondImmutable"* ]]; then
+        if [[ "$ADD_TO_DIAMOND" == "LiFiDiamondImmutable"* ]]; then
           deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamondImmutable" "$VERSION"
         else
           deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamond" "$VERSION"
@@ -202,7 +204,7 @@ scriptMaster() {
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 3: Deploy all contracts to one selected network (=new network)
-  elif [[ "$SELECTION" == *"3)"* ]]; then
+  elif [[ "$SELECTION" == "3)"* ]]; then
     echo ""
     echo "[info] selected use case: Deploy all contracts to one selected network (=new network)"
 
@@ -226,7 +228,7 @@ scriptMaster() {
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 4: Deploy all (missing) contracts for all networks (actual vs. target)
-  elif [[ "$SELECTION" == *"4)"* ]]; then
+  elif [[ "$SELECTION" == "4)"* ]]; then
     echo ""
     echo "[info] selected use case: Deploy all (missing) contracts for all networks"
 
@@ -241,7 +243,7 @@ scriptMaster() {
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 5: Execute a script
-  elif [[ "$SELECTION" == *"5)"* ]]; then
+  elif [[ "$SELECTION" == "5)"* ]]; then
     echo ""
     SCRIPT=$(ls -1p "$TASKS_SCRIPT_DIRECTORY" | grep -v "/$" | sed -e 's/\.sh$//' | gum filter --placeholder "Please select the script you would like to execute: ")
     if [[ -z "$SCRIPT" ]]; then
@@ -256,7 +258,7 @@ scriptMaster() {
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 6: Update _targetState.json file
-  elif [[ "$SELECTION" == *"6)"* ]]; then
+  elif [[ "$SELECTION" == "6)"* ]]; then
     echo ""
     echo "[info] selected use case: Batch update _targetState.json file"
 
@@ -290,7 +292,7 @@ scriptMaster() {
     )
     echo "[info] selected environment: $ENVIRONMENT"
 
-    if [[ "$SELECTION_UPDATE_CASE" == *"1)"* ]]; then
+    if [[ "$SELECTION_UPDATE_CASE" == "1)"* ]]; then
       # case: "1) 1) Add a new contract to all networks"
 
       # get names of all contracts
@@ -327,18 +329,18 @@ scriptMaster() {
       echo ""
       echo "[info] now adding contract version to target state file"
       # update target state json
-      if [[ "$SELECTION_DIAMOND_TYPE" == *"1)"* ]]; then
+      if [[ "$SELECTION_DIAMOND_TYPE" == "1)"* ]]; then
         addNewContractVersionToAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamond" "$USE_VERSION" true
-      elif [[ "$SELECTION_DIAMOND_TYPE" == *"2)"* ]]; then
+      elif [[ "$SELECTION_DIAMOND_TYPE" == "2)"* ]]; then
         addNewContractVersionToAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamondImmutable" "$USE_VERSION" true
-      elif [[ "$SELECTION_DIAMOND_TYPE" == *"3)"* ]]; then
+      elif [[ "$SELECTION_DIAMOND_TYPE" == "3)"* ]]; then
         addNewContractVersionToAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamond" "$USE_VERSION" true
         addNewContractVersionToAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamondImmutable" "$USE_VERSION" true
       else
         error "invalid value selected: $SELECTION_DIAMOND_TYPE - exiting script now"
         exit 1
       fi
-    elif [[ "$SELECTION_UPDATE_CASE" == *"2)"* ]]; then
+    elif [[ "$SELECTION_UPDATE_CASE" == "2)"* ]]; then
       # case: "2) Update the version of a contract on all networks"
       # get names of all contracts
       ALL_CONTRACT_NAMES=($(getAllContractNames "false"))
@@ -371,18 +373,18 @@ scriptMaster() {
       echo "[info] now updating $SELECTED_CONTRACT to version $NEW_VERSION "
 
       # update target state json
-      if [[ "$SELECTION_DIAMOND_TYPE" == *"1)"* ]]; then
+      if [[ "$SELECTION_DIAMOND_TYPE" == "1)"* ]]; then
         updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamond" "$NEW_VERSION"
-      elif [[ "$SELECTION_DIAMOND_TYPE" == *"2)"* ]]; then
+      elif [[ "$SELECTION_DIAMOND_TYPE" == "2)"* ]]; then
         updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamondImmutable" "$NEW_VERSION"
-      elif [[ "$SELECTION_DIAMOND_TYPE" == *"3)"* ]]; then
+      elif [[ "$SELECTION_DIAMOND_TYPE" == "3)"* ]]; then
         updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamond" "$NEW_VERSION"
         updateContractVersionInAllIncludedNetworks "$ENVIRONMENT" "$SELECTED_CONTRACT" "LiFiDiamondImmutable" "$NEW_VERSION"
       else
         error "invalid value selected: $SELECTION_DIAMOND_TYPE - exiting script now"
         exit 1
       fi
-    elif [[ "$SELECTION_UPDATE_CASE" == *"3)"* ]]; then
+    elif [[ "$SELECTION_UPDATE_CASE" == "3)"* ]]; then
       # case: "3) Add a new network with all (included) contracts"
       echo "Please enter the name of the new network:"
       read NETWORK_NAME
@@ -391,11 +393,11 @@ scriptMaster() {
 
       echo "[info] now adding a new network '$NETWORK_NAME' with all contracts to target state file (selected diamond type: $SELECTION_DIAMOND_TYPE)"
       # update target state json
-      if [[ "$SELECTION_DIAMOND_TYPE" == *"1)"* ]]; then
+      if [[ "$SELECTION_DIAMOND_TYPE" == "1)"* ]]; then
         addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamond"
-      elif [[ "$SELECTION_DIAMOND_TYPE" == *"2)"* ]]; then
+      elif [[ "$SELECTION_DIAMOND_TYPE" == "2)"* ]]; then
         addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamondImmutable"
-      elif [[ "$SELECTION_DIAMOND_TYPE" == *"3)"* ]]; then
+      elif [[ "$SELECTION_DIAMOND_TYPE" == "3)"* ]]; then
         addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamond"
         addNewNetworkWithAllIncludedContractsInLatestVersions "$NETWORK_NAME" "$ENVIRONMENT" "LiFiDiamondImmutable"
       else
@@ -420,33 +422,33 @@ scriptMaster() {
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 7: Verify all unverified contracts
-  elif [[ "$SELECTION" == *"7)"* ]]; then
+  elif [[ "$SELECTION" == "7)"* ]]; then
     verifyAllUnverifiedContractsInLogFile
     playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 8: Review deploy status (vs. target state)
-  elif [[ "$SELECTION" == *"8)"* ]]; then
+  elif [[ "$SELECTION" == "8)"* ]]; then
     printDeploymentsStatusV2 "$ENVIRONMENT"
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 9: Create updated target state from Google Docs
-  elif [[ "$SELECTION" == *"9)"* ]]; then
+  elif [[ "$SELECTION" == "9)"* ]]; then
     parseTargetStateGoogleSpreadsheet
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 10: Update all diamond log files
-  elif [[ "$SELECTION" == *"10)"* ]]; then
+  elif [[ "$SELECTION" == "10)"* ]]; then
     # ask user if logs should be updated only for one network or for all networks
     echo "Would you like to update all networks or one specific network?"
     SELECTION_NETWORK=$(
       gum choose \
         "1) All networks" \
-        "2) One specific network (selection in next screen)" \
+        "2) One specific network (selection in next screen)"
     )
     echo "[info] selected option: $SELECTION_NETWORK"
 
-    if [[ "$SELECTION_DIAMOND_TYPE" == *"1)"* ]]; then
+    if [[ "$SELECTION_DIAMOND_TYPE" == "1)"* ]]; then
       # call update diamond log function
       updateDiamondLogs
     else
@@ -466,7 +468,10 @@ scriptMaster() {
       # call update diamond log function
       updateDiamondLogs "$NETWORK"
     fi
-
+  #---------------------------------------------------------------------------------------------------------------------
+  # use case 11: Propose upgrade TX to Gnosis SAFE
+  elif [[ "$SELECTION" == "11)"* ]]; then
+    deployUpgradesToSAFE
   else
     error "invalid use case selected ('$SELECTION') - exiting script"
     exit 1

@@ -1052,34 +1052,41 @@ function parseTargetStateGoogleSpreadsheet() {
   # we currently only support production environment
   ENVIRONMENT="production"
 
+  NETWORKS_START_AT_LINE=123
+  PERIPHERY_STARTS_AT_COLUMN=3
+  FACETS_START_AT_COLUMN=21
+  ROW_WITH_CONTRACT_NAMES=11
+
   # process the CSV file line by line
   LINE_NUMBER=0
   while IFS= read -r LINE; do
     # Increment the line number
     ((LINE_NUMBER++))
 
-    # Catch the line that contains the facet names
-    if [[ LINE_NUMBER -eq "7" ]]; then
-      # Remove the "Facets:" and "EXAMPLE" from the line
-      STRING_TO_REMOVE="Facets:,EXAMPLE,,"
-      FACET_LINE=$(echo "$LINE" | sed "s/^${STRING_TO_REMOVE}//")
+    # Catch the line that contains the contract names
+    if [[ LINE_NUMBER -eq "$ROW_WITH_CONTRACT_NAMES" ]]; then
+      # Remove the unneeded values from the line
+      STRING_TO_REMOVE='  Blue = Periphery",EXAMPLE,,'
+      CONTRACTS_LINE=$(echo "$LINE" | sed "s/^${STRING_TO_REMOVE}//")
 
       # Split the line by comma into an array
-      IFS=',' read -ra LINE_ARRAY <<<"$FACET_LINE"
+      IFS=',' read -ra LINE_ARRAY <<<"$CONTRACTS_LINE"
 
       # Create an iterable array that only contains facet names
-      FACET_ARRAY=()
-      for ((i = 0; i < ${#LINE_ARRAY[@]}; i += 2)); do
-        FACET_NAME=${LINE_ARRAY[i]}
-        if [[ ! -z $FACET_NAME ]]; then
-          FACET_ARRAY+=("$FACET_NAME")
-        fi
+      CONTRACTS_ARRAY=()
+      for ((i=0; i < ${#LINE_ARRAY[@]}; i += 2)); do
+        # extract contract name (might include "" or the values "FACETS"/"PERIPHERY/END")
+        CONTRACT_NAME=${LINE_ARRAY[i]}
+
+        # add contract name to array
+        CONTRACTS_ARRAY+=("$CONTRACT_NAME")
       done
       #        break
     fi
 
-    # lines containing network-specific data will start earliest in line 86
-    if [[ $((LINE_NUMBER)) -gt 85 ]]; then
+    # lines containing network-specific data will start earliest in line 130
+    if [[ $((LINE_NUMBER)) -gt "$NETWORKS_START_AT_LINE" ]]; then
+
       # extract network name
       NETWORK=$(echo "$LINE" | cut -d',' -f1)
 
@@ -1091,21 +1098,32 @@ function parseTargetStateGoogleSpreadsheet() {
         # Split the line by comma into an array
         IFS=',' read -ra LINE_ARRAY <<<"$LINE"
 
-        # we
-        FACET_INDEX=0
-        # iterate through the array (start with index 2 to skip network name and example columns)
-        for ((INDEX = 3; INDEX < ${#LINE_ARRAY[@]}; INDEX += 1)); do
-          # read cell value and current facet into variables
+        CONTRACT_INDEX=0
+        # iterate through the array (start with index 5 to skip network name, EXAMPLE and PERIPHERY columns)
+        for ((INDEX="$PERIPHERY_STARTS_AT_COLUMN"; INDEX < ${#LINE_ARRAY[@]}; INDEX += 1)); do
+          # read cell value and current contract into variables
           CELL_VALUE=${LINE_ARRAY[$INDEX]}
-          FACET=${FACET_ARRAY[$FACET_INDEX]}
+          CONTRACT=${CONTRACTS_ARRAY[$CONTRACT_INDEX]}
 
           # increase facet index for next iteration
           if ((INDEX % 2 == 0)); then
-            ((FACET_INDEX += 1))
+            ((CONTRACT_INDEX += 1))
           fi
 
-          # end the loop if FACET is empty (=reached the end of the facet columns)
-          if [[ -z "$FACET" ]]; then
+          # skip the iteration if the contract is empty (=empty placeholder column for future contracts)
+          if [[ -z "$CONTRACT" ]]; then
+            echoDebug "skipping iteration (no contract name in column)"
+            continue
+          fi
+
+          # skip the iteration if the contract is empty (=empty placeholder column for future contracts)
+          if [[ -z "$CELL_VALUE" ]]; then
+            echoDebug "skipping iteration (no value in cell)"
+            continue
+          fi
+
+          # end the loop if contract is empty (=reached the end of the facet columns)
+          if [[ "$CONTRACT" == "END" ]]; then
             break
           fi
 
@@ -1117,18 +1135,18 @@ function parseTargetStateGoogleSpreadsheet() {
           fi
 
           # get current contract version and save in variable
-          CURRENT_VERSION=$(getCurrentContractVersion "$FACET")
+          CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
 
           # check if cell value is "latest" >> find version
           if [[ "$CELL_VALUE" == "latest" ]]; then
 
             # make sure version was returned properly
             if [[ "$?" -ne 0 ]]; then
-              warning "could not find current contract version for contract $FACET"
+              warning "could not find current contract version for contract $CONTRACT"
             fi
 
             # echo warning that sheet needs to be updated
-            warning "the latest version for contract $FACET is $CURRENT_VERSION. Please update this for network $NETWORK in the Google sheet"
+            warning "the latest version for contract $CONTRACT is $CURRENT_VERSION. Please update this for network $NETWORK in the Google sheet"
 
             # use current version for target state
             VERSION=$CURRENT_VERSION
@@ -1137,8 +1155,8 @@ function parseTargetStateGoogleSpreadsheet() {
             if isVersionTag "$CELL_VALUE"; then
 
               # check if current version in repo is higher than version in target state
-              if [[ "$CURRENT_VERSION" > "$CELL_VALUE" ]]; then
-                warning "target state requests outdated version ($CELL_VALUE) for contract $FACET in network $NETWORK for $DIAMOND_TYPE. Current version is $CURRENT_VERSION. Update target state file?"
+              if [[ "$CURRENT_VERSION" != "$CELL_VALUE" ]]; then
+                warning "Requested version ($CELL_VALUE) of $CONTRACT in $NETWORK for $DIAMOND_TYPE differs from current version ($CURRENT_VERSION). Update target state file?"
               fi
 
               # store cell value as target version
@@ -1149,8 +1167,8 @@ function parseTargetStateGoogleSpreadsheet() {
           fi
 
           # if code reached here that means we should have a valid target state entry that needs to be added
-          addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$FACET" "$DIAMOND_TYPE" "$VERSION" true
-          echo "addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$FACET" "$DIAMOND_TYPE" "$VERSION" true"
+          addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" true
+          echo "addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" true"
 
         done
       fi

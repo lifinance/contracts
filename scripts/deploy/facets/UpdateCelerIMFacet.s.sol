@@ -9,7 +9,10 @@ import { CelerIMFacet } from "lifi/Facets/CelerIMFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, bytes memory cutData)
+    {
         string memory path = string.concat(
             root,
             "/deployments/",
@@ -21,10 +24,21 @@ contract DeployScript is UpdateScriptBase {
         string memory json = vm.readFile(path);
         address facet = json.readAddress(".CelerIMFacet");
 
-        vm.startBroadcast(deployerPrivateKey);
-
         bytes4[] memory exclude;
         buildDiamondCut(getSelectors("CelerIMFacet", exclude), facet);
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(0),
+                    ""
+                );
+            }
+            return (facets, cutData);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }
