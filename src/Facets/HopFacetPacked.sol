@@ -233,14 +233,16 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         // destinationAmountOutMin: uint256(uint128(bytes16(msg.data[104:120]))),
         // destinationDeadline: uint256(uint32(bytes4(msg.data[120:124]))),
         // wrapper: address(bytes20(msg.data[124:144]))
-        // exchangeAddress: address(bytes20(msg.data[144:164]))
-        // bridge: address(bytes20(msg.data[164:184]))
-        // => total calldata length required: 184
+        // => total calldata length required: 144
 
         uint256 destinationChainId = uint256(uint32(bytes4(msg.data[32:36])));
         uint256 amount = uint256(uint128(bytes16(msg.data[56:72])));
         uint256 amountOutMin = uint256(uint128(bytes16(msg.data[88:104])));
         bool toL1 = destinationChainId == 1;
+
+        IL2AmmWrapper wrapper = IL2AmmWrapper(
+            address(bytes20(msg.data[124:144]))
+        );
 
         // Deposit assets
         ERC20(address(bytes20(msg.data[36:56]))).transferFrom(
@@ -250,7 +252,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         );
 
         // Exchange sending asset to hToken
-        uint256 swapAmount = ISwap(address(bytes20(msg.data[144:164]))).swap(
+        uint256 swapAmount = ISwap(wrapper.exchangeAddress()).swap(
             0,
             1,
             amount,
@@ -260,7 +262,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
         // Bridge assets
         // solhint-disable-next-line check-send-result
-        IHopBridge(address(bytes20(msg.data[164:184]))).send(
+        IHopBridge(wrapper.bridge()).send(
             destinationChainId,
             address(bytes20(msg.data[12:32])),
             swapAmount,
@@ -377,9 +379,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
                 bytes16(uint128(amountOutMin)),
                 bytes16(uint128(destinationAmountOutMin)),
                 bytes4(uint32(destinationDeadline)),
-                bytes20(wrapper),
-                bytes20(IL2AmmWrapper(wrapper).exchangeAddress()),
-                bytes20(IL2AmmWrapper(wrapper).bridge())
+                bytes20(wrapper)
             );
     }
 
