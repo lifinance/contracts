@@ -40,7 +40,7 @@ contract RelayerCelerIMTest is TestBase {
 
         // deploy CelerIM Receiver
         erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(this), address(erc20Proxy));
+        executor = new Executor(address(erc20Proxy));
         relayer = new RelayerCelerIM(
             address(this),
             CBRIDGE_MESSAGEBUS_ETH,
