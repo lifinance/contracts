@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 diamondUpdateFacet() {
   # load required resources
   source .env
@@ -20,16 +19,17 @@ diamondUpdateFacet() {
       # make sure that PRODUCTION was selected intentionally by user
       echo "    "
       echo "    "
-      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!";
-      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true";
-      printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production";
-      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!"
+      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true"
+      printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production"
+      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
       echo "    "
-      printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?";
-      PROD_SELECTION=$(gum choose \
+      printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?"
+      PROD_SELECTION=$(
+        gum choose \
           "yes" \
-          "no" \
-          )
+          "no"
+      )
 
       if [[ $PROD_SELECTION != "no" ]]; then
         echo "...exiting script"
@@ -79,7 +79,6 @@ diamondUpdateFacet() {
     return 1
   fi
 
-
   # if no SCRIPT was passed to this function, ask user to select it
   if [[ -z "$SCRIPT" ]]; then
     echo "Please select which facet you would like to update"
@@ -90,7 +89,7 @@ diamondUpdateFacet() {
   SCRIPT_PATH=$DEPLOY_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
 
   # set flag for mutable/immutable diamond
-  USE_MUTABLE_DIAMOND=$( [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]] && echo true || echo false )
+  USE_MUTABLE_DIAMOND=$([[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]] && echo true || echo false)
 
   # logging for debug purposes
   echoDebug "updating $DIAMOND_CONTRACT_NAME on $NETWORK with address $DIAMOND_ADDRESS in $ENVIRONMENT environment with script $SCRIPT (FILE_SUFFIX=$FILE_SUFFIX, USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND)"
@@ -109,27 +108,27 @@ diamondUpdateFacet() {
     # try to execute call
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
-      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
     else
       # do not print output to console
-      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy) 2>/dev/null
+      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy) 2>/dev/null
     fi
     echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
 
     # check the return code the last call
     if [ $? -eq 0 ]; then
-        # extract the "logs" property and its contents from return data
-        CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+      # extract the "logs" property and its contents from return data
+      CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
 
-        # extract the "returns" property and its contents from logs
-        RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2> /dev/null)
-        #echoDebug "RETURN_DATA: $RETURN_DATA"
+      # extract the "returns" property and its contents from logs
+      RETURN_DATA=$(echo $CLEAN_RETURN_DATA | jq -r '.returns' 2>/dev/null)
+      #echoDebug "RETURN_DATA: $RETURN_DATA"
 
-        # get the facet addresses that are known to the diamond from the return data
-        FACETS=$(echo $RETURN_DATA | jq -r '.facets.value')
-        if [[ $FACETS != "{}" ]]; then
-          break # exit the loop if the operation was successful
-        fi
+      # get the facet addresses that are known to the diamond from the return data
+      FACETS=$(echo $RETURN_DATA | jq -r '.facets.value')
+      if [[ $FACETS != "{}" ]]; then
+        break # exit the loop if the operation was successful
+      fi
     fi
 
     attempts=$((attempts + 1)) # increment attempts

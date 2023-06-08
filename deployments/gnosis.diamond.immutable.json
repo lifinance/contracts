@@ -64,17 +64,19 @@
       "0x0aE0a1Ae2703A27bC518fd7d9DCB3F6C69CfccD2": {
         "Name": "HopFacetPacked",
         "Version": "1.0.4"
+      },
+      "0x7A5BD381385400eBF6F4F69d7f135C709ee377F4": {
+        "Name": "OmniBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "AxelarExecutor": "",
       "ERC20Proxy": "0x0654EbA982ec082036A3D0f59964D302f1ba5cdA",
       "Executor": "0x2120c7A5CCf73d6Fb5C7e9B2A0d4B3A4f587E7a4",
-      "FeeCollector": "0xB49EaD76FE09967D7CA0dbCeF3C3A06eb3Aa0cB4",
-      "FusePoolZap": "",
+      "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
       "Receiver": "0xC4B590a0E2d7e965a2Fb3647d672B5DD97E8d068",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0x4b0B89b90fF83247aEa12469CeA9A6222e09d54c"
+      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
   }
 }
