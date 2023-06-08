@@ -47,10 +47,10 @@ DEPLOY_REQUIREMENTS_PATH="scripts/deploy/resources/deployRequirements.json"
 DEPLOY_CONFIG_FILE_PATH="config/"
 
 # any networks listed here will be excluded from actions that are applied to "all networks"
-# exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,lineatest,localanvil"
-# exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
-#EXCLUDE_NETWORKS="gnosis,okx,moonbeam,celo,fuse,cronos,velas,harmony,evmos,boba,nova,bsctest,goerli,sepolia,mumbai,lineatest"
-EXCLUDE_NETWORKS="lineatest,localanvil"
+# exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,lineatest"
+# exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,evmos,aurora,boba"
+#EXCLUDE_NETWORKS="gnosis,okx,moonbeam,celo,fuse,cronos,velas,evmos,boba,bsctest,goerli,sepolia,mumbai,lineatest"
+EXCLUDE_NETWORKS="lineatest"
 
 # will output more detailed information for debugging purposes
 DEBUG=true
