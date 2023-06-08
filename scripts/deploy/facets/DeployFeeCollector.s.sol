@@ -7,6 +7,7 @@ import { stdJson } from "forge-std/Script.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
+
     string internal globalConfigPath;
     string internal globalConfigJson;
 
