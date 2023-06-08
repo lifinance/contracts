@@ -379,6 +379,15 @@
       }
     }
   },
+  "FeeCollector": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".withdrawWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "RelayerCelerIM": {
     "configData": {
       "_cBridgeMessageBusAddress": {
