@@ -910,7 +910,7 @@ function getContractFilePath() {
   if [ -n "$file_path" ]; then
     echo "$file_path"
   else
-    error "could not find src FILE path for contract $CONTRACT"
+    error "could not find src file path for contract $CONTRACT"
     exit 1
   fi
 }
@@ -1052,9 +1052,8 @@ function parseTargetStateGoogleSpreadsheet() {
   # we currently only support production environment
   ENVIRONMENT="production"
 
-  NETWORKS_START_AT_LINE=123
+  NETWORKS_START_AT_LINE=117
   PERIPHERY_STARTS_AT_COLUMN=3
-  FACETS_START_AT_COLUMN=21
   ROW_WITH_CONTRACT_NAMES=11
 
   # process the CSV file line by line
@@ -1062,6 +1061,8 @@ function parseTargetStateGoogleSpreadsheet() {
   while IFS= read -r LINE; do
     # Increment the line number
     ((LINE_NUMBER++))
+
+#    echo "Line $LINE_NUMBER: $LINE"
 
     # Catch the line that contains the contract names
     if [[ LINE_NUMBER -eq "$ROW_WITH_CONTRACT_NAMES" ]]; then
@@ -1084,7 +1085,7 @@ function parseTargetStateGoogleSpreadsheet() {
       #        break
     fi
 
-    # lines containing network-specific data will start earliest in line 130
+    # lines containing network-specific data will start earliest in line $NETWORKS_START_AT_LINE
     if [[ $((LINE_NUMBER)) -gt "$NETWORKS_START_AT_LINE" ]]; then
 
       # extract network name
