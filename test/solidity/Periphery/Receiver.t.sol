@@ -44,7 +44,7 @@ contract ReceiverTest is TestBase {
         );
 
         erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(this), address(erc20Proxy));
+        executor = new Executor(address(erc20Proxy));
         receiver = new Receiver(
             address(this),
             stargateRouter,

@@ -5,20 +5,19 @@ import { IERC20 } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
+import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IERC20Proxy } from "../Interfaces/IERC20Proxy.sol";
-import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 contract Executor is
     ILiFi,
     ReentrancyGuard,
-    TransferrableOwnership,
     ERC1155Holder,
     ERC721Holder
 {
@@ -69,26 +68,13 @@ contract Executor is
 
     /// Constructor
     /// @notice Initialize local variables for the Executor
-    /// @param _owner The address of owner
     /// @param _erc20Proxy The address of the ERC20Proxy contract
-    constructor(
-        address _owner,
-        address _erc20Proxy
-    ) TransferrableOwnership(_owner) {
-        owner = _owner;
+    constructor(address _erc20Proxy) {
         erc20Proxy = IERC20Proxy(_erc20Proxy);
-
         emit ERC20ProxySet(_erc20Proxy);
     }
 
     /// External Methods ///
-
-    /// @notice set ERC20 Proxy
-    /// @param _erc20Proxy The address of the ERC20Proxy contract
-    function setERC20Proxy(address _erc20Proxy) external onlyOwner {
-        erc20Proxy = IERC20Proxy(_erc20Proxy);
-        emit ERC20ProxySet(_erc20Proxy);
-    }
 
     /// @notice Performs a swap before completing a cross-chain transaction
     /// @param _transactionId the transaction id for the swap

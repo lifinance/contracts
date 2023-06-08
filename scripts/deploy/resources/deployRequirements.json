@@ -362,15 +362,20 @@
   },
   "Receiver": {
     "configData": {
-      "sgRouter": {
+      "_sgRouter": {
         "configFileName": "stargate.json",
         "keyInConfigFile": ".routers.<NETWORK>",
         "allowToDeployWithZeroAddress": "true"
       },
-      "amarokRouter": {
+      "_amarokRouter": {
         "configFileName": "amarok.json",
         "keyInConfigFile": ".<NETWORK>.connextHandler",
         "allowToDeployWithZeroAddress": "true"
+      },
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
       }
     },
     "contractAddresses": {
@@ -379,11 +384,34 @@
       }
     }
   },
+  "FeeCollector": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".withdrawWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "ServiceFeeCollector": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".withdrawWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "RelayerCelerIM": {
     "configData": {
       "_cBridgeMessageBusAddress": {
         "configFileName": "cbridge.json",
-        "keyInConfigFile": ".messageBus",
+        "keyInConfigFile": ".<NETWORK>.messageBus",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
         "allowToDeployWithZeroAddress": "false"
       }
     }
