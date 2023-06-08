@@ -41,7 +41,7 @@ BYTECODE_STORAGE_PATH="deployments/_bytecode_storage.json"
 CONTRACT_REMINDERS="scripts/deploy/resources/contractSpecificReminders.sh"
 
 # the path of the JSON file that contains deploy requirements per contract
-DEPLOY_REQUIREMENTS_PATH="scripts/deploy/resources/deployRequirements.sh"
+DEPLOY_REQUIREMENTS_PATH="scripts/deploy/resources/deployRequirements.json"
 
 # the path of the JSON files that contains deploy configuration per contract
 DEPLOY_CONFIG_FILE_PATH="config/"
@@ -59,7 +59,7 @@ DEBUG=true
 VERIFY_CONTRACTS=false
 
 # contract verification will be deactivated for any network listed here
-DO_NOT_VERIFY_IN_THESE_NETWORKS="gnosis,testNetwork,aurora"
+DO_NOT_VERIFY_IN_THESE_NETWORKS="gnosis,testNetwork,aurora,localanvil"
 
 # the path to the file that contains a list of all networks
 NETWORKS_FILE_PATH="./networks"
@@ -87,3 +87,9 @@ MAINNET_MAXIMUM_GAS_PRICE=50000000000 # = 50 Gwei
 
 # contains the ID of the production target state Google spreadsheet
 TARGET_STATE_SPREADSHEET_ID=""
+
+# used to start a local (Foundry) anvil network with the same private keys for testing purposes
+MNEMONIC="test test test test test test test test test test test junk"
+PRIVATE_KEY_ANVIL=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 # address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP=true
+END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION=true # set to false if you want to run several scripts on the same data/contracts without redeploying

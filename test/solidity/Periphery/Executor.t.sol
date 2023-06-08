@@ -70,7 +70,7 @@ contract ExecutorTest is DSTest {
     function setUp() public {
         gw = new MockGateway();
         erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(this), address(erc20Proxy));
+        executor = new Executor(address(erc20Proxy));
         vm.makePersistent(address(executor));
         erc20Proxy.setAuthorizedCaller(address(executor), true);
         amm = new TestAMM();
@@ -580,38 +580,5 @@ contract ExecutorTest is DSTest {
             payable(address(0xb33f)),
             0.2 ether
         );
-    }
-
-    function testOwnerCanTransferOwnership() public {
-        address newOwner = address(0x1234567890123456789012345678901234567890);
-        executor.transferOwnership(newOwner);
-        assert(executor.owner() != newOwner);
-        vm.startPrank(newOwner);
-        executor.confirmOwnershipTransfer();
-        assert(executor.owner() == newOwner);
-        vm.stopPrank();
-    }
-
-    function testFailNonOwnerCanTransferOwnership() public {
-        address newOwner = address(0x1234567890123456789012345678901234567890);
-        assert(executor.owner() != newOwner);
-        vm.prank(newOwner);
-        executor.transferOwnership(newOwner);
-    }
-
-    function testFailOnwershipTransferToNullAddr() public {
-        address newOwner = address(0x0);
-        executor.transferOwnership(newOwner);
-    }
-
-    function testFailOwnerCanConfirmPendingOwnershipTransfer() public {
-        address newOwner = address(0x1234567890123456789012345678901234567890);
-        executor.transferOwnership(newOwner);
-        executor.confirmOwnershipTransfer();
-    }
-
-    function testFailOwnershipTransferToSelf() public {
-        address newOwner = address(this);
-        executor.transferOwnership(newOwner);
     }
 }
