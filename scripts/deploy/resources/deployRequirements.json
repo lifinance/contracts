@@ -384,11 +384,34 @@
       }
     }
   },
+  "FeeCollector": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".withdrawWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "ServiceFeeCollector": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".withdrawWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "RelayerCelerIM": {
     "configData": {
       "_cBridgeMessageBusAddress": {
         "configFileName": "cbridge.json",
-        "keyInConfigFile": ".messageBus",
+        "keyInConfigFile": ".<NETWORK>.messageBus",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
         "allowToDeployWithZeroAddress": "false"
       }
     }

@@ -8,12 +8,26 @@ import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
+    string internal globalConfigPath;
+    string internal globalConfigJson;
+
     constructor() DeployScriptBase("RelayerCelerIM") {}
 
     function run()
         public
         returns (RelayerCelerIM deployed, bytes memory constructorArgs)
     {
+        // get path of global config file
+        globalConfigPath = string.concat(root, "/config/global.json");
+
+        // read file into json variable
+        globalConfigJson = vm.readFile(globalConfigPath);
+
+        // extract refundWallet address
+        address refundWalletAddress = globalConfigJson.readAddress(
+            ".refundWallet"
+        );
+
         string memory path = string.concat(
             vm.projectRoot(),
             "/config/cbridge.json"
@@ -22,10 +36,6 @@ contract DeployScript is DeployScriptBase {
         address messageBus = json.readAddress(
             string.concat(".", network, ".messageBus")
         );
-
-        if (messageBus == address(32)) {
-            revert("MessageBus not found in cBridge config file");
-        }
 
         path = string.concat(
             root,
@@ -37,11 +47,8 @@ contract DeployScript is DeployScriptBase {
         );
         json = vm.readFile(path);
         address diamond = json.readAddress(".LiFiDiamond");
-        if (diamond == address(32)) {
-            revert("LiFiDiamond not found in deployments file");
-        }
 
-        constructorArgs = abi.encode(deployerAddress, messageBus, diamond);
+        constructorArgs = abi.encode(refundWalletAddress, messageBus, diamond);
 
         vm.startBroadcast(deployerPrivateKey);
 
