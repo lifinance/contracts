@@ -10,9 +10,10 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CelerIMFacet Contract
 contract TestCelerIMFacet is CelerIMFacet {
-    constructor(IMessageBus _messageBus, RelayerCBridge _relayer)
-        CelerIMFacet(_messageBus, _relayer)
-    {}
+    constructor(
+        IMessageBus _messageBus,
+        RelayerCBridge _relayer
+    ) CelerIMFacet(_messageBus, _relayer) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -154,10 +155,9 @@ contract CelerIMFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             celerIMFacet.swapAndStartBridgeTokensViaCelerIM{
                 value: swapData[0].fromAmount

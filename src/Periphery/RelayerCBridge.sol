@@ -12,7 +12,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
-import {CelerIMFacet} from "lifi/Facets/CelerIMFacet.sol";
+import { CelerIMFacet } from "lifi/Facets/CelerIMFacet.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 
@@ -332,10 +332,9 @@ contract RelayerCBridge is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
     /// @notice sets the CBridge MessageBus address
     /// @param _messageBusAddress the MessageBus address
-    function setCBridgeMessageBus(address _messageBusAddress)
-        external
-        onlyOwner
-    {
+    function setCBridgeMessageBus(
+        address _messageBusAddress
+    ) external onlyOwner {
         cBridgeMessageBus = IMessageBus(_messageBusAddress);
         emit CBridgeMessageBusSet(_messageBusAddress);
     }

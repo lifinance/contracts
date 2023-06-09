@@ -8,13 +8,13 @@
         "endOfLine": "auto"
       }
     ],
-    "code-complexity": ["error", 7],
+    "code-complexity": ["warn", 7],
     "compiler-version": ["error", "^0.8.7"],
     "const-name-snakecase": "off",
     "func-name-mixedcase": "off",
     "constructor-syntax": "error",
-    "func-visibility": ["error", {"ignoreConstructors": true}],
+    "func-visibility": ["error", { "ignoreConstructors": true }],
     "not-rely-on-time": "off",
-    "reason-string": ["warn", {"maxLength": 64}]
+    "reason-string": ["warn", { "maxLength": 64 }]
   }
 }

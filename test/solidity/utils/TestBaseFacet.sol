@@ -67,7 +67,7 @@ abstract contract TestBaseFacet is TestBase {
         vm.startPrank(USER_SENDER);
 
         vm.assume(amount > 0 && amount < 100_000);
-        amount = amount * 10**usdc.decimals();
+        amount = amount * 10 ** usdc.decimals();
 
         logFilePath = "./test/logs/"; // works but is not really a proper file
         // logFilePath = "./test/logs/fuzz_test.txt"; // throws error "failed to write to "....../test/logs/fuzz_test.txt": No such file or directory"

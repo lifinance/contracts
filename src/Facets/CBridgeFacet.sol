@@ -42,16 +42,22 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via CBridge
     /// @param _bridgeData the core information needed for bridging
     /// @param _cBridgeData data specific to CBridge
-    function startBridgeTokensViaCBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData calldata _cBridgeData)
-    external
-    payable
-    nonReentrant
-    refundExcessNative(payable(msg.sender))
-    doesNotContainSourceSwaps(_bridgeData)
-    doesNotContainDestinationCalls(_bridgeData)
-    validateBridgeData(_bridgeData)
+    function startBridgeTokensViaCBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        CBridgeData calldata _cBridgeData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        validateBridgeData(_bridgeData)
     {
-        LibAsset.depositAsset(_bridgeData.sendingAssetId, _bridgeData.minAmount);
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
         _startBridge(_bridgeData, _cBridgeData);
     }
 
@@ -64,13 +70,13 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibSwap.SwapData[] calldata _swapData,
         CBridgeData memory _cBridgeData
     )
-    external
-    payable
-    nonReentrant
-    refundExcessNative(payable(msg.sender))
-    containsSourceSwaps(_bridgeData)
-    doesNotContainDestinationCalls(_bridgeData)
-    validateBridgeData(_bridgeData)
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        validateBridgeData(_bridgeData)
     {
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -86,8 +92,12 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via CBridge
     /// @param _bridgeData the core information needed for bridging
     /// @param _cBridgeData data specific to CBridge
-    function _startBridge(ILiFi.BridgeData memory _bridgeData, CBridgeData memory _cBridgeData) private {
-        if (uint64(block.chainid) == _bridgeData.destinationChainId) revert CannotBridgeToSameNetwork();
+    function _startBridge(
+        ILiFi.BridgeData memory _bridgeData,
+        CBridgeData memory _cBridgeData
+    ) private {
+        if (uint64(block.chainid) == _bridgeData.destinationChainId)
+            revert CannotBridgeToSameNetwork();
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             cBridge.sendNative{ value: _bridgeData.minAmount }(
@@ -99,7 +109,11 @@ contract CBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         } else {
             // Give CBridge approval to bridge tokens
-            LibAsset.maxApproveERC20(IERC20(_bridgeData.sendingAssetId), address(cBridge), _bridgeData.minAmount);
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(cBridge),
+                _bridgeData.minAmount
+            );
             // solhint-disable check-send-result
             cBridge.send(
                 _bridgeData.receiver,

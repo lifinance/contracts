@@ -102,7 +102,7 @@ contract CBridgeGasETHTest is Test, DiamondTest {
         maxSlippage = 5000;
 
         // Native params
-        amountNative = 1 * 10**18;
+        amountNative = 1 * 10 ** 18;
         packedNative = cBridgeFacetPacked
             .encode_startBridgeTokensViaCBridgeNativePacked(
                 transactionId,
@@ -113,7 +113,7 @@ contract CBridgeGasETHTest is Test, DiamondTest {
             );
 
         // USDC params
-        amountUSDC = 100 * 10**usdc.decimals();
+        amountUSDC = 100 * 10 ** usdc.decimals();
         packedUSDC = cBridgeFacetPacked
             .encode_startBridgeTokensViaCBridgeERC20Packed(
                 transactionId,

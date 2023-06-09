@@ -53,10 +53,10 @@ contract ServiceFeeCollector is TransferrableOwnership {
     /// @notice Collects gas fees in native token
     /// @param feeAmount The amount of native token to collect
     /// @param receiver The address to send gas to on destination chain
-    function collectNativeGasFees(uint256 feeAmount, address receiver)
-        external
-        payable
-    {
+    function collectNativeGasFees(
+        uint256 feeAmount,
+        address receiver
+    ) external payable {
         if (msg.value < feeAmount) revert NotEnoughNativeForFees();
         uint256 remaining = msg.value - (feeAmount);
         // Prevent extra native token from being locked in the contract
@@ -87,10 +87,10 @@ contract ServiceFeeCollector is TransferrableOwnership {
     /// @notice Collects insurance fees in native token
     /// @param feeAmount The amount of native token to collect
     /// @param receiver The address to insure
-    function collectNativeInsuranceFees(uint256 feeAmount, address receiver)
-        external
-        payable
-    {
+    function collectNativeInsuranceFees(
+        uint256 feeAmount,
+        address receiver
+    ) external payable {
         if (msg.value < feeAmount) revert NotEnoughNativeForFees();
         uint256 remaining = msg.value - (feeAmount);
         // Prevent extra native token from being locked in the contract
@@ -119,10 +119,9 @@ contract ServiceFeeCollector is TransferrableOwnership {
 
     /// @notice Batch withdraws fees
     /// @param tokenAddresses The addresses of the tokens to withdraw fees for
-    function batchWithdrawFees(address[] memory tokenAddresses)
-        external
-        onlyOwner
-    {
+    function batchWithdrawFees(
+        address[] memory tokenAddresses
+    ) external onlyOwner {
         uint256 length = tokenAddresses.length;
         uint256 balance;
         for (uint256 i = 0; i < length; ) {

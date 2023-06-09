@@ -56,9 +56,10 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
     /// @notice Initialize local variables for the Multichain Facet
     /// @param routers Allowed Multichain Routers
     /// @param anyNative The address of the anyNative (e.g. anyETH) token
-    function initMultichain(address anyNative, address[] calldata routers)
-        external
-    {
+    function initMultichain(
+        address anyNative,
+        address[] calldata routers
+    ) external {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
@@ -230,14 +231,14 @@ contract MultichainFacet is ILiFi, SwapperV2, ReentrancyGuard, Validatable {
                 );
                 // replace tokenAddress with anyTokenAddress (if mapping found) and call ERC20 asset bridge function
                 IMultichainRouter(_multichainData.router).anySwapOutUnderlying(
-                        s.anyTokenAddresses[_bridgeData.sendingAssetId] !=
-                            address(0)
-                            ? s.anyTokenAddresses[_bridgeData.sendingAssetId]
-                            : _bridgeData.sendingAssetId,
-                        _bridgeData.receiver,
-                        _bridgeData.minAmount,
-                        _bridgeData.destinationChainId
-                    );
+                    s.anyTokenAddresses[_bridgeData.sendingAssetId] !=
+                        address(0)
+                        ? s.anyTokenAddresses[_bridgeData.sendingAssetId]
+                        : _bridgeData.sendingAssetId,
+                    _bridgeData.receiver,
+                    _bridgeData.minAmount,
+                    _bridgeData.destinationChainId
+                );
             }
         }
 

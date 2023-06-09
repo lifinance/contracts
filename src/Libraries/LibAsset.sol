@@ -33,9 +33,10 @@ library LibAsset {
     ///         recipient
     /// @param recipient Address to send ether to
     /// @param amount Amount to send to given recipient
-    function transferNativeAsset(address payable recipient, uint256 amount)
-        private
-    {
+    function transferNativeAsset(
+        address payable recipient,
+        uint256 amount
+    ) private {
         if (recipient == NULL_ADDRESS) revert NoTransferToNullAddress();
         if (amount > address(this).balance)
             revert InsufficientBalance(amount, address(this).balance);

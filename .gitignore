@@ -31,3 +31,8 @@ test/logs
 .DS_Store
 
 .gas-snapshot
+
+
+# script config
+scripts/config.sh
+script/config.sh

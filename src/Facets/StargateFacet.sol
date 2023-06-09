@@ -251,9 +251,10 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _chainId uint16 of the chain ID
     /// @param _layerZeroChainId uint16 of the Layer 0 chain ID
     /// @dev This is used to map a chain ID to its Layer 0 chain ID
-    function setLayerZeroChainId(uint256 _chainId, uint16 _layerZeroChainId)
-        external
-    {
+    function setLayerZeroChainId(
+        uint256 _chainId,
+        uint16 _layerZeroChainId
+    ) external {
         LibDiamond.enforceIsContractOwner();
         LibMappings.StargateMappings storage sm = LibMappings
             .getStargateMappings();
@@ -280,11 +281,9 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Gets the Layer 0 chain ID for a given chain ID
     /// @param _chainId uint256 of the chain ID
     /// @return uint16 of the Layer 0 chain ID
-    function getLayerZeroChainId(uint256 _chainId)
-        private
-        view
-        returns (uint16)
-    {
+    function getLayerZeroChainId(
+        uint256 _chainId
+    ) private view returns (uint16) {
         LibMappings.StargateMappings storage sm = LibMappings
             .getStargateMappings();
         uint16 chainId = sm.layerZeroChainId[_chainId];

@@ -7,12 +7,10 @@ import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import "./utils/UpdateScriptBase.sol";
 
-
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    constructor() UpdateScriptBase() {
-    }
+    constructor() UpdateScriptBase() {}
 
     function run()
         public
@@ -23,7 +21,9 @@ contract DeployScript is UpdateScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (!isContract(diamond)) {
-            revert("Error in script - check if diamondImmutable is deployed under stored address");
+            revert(
+                "Error in script - check if diamondImmutable is deployed under stored address"
+            );
         }
 
         // remove diamondCut facet to not allow any further code changes to the contract
@@ -48,5 +48,4 @@ contract DeployScript is UpdateScriptBase {
         }
         return size > 0;
     }
-
 }

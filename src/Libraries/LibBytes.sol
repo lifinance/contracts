@@ -12,11 +12,10 @@ library LibBytes {
 
     // -------------------------
 
-    function concat(bytes memory _preBytes, bytes memory _postBytes)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function concat(
+        bytes memory _preBytes,
+        bytes memory _postBytes
+    ) internal pure returns (bytes memory) {
         bytes memory tempBytes;
 
         assembly {
@@ -90,9 +89,10 @@ library LibBytes {
         return tempBytes;
     }
 
-    function concatStorage(bytes storage _preBytes, bytes memory _postBytes)
-        internal
-    {
+    function concatStorage(
+        bytes storage _preBytes,
+        bytes memory _postBytes
+    ) internal {
         assembly {
             // Read the first 32 bytes of _preBytes storage, which is the length
             // of the array. (We don't need to use the offset into the slot
@@ -305,11 +305,10 @@ library LibBytes {
         return tempBytes;
     }
 
-    function toAddress(bytes memory _bytes, uint256 _start)
-        internal
-        pure
-        returns (address)
-    {
+    function toAddress(
+        bytes memory _bytes,
+        uint256 _start
+    ) internal pure returns (address) {
         if (_bytes.length < _start + 20) {
             revert AddressOutOfBounds();
         }
@@ -325,11 +324,10 @@ library LibBytes {
         return tempAddress;
     }
 
-    function toUint8(bytes memory _bytes, uint256 _start)
-        internal
-        pure
-        returns (uint8)
-    {
+    function toUint8(
+        bytes memory _bytes,
+        uint256 _start
+    ) internal pure returns (uint8) {
         if (_bytes.length < _start + 1) {
             revert UintOutOfBounds();
         }
@@ -342,11 +340,10 @@ library LibBytes {
         return tempUint;
     }
 
-    function toUint16(bytes memory _bytes, uint256 _start)
-        internal
-        pure
-        returns (uint16)
-    {
+    function toUint16(
+        bytes memory _bytes,
+        uint256 _start
+    ) internal pure returns (uint16) {
         if (_bytes.length < _start + 2) {
             revert UintOutOfBounds();
         }
@@ -359,11 +356,10 @@ library LibBytes {
         return tempUint;
     }
 
-    function toUint32(bytes memory _bytes, uint256 _start)
-        internal
-        pure
-        returns (uint32)
-    {
+    function toUint32(
+        bytes memory _bytes,
+        uint256 _start
+    ) internal pure returns (uint32) {
         if (_bytes.length < _start + 4) {
             revert UintOutOfBounds();
         }
@@ -376,11 +372,10 @@ library LibBytes {
         return tempUint;
     }
 
-    function toUint64(bytes memory _bytes, uint256 _start)
-        internal
-        pure
-        returns (uint64)
-    {
+    function toUint64(
+        bytes memory _bytes,
+        uint256 _start
+    ) internal pure returns (uint64) {
         if (_bytes.length < _start + 8) {
             revert UintOutOfBounds();
         }
@@ -393,11 +388,10 @@ library LibBytes {
         return tempUint;
     }
 
-    function toUint96(bytes memory _bytes, uint256 _start)
-        internal
-        pure
-        returns (uint96)
-    {
+    function toUint96(
+        bytes memory _bytes,
+        uint256 _start
+    ) internal pure returns (uint96) {
         if (_bytes.length < _start + 12) {
             revert UintOutOfBounds();
         }
@@ -410,11 +404,10 @@ library LibBytes {
         return tempUint;
     }
 
-    function toUint128(bytes memory _bytes, uint256 _start)
-        internal
-        pure
-        returns (uint128)
-    {
+    function toUint128(
+        bytes memory _bytes,
+        uint256 _start
+    ) internal pure returns (uint128) {
         if (_bytes.length < _start + 16) {
             revert UintOutOfBounds();
         }
@@ -427,11 +420,10 @@ library LibBytes {
         return tempUint;
     }
 
-    function toUint256(bytes memory _bytes, uint256 _start)
-        internal
-        pure
-        returns (uint256)
-    {
+    function toUint256(
+        bytes memory _bytes,
+        uint256 _start
+    ) internal pure returns (uint256) {
         if (_bytes.length < _start + 32) {
             revert UintOutOfBounds();
         }
@@ -444,11 +436,10 @@ library LibBytes {
         return tempUint;
     }
 
-    function toBytes32(bytes memory _bytes, uint256 _start)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function toBytes32(
+        bytes memory _bytes,
+        uint256 _start
+    ) internal pure returns (bytes32) {
         if (_bytes.length < _start + 32) {
             revert UintOutOfBounds();
         }
@@ -461,11 +452,10 @@ library LibBytes {
         return tempBytes32;
     }
 
-    function equal(bytes memory _preBytes, bytes memory _postBytes)
-        internal
-        pure
-        returns (bool)
-    {
+    function equal(
+        bytes memory _preBytes,
+        bytes memory _postBytes
+    ) internal pure returns (bool) {
         bool success = true;
 
         assembly {
@@ -508,11 +498,10 @@ library LibBytes {
         return success;
     }
 
-    function equalStorage(bytes storage _preBytes, bytes memory _postBytes)
-        internal
-        view
-        returns (bool)
-    {
+    function equalStorage(
+        bytes storage _preBytes,
+        bytes memory _postBytes
+    ) internal view returns (bool) {
         bool success = true;
 
         assembly {

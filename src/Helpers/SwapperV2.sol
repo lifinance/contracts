@@ -294,11 +294,9 @@ contract SwapperV2 is ILiFi {
     /// @dev Fetches balances of tokens to be swapped before swapping.
     /// @param _swaps Array of data used to execute swaps
     /// @return uint256[] Array of token balances.
-    function _fetchBalances(LibSwap.SwapData[] calldata _swaps)
-        private
-        view
-        returns (uint256[] memory)
-    {
+    function _fetchBalances(
+        LibSwap.SwapData[] calldata _swaps
+    ) private view returns (uint256[] memory) {
         uint256 numSwaps = _swaps.length;
         uint256[] memory balances = new uint256[](numSwaps);
         address asset;

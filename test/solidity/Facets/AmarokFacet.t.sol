@@ -8,9 +8,10 @@ import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, I
 
 // Stub AmarokFacet Contract
 contract TestAmarokFacet is AmarokFacet {
-    constructor(IConnextHandler _connextHandler, uint32 _srcChainDomain)
-        AmarokFacet(_connextHandler, _srcChainDomain)
-    {}
+    constructor(
+        IConnextHandler _connextHandler,
+        uint32 _srcChainDomain
+    ) AmarokFacet(_connextHandler, _srcChainDomain) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -90,7 +91,7 @@ contract AmarokFacetTest is TestBaseFacet {
         });
 
         // make sure relayerFee is sent with every transaction
-        addToMessageValue = 1 * 10**15;
+        addToMessageValue = 1 * 10 ** 15;
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -103,10 +104,9 @@ contract AmarokFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(bool isNative)
-        internal
-        override
-    {
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
         if (isNative) {
             amarokFacet.swapAndStartBridgeTokensViaAmarok{
                 value: swapData[0].fromAmount

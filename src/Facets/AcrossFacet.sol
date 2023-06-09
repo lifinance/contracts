@@ -13,10 +13,9 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Across Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
+/// @custom:version 2.0.0
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
-
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.across");
 
     /// @notice The contract address of the spoke pool on the source chain.
     IAcrossSpokePool private immutable spokePool;
@@ -24,16 +23,17 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The WETH address on the current chain.
     address private immutable wrappedNative;
 
-    /// Errors
-    error QuoteTimeout();
-
     /// Types ///
 
     /// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
     /// @param quoteTimestamp The timestamp associated with the suggested fee.
+    /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens.
+    /// @param maxCount Used to protect the depositor from frontrunning to guarantee their quote remains valid.
     struct AcrossData {
-        uint64 relayerFeePct;
+        int64 relayerFeePct;
         uint32 quoteTimestamp;
+        bytes message;
+        uint256 maxCount;
     }
 
     /// Constructor ///
@@ -77,7 +77,7 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaAcross(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        AcrossData memory _acrossData
+        AcrossData calldata _acrossData
     )
         external
         payable
@@ -103,26 +103,36 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _acrossData data specific to Across
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        AcrossData memory _acrossData
+        AcrossData calldata _acrossData
     ) internal {
-        bool isNative = _bridgeData.sendingAssetId == LibAsset.NATIVE_ASSETID;
-        address sendingAsset = _bridgeData.sendingAssetId;
-        if (isNative) sendingAsset = wrappedNative;
-        else
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            spokePool.deposit{ value: _bridgeData.minAmount }(
+                _bridgeData.receiver,
+                wrappedNative,
+                _bridgeData.minAmount,
+                _bridgeData.destinationChainId,
+                _acrossData.relayerFeePct,
+                _acrossData.quoteTimestamp,
+                _acrossData.message,
+                _acrossData.maxCount
+            );
+        } else {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(spokePool),
                 _bridgeData.minAmount
             );
-
-        spokePool.deposit{ value: isNative ? _bridgeData.minAmount : 0 }(
-            _bridgeData.receiver,
-            sendingAsset,
-            _bridgeData.minAmount,
-            _bridgeData.destinationChainId,
-            _acrossData.relayerFeePct,
-            _acrossData.quoteTimestamp
-        );
+            spokePool.deposit(
+                _bridgeData.receiver,
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                _bridgeData.destinationChainId,
+                _acrossData.relayerFeePct,
+                _acrossData.quoteTimestamp,
+                _acrossData.message,
+                _acrossData.maxCount
+            );
+        }
 
         emit LiFiTransferStarted(_bridgeData);
     }

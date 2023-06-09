@@ -66,9 +66,10 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @notice Initialize local variables for the Executor
     /// @param _owner The address of owner
     /// @param _erc20Proxy The address of the ERC20Proxy contract
-    constructor(address _owner, address _erc20Proxy)
-        TransferrableOwnership(_owner)
-    {
+    constructor(
+        address _owner,
+        address _erc20Proxy
+    ) TransferrableOwnership(_owner) {
         owner = _owner;
         erc20Proxy = IERC20Proxy(_erc20Proxy);
 
@@ -237,11 +238,9 @@ contract Executor is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @dev Fetches balances of tokens to be swapped before swapping.
     /// @param _swapData Array of data used to execute swaps
     /// @return uint256[] Array of token balances.
-    function _fetchBalances(LibSwap.SwapData[] calldata _swapData)
-        private
-        view
-        returns (uint256[] memory)
-    {
+    function _fetchBalances(
+        LibSwap.SwapData[] calldata _swapData
+    ) private view returns (uint256[] memory) {
         uint256 numSwaps = _swapData.length;
         uint256[] memory balances = new uint256[](numSwaps);
         address asset;

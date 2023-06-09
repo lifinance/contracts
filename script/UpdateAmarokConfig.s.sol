@@ -7,7 +7,6 @@ import "forge-std/console.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
 
-
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
@@ -22,8 +21,14 @@ contract DeployScript is UpdateScriptBase {
         AmarokFacet(diamond).setAmarokDomain(uint256(56), uint32(6450786));
         AmarokFacet(diamond).setAmarokDomain(uint256(100), uint32(6778479));
         AmarokFacet(diamond).setAmarokDomain(uint256(137), uint32(1886350457));
-        AmarokFacet(diamond).setAmarokDomain(uint256(1284), uint32(1650811245));
-        AmarokFacet(diamond).setAmarokDomain(uint256(42161), uint32(1634886255));
+        AmarokFacet(diamond).setAmarokDomain(
+            uint256(1284),
+            uint32(1650811245)
+        );
+        AmarokFacet(diamond).setAmarokDomain(
+            uint256(42161),
+            uint32(1634886255)
+        );
 
         facets = loupe.facetAddresses();
 

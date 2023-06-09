@@ -20,9 +20,10 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CelerIMFacet {
-    constructor(IMessageBus _messageBus, RelayerCBridge _relayer)
-        CelerIMFacet(_messageBus, _relayer)
-    {}
+    constructor(
+        IMessageBus _messageBus,
+        RelayerCBridge _relayer
+    ) CelerIMFacet(_messageBus, _relayer) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -118,9 +119,9 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
     function testCanCollectTokenFeesAndBridgeTokens() public {
         vm.startPrank(WHALE);
 
-        uint256 amount = 1_000 * 10**usdc.decimals();
-        uint256 fee = 10 * 10**usdc.decimals();
-        uint256 lifiFee = 5 * 10**usdc.decimals();
+        uint256 amount = 1_000 * 10 ** usdc.decimals();
+        uint256 fee = 10 * 10 ** usdc.decimals();
+        uint256 lifiFee = 5 * 10 ** usdc.decimals();
         address integrator = address(0xb33f);
 
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
@@ -232,9 +233,9 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
     function testCanCollectTokenFeesSwapAndBridgeTokens() public {
         vm.startPrank(WHALE);
 
-        uint256 amountToBridge = 1_000 * 10**dai.decimals();
-        uint256 fee = 10 * 10**usdc.decimals();
-        uint256 lifiFee = 5 * 10**usdc.decimals();
+        uint256 amountToBridge = 1_000 * 10 ** dai.decimals();
+        uint256 fee = 10 * 10 ** usdc.decimals();
+        uint256 lifiFee = 5 * 10 ** usdc.decimals();
 
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
             "",
@@ -315,7 +316,7 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
     function testCanCollectNativeFeesSwapAndBridgeTokens() public {
         vm.startPrank(WHALE);
 
-        uint256 amountToBridge = 1000 * 10**usdc.decimals();
+        uint256 amountToBridge = 1000 * 10 ** usdc.decimals();
         uint256 fee = 0.01 ether;
         uint256 lifiFee = 0.0015 ether;
 
@@ -396,9 +397,9 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
     function testCanSwapCollectTokenFeesAndBridgeTokens() public {
         vm.startPrank(WHALE);
 
-        uint256 amountToBridge = 1_000 * 10**dai.decimals();
-        uint256 fee = 10 * 10**dai.decimals();
-        uint256 lifiFee = 5 * 10**dai.decimals();
+        uint256 amountToBridge = 1_000 * 10 ** dai.decimals();
+        uint256 fee = 10 * 10 ** dai.decimals();
+        uint256 lifiFee = 5 * 10 ** dai.decimals();
 
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
             "",
@@ -483,9 +484,9 @@ contract CBridgeAndFeeCollectionTest is DSTest, DiamondTest {
     function testCanSwapCollectNativeFeesAndBridgeTokens() public {
         vm.startPrank(WHALE);
 
-        uint256 amountToBridge = 1000 * 10**usdc.decimals();
-        uint256 fee = 10 * 10**usdc.decimals();
-        uint256 lifiFee = 5 * 10**usdc.decimals();
+        uint256 amountToBridge = 1000 * 10 ** usdc.decimals();
+        uint256 fee = 10 * 10 ** usdc.decimals();
+        uint256 lifiFee = 5 * 10 ** usdc.decimals();
 
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData(
             "",

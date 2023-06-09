@@ -8,7 +8,6 @@ import { LibMappings } from "../Libraries/LibMappings.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice A simple registry to track LIFI periphery contracts
 contract PeripheryRegistryFacet {
-
     /// Events ///
 
     event PeripheryContractRegistered(string name, address contractAddress);
@@ -31,12 +30,9 @@ contract PeripheryRegistryFacet {
 
     /// @notice Returns the registered contract address by its name
     /// @param _name the registered name of the contract
-    function getPeripheryContract(string calldata _name)
-        external
-        view
-        returns (address)
-    {
-        return LibMappings
-            .getPeripheryRegistryMappings().contracts[_name];
+    function getPeripheryContract(
+        string calldata _name
+    ) external view returns (address) {
+        return LibMappings.getPeripheryRegistryMappings().contracts[_name];
     }
 }

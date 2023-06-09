@@ -119,9 +119,7 @@ contract ServiceFeeCollectorTest is DSTest {
         feeCollector.withdrawFees(address(0));
 
         // Assert
-        assert(
-            address(this).balance == 0.015 ether + startingBalance
-        );
+        assert(address(this).balance == 0.015 ether + startingBalance);
         assert(address(feeCollector).balance == 0);
     }
 

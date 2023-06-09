@@ -37,18 +37,17 @@ contract UpdateScriptBase is Script {
             "json"
         );
         json = vm.readFile(path);
-        diamond = useDefaultDiamond ?
-            json.readAddress(".LiFiDiamond") :
-            json.readAddress(".LiFiDiamondImmutable")
-        ;
+        diamond = useDefaultDiamond
+            ? json.readAddress(".LiFiDiamond")
+            : json.readAddress(".LiFiDiamondImmutable");
         cutter = DiamondCutFacet(diamond);
         loupe = DiamondLoupeFacet(diamond);
     }
 
-    function getSelectors(string memory _facetName, bytes4[] memory _exclude)
-        internal
-        returns (bytes4[] memory selectors)
-    {
+    function getSelectors(
+        string memory _facetName,
+        bytes4[] memory _exclude
+    ) internal returns (bytes4[] memory selectors) {
         string[] memory cmd = new string[](3);
         cmd[0] = "scripts/contract-selectors.sh";
         cmd[1] = _facetName;

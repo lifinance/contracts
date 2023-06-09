@@ -144,9 +144,10 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Creates a mapping between a lifi chain id and a wormhole chain id
     /// @param _lifiChainId lifi chain id
     /// @param _wormholeChainId wormhole chain id
-    function setWormholeChainId(uint256 _lifiChainId, uint16 _wormholeChainId)
-        external
-    {
+    function setWormholeChainId(
+        uint256 _lifiChainId,
+        uint16 _wormholeChainId
+    ) external {
         LibDiamond.enforceIsContractOwner();
         LibMappings.WormholeMappings storage sm = LibMappings
             .getWormholeMappings();
@@ -234,11 +235,9 @@ contract WormholeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Gets the wormhole chain id for a given lifi chain id
     /// @param _lifiChainId uint256 of the lifi chain ID
     /// @return uint16 of the wormhole chain id
-    function getWormholeChainId(uint256 _lifiChainId)
-        private
-        view
-        returns (uint16)
-    {
+    function getWormholeChainId(
+        uint256 _lifiChainId
+    ) private view returns (uint16) {
         LibMappings.WormholeMappings storage sm = LibMappings
             .getWormholeMappings();
         uint16 wormholeChainId = sm.wormholeChainId[_lifiChainId];

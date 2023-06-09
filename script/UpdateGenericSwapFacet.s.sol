@@ -10,7 +10,6 @@ contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     function run() public returns (address[] memory facets) {
-
         address facet = json.readAddress(".GenericSwapFacet");
 
         vm.startBroadcast(deployerPrivateKey);

@@ -6,7 +6,6 @@ import { stdJson } from "forge-std/Script.sol";
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 
-
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
@@ -15,7 +14,6 @@ contract DeployScript is DeployScriptBase {
     DiamondCutFacet internal cutter;
 
     constructor() DeployScriptBase("LiFiDiamond") {
-
         network = vm.envString("NETWORK");
         fileSuffix = vm.envString("FILE_SUFFIX");
 

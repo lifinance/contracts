@@ -53,6 +53,7 @@
   },
   "scripts": {
     "postinstall": "patch-package",
+    "prepare": "yarn prepare:husky",
     "prepare:husky": "husky install",
     "lint": "eslint \"**/*.{js,ts}\" && solhint src/**/*.sol",
     "lint:fix": "eslint --fix \"**/*.{js,ts}\" && solhint --fix src/**/*.sol",
@@ -69,12 +70,15 @@
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
-    "@axelar-network/axelar-cgp-solidity": "git+https://github.com/axelarnetwork/axelar-cgp-solidity.git",
+    "@axelar-network/axelar-cgp-solidity": "^4.5.0",
     "@axelar-network/axelarjs-sdk": "^0.6.11-alpha.8",
     "@connext/nxtp-contracts": "^0.1.31",
     "@connext/nxtp-sdk": "^0.1.31",
     "@connext/nxtp-utils": "^0.1.31",
     "@hop-protocol/sdk": "0.0.1-beta.310",
+    "@safe-global/api-kit": "^1.1.0",
+    "@safe-global/protocol-kit": "^1.0.1",
+    "@safe-global/safe-core-sdk-types": "^2.0.0",
     "@uma/sdk": "^0.22.1",
     "@uniswap/sdk": "^3.0.3",
     "chalk": "4.1.2",
@@ -82,6 +86,7 @@
     "hardhat-ethers": "^1.0.1",
     "inquirer": "^8.2.1",
     "light-spinner": "^1.0.4",
+    "notify-send": "^0.1.2",
     "pino": "^7.9.2",
     "yarn": "^1.22.19"
   }

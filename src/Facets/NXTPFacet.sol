@@ -170,11 +170,9 @@ contract NXTPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
     }
 
-    function hasDestinationCall(NXTPData memory _nxtpData)
-        private
-        pure
-        returns (bool)
-    {
+    function hasDestinationCall(
+        NXTPData memory _nxtpData
+    ) private pure returns (bool) {
         return _nxtpData.encryptedCallData.length > 0;
     }
 }
