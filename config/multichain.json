@@ -43,7 +43,7 @@
       }
     ]
   },
-  "1101": {
+  "polygonzkevm": {
     "routers": ["0x218c3c3d49d0e7b37aff0d8bb079de36ae61a4c0"],
     "anyNative": "0x765277eebeca2e31912c9946eae1021199b39c61",
     "tokens": [

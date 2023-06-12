@@ -68,6 +68,10 @@
       "0x7A5BD381385400eBF6F4F69d7f135C709ee377F4": {
         "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
+      },
+      "0x2F8746982DF5D48eCDDA532A541445c138A3c297": {
+        "Name": "GnosisBridgeL2Facet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

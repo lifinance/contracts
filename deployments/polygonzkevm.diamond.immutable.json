@@ -40,6 +40,10 @@
       "0xc168BA7C5103fd1eCfC2C8d25B87C6071DbEdd90": {
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
+      },
+      "0x07b7078D316AE023D19DB5AFeFe3f7EFE56F34B7": {
+        "Name": "MultichainFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
