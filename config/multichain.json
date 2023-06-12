@@ -58,6 +58,7 @@
       "0x9fb83c0635de2e815fd1c21b3a292277540c2e8d",
       "0xbfc044a234e45412ecfec2cd6aae2dd0c083a7cd"
     ],
+    "anyNative": "0x0000000000000000000000000000000000000000",
     "tokens": [
       {
         "a_tokenAddress": "0xdfa46478f9e5ea86d57387849598dbfb2e964b02",

@@ -4060,6 +4060,19 @@
           }
         ]
       }
+    },
+    "aurora": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x07b7078D316AE023D19DB5AFeFe3f7EFE56F34B7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-12 12:48:18",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "NXTPFacet": {
