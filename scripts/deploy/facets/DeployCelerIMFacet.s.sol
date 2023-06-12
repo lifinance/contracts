@@ -33,7 +33,9 @@ contract DeployScript is DeployScriptBase {
             keccak256(abi.encodePacked(network)) ==
             keccak256(abi.encodePacked("mainnet"))
         ) {
-            cfUSDCAddress = json.readAddress(string.concat(".", network, ".cfUSDC"));
+            cfUSDCAddress = json.readAddress(
+                string.concat(".", network, ".cfUSDC")
+            );
         }
 
         // get path of network deploy file
@@ -52,10 +54,11 @@ contract DeployScript is DeployScriptBase {
         if (
             keccak256(abi.encodePacked(diamondType)) ==
             keccak256(abi.encodePacked("LiFiDiamond"))
-        )
-            diamondAddress = json.readAddress(string.concat(".LiFiDiamond"));
+        ) diamondAddress = json.readAddress(string.concat(".LiFiDiamond"));
         else
-            diamondAddress = json.readAddress(string.concat(".LiFiDiamondImmutable"));
+            diamondAddress = json.readAddress(
+                string.concat(".LiFiDiamondImmutable")
+            );
 
         // get path of global config file
         globalConfigPath = string.concat(root, "/config/global.json");
@@ -69,7 +72,12 @@ contract DeployScript is DeployScriptBase {
         );
 
         // prepare constructorArgs
-        constructorArgs = abi.encode(messageBus, refundWalletAddress, diamondAddress, cfUSDCAddress);
+        constructorArgs = abi.encode(
+            messageBus,
+            refundWalletAddress,
+            diamondAddress,
+            cfUSDCAddress
+        );
 
         vm.startBroadcast(deployerPrivateKey);
 

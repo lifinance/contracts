@@ -67,12 +67,15 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address _cfUSDC
     ) {
         // deploy RelayerCelerIM
-        relayer =  new RelayerCelerIM(address(_messageBus), _relayerOwner, _diamondAddress);
+        relayer = new RelayerCelerIM(
+            address(_messageBus),
+            _relayerOwner,
+            _diamondAddress
+        );
 
         // store arguments in variables
         cBridgeMessageBus = _messageBus;
         cfUSDC = _cfUSDC;
-
     }
 
     /// External Methods ///

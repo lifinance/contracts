@@ -117,6 +117,14 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     // Forking
     uint256 internal constant DEFAULT_BLOCK_NUMBER_MAINNET = 15588208;
 
+    // WALLET ADDRESSES (all networks)
+    address internal constant REFUND_WALLET =
+    0x317F8d18FB16E49a958Becd0EA72f8E153d25654;
+    address internal constant WITHDRAW_WALLET =
+    0x08647cc950813966142A416D40C382e2c5DB73bB;
+
+
+
     // Contract addresses (ETH only)
     address internal ADDRESS_UNISWAP =
         0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
