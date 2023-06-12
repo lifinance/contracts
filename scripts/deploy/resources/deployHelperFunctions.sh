@@ -1057,7 +1057,7 @@ function parseTargetStateGoogleSpreadsheet() {
   # we currently only support production environment
   ENVIRONMENT="production"
 
-  NETWORKS_START_AT_LINE=123
+  NETWORKS_START_AT_LINE=119
   PERIPHERY_STARTS_AT_COLUMN=3
   FACETS_START_AT_COLUMN=21
   ROW_WITH_CONTRACT_NAMES=11
@@ -2744,9 +2744,10 @@ function printDeploymentsStatusV2() {
 
     # go through all networks
     for NETWORK in ${NETWORKS[*]}; do
-      #      if [[ "$NETWORK" != "nova" && "$NETWORK" != "harmony" ]] ; then
-      #        continue
-      #      fi
+      # skip any network that is a testnet
+      if [[ "$TEST_NETWORKS" == *"$NETWORK"* ]] ; then
+        continue
+      fi
 
       # (re-)set entry values
       TARGET_ENTRY_1="  -  "
