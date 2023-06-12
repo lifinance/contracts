@@ -49,8 +49,8 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
     /// Constructor
 
     constructor(
-        address _owner,
         address _cBridgeMessageBusAddress,
+        address _owner,
         address _diamondAddress
     ) TransferrableOwnership(_owner) {
         owner = _owner;

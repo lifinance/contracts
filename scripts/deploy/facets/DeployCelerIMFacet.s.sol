@@ -8,6 +8,10 @@ import { CelerIMFacet } from "lifi/Facets/CelerIMFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
+    address internal diamondAddress;
+    string internal globalConfigPath;
+    string internal globalConfigJson;
+
     constructor() DeployScriptBase("CelerIMFacet") {}
 
     function run()
@@ -24,21 +28,15 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".messageBus")
         );
 
-        address cfUSDC;
+        address cfUSDCAddress;
         if (
             keccak256(abi.encodePacked(network)) ==
             keccak256(abi.encodePacked("mainnet"))
         ) {
-            cfUSDC = json.readAddress(string.concat(".", network, ".cfUSDC"));
+            cfUSDCAddress = json.readAddress(string.concat(".", network, ".cfUSDC"));
         }
-        if (messageBus == address(32))
-            revert(
-                string.concat(
-                    "MessageBus address not found in deployment file for network ",
-                    network
-                )
-            );
-        // get relayer address
+
+        // get path of network deploy file
         path = string.concat(
             vm.projectRoot(),
             "/deployments/",
@@ -48,17 +46,30 @@ contract DeployScript is DeployScriptBase {
             "json"
         );
         json = vm.readFile(path);
-        address relayer = json.readAddress(".RelayerCelerIM");
-        if (relayer == address(32)) {
-            revert(
-                string.concat(
-                    "Relayer address not found in deployment file for network ",
-                    network
-                )
-            );
-        }
 
-        constructorArgs = abi.encode(messageBus, relayer, cfUSDC);
+        // check which diamond to use (from env variable) and get its address from network deploy file
+        string memory diamondType = vm.envString("DIAMOND_TYPE");
+        if (
+            keccak256(abi.encodePacked(diamondType)) ==
+            keccak256(abi.encodePacked("LiFiDiamond"))
+        )
+            diamondAddress = json.readAddress(string.concat(".LiFiDiamond"));
+        else
+            diamondAddress = json.readAddress(string.concat(".LiFiDiamondImmutable"));
+
+        // get path of global config file
+        globalConfigPath = string.concat(root, "/config/global.json");
+
+        // read file into json variable
+        globalConfigJson = vm.readFile(globalConfigPath);
+
+        // extract refundWallet address
+        address refundWalletAddress = globalConfigJson.readAddress(
+            ".refundWallet"
+        );
+
+        // prepare constructorArgs
+        constructorArgs = abi.encode(messageBus, refundWalletAddress, diamondAddress, cfUSDCAddress);
 
         vm.startBroadcast(deployerPrivateKey);
 
