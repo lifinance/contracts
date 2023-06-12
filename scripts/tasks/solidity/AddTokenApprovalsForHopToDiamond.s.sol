@@ -20,8 +20,6 @@ contract DeployScript is UpdateScriptBase {
     address[] internal tokenAddresses;
 
     function run() public returns (address[] memory facets) {
-        address facet = json.readAddress(".LiFiDiamond"); // HopFacetOptimized is registered in the Diamond
-
         // load config
         path = string.concat(root, "/config/hop.json");
         json = vm.readFile(path);
@@ -38,8 +36,8 @@ contract DeployScript is UpdateScriptBase {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Call Facet directly to update standalone version
-        HopFacetOptimized(facet).setApprovalForBridges(
+        // Update via Diamond
+        HopFacetOptimized(diamond).setApprovalForBridges(
             contractAddresses,
             tokenAddresses
         );
