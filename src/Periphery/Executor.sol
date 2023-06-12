@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import { IERC20 } from "@axelar-network/axelar-cgp-solidity/contracts/interfaces/IERC20.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
@@ -10,17 +9,13 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IERC20Proxy } from "../Interfaces/IERC20Proxy.sol";
 import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
 /// @custom:version 2.0.0
-contract Executor is
-    ILiFi,
-    ReentrancyGuard,
-    ERC1155Holder,
-    ERC721Holder
-{
+contract Executor is ILiFi, ReentrancyGuard, ERC1155Holder, ERC721Holder {
     /// Storage ///
 
     /// @notice The address of the ERC20Proxy contract

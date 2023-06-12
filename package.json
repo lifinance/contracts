@@ -70,8 +70,6 @@
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
-    "@axelar-network/axelar-cgp-solidity": "^4.5.0",
-    "@axelar-network/axelarjs-sdk": "^0.6.11-alpha.8",
     "@connext/nxtp-contracts": "^0.1.31",
     "@connext/nxtp-sdk": "^0.1.31",
     "@connext/nxtp-utils": "^0.1.31",
