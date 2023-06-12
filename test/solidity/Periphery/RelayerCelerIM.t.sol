@@ -29,7 +29,7 @@ contract RelayerCelerIMTest is TestBase {
     address internal constant CBRIDGE_MESSAGEBUS_ETH =
         0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
     address internal constant CFUSDC =
-    0x317F8d18FB16E49a958Becd0EA72f8E153d25654;
+        0x317F8d18FB16E49a958Becd0EA72f8E153d25654;
 
     CelerIMFacet internal celerIMFacet;
     CelerIMFacet.CelerIMData internal celerIMData;
