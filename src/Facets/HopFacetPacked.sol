@@ -341,7 +341,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         uint256 destinationAmountOutMin,
         uint256 destinationDeadline,
         address wrapper
-    ) external view returns (bytes memory) {
+    ) external pure returns (bytes memory) {
         require(
             destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
