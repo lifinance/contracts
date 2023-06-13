@@ -26,8 +26,10 @@ updateFacetConfig() {
   # ensure all required .env values are set
   checkRequiredVariablesInDotEnv $NETWORK
 
+  echo "CONFIG_SCRIPT_DIRECTORY: $CONFIG_SCRIPT_DIRECTORY"
+
   # select which script to execute
-  local SCRIPT=$(ls -1 "$CONFIG_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Update' | gum filter --placeholder "Please select a script to execute")
+  local SCRIPT=$(ls -1 "$CONFIG_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | gum filter --placeholder "Please select a script to execute")
   echo "[info] selected script: $SCRIPT"
 
   # determine full (relative) path of deploy script
