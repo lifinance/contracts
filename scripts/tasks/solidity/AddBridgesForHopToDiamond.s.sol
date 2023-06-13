@@ -22,8 +22,7 @@ contract DeployScript is UpdateScriptBase {
     }
 
     function run() public returns (address[] memory facets) {
-        address facet = json.readAddress(".HopFacet");
-
+        // load config
         path = string.concat(root, "/config/hop.json");
         json = vm.readFile(path);
         bytes memory rawConfig = json.parseRaw(

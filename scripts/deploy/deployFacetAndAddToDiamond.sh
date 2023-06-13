@@ -97,12 +97,12 @@ function deployFacetAndAddToDiamond() {
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $FACET_CONTRACT_NAME for $DIAMOND_CONTRACT_NAME now...."
 
   # deploy facet
-  deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
+  deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "$DIAMOND_CONTRACT_NAME"
 
   # check if function call was successful
   if [ $? -ne 0 ]
   then
-    warning "this call was not successful: deploySingleContract $FACET_CONTRACT_NAME $NETWORK $ENVIRONMENT $VERSION false"
+    warning "this call was not successful: deploySingleContract $FACET_CONTRACT_NAME $NETWORK $ENVIRONMENT $VERSION false $DIAMOND_CONTRACT_NAME"
     return 1
   fi
 

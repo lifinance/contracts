@@ -12,9 +12,10 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 contract TestCelerIMFacet is CelerIMFacet {
     constructor(
         IMessageBus _messageBus,
-        RelayerCelerIM _relayer,
+        address _relayerOwner,
+        address _diamondAddress,
         address _cfUSDC
-    ) CelerIMFacet(_messageBus, _relayer, _cfUSDC) {}
+    ) CelerIMFacet(_messageBus, _relayerOwner, _diamondAddress, _cfUSDC) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -94,17 +95,16 @@ contract CelerIMFacetTest is TestBaseFacet {
         // deploy periphery
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(erc20Proxy));
-        relayer = new RelayerCelerIM(
-            address(this),
-            CBRIDGE_MESSAGEBUS_ETH,
-            address(diamond)
-        );
 
         celerIMFacet = new TestCelerIMFacet(
             IMessageBus(CBRIDGE_MESSAGEBUS_ETH),
-            relayer,
+            REFUND_WALLET,
+            address(diamond),
             CFUSDC
         );
+
+        relayer = celerIMFacet.relayer();
+
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = celerIMFacet
             .startBridgeTokensViaCelerIM

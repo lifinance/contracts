@@ -20,6 +20,7 @@ contract DeployScript is UpdateScriptBase {
     }
 
     function run() public {
+        // load config
         path = string.concat(root, "/config/stargate.json");
         json = vm.readFile(path);
         bytes memory rawChains = json.parseRaw(string.concat(".chains"));
