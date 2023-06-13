@@ -112,15 +112,15 @@
         "keyInConfigFile": ".<NETWORK>.messageBus",
         "allowToDeployWithZeroAddress": "false"
       },
+      "_relayerOwner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
       "_cfUSDC": {
         "configFileName": "cbridge.json",
         "keyInConfigFile": ".<NETWORK>.cfUSDC",
         "allowToDeployWithZeroAddress": "true"
-      }
-    },
-    "contractAddresses": {
-      "RelayerCelerIM": {
-        "allowToDeployWithZeroAddress": "false"
       }
     }
   },

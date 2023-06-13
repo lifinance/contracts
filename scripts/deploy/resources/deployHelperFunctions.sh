@@ -228,42 +228,47 @@ function checkIfJSONContainsEntry {
 }
 function findContractInMasterLog() {
   # read function arguments into variables
-  CONTRACT="$1"
-  NETWORK="$2"
-  ENVIRONMENT="$3"
-  VERSION="$4"
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+  local VERSION="$4"
 
-  found=false
+  local FOUND=false
 
   # Check if log file exists
   if [ ! -f "$LOG_FILE_PATH" ]; then
-    error "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run the script again."
+    echo "deployments log file does not exist in path $LOG_FILE_PATH. Please check and run the script again."
     exit 1
   fi
 
   # Process JSON data incrementally using jq
-  jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '
-  . as $data |
-  keys[] as $contract |
-  $data[$contract] |
-  keys[] as $network |
-  $data[$contract][$network] |
-  keys[] as $environment |
-  $data[$contract][$network][$environment] |
-  keys[] as $version |
-  select($contract == $CONTRACT and $network == $NETWORK and $environment == $ENVIRONMENT and $version == $VERSION) |
-  $data[$contract][$network][$environment][$version][0]
-' "$LOG_FILE_PATH" |
-    while IFS= read -r entry; do
-      found=true
-      echo "$entry"
-    done
+  entries=$(jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg VERSION "$VERSION" '
+    . as $data |
+    keys[] as $contract |
+    $data[$contract] |
+    keys[] as $network |
+    $data[$contract][$network] |
+    keys[] as $environment |
+    $data[$contract][$network][$environment] |
+    keys[] as $version |
+    select($contract == $CONTRACT and $network == $NETWORK and $environment == $ENVIRONMENT and $version == $VERSION) |
+    $data[$contract][$network][$environment][$version][0]
+  ' "$LOG_FILE_PATH")
 
-  if ! $found; then
+  # Loop through the entries
+  while IFS= read -r entry; do
+    if [[ -n "$entry" ]]; then  # If entry is not empty
+      FOUND=true
+      echo "$entry"
+    fi
+  done <<<"$entries"
+
+  if ! $FOUND; then
     echo "[info] No matching entry found in deployments log file for CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION"
     exit 1
   fi
 
+  exit 0
 }
 function findContractInMasterLogByAddress() {
   # read function arguments into variables
@@ -796,10 +801,10 @@ function saveDiamondPeriphery() {
 }
 function saveContract() {
   # read function arguments into variables
-  NETWORK=$1
-  CONTRACT=$2
-  ADDRESS=$3
-  FILE_SUFFIX=$4
+  local NETWORK=$1
+  local CONTRACT=$2
+  local ADDRESS=$3
+  local FILE_SUFFIX=$4
 
   # load JSON FILE that contains deployment addresses
   ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
@@ -1190,10 +1195,10 @@ function parseTargetStateGoogleSpreadsheet() {
 # >>>>> writing to blockchain & verification
 function verifyContract() {
   # read function arguments into variables
-  NETWORK=$1
-  CONTRACT=$2
-  ADDRESS=$3
-  ARGS=$4
+  local NETWORK=$1
+  local CONTRACT=$2
+  local ADDRESS=$3
+  local ARGS=$4
 
   # get API key for blockchain explorer
   if [[ "$NETWORK" == "bsc-testnet" ]]; then
@@ -2445,7 +2450,7 @@ function deployAndAddContractToDiamond() {
     return 0
   else
     # deploy periphery contract
-    deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
+    deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "$DIAMOND_CONTRACT_NAME"
 
     # save return code
     RETURN_CODE1=$?
@@ -2974,6 +2979,21 @@ function deployCreate3FactoryToAnvil() {
   export CREATE3_FACTORY_ADDRESS=$ADDRESS
   echo "$ADDRESS"
 }
+function getValueFromJSONFile() {
+  # read function arguments into variable
+  local FILE_PATH=$1
+  local KEY=$2
+
+  # check if file exists
+  if ! checkIfFileExists "$FILE_PATH" >/dev/null; then
+    error "file does not exist: $FILE_PATH (access attempted by function 'getValueFromJSONFile')"
+    return 1
+  fi
+
+  # extract and return value from file
+  VALUE=$(cat "$FILE_PATH" | jq -r ".$KEY")
+  echo "$VALUE"
+}
 # <<<<<< miscellaneous
 
 # >>>>>> helpers to set/update deployment files/logs/etc
@@ -3312,28 +3332,16 @@ function test_getContractNameFromDeploymentLogs() {
   echo "should return 'LiFiDiamond': $(getContractNameFromDeploymentLogs "mainnet" "production" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE")"
 }
 function test_tmp() {
-  LOG_INFO_DIAMOND=$(getContractInfoFromDiamondDeploymentLogByName "mainnet" "production" "LiFiDiamond" "AmarokFacet")
-  RETURN_CODE3=$?
-  echo "LOG_INFO_DIAMOND: $LOG_INFO_DIAMOND"
 
-  LOG_INFO_DIAMOND_IMMUTABLE=$(getContractInfoFromDiamondDeploymentLogByName "mainnet" "production" "LiFiDiamondImmutable" "AmarokFacet")
-  RETURN_CODE4=$?
-  echo "LOG_INFO_DIAMOND_IMMUTABLE: $LOG_INFO_DIAMOND_IMMUTABLE"
+CONTRACT="RelayerCelerIM"
+NETWORK="mumbai"
+ENVIRONMENT="staging"
+VERSION="1.0.1"
 
-  # check if entry was found in diamond deployment log (if version == null, replace with "unknown")
-  if [ "$RETURN_CODE3" -eq 0 ]; then
-    KNOWN_VERSION=$(echo "$LOG_INFO_DIAMOND" | jq -r '.[].Version')
-    echo "KNOWN_VERSION: $KNOWN_VERSION"
-    if [ "$KNOWN_VERSION" == "null" ]; then
-      DEPLOYED_ENTRY_1="unknown"
-    fi
-  fi
-  # check if entry was found in diamond deployment log (if version == null, replace with "unknown")
-  if [ "$RETURN_CODE4" -eq 0 ]; then
-    KNOWN_VERSION2=$(echo "$LOG_INFO_DIAMOND_IMMUTABLE" | jq -r '.[].Version')
-    echo "KNOWN_VERSION2: $KNOWN_VERSION2"
-    if [ "$KNOWN_VERSION2" == "null" ]; then
-      DEPLOYED_ENTRY_2="unknown"
-    fi
-  fi
+
+findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
 }
+
+
+
+

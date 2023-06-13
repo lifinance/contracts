@@ -19,7 +19,7 @@ interface CelerToken {
 /// @title CelerIM Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging tokens and data through CBridge
-/// @custom:version 1.0.1
+/// @custom:version 2.0.0
 contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -27,7 +27,7 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     IMessageBus private immutable cBridgeMessageBus;
 
     /// @dev The contract address of the RelayerCelerIM
-    RelayerCelerIM private immutable relayer;
+    RelayerCelerIM public immutable relayer;
 
     /// @dev The contract address of the Celer Flow USDC
     address private immutable cfUSDC;
@@ -57,15 +57,24 @@ contract CelerIMFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize the contract.
     /// @param _messageBus The contract address of the cBridge Message Bus
-    /// @param _relayer The contract address of the RelayerCelerIM
+    /// @param _relayerOwner The address that will become the owner of the RelayerCelerIM contract
+    /// @param _diamondAddress The address of the diamond contract that will be connected with the RelayerCelerIM
     /// @param _cfUSDC The contract address of the Celer Flow USDC
     constructor(
         IMessageBus _messageBus,
-        RelayerCelerIM _relayer,
+        address _relayerOwner,
+        address _diamondAddress,
         address _cfUSDC
     ) {
+        // deploy RelayerCelerIM
+        relayer = new RelayerCelerIM(
+            address(_messageBus),
+            _relayerOwner,
+            _diamondAddress
+        );
+
+        // store arguments in variables
         cBridgeMessageBus = _messageBus;
-        relayer = _relayer;
         cfUSDC = _cfUSDC;
     }
 
