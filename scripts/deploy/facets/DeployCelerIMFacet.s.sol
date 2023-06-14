@@ -55,12 +55,12 @@ contract DeployScript is DeployScriptBase {
         string memory diamondType = vm.envString("DIAMOND_TYPE");
         // check which kind of diamond is being deployed
         bool deployMutable = keccak256(abi.encodePacked(diamondType)) ==
-        keccak256(abi.encodePacked("LiFiDiamond"));
+            keccak256(abi.encodePacked("LiFiDiamond"));
 
         // get address of the correct diamond contract from network log file
-        diamondAddress = deployMutable ?
-            json.readAddress(string.concat(".LiFiDiamond")) :
-            json.readAddress(string.concat(".LiFiDiamondImmutable"));
+        diamondAddress = deployMutable
+            ? json.readAddress(string.concat(".LiFiDiamond"))
+            : json.readAddress(string.concat(".LiFiDiamondImmutable"));
 
         // get path of global config file
         globalConfigPath = string.concat(root, "/config/global.json");

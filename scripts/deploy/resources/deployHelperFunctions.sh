@@ -3347,11 +3347,13 @@ function test_tmp() {
 CONTRACT="RelayerCelerIM"
 NETWORK="mumbai"
 ENVIRONMENT="staging"
-VERSION="1.0.1"
+VERSION="2.0.0"
+DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
 
 
-findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
+#findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
+findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME"
 }
 
-
+#test_tmp
 
