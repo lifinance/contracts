@@ -24,7 +24,7 @@ contract DeployScript is UpdateScriptBase {
         address facet = json.readAddress(".CelerIMFacet");
 
         bytes4[] memory exclude;
-        // build diamond cut depending on which diamond the CelerIMFacet should be added to
+        // build diamond cut depgit cheending on which diamond the CelerIMFacet should be added to
         if (useDefaultDiamond)
             buildDiamondCut(getSelectors("CelerIMFacetMutable", exclude), facet);
         else
