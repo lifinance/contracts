@@ -314,10 +314,16 @@ function findContractInMasterLogByAddress() {
 }
 function getContractVersionFromMasterLog() {
   # read function arguments into variables
-  NETWORK=$1
-  ENVIRONMENT=$2
-  CONTRACT=$3
-  TARGET_ADDRESS=$4
+  local NETWORK=$1
+  local ENVIRONMENT=$2
+  local CONTRACT=$3
+  local TARGET_ADDRESS=$4
+
+  # special handling for CelerIMFacet
+  if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
+    CONTRACT="CelerIMFacet"
+  fi
+
 
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -908,6 +914,11 @@ function getContractNamesInFolder() {
 function getContractFilePath() {
   # read function arguments into variables
   CONTRACT="$1"
+
+  # special handling for CelerIMFacet
+  if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
+    CONTRACT="CelerIMFacetBase"
+  fi
 
   # define directory to be searched
   local dir=$CONTRACT_DIRECTORY
@@ -3353,12 +3364,13 @@ function test_tmp() {
 CONTRACT="RelayerCelerIM"
 NETWORK="mumbai"
 ENVIRONMENT="staging"
-VERSION="1.0.1"
+VERSION="2.0.0"
+DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
 
 
-findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
+#findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
+findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME"
 }
 
+#test_tmp
 
-
-parseTargetStateGoogleSpreadsheet "staging"

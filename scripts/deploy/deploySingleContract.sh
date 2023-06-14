@@ -306,7 +306,7 @@ deploySingleContract() {
     RELAYER_LOG_ENTRY_RETURN_CODE=$?
     echoDebug "existing RelayerCelerIM log entry (RETURN CODE: $RELAYER_LOG_ENTRY_RETURN_CODE): $RELAYER_LOG_ENTRY"
 
-    if [[ "$LOG_ENTRY_RETURN_CODE" -eq 0 ]]; then
+    if [[ "$RELAYER_LOG_ENTRY_RETURN_CODE" -eq 0 ]]; then
       RELAYER_VERIFIED_LOG=$(echo "$RELAYER_LOG_ENTRY" | jq -r ".VERIFIED")
       RELAYER_ADDRESS_LOG=$(echo "$RELAYER_LOG_ENTRY" | jq -r ".ADDRESS")
     fi

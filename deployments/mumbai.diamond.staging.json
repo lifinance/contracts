@@ -49,19 +49,17 @@
         "Name": "StargateFacet",
         "Version": "1.0.0"
       },
-      "0xff368b29b81dFCa5402B20369f206418315dd212": {
+      "0x5AE1f39e0cd12Dc94191EF731A16e85d81E42EEb": {
         "Name": "CelerIMFacet",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
-      "AxelarExecutor": "",
       "ERC20Proxy": "0x006E78DB49Ad2a7650fF84FA86916A0805DF6D0A",
       "Executor": "0x4DE055c2b7054b9B3Aa7c3891aacB9dE4F489D66",
       "FeeCollector": "",
-      "FusePoolZap": "",
       "Receiver": "",
-      "RelayerCelerIM": "0xC072a97eb5e746b466dB76D8e182ea3eA49A0907",
+      "RelayerCelerIM": "0x2E4B34C967433C1B79Af97A751F1147F42e016ea",
       "ServiceFeeCollector": ""
     }
   }

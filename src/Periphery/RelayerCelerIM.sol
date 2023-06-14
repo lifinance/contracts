@@ -11,7 +11,7 @@ import { PeripheryRegistryFacet } from "../Facets/PeripheryRegistryFacet.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
-import { CelerIMFacet } from "lifi/Facets/CelerIMFacet.sol";
+import { CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 
@@ -152,7 +152,7 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
     // solhint-disable-next-line code-complexity
     function sendTokenTransfer(
         ILiFi.BridgeData memory _bridgeData,
-        CelerIMFacet.CelerIMData calldata _celerIMData
+        CelerIM.CelerIMData calldata _celerIMData
     )
         external
         payable

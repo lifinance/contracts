@@ -3,7 +3,9 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { CelerIMFacet } from "lifi/Facets/CelerIMFacet.sol";
+import { CelerIMFacetMutable } from "lifi/Facets/CelerIMFacetMutable.sol";
+import { CelerIMFacetImmutable } from "lifi/Facets/CelerIMFacetImmutable.sol";
+import { CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
@@ -16,7 +18,7 @@ contract DeployScript is DeployScriptBase {
 
     function run()
         public
-        returns (CelerIMFacet deployed, bytes memory constructorArgs)
+        returns (CelerIMFacetBase deployed, bytes memory constructorArgs)
     {
         // get messageBus address
         string memory path = string.concat(
@@ -49,16 +51,16 @@ contract DeployScript is DeployScriptBase {
         );
         json = vm.readFile(path);
 
-        // check which diamond to use (from env variable) and get its address from network deploy file
+        // check which diamond to use (from env variable)
         string memory diamondType = vm.envString("DIAMOND_TYPE");
-        if (
-            keccak256(abi.encodePacked(diamondType)) ==
-            keccak256(abi.encodePacked("LiFiDiamond"))
-        ) diamondAddress = json.readAddress(string.concat(".LiFiDiamond"));
-        else
-            diamondAddress = json.readAddress(
-                string.concat(".LiFiDiamondImmutable")
-            );
+        // check which kind of diamond is being deployed
+        bool deployMutable = keccak256(abi.encodePacked(diamondType)) ==
+            keccak256(abi.encodePacked("LiFiDiamond"));
+
+        // get address of the correct diamond contract from network log file
+        diamondAddress = deployMutable
+            ? json.readAddress(string.concat(".LiFiDiamond"))
+            : json.readAddress(string.concat(".LiFiDiamondImmutable"));
 
         // get path of global config file
         globalConfigPath = string.concat(root, "/config/global.json");
@@ -82,20 +84,34 @@ contract DeployScript is DeployScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return (CelerIMFacet(payable(predicted)), constructorArgs);
+            return (CelerIMFacetBase(payable(predicted)), constructorArgs);
         }
 
-        deployed = CelerIMFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(CelerIMFacet).creationCode,
-                        constructorArgs
+        // select the correct version of the CelerIM contract for deployment
+        if (deployMutable)
+            deployed = CelerIMFacetMutable(
+                payable(
+                    factory.deploy(
+                        salt,
+                        bytes.concat(
+                            type(CelerIMFacetMutable).creationCode,
+                            constructorArgs
+                        )
                     )
                 )
-            )
-        );
+            );
+        else
+            deployed = CelerIMFacetImmutable(
+                payable(
+                    factory.deploy(
+                        salt,
+                        bytes.concat(
+                            type(CelerIMFacetImmutable).creationCode,
+                            constructorArgs
+                        )
+                    )
+                )
+            );
 
         vm.stopBroadcast();
     }
