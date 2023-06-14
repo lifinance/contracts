@@ -3,12 +3,12 @@ pragma solidity 0.8.17;
 
 import { CelerIMFacetBase, IMessageBus, MsgDataTypes, IERC20, CelerIM } from "../Helpers/CelerIMFacetBase.sol";
 
-/// @title CelerIMFacetMutable
+/// @title CelerIMFacetImmutable
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging tokens and data through CBridge
-/// @notice This contract is exclusively used for mutable diamond contracts
+/// @notice This contract is exclusively used for immutable diamond contracts
 /// @custom:version 2.0.0
-contract CelerIMFacetMutable is CelerIMFacetBase {
+contract CelerIMFacetImmutable is CelerIMFacetBase {
     /// Constructor ///
 
     /// @notice Initialize the contract.

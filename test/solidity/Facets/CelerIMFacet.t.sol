@@ -15,7 +15,14 @@ contract TestCelerIMFacet is CelerIMFacetMutable {
         address _relayerOwner,
         address _diamondAddress,
         address _cfUSDC
-    ) CelerIMFacetMutable(_messageBus, _relayerOwner, _diamondAddress, _cfUSDC) {}
+    )
+        CelerIMFacetMutable(
+            _messageBus,
+            _relayerOwner,
+            _diamondAddress,
+            _cfUSDC
+        )
+    {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);

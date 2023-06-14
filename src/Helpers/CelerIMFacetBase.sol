@@ -42,7 +42,12 @@ interface CelerIM {
 /// @notice Provides functionality for bridging tokens and data through CBridge
 /// @notice Used to differentiate between contract instances for mutable and immutable diamond as these cannot be shared
 /// @custom:version 2.0.0
-abstract contract CelerIMFacetBase is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+abstract contract CelerIMFacetBase is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable
+{
     /// Storage ///
 
     /// @dev The contract address of the cBridge Message Bus
