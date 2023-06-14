@@ -2,20 +2,27 @@
 pragma solidity 0.8.17;
 
 import { LibSwap, LibAllowList, TestBaseFacet, console, InvalidAmount } from "../utils/TestBaseFacet.sol";
-import { CelerIMFacet, IMessageBus, MsgDataTypes, IERC20 } from "lifi/Facets/CelerIMFacet.sol";
+import { CelerIMFacetMutable, IMessageBus, MsgDataTypes, IERC20, CelerIM } from "lifi/Facets/CelerIMFacetMutable.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 
 // Stub CelerIMFacet Contract
-contract TestCelerIMFacet is CelerIMFacet {
+contract TestCelerIMFacet is CelerIMFacetMutable {
     constructor(
         IMessageBus _messageBus,
         address _relayerOwner,
         address _diamondAddress,
         address _cfUSDC
-    ) CelerIMFacet(_messageBus, _relayerOwner, _diamondAddress, _cfUSDC) {}
+    )
+        CelerIMFacetMutable(
+            _messageBus,
+            _relayerOwner,
+            _diamondAddress,
+            _cfUSDC
+        )
+    {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -83,7 +90,7 @@ contract CelerIMFacetTest is TestBaseFacet {
         0x317F8d18FB16E49a958Becd0EA72f8E153d25654;
 
     TestCelerIMFacet internal celerIMFacet;
-    CelerIMFacet.CelerIMData internal celerIMData;
+    CelerIM.CelerIMData internal celerIMData;
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
     RelayerCelerIM internal relayer;
@@ -138,7 +145,7 @@ contract CelerIMFacetTest is TestBaseFacet {
         vm.label(CBRIDGE_PEG_BRIDGE, "CBRIDGE_PEG_BRIDGE");
         vm.label(CBRIDGE_PEG_BRIDGE_V2, "CBRIDGE_PEG_BRIDGE_V2");
 
-        celerIMData = CelerIMFacet.CelerIMData({
+        celerIMData = CelerIM.CelerIMData({
             maxSlippage: 5000,
             nonce: 1,
             callTo: abi.encodePacked(address(0)),
@@ -266,7 +273,7 @@ contract CelerIMFacetTest is TestBaseFacet {
 
     function test_CanBridgeNativeTokens_DestinationCall() public {
         addToMessageValue = 1e17;
-        celerIMData = CelerIMFacet.CelerIMData({
+        celerIMData = CelerIM.CelerIMData({
             maxSlippage: 5000,
             nonce: 1,
             callTo: abi.encodePacked(address(1)),
@@ -286,7 +293,7 @@ contract CelerIMFacetTest is TestBaseFacet {
 
     function test_CanSwapAndBridgeNativeTokens_DestinationCall() public {
         addToMessageValue = 1e17;
-        celerIMData = CelerIMFacet.CelerIMData({
+        celerIMData = CelerIM.CelerIMData({
             maxSlippage: 5000,
             nonce: 1,
             callTo: abi.encodePacked(address(1)),

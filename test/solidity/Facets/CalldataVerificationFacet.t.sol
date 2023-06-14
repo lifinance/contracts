@@ -5,7 +5,7 @@ import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet
 import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
-import { CelerIMFacet } from "lifi/Facets/CelerIMFacet.sol";
+import { CelerIM, CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
@@ -321,7 +321,7 @@ contract CallVerificationFacetTest is TestBase {
     }
 
     function test_CanValidateCelerIMDestinationCalldata() public {
-        CelerIMFacet.CelerIMData memory cimData = CelerIMFacet.CelerIMData({
+        CelerIM.CelerIMData memory cimData = CelerIM.CelerIMData({
             maxSlippage: 1,
             nonce: 2,
             callTo: abi.encode(address(0xdeadbeef)),
@@ -331,13 +331,13 @@ contract CallVerificationFacetTest is TestBase {
         });
 
         bytes memory callData = abi.encodeWithSelector(
-            CelerIMFacet.startBridgeTokensViaCelerIM.selector,
+            CelerIMFacetBase.startBridgeTokensViaCelerIM.selector,
             bridgeData,
             cimData
         );
 
         bytes memory callDataWithSwap = abi.encodeWithSelector(
-            CelerIMFacet.swapAndStartBridgeTokensViaCelerIM.selector,
+            CelerIMFacetBase.swapAndStartBridgeTokensViaCelerIM.selector,
             bridgeData,
             swapData,
             cimData

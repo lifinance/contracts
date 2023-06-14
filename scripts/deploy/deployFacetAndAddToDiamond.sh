@@ -9,6 +9,7 @@ function deployFacetAndAddToDiamond() {
   source scripts/config.sh
   source scripts/deploy/resources/deployHelperFunctions.sh
   source scripts/deploy/deploySingleContract.sh
+  source scripts/tasks/diamondUpdatePeriphery.sh
 
   # read function arguments into variables
   local NETWORK="$1"
@@ -117,6 +118,12 @@ function deployFacetAndAddToDiamond() {
     warning "this call was not successful: diamondUpdateFacet $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT true"
     return 1
   fi
+
+  #-----------------------------------------------------------
+  # special handling for CelerIMFacet
+  # add RelayerCelerIM as periphery to diamond
+  diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" false false "RelayerCelerIM"
+  #-----------------------------------------------------------
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME successfully deployed and added to $DIAMOND_CONTRACT_NAME"
   return 0

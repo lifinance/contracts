@@ -4,7 +4,6 @@ pragma solidity ^0.8.17;
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
-import { CelerIMFacet } from "lifi/Facets/CelerIMFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
@@ -25,7 +24,12 @@ contract DeployScript is UpdateScriptBase {
         address facet = json.readAddress(".CelerIMFacet");
 
         bytes4[] memory exclude;
-        buildDiamondCut(getSelectors("CelerIMFacet", exclude), facet);
+        // build diamond cut depending on which diamond the CelerIMFacet should be added to
+        if (useDefaultDiamond)
+            buildDiamondCut(getSelectors("CelerIMFacetMutable", exclude), facet);
+        else
+            buildDiamondCut(getSelectors("CelerIMFacetImmutable", exclude), facet);
+
         if (noBroadcast) {
             if (cut.length > 0) {
                 cutData = abi.encodeWithSelector(

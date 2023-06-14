@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import { LibSwap, LibAllowList, TestBase, console } from "../utils/TestBase.sol";
 import { InvalidAmount, UnAuthorized, ExternalCallFailed } from "lifi/Errors/GenericErrors.sol";
-import { CelerIMFacet, IMessageBus, MsgDataTypes } from "lifi/Facets/CelerIMFacet.sol";
+import { CelerIMFacetMutable, CelerIM, IMessageBus, MsgDataTypes } from "lifi/Facets/CelerIMFacetMutable.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
@@ -31,8 +31,8 @@ contract RelayerCelerIMTest is TestBase {
     address internal constant CFUSDC =
         0x317F8d18FB16E49a958Becd0EA72f8E153d25654;
 
-    CelerIMFacet internal celerIMFacet;
-    CelerIMFacet.CelerIMData internal celerIMData;
+    CelerIMFacetMutable internal celerIMFacet;
+    CelerIM.CelerIMData internal celerIMData;
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
     RelayerCelerIM internal relayer;
@@ -45,8 +45,7 @@ contract RelayerCelerIMTest is TestBase {
         // deploy CelerIM Receiver
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(erc20Proxy));
-
-        celerIMFacet = new CelerIMFacet(
+        celerIMFacet = new CelerIMFacetMutable(
             IMessageBus(CBRIDGE_MESSAGEBUS_ETH),
             REFUND_WALLET,
             address(diamond),
@@ -55,7 +54,7 @@ contract RelayerCelerIMTest is TestBase {
 
         relayer = celerIMFacet.relayer();
 
-        celerIMData = CelerIMFacet.CelerIMData({
+        celerIMData = CelerIM.CelerIMData({
             maxSlippage: 5000,
             nonce: 1,
             callTo: abi.encodePacked(address(0)),

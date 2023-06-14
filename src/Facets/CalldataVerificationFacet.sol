@@ -5,7 +5,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { AmarokFacet } from "./AmarokFacet.sol";
 import { StargateFacet } from "./StargateFacet.sol";
-import { CelerIMFacet } from "./CelerIMFacet.sol";
+import { CelerIMFacetBase, CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
 
 /// @title Calldata Verification Facet
 /// @author LI.FI (https://li.fi)
@@ -266,10 +266,12 @@ contract CalldataVerificationFacet {
                 keccak256(callTo) == keccak256(stargateData.callTo);
         }
         // Case: Celer
-        if (selector == CelerIMFacet.startBridgeTokensViaCelerIM.selector) {
-            (, CelerIMFacet.CelerIMData memory celerIMData) = abi.decode(
+        if (
+            selector == CelerIMFacetBase.startBridgeTokensViaCelerIM.selector
+        ) {
+            (, CelerIM.CelerIMData memory celerIMData) = abi.decode(
                 data[4:],
-                (ILiFi.BridgeData, CelerIMFacet.CelerIMData)
+                (ILiFi.BridgeData, CelerIM.CelerIMData)
             );
             return
                 keccak256(dstCalldata) == keccak256(celerIMData.callData) &&
@@ -277,15 +279,11 @@ contract CalldataVerificationFacet {
         }
         if (
             selector ==
-            CelerIMFacet.swapAndStartBridgeTokensViaCelerIM.selector
+            CelerIMFacetBase.swapAndStartBridgeTokensViaCelerIM.selector
         ) {
-            (, , CelerIMFacet.CelerIMData memory celerIMData) = abi.decode(
+            (, , CelerIM.CelerIMData memory celerIMData) = abi.decode(
                 data[4:],
-                (
-                    ILiFi.BridgeData,
-                    LibSwap.SwapData[],
-                    CelerIMFacet.CelerIMData
-                )
+                (ILiFi.BridgeData, LibSwap.SwapData[], CelerIM.CelerIMData)
             );
             return
                 keccak256(dstCalldata) == keccak256(celerIMData.callData) &&
