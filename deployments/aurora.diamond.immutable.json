@@ -41,9 +41,9 @@
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0xa1531BaCEb6178fd05bD80795C9C75Ac02438E49": {
+      "0x0d26d248D4e80377f1d794AB88090e76B0903EDE": {
         "Name": "CelerIMFacet",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
       "0x07b7078D316AE023D19DB5AFeFe3f7EFE56F34B7": {
         "Name": "MultichainFacet",
@@ -55,7 +55,7 @@
       "Executor": "0x2120c7A5CCf73d6Fb5C7e9B2A0d4B3A4f587E7a4",
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
       "Receiver": "0xC4B590a0E2d7e965a2Fb3647d672B5DD97E8d068",
-      "RelayerCelerIM": "0xB1Fe861ceae7BF4C40515cEEB851f2785d2A1008",
+      "RelayerCelerIM": "0x7b6d852f58C783BA3b1138C535ff57dDa4c826E0",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
   }
