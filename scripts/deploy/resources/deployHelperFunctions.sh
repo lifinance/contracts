@@ -1089,7 +1089,7 @@ function parseTargetStateGoogleSpreadsheet() {
   echo "Updating $ENVIRONMENT target state from this Google sheet now: $SPREADSHEET_URL"
   echo ""
 
-  NETWORKS_START_AT_LINE=113
+  NETWORKS_START_AT_LINE=115
   PERIPHERY_STARTS_AT_COLUMN=3
   ROW_WITH_CONTRACT_NAMES=5
 
