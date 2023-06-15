@@ -64,7 +64,9 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
-            _bridgeData.minAmount
+            _amarokData.payFeeWithSendingAsset
+                ? _bridgeData.minAmount + _amarokData.relayerFee
+                : _bridgeData.minAmount
         );
         _startBridge(_bridgeData, _amarokData);
     }
