@@ -26,9 +26,15 @@ contract DeployScript is UpdateScriptBase {
         bytes4[] memory exclude;
         // build diamond cut depgit cheending on which diamond the CelerIMFacet should be added to
         if (useDefaultDiamond)
-            buildDiamondCut(getSelectors("CelerIMFacetMutable", exclude), facet);
+            buildDiamondCut(
+                getSelectors("CelerIMFacetMutable", exclude),
+                facet
+            );
         else
-            buildDiamondCut(getSelectors("CelerIMFacetImmutable", exclude), facet);
+            buildDiamondCut(
+                getSelectors("CelerIMFacetImmutable", exclude),
+                facet
+            );
 
         if (noBroadcast) {
             if (cut.length > 0) {
