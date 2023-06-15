@@ -1053,36 +1053,53 @@ function getOptimizerRuns() {
 
 }
 function parseTargetStateGoogleSpreadsheet() {
+  # read function arguments into variables
+  local ENVIRONMENT="$1"
+
   # ensure spreadsheet ID is available
-  if [[ -z "$TARGET_STATE_SPREADSHEET_ID" ]]; then
-    error "your config.sh file is missing key 'TARGET_STATE_SPREADSHEET_ID'. Please add it."
+  if [[ "$ENVIRONMENT" == "production" ]]; then
+    # check if config contains spreadsheet ID
+    if [[ -z "$TARGET_STATE_SPREADSHEET_ID_PRODUCTION" ]]; then
+      error "your config.sh file is missing key 'TARGET_STATE_SPREADSHEET_ID_PRODUCTION'. Please add it."
+      exit 1
+    else
+      # construct spreadsheet URL
+      SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/${TARGET_STATE_SPREADSHEET_ID_PRODUCTION}"
+      EXPORT_PARAMS="/export?exportFormat=csv"
+    fi
+  elif [[ "$ENVIRONMENT" == "staging" ]]; then
+    # check if config contains spreadsheet ID
+    if [[ -z "$TARGET_STATE_SPREADSHEET_ID_STAGING" ]]; then
+      error "your config.sh file is missing key 'TARGET_STATE_SPREADSHEET_ID_STAGING'. Please add it."
+      exit 1
+    else
+      # construct spreadsheet URL
+      SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/${TARGET_STATE_SPREADSHEET_ID_STAGING}"
+      EXPORT_PARAMS="/export?exportFormat=csv"
+    fi
+  else
+    error "an unexpected ENVIRONMENT value was passed to parseTargetStateGoogleSpreadsheet: ($ENVIRONMENT). Script cannot continue."
     exit 1
   fi
-
-  # construct spreadsheet URL
-  SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/${TARGET_STATE_SPREADSHEET_ID}"
-  EXPORT_PARAMS="/export?exportFormat=csv"
 
   # load google sheets into CSV file
   CSV_FILE_PATH="newTest.csv"
   curl -L "$SPREADSHEET_URL""$EXPORT_PARAMS" -o $CSV_FILE_PATH 2>/dev/null
 
-  echo "Creating target state from this Google sheet now: $SPREADSHEET_URL"
+  echo "Updating $ENVIRONMENT target state from this Google sheet now: $SPREADSHEET_URL"
   echo ""
 
-  # we currently only support production environment
-  ENVIRONMENT="production"
-
-  NETWORKS_START_AT_LINE=119
+  NETWORKS_START_AT_LINE=113
   PERIPHERY_STARTS_AT_COLUMN=3
-  FACETS_START_AT_COLUMN=21
-  ROW_WITH_CONTRACT_NAMES=11
+  ROW_WITH_CONTRACT_NAMES=5
 
   # process the CSV file line by line
   LINE_NUMBER=0
   while IFS= read -r LINE; do
     # Increment the line number
     ((LINE_NUMBER++))
+
+    echoDebug "LINE $LINE_NUMBER: $LINE"
 
     # Catch the line that contains the contract names
     if [[ LINE_NUMBER -eq "$ROW_WITH_CONTRACT_NAMES" ]]; then
