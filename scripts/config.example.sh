@@ -89,7 +89,8 @@ DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=0xc726deb4bf42c6ef5d0b4e3080ace43aed9b2709388
 MAINNET_MAXIMUM_GAS_PRICE=50000000000 # = 50 Gwei
 
 # contains the ID of the production target state Google spreadsheet
-TARGET_STATE_SPREADSHEET_ID=""
+TARGET_STATE_SPREADSHEET_ID_PRODUCTION=""
+TARGET_STATE_SPREADSHEET_ID_STAGING=""
 
 # used to start a local (Foundry) anvil network with the same private keys for testing purposes
 MNEMONIC="test test test test test test test test test test test junk"
