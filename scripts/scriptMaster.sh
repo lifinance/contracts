@@ -449,7 +449,7 @@ scriptMaster() {
   #---------------------------------------------------------------------------------------------------------------------
   # use case 9: Create updated target state from Google Docs
   elif [[ "$SELECTION" == "9)"* ]]; then
-    parseTargetStateGoogleSpreadsheet
+    parseTargetStateGoogleSpreadsheet "$ENVIRONMENT"
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 10: Update all diamond log files
