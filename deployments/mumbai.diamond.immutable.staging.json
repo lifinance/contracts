@@ -3,41 +3,43 @@
     "Facets": {
       "0x32540902f1F4E88497582Aae6ecc8bD75f0d58ee": {
         "Name": "DiamondCutFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x5A3e172e629478C44B477cA8f2761834A2B8CbF3": {
         "Name": "DiamondLoupeFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x2faD77b920BB86934c37ec75C86cbfeEE18b3F5F": {
         "Name": "OwnershipFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xDf852e89e608ee1b2C19A3e75527962ad6056c6b": {
         "Name": "WithdrawFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x543aF89b0EeaDaa74D71f572E92ec41ca98bEd22": {
-        "Name": "DexManagerFacet",
+        "Name": "DiamondCutFacet",
         "Version": "1.0.0"
       },
       "0x334977BaECd507faab64E6489b7Abc9d405fA482": {
         "Name": "AccessManagerFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xd5b8eE6627Ccf056cBa9c0E730d7aCC8830961f3": {
         "Name": "PeripheryRegistryFacet",
-        "Version": "1.0.0"
+        "Version": ""
+      },
+      "0x2EF189A965330f3800765B578834896245c66fbB": {
+        "Name": "CelerIMFacetImmutable",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
-      "AxelarExecutor": "",
       "ERC20Proxy": "",
       "Executor": "",
       "FeeCollector": "",
-      "FusePoolZap": "",
       "Receiver": "",
-      "RelayerCelerIM": "",
+      "RelayerCelerIM": "0xa618404c4Eb0d39362d18e97f59AEc4203474E03",
       "ServiceFeeCollector": ""
     }
   }

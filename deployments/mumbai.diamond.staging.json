@@ -49,8 +49,8 @@
         "Name": "StargateFacet",
         "Version": "1.0.0"
       },
-      "0x5AE1f39e0cd12Dc94191EF731A16e85d81E42EEb": {
-        "Name": "CelerIMFacet",
+      "0x2EF189A965330f3800765B578834896245c66fbB": {
+        "Name": "CelerIMFacetMutable",
         "Version": "2.0.0"
       }
     },
@@ -59,7 +59,7 @@
       "Executor": "0x4DE055c2b7054b9B3Aa7c3891aacB9dE4F489D66",
       "FeeCollector": "",
       "Receiver": "",
-      "RelayerCelerIM": "0x2E4B34C967433C1B79Af97A751F1147F42e016ea",
+      "RelayerCelerIM": "0xa618404c4Eb0d39362d18e97f59AEc4203474E03",
       "ServiceFeeCollector": ""
     }
   }
