@@ -9,6 +9,7 @@ contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     address facet;
+
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
@@ -31,8 +32,7 @@ contract DeployScript is UpdateScriptBase {
                 getSelectors("CelerIMFacetMutable", exclude),
                 facet
             );
-        }
-        else {
+        } else {
             facet = json.readAddress(".CelerIMFacetImmutable");
             buildDiamondCut(
                 getSelectors("CelerIMFacetImmutable", exclude),
