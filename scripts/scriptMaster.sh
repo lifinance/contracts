@@ -496,7 +496,7 @@ scriptMaster() {
   # end local anvil network if flag in config is set
   if [[ "$END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION" == "true" ]]; then
     # kills all local anvil network sessions that might still be running
-    killall anvil
+    killall anvil >/dev/null 2>&1
     # delete log files
     rm deployments/localanvil.json >/dev/null 2>&1
     rm deployments/localanvil.staging.json >/dev/null 2>&1

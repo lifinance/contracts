@@ -8,6 +8,7 @@ import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
+    address facet;
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
@@ -21,20 +22,23 @@ contract DeployScript is UpdateScriptBase {
             "json"
         );
         string memory json = vm.readFile(path);
-        address facet = json.readAddress(".CelerIMFacet");
 
         bytes4[] memory exclude;
         // build diamond cut depending on which diamond the CelerIMFacet should be added to
-        if (useDefaultDiamond)
+        if (useDefaultDiamond) {
+            facet = json.readAddress(".CelerIMFacetMutable");
             buildDiamondCut(
                 getSelectors("CelerIMFacetMutable", exclude),
                 facet
             );
-        else
+        }
+        else {
+            facet = json.readAddress(".CelerIMFacetImmutable");
             buildDiamondCut(
                 getSelectors("CelerIMFacetImmutable", exclude),
                 facet
             );
+        }
 
         if (noBroadcast) {
             if (cut.length > 0) {

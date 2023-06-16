@@ -330,6 +330,13 @@ deploySingleContract() {
         error "could not obtain RelayerCelerIM address from CelerIMFacet with address $ADDRESS. Please update the log file manually."
       fi
 
+      # update RelayerCelerIM name so that verification and logging is done with correct contract names
+      if [[ "$DIAMOND_TYPE" == "LiFiDiamond" ]]; then
+        RELAYER_NAME="RelayerCelerIMMutable"
+      else
+        RELAYER_NAME="RelayerCelerIMImmutable"
+      fi
+
       if [[ "$(echo "$RELAYER_ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$RELAYER_ADDRESS_LOG" | tr '[:upper:]' '[:lower:]')" ]]; then
         echoDebug "address of existing RelayerCelerIM log entry matched with current deployed-to address"
         RELAYER_VERIFIED=false
@@ -359,20 +366,28 @@ deploySingleContract() {
          RELAYER_CONSTRUCTOR_ARGS=$(echo "$RELAYER_LOG_ENTRY" | jq -r ".CONSTRUCTOR_ARGS")
 
          # update VERIFIED info in log file
-         logContractDeploymentInfo "RelayerCelerIM" "$NETWORK" "$RELAYER_TIMESTAMP" "$RELAYER_VERSION" "$RELAYER_OPTIMIZER_RUNS" "$RELAYER_CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" "$RELAYER_VERIFIED"
+         logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$RELAYER_TIMESTAMP" "$RELAYER_VERSION" "$RELAYER_OPTIMIZER_RUNS" "$RELAYER_CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" "$RELAYER_VERIFIED"
        fi
       else
         echoDebug "address of existing RelayerCelerIM log entry does not match with current deployed-to address (=re-deployment)"
 
         # overwrite existing log entry with new deployment info
-        logContractDeploymentInfo "RelayerCelerIM" "$NETWORK" "$TIMESTAMP" "$RELAYER_VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" $VERIFIED
+        logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$TIMESTAMP" "$RELAYER_VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" $VERIFIED
       fi
     fi
 
     # save contract in network-specific deployment files
-    saveContract "$NETWORK" "RelayerCelerIM" "$RELAYER_ADDRESS" "$FILE_SUFFIX"
+    saveContract "$NETWORK" "$RELAYER_NAME" "$RELAYER_ADDRESS" "$FILE_SUFFIX"
+
+    # update CONTRACT variable so that verification and logging is done with correct contract names
+    if [[ "$DIAMOND_TYPE" == "LiFiDiamond" ]]; then
+      CONTRACT="CelerIMFacetMutable"
+    else
+      CONTRACT="CelerIMFacetImmutable"
+    fi
   fi
   # ------------------------------------------------
+
 
   # check if contract verification is enabled in config and contract not yet verified according to log file
   if [[ $VERIFY_CONTRACTS == "true" && "$VERIFIED_LOG" == "false" ]]; then
