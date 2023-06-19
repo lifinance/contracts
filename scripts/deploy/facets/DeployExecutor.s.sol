@@ -25,7 +25,7 @@ contract DeployScript is DeployScriptBase {
         string memory json = vm.readFile(path);
         address erc20Proxy = json.readAddress(".ERC20Proxy");
 
-        constructorArgs = abi.encode(deployerAddress, erc20Proxy);
+        constructorArgs = abi.encode(erc20Proxy);
 
         vm.startBroadcast(deployerPrivateKey);
 
