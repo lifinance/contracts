@@ -204,16 +204,16 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         diamond = createDiamond();
 
         // transfer initial DAI/USDC/WETH balance to USER_SENDER
-        deal(ADDRESS_USDC, USER_SENDER, 100_000 * 10**usdc.decimals());
-        deal(ADDRESS_DAI, USER_SENDER, 100_000 * 10**dai.decimals());
-        deal(ADDRESS_WETH, USER_SENDER, 100_000 * 10**weth.decimals());
+        deal(ADDRESS_USDC, USER_SENDER, 100_000 * 10 ** usdc.decimals());
+        deal(ADDRESS_DAI, USER_SENDER, 100_000 * 10 ** dai.decimals());
+        deal(ADDRESS_WETH, USER_SENDER, 100_000 * 10 ** weth.decimals());
 
         // fund USER_SENDER with 1000 ether
         vm.deal(USER_SENDER, 1000 ether);
 
         // initiate variables
-        defaultDAIAmount = 100 * 10**dai.decimals();
-        defaultUSDCAmount = 100 * 10**usdc.decimals();
+        defaultDAIAmount = 100 * 10 ** dai.decimals();
+        defaultUSDCAmount = 100 * 10 ** usdc.decimals();
         defaultNativeAmount = 1 ether;
 
         // set path for logfile (esp. interesting for fuzzing tests)
@@ -299,10 +299,9 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     }
 
     //@dev: be careful that _facetTestContractAddress is set before calling this function
-    function setCustomSwapDataSingleDAItoUSDC(uint256 amountOut)
-        internal
-        virtual
-    {
+    function setCustomSwapDataSingleDAItoUSDC(
+        uint256 amountOut
+    ) internal virtual {
         delete swapData;
         // Swap DAI -> USDC
         address[] memory path = new address[](2);
@@ -470,10 +469,9 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     }
 
     //create users with 100 ether balance
-    function createUsers(uint256 userNum)
-        external
-        returns (address payable[] memory)
-    {
+    function createUsers(
+        uint256 userNum
+    ) external returns (address payable[] memory) {
         address payable[] memory users = new address payable[](userNum);
         for (uint256 i = 0; i < userNum; i++) {
             address payable user = this.getNextUserAddress();
