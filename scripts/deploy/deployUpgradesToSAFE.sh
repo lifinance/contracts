@@ -3,7 +3,7 @@
 deployUpgradesToSAFE() {
   source .env
   source scripts/config.sh
-  source scripts/deploy/resources/deployHelperFunctions.sh
+  source scripts/deploy/resources/helperfunctions.sh
 
   ENVIRONMENT="production"
   NETWORK=$(getUserSelectedNetwork)

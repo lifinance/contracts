@@ -7,7 +7,7 @@ function diamondSyncSigs {
 	source .env
 
 	# load config & helper functions
-  source scripts/deploy/resources/deployHelperFunctions.sh
+  source scripts/deploy/resources/helperfunctions.sh
 
   # read function arguments into variables
   local NETWORK="$1"
