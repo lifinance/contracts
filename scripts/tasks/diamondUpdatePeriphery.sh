@@ -7,7 +7,7 @@ function diamondUpdatePeriphery() {
   # load required resources
   source .env
   source scripts/config.sh
-  source scripts/deploy/resources/helperfunctions.sh
+  source scripts/helperFunctions.sh
 
   # read function arguments into variables
   local NETWORK="$1"

@@ -34,7 +34,7 @@ scriptMaster() {
   # load deploy scripts & helper functions
   source scripts/deploy/deploySingleContract.sh
   source scripts/deploy/deployAllContracts.sh
-  source scripts/deploy/resources/helperfunctions.sh
+  source scripts/helperFunctions.sh
   source scripts/deploy/deployFacetAndAddToDiamond.sh
   source scripts/deploy/deployPeripheryContracts.sh
   source scripts/deploy/deployUpgradesToSAFE.sh

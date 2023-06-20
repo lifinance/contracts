@@ -6,7 +6,7 @@
 deploySingleContract() {
   # load config & helper functions
   source scripts/config.sh
-  source scripts/deploy/resources/helperfunctions.sh
+  source scripts/helperFunctions.sh
   source scripts/deploy/resources/contractSpecificReminders.sh
 
   # read function arguments into variables
