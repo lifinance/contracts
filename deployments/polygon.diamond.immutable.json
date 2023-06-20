@@ -90,15 +90,15 @@
         "Version": "1.0.1"
       },
       "0x0d26d248D4e80377f1d794AB88090e76B0903EDE": {
-        "Name": "CelerIMFacet",
+        "Name": "CelerIMFacetImmutable",
         "Version": "2.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x0654EbA982ec082036A3D0f59964D302f1ba5cdA",
-      "Executor": "0x2120c7A5CCf73d6Fb5C7e9B2A0d4B3A4f587E7a4",
+      "Executor": "0xBe27F03C8e6a61E2a4B1EE7940dbcb9204744d1c",
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
-      "Receiver": "0xC4B590a0E2d7e965a2Fb3647d672B5DD97E8d068",
+      "Receiver": "0xC850013FC01A264018D58D112000E32835D15fBC",
       "RelayerCelerIM": "0x7b6d852f58C783BA3b1138C535ff57dDa4c826E0",
       "ServiceFeeCollector": "0xe7F5FF6da6DdF45F43aE7c8217AEC3ec5a0569c5"
     }

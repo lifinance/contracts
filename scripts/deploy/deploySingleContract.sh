@@ -29,7 +29,7 @@ deploySingleContract() {
     DIAMOND_TYPE=$(
       gum choose \
         "LiFiDiamond" \
-        "LiFiDiamondImmutable" \
+        "LiFiDiamondImmutable"
     )
 
     # make sure a meaningful value was selected
@@ -176,7 +176,6 @@ deploySingleContract() {
     fi
   fi
 
-
   # execute script
   attempts=1
 
@@ -280,9 +279,9 @@ deploySingleContract() {
 
   # check if this was a redeployment (= if address does not match with what is already in log file)
   if [[ "$(echo "$ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$ADDRESS_LOG" | tr '[:upper:]' '[:lower:]')" ]]; then
-      REDEPLOYMENT=false
+    REDEPLOYMENT=false
   else
-      REDEPLOYMENT=true
+    REDEPLOYMENT=true
   fi
 
   # verify contract, if needed
@@ -309,12 +308,12 @@ deploySingleContract() {
     fi
 
     # recreate constructor args
-    REFUND_WALLET=$(getValueFromJSONFile  "config/global.json" "refundWallet")
-    CBRIDGE_MESSAGE_BUS_ADDRESS=$(getValueFromJSONFile  "config/cbridge.json" "$NETWORK.messageBus")
+    REFUND_WALLET=$(getValueFromJSONFile "config/global.json" "refundWallet")
+    CBRIDGE_MESSAGE_BUS_ADDRESS=$(getValueFromJSONFile "config/cbridge.json" "$NETWORK.messageBus")
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_TYPE")
 
     # check if all information was found
-    if [[ -z $REFUND_WALLET || -z $CBRIDGE_MESSAGE_BUS_ADDRESS || -z $DIAMOND_ADDRESS  ]]; then
+    if [[ -z $REFUND_WALLET || -z $CBRIDGE_MESSAGE_BUS_ADDRESS || -z $DIAMOND_ADDRESS ]]; then
       error "could not obtain all information needed to recreate constructor args of RelayerCelerIM. Cannot verify the contract."
     else
       # re-create constructor args
@@ -324,17 +323,24 @@ deploySingleContract() {
       RPC_URL=$(getRPCUrl "$NETWORK")
 
       # get address of RelayerCelerIM
-      RELAYER_ADDRESS=$(cast call $ADDRESS "relayer() returns (address)"  --rpc-url "$RPC_URL")
+      RELAYER_ADDRESS=$(cast call $ADDRESS "relayer() returns (address)" --rpc-url "$RPC_URL")
 
       if [[ -z $RELAYER_ADDRESS || "$RELAYER_ADDRESS" == "" ]]; then
         error "could not obtain RelayerCelerIM address from CelerIMFacet with address $ADDRESS. Please update the log file manually."
+      fi
+
+      # update RelayerCelerIM name so that verification and logging is done with correct contract names
+      if [[ "$DIAMOND_TYPE" == "LiFiDiamond" ]]; then
+        RELAYER_NAME="RelayerCelerIMMutable"
+      else
+        RELAYER_NAME="RelayerCelerIMImmutable"
       fi
 
       if [[ "$(echo "$RELAYER_ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$RELAYER_ADDRESS_LOG" | tr '[:upper:]' '[:lower:]')" ]]; then
         echoDebug "address of existing RelayerCelerIM log entry matched with current deployed-to address"
         RELAYER_VERIFIED=false
         # verify RelayerCelerIM if flag is set and contract is not verified yet
-        if [[ $VERIFY_CONTRACTS == "true" && ( "$RELAYER_VERIFIED_LOG" != "true" || $REDEPLOYMENT == "true" ) ]]; then
+        if [[ $VERIFY_CONTRACTS == "true" && ("$RELAYER_VERIFIED_LOG" != "true" || $REDEPLOYMENT == "true") ]]; then
           if [[ $DEBUG == "true" ]]; then
             verifyContract "$NETWORK" "RelayerCelerIM" "$RELAYER_ADDRESS" "$RELAYER_CONSTR_ARGS"
             if [ $? -eq 0 ]; then
@@ -349,28 +355,35 @@ deploySingleContract() {
         fi
 
         # check if RelayerCelerIM was just verified
-       if [[ $RELAYER_VERIFIED == "true" ]]; then
-         echoDebug "contract was just verified. Updating VERIFIED flag in log entry now."
+        if [[ $RELAYER_VERIFIED == "true" ]]; then
+          echoDebug "contract was just verified. Updating VERIFIED flag in log entry now."
 
-         # extract values from existing log entry
-         RELAYER_ADDRESS=$(echo "$RELAYER_LOG_ENTRY" | jq -r ".ADDRESS")
-         RELAYER_OPTIMIZER_RUNS=$(echo "$RELAYER_LOG_ENTRY" | jq -r ".OPTIMIZER_RUNS")
-         RELAYER_TIMESTAMP=$(echo "$RELAYER_LOG_ENTRY" | jq -r ".TIMESTAMP")
-         RELAYER_CONSTRUCTOR_ARGS=$(echo "$RELAYER_LOG_ENTRY" | jq -r ".CONSTRUCTOR_ARGS")
+          # extract values from existing log entry
+          RELAYER_ADDRESS=$(echo "$RELAYER_LOG_ENTRY" | jq -r ".ADDRESS")
+          RELAYER_OPTIMIZER_RUNS=$(echo "$RELAYER_LOG_ENTRY" | jq -r ".OPTIMIZER_RUNS")
+          RELAYER_TIMESTAMP=$(echo "$RELAYER_LOG_ENTRY" | jq -r ".TIMESTAMP")
+          RELAYER_CONSTRUCTOR_ARGS=$(echo "$RELAYER_LOG_ENTRY" | jq -r ".CONSTRUCTOR_ARGS")
 
-         # update VERIFIED info in log file
-         logContractDeploymentInfo "RelayerCelerIM" "$NETWORK" "$RELAYER_TIMESTAMP" "$RELAYER_VERSION" "$RELAYER_OPTIMIZER_RUNS" "$RELAYER_CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" "$RELAYER_VERIFIED"
-       fi
+          # update VERIFIED info in log file
+          logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$RELAYER_TIMESTAMP" "$RELAYER_VERSION" "$RELAYER_OPTIMIZER_RUNS" "$RELAYER_CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" "$RELAYER_VERIFIED" "$DEPLOYSALT"
+        fi
       else
         echoDebug "address of existing RelayerCelerIM log entry does not match with current deployed-to address (=re-deployment)"
 
         # overwrite existing log entry with new deployment info
-        logContractDeploymentInfo "RelayerCelerIM" "$NETWORK" "$TIMESTAMP" "$RELAYER_VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" $VERIFIED
+        logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$TIMESTAMP" "$RELAYER_VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" $VERIFIED "$DEPLOYSALT"
       fi
     fi
 
     # save contract in network-specific deployment files
-    saveContract "$NETWORK" "RelayerCelerIM" "$RELAYER_ADDRESS" "$FILE_SUFFIX"
+    saveContract "$NETWORK" "$RELAYER_NAME" "$RELAYER_ADDRESS" "$FILE_SUFFIX"
+
+    # update CONTRACT variable so that verification and logging is done with correct contract names
+    if [[ "$DIAMOND_TYPE" == "LiFiDiamond" ]]; then
+      CONTRACT="CelerIMFacetMutable"
+    else
+      CONTRACT="CelerIMFacetImmutable"
+    fi
   fi
   # ------------------------------------------------
 
@@ -412,7 +425,7 @@ deploySingleContract() {
         TIMESTAMP=$(echo "$LOG_ENTRY" | jq -r ".TIMESTAMP")
 
         # update VERIFIED info in log file
-        logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED
+        logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$DEPLOYSALT"
       else
         echoDebug "contract was not verified just now. No further action needed."
       fi
@@ -420,13 +433,13 @@ deploySingleContract() {
       echoDebug "address of existing log entry does not match with current deployed-to address (=re-deployment)"
 
       # overwrite existing log entry with new deployment info
-      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED
+      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$DEPLOYSALT"
     fi
   else
     echoDebug "log entry does not exist yet and will be written now"
 
     # write to logfile
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED
+    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$DEPLOYSALT"
   fi
 
   # save contract in network-specific deployment files

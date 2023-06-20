@@ -82,6 +82,7 @@ function logContractDeploymentInfo {
   local ENVIRONMENT="$7"
   local ADDRESS="$8"
   local VERIFIED="$9"
+  local DEPLOYSALT="$10"
 
   if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
     error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT) to master log file. Log will not be updated. Please check and run this script again to secure deploy log data."
@@ -100,6 +101,7 @@ function logContractDeploymentInfo {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "ADDRESS=$ADDRESS"
   echoDebug "VERIFIED=$VERIFIED"
+  echoDebug "DEPLOYSALT=$DEPLOYSALT"
   echo ""
 
   # Check if log FILE exists, if not create it
@@ -126,7 +128,8 @@ function logContractDeploymentInfo {
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
       --arg VERIFIED "$VERIFIED" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, VERIFIED: $VERIFIED }]' \
+      --arg DEPLOYSALT "$DEPLOYSALT" \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, DEPLOYSALT: $DEPLOYSALT, VERIFIED: $VERIFIED }]' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   else
     jq --arg CONTRACT "$CONTRACT" \
@@ -138,7 +141,8 @@ function logContractDeploymentInfo {
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
       --arg VERIFIED "$VERIFIED" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, VERIFIED: $VERIFIED }' \
+      --arg DEPLOYSALT "$DEPLOYSALT" \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, DEPLOYSALT: $DEPLOYSALT, VERIFIED: $VERIFIED }' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   fi
 
@@ -257,7 +261,7 @@ function findContractInMasterLog() {
 
   # Loop through the entries
   while IFS= read -r entry; do
-    if [[ -n "$entry" ]]; then  # If entry is not empty
+    if [[ -n "$entry" ]]; then # If entry is not empty
       FOUND=true
       echo "$entry"
     fi
@@ -323,7 +327,6 @@ function getContractVersionFromMasterLog() {
   if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
     CONTRACT="CelerIMFacet"
   fi
-
 
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -1112,7 +1115,7 @@ function parseTargetStateGoogleSpreadsheet() {
 
       # Create an iterable array that only contains facet names
       CONTRACTS_ARRAY=()
-      for ((i=0; i < ${#LINE_ARRAY[@]}; i += 2)); do
+      for ((i = 0; i < ${#LINE_ARRAY[@]}; i += 2)); do
         # extract contract name (might include "" or the values "FACETS"/"PERIPHERY/END")
         CONTRACT_NAME=${LINE_ARRAY[i]}
 
@@ -1138,7 +1141,7 @@ function parseTargetStateGoogleSpreadsheet() {
 
         CONTRACT_INDEX=0
         # iterate through the array (start with index 5 to skip network name, EXAMPLE and PERIPHERY columns)
-        for ((INDEX="$PERIPHERY_STARTS_AT_COLUMN"; INDEX < ${#LINE_ARRAY[@]}; INDEX += 1)); do
+        for ((INDEX = "$PERIPHERY_STARTS_AT_COLUMN"; INDEX < ${#LINE_ARRAY[@]}; INDEX += 1)); do
           # read cell value and current contract into variables
           CELL_VALUE=${LINE_ARRAY[$INDEX]}
           CONTRACT=${CONTRACTS_ARRAY[$CONTRACT_INDEX]}
@@ -1375,7 +1378,7 @@ function verifyAllUnverifiedContractsInLogFile() {
             # check result
             if [ $? -eq 0 ]; then
               # update log file
-              logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true"
+              logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true" "$DEPLOYSALT"
 
               # increase COUNTER
               COUNTER=$((COUNTER + 1))
@@ -2778,7 +2781,7 @@ function printDeploymentsStatusV2() {
     # go through all networks
     for NETWORK in ${NETWORKS[*]}; do
       # skip any network that is a testnet
-      if [[ "$TEST_NETWORKS" == *"$NETWORK"* ]] ; then
+      if [[ "$TEST_NETWORKS" == *"$NETWORK"* ]]; then
         continue
       fi
 
@@ -3050,9 +3053,9 @@ function updateDiamondLogs() {
     echo "current Network: $NETWORK"
 
     # >>>>  limit here to a certain network, if needed
-#    if [[ $NETWORK == "optimism" ]]; then
-#      continue
-#    fi
+    #    if [[ $NETWORK == "optimism" ]]; then
+    #      continue
+    #    fi
 
     # get RPC URL
     local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
@@ -3361,16 +3364,14 @@ function test_getContractNameFromDeploymentLogs() {
 }
 function test_tmp() {
 
-CONTRACT="RelayerCelerIM"
-NETWORK="mumbai"
-ENVIRONMENT="staging"
-VERSION="2.0.0"
-DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
+  CONTRACT="RelayerCelerIM"
+  NETWORK="mumbai"
+  ENVIRONMENT="staging"
+  VERSION="2.0.0"
+  DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
 
-
-#findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
-findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME"
+  #findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
+  findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME"
 }
 
 #test_tmp
-
