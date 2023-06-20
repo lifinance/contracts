@@ -97,6 +97,11 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             payable(msg.sender),
             _amarokData.relayerFee
         );
+
+        if (_amarokData.payFeeWithSendingAsset) {
+            _bridgeData.minAmount -= _amarokData.relayerFee;
+        }
+
         _startBridge(_bridgeData, _amarokData);
     }
 

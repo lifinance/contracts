@@ -8,9 +8,9 @@ import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, I
 
 // Stub AmarokFacet Contract
 contract TestAmarokFacet is AmarokFacet {
-    constructor(
-        IConnextHandler _connextHandler
-    ) AmarokFacet(_connextHandler) {}
+    constructor(IConnextHandler _connextHandler)
+        AmarokFacet(_connextHandler)
+    {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -81,7 +81,7 @@ contract AmarokFacetTest is TestBaseFacet {
         });
 
         // make sure relayerFee is sent with every transaction
-        addToMessageValue = 1 * 10 ** 15;
+        addToMessageValue = 1 * 10**15;
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -95,7 +95,7 @@ contract AmarokFacetTest is TestBaseFacet {
     }
 
     function test_CanBridgeAndPayFeeWithBridgedToken() public {
-        amarokData.relayerFee = 1 * 10 ** usdc.decimals();
+        amarokData.relayerFee = 1 * 10**usdc.decimals();
         amarokData.payFeeWithSendingAsset = true;
         bridgeData.minAmount = bridgeData.minAmount - amarokData.relayerFee;
         vm.startPrank(USER_SENDER);
@@ -115,9 +115,10 @@ contract AmarokFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             amarokFacet.swapAndStartBridgeTokensViaAmarok{
                 value: swapData[0].fromAmount
@@ -129,6 +130,41 @@ contract AmarokFacetTest is TestBaseFacet {
                 amarokData
             );
         }
+    }
+
+    function test_CanSwapAndBridgeAndPayFeeWithBridgedToken() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        amarokData.relayerFee = 1 * 10**usdc.decimals();
+        amarokData.payFeeWithSendingAsset = true;
+
+        // reset swap data
+        setCustomSwapDataSingleDAItoUSDC(
+            bridgeData.minAmount + amarokData.relayerFee
+        );
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_DAI,
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount + amarokData.relayerFee,
+            block.timestamp
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
     }
 
     function testBase_CanBridgeNativeTokens() public override {
