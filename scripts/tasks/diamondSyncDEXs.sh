@@ -7,7 +7,7 @@ function diamondSyncDEXs {
 	source .env
 
 	# load config & helper functions
-  source scripts/deploy/resources/deployHelperFunctions.sh
+  source scripts/helperFunctions.sh
 
   # read function arguments into variables
   local NETWORK="$1"

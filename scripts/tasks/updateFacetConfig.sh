@@ -4,7 +4,7 @@ updateFacetConfig() {
   # load deploy scripts & helper functions
   source .env
   source scripts/config.sh
-  source scripts/deploy/resources/deployHelperFunctions.sh
+  source scripts/helperFunctions.sh
 
   # read function arguments into variables
   ENVIRONMENT="$2"
