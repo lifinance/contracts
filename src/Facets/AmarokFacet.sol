@@ -64,10 +64,9 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
-            _amarokData.payFeeWithSendingAsset
-                ? _bridgeData.minAmount + _amarokData.relayerFee
-                : _bridgeData.minAmount
+            _bridgeData.minAmount
         );
+
         _startBridge(_bridgeData, _amarokData);
     }
 
@@ -98,10 +97,6 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _amarokData.relayerFee
         );
 
-        if (_amarokData.payFeeWithSendingAsset) {
-            _bridgeData.minAmount -= _amarokData.relayerFee;
-        }
-
         _startBridge(_bridgeData, _amarokData);
     }
 
@@ -128,7 +123,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _amarokData.callTo,
                 _bridgeData.sendingAssetId,
                 _amarokData.delegate,
-                _bridgeData.minAmount,
+                _bridgeData.minAmount - _amarokData.relayerFee,
                 _amarokData.slippageTol,
                 _amarokData.callData,
                 _amarokData.relayerFee
