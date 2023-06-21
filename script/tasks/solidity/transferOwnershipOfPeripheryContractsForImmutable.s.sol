@@ -47,7 +47,6 @@ contract DeployScript is Script {
             ".LiFiDiamondImmutable"
         );
         console.log("B");
-
     }
 
     function run() public returns (bool) {
@@ -85,7 +84,9 @@ contract DeployScript is Script {
             PeripheryRegistryFacet(diamondImmutableAddress)
                 .getPeripheryContract("ERC20Proxy") != address(0)
         ) {
-            console.log("changing ownership of FeeCollector to address(0) now"); // todo remove
+            console.log(
+                "changing ownership of FeeCollector to address(0) now"
+            ); // todo remove
             // get contract address
             contractAddress = diamondLogJSON.readAddress(
                 ".LiFiDiamondImmutable.Periphery.ERC20Proxy"
@@ -109,7 +110,9 @@ contract DeployScript is Script {
             PeripheryRegistryFacet(diamondImmutableAddress)
                 .getPeripheryContract("FeeCollector") != withdrawWalletAddress
         ) {
-            console.log("changing ownership of FeeCollector to withdrawWalletAddress now"); // todo remove
+            console.log(
+                "changing ownership of FeeCollector to withdrawWalletAddress now"
+            ); // todo remove
             // get contract address
             contractAddress = diamondLogJSON.readAddress(
                 ".LiFiDiamondImmutable.Periphery.FeeCollector"
@@ -126,7 +129,9 @@ contract DeployScript is Script {
             PeripheryRegistryFacet(diamondImmutableAddress)
                 .getPeripheryContract("Receiver") != refundWalletAddress
         ) {
-            console.log("changing ownership of Receiver to refundWalletAddress now"); // todo remove
+            console.log(
+                "changing ownership of Receiver to refundWalletAddress now"
+            ); // todo remove
             // get contract address
             contractAddress = diamondLogJSON.readAddress(
                 ".LiFiDiamondImmutable.Periphery.Receiver"
@@ -143,7 +148,9 @@ contract DeployScript is Script {
             PeripheryRegistryFacet(diamondImmutableAddress)
                 .getPeripheryContract("RelayerCelerIM") != refundWalletAddress
         ) {
-            console.log("changing ownership of RelayerCelerIM to refundWalletAddress now"); // todo remove
+            console.log(
+                "changing ownership of RelayerCelerIM to refundWalletAddress now"
+            ); // todo remove
             // get contract address
             contractAddress = diamondLogJSON.readAddress(
                 ".LiFiDiamondImmutable.Periphery.RelayerCelerIM"
@@ -158,9 +165,12 @@ contract DeployScript is Script {
         // ------- ServiceFeeCollector
         if (
             PeripheryRegistryFacet(diamondImmutableAddress)
-                .getPeripheryContract("ServiceFeeCollector") != withdrawWalletAddress
+                .getPeripheryContract("ServiceFeeCollector") !=
+            withdrawWalletAddress
         ) {
-            console.log("changing ownership of ServiceFeeCollector to withdrawWalletAddress now"); // todo remove
+            console.log(
+                "changing ownership of ServiceFeeCollector to withdrawWalletAddress now"
+            ); // todo remove
             // get contract address
             contractAddress = diamondLogJSON.readAddress(
                 ".LiFiDiamondImmutable.Periphery.ServiceFeeCollector"

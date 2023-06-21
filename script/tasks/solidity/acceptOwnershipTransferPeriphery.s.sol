@@ -20,7 +20,9 @@ contract DeployScript is Script {
     address internal contractAddress;
 
     constructor() {
-        withdrawPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY_WITHDRAW_WALLET"));
+        withdrawPrivateKey = uint256(
+            vm.envBytes32("PRIVATE_KEY_WITHDRAW_WALLET")
+        );
         refundPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY_REFUND_WALLET"));
         root = vm.projectRoot();
         network = vm.envString("NETWORK");
@@ -60,18 +62,19 @@ contract DeployScript is Script {
 
         // accept ownership transfer for FeeCollector / ServiceFeeCollector
         TransferrableOwnership(feeCollectorAddress).confirmOwnershipTransfer();
-        TransferrableOwnership(serviceFeeCollectorAddress).confirmOwnershipTransfer();
+        TransferrableOwnership(serviceFeeCollectorAddress)
+            .confirmOwnershipTransfer();
 
         // end broadcast for withdraw wallet
         vm.stopBroadcast();
-
 
         // start broadcast for refund wallet
         vm.startBroadcast(refundPrivateKey);
 
         // accept ownership transfer for FeeCollector / ServiceFeeCollector
         TransferrableOwnership(receiverAddress).confirmOwnershipTransfer();
-        TransferrableOwnership(relayerCelerIMAddress).confirmOwnershipTransfer();
+        TransferrableOwnership(relayerCelerIMAddress)
+            .confirmOwnershipTransfer();
 
         // end broadcast for refund wallet
         vm.stopBroadcast();
