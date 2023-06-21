@@ -2626,6 +2626,10 @@ function getChainId() {
       echo "59140"
       return 0
       ;;
+    "localanvil")
+      echo "31337"
+      return 0
+      ;;
     *)
       return 1
       ;;

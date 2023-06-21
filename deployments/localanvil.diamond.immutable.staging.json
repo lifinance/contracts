@@ -1,0 +1,44 @@
+{
+  "LiFiDiamondImmutable": {
+    "Facets": {
+      "0x15D182d7c89329Ff3e86334c933429EbdBacF873": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0xDf0a929f1C9A236adbA78Df651491cdd44A23eC8": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0xF3734933b7D7b3B550DB1f4FCc2CE4E69E855E18": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x9baA369839B29089408Db81d5D4E2cfAF3B6D297": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0x44A9d1bBe1c63E84FB426C096Cb984442F90E040": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x7DA4fC6a2823068a758a1b6297078FDCA710c767": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x359ba538EC8FB93ea66ce1398412f7D8779B01D2": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      }
+    },
+    "Periphery": {
+      "AxelarExecutor": "",
+      "ERC20Proxy": "",
+      "Executor": "",
+      "FeeCollector": "",
+      "FusePoolZap": "",
+      "Receiver": "",
+      "RelayerCelerIM": "",
+      "ServiceFeeCollector": ""
+    }
+  }
+}

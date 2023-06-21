@@ -17,6 +17,7 @@ contract DeployScript is Script {
     using stdJson for string;
 
     string internal path;
+    string internal networkLogJSON;
     string internal diamondLogJSON;
     string internal globalConfigJson;
     uint256 internal deployerPrivateKey;
@@ -40,15 +41,19 @@ contract DeployScript is Script {
             fileSuffix,
             "json"
         );
-        diamondLogJSON = vm.readFile(path);
-        diamondImmutableAddress = diamondLogJSON.readAddress(
+        networkLogJSON = vm.readFile(path);
+        console.log("A");
+        diamondImmutableAddress = networkLogJSON.readAddress(
             ".LiFiDiamondImmutable"
         );
+        console.log("B");
+
     }
 
     function run() public returns (bool) {
         vm.startBroadcast(deployerPrivateKey);
 
+        console.log("C");
         // get correct path of diamond log
         path = string.concat(
             root,
@@ -73,12 +78,14 @@ contract DeployScript is Script {
         address withdrawWalletAddress = globalConfigJson.readAddress(
             ".withdrawWallet"
         );
+        console.log("D");
 
         // ------- ERC20Proxy
         if (
             PeripheryRegistryFacet(diamondImmutableAddress)
                 .getPeripheryContract("ERC20Proxy") != address(0)
         ) {
+            console.log("changing ownership of FeeCollector to address(0) now"); // todo remove
             // get contract address
             contractAddress = diamondLogJSON.readAddress(
                 ".LiFiDiamondImmutable.Periphery.ERC20Proxy"
@@ -100,8 +107,9 @@ contract DeployScript is Script {
         // ------- FeeCollector
         if (
             PeripheryRegistryFacet(diamondImmutableAddress)
-                .getPeripheryContract("FeeCollector") != address(0)
+                .getPeripheryContract("FeeCollector") != withdrawWalletAddress
         ) {
+            console.log("changing ownership of FeeCollector to withdrawWalletAddress now"); // todo remove
             // get contract address
             contractAddress = diamondLogJSON.readAddress(
                 ".LiFiDiamondImmutable.Periphery.FeeCollector"
@@ -116,8 +124,9 @@ contract DeployScript is Script {
         // ------- Receiver
         if (
             PeripheryRegistryFacet(diamondImmutableAddress)
-                .getPeripheryContract("Receiver") != address(0)
+                .getPeripheryContract("Receiver") != refundWalletAddress
         ) {
+            console.log("changing ownership of Receiver to refundWalletAddress now"); // todo remove
             // get contract address
             contractAddress = diamondLogJSON.readAddress(
                 ".LiFiDiamondImmutable.Periphery.Receiver"
@@ -132,8 +141,9 @@ contract DeployScript is Script {
         // ------- RelayerCelerIM
         if (
             PeripheryRegistryFacet(diamondImmutableAddress)
-                .getPeripheryContract("RelayerCelerIM") != address(0)
+                .getPeripheryContract("RelayerCelerIM") != refundWalletAddress
         ) {
+            console.log("changing ownership of RelayerCelerIM to refundWalletAddress now"); // todo remove
             // get contract address
             contractAddress = diamondLogJSON.readAddress(
                 ".LiFiDiamondImmutable.Periphery.RelayerCelerIM"
@@ -148,8 +158,9 @@ contract DeployScript is Script {
         // ------- ServiceFeeCollector
         if (
             PeripheryRegistryFacet(diamondImmutableAddress)
-                .getPeripheryContract("ServiceFeeCollector") != address(0)
+                .getPeripheryContract("ServiceFeeCollector") != withdrawWalletAddress
         ) {
+            console.log("changing ownership of ServiceFeeCollector to withdrawWalletAddress now"); // todo remove
             // get contract address
             contractAddress = diamondLogJSON.readAddress(
                 ".LiFiDiamondImmutable.Periphery.ServiceFeeCollector"
