@@ -72,6 +72,10 @@
       "0x2F8746982DF5D48eCDDA532A541445c138A3c297": {
         "Name": "GnosisBridgeL2Facet",
         "Version": "1.0.0"
+      },
+      "0x8446a365f3F2eF6a050E5f9a568cf5A5Ca110886": {
+        "Name": "AmarokFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
