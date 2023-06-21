@@ -80,6 +80,10 @@
       "0x0d26d248D4e80377f1d794AB88090e76B0903EDE": {
         "Name": "CelerIMFacetImmutable",
         "Version": "2.0.0"
+      },
+      "0x8446a365f3F2eF6a050E5f9a568cf5A5Ca110886": {
+        "Name": "AmarokFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
