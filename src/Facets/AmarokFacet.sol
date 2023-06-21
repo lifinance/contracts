@@ -32,6 +32,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 slippageTol;
         address delegate;
         uint32 destChainDomainId;
+        bool payFeeWithSendingAsset;
     }
 
     /// Constructor ///
@@ -65,6 +66,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
+
         _startBridge(_bridgeData, _amarokData);
     }
 
@@ -94,6 +96,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             payable(msg.sender),
             _amarokData.relayerFee
         );
+
         _startBridge(_bridgeData, _amarokData);
     }
 
@@ -114,15 +117,28 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         // initiate bridge transaction
-        connextHandler.xcall{ value: _amarokData.relayerFee }(
-            _amarokData.destChainDomainId,
-            _amarokData.callTo,
-            _bridgeData.sendingAssetId,
-            _amarokData.delegate,
-            _bridgeData.minAmount,
-            _amarokData.slippageTol,
-            _amarokData.callData
-        );
+        if (_amarokData.payFeeWithSendingAsset) {
+            connextHandler.xcall(
+                _amarokData.destChainDomainId,
+                _amarokData.callTo,
+                _bridgeData.sendingAssetId,
+                _amarokData.delegate,
+                _bridgeData.minAmount - _amarokData.relayerFee,
+                _amarokData.slippageTol,
+                _amarokData.callData,
+                _amarokData.relayerFee
+            );
+        } else {
+            connextHandler.xcall{ value: _amarokData.relayerFee }(
+                _amarokData.destChainDomainId,
+                _amarokData.callTo,
+                _bridgeData.sendingAssetId,
+                _amarokData.delegate,
+                _bridgeData.minAmount,
+                _amarokData.slippageTol,
+                _amarokData.callData
+            );
+        }
 
         emit LiFiTransferStarted(_bridgeData);
     }

@@ -23,9 +23,7 @@ contract TestAmarokFacet is AmarokFacet {
 
 contract AmarokFacetTest is TestBaseFacet {
     address internal constant CONNEXT_HANDLER =
-        0x01EdE4Fdf8CF7Ef9942a935305C3145f8dAa180A;
-    address internal constant CONNEXT_HANDLER2 =
-        0x2b501381c6d6aFf9238526352b1c7560Aa35A7C5;
+        0x8898B472C54c31894e3B9bb83cEA802a5d0e63C6;
     uint32 internal constant DSTCHAIN_DOMAIN_GOERLI = 1735356532;
     uint32 internal constant DSTCHAIN_DOMAIN_POLYGON = 1886350457;
     // -----
@@ -35,11 +33,11 @@ contract AmarokFacetTest is TestBaseFacet {
 
     function setUp() public {
         // set custom block no for mainnet forking
-        customBlockNumberForForking = 16176320;
+        customBlockNumberForForking = 17484106;
 
         initTestBase();
 
-        amarokFacet = new TestAmarokFacet(IConnextHandler(CONNEXT_HANDLER2));
+        amarokFacet = new TestAmarokFacet(IConnextHandler(CONNEXT_HANDLER));
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = amarokFacet.startBridgeTokensViaAmarok.selector;
         functionSelectors[1] = amarokFacet
@@ -76,9 +74,10 @@ contract AmarokFacetTest is TestBaseFacet {
             callData: "",
             callTo: receiver,
             relayerFee: 0,
-            slippageTol: 9995,
+            slippageTol: 955,
             delegate: delegate,
-            destChainDomainId: DSTCHAIN_DOMAIN_POLYGON
+            destChainDomainId: DSTCHAIN_DOMAIN_POLYGON,
+            payFeeWithSendingAsset: false
         });
 
         // make sure relayerFee is sent with every transaction
@@ -95,6 +94,23 @@ contract AmarokFacetTest is TestBaseFacet {
         }
     }
 
+    function test_CanBridgeAndPayFeeWithBridgedToken() public {
+        amarokData.relayerFee = 1 * 10 ** usdc.decimals();
+        amarokData.payFeeWithSendingAsset = true;
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
@@ -109,6 +125,39 @@ contract AmarokFacetTest is TestBaseFacet {
                 amarokData
             );
         }
+    }
+
+    function test_CanSwapAndBridgeAndPayFeeWithBridgedToken() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        amarokData.relayerFee = 1 * 10 ** usdc.decimals();
+        amarokData.payFeeWithSendingAsset = true;
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_DAI,
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
     }
 
     function testBase_CanBridgeNativeTokens() public override {
