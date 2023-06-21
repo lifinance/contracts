@@ -34,7 +34,7 @@ async function main() {
     const amountOut = parseUnits('2', 6)
 
     msg('Getting Hop info...')
-    const fee = await bridge.getTotalFee(amountOut, Chain.Polygon, Chain.xDai)
+    const fee = await bridge.getTotalFee(amountOut, Chain.Polygon, Chain.Gnosis)
 
     const path = [POLYGON_USDT_ADDRESS, POLYGON_USDC_ADDRESS]
     const to = LIFI_ADDRESS // should be a checksummed recipient address
@@ -119,7 +119,7 @@ async function main() {
     await token.approve(lifi.address, amount)
 
     msg('Getting Hop info...')
-    const fee = await bridge.getTotalFee(amount, Chain.Polygon, Chain.xDai)
+    const fee = await bridge.getTotalFee(amount, Chain.Polygon, Chain.Gnosis)
 
     const deadline = Math.floor(Date.now() / 1000) + 60 * 120 // 2 hours from the current Unix time
 
