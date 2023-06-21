@@ -233,7 +233,8 @@ contract CallVerificationFacetTest is TestBase {
             relayerFee: 0,
             slippageTol: 0,
             delegate: address(0xdeadbeef),
-            destChainDomainId: 1234
+            destChainDomainId: 1234,
+            payFeeWithSendingAsset: false
         });
 
         bytes memory callData = abi.encodeWithSelector(

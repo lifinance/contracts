@@ -112,6 +112,10 @@
       "0xC1E20466AD79BAe875568eb08ABaaEA1F0E25b7E": {
         "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
+      },
+      "0x8446a365f3F2eF6a050E5f9a568cf5A5Ca110886": {
+        "Name": "AmarokFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

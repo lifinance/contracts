@@ -21,13 +21,13 @@
 #   - make environment / file suffix global variables
 #   - add function descriptions in helper functions
 
-# - write article
 # - for immutable diamond we need to run some specific script - add to deploy script
 
 # - add fancy stuff
 #   -  add low balance warnings and currency symbols for deployer wallet balance
 
 scriptMaster() {
+  echo "[info] loading required resources and compiling contracts"
   # load env variables
   source .env
 
@@ -40,6 +40,9 @@ scriptMaster() {
   source scripts/deploy/deployUpgradesToSAFE.sh
   source scripts/config.sh
   for script in scripts/tasks/*.sh; do [ -f "$script" ] && source "$script"; done # sources all scripts in folder scripts/tasks/
+
+  # make sure that all compiled artifacts are current
+  forge build
 
   # start local anvil network if flag in config is set
   if [[ "$START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP" == "true" ]]; then

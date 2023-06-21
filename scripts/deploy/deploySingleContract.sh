@@ -135,7 +135,8 @@ deploySingleContract() {
   echo ""
 
   # prepare bytecode
-  BYTECODE=$(forge inspect "$CONTRACT" bytecode)
+  BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
+
 
   # if selected contract is "LiFiDiamondImmutable" then use an adjusted salt for deployment to prevent clashes due to same bytecode
   if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then

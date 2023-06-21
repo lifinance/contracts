@@ -1221,6 +1221,32 @@ function parseTargetStateGoogleSpreadsheet() {
 
   return 0
 }
+function getBytecodeFromArtifact() {
+  # read function arguments into variables
+  local contract="$1"
+
+  # get filepath
+  local file_path="out/$contract.sol/$contract.json"
+
+  # ensure file exists
+  if ! checkIfFileExists "$file_path" >/dev/null; then
+    error "file does not exist: $file_path (access attempted by function 'getBytecodeFromArtifact')"
+    return 1
+  fi
+
+  # read bytecode value from json
+  bytecode_json=$(getValueFromJSONFile "$file_path" "bytecode.object")
+
+  # Check if the the value obtained starts with "0x"
+  if [[ $bytecode_json == 0x* ]]; then
+      echo "$bytecode_json"
+      return 0
+  else
+      error "no bytecode found for $contract in file $file_path. Script cannot continue."
+      exit 1
+  fi
+}
+
 # <<<<< working with directories and reading other files
 
 # >>>>> writing to blockchain & verification
@@ -3364,14 +3390,25 @@ function test_getContractNameFromDeploymentLogs() {
 }
 function test_tmp() {
 
-  CONTRACT="RelayerCelerIM"
-  NETWORK="mumbai"
-  ENVIRONMENT="staging"
-  VERSION="2.0.0"
-  DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
+#  CONTRACT="RelayerCelerIM"
+#  NETWORK="mumbai"
+#  ENVIRONMENT="staging"
+#  VERSION="2.0.0"
+#  DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
+#
+#  #findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
+#  findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME"
 
-  #findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
-  findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME"
+CONTRACT="MultichainFacet"
+#BYTECODE_FORGE=$(forge inspect "$CONTRACT" bytecode)
+#if [[ "$BYTECODE_JSON" == "$BYTECODE_FORGE" ]]; then
+#  echo "same"
+#else
+#  echo "not same"
+#fi
+#echo "BYTECODE:"
+#echo "$BYTECODE"
+getBytecodeFromArtifact $CONTRACT
 }
 
 #test_tmp
