@@ -31,11 +31,11 @@ contract DeployScript is DeployScriptBase {
         );
         Config[] memory configs = abi.decode(rawConfig, (Config[]));
 
+        // Find the ammWrapper address for the native token on this chain
         address ammWrapper;
         for (uint256 i = 0; i < configs.length; i++) {
             if (
-                keccak256(abi.encodePacked(configs[i].name)) ==
-                keccak256(abi.encodePacked("ETH"))
+                configs[i].token == 0x0000000000000000000000000000000000000000
             ) {
                 ammWrapper = configs[i].ammWrapper;
             }
