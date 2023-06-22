@@ -6502,7 +6502,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-22 10:06:33",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce4400000000000000000000000033ceb27b39d2bb7d2e61f7564d3df29344020417",
-            "DEPLOYSALT": "HopFacetPacked0",
+            "DEPLOYSALT": "23062023",
             "VERIFIED": "false"
           }
         ]
@@ -6556,7 +6556,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-22 12:31:04",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce4400000000000000000000000086ca30bef97fb651b8d866d45503684b90cb3312",
-            "DEPLOYSALT": "HopFacetPacked0",
+            "DEPLOYSALT": "23062023",
             "VERIFIED": "false"
           }
         ]
@@ -6620,7 +6620,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-22 10:45:14",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce4400000000000000000000000003d7f750777ec48d39d080b020d83eb2cb4e3547",
-            "DEPLOYSALT": "HopFacetPacked0",
+            "DEPLOYSALT": "23062023",
             "VERIFIED": "false"
           }
         ]
@@ -6643,7 +6643,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-22 10:36:55",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000000000000000000000000000000000000000000000",
-            "DEPLOYSALT": "HopFacetPacked0",
+            "DEPLOYSALT": "23062023",
             "VERIFIED": "false"
           }
         ]
@@ -6694,7 +6694,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-21 16:16:20",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000008f7492de823025b4cfaab1d34c58963f2af5deda",
-            "DEPLOYSALT": "AmarokFacet0",
+            "DEPLOYSALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -6756,7 +6756,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-21 16:38:17",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ee9dec2712cce65174b561151701bf54b99c24c8",
-            "DEPLOYSALT": "AmarokFacet0",
+            "DEPLOYSALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -6779,7 +6779,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-21 16:21:02",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000cd401c10afa37d641d2f594852da94c700e4f2ce",
-            "DEPLOYSALT": "AmarokFacet0",
+            "DEPLOYSALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -6802,7 +6802,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-21 16:02:40",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000008898b472c54c31894e3b9bb83cea802a5d0e63c6",
-            "DEPLOYSALT": "AmarokFacet0",
+            "DEPLOYSALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -6848,7 +6848,7 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-21 16:34:00",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011984dc4465481512eb5b777e44061c158cf2259",
-            "DEPLOYSALT": "AmarokFacet0",
+            "DEPLOYSALT": "",
             "VERIFIED": "true"
           }
         ]
