@@ -82,7 +82,7 @@ function logContractDeploymentInfo {
   local ENVIRONMENT="$7"
   local ADDRESS="$8"
   local VERIFIED="$9"
-  local DEPLOYSALT="$10"
+  local DEPLOYSALT="${10}"
 
   if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
     error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT) to master log file. Log will not be updated. Please check and run this script again to secure deploy log data."
@@ -1239,11 +1239,11 @@ function getBytecodeFromArtifact() {
 
   # Check if the the value obtained starts with "0x"
   if [[ $bytecode_json == 0x* ]]; then
-      echo "$bytecode_json"
-      return 0
+    echo "$bytecode_json"
+    return 0
   else
-      error "no bytecode found for $contract in file $file_path. Script cannot continue."
-      exit 1
+    error "no bytecode found for $contract in file $file_path. Script cannot continue."
+    exit 1
   fi
 }
 
@@ -3390,25 +3390,25 @@ function test_getContractNameFromDeploymentLogs() {
 }
 function test_tmp() {
 
-#  CONTRACT="RelayerCelerIM"
-#  NETWORK="mumbai"
-#  ENVIRONMENT="staging"
-#  VERSION="2.0.0"
-#  DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
-#
-#  #findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
-#  findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME"
+  #  CONTRACT="RelayerCelerIM"
+  #  NETWORK="mumbai"
+  #  ENVIRONMENT="staging"
+  #  VERSION="2.0.0"
+  #  DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
+  #
+  #  #findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
+  #  findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME"
 
-CONTRACT="MultichainFacet"
-#BYTECODE_FORGE=$(forge inspect "$CONTRACT" bytecode)
-#if [[ "$BYTECODE_JSON" == "$BYTECODE_FORGE" ]]; then
-#  echo "same"
-#else
-#  echo "not same"
-#fi
-#echo "BYTECODE:"
-#echo "$BYTECODE"
-getBytecodeFromArtifact $CONTRACT
+  CONTRACT="MultichainFacet"
+  #BYTECODE_FORGE=$(forge inspect "$CONTRACT" bytecode)
+  #if [[ "$BYTECODE_JSON" == "$BYTECODE_FORGE" ]]; then
+  #  echo "same"
+  #else
+  #  echo "not same"
+  #fi
+  #echo "BYTECODE:"
+  #echo "$BYTECODE"
+  getBytecodeFromArtifact $CONTRACT
 }
 
 #test_tmp
