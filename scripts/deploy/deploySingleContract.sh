@@ -137,7 +137,6 @@ deploySingleContract() {
   # prepare bytecode
   BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
 
-
   # if selected contract is "LiFiDiamondImmutable" then use an adjusted salt for deployment to prevent clashes due to same bytecode
   if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then
     # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
@@ -372,7 +371,7 @@ deploySingleContract() {
         echoDebug "address of existing RelayerCelerIM log entry does not match with current deployed-to address (=re-deployment)"
 
         # overwrite existing log entry with new deployment info
-        logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$TIMESTAMP" "$RELAYER_VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" $VERIFIED "$DEPLOYSALT"
+        logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$TIMESTAMP" "$RELAYER_VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" $VERIFIED "$SALT"
       fi
     fi
 
@@ -426,7 +425,7 @@ deploySingleContract() {
         TIMESTAMP=$(echo "$LOG_ENTRY" | jq -r ".TIMESTAMP")
 
         # update VERIFIED info in log file
-        logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$DEPLOYSALT"
+        logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
       else
         echoDebug "contract was not verified just now. No further action needed."
       fi
@@ -434,13 +433,13 @@ deploySingleContract() {
       echoDebug "address of existing log entry does not match with current deployed-to address (=re-deployment)"
 
       # overwrite existing log entry with new deployment info
-      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$DEPLOYSALT"
+      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
     fi
   else
     echoDebug "log entry does not exist yet and will be written now"
 
     # write to logfile
-    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$DEPLOYSALT"
+    logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
   fi
 
   # save contract in network-specific deployment files
