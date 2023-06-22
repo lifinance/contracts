@@ -41,7 +41,7 @@ async function main() {
     toChainId: destinationChainId,
   }
 
-  await lifi.startBridgeTokensViaMultichasin(lifiData, Multichain, {
+  await lifi.startBridgeTokensViaMultichain(lifiData, Multichain, {
     gasLimit: 500000,
   })
 }
