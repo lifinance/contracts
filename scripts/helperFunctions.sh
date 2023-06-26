@@ -82,7 +82,7 @@ function logContractDeploymentInfo {
   local ENVIRONMENT="$7"
   local ADDRESS="$8"
   local VERIFIED="$9"
-  local DEPLOYSALT="$10"
+  local SALT="${10}"
 
   if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
     error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT) to master log file. Log will not be updated. Please check and run this script again to secure deploy log data."
@@ -101,7 +101,7 @@ function logContractDeploymentInfo {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "ADDRESS=$ADDRESS"
   echoDebug "VERIFIED=$VERIFIED"
-  echoDebug "DEPLOYSALT=$DEPLOYSALT"
+  echoDebug "SALT=$SALT"
   echo ""
 
   # Check if log FILE exists, if not create it
@@ -128,8 +128,8 @@ function logContractDeploymentInfo {
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
       --arg VERIFIED "$VERIFIED" \
-      --arg DEPLOYSALT "$DEPLOYSALT" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, DEPLOYSALT: $DEPLOYSALT, VERIFIED: $VERIFIED }]' \
+      --arg SALT "$SALT" \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }]' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   else
     jq --arg CONTRACT "$CONTRACT" \
@@ -141,8 +141,8 @@ function logContractDeploymentInfo {
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
       --arg VERIFIED "$VERIFIED" \
-      --arg DEPLOYSALT "$DEPLOYSALT" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, DEPLOYSALT: $DEPLOYSALT, VERIFIED: $VERIFIED }' \
+      --arg SALT "$SALT" \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   fi
 
@@ -1404,7 +1404,7 @@ function verifyAllUnverifiedContractsInLogFile() {
             # check result
             if [ $? -eq 0 ]; then
               # update log file
-              logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true" "$DEPLOYSALT"
+              logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true" "$SALT"
 
               # increase COUNTER
               COUNTER=$((COUNTER + 1))

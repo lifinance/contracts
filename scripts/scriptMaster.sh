@@ -41,9 +41,6 @@ scriptMaster() {
   source scripts/config.sh
   for script in scripts/tasks/*.sh; do [ -f "$script" ] && source "$script"; done # sources all scripts in folder scripts/tasks/
 
-  # make sure that all compiled artifacts are current
-  forge build
-
   # start local anvil network if flag in config is set
   if [[ "$START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP" == "true" ]]; then
     # check if anvil is already running
@@ -113,6 +110,9 @@ scriptMaster() {
     echo ""
     echo "[info] selected use case: Deploy one specific contract to one network"
 
+    # make sure that all compiled artifacts are current
+    forge build
+
     # get user-selected network from list
     local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
 
@@ -168,6 +168,9 @@ scriptMaster() {
   elif [[ "$SELECTION" == "2)"* ]]; then
     echo ""
     echo "[info] selected use case: Deploy one specific contract to all networks"
+
+    # make sure that all compiled artifacts are current
+    forge build
 
     # get user-selected deploy script and contract from list
     local SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
@@ -226,6 +229,9 @@ scriptMaster() {
     echo ""
     echo "[info] selected use case: Deploy all contracts to one selected network (=new network)"
 
+    # make sure that all compiled artifacts are current
+    forge build
+
     # get user-selected network from list
     local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
     # get deployer wallet balance
@@ -252,6 +258,9 @@ scriptMaster() {
 
     error "this use case is not yet implemented"
     exit 1
+
+    # make sure that all compiled artifacts are current
+    forge build
 
     #TODO: activate once log and target state are populated
     # go through each entry in target state and check if contract is deployed in correct version

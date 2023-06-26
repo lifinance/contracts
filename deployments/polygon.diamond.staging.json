@@ -1,59 +1,109 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0x205797C59Ea2eeF999339927Fa560cB08291d0B9": {
+      "0xAFD7e2F5854B0c5E9B5509dc752Ae475dcD12928": {
         "Name": "DiamondCutFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0xb7e85A365d69A145C5F4e83843656511755cDFB4": {
+      "0x2894eAeB40146E971949e75D8f633c1698bF0A29": {
         "Name": "DiamondLoupeFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0x9FFB50c414faFaE03Fab346Af0f8ec1e53663170": {
+      "0xCc0dcBeA21DCB574cC5487EC308fad7F01BF67FF": {
         "Name": "OwnershipFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0x6C213E21e9bf0D769C80FD2acEfa5ae25313533F": {
+      "0x81458e8b898F1ffcBcBdB959d8DaE72f2766db0e": {
         "Name": "WithdrawFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0xd22807714d0e201f9321AE9360aD75022E2e085C": {
+      "0x77892C63F639D696f9144f54B7FD7E0e3f31e99e": {
         "Name": "DexManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0x9565332E63Ac632Bc196626A85baC365b40bC5B7": {
+      "0xe5b327E766c51564FD7E71a1b6FCC47d0139198E": {
         "Name": "AccessManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0xAF2d96645053b3FEE1bdAc6EbD3FBcd4638860f6": {
+      "0xb50FB15d808F9279cF55CC1620aFc8786ca7daFc": {
         "Name": "PeripheryRegistryFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0xDF21834da251337F6DA22C6E961ed17031681A1e": {
-        "Name": "SynapseBridgeFacet",
-        "Version": ""
+      "0xdaCc0c34eB69226B92C09E100E01fF378b63B314": {
+        "Name": "AcrossFacet",
+        "Version": "2.0.0"
       },
-      "0x9d6959a101A0BC2CEaAEFd8DC32B8c55E05Ba3B2": {
+      "0x60Ad112622e6A651684c086067CC6270849297CB": {
         "Name": "AllBridgeFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0xefB4cE435C9FA3dE51f292Ac4905f91fbA2BE65D": {
-        "Name": "CelerIMFacet",
-        "Version": ""
+      "0x5719002AcB80f930D20B066fa0E734eDb7AE8045": {
+        "Name": "AmarokFacet",
+        "Version": "2.0.0"
       },
-      "0xb414f9BBCd4B359c9B4a1d8138Cd573F96E5896C": {
+      "0x8e86B2f189E2f776a97E801C548c23053ca8B35A": {
+        "Name": "CBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x2769F6A9113F451Cb5D117e49AacE9e9fdf69f17": {
+        "Name": "CBridgeFacetPacked",
+        "Version": "1.0.1"
+      },
+      "0x8D5a58D7e7DB63734b41bF7e517EA50481CeB1fD": {
+        "Name": "CelerIMFacetMutable",
+        "Version": "2.0.0"
+      },
+      "0xd03E68B1eeC271174e9833c35353b6F541ab53f7": {
+        "Name": "DeBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x2965ff74d1fC32fD70c4F3dEDE3b29A01EAcCF2b": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0xdAa88799538559daB1a3D4BbB9468de1C9746C67": {
+        "Name": "HopFacetPacked",
+        "Version": "1.0.5"
+      },
+      "0x792342f941dC53f6bBE05E53c691778631419171": {
+        "Name": "HyphenFacet",
+        "Version": "1.0.0"
+      },
+      "0x31f206260e77C95cfA5A8ee42c1e269ED6df8227": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
+      },
+      "0x887fB23350b525BAbad07c459aD73612fC1Bf43A": {
+        "Name": "MultichainFacet",
+        "Version": "1.0.1"
+      },
+      "0x71321664b83e6ED59E30D27eED929235082E84fB": {
+        "Name": "OFTWrapperFacet",
+        "Version": "1.0.0"
+      },
+      "0x5E59079F1e5B6FfaD7592ff343d8Ce8c0B2A9Cb0": {
+        "Name": "SquidFacet",
+        "Version": "1.0.0"
+      },
+      "0x860cd8FD3ec55aBe3f8885FAb40AFfD4D8525624": {
+        "Name": "StargateFacet",
+        "Version": "1.0.0"
+      },
+      "0xF54B94fb80c80bf772c634F0581572Bd74291B06": {
+        "Name": "SynapseBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x84A6d46B43ca3dB60558121fE2ed3D02038F8dCE": {
         "Name": "WormholeFacet",
         "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "AxelarExecutor": "",
       "ERC20Proxy": "0xf90a432dD1D0541470BC9C440d9dEc3659755238",
-      "Executor": "0xdCbf065502Cfc7f32B3B28E26d38a5Bc5d5bA6f2",
+      "Executor": "0x595a32858029FC1F4c1d27bEDaB602709E15f367",
       "FeeCollector": "0x7f98D45c7902f079fDb65811B633522e2d227BB6",
-      "FusePoolZap": "",
-      "Receiver": "0x5Bc89B57039b23A035c3914E3FD6b86cFe73afBA",
-      "RelayerCelerIM": "0xF40B8ADeD37698A13bA6D61082207E4CE242598C",
+      "Receiver": "0x1D7EF4aF812519d42972b99aD7aF92f758101c88",
+      "RelayerCelerIM": "0x14b4F493205ABA4A62C52d5D8938e712Cb26E4dF",
       "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d"
     }
   }
