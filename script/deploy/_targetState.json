@@ -250,7 +250,7 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
-        "AmarokFacet": "1.0.1",
+        "AmarokFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.1",
         "RelayerCelerIM": "2.0.0",
@@ -908,7 +908,7 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
-        "AmarokFacet": "1.0.1",
+        "AmarokFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.1",
         "RelayerCelerIM": "2.0.0",
@@ -2680,6 +2680,57 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
+      }
+    }
+  },
+  "localanvil": {
+    "staging": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "CBridgeFacetPacked": "1.0.1",
+        "HopFacet": "2.0.0",
+        "HopFacetPacked": "1.0.5",
+        "MultichainFacet": "1.0.1",
+        "OFTWrapperFacet": "1.0.0",
+        "OptimismBridgeFacet": "1.0.0",
+        "StargateFacet": "1.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "CBridgeFacetPacked": "1.0.1",
+        "HopFacet": "2.0.0",
+        "HopFacetPacked": "1.0.5",
+        "MultichainFacet": "1.0.1",
+        "OFTWrapperFacet": "1.0.0",
+        "OptimismBridgeFacet": "1.0.0",
+        "StargateFacet": "1.0.0"
       }
     }
   }
