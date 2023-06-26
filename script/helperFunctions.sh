@@ -120,30 +120,6 @@ function logContractDeploymentInfo {
   # Update existing entry or add new entry to log FILE
   if [[ "$existing_entry" == "null" ]]; then
     jq --arg CONTRACT "$CONTRACT" \
-<<<<<<<< HEAD:script/deploy/resources/deployHelperFunctions.sh
-       --arg NETWORK "$NETWORK" \
-       --arg ENVIRONMENT "$ENVIRONMENT" \
-       --arg VERSION "$VERSION" \
-       --arg ADDRESS "$ADDRESS" \
-       --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
-       --arg TIMESTAMP "$TIMESTAMP" \
-       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
-       --arg VERIFIED "$VERIFIED" \
-       '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, VERIFIED: $VERIFIED }]' \
-       "$LOG_FILE_PATH" > tmpfile && mv tmpfile "$LOG_FILE_PATH"
-  else
-    jq --arg CONTRACT "$CONTRACT" \
-       --arg NETWORK "$NETWORK" \
-       --arg ENVIRONMENT "$ENVIRONMENT" \
-       --arg VERSION "$VERSION" \
-       --arg ADDRESS "$ADDRESS" \
-       --arg OPTIMIZER_RUNS "$OPTIMIZER_RUNS" \
-       --arg TIMESTAMP "$TIMESTAMP" \
-       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
-       --arg VERIFIED "$VERIFIED" \
-       '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, VERIFIED: $VERIFIED }' \
-       "$LOG_FILE_PATH" > tmpfile && mv tmpfile "$LOG_FILE_PATH"
-========
       --arg NETWORK "$NETWORK" \
       --arg ENVIRONMENT "$ENVIRONMENT" \
       --arg VERSION "$VERSION" \
@@ -168,7 +144,6 @@ function logContractDeploymentInfo {
       --arg DEPLOYSALT "$DEPLOYSALT" \
       '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, DEPLOYSALT: $DEPLOYSALT, VERIFIED: $VERIFIED }' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
->>>>>>>> dev:scripts/helperFunctions.sh
   fi
 
   echoDebug "contract deployment info added to log FILE (CONTRACT=$CONTRACT, NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, VERSION=$VERSION)"
@@ -283,17 +258,6 @@ function findContractInMasterLog() {
     select($contract == $CONTRACT and $network == $NETWORK and $environment == $ENVIRONMENT and $version == $VERSION) |
     $data[$contract][$network][$environment][$version][0]
   ' "$LOG_FILE_PATH")
-<<<<<<<< HEAD:script/deploy/resources/deployHelperFunctions.sh
-
-  # Loop through the entries
-  while IFS= read -r entry; do
-    if [[ -n "$entry" ]]; then  # If entry is not empty
-      found=true
-      echo "$entry"
-    fi
-  done <<<"$entries"
-========
->>>>>>>> dev:scripts/helperFunctions.sh
 
   # Loop through the entries
   while IFS= read -r entry; do
@@ -967,14 +931,9 @@ function getContractNamesInFolder() {
   fi
   }
 function getContractFilePath() {
-      # read function arguments into variables
-      CONTRACT="$1"
+  # read function arguments into variables
+  CONTRACT="$1"
 
-<<<<<<<< HEAD:script/deploy/resources/deployHelperFunctions.sh
-      # define directory to be searched
-      local dir=$CONTRACT_DIRECTORY
-      local FILENAME="$CONTRACT.sol"
-========
   # special handling for CelerIMFacet
   if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
     CONTRACT="CelerIMFacetBase"
@@ -983,19 +942,19 @@ function getContractFilePath() {
   # define directory to be searched
   local dir=$CONTRACT_DIRECTORY
   local FILENAME="$CONTRACT.sol"
->>>>>>>> dev:scripts/helperFunctions.sh
 
-      # find FILE path
-      local file_path=$(find "${dir%/}" -name $FILENAME -print)
+  # find FILE path
+  local file_path=$(find "${dir%/}" -name $FILENAME -print)
 
-      # return FILE path or throw error if FILE path does not have a value
-      if [ -n "$file_path" ]; then
-          echo "$file_path"
-      else
-          error "could not find src FILE path for contract $CONTRACT"
-          exit 1
-      fi
-    }
+  # return FILE path or throw error if FILE path does not have a value
+  if [ -n "$file_path" ]; then
+      echo "$file_path"
+  else
+      error "could not find src FILE path for contract $CONTRACT"
+      exit 1
+  fi
+}
+
 function getCurrentContractVersion() {
       # read function arguments into variables
       local CONTRACT="$1"
@@ -1157,16 +1116,9 @@ function parseTargetStateGoogleSpreadsheet() {
   # process the CSV file line by line
   LINE_NUMBER=0
   while IFS= read -r LINE; do
-      # Increment the line number
-      ((LINE_NUMBER++))
+    # Increment the line number
+    ((LINE_NUMBER++))
 
-<<<<<<<< HEAD:script/deploy/resources/deployHelperFunctions.sh
-      # Catch the line that contains the facet names
-      if [[ LINE_NUMBER -eq "7" ]]; then
-        # Remove the "Facets:" and "EXAMPLE" from the line
-        STRING_TO_REMOVE="Facets:,EXAMPLE,,"
-        FACET_LINE=$(echo "$LINE" | sed "s/^${STRING_TO_REMOVE}//")
-========
     echoDebug "LINE $LINE_NUMBER: $LINE"
 
     # Catch the line that contains the contract names
@@ -1200,20 +1152,10 @@ function parseTargetStateGoogleSpreadsheet() {
       if [[ ! -z "$NETWORK" ]]; then
         echo ""
         echo "NETWORK: $NETWORK"
->>>>>>>> dev:scripts/helperFunctions.sh
 
         # Split the line by comma into an array
-        IFS=',' read -ra LINE_ARRAY <<< "$FACET_LINE"
+        IFS=',' read -ra LINE_ARRAY <<<"$LINE"
 
-<<<<<<<< HEAD:script/deploy/resources/deployHelperFunctions.sh
-        # Create an iterable array that only contains facet names
-        FACET_ARRAY=()
-        for ((i=0; i<${#LINE_ARRAY[@]}; i+=2)); do
-            FACET_NAME=${LINE_ARRAY[i]}
-            if [[ ! -z $FACET_NAME ]]; then
-                FACET_ARRAY+=("$FACET_NAME")
-            fi
-========
         CONTRACT_INDEX=0
         # iterate through the array (start with index 5 to skip network name, EXAMPLE and PERIPHERY columns)
         for ((INDEX = "$PERIPHERY_STARTS_AT_COLUMN"; INDEX < ${#LINE_ARRAY[@]}; INDEX += 1)); do
@@ -1286,97 +1228,17 @@ function parseTargetStateGoogleSpreadsheet() {
           addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" true
           echo "addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" true"
 
->>>>>>>> dev:scripts/helperFunctions.sh
         done
-#        break
       fi
-
-      # lines containing network-specific data will start earliest in line 86
-      if [[ $((LINE_NUMBER)) -gt 85 ]]; then
-        # extract network name
-        NETWORK=$(echo "$LINE" | cut -d',' -f1)
-
-
-        # check if this line contains data (=starts with a network name), otherwise skip to next line
-        if [[ ! -z "$NETWORK" ]]; then
-          echo ""
-          echo "NETWORK: $NETWORK"
-
-          # Split the line by comma into an array
-          IFS=',' read -ra LINE_ARRAY <<< "$LINE"
-
-          # we
-          FACET_INDEX=0
-          # iterate through the array (start with index 2 to skip network name and example columns)
-          for ((INDEX=3; INDEX<${#LINE_ARRAY[@]}; INDEX+=1)); do
-            # read cell value and current facet into variables
-            CELL_VALUE=${LINE_ARRAY[$INDEX]}
-            FACET=${FACET_ARRAY[$FACET_INDEX]}
-
-            # increase facet index for next iteration
-            if ((INDEX % 2 == 0)); then
-              ((FACET_INDEX += 1))
-            fi
-
-            # end the loop if FACET is empty (=reached the end of the facet columns)
-            if [[ -z "$FACET" ]]; then
-              break
-            fi
-
-            # determine diamond type based on odd/even column index
-            if ((INDEX % 2 == 0)); then
-              DIAMOND_TYPE="LiFiDiamondImmutable"
-            else
-              DIAMOND_TYPE="LiFiDiamond"
-            fi
-
-
-            # get current contract version and save in variable
-            CURRENT_VERSION=$(getCurrentContractVersion "$FACET")
-
-            # check if cell value is "latest" >> find version
-            if [[ "$CELL_VALUE" == "latest" ]]; then
-
-              # make sure version was returned properly
-             if [[ "$?" -ne 0 ]]; then
-               warning "could not find current contract version for contract $FACET"
-             fi
-
-              # echo warning that sheet needs to be updated
-              warning "the latest version for contract $FACET is $CURRENT_VERSION. Please update this for network $NETWORK in the Google sheet"
-
-              # use current version for target state
-              VERSION=$CURRENT_VERSION
-            else
-              # check if cell value looks like a version tag
-              if isVersionTag "$CELL_VALUE"; then
-
-                # check if current version in repo is higher than version in target state
-                if [[ "$CURRENT_VERSION" > "$CELL_VALUE" ]]; then
-                  warning "target state requests outdated version ($CELL_VALUE) for contract $FACET in network $NETWORK for $DIAMOND_TYPE. Current version is $CURRENT_VERSION. Update target state file?"
-                fi
-
-                # store cell value as target version
-                VERSION=$CELL_VALUE
-              else
-                continue
-              fi
-            fi
-
-            # if code reached here that means we should have a valid target state entry that needs to be added
-            addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$FACET" "$DIAMOND_TYPE" "$VERSION" true
-            echo "addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$FACET" "$DIAMOND_TYPE" "$VERSION" true"
-
-          done
-        fi
-      fi
-  done < "$CSV_FILE_PATH"
+    fi
+  done <"$CSV_FILE_PATH"
 
   # delete CSV file
   rm $CSV_FILE_PATH
 
   return 0
 }
+
 function getBytecodeFromArtifact() {
   # read function arguments into variables
   local contract="$1"
@@ -2299,10 +2161,6 @@ function getContractAddressFromSalt() {
 
   # get deployer address
   local DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
-<<<<<<<< HEAD:script/deploy/resources/deployHelperFunctions.sh
-
-========
->>>>>>>> dev:scripts/helperFunctions.sh
 
   # get actual deploy salt (as we do in DeployScriptBase:  keccak256(abi.encodePacked(saltPrefix, contractName));)
   # prepare web3 code to be executed
@@ -2995,18 +2853,11 @@ function printDeploymentsStatusV2() {
     printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" "" >> $OUTPUT_FILE_PATH
 
     # go through all networks
-<<<<<<<< HEAD:script/deploy/resources/deployHelperFunctions.sh
-    for NETWORK in ${NETWORKS[*]} ; do
-#      if [[ "$NETWORK" != "nova" && "$NETWORK" != "harmony" ]] ; then
-#        continue
-#      fi
-========
     for NETWORK in ${NETWORKS[*]}; do
       # skip any network that is a testnet
       if [[ "$TEST_NETWORKS" == *"$NETWORK"* ]]; then
         continue
       fi
->>>>>>>> dev:scripts/helperFunctions.sh
 
       # (re-)set entry values
       TARGET_ENTRY_1="  -  "
@@ -3233,8 +3084,6 @@ function deployCreate3FactoryToAnvil() {
   export CREATE3_FACTORY_ADDRESS=$ADDRESS
   echo "$ADDRESS"
 }
-<<<<<<<< HEAD:script/deploy/resources/deployHelperFunctions.sh
-========
 function getValueFromJSONFile() {
   # read function arguments into variable
   local FILE_PATH=$1
@@ -3250,16 +3099,10 @@ function getValueFromJSONFile() {
   VALUE=$(cat "$FILE_PATH" | jq -r ".$KEY")
   echo "$VALUE"
 }
->>>>>>>> dev:scripts/helperFunctions.sh
 # <<<<<< miscellaneous
 
 
 # >>>>>> helpers to set/update deployment files/logs/etc
-<<<<<<<< HEAD:script/deploy/resources/deployHelperFunctions.sh
-function updateDiamondLogsInAllNetworks(){
-  # get array with all network names
-  local NETWORKS=($(getIncludedNetworksArray))
-========
 function updateDiamondLogs() {
   # read function arguments into variable
   local NETWORK=$1
@@ -3275,7 +3118,6 @@ function updateDiamondLogs() {
   echo ""
   echo "Now updating all diamond logs on network(s): ${NETWORKS[*]}"
   echo ""
->>>>>>>> dev:scripts/helperFunctions.sh
 
   ENVIRONMENTS=("production" "staging")
   DIAMONDS=("LiFiDiamond" "LiFiDiamondImmutable")
@@ -3300,17 +3142,10 @@ function updateDiamondLogs() {
       echo " -----------------------"
       echo " current ENVIRONMENT: $ENVIRONMENT"
 
-<<<<<<<< HEAD:script/deploy/resources/deployHelperFunctions.sh
-      # >>>>  limit here to a certain diamond type, if needed
-#      if [[ $ENVIRONMENT == "staging" ]]; then
-#        continue
-#      fi
-========
       # >>>>  limit here to a certain environment, if needed
       #      if [[ $ENVIRONMENT == "staging" ]]; then
       #        continue
       #      fi
->>>>>>>> dev:scripts/helperFunctions.sh
 
       for DIAMOND in "${DIAMONDS[@]}"; do
         echo "  -----------------------"
@@ -3611,33 +3446,7 @@ function test_getContractVersionFromMasterLog(){
 function test_getContractNameFromDeploymentLogs() {
   echo "should return 'LiFiDiamond': $(getContractNameFromDeploymentLogs "mainnet" "production" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE")"
 }
-<<<<<<<< HEAD:script/deploy/resources/deployHelperFunctions.sh
-function test_tmp(){
-      LOG_INFO_DIAMOND=$(getContractInfoFromDiamondDeploymentLogByName "mainnet" "production" "LiFiDiamond" "AmarokFacet" )
-      RETURN_CODE3=$?
-      echo "LOG_INFO_DIAMOND: $LOG_INFO_DIAMOND"
 
-      LOG_INFO_DIAMOND_IMMUTABLE=$(getContractInfoFromDiamondDeploymentLogByName "mainnet" "production" "LiFiDiamondImmutable" "AmarokFacet" )
-      RETURN_CODE4=$?
-      echo "LOG_INFO_DIAMOND_IMMUTABLE: $LOG_INFO_DIAMOND_IMMUTABLE"
-
-      # check if entry was found in diamond deployment log (if version == null, replace with "unknown")
-      if [ "$RETURN_CODE3" -eq 0 ] ; then
-        KNOWN_VERSION=$(echo "$LOG_INFO_DIAMOND" | jq -r '.[].Version')
-        echo "KNOWN_VERSION: $KNOWN_VERSION"
-        if [ "$KNOWN_VERSION" == "null" ] ; then
-          DEPLOYED_ENTRY_1="unknown"
-        fi
-      fi
-      # check if entry was found in diamond deployment log (if version == null, replace with "unknown")
-      if [ "$RETURN_CODE4" -eq 0 ] ; then
-        KNOWN_VERSION2=$(echo "$LOG_INFO_DIAMOND_IMMUTABLE" | jq -r '.[].Version')
-        echo "KNOWN_VERSION2: $KNOWN_VERSION2"
-        if [ "$KNOWN_VERSION2" == "null" ] ; then
-          DEPLOYED_ENTRY_2="unknown"
-        fi
-      fi
-========
 function test_tmp() {
 
   #  CONTRACT="RelayerCelerIM"
@@ -3659,7 +3468,6 @@ function test_tmp() {
   #echo "BYTECODE:"
   #echo "$BYTECODE"
   getBytecodeFromArtifact $CONTRACT
->>>>>>>> dev:scripts/helperFunctions.sh
 }
 
 #test_tmp
