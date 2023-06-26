@@ -55,4 +55,15 @@ interface IConnextHandler {
         uint256 slippage,
         bytes memory callData
     ) external payable returns (bytes32);
+
+    function xcall(
+        uint32 destination,
+        address recipient,
+        address tokenAddress,
+        address delegate,
+        uint256 amount,
+        uint256 slippage,
+        bytes memory callData,
+        uint256 _relayerFee
+    ) external returns (bytes32);
 }

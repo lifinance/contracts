@@ -1,6 +1,6 @@
 pragma solidity 0.8.17;
 
-import { IHopBridge } from "../Interfaces/IHopBridge.sol";
+import { IHopBridge, IL2AmmWrapper, ISwap } from "../Interfaces/IHopBridge.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ERC20 } from "solmate/utils/SafeTransferLib.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
@@ -8,31 +8,10 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 import { WETH } from "solmate/tokens/WETH.sol";
 
-// solhint-disable-next-line contract-name-camelcase
-interface L2_AmmWrapper {
-    function bridge() external view returns (address);
-
-    function l2CanonicalToken() external view returns (address);
-
-    function hToken() external view returns (address);
-
-    function exchangeAddress() external view returns (address);
-}
-
-interface Swap {
-    function swap(
-        uint8 tokenIndexFrom,
-        uint8 tokenIndexTo,
-        uint256 dx,
-        uint256 minDy,
-        uint256 deadline
-    ) external returns (uint256);
-}
-
 /// @title Hop Facet (Optimized for Rollups)
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
-/// @custom:version 1.0.4
+/// @custom:version 1.0.5
 contract HopFacetPacked is ILiFi, TransferrableOwnership {
     /// Storage ///
 
@@ -42,6 +21,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
     address public immutable nativeExchangeAddress;
 
     /// Errors ///
+
     error Invalid();
 
     /// Events ///
@@ -52,24 +32,28 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
 
     /// @notice Initialize the contract.
     /// @param _owner The contract owner to approve tokens.
+    /// @param _wrapper The address of Hop L2_AmmWrapper for native asset.
     constructor(
         address _owner,
         address _wrapper
     ) TransferrableOwnership(_owner) {
         bool wrapperIsSet = _wrapper != address(0);
-        if (block.chainid == 1 && wrapperIsSet) revert Invalid();
+
+        if (block.chainid == 1 && wrapperIsSet) {
+            revert Invalid();
+        }
 
         nativeL2CanonicalToken = wrapperIsSet
-            ? L2_AmmWrapper(_wrapper).l2CanonicalToken()
+            ? IL2AmmWrapper(_wrapper).l2CanonicalToken()
             : address(0);
         nativeHToken = wrapperIsSet
-            ? L2_AmmWrapper(_wrapper).hToken()
+            ? IL2AmmWrapper(_wrapper).hToken()
             : address(0);
         nativeExchangeAddress = wrapperIsSet
-            ? L2_AmmWrapper(_wrapper).exchangeAddress()
+            ? IL2AmmWrapper(_wrapper).exchangeAddress()
             : address(0);
         nativeBridge = wrapperIsSet
-            ? L2_AmmWrapper(_wrapper).bridge()
+            ? IL2AmmWrapper(_wrapper).bridge()
             : address(0);
     }
 
@@ -83,7 +67,9 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         address[] calldata bridges,
         address[] calldata tokensToApprove
     ) external onlyOwner {
-        for (uint256 i; i < bridges.length; i++) {
+        uint256 numBridges = bridges.length;
+
+        for (uint256 i; i < numBridges; i++) {
             // Give Hop approval to bridge tokens
             LibAsset.maxApproveERC20(
                 IERC20(tokensToApprove[i]),
@@ -112,7 +98,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         WETH(payable(nativeL2CanonicalToken)).deposit{ value: msg.value }();
 
         // Exchange WETH for hToken
-        uint256 swapAmount = Swap(nativeExchangeAddress).swap(
+        uint256 swapAmount = ISwap(nativeExchangeAddress).swap(
             0,
             1,
             msg.value,
@@ -176,18 +162,12 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
     /// @param destinationChainId Receiving chain
     /// @param bonderFee Fees payed to hop bonder
     /// @param amountOutMin Source swap minimal accepted amount
-    /// @param destinationAmountOutMin Destination swap minimal accepted amount
-    /// @param destinationDeadline Destination swap maximal time
-    /// @param hopBridge Address of the Hop L2_AmmWrapper
     function encode_startBridgeTokensViaHopL2NativePacked(
         bytes8 transactionId,
         address receiver,
         uint256 destinationChainId,
         uint256 bonderFee,
-        uint256 amountOutMin,
-        uint256 destinationAmountOutMin,
-        uint256 destinationDeadline,
-        address hopBridge
+        uint256 amountOutMin
     ) external pure returns (bytes memory) {
         require(
             destinationChainId <= type(uint32).max,
@@ -200,18 +180,6 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         require(
             amountOutMin <= type(uint128).max,
             "amountOutMin value passed too big to fit in uint128"
-        );
-        require(
-            destinationAmountOutMin <= type(uint128).max,
-            "destinationAmountOutMin value passed too big to fit in uint128"
-        );
-        require(
-            destinationDeadline <= type(uint32).max,
-            "destinationDeadline value passed too big to fit in uint32"
-        );
-        require(
-            hopBridge != address(0),
-            "hopBridge value passed is address zero"
         );
 
         return
@@ -264,10 +232,17 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         // amountOutMin: uint256(uint128(bytes16(msg.data[88:104]))),
         // destinationAmountOutMin: uint256(uint128(bytes16(msg.data[104:120]))),
         // destinationDeadline: uint256(uint32(bytes4(msg.data[120:124]))),
-        // hopBridge: address(bytes20(msg.data[124:144]))
+        // wrapper: address(bytes20(msg.data[124:144]))
         // => total calldata length required: 144
 
+        uint256 destinationChainId = uint256(uint32(bytes4(msg.data[32:36])));
         uint256 amount = uint256(uint128(bytes16(msg.data[56:72])));
+        uint256 amountOutMin = uint256(uint128(bytes16(msg.data[88:104])));
+        bool toL1 = destinationChainId == 1;
+
+        IL2AmmWrapper wrapper = IL2AmmWrapper(
+            address(bytes20(msg.data[124:144]))
+        );
 
         // Deposit assets
         ERC20(address(bytes20(msg.data[36:56]))).transferFrom(
@@ -276,16 +251,24 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
             amount
         );
 
-        // Bridge assets
-        IHopBridge(address(bytes20(msg.data[124:144]))).swapAndSend(
-            uint256(uint32(bytes4(msg.data[32:36]))),
-            address(bytes20(msg.data[12:32])),
+        // Exchange sending asset to hToken
+        uint256 swapAmount = ISwap(wrapper.exchangeAddress()).swap(
+            0,
+            1,
             amount,
+            amountOutMin,
+            block.timestamp
+        );
+
+        // Bridge assets
+        // solhint-disable-next-line check-send-result
+        IHopBridge(wrapper.bridge()).send(
+            destinationChainId,
+            address(bytes20(msg.data[12:32])),
+            swapAmount,
             uint256(uint128(bytes16(msg.data[72:88]))),
-            uint256(uint128(bytes16(msg.data[88:104]))),
-            block.timestamp,
-            uint256(uint128(bytes16(msg.data[104:120]))),
-            uint256(uint32(bytes4(msg.data[120:124])))
+            toL1 ? 0 : uint256(uint128(bytes16(msg.data[104:120]))),
+            toL1 ? 0 : uint256(uint32(bytes4(msg.data[120:124])))
         );
 
         emit LiFiHopTransfer(bytes8(msg.data[4:12]));
@@ -346,7 +329,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
     /// @param amountOutMin Source swap minimal accepted amount
     /// @param destinationAmountOutMin Destination swap minimal accepted amount
     /// @param destinationDeadline Destination swap maximal time
-    /// @param hopBridge Address of the Hop L2_AmmWrapper
+    /// @param wrapper Address of the Hop L2_AmmWrapper
     function encode_startBridgeTokensViaHopL2ERC20Packed(
         bytes32 transactionId,
         address receiver,
@@ -357,7 +340,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         uint256 amountOutMin,
         uint256 destinationAmountOutMin,
         uint256 destinationDeadline,
-        address hopBridge
+        address wrapper
     ) external pure returns (bytes memory) {
         require(
             destinationChainId <= type(uint32).max,
@@ -396,7 +379,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
                 bytes16(uint128(amountOutMin)),
                 bytes16(uint128(destinationAmountOutMin)),
                 bytes4(uint32(destinationDeadline)),
-                bytes20(hopBridge)
+                bytes20(wrapper)
             );
     }
 

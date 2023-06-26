@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import { LibSwap, LibAllowList, TestBase, console } from "../utils/TestBase.sol";
 import { InvalidAmount, UnAuthorized, ExternalCallFailed } from "lifi/Errors/GenericErrors.sol";
-import { CelerIMFacet, IMessageBus, MsgDataTypes } from "lifi/Facets/CelerIMFacet.sol";
+import { CelerIMFacetMutable, CelerIM, IMessageBus, MsgDataTypes } from "lifi/Facets/CelerIMFacetMutable.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
@@ -28,7 +28,11 @@ contract RelayerCelerIMTest is TestBase {
         0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
     address internal constant CBRIDGE_MESSAGEBUS_ETH =
         0x4066D196A423b2b3B8B054f4F40efB47a74E200C;
-    CelerIMFacet.CelerIMData internal celerIMData;
+    address internal constant CFUSDC =
+        0x317F8d18FB16E49a958Becd0EA72f8E153d25654;
+
+    CelerIMFacetMutable internal celerIMFacet;
+    CelerIM.CelerIMData internal celerIMData;
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
     RelayerCelerIM internal relayer;
@@ -40,14 +44,17 @@ contract RelayerCelerIMTest is TestBase {
 
         // deploy CelerIM Receiver
         erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(this), address(erc20Proxy));
-        relayer = new RelayerCelerIM(
-            address(this),
-            CBRIDGE_MESSAGEBUS_ETH,
-            address(diamond)
+        executor = new Executor(address(erc20Proxy));
+        celerIMFacet = new CelerIMFacetMutable(
+            IMessageBus(CBRIDGE_MESSAGEBUS_ETH),
+            REFUND_WALLET,
+            address(diamond),
+            CFUSDC
         );
 
-        celerIMData = CelerIMFacet.CelerIMData({
+        relayer = celerIMFacet.relayer();
+
+        celerIMData = CelerIM.CelerIMData({
             maxSlippage: 5000,
             nonce: 1,
             callTo: abi.encodePacked(address(0)),
@@ -320,7 +327,7 @@ contract RelayerCelerIMTest is TestBase {
         if (!success) revert ExternalCallFailed();
     }
 
-    function test_CanTriggerRefund() public {
+    function test_RefundWalletCanTriggerRefund() public {
         address BRIDGE_ADDRESS = 0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
         uint256 REFUND_AMOUNT = 0.1 ether;
 
@@ -329,6 +336,7 @@ contract RelayerCelerIMTest is TestBase {
         vm.etch(BRIDGE_ADDRESS, address(lb).code);
 
         uint256 preRefundBalance = address(USER_RECEIVER).balance;
+        vm.startPrank(REFUND_WALLET);
         relayer.triggerRefund(
             payable(BRIDGE_ADDRESS), // Celer Liquidity Bridge
             abi.encodeWithSelector(
@@ -345,5 +353,6 @@ contract RelayerCelerIMTest is TestBase {
             REFUND_AMOUNT,
             "Refund amount should be correct"
         );
+        vm.stopPrank();
     }
 }

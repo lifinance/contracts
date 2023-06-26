@@ -7,8 +7,10 @@ function deployFacetAndAddToDiamond() {
 
   # load config & helper functions
   source script/config.sh
-  source script/deploy/resources/deployHelperFunctions.sh
+  source script/helperFunctions.sh
   source script/deploy/deploySingleContract.sh
+  source script/tasks/diamondUpdatePeriphery.sh
+
 
   # read function arguments into variables
   local NETWORK="$1"
@@ -97,12 +99,12 @@ function deployFacetAndAddToDiamond() {
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $FACET_CONTRACT_NAME for $DIAMOND_CONTRACT_NAME now...."
 
   # deploy facet
-  deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
+  deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "$DIAMOND_CONTRACT_NAME"
 
   # check if function call was successful
   if [ $? -ne 0 ]
   then
-    warning "this call was not successful: deploySingleContract $FACET_CONTRACT_NAME $NETWORK $ENVIRONMENT $VERSION false"
+    warning "this call was not successful: deploySingleContract $FACET_CONTRACT_NAME $NETWORK $ENVIRONMENT $VERSION false $DIAMOND_CONTRACT_NAME"
     return 1
   fi
 
@@ -117,6 +119,12 @@ function deployFacetAndAddToDiamond() {
     warning "this call was not successful: diamondUpdateFacet $NETWORK $ENVIRONMENT $DIAMOND_CONTRACT_NAME $UPDATE_SCRIPT true"
     return 1
   fi
+
+  #-----------------------------------------------------------
+  # special handling for CelerIMFacet
+  # add RelayerCelerIM as periphery to diamond
+  diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" false false "RelayerCelerIM"
+  #-----------------------------------------------------------
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $FACET_CONTRACT_NAME successfully deployed and added to $DIAMOND_CONTRACT_NAME"
   return 0

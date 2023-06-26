@@ -1,10 +1,10 @@
 pragma solidity 0.8.17;
 
 import "ds-test/test.sol";
-import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
+import { IHopBridge, IL2AmmWrapper } from "lifi/Interfaces/IHopBridge.sol";
 import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { HopFacetPacked, L2_AmmWrapper } from "lifi/Facets/HopFacetPacked.sol";
+import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { console } from "../utils/Console.sol";
@@ -36,8 +36,10 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
         0xF3F094484eC6901FfC9681bCb808B96bAFd0b8a8; // USDC + ETH
     address internal constant RECEIVER =
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
-    address internal constant AMM_WRAPPER =
+    address internal constant NATIVE_AMM_WRAPPER =
         0x33ceb27b39d2Bb7D2e61F7564d3Df29344020417;
+    address internal constant USDC_AMM_WRAPPER =
+        0xe22D2beDb3Eca35E6397e0C6D62857094aA26F52;
 
     IHopBridge internal hop;
     ERC20 internal usdc;
@@ -72,8 +74,8 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
 
         /// Perpare HopFacetPacked
         diamond = createDiamond();
-        hopFacetPacked = new HopFacetPacked(address(this), AMM_WRAPPER);
-        standAlone = new HopFacetPacked(address(this), AMM_WRAPPER);
+        hopFacetPacked = new HopFacetPacked(address(this), NATIVE_AMM_WRAPPER);
+        standAlone = new HopFacetPacked(address(this), NATIVE_AMM_WRAPPER);
         usdc = ERC20(USDC_ADDRESS);
         hop = IHopBridge(HOP_USDC_BRIDGE);
         callForwarder = new CallForwarder();
@@ -120,14 +122,18 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
         hopFacetPacked = HopFacetPacked(address(diamond));
 
         /// Approval
-        address[] memory bridges = new address[](3);
+        address[] memory bridges = new address[](5);
         bridges[0] = HOP_USDC_BRIDGE;
-        bridges[1] = L2_AmmWrapper(AMM_WRAPPER).exchangeAddress();
-        bridges[2] = L2_AmmWrapper(AMM_WRAPPER).bridge();
-        address[] memory tokens = new address[](3);
+        bridges[1] = IL2AmmWrapper(USDC_AMM_WRAPPER).exchangeAddress();
+        bridges[2] = IL2AmmWrapper(USDC_AMM_WRAPPER).bridge();
+        bridges[3] = IL2AmmWrapper(NATIVE_AMM_WRAPPER).exchangeAddress();
+        bridges[4] = IL2AmmWrapper(NATIVE_AMM_WRAPPER).bridge();
+        address[] memory tokens = new address[](5);
         tokens[0] = USDC_ADDRESS;
-        tokens[1] = L2_AmmWrapper(AMM_WRAPPER).l2CanonicalToken();
-        tokens[2] = L2_AmmWrapper(AMM_WRAPPER).hToken();
+        tokens[1] = IL2AmmWrapper(USDC_AMM_WRAPPER).l2CanonicalToken();
+        tokens[2] = IL2AmmWrapper(USDC_AMM_WRAPPER).hToken();
+        tokens[3] = IL2AmmWrapper(NATIVE_AMM_WRAPPER).l2CanonicalToken();
+        tokens[4] = IL2AmmWrapper(NATIVE_AMM_WRAPPER).hToken();
 
         // > diamond
         HopFacetOptimized hopFacetOptimized = new HopFacetOptimized();
@@ -163,10 +169,7 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
                 RECEIVER,
                 destinationChainId,
                 amountBonderFeeNative,
-                amountOutMinNative,
-                amountOutMinNative,
-                deadline,
-                HOP_NATIVE_BRIDGE
+                amountOutMinNative
             );
 
         // USDC params
@@ -185,7 +188,7 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
                 amountOutMinUSDC,
                 amountOutMinUSDC,
                 deadline,
-                HOP_USDC_BRIDGE
+                USDC_AMM_WRAPPER
             );
     }
 

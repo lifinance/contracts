@@ -9,10 +9,11 @@ import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, bytes memory cutData)
+    {
         address facet = json.readAddress(".CBridgeFacetPacked");
-
-        vm.startBroadcast(deployerPrivateKey);
 
         CBridgeFacetPacked cbridge;
         bytes4[] memory exclude = new bytes4[](7);
@@ -24,6 +25,19 @@ contract DeployScript is UpdateScriptBase {
         exclude[5] = cbridge.setApprovalForBridge.selector;
         exclude[6] = cbridge.triggerRefund.selector;
         buildDiamondCut(getSelectors("CBridgeFacetPacked", exclude), facet);
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(0),
+                    ""
+                );
+            }
+            return (facets, cutData);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }

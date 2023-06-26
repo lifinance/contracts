@@ -19,7 +19,10 @@ contract DeployScript is UpdateScriptBase {
     address[] internal contractAddresses;
     address[] internal tokenAddresses;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, bytes memory cutData)
+    {
         address facet = json.readAddress(".HopFacetOptimized");
 
         path = string.concat(root, "/config/hop.json");
@@ -41,11 +44,22 @@ contract DeployScript is UpdateScriptBase {
             tokenAddresses
         );
 
-        vm.startBroadcast(deployerPrivateKey);
-
         // Hop Optimized
         bytes4[] memory exclude;
         buildDiamondCut(getSelectors("HopFacetOptimized", exclude), facet);
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(facet),
+                    callData
+                );
+            }
+            return (facets, cutData);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(facet), callData);
         }

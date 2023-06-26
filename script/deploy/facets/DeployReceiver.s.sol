@@ -10,10 +10,24 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("Receiver") {}
 
+    string internal globalConfigPath;
+    string internal globalConfigJson;
+
     function run()
         public
         returns (Receiver deployed, bytes memory constructorArgs)
     {
+        // get path of global config file
+        globalConfigPath = string.concat(root, "/config/global.json");
+
+        // read file into json variable
+        globalConfigJson = vm.readFile(globalConfigPath);
+
+        // extract refundWallet address
+        address refundWalletAddress = globalConfigJson.readAddress(
+            ".refundWallet"
+        );
+
         // obtain address of Stargate router in current network from config file
         string memory path = string.concat(
             vm.projectRoot(),
@@ -43,7 +57,7 @@ contract DeployScript is DeployScriptBase {
         address executor = json.readAddress(".Executor");
 
         constructorArgs = abi.encode(
-            deployerAddress,
+            refundWalletAddress,
             stargateRouter,
             amarokRouter,
             executor,

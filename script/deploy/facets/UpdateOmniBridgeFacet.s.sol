@@ -9,14 +9,28 @@ import { OmniBridgeFacet } from "lifi/Facets/OmniBridgeFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, bytes memory cutData)
+    {
         address facet = json.readAddress(".OmniBridgeFacet");
-
-        vm.startBroadcast(deployerPrivateKey);
 
         // OmniBridge
         bytes4[] memory exclude;
         buildDiamondCut(getSelectors("OmniBridgeFacet", exclude), facet);
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(0),
+                    ""
+                );
+            }
+            return (facets, cutData);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }

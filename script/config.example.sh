@@ -52,6 +52,9 @@ DEPLOY_CONFIG_FILE_PATH="config/"
 #EXCLUDE_NETWORKS="gnosis,okx,moonbeam,celo,fuse,cronos,velas,harmony,evmos,boba,nova,bsctest,goerli,sepolia,mumbai,lineatest"
 EXCLUDE_NETWORKS="lineatest,localanvil"
 
+# a list of all networks that are testnets
+TEST_NETWORKS="bsc-testnet,goerli,sepolia,mumbai,lineatest,localanvil"
+
 # will output more detailed information for debugging purposes
 DEBUG=true
 
@@ -86,7 +89,14 @@ DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=0xc726deb4bf42c6ef5d0b4e3080ace43aed9b2709388
 MAINNET_MAXIMUM_GAS_PRICE=50000000000 # = 50 Gwei
 
 # contains the ID of the production target state Google spreadsheet
-TARGET_STATE_SPREADSHEET_ID=""
+TARGET_STATE_SPREADSHEET_ID_PRODUCTION=""
+TARGET_STATE_SPREADSHEET_ID_STAGING=""
+
+# used to start a local (Foundry) anvil network with the same private keys for testing purposes
+MNEMONIC="test test test test test test test test test test test junk"
+PRIVATE_KEY_ANVIL=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 # address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP=true
+END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION=true # set to false if you want to run several scripts on the same data/contracts without redeploying
 
 # used to start a local (Foundry) anvil network with the same private keys for testing purposes
 MNEMONIC="test test test test test test test test test test test junk"

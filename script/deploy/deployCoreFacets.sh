@@ -9,7 +9,7 @@ deployCoreFacets() {
 
   # load config & helper functions
   source script/config.sh
-  source script/deploy/resources/deployHelperFunctions.sh
+  source script/helperFunctions.sh
   source script/deploy/deploySingleContract.sh
 
   # read function arguments into variables

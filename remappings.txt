@@ -1,4 +1,3 @@
-@axelar-network/=node_modules/@axelar-network/
 @connext/=node_modules/@connext/
 @eth-optimism/=node_modules/@hop-protocol/sdk/node_modules/@eth-optimism/
 @openzeppelin/=node_modules/@openzeppelin/

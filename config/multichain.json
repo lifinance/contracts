@@ -46,9 +46,7 @@
     ]
   },
   "polygonzkevm": {
-    "routers": [
-      "0x218c3c3d49d0e7b37aff0d8bb079de36ae61a4c0"
-    ],
+    "routers": ["0x218c3c3d49d0e7b37aff0d8bb079de36ae61a4c0"],
     "anyNative": "0x765277eebeca2e31912c9946eae1021199b39c61",
     "tokens": [
       {
@@ -62,6 +60,7 @@
       "0x9fb83c0635de2e815fd1c21b3a292277540c2e8d",
       "0xbfc044a234e45412ecfec2cd6aae2dd0c083a7cd"
     ],
+    "anyNative": "0x0000000000000000000000000000000000000000",
     "tokens": [
       {
         "a_tokenAddress": "0xdfa46478f9e5ea86d57387849598dbfb2e964b02",
@@ -4199,9 +4198,7 @@
     ]
   },
   "evmos": {
-    "routers": [
-      "0x0dcb0cb0120d355cde1ce56040be57add0185baa"
-    ],
+    "routers": ["0x0dcb0cb0120d355cde1ce56040be57add0185baa"],
     "anyNative": "0x0000000000000000000000000000000000000000",
     "tokens": [
       {

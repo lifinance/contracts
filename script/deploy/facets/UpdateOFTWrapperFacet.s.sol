@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
+import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { OFTWrapperFacet } from "lifi/Facets/OFTWrapperFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
@@ -14,7 +14,10 @@ contract DeployScript is UpdateScriptBase {
         uint16 layerZeroChainId;
     }
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, bytes memory cutData)
+    {
         address facet = json.readAddress(".OFTWrapperFacet");
 
         path = string.concat(root, "/config/oftwrapper.json");
@@ -30,12 +33,23 @@ contract DeployScript is UpdateScriptBase {
             cidCfg
         );
 
-        vm.startBroadcast(deployerPrivateKey);
-
         // OFTWrapper
         bytes4[] memory exclude = new bytes4[](1);
         exclude[0] = OFTWrapperFacet.initOFTWrapper.selector;
         buildDiamondCut(getSelectors("OFTWrapperFacet", exclude), facet);
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(facet),
+                    callData
+                );
+            }
+            return (facets, cutData);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(facet), callData);
         }

@@ -9,14 +9,28 @@ import { GnosisBridgeL2Facet } from "lifi/Facets/GnosisBridgeL2Facet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    function run() public returns (address[] memory facets) {
+    function run()
+        public
+        returns (address[] memory facets, bytes memory cutData)
+    {
         address facet = json.readAddress(".GnosisBridgeL2Facet");
-
-        vm.startBroadcast(deployerPrivateKey);
 
         // GnosisBridge
         bytes4[] memory exclude;
         buildDiamondCut(getSelectors("GnosisBridgeL2Facet", exclude), facet);
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(0),
+                    ""
+                );
+            }
+            return (facets, cutData);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }

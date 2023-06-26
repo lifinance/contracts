@@ -5,7 +5,7 @@ deployAllContracts() {
 
   # load required resources
   source script/config.sh
-  source script/deploy/resources/deployHelperFunctions.sh
+  source script/helperFunctions.sh
   source script/deploy/deployPeripheryContracts.sh
   source script/deploy/deployCoreFacets.sh
   source script/tasks/diamondUpdateFacet.sh

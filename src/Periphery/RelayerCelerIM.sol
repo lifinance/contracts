@@ -11,14 +11,14 @@ import { PeripheryRegistryFacet } from "../Facets/PeripheryRegistryFacet.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { IMessageReceiverApp } from "celer-network/contracts/message/interfaces/IMessageReceiverApp.sol";
-import { CelerIMFacet } from "lifi/Facets/CelerIMFacet.sol";
+import { CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { MessageSenderLib, MsgDataTypes, IMessageBus, IOriginalTokenVault, IPeggedTokenBridge, IOriginalTokenVaultV2, IPeggedTokenBridgeV2 } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.sol";
 
 /// @title RelayerCelerIM
 /// @author LI.FI (https://li.fi)
 /// @notice Relayer contract for CelerIM that forwards calls and handles refunds on src side and acts receiver on dest
-/// @custom:version 1.0.1
+/// @custom:version 2.0.0
 contract RelayerCelerIM is ILiFi, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
@@ -49,8 +49,8 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
     /// Constructor
 
     constructor(
-        address _owner,
         address _cBridgeMessageBusAddress,
+        address _owner,
         address _diamondAddress
     ) TransferrableOwnership(_owner) {
         owner = _owner;
@@ -152,7 +152,7 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
     // solhint-disable-next-line code-complexity
     function sendTokenTransfer(
         ILiFi.BridgeData memory _bridgeData,
-        CelerIMFacet.CelerIMData calldata _celerIMData
+        CelerIM.CelerIMData calldata _celerIMData
     )
         external
         payable
