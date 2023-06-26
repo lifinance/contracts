@@ -8,5 +8,10 @@
     "circleBridgeProxy": "0x9744ae566c64B6B6f7F9A4dD50f7496Df6Fef990",
     "usdc": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
     "domain": 1
+  },
+  "arbitrum": {
+    "circleBridgeProxy": "0x054b95b60bfface948fa4548da8ee2e212fb7c0a",
+    "usdc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    "domain": 3
   }
 }

@@ -92,6 +92,10 @@
       "0x8446a365f3F2eF6a050E5f9a568cf5A5Ca110886": {
         "Name": "AmarokFacet",
         "Version": "2.0.0"
+      },
+      "0xf72169Fb511739CeFea9eBEffc5d39Dba1b33cD3": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {

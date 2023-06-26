@@ -79,7 +79,7 @@
       },
       "0xbd8D369470169f9976c5bCc60318955836843a71": {
         "Name": "AmarokFacet",
-        "Version": ""
+        "Version": "1.0.1"
       },
       "0x73d2d674449B3D8ad549cc3b04F8104C444FD34D": {
         "Name": "PackedEncoderDecoderFacet",
@@ -97,23 +97,25 @@
         "Name": "HopFacetPacked",
         "Version": ""
       },
-      "0xb0199ce3c4fD19aF0AdCbe8C589ea1f699c295fb": {
-        "Name": "",
-        "Version": ""
-      },
       "0x58FBa880b973edB5E4f6Aa4e2bD3b15c865b9B18": {
         "Name": "",
         "Version": ""
+      },
+      "0x2A7568Fd6dffA6F7578cdF010398BffAa53cc7c0": {
+        "Name": "AcrossFacet",
+        "Version": "2.0.0"
+      },
+      "0xf72169Fb511739CeFea9eBEffc5d39Dba1b33cD3": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
-      "AxelarExecutor": "",
       "ERC20Proxy": "0x856FF421D9b354ba1E909e26655E159F5Bd04F2E",
       "Executor": "0xDD1305150D27aecc60C066630105DB419977e367",
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-      "FusePoolZap": "",
       "Receiver": "0x74674DAFd6f4495e7F63F7637E94b8B89B2f01dB",
-      "RelayerCelerIM": "",
+      "RelayerCelerIM": "0xB1Fe861ceae7BF4C40515cEEB851f2785d2A1008",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
   }
