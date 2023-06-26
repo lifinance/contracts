@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
+import { UpdateScriptBase, console } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet, IDiamondLoupe } from "lifi/Facets/DiamondLoupeFacet.sol";
@@ -10,7 +10,6 @@ import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
-import { console } from "forge-std/console.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
@@ -19,6 +18,7 @@ contract DeployScript is UpdateScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
+        console.log("in UpdateCoreFacets.s.sol");
         address diamondLoupe = json.readAddress(".DiamondLoupeFacet");
         address ownership = json.readAddress(".OwnershipFacet");
         address withdraw = json.readAddress(".WithdrawFacet");
@@ -26,12 +26,14 @@ contract DeployScript is UpdateScriptBase {
         address accessMgr = json.readAddress(".AccessManagerFacet");
         address peripheryRgs = json.readAddress(".PeripheryRegistryFacet");
 
+        console.log("A");
         bytes4[] memory exclude;
 
         (bool loupeExists, ) = address(loupe).staticcall(
             abi.encodeWithSelector(loupe.facetAddresses.selector)
         );
 
+        console.log("B");
         // Diamond Loupe
         bytes4[] memory loupeSelectors = getSelectors(
             "DiamondLoupeFacet",
@@ -42,6 +44,7 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(loupeSelectors, diamondLoupe);
         }
 
+        console.log("C");
         // Ownership Facet
         bytes4[] memory ownershipSelectors = getSelectors(
             "OwnershipFacet",
@@ -53,6 +56,7 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(ownershipSelectors, ownership);
         }
 
+        console.log("D");
         // Withdraw Facet
         bytes4[] memory withdrawSelectors = getSelectors(
             "WithdrawFacet",
@@ -64,6 +68,7 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(withdrawSelectors, withdraw);
         }
 
+        console.log("E");
         // Dex Manager Facet
         bytes4[] memory dexMgrSelectors = getSelectors(
             "DexManagerFacet",
@@ -75,6 +80,7 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(dexMgrSelectors, dexMgr);
         }
 
+        console.log("F");
         // Access Manager Facet
         bytes4[] memory accessMgrSelectors = getSelectors(
             "AccessManagerFacet",
@@ -115,7 +121,7 @@ contract DeployScript is UpdateScriptBase {
         facets = loupe.facetAddresses();
 
         // approve refundWallet to execute certain functions (as defined in config/global.json)
-        approveRefundWallet();
+//        approveRefundWallet();
 
         vm.stopBroadcast();
     }

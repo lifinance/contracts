@@ -327,10 +327,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xEbc451739ED4Ed50e1a394F4757cDD3Af4EA032b",
+            "ADDRESS": "0xf61dd06Fa2D5835603EF264AE2987f24321a035a",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-07 13:19:25",
+            "TIMESTAMP": "2023-06-26 13:58:23",
             "CONSTRUCTOR_ARGS": "0x",
+            "DEPLOYSALT": "21062023",
             "VERIFIED": "false"
           }
         ]
@@ -641,10 +642,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xE2FF9605Ec86bbB75042331250e27e1B9aA81783",
+            "ADDRESS": "0x4f4F66420F67C520Ca9B623eA811c4f2d4e7fD11",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-07 13:19:30",
+            "TIMESTAMP": "2023-06-26 13:58:29",
             "CONSTRUCTOR_ARGS": "0x",
+            "DEPLOYSALT": "21062023",
             "VERIFIED": "false"
           }
         ]
@@ -942,10 +944,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xeDedbbAd7E5D690aD5ce068C7a5E04D8Ea0e4600",
+            "ADDRESS": "0x64214460bBd5a4325a621cbD4b346a44872F9088",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-07 13:19:35",
+            "TIMESTAMP": "2023-06-26 13:58:35",
             "CONSTRUCTOR_ARGS": "0x",
+            "DEPLOYSALT": "21062023",
             "VERIFIED": "false"
           }
         ]
@@ -1243,10 +1246,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x52D5111e8071DD2A56Ffa37415E8099c6b2e8CF4",
+            "ADDRESS": "0xcE417504D445d7B1d63105141ae292F0F98d8Fd3",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-07 13:19:40",
+            "TIMESTAMP": "2023-06-26 13:58:41",
             "CONSTRUCTOR_ARGS": "0x",
+            "DEPLOYSALT": "21062023",
             "VERIFIED": "false"
           }
         ]
@@ -1557,10 +1561,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x685C70986d2F90CafF61EB15Ab1BE7502bBa007D",
+            "ADDRESS": "0x5c311aCeee2745D9eaa04AF9A93569abea8cED56",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-07 13:19:45",
+            "TIMESTAMP": "2023-06-26 13:58:47",
             "CONSTRUCTOR_ARGS": "0x",
+            "DEPLOYSALT": "21062023",
             "VERIFIED": "false"
           }
         ]
@@ -1858,10 +1863,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xA7029979e1faeE1692661e12607c55cE04d66fb7",
+            "ADDRESS": "0x2445E8EaEc0d39eb86BF38c41127858b01111fEE",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-07 13:19:50",
+            "TIMESTAMP": "2023-06-26 13:58:52",
             "CONSTRUCTOR_ARGS": "0x",
+            "DEPLOYSALT": "21062023",
             "VERIFIED": "false"
           }
         ]
@@ -2159,10 +2165,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x70aAcD515727E7057C317A4177E030f7240DF4D0",
+            "ADDRESS": "0x4D0E060f89840d2ADAC97F0FE8EE9C9d4b66E8d8",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-07 13:19:55",
+            "TIMESTAMP": "2023-06-26 13:59:00",
             "CONSTRUCTOR_ARGS": "0x",
+            "DEPLOYSALT": "21062023",
             "VERIFIED": "false"
           }
         ]
@@ -2475,10 +2482,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x5Bd7BBBd7C20043D3671E538e5708953DdA7b1dD",
+            "ADDRESS": "0xd37c412F1a782332a91d183052427a5336438cD3",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-07 13:20:00",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000ebc451739ed4ed50e1a394f4757cdd3af4ea032b",
+            "TIMESTAMP": "2023-06-26 13:59:06",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000f61dd06fa2d5835603ef264ae2987f24321a035a",
+            "DEPLOYSALT": "21062023",
             "VERIFIED": "false"
           }
         ]
@@ -3164,6 +3172,20 @@
           }
         ]
       }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf77f88423CCa5C1f758236ccF5CB9eB329B334aC",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 13:59:53",
+            "CONSTRUCTOR_ARGS": "0x",
+            "DEPLOYSALT": "21062023",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "HopFacetOptimized": {
@@ -3370,6 +3392,20 @@
             "TIMESTAMP": "2023-05-15 13:39:22",
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "localanvil": {
+      "staging": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xa17e7Bb80C36b0D59ed27Cb14873DCdf68cDC507",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 14:00:19",
+            "CONSTRUCTOR_ARGS": "0x",
+            "DEPLOYSALT": "21062023",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -3767,6 +3803,20 @@
           }
         ]
       }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xbF5194bF54a6E3778950fC53402c8Ac9b1F1aCa4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 14:01:07",
+            "CONSTRUCTOR_ARGS": "0x",
+            "DEPLOYSALT": "21062023",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "MultichainFacet": {
@@ -4069,6 +4119,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-12 12:48:18",
             "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xdAdd36112539F23829118B7D0bC199C7CFccf038",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 14:01:32",
+            "CONSTRUCTOR_ARGS": "0x",
+            "DEPLOYSALT": "21062023",
             "VERIFIED": "false"
           }
         ]
@@ -4439,6 +4503,20 @@
           }
         ]
       }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5CE79EC23Cc3BB7452567dC20a8DD6272Ba6a4A9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 14:03:02",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "DEPLOYSALT": "21062023",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "ERC20Proxy": {
@@ -4756,6 +4834,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-01 13:11:24",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xcdA1539285a15e501cf0Cc341D92fe837cCcE8Ae",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 14:03:34",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+            "DEPLOYSALT": "21062023",
             "VERIFIED": "false"
           }
         ]
@@ -5273,6 +5365,20 @@
           }
         ]
       }
+    },
+    "localanvil": {
+      "staging": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x68895782994F1d7eE13AD210b63B66c81ec7F772",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 14:03:41",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000cda1539285a15e501cf0cc341d92fe837ccce8ae",
+            "DEPLOYSALT": "21062023",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -5609,6 +5715,20 @@
             "TIMESTAMP": "2023-06-19 16:09:38",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "DEPLOYSALT": "19062023",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x13004C94B4196546366F731c50c1f2C642C64Af3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 14:03:49",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "DEPLOYSALT": "21062023",
             "VERIFIED": "false"
           }
         ]
@@ -6124,6 +6244,20 @@
           }
         ]
       }
+    },
+    "localanvil": {
+      "staging": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x5041d6992C0e5c88e205A7dbeE664CdDB13172e5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 14:04:33",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000068895782994f1d7ee13ad210b63b66c81ec7f77200000000000000000000000000000000000000000000000000000000000186a0",
+            "DEPLOYSALT": "21062023",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "ServiceFeeCollector": {
@@ -6464,6 +6598,20 @@
           }
         ]
       }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1Af56b9E5325f801CA4085C3D036dbc832FF3FDD",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 14:04:41",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "DEPLOYSALT": "21062023",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "HopFacetPacked": {
@@ -6671,6 +6819,20 @@
             "TIMESTAMP": "2023-05-17 14:52:28",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000000000000000000000000000000000000000000000",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.5": [
+          {
+            "ADDRESS": "0x91E70047Fa51DbE720A3b97b139e63079283d209",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 14:00:43",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb922660000000000000000000000000000000000000000000000000000000000000000",
+            "DEPLOYSALT": "21062023",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -7108,6 +7270,20 @@
           }
         ]
       }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xc116825F27c819806c23943A85275AA15d9Cbec3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 13:59:29",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f89354f314faf344abd754924438ba798e306df2000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+            "DEPLOYSALT": "21062023",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "AxelarExecutor": {
@@ -7344,6 +7520,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:30:31",
             "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4eeefC7b5fAB6982701326F78789Fdf1f0615849",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 14:02:31",
+            "CONSTRUCTOR_ARGS": "0x",
+            "DEPLOYSALT": "21062023",
             "VERIFIED": "false"
           }
         ]
@@ -7831,6 +8021,22 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-16 11:03:41",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c1a2d967dfaa6a10f3461bc21864c23c1dd51eea000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000009b11bc9fac17c058cab6286b0c785be6a65492ef0000000000000000000000000000000000000000000000000000000000000000",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "OFTWrapperFacet": {
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5f7Abde72F41f3bdce42818Ed5e3D9FC4a9fE2bc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-26 14:02:03",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "DEPLOYSALT": "21062023",
             "VERIFIED": "false"
           }
         ]

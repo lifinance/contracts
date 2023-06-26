@@ -3,10 +3,11 @@ pragma solidity ^0.8.17;
 
 import { Script } from "forge-std/Script.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import "forge-std/console.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
+import { console } from "forge-std/console.sol";
+
 
 contract UpdateScriptBase is Script {
     struct FunctionSignature {
@@ -33,6 +34,7 @@ contract UpdateScriptBase is Script {
     bool internal useDefaultDiamond;
 
     constructor() {
+        console.log("in UpdateScriptBase constructor");
         deployerPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY"));
         root = vm.projectRoot();
         network = vm.envString("NETWORK");

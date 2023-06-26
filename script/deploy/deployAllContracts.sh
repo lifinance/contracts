@@ -58,10 +58,10 @@ deployAllContracts() {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now updating core facets in diamond contract"
   diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateCoreFacets" false
-  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets update completed"
 
   # check if last command was executed successfully, otherwise exit script with error message
   checkFailure $? "update core facets in $DIAMOND_CONTRACT_NAME on network $NETWORK"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets update completed"
 
   # run sync dexs script
   echo ""

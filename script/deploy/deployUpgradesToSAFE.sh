@@ -2,8 +2,8 @@
 
 deployUpgradesToSAFE() {
   source .env
-  source scripts/config.sh
-  source scripts/helperFunctions.sh
+  source script/config.sh
+  source script/helperFunctions.sh
 
   ENVIRONMENT="production"
   NETWORK=$(getUserSelectedNetwork)
@@ -15,7 +15,7 @@ deployUpgradesToSAFE() {
 
   fi
   echo "Preparing upgrade proposal for" $DIAMOND_CONTRACT_NAME
-  # Get list of Update scripts from ./scripts/deploy/facets where file name starts with "Update" and ends in ".sol" strip path, the worf "Update" and ".s.sol" from the file name
+  # Get list of Update scripts from ./script/deploy/facets where file name starts with "Update" and ends in ".sol" strip path, the worf "Update" and ".s.sol" from the file name
   # separate by new line
 
   SCRIPTS=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Update' | sed 's/Update//g' | gum choose --no-limit)
@@ -45,7 +45,7 @@ deployUpgradesToSAFE() {
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
   # Call the proposeTx script ts-node proposeTx.ts diamondAddress cuts network rpcUrl
-  ts-node scripts/deploy/gnosisSAFE/proposeTx.ts "$DIAMOND_ADDRESS" "$CUTS_JSON" "$NETWORK" $(getRPCUrl $NETWORK)
+  ts-node script/deploy/gnosisSAFE/proposeTx.ts "$DIAMOND_ADDRESS" "$CUTS_JSON" "$NETWORK" $(getRPCUrl $NETWORK)
   exit 0
 }
 

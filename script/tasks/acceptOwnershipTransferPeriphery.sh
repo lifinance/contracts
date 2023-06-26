@@ -11,7 +11,7 @@ acceptOwnershipTransferPeriphery() {
 	source .env
 
   # load config & helper functions
-  source script/deploy/resources/deployHelperFunctions.sh
+  source script/helperFunctions.sh
 
   # ask user if logs should be updated only for one network or for all networks
   echo "Would you like to accept ownership transfer on all networks or on one specific network?"

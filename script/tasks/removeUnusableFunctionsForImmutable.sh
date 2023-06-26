@@ -4,7 +4,7 @@ removeUnusableFunctionsForImmutable() {
   # load deploy script & helper functions
   source .env
   source script/config.sh
-  source script/deploy/resources/deployHelperFunctions.sh
+  source script/helperFunctions.sh
 
   # read values from parameters or ask user
   # NETWORK, ENVIRONMENT, DIAMOND_ADDRESS,

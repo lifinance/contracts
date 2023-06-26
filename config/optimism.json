@@ -352,5 +352,182 @@
         "bridge": "0xd8f365c2c85648f9b89d9f1bf72c0ae4b1c36cfd"
       }
     ]
+  },
+  "localanvil": {
+    "standardBridge": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1",
+    "tokens": [
+      {
+        "assetId": "0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f",
+        "bridge": "0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4"
+      },
+      {
+        "assetId": "0x6b175474e89094c44da98b954eedeac495271d0f",
+        "bridge": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1"
+      },
+      {
+        "assetId": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+        "bridge": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1"
+      },
+      {
+        "assetId": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+        "bridge": "0x68f180fcCe6836688e9084f035309E29Bf0A2095"
+      },
+      {
+        "assetId": "0xb6ed7644c69416d67b522e20bc294a9a9b405b31",
+        "bridge": "0xe0BB0D3DE8c10976511e5030cA403dBf4c25165B"
+      },
+      {
+        "assetId": "0x514910771af9ca656af840dff83e8264ecf986ca",
+        "bridge": "0x350a791Bfc2C21F9Ed5d10980Dad2e2638ffa7f6"
+      },
+      {
+        "assetId": "0xc18360217d8f7ab5e7c516566761ea12ce7f9d72",
+        "bridge": "0x65559aA14915a70190438eF90104769e5E890A00"
+      },
+      {
+        "assetId": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        "bridge": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1"
+      },
+      {
+        "assetId": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+        "bridge": "0x6fd9d7AD17242c41f7131d257212c54A0e816691"
+      },
+      {
+        "assetId": "0x5f98805a4e8be255a32880fdec7f6728c6568ba0",
+        "bridge": "0xc40F949F8a4e094D1b49a23ea9241D289B7b2819"
+      },
+      {
+        "assetId": "0xd291e7a03283640fdc51b121ac401383a46cc623",
+        "bridge": "0xB548f63D4405466B36C0c0aC3318a22fDcec711a"
+      },
+      {
+        "assetId": "0x03ab458634910aad20ef5f1c8ee96f1d6ac54919",
+        "bridge": "0x7FB688CCf682d58f86D7e38e03f9D22e7705448B"
+      },
+      {
+        "assetId": "0xae78736cd615f374d3085123a210448e74fc6393",
+        "bridge": "0x9Bcef72be871e61ED4fBbc7630889beE758eb81D"
+      },
+      {
+        "assetId": "0x7ae1d57b58fa6411f32948314badd83583ee0e8c",
+        "bridge": "0x00F932F0FE257456b32dedA4758922E56A4F4b42"
+      },
+      {
+        "assetId": "0x7697b462a7c4ff5f8b55bdbc2f4076c2af9cf51a",
+        "bridge": "0x7c6b91D9Be155A6Db01f749217d76fF02A7227F2"
+      },
+      {
+        "assetId": "0x15ee120fd69bec86c1d38502299af7366a41d1a6",
+        "bridge": "0x5029C236320b8f15eF0a657054B84d90bfBEDED3"
+      },
+      {
+        "assetId": "0x3c513db8bdc3806e4489d62c3d549a5aaf6a4e97",
+        "bridge": "0xc98B98d17435AA00830c87eA02474C5007E1f272"
+      },
+      {
+        "assetId": "0x01ba67aac7f75f647d94220cc98fb30fcc5105bf",
+        "bridge": "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb"
+      },
+      {
+        "assetId": "0x04fa0d235c4abf4bcf4787af4cf447de572ef828",
+        "bridge": "0xE7798f023fC62146e8Aa1b36Da45fb70855a77Ea"
+      },
+      {
+        "assetId": "0xbc396689893d065f41bc2c6ecbee5e0085233447",
+        "bridge": "0x9e1028F5F1D5eDE59748FFceE5532509976840E0"
+      },
+      {
+        "assetId": "0x431ad2ff6a9c365805ebad47ee021148d6f7dbe0",
+        "bridge": "0x9e5AAC1Ba1a2e6aEd6b32689DFcF62A509Ca96f3"
+      },
+      {
+        "assetId": "0x0a5e677a6a24b2f1a2bf4f3bffc443231d2fdec8",
+        "bridge": "0xbfD291DA8A403DAAF7e5E9DC1ec0aCEaCd4848B9"
+      },
+      {
+        "assetId": "0x0391d2021f89dc339f60fff84546ea23e337750f",
+        "bridge": "0x3e7eF8f50246f725885102E8238CBba33F276747"
+      },
+      {
+        "assetId": "0x259ab9b9eab62b0fd98729b97be121073d5b3479",
+        "bridge": "0x7b0bcC23851bBF7601efC9E9FE532Bf5284F65d3"
+      },
+      {
+        "assetId": "0x08d32b0da63e2c3bcf8019c9c5d849d7a9d791e6",
+        "bridge": "0x1da650c3b2daa8aa9ff6f661d4156ce24d08a062"
+      },
+      {
+        "assetId": "0x3af33bef05c2dcb3c7288b77fe1c8d2aeba4d789",
+        "bridge": "0xf98dcd95217e15e05d8638da4c91125e59590b07"
+      },
+      {
+        "assetId": "0xca1207647ff814039530d7d35df0e1dd2e91fa84",
+        "bridge": "0xAF9fE3B5cCDAe78188B1F8b9a49Da7ae9510F151"
+      },
+      {
+        "assetId": "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2",
+        "bridge": "0xab7badef82e9fe11f6f33f87bc9bc2aa27f2fcb5"
+      },
+      {
+        "assetId": "0x102e941b77bcaa7e35d368cafe51ef8f79c8d1ef",
+        "bridge": "0x3bB4445D30AC020a84c1b5A8A2C6248ebC9779D0"
+      },
+      {
+        "assetId": "0x69af81e73a73b40adf4f3d4223cd9b1ece623074",
+        "bridge": "0x3390108E913824B8eaD638444cc52B9aBdF63798"
+      },
+      {
+        "assetId": "0xd533a949740bb3306d119cc777fa900ba034cd52",
+        "bridge": "0x0994206dfe8de6ec6920ff4d779b0d950605fb53"
+      },
+      {
+        "assetId": "0x42d6622dece394b54999fbd73d108123806f6a18",
+        "bridge": "0xcfD1D50ce23C46D3Cf6407487B2F8934e96DC8f9"
+      },
+      {
+        "assetId": "0xbbbbca6a901c926f240b89eacb641d8aec7aeafd",
+        "bridge": "0xFEaA9194F9F8c1B65429E31341a103071464907E"
+      },
+      {
+        "assetId": "0x8947da500eb47f82df21143d0c01a29862a8c3c5",
+        "bridge": "0x217D47011b23BB961eB6D93cA9945B7501a5BB11"
+      },
+      {
+        "assetId": "0xa693b19d2931d498c5b318df961919bb4aee87a5",
+        "bridge": "0xBA28feb4b6A6b81e3F26F08b83a19E715C4294fd"
+      },
+      {
+        "assetId": "0xb4272071ecadd69d933adcd19ca99fe80664fc08",
+        "bridge": "0xE4F27b04cC7729901876B44f4EAA5102EC150265"
+      },
+      {
+        "assetId": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+        "bridge": "0x76FB31fb4af56892A25e32cFC43De717950c9278"
+      },
+      {
+        "assetId": "0x1da87b114f35e1dc91f72bf57fc07a768ad40bb0",
+        "bridge": "0x81ab7e0d570b01411fcc4afd3d50ec8c241cb74b"
+      },
+      {
+        "assetId": "0xbea98c05eeae2f3bc8c3565db7551eb738c8ccab",
+        "bridge": "0x117cFd9060525452db4A34d51c0b3b7599087f05"
+      },
+      {
+        "assetId": "0xba100000625a3754423978a60c9317c58a424e3d",
+        "bridge": "0xFE8B128bA8C78aabC59d4c64cEE7fF28e9379921"
+      },
+      {
+        "assetId": "0xde30da39c46104798bb5aa3fe8b9e0e1f348163f",
+        "bridge": "0x1eba7a6a72c894026cd654ac5cdcf83a46445b08"
+      },
+      {
+        "assetId": "0x865377367054516e17014ccded1e7d814edc9ce4",
+        "bridge": "0x8aE125E8653821E851F12A49F7765db9a9ce7384"
+      },
+      {
+        "assetId": "0xbb9bc244d798123fde783fcc1c72d3bb8c189413",
+        "bridge": "0xd8f365c2c85648f9b89d9f1bf72c0ae4b1c36cfd"
+      }
+    ]
   }
 }

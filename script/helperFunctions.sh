@@ -2573,7 +2573,7 @@ function getPrivateKey() {
   ENVIRONMENT="$2"
 
   # skip for local network
-  if [[ "$NETWORK" == "localanvil" ]]; then
+  if [[ "$NETWORK" == "localanvil" || "$NETWORK" == "LOCALANVIL"  ]]; then
     echo "$PRIVATE_KEY_ANVIL"
     return 0
   fi
