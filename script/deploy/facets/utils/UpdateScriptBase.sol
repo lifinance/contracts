@@ -33,7 +33,6 @@ contract UpdateScriptBase is Script {
     bool internal useDefaultDiamond;
 
     constructor() {
-        console.log("in UpdateScriptBase constructor");
         deployerPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY"));
         root = vm.projectRoot();
         network = vm.envString("NETWORK");
