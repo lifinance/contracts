@@ -39,20 +39,11 @@ deployPeripheryContracts() {
     # get current contract version
     CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
 
-    # check if contract is deployed already
-    # TODO: change to check for actual deployment?
-    # TODO: do I have to change logfile structure for diamond type, too?
-    DEPLOYED=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION")
-
-    # check return code of findContractInLogFile
-    if [[ "$?" -ne 0 ]]; then
-      # contract not found in log file (= has not been deployed to this network/environment)
-      # check if contract is present in target state JSON (=should be deployed)
+      # check if contract is present in target state JSON (=if it should be deployed)
       TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME")
       RETURN_VALUE="$?"
 
       echoDebug "target version for $CONTRACT extracted from target state: $TARGET_VERSION (current version in repo: $CURRENT_VERSION)"
-
 
       # check return code of findContractVersionInTargetState
       if [[ "$RETURN_VALUE" -ne 0 ]]; then
@@ -79,15 +70,10 @@ deployPeripheryContracts() {
           continue
         fi
       fi
-    else
-      # contract found in log file
-      echo "[info] contract $CONTRACT is deployed already in version $CURRENT_VERSION"
-    fi
   done
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< periphery contracts deployed (please check for warnings)"
   return 0
 }
-
 
 

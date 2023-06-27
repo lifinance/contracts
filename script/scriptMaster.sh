@@ -491,12 +491,24 @@ scriptMaster() {
     deployUpgradesToSAFE
   else
     error "invalid use case selected ('$SELECTION') - exiting script"
+    cleanup
     exit 1
   fi
 
-  # cleanup
+  cleanup
+
+  # inform user and end script
+  echo ""
+  echo ""
+  echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  echo "[info] PLEASE CHECK THE LOG CAREFULLY FOR WARNINGS AND ERRORS"
+  echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+}
+
+function cleanup() {
   # end local anvil network if flag in config is set
   if [[ "$END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION" == "true" ]]; then
+  echoDebug "ending anvil network and removing localanvil deploy logs"
     # kills all local anvil network sessions that might still be running
     killall anvil >/dev/null 2>&1
     # delete log files
@@ -507,13 +519,6 @@ scriptMaster() {
     rm deployments/localanvil.diamond.json >/dev/null 2>&1
     rm deployments/localanvil.diamond.immutable.json >/dev/null 2>&1
   fi
-
-  # inform user and end script
-  echo ""
-  echo ""
-  echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-  echo "[info] PLEASE CHECK THE LOG CAREFULLY FOR WARNINGS AND ERRORS"
-  echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 }
 
 scriptMaster

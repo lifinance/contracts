@@ -92,7 +92,7 @@ contract DeployScript is UpdateScriptBase {
         );
 
         // remove cutFacet and transferOwnership to address(0)
-        //        cutter.diamondCut(cut, ownershipTransfer, callData);
+        cutter.diamondCut(cut, ownershipTransfer, callData);
 
         vm.stopBroadcast();
     }

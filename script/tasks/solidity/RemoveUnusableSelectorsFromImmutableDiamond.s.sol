@@ -24,10 +24,6 @@ import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     bytes4[] internal selectors;
-    //    struct ContractSelectors {
-    //        string contractName;
-    //        bytes4[] functionSelectors;
-    //    }
 
     struct FacetEntry {
         string name;
@@ -38,7 +34,7 @@ contract DeployScript is UpdateScriptBase {
 
     function run() public returns (bool) {
         vm.startBroadcast(deployerPrivateKey);
-        console.log("in script RemoveUnusableSelectorsFromImmutableDiamond");
+
 
         // collect all function selectors that need to be removed
         // core facets
@@ -60,14 +56,7 @@ contract DeployScript is UpdateScriptBase {
         selectors.push(
             PeripheryRegistryFacet.registerPeripheryContract.selector
         );
-        //        console.log("selectors to be removed: ", selectors.length);
-        //        console.log(
-        //            "return function: ",
-        //            DiamondLoupeFacet(diamond).facetAddress(
-        //                AxelarFacet.setChainName.selector
-        //            )
-        //        );
-        //        console.log("diamondAddress: ", diamond);
+
 
         // add facet-selectors to array if facet is registered in diamond
         // CBridgeFacetPacked
@@ -76,8 +65,6 @@ contract DeployScript is UpdateScriptBase {
                 CBridgeFacetPacked.setApprovalForBridge.selector
             ) != address(0)
         ) {
-            console.log("in CBridgeFacetPackedBranch");
-            // TODO: why is this selector not in louper?
             selectors.push(CBridgeFacetPacked.setApprovalForBridge.selector);
         }
 
@@ -87,7 +74,6 @@ contract DeployScript is UpdateScriptBase {
                 HopFacet.registerBridge.selector
             ) != address(0)
         ) {
-            console.log("in HopFacetBranch");
             selectors.push(HopFacet.registerBridge.selector);
         }
 
@@ -97,7 +83,6 @@ contract DeployScript is UpdateScriptBase {
                 HopFacetOptimized.setApprovalForBridges.selector
             ) != address(0)
         ) {
-            console.log("in HopFacetOptimizedBranch");
             selectors.push(HopFacetOptimized.setApprovalForBridges.selector);
         }
 
@@ -107,7 +92,6 @@ contract DeployScript is UpdateScriptBase {
                 HopFacetPacked.setApprovalForHopBridges.selector
             ) != address(0)
         ) {
-            console.log("in HopFacetPackedBranch");
             selectors.push(HopFacetPacked.setApprovalForHopBridges.selector);
         }
 
@@ -117,7 +101,6 @@ contract DeployScript is UpdateScriptBase {
                 MultichainFacet.registerRouters.selector
             ) != address(0)
         ) {
-            console.log("in MultichainBranch");
             selectors.push(MultichainFacet.registerRouters.selector);
             selectors.push(MultichainFacet.updateAddressMappings.selector);
         }
@@ -128,7 +111,6 @@ contract DeployScript is UpdateScriptBase {
                 OFTWrapperFacet.setOFTLayerZeroChainId.selector
             ) != address(0)
         ) {
-            console.log("in OFTWrapperFacetBranch");
             selectors.push(OFTWrapperFacet.setOFTLayerZeroChainId.selector);
         }
 
@@ -138,7 +120,6 @@ contract DeployScript is UpdateScriptBase {
                 OptimismBridgeFacet.registerOptimismBridge.selector
             ) != address(0)
         ) {
-            console.log("in OptimismBridgeFacetBranch");
             selectors.push(
                 OptimismBridgeFacet.registerOptimismBridge.selector
             );
@@ -150,7 +131,6 @@ contract DeployScript is UpdateScriptBase {
                 StargateFacet.setLayerZeroChainId.selector
             ) != address(0)
         ) {
-            console.log("in OptimismBridgeFacetBranch");
             selectors.push(StargateFacet.setLayerZeroChainId.selector);
         }
 

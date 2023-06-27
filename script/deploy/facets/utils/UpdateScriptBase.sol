@@ -8,7 +8,6 @@ import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { console } from "forge-std/console.sol";
 
-
 contract UpdateScriptBase is Script {
     struct FunctionSignature {
         string name;

@@ -274,7 +274,6 @@ function findContractInMasterLog() {
 
   exit 0
 }
-
 function findContractInMasterLogByAddress() {
   # read function arguments into variables
   NETWORK="$1"
@@ -1238,7 +1237,6 @@ function parseTargetStateGoogleSpreadsheet() {
 
   return 0
 }
-
 function getBytecodeFromArtifact() {
   # read function arguments into variables
   local contract="$1"
@@ -1532,6 +1530,38 @@ function removeFacetFromDiamond() {
 
   echoDebug "successfully removed $FACET_NAME from $DIAMOND_ADDRESS on network $NETWORK"
 } # needs to be fixed before using again
+function confirmOwnershipTransfer() {
+  # read function arguments into variables
+  local address="$1"
+  local network="$2"
+  local private_key="$3"
+
+  attempts=1 # initialize attempts to 0
+
+  # get RPC URL
+  rpc_url=$(getRPCUrl "$network")
+
+  while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+    echo "Trying to confirm ownership transfer on contract with address ($address) - attempt ${attempts}"
+    # try to execute call
+    cast send "$address" "confirmOwnershipTransfer()" --rpc-url "$rpc_url" --private-key "$private_key" 2>/dev/null
+
+    # check the return code the last call
+    if [ $? -eq 0 ]; then
+      break # exit the loop if the operation was successful
+    fi
+
+    attempts=$((attempts + 1)) # increment attempts
+    sleep 1                    # wait for 1 second before trying the operation again
+  done
+
+  if [ $attempts -eq "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
+    error "Failed to get confirm ownership transfer"
+    return 1
+  fi
+
+  return 0
+}
 # <<<<< writing to blockchain & verification
 
 
@@ -2470,6 +2500,64 @@ function getCurrentGasPrice() {
 
   echo "$GAS_PRICE"
 }
+function getContractOwner() {
+  # read function arguments into variables
+  local network=$1
+  local environment=$2
+  local contract=$3
+
+  # get RPC URL
+  rpc_url=$(getRPCUrl "$network")
+
+  # get contract address
+  local address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
+
+  # check if address was found
+  if [[ $? -ne 0 || -z $address ]]; then
+    echoDebug "could not find address of '$contract' in network-specific deploy log"
+    return 1
+  fi
+
+  # get owner
+  owner=$(cast call "$address" "owner()" --rpc-url "$rpc_url")
+
+  if [[ $? -ne 0 || -z $owner ]]; then
+    echoDebug "unable to retrieve owner of $contract with address $address on network $network ($environment)"
+    return 1
+  fi
+
+  echo "$owner"
+  return 0
+}
+function getPendingContractOwner() {
+  # read function arguments into variables
+  local network=$1
+  local environment=$2
+  local contract=$3
+
+  # get RPC URL
+  rpc_url=$(getRPCUrl "$network")
+
+  # get contract address
+  local address=$(getContractAddressFromDeploymentLogs "$network" "$environment" "$contract")
+
+  # check if address was found
+  if [[ $? -ne 0 || -z $address ]]; then
+    echoDebug "could not find address of '$contract' in network-specific deploy log"
+    return 1
+  fi
+
+  # get owner
+  owner=$(cast call "$address" "pendingOwner()" --rpc-url "$rpc_url")
+
+  if [[ $? -ne 0 || -z $owner ]]; then
+    echoDebug "unable to retrieve pending owner of $contract with address $address on network $network ($environment)"
+    return 1
+  fi
+
+  echo "$owner"
+  return 0
+}
 # <<<<<< read from blockchain
 
 # >>>>>> miscellaneous
@@ -3099,6 +3187,42 @@ function getValueFromJSONFile() {
   VALUE=$(cat "$FILE_PATH" | jq -r ".$KEY")
   echo "$VALUE"
 }
+function compareAddresses() {
+  # read function arguments into variable
+  local address_1=$1
+  local address_2=$2
+
+  # count characters / analyze format
+  local address_1_chars=${#address_1}
+  local address_2_chars=${#address_2}
+
+  # shorten address1
+  if [[ $address_1_chars -gt 42 ]]; then
+    address_1_short="0x"${address_1: -40}
+  else
+    address_1_short=$address_1
+  fi
+
+  # shorten address2
+  if [[ "$address_2_chars" -gt 64 ]]; then
+    address_2_short="0x"${address_2: -40}
+  else
+    address_2_short=$address_2
+  fi
+
+  # convert both addresses to lowercase
+  address_1_short_upper=$(echo "$address_1_short" | tr '[:upper:]' '[:lower:]')
+  address_2_short_upper=$(echo "$address_2_short" | tr '[:upper:]' '[:lower:]')
+
+  # compare
+  if [[ $address_1_short_upper == $address_2_short_upper ]]; then
+    echo true
+    return 0
+  else
+    echo false
+    return 1
+  fi
+}
 # <<<<<< miscellaneous
 
 
@@ -3449,25 +3573,17 @@ function test_getContractNameFromDeploymentLogs() {
 
 function test_tmp() {
 
-  #  CONTRACT="RelayerCelerIM"
-  #  NETWORK="mumbai"
-  #  ENVIRONMENT="staging"
-  #  VERSION="2.0.0"
-  #  DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
-  #
-  #  #findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION"
-  #  findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME"
+    CONTRACT="ERC20Proxy"
+    NETWORK="mainnet"
+    ENVIRONMENT="production"
+    VERSION="2.0.0"
+    DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
 
-  CONTRACT="MultichainFacet"
-  #BYTECODE_FORGE=$(forge inspect "$CONTRACT" bytecode)
-  #if [[ "$BYTECODE_JSON" == "$BYTECODE_FORGE" ]]; then
-  #  echo "same"
-  #else
-  #  echo "not same"
-  #fi
-  #echo "BYTECODE:"
-  #echo "$BYTECODE"
-  getBytecodeFromArtifact $CONTRACT
+  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
+  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
+    error "ERC20Proxy ownership was not transferred to address(0)"
+    exit 1
+  fi
 }
 
 #test_tmp
