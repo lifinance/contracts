@@ -1118,7 +1118,7 @@ function parseTargetStateGoogleSpreadsheet() {
     # Increment the line number
     ((LINE_NUMBER++))
 
-    echoDebug "LINE $LINE_NUMBER: $LINE"
+#    echoDebug "LINE $LINE_NUMBER: $LINE"
 
     # Catch the line that contains the contract names
     if [[ LINE_NUMBER -eq "$ROW_WITH_CONTRACT_NAMES" ]]; then

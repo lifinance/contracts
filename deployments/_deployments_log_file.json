@@ -312,6 +312,20 @@
           }
         ]
       }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x93D06bf131a1bBB9c8EAE78F4eF05e302308Ce37",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-27 12:53:28",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "26062028",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -614,6 +628,20 @@
           }
         ]
       }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x12FA8d1F354EC294F36c344C9f108Ce10C881E5e",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-27 12:53:32",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "26062028",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "OwnershipFacet": {
@@ -902,7 +930,7 @@
           }
         ]
       }
-    }
+    },
     "mumbai": {
       "staging": {
         "1.0.0": [
@@ -912,6 +940,20 @@
             "TIMESTAMP": "2023-06-27 09:42:37",
             "CONSTRUCTOR_ARGS": "0x",
             "DEPLOYSALT": "26062026",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x74ADF9a714BfE4eB63E3fD76b01E6c4692E36b79",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-27 12:53:37",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "26062028",
             "VERIFIED": "false"
           }
         ]
@@ -1204,7 +1246,7 @@
           }
         ]
       }
-    }
+    },
     "mumbai": {
       "staging": {
         "1.0.0": [
@@ -1214,6 +1256,20 @@
             "TIMESTAMP": "2023-06-27 09:42:53",
             "CONSTRUCTOR_ARGS": "0x",
             "DEPLOYSALT": "26062026",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5158893Bd4E36A5DB6A7D41fB4304C098Bd09b1f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-27 12:53:42",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "26062028",
             "VERIFIED": "false"
           }
         ]
@@ -1520,6 +1576,20 @@
           }
         ]
       }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x098fde0C2Ec14495975c614A1020002f05B5a69A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-27 12:53:47",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "26062028",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -1818,6 +1888,20 @@
             "TIMESTAMP": "2023-06-27 09:43:24",
             "CONSTRUCTOR_ARGS": "0x",
             "DEPLOYSALT": "26062026",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x739cC8020CE3B8805E3015F09B9c4107F3c06Aa7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-27 12:53:52",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "26062028",
             "VERIFIED": "false"
           }
         ]
@@ -2124,6 +2208,20 @@
           }
         ]
       }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xFB1943e83C9F02084b69D918e3c4c51D938c8f66",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-27 12:53:58",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "26062028",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -2136,6 +2234,20 @@
             "TIMESTAMP": "2023-04-28 16:11:36",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000f1d67e1dddc87e2858c87ebd5b19f99a4e297541",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "localanvil": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xBC38d233a9E745bfaCFd0D739f5821005dbF97c5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-27 12:54:02",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000093d06bf131a1bbb9c8eae78f4ef05e302308ce37",
+            "SALT": "26062028",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -3134,7 +3246,7 @@
           }
         ]
       }
-    },
+    }
   },
   "HopFacetOptimized": {
     "optimism": {
