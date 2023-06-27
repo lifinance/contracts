@@ -121,7 +121,7 @@ contract DeployScript is UpdateScriptBase {
         facets = loupe.facetAddresses();
 
         // approve refundWallet to execute certain functions (as defined in config/global.json)
-        //        approveRefundWallet();
+        approveRefundWallet();
 
         vm.stopBroadcast();
     }

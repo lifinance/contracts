@@ -101,7 +101,7 @@ scriptMaster() {
       "6) Batch update _targetState.json file" \
       "7) Verify all unverified contracts" \
       "8) Review deploy status (vs. target state)" \
-      "9) Create updated target state from Google Docs (updates PRODUCTION only)" \
+      "9) Create updated target state from Google Docs (STAGING or PRODUCTION)" \
       "10) Update all diamond log files" \
       "11) Propose upgrade TX to Gnosis SAFE"
   )
