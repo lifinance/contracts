@@ -6920,6 +6920,20 @@
           }
         ]
       }
+    },
+    "arbitrum": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xf72169Fb511739CeFea9eBEffc5d39Dba1b33cD3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-27 01:21:59",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000054b95b60bfface948fa4548da8ee2e212fb7c0a000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831",
+            "DEPLOYSALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "WormholeFacet": {
