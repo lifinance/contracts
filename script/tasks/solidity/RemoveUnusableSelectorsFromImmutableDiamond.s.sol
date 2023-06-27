@@ -35,7 +35,6 @@ contract DeployScript is UpdateScriptBase {
     function run() public returns (bool) {
         vm.startBroadcast(deployerPrivateKey);
 
-
         // collect all function selectors that need to be removed
         // core facets
         selectors.push(OwnershipFacet.transferOwnership.selector);
@@ -56,7 +55,6 @@ contract DeployScript is UpdateScriptBase {
         selectors.push(
             PeripheryRegistryFacet.registerPeripheryContract.selector
         );
-
 
         // add facet-selectors to array if facet is registered in diamond
         // CBridgeFacetPacked

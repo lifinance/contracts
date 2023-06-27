@@ -27,6 +27,28 @@ diamondMakeImmutable() {
   # get diamond address from path (finds any key that contains "LiFiDiamondImmutable"
 	DIAMOND_ADDRESS=$(jq -r '.LiFiDiamondImmutable' "$ADDRS")
 
+	# check if all required env variables have values
+	if [[ -z "$PRIVATE_KEY_REFUND_WALLET" || -z "$PRIVATE_KEY_WITHDRAW_WALLET" ]]; then
+	  error "your .env file is missing either PRIVATE_KEY_REFUND_WALLET or PRIVATE_KEY_WITHDRAW_WALLET values. Script cannot continue."
+	  exit 1
+  fi
+
+
+  gum style \
+  --foreground 212 --border-foreground 213 --border double \
+  --align center --width 50 --margin "1 2" --padding "2 4" \
+  '!!! ATTENTION !!!'
+
+  echo "Please check that this is the correct diamond address: $DIAMOND_ADDRESS"
+  echo "If you confirm the next prompt, this diamond will be made immutable"
+  echo "Please check if you have added all necessary facets"
+  echo "Once this script is completed, it is irreversible and the contract cannot be altered in any way"
+  echo "    "
+  echo "Last chance: Do you want to abort?"
+  gum confirm && exit 1 || echo "OK, let's do it"
+
+
+
   #---------------------------------------------------------------------------------------------------------------------
   echo "PART 1 - TRANSFER OWNERSHIP OF PERIPHERY CONTRACTS"
 	attempts=1
@@ -114,19 +136,6 @@ diamondMakeImmutable() {
   echo ""
   #---------------------------------------------------------------------------------------------------------------------
   echo "PART 3 - TRANSFER DIAMOND OWNERSHIP & REMOVE DIAMONDCUT FACET"
-  gum style \
-	--foreground 212 --border-foreground 213 --border double \
-	--align center --width 50 --margin "1 2" --padding "2 4" \
-	'!!! ATTENTION !!!'
-
-  echo "Please check that this is the correct diamond address: $DIAMOND_ADDRESS"
-  echo "If you confirm the next prompt, this diamond will be made immutable"
-  echo "Please check if you have added all necessary facets"
-  echo "Once this script is completed, it is irreversible and the contract cannot be altered in any way"
-  echo "    "
-  echo "Last chance: Do you want to skip?"
-  gum confirm && exit 1 || echo "OK, let's do it"
-
 	# execute selected script
 	attempts=1
 
