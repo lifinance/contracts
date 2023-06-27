@@ -1,10 +1,5 @@
 #!/bin/bash
 
-
-# TODO
-# - test helper function confirmOwnershipTransfer
-# - test ownership transfer for periphery with actual wallets
-
 diamondMakeImmutable() {
   # load env variables
 	source .env

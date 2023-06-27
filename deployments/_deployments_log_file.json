@@ -5835,11 +5835,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xD183877035E91Cb846E22F0038Dc923aC68A326E",
+            "ADDRESS": "0x9a0D4c65a7C52A22fe67CCb6FC44504E82d2B9Af",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-27 10:02:49",
-            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
-            "DEPLOYSALT": "26062027",
+            "TIMESTAMP": "2023-06-27 10:17:34",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+            "DEPLOYSALT": "26062028",
             "VERIFIED": "false"
           }
         ]

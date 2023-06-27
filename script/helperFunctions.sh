@@ -1556,7 +1556,7 @@ function confirmOwnershipTransfer() {
   done
 
   if [ $attempts -eq "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
-    error "Failed to get confirm ownership transfer"
+    error "Failed to confirm ownership transfer"
     return 1
   fi
 
