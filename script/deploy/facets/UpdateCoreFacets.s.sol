@@ -112,6 +112,12 @@ contract DeployScript is UpdateScriptBase {
             cutter.diamondCut(cut, address(0), "");
         }
         facets = loupe.facetAddresses();
+        vm.stopBroadcast();
+
+        console.log("broadcast pause");
+        vm.startBroadcast(deployerPrivateKey);
+
+
 
         // approve refundWallet to execute certain functions (as defined in config/global.json)
         // exclude this step for localanvil network. Does not work there for some reason
