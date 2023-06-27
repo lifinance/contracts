@@ -64,7 +64,7 @@ deployAllContracts() {
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets update completed"
 
   # TODO: add approve function signatures
-
+  # approve refund wallet to execute refund-related functions
 
   # run sync dexs script
   echo ""

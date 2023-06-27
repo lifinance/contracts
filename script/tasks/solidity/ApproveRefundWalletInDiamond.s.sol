@@ -7,10 +7,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    function run()
-        public
-        returns (bool)
-    {
+    function run() public returns (bool) {
         vm.startBroadcast(deployerPrivateKey);
 
         // approve refundWallet to execute certain functions (as defined in config/global.json)
