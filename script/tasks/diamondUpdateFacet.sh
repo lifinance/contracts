@@ -117,7 +117,7 @@ diamondUpdateFacet() {
     echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
 
     # check the return code the last call
-    if [ $RETURN_CODE -eq 0 ]; then
+    if [ "$RETURN_CODE" -eq 0 ]; then
       # extract the "logs" property and its contents from return data
       CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
 

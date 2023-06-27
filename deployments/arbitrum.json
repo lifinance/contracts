@@ -28,5 +28,6 @@
   "PackedEncoderDecoderFacet": "0x73d2d674449B3D8ad549cc3b04F8104C444FD34D",
   "CBridgeFacetPacked": "0x5E3DC14bfc5aF89C2c34A24E2c1ba6430B9F4Fd2",
   "RelayerCelerIMImmutable": "0x7b6d852f58C783BA3b1138C535ff57dDa4c826E0",
-  "CelerIMFacetImmutable": "0x0d26d248D4e80377f1d794AB88090e76B0903EDE"
+  "CelerIMFacetImmutable": "0x0d26d248D4e80377f1d794AB88090e76B0903EDE",
+  "CelerCircleBridgeFacet": "0xf72169Fb511739CeFea9eBEffc5d39Dba1b33cD3"
 }

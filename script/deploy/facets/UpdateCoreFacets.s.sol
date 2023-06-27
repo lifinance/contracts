@@ -113,12 +113,12 @@ contract DeployScript is UpdateScriptBase {
         }
         facets = loupe.facetAddresses();
 
-//        // approve refundWallet to execute certain functions (as defined in config/global.json)
-//        // exclude this step for localanvil network. Does not work there for some reason
-//        if (
-//            keccak256(abi.encodePacked(network)) !=
-//            keccak256(abi.encodePacked("localanvil"))
-//        ) approveRefundWallet();
+        // approve refundWallet to execute certain functions (as defined in config/global.json)
+        // exclude this step for localanvil network. Does not work there for some reason
+        if (
+            keccak256(abi.encodePacked(network)) !=
+            keccak256(abi.encodePacked("localanvil"))
+        ) approveRefundWallet();
 
         vm.stopBroadcast();
     }
