@@ -938,5 +938,96 @@
         "d_contractName": "l2SaddleSwap"
       }
     ]
+  },
+  "localanvil": {
+    "chainId": 31337,
+    "tokens": [
+      {
+        "name": "ETH",
+        "bridge": "0x3E4a3a4796d16c0Cd582C382691998f7c06420B6",
+        "token": "0x2C1b868d6596a18e32E61B901E4060C872647b6C",
+        "ammWrapper": "0xC08055b634D43F2176d721E26A3428D3b7E7DdB5"
+      },
+      {
+        "name": "HOP",
+        "bridge": "0x2E9bB44C9CB774939462eF874Fc854D8df524F13",
+        "token": "0x6F03052743CD99ce1b29265E377e320CD24Eb632",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "USDC",
+        "bridge": "0x884d1Aa15F9957E1aEAA86a82a72e49Bc2bfCbe3",
+        "token": "0xf56dc6695cF1f5c364eDEbC7Dc7077ac9B586068",
+        "ammWrapper": "0x50d7d8B850e0e880295800790551928F4546BfE2"
+      },
+      {
+        "name": "USDT",
+        "bridge": "0xdb16fbF595C02EeF7D9233d38C232495734F3D85",
+        "token": "0x1990BC6dfe2ef605Bfc08f5A23564dB75642Ad73",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "DAI",
+        "bridge": "0xf11EBB94EC986EA891Aec29cfF151345C83b33Ec",
+        "token": "0x8741Ba6225A6BF91f9D73531A98A89807857a2B3",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "UNI",
+        "bridge": "0xb07c6505e1E41112494123e40330c5Ac09817CFB",
+        "token": "0x7823E8DCC8bfc23EA3AC899EB86921f90e80F499",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      }
+    ],
+    "approvals": [
+      {
+        "a_tokenAddress": "0x2C1b868d6596a18e32E61B901E4060C872647b6C",
+        "b_contractAddress": "0xC08055b634D43F2176d721E26A3428D3b7E7DdB5",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0x2C1b868d6596a18e32E61B901E4060C872647b6C",
+        "b_contractAddress": "0x7191061D5d4C60f598214cC6913502184BAddf18",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2SaddleSwap"
+      },
+      {
+        "a_tokenAddress": "0x6F03052743CD99ce1b29265E377e320CD24Eb632",
+        "b_contractAddress": "0x2E9bB44C9CB774939462eF874Fc854D8df524F13",
+        "c_tokenName": "HOP",
+        "d_contractName": "l2Bridge"
+      },
+      {
+        "a_tokenAddress": "0xf56dc6695cF1f5c364eDEbC7Dc7077ac9B586068",
+        "b_contractAddress": "0x50d7d8B850e0e880295800790551928F4546BfE2",
+        "c_tokenName": "USDC",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0xf56dc6695cF1f5c364eDEbC7Dc7077ac9B586068",
+        "b_contractAddress": "0x723194C6Cfed24883b598931Ee802ab80952C001",
+        "c_tokenName": "USDC",
+        "d_contractName": "l2SaddleSwap"
+      },
+      {
+        "a_tokenAddress": "0x1990BC6dfe2ef605Bfc08f5A23564dB75642Ad73",
+        "b_contractAddress": "0xdb16fbF595C02EeF7D9233d38C232495734F3D85",
+        "c_tokenName": "USDT",
+        "d_contractName": "l2Bridge"
+      },
+      {
+        "a_tokenAddress": "0x8741Ba6225A6BF91f9D73531A98A89807857a2B3",
+        "b_contractAddress": "0xf11EBB94EC986EA891Aec29cfF151345C83b33Ec",
+        "c_tokenName": "DAI",
+        "d_contractName": "l2Bridge"
+      },
+      {
+        "a_tokenAddress": "0x7823E8DCC8bfc23EA3AC899EB86921f90e80F499",
+        "b_contractAddress": "0xb07c6505e1E41112494123e40330c5Ac09817CFB",
+        "c_tokenName": "UNI",
+        "d_contractName": "l2Bridge"
+      }
+    ]
   }
 }
