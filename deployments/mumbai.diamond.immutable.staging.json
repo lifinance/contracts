@@ -1,46 +1,50 @@
 {
   "LiFiDiamondImmutable": {
     "Facets": {
-      "0x32540902f1F4E88497582Aae6ecc8bD75f0d58ee": {
-        "Name": "DiamondCutFacet",
-        "Version": ""
-      },
-      "0x5A3e172e629478C44B477cA8f2761834A2B8CbF3": {
-        "Name": "DiamondLoupeFacet",
-        "Version": ""
-      },
-      "0x2faD77b920BB86934c37ec75C86cbfeEE18b3F5F": {
-        "Name": "OwnershipFacet",
-        "Version": ""
-      },
-      "0xDf852e89e608ee1b2C19A3e75527962ad6056c6b": {
-        "Name": "WithdrawFacet",
-        "Version": ""
-      },
-      "0x543aF89b0EeaDaa74D71f572E92ec41ca98bEd22": {
+      "0x4DF59f00af72D9861E385Ab3df2A8Be7516D8ca1": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
       },
-      "0x334977BaECd507faab64E6489b7Abc9d405fA482": {
+      "0x1832945e4dcD00468add3E4300474d678BfE4394": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0x69EE6fc3845075f567ae4dEE0D69bdcECDA175a9": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x687AA260eAAD6A9618739Dd9ad2015fe5640A870": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0x15BB4b2899518371eCACb8c918Ff87f6e6d0d297": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x3b97df855d61BF4E7Cab04DCA2ba0c8C0f2505DA": {
         "Name": "AccessManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0xd5b8eE6627Ccf056cBa9c0E730d7aCC8830961f3": {
+      "0xd74593B06f95ef6b54DE61aA1eE3e42fd8194682": {
         "Name": "PeripheryRegistryFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0x2EF189A965330f3800765B578834896245c66fbB": {
-        "Name": "CelerIMFacetImmutable",
-        "Version": "2.0.0"
+      "0x669Be887C9FA47A77e2aEAC19E8344f0Ec74B2E1": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x8E0999d5CD9c3b8E384024De9E6Bd9E4a17abbf8": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "",
-      "Executor": "",
-      "FeeCollector": "",
-      "Receiver": "",
-      "RelayerCelerIM": "0xa618404c4Eb0d39362d18e97f59AEc4203474E03",
-      "ServiceFeeCollector": ""
+      "ERC20Proxy": "0x4Ac25d0adc2d2a8903Dded0745FEFeBa89364c8A",
+      "Executor": "0x4b25747250C0a6027E2E9431Ccee374fB84b14fc",
+      "FeeCollector": "0x730b6FEAF55E107F28667dD24349e75DED1Ce269",
+      "Receiver": "0xCD4af2ac494a9Ae34cD2A783dC01338115D3a540",
+      "RelayerCelerIM": "0x42c58a542b3f6Eb976B7a42b481dD133ee6d230A",
+      "ServiceFeeCollector": "0x3F7Cad3EcbA937d5aB33a1A3A0F1D0d86Fc227b4"
     }
   }
 }

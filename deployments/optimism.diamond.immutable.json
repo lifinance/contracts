@@ -73,9 +73,9 @@
         "Name": "StargateFacet",
         "Version": "1.0.0"
       },
-      "0x0aE0a1Ae2703A27bC518fd7d9DCB3F6C69CfccD2": {
+      "0x197665cF627bB1E4E3d140e805bC2E78B89bD301": {
         "Name": "HopFacetPacked",
-        "Version": "1.0.4"
+        "Version": "1.0.5"
       },
       "0x2A7568Fd6dffA6F7578cdF010398BffAa53cc7c0": {
         "Name": "AcrossFacet",
