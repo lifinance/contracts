@@ -12,6 +12,9 @@ contract DeployScript is UpdateScriptBase {
 
         // approve refundWallet to execute certain functions (as defined in config/global.json)
         // exclude this step for localanvil network. Does not work there for some reason
+
+        // @DEV: this function will fail on Gnosis (several transactions in one run seem to not be accepted by RPC)
+        // @DEV: Workaround: approve each function selector in a single script execution
         if (
             keccak256(abi.encodePacked(network)) !=
             keccak256(abi.encodePacked("localanvil"))
