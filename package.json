@@ -91,12 +91,12 @@
   },
   "lint-staged": {
     "*.{ts,js}": [
-      "eslint --fix",
-      "prettier --write"
+      "prettier --write",
+      "eslint --fix"
     ],
     "*.sol": [
-      "solhint --fix",
-      "prettier --write"
+      "prettier --write",
+      "solhint --fix"
     ]
   }
 }
