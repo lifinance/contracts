@@ -88,5 +88,15 @@
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
     "yarn": "^1.22.19"
+  },
+  "lint-staged": {
+    "*.{ts,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.sol": [
+      "solhint --fix",
+      "prettier --write"
+    ]
   }
 }
