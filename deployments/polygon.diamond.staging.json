@@ -2,31 +2,31 @@
   "LiFiDiamond": {
     "Facets": {
       "0x205797C59Ea2eeF999339927Fa560cB08291d0B9": {
-        "Name": "DiamondCutFacet",
+        "Name": "",
         "Version": ""
       },
       "0xb7e85A365d69A145C5F4e83843656511755cDFB4": {
-        "Name": "DiamondLoupeFacet",
+        "Name": "",
         "Version": ""
       },
       "0x9FFB50c414faFaE03Fab346Af0f8ec1e53663170": {
-        "Name": "OwnershipFacet",
+        "Name": "",
         "Version": ""
       },
       "0x6C213E21e9bf0D769C80FD2acEfa5ae25313533F": {
-        "Name": "WithdrawFacet",
+        "Name": "",
         "Version": ""
       },
       "0xd22807714d0e201f9321AE9360aD75022E2e085C": {
-        "Name": "DexManagerFacet",
+        "Name": "",
         "Version": ""
       },
       "0x9565332E63Ac632Bc196626A85baC365b40bC5B7": {
-        "Name": "AccessManagerFacet",
+        "Name": "",
         "Version": ""
       },
       "0xAF2d96645053b3FEE1bdAc6EbD3FBcd4638860f6": {
-        "Name": "PeripheryRegistryFacet",
+        "Name": "",
         "Version": ""
       },
       "0xDF21834da251337F6DA22C6E961ed17031681A1e": {
@@ -34,7 +34,7 @@
         "Version": ""
       },
       "0x9d6959a101A0BC2CEaAEFd8DC32B8c55E05Ba3B2": {
-        "Name": "AllBridgeFacet",
+        "Name": "",
         "Version": ""
       },
       "0xefB4cE435C9FA3dE51f292Ac4905f91fbA2BE65D": {
@@ -44,14 +44,16 @@
       "0xb414f9BBCd4B359c9B4a1d8138Cd573F96E5896C": {
         "Name": "WormholeFacet",
         "Version": "1.0.0"
+      },
+      "0xA376B5640Fb8B6cf89790d5Afc3AFaD57a5d98Fa": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
-      "AxelarExecutor": "",
       "ERC20Proxy": "0xf90a432dD1D0541470BC9C440d9dEc3659755238",
       "Executor": "0xdCbf065502Cfc7f32B3B28E26d38a5Bc5d5bA6f2",
       "FeeCollector": "0x7f98D45c7902f079fDb65811B633522e2d227BB6",
-      "FusePoolZap": "",
       "Receiver": "0x5Bc89B57039b23A035c3914E3FD6b86cFe73afBA",
       "RelayerCelerIM": "0xF40B8ADeD37698A13bA6D61082207E4CE242598C",
       "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d"

@@ -7262,6 +7262,32 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xA376B5640Fb8B6cf89790d5Afc3AFaD57a5d98Fa",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-29 13:33:09",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000007775d63836987f444e2f14aa0fa2602204d7d3e0",
+            "DEPLOYSALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "bsc": {
+      "staging": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xA376B5640Fb8B6cf89790d5Afc3AFaD57a5d98Fa",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-06-29 14:23:16",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000003c4fa639c8d7e65c603145adad8bd12f2358312f",
+            "DEPLOYSALT": "",
+            "VERIFIED": "false"
+          }
+        ]
       }
     }
   },
