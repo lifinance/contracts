@@ -27,7 +27,7 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct AllBridgeData {
         uint256 fees;
         bytes32 recipient;
-        uint8 destinationChainId;
+        uint256 destinationChainId;
         bytes32 receiveToken;
         uint256 nonce;
         IAllBridge.MessengerProtocol messenger;
