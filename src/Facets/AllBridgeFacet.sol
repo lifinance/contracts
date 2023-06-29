@@ -31,6 +31,7 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes32 receiveToken;
         uint256 nonce;
         IAllBridge.MessengerProtocol messenger;
+        bool payFeeWithSendingAsset;
     }
 
     /// @notice Initializes the AllBridge contract
@@ -93,24 +94,35 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         AllBridgeData calldata _allBridgeData
     ) internal {
-        address pool = allBridge.pools(
-            bytes32(uint256(uint160(_bridgeData.sendingAssetId)))
-        );
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
-            pool,
+            address(allBridge),
             _bridgeData.minAmount
         );
 
-        allBridge.swapAndBridge{ value: _allBridgeData.fees }(
-            bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
-            _bridgeData.minAmount,
-            _allBridgeData.recipient,
-            _allBridgeData.destinationChainId,
-            _allBridgeData.receiveToken,
-            _allBridgeData.nonce,
-            _allBridgeData.messenger
-        );
+        if (_allBridgeData.payFeeWithSendingAsset) {
+            allBridge.swapAndBridge(
+                bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
+                _bridgeData.minAmount,
+                _allBridgeData.recipient,
+                _allBridgeData.destinationChainId,
+                _allBridgeData.receiveToken,
+                _allBridgeData.nonce,
+                _allBridgeData.messenger,
+                _allBridgeData.fees
+            );
+        } else {
+            allBridge.swapAndBridge{ value: _allBridgeData.fees }(
+                bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
+                _bridgeData.minAmount,
+                _allBridgeData.recipient,
+                _allBridgeData.destinationChainId,
+                _allBridgeData.receiveToken,
+                _allBridgeData.nonce,
+                _allBridgeData.messenger,
+                0
+            );
+        }
 
         emit LiFiTransferStarted(_bridgeData);
     }
