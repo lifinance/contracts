@@ -40,16 +40,18 @@
       "0xb414f9BBCd4B359c9B4a1d8138Cd573F96E5896C": {
         "Name": "WormholeFacet",
         "Version": "1.0.0"
+      },
+      "0xA376B5640Fb8B6cf89790d5Afc3AFaD57a5d98Fa": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
-      "AxelarExecutor": "",
       "ERC20Proxy": "0xf90a432dD1D0541470BC9C440d9dEc3659755238",
       "Executor": "0xdCbf065502Cfc7f32B3B28E26d38a5Bc5d5bA6f2",
       "FeeCollector": "0x7f98D45c7902f079fDb65811B633522e2d227BB6",
-      "FusePoolZap": "",
       "Receiver": "0x5Bc89B57039b23A035c3914E3FD6b86cFe73afBA",
-      "RelayerCelerIM": "0xF40B8ADeD37698A13bA6D61082207E4CE242598C",
+      "RelayerCelerIM": "0xbd4C982Bd19af2E5c8CC5350CCe1e6C98260338d",
       "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d"
     }
   }
