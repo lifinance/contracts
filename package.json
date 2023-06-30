@@ -38,6 +38,7 @@
     "husky": "^8.0.1",
     "lint-staged": "^13.2.3",
     "patch-package": "^6.4.7",
+    "plop": "^3.1.2",
     "postinstall-postinstall": "^2.1.0",
     "prettier": "^2.6.0",
     "prettier-plugin-solidity": "^1.0.0-beta.19",
@@ -67,7 +68,8 @@
     "coverage": "make coverage",
     "execute": "node ./_scripts.js run",
     "abi:generate": "make clean && forge build --skip script --skip test --skip Base --skip Test && hardhat diamondABI",
-    "typechain": "make clean && forge build --skip script --skip test --skip Base --skip Test && typechain --target ethers-v5 'out/**/*.json' --out-dir typechain"
+    "typechain": "make clean && forge build --skip script --skip test --skip Base --skip Test && typechain --target ethers-v5 'out/**/*.json' --out-dir typechain",
+    "codegen": "plop"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
