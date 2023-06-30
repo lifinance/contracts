@@ -8,7 +8,7 @@ The Gravity Facet works by forwarding Gravity specific calls to the Gravity rout
 
 - `function startBridgeTokensViaGravity(BridgeData memory _bridgeData, GravityData calldata _gravityData)`
   - Simply bridges tokens using Gravity
-- `function swapAndStartBridgeTokensViaGravity( BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, GravityData memory _gravityData)`
+- `function swapAndStartBridgeTokensViaGravity(BridgeData memory _bridgeData, SwapData[] calldata _swapData, GravityData calldata _gravityData)`
   - Performs one or multiple swap(s) and bridges tokens using Gravity
 
 ## Gravity Specific Parameters
@@ -20,7 +20,7 @@ To populate `_gravityData` you will provide the address you are bridging to in s
 This data is specific to Gravity and is represented as the following struct type:
 
 ```solidity
-/// @param destinationAddress the address of the receiver on the destination chain (in string format for non-EVM compatibility)
+/// @param destinationAddress The address of the receiver on the destination chain (in string format for non-EVM compatibility)
 struct GravityData {
   string destinationAddress;
 }

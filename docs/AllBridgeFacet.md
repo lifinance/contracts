@@ -26,9 +26,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaAllBridge(BridgeData calldata _bridgeData, AllBridgeData calldata _allBridgeData)`
+- `function startBridgeTokensViaAllBridge(BridgeData memory _bridgeData, AllBridgeData calldata _allBridgeData)`
   - Simply bridges tokens using bridgeFacet
-- `function swapAndStartBridgeTokensViaAllBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, AllBridgeData calldata _allBridgeData)`
+- `function swapAndStartBridgeTokensViaAllBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData, AllBridgeData calldata _allBridgeData)`
   - Performs swap(s) before bridging tokens using bridgeFacet
 
 ## Bridge Specific Parameters
@@ -39,25 +39,25 @@ This data is specific to allBridgefacet and is represented as the following stru
 
 ```solidity
 /// @notice The struct for the AllBridge data.
-/// @param fees The amount of token to pay the messenger and the bridge
+/// @param fees The amount of token to pay the messenger and the bridge.
 /// @param recipient The address of the token receiver after bridging.
 /// @param destinationChainId The destination chain id.
 /// @param receiveToken The token to receive on the destination chain.
 /// @param nonce A random nonce to associate with the tx.
-/// @param messenger The messenger protocol enum
-/// @param payFeeWithSendingAsset Whether to pay the relayer fee with the sending asset or not
+/// @param messenger The messenger protocol enum.
+/// @param payFeeWithSendingAsset Whether to pay the relayer fee with the sending asset or not.
 struct AllBridgeData {
   uint256 fees;
   bytes32 recipient;
   uint256 destinationChainId;
   bytes32 receiveToken;
   uint256 nonce;
-  IAllBridge.MessengerProtocol messenger;
+  MessengerProtocol messenger;
   bool payFeeWithSendingAsset;
 }
 ```
 
-The fees field is the sum of two fees charged by AllBridge, namely
+The `fees` field is the sum of two fees charged by AllBridge, namely
 
 - MessengerFee: Fee charged by the underlying message layer. Parts of the messenger fee should cover relay fees as well.
 - AllBridgeFee. Fee charged by AllBridge itself.
@@ -72,7 +72,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Most of the methods accept a `ILiFiBridgeData _bridgeData` parameter.
+Most of the methods accept a `BridgeData _bridgeData` parameter.
 
 In the AllBridge contract call the fields `minAmount` and `sendingAssetId` are used for the transfer amount and the asset to be sent. Since the AllBridge bridge does not support native token bridging (it's mainly a stablecoin bridge) the methods will fail if native assets are tried to be bridged.
 

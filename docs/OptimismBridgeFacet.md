@@ -14,11 +14,11 @@ graph LR;
 
 - `function initOptimism(Config[] calldata configs, IL1StandardBridge standardBridge)`
   - Initializer method. Sets bridges for the specific assets and register standard bridge.
-- `function registerBridge(address assetId, address bridge)`
+- `function registerOptimismBridge(address assetId, address bridge)`
   - Register method. Sets bridge for the specific asset.
-- `function startBridgeTokensViaOptimismBridge(BridgeData calldata _bridgeData, OptimismData calldata _optimismData)`
+- `function startBridgeTokensViaOptimismBridge(BridgeData memory _bridgeData, OptimismData calldata _optimismData)`
   - Simply bridges tokens using Optimism Native Bridge
-- `function swapAndStartBridgeTokensViaOptimismBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, OptimismData calldata _optimismData)`
+- `function swapAndStartBridgeTokensViaOptimismBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData, OptimismData calldata _optimismData)`
   - Performs swap(s) before bridging tokens using Optimism Native Bridge
 
 ## Optimism Bridge Specific Parameters

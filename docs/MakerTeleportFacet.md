@@ -12,9 +12,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaMakerTeleport(BridgeData calldata _bridgeData)`
+- `function startBridgeTokensViaMakerTeleport(BridgeData memory _bridgeData)`
   - Simply bridges DAI using MakerTeleport Bridge
-- `function swapAndStartBridgeTokensViaMakerTeleport(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
+- `function swapAndStartBridgeTokensViaMakerTeleport(BridgeData memory _bridgeData, SwapData[] calldata _swapData)`
   - Performs swap(s) before bridging DAI using MakerTeleport Bridge
 
 ## Swap Data

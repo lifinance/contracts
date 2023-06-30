@@ -14,7 +14,7 @@ graph LR;
 
 - `function startBridgeTokensViaCircleBridge(BridgeData calldata _bridgeData, CircleBridgeData calldata _circleBridgeData)`
   - Simply bridges tokens using Circle Bridge
-- `function swapAndStartBridgeTokensViaCircleBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, CircleBridgeData calldata _circleBridgeData)`
+- `function swapAndStartBridgeTokensViaCircleBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData, CircleBridgeData calldata _circleBridgeData)`
   - Performs swap(s) before bridging tokens using Circle Bridge
 
 ## Circle Bridge Specific Parameters

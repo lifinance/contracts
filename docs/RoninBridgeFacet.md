@@ -12,9 +12,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaRoninBridge(BridgeData calldata _bridgeData)`
+- `function startBridgeTokensViaRoninBridge(BridgeData memory _bridgeData)`
   - Simply bridges tokens using Ronin Bridge
-- `function swapAndStartBridgeTokensViaRoninBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
+- `function swapAndStartBridgeTokensViaRoninBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData)`
   - Performs swap(s) before bridging tokens using Ronin Bridge
 
 ## Swap Data

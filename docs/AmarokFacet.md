@@ -14,7 +14,7 @@ graph LR;
 
 - `function startBridgeTokensViaAmarokBridge(BridgeData calldata _bridgeData, AmarokData calldata _amarokData)`
   - Simply bridges tokens using Amarok BridgeFacet
-- `function swapAndStartBridgeTokensViaAmarokBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, AmarokData calldata _amarokData)`
+- `function swapAndStartBridgeTokensViaAmarokBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData, AmarokData calldata _amarokData)`
   - Performs swap(s) before bridging tokens using Amarok BridgeFacet
 
 ## Amarok Specific Parameters
@@ -25,12 +25,12 @@ This data is specific to Amarok BridgeFacet and is represented as the following 
 
 ```solidity
 /// @param callData The data to execute on the receiving chain. If no crosschain call is needed, then leave empty.
-/// @param callTo The address of the contract on dest chain that will receive bridged funds and execute data
-/// @param relayerFee The amount of relayer fee the tx called xcall with
-/// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
-/// @param delegate Destination delegate address
-/// @param destChainDomainId The Amarok-specific domainId of the destination chain
-/// @param payFeeWithSendingAsset Whether to pay the relayer fee with the sending asset or not
+/// @param callTo The address of the contract on dest chain that will receive bridged funds and execute data.
+/// @param relayerFee The amount of relayer fee the tx called xcall with.
+/// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage).
+/// @param delegate Destination delegate address.
+/// @param destChainDomainId The Amarok-specific domainId of the destination chain.
+/// @param payFeeWithSendingAsset Whether to pay the relayer fee with the sending asset or not.
 struct AmarokData {
   bytes callData;
   address callTo;

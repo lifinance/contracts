@@ -14,13 +14,13 @@ graph LR;
 
 ## Public Methods
 
-- `function initMultichain(address[] calldata routers)`
+- `function initMultichain(address anyNative, address[] calldata routers)`
   - Initializer method. Allow routers.
-- `function registerBridge(address router, bool allowed)`
+- `function function registerRouters(address[] calldata routers, bool[] calldata allowed)`
   - Register method. Allow or disallow router.
 - `function startBridgeTokensViaMultichain(BridgeData memory _bridgeData, MultichainData calldata _multichainData)`
   - Simply bridges tokens using Multichain
-- `function swapAndStartBridgeTokensViaMultichain( BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, MultichainData memory _multichainData)`
+- `function swapAndStartBridgeTokensViaMultichain(BridgeData memory _bridgeData, SwapData[] calldata _swapData, MultichainData calldata _multichainData)`
   - Performs swap(s) before bridging tokens using Multichain
 
 ## Multichain Specific Parameters

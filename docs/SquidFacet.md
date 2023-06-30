@@ -19,9 +19,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaSquid(BridgeData calldata _bridgeData, SquidData calldata _squidData)`
+- `function startBridgeTokensViaSquid(BridgeData memory _bridgeData, SquidData calldata _squidData)`
   - Simply bridges tokens using SquidFacet
-- `function swapAndStartBridgeTokensViaSquid(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, SquidData calldata _squidData)`
+- `function swapAndStartBridgeTokensViaSquid(BridgeData memory _bridgeData, SwapData[] calldata _swapData, SquidData calldata _squidData)`
   - Performs swap(s) before bridging tokens using bridgeFacet
 
 ## Bridge Specific Parameters
@@ -43,8 +43,8 @@ struct SquidData {
     RouteType routeType;
     string destinationChain;
     string bridgedTokenSymbol;
-    ISquidMulticall.Call[] sourceCalls;
-    ISquidMulticall.Call[] destinationCalls;
+    Call[] sourceCalls;
+    Call[] destinationCalls;
     uint256 fee;
     bool forecallEnabled;
 }
@@ -68,7 +68,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Most of the methods accept a `ILiFiBridgeData _bridgeData` parameter.
+Most of the methods accept a `BridgeData _bridgeData` parameter.
 
 In the Squid contract call the fields `minAmount` and `sendingAssetId` are used for the transfer amount and the asset to be sent. Since the Squid bridge does not support native token bridging (it's mainly a stablecoin bridge) the methods will fail if native assets are tried to be bridged.
 

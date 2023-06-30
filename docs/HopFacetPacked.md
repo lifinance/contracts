@@ -14,19 +14,19 @@ graph LR;
 
 - `function startBridgeTokensViaHopL2NativePacked()`
   - Bridge native assets by passing custom encoded callData
-- `function startBridgeTokensViaHopL2NativeMin(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge)`
+- `function startBridgeTokensViaHopL2NativeMin(bytes8 transactionId, address receiver, uint256 destinationChainId, uint256 bonderFee, uint256 amountOutMin, uint256 destinationAmountOutMin, uint256 destinationDeadline, address hopBridge)`
   - Bridge native assets by passing minimal required parameters
-- `function encoder_startBridgeTokensViaHopL2NativePacked(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge)`
+- `function encode_startBridgeTokensViaHopL2NativePacked(bytes8 transactionId, address receiver, uint256 destinationChainId, uint256 bonderFee, uint256 amountOutMin)`
   - Generate packed transaction data based on minimal required parameters for native asset transfers
 - `function startBridgeTokensViaHopL2ERC20Packed()`
   - Bridge ERC20 tokens by passing custom encoded callData
-- `function startBridgeTokensViaHopL2ERC20Min(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge, address sendingAssetId, uint256 amount)`
+- `function startBridgeTokensViaHopL2ERC20Min(bytes8 transactionId, address receiver, uint256 destinationChainId, address sendingAssetId, uint256 minAmount, uint256 bonderFee, uint256 amountOutMin, uint256 destinationAmountOutMin, uint256 destinationDeadline, address hopBridge)`
   - Bridge ERC20 tokens by passing minimal required parameters
-- `function encoder_startBridgeTokensViaHopL2ERC20Packed(bytes32 transactionId, string calldata integrator, address receiver, uint256 bonderFee, uint256 amountOutMin, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge, address sendingAssetId, uint256 amount)`
+- `function encode_startBridgeTokensViaHopL2ERC20Packed(bytes32 transactionId, address receiver, uint256 destinationChainId, address sendingAssetId, uint256 minAmount, uint256 bonderFee, uint256 amountOutMin, uint256 destinationAmountOutMin, uint256 destinationDeadline, address wrapper)`
   - Generate packed transaction data based on minimal required parameters for ERC20 token transfers
-- `startBridgeTokensViaHopL1NativeMin(bytes32 transactionId, string memory integrator, address receiver, uint256 destinationChainId, uint256 destinationAmountOutMin, address hopBridge)`
+- `startBridgeTokensViaHopL1NativeMin(bytes8 transactionId, address receiver, uint256 destinationChainId, uint256 destinationAmountOutMin, address relayer, uint256 relayerFee, address hopBridge)`
   - Bridge native assets from ethereum by passing minimal required parameters
-- `function startBridgeTokensViaHopL1ERC20Min(bytes32 transactionId, string calldata integrator, address receiver, uint256 destinationChainId, address sendingAssetId, uint256 amount, uint256 destinationAmountOutMin, address hopBridge)`
+- `function startBridgeTokensViaHopL1ERC20Min(bytes8 transactionId, address receiver, uint256 destinationChainId, address sendingAssetId, uint256 minAmount, uint256 destinationAmountOutMin, address relayer, uint256 relayerFee, address hopBridge)`
   - Bridge ERC20 tokens from ethereum by passing minimal required parameters
 
 ## Parameters
@@ -37,9 +37,11 @@ Most parameters are specific for how the hop protocol works.
 - `amountOutMin`: Source swap minimal accepted amount
 - `destinationChainId`: Receiving chain
 - `destinationAmountOutMin`: Destination swap minimal accepted amount
+- `destinationDeadline`: Destination swap maximal time
 - `hopBridge`: Address of the Hop L2_AmmWrapper or L1_Bridge
 - `sendingAssetId`: Address of the source asset to bridge (only needed when passing ERC20 tokens)
 - `amount`: Amount of the source asset to bridge (only needed when passing ERC20 tokens)
+- `wrapper`: Address of the Hop L2_AmmWrapper
 
 Additional parameters are passed to track transfers on chain:
 - `transactionId`: Custom transaction ID for tracking
@@ -57,9 +59,11 @@ Most parameters are specific for how the hop protocol works.
 - `amountOutMin`: `uint128 > bytes16` = restricted value range*
 - `destinationChainId`: `uint32 > bytes4` = big enough to include all major chains
 - `destinationAmountOutMin`: `uint128 > bytes16` = restricted value range*
+- `destinationDeadline`: `uint32 > bytes4` = restricted value range*
 - `hopBridge`: `bytes20` = lossless length of EVM addresses
 - `sendingAssetId`: `bytes20` = lossless length of EVM addresses
 - `amount`: `uint128 > bytes16` = restricted value range*
+- `wrapper`:`bytes20` = lossless length of EVM addresses
 
 *restricted value range: Considering a token with 18 decimals `uint128` still allows to pass 340 Quintillion (`10**18`) tokens, which will be more than the available liquidity of all tokens supported by Hop.
 
@@ -68,27 +72,21 @@ Solidity based example to manually generate the callData:
 bytes memory packedNative = bytes.concat(
    HopFacetPacked.startBridgeTokensViaHopL2NativePacked.selector,
     bytes8("someID"), // transactionId
-    bytes16(bytes("partner-a")), // integrator
     bytes20(RECEIVER_ADDRESS), // receiver
     bytes4(uint32(137)), // destinationChainId
     bytes16(uint128(amountBonderFeeNative)), // bonderFee
-    bytes16(uint128(amountOutMinNative)), // amountOutMin
-    bytes16(uint128(amountOutMinNative)), // destinationAmountOutMin
-    bytes20(HOP_NATIVE_BRIDGE) // hopBridge
+    bytes16(uint128(amountOutMinNative)) // amountOutMin
 );
 ```
 
 The contract offers a pure helper method to does this work for you:
 ```solidity
-bytes memory encodedNative = hopFacetPacked.encoder_startBridgeTokensViaHopL2NativePacked(
+bytes memory encodedNative = hopFacetPacked.encode_startBridgeTokensViaHopL2NativePacked(
     "someID",
-    "partner-a",
     RECEIVER_ADDRESS,
     137,
     amountBonderFeeNative,
-    amountOutMinNative,
-    amountOutMinNative,
-    HOP_NATIVE_BRIDGE
+    amountOutMinNative
 );
 ```
 
