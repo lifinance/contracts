@@ -16,9 +16,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaLIFuel(BridgeData calldata _bridgeData)`
+- `function startBridgeTokensViaLIFuel(BridgeData memory _bridgeData)`
   - Simply deposits tokens using LIFuel
-- `function swapAndStartBridgeTokensViaLIFuel(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
+- `function swapAndStartBridgeTokensViaLIFuel(BridgeData memory _bridgeData, SwapData[] calldata _swapData)`
   - Performs swap(s) before depositing tokens using LIFuel
 
 ## Swap Data

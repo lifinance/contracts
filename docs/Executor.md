@@ -21,7 +21,7 @@ This method is used to execute transactions received by Connext
 /// @param _receiver address that will receive tokens in the end
 function swapAndCompleteBridgeTokens(
     bytes32 _transactionId,
-    LibSwap.SwapData[] calldata _swapData,
+    SwapData[] calldata _swapData,
     address _transferredAssetId,
     address payable _receiver
 )
@@ -39,17 +39,9 @@ a user to make any number of swaps or arbitrary contract calls.
 /// @param _amount amount of token for swaps or arbitrary executions
 function swapAndExecute(
     bytes32 _transactionId,
-    LibSwap.SwapData[] calldata _swapData,
+    SwapData[] calldata _swapData,
     address _transferredAssetId,
     address payable _receiver,
     uint256 _amount
 )
-```
-
-The contract also has a number of utility methods that are self-explanatory
-
-```solidity
-/// @notice set ERC20 Proxy
-/// @param _erc20Proxy the address of the ERC20Proxy contract
-function setERC20Proxy(address _erc20Proxy)
 ```

@@ -48,8 +48,8 @@ function executeMessageWithTransferRefund(
 /// @notice Forwards a call to transfer tokens to cBridge (sent via this contract to ensure that potential refunds are sent here)
 /// @dev can only be called by the LI.FI diamond contract on the respective chain
 /// @param _bridgeData the core information needed for bridging
-/// @param _cBridgeData data specific to CBridge
-function sendTokenTransfer(ILiFi.BridgeData memory _bridgeData, CBridgeFacet.CBridgeData memory _cBridgeData)
+/// @param _celerIMData data specific to CelerIM
+function sendTokenTransfer(BridgeData memory _bridgeData, CelerIMData calldata _celerIMData)
     external
     payable
     onlyDiamond

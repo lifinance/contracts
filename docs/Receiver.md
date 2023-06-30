@@ -11,6 +11,27 @@ and which third-party integration is being used.
 
 The following methods are available:
 
+This method is used to execute transactions received by the Amarok Bridge
+
+```solidity
+/// @notice Completes a cross-chain transaction with calldata via Amarok facet on the receiving chain.
+/// @dev This function is called from Amarok Router.
+/// @param _transferId The unique ID of this transaction (assigned by Amarok)
+/// @param _amount the amount of bridged tokens
+/// @param _asset the address of the bridged token
+/// @param * (unused) the sender of the transaction
+/// @param * (unused) the domain ID of the src chain
+/// @param _callData The data to execute
+function xReceive(
+    bytes32 _transferId,
+    uint256 _amount,
+    address _asset,
+    address,
+    uint32,
+    bytes memory _callData
+)
+```
+
 This method is used to execute transactions received by the Stargate Router
 
 ```solidity
@@ -60,12 +81,4 @@ function pullToken(
     address payable receiver,
     uint256 amount
 )
-```
-
-The contract also has a number of utility methods that are self-explanatory
-
-```solidity
-/// @notice set Stargate Router
-/// @param _router the Stargate router address
-function setStargateRouter(address _router)
 ```

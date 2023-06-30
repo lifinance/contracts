@@ -14,7 +14,7 @@ graph LR;
 
 - `function startBridgeTokensViaSynapseBridge(BridgeData calldata _bridgeData, SynapseData calldata _synapseData)`
   - Simply bridges tokens using Synapse Bridge
-- `function swapAndStartBridgeTokensViaSynapseBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, SynapseData calldata _synapseData)`
+- `function swapAndStartBridgeTokensViaSynapseBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData, SynapseData calldata _synapseData)`
   - Performs swap(s) before bridging tokens using Synapse Bridge
 
 ## Synapse Bridge Specific Parameters
@@ -29,8 +29,8 @@ This data is specific to SynapseBridgeFacet and is represented as the following 
 /// @param originQuery Origin swap query. Empty struct indicates no swap is required.
 /// @param destQuery Destination swap query. Empty struct indicates no swap is required.
 struct SynapseData {
-  ISynapseRouter.SwapQuery originQuery;
-  ISynapseRouter.SwapQuery destQuery;
+  SwapQuery originQuery;
+  SwapQuery destQuery;
 }
 ```
 
