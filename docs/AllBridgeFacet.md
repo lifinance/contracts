@@ -43,17 +43,18 @@ This data is specific to allBridgefacet and is represented as the following stru
 /// @param recipient The address of the token receiver after bridging.
 /// @param destinationChainId The destination chain id.
 /// @param receiveToken The token to receive on the destination chain.
-/// @param nonce A unique nonce to associate with the tx.
+/// @param nonce A random nonce to associate with the tx.
 /// @param messenger The messenger protocol enum
+/// @param payFeeWithSendingAsset Whether to pay the relayer fee with the sending asset or not
 struct AllBridgeData {
   uint256 fees;
   bytes32 recipient;
-  uint8 destinationChainId;
+  uint256 destinationChainId;
   bytes32 receiveToken;
   uint256 nonce;
-  MessengerProtocol messenger;
+  IAllBridge.MessengerProtocol messenger;
+  bool payFeeWithSendingAsset;
 }
-
 ```
 
 The fees field is the sum of two fees charged by AllBridge, namely
