@@ -49,18 +49,4 @@ export default function (
       }
     ], // array of actions
   })
-  
-  plop.setHelper('titleCase', (str) => {
-    return str.replace(/\w\S*/g, function (txt) {
-      return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
-    })
-  })
-
-  plop.setHelper('snakeCase', (str) => {
-    return str
-      .replace(/\W+/g, ' ')
-      .split(/ |\B(?=[A-Z])/)
-      .map((word) => word.toLowerCase())
-      .join('_')
-  })
 }
