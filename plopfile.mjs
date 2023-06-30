@@ -34,7 +34,7 @@ export default function (
       },
       {
         type: 'add',
-        path: 'config/{{kebobCase name}}.json',
+        path: 'config/{{kebabCase name}}.json',
         templateFile: 'templates/facetConfig.template.hbs',
       },
       {
