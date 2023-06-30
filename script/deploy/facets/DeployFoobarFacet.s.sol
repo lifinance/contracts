@@ -3,20 +3,20 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { {{titleCase name}}Facet } from "lifi/Facets/{{titleCase name}}Facet.sol";
+import { FoobarFacet } from "lifi/Facets/FoobarFacet.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("{{titleCase name}}Facet") {}
+    constructor() DeployScriptBase("FoobarFacet") {}
 
     function run()
         public
-        returns ({{titleCase name}}Facet deployed, bytes memory constructorArgs)
+        returns (FoobarFacet deployed, bytes memory constructorArgs)
     {
         string memory path = string.concat(
             vm.projectRoot(),
-            "/config/{{camelCase name}}.json"
+            "/config/foobar.json"
         );
         string memory json = vm.readFile(path);
         address example = json.readAddress(
@@ -28,15 +28,15 @@ contract DeployScript is DeployScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         if (isDeployed()) {
-            return ({{titleCase name}}Facet(payable(predicted)), constructorArgs);
+            return (FoobarFacet(payable(predicted)), constructorArgs);
         }
 
-        deployed = {{titleCase name}}Facet(
+        deployed = FoobarFacet(
             payable(
                 factory.deploy(
                     salt,
                     bytes.concat(
-                        type({{titleCase name}}Facet).creationCode,
+                        type(FoobarFacet).creationCode,
                         constructorArgs
                     )
                 )

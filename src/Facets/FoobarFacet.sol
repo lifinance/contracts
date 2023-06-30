@@ -8,21 +8,20 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
-/// @title {{titleCase name}} Facet
+/// @title Foobar Facet
 /// @author LI.FI (https://li.fi)
-/// @notice {{ description }}
+/// @notice sdfdsafsdfsdf
 /// @custom:version 1.0.0
-contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract FoobarFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
-    
-    address public immutable example;
 
+    address public immutable example;
 
     /// Types ///
 
     /// @param exampleParam Example paramter
-    struct {{titleCase name}}Data {
-      string exampleParam;
+    struct FoobarData {
+        string exampleParam;
     }
 
     /// Constructor ///
@@ -35,12 +34,12 @@ contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatab
 
     /// External Methods ///
 
-    /// @notice Bridges tokens via {{titleCase name}}
+    /// @notice Bridges tokens via Foobar
     /// @param _bridgeData The core information needed for bridging
-    /// @param _{{camelCase name}}Data Data specific to {{titleCase name}}
-    function startBridgeTokensVia{{titleCase name}}(
+    /// @param _foobarData Data specific to Foobar
+    function startBridgeTokensViaFoobar(
         ILiFi.BridgeData memory _bridgeData,
-        {{titleCase name}}Data calldata _{{camelCase name}}Data
+        FoobarData calldata _foobarData
     )
         external
         payable
@@ -54,17 +53,17 @@ contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatab
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
-        _startBridge(_bridgeData, _{{camelCase name}}Data);
+        _startBridge(_bridgeData, _foobarData);
     }
 
-    /// @notice Performs a swap before bridging via {{titleCase name}}
+    /// @notice Performs a swap before bridging via Foobar
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _{{camelCase name}}Data Data specific to {{titleCase name}}
-    function swapAndStartBridgeTokensVia{{titleCase name}}(
+    /// @param _foobarData Data specific to Foobar
+    function swapAndStartBridgeTokensViaFoobar(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        {{titleCase name}}Data calldata _{{camelCase name}}Data
+        FoobarData calldata _foobarData
     )
         external
         payable
@@ -80,17 +79,17 @@ contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatab
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _{{camelCase name}}Data);
+        _startBridge(_bridgeData, _foobarData);
     }
 
     /// Internal Methods ///
 
-    /// @dev Contains the business logic for the bridge via {{titleCase name}}
+    /// @dev Contains the business logic for the bridge via Foobar
     /// @param _bridgeData The core information needed for bridging
-    /// @param _{{camelCase name}}Data Data specific to {{titleCase name}}
+    /// @param _foobarData Data specific to Foobar
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        {{titleCase name}}Data calldata _{{camelCase name}}Data
+        FoobarData calldata _foobarData
     ) internal {
         // TODO: Implement business logic
         emit LiFiTransferStarted(_bridgeData);

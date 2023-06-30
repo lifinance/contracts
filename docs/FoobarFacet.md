@@ -1,29 +1,29 @@
-# {{titleCase name}} Facet
+# Foobar Facet
 
 ## How it works
 
-The {{titleCase name}} Facet works by ...
+The Foobar Facet works by ...
 
 ```mermaid
 graph LR;
-    D{LiFiDiamond}-- DELEGATECALL -->{{titleCase name}}Facet;
-    {{titleCase name}}Facet -- CALL --> C({{titleCase name}})
+    D{LiFiDiamond}-- DELEGATECALL -->FoobarFacet;
+    FoobarFacet -- CALL --> C(Foobar)
 ```
 
 ## Public Methods
 
-- `function startBridgeTokensVia{{titleCase name}}(BridgeData calldata _bridgeData, {{titleCase name}}Data calldata _{{camelCase name}}Data)`
-  - Simply bridges tokens using {{camelCase name}}
-- `swapAndStartBridgeTokensVia{{camelCase name}}(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, {{camelCase name}}Data memory _{{camelCase name}}Data)`
-  - Performs swap(s) before bridging tokens using {{camelCase name}}
+- `function startBridgeTokensViaFoobar(BridgeData calldata _bridgeData, FoobarData calldata _foobarData)`
+  - Simply bridges tokens using foobar
+- `swapAndStartBridgeTokensViafoobar(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, foobarData memory _foobarData)`
+  - Performs swap(s) before bridging tokens using foobar
 
-## {{camelCase name}} Specific Parameters
+## foobar Specific Parameters
 
-The methods listed above take a variable labeled `_{{camelCase name}}Data`. This data is specific to {{camelCase name}} and is represented as the following struct type:
+The methods listed above take a variable labeled `_foobarData`. This data is specific to foobar and is represented as the following struct type:
 
 ```solidity
 /// @param example Example parameter.
-struct {{camelCase name}}Data {
+struct foobarData {
   string example;
 }
 ```
@@ -54,7 +54,7 @@ The quote result looks like the following:
 const quoteResult = {
   id: '0x...', // quote id
   type: 'lifi', // the type of the quote (all lifi contract calls have the type "lifi")
-  tool: '{{camelCase name}}', // the bridge tool used for the transaction
+  tool: 'foobar', // the bridge tool used for the transaction
   action: {}, // information about what is going to happen
   estimate: {}, // information about the estimated outcome of the call
   includedSteps: [], // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step
@@ -80,7 +80,7 @@ A detailed explanation on how to use the /quote endpoint and how to trigger the 
 To get a transaction for a transfer from 30 USDC.e on Avalanche to USDC on Binance you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges={{camelCase name}}&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=foobar&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
 
 ### Swap & Cross
@@ -88,5 +88,5 @@ curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC
 To get a transaction for a transfer from 30 USDT on Avalanche to USDC on Binance you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges={{camelCase name}}&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=foobar&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
