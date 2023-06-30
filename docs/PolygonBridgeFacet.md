@@ -13,9 +13,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaPolygonBridge(BridgeData calldata _bridgeData)`
+- `function startBridgeTokensViaPolygonBridge(BridgeData memory _bridgeData)`
   - Simply bridges tokens using Polygon PoS Bridge
-- `function swapAndStartBridgeTokensViaPolygonBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
+- `function swapAndStartBridgeTokensViaPolygonBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData)`
   - Performs swap(s) before bridging tokens using Polygon PoS Bridge
 
 ## Swap Data

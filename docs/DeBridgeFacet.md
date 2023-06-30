@@ -14,7 +14,7 @@ graph LR;
 
 - `function startBridgeTokensViaDeBridge(BridgeData calldata _bridgeData, DeBridgeData calldata _deBridgeData)`
   - Simply bridges tokens using DeBridge
-- `function swapAndStartBridgeTokensViaDeBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, DeBridgeData calldata _deBridgeData)`
+- `function swapAndStartBridgeTokensViaDeBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData, DeBridgeData calldata _deBridgeData)`
   - Performs swap(s) before bridging tokens using DeBridge
 
 ## DeBridge Specific Parameters
@@ -47,13 +47,11 @@ struct SubmissionAutoParamsTo {
   bytes data;
 }
 
-/// @param permit deadline + signature for approving the spender by signature.
 /// @param nativeFee Native fee for the bridging when useAssetFee is false.
 /// @param useAssetFee Use assets fee for pay protocol fix (work only for specials token)
 /// @param referralCode Referral code.
 /// @param autoParams Structure that enables passing arbitrary messages and call data.
 struct DeBridgeData {
-  bytes permit;
   uint256 nativeFee;
   bool useAssetFee;
   uint32 referralCode;

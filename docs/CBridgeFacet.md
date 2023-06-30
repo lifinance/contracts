@@ -15,9 +15,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaCBridge(BridgeData calldata _bridgeData, CBridgeData calldata _cBridgeData)`
+- `function startBridgeTokensViaCBridge(BridgeData memory _bridgeData, CBridgeData calldata _cBridgeData)`
   - Simply bridges tokens using CBridge
-- `function swapAndStartBridgeTokensViaCBridge( BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, CBridgeData memory _cBridgeData)`
+- `function swapAndStartBridgeTokensViaCBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData, CBridgeData calldata _cBridgeData)`
   - Performs swap(s) before bridging tokens using CBridge
 
 ## CBridge Specific Parameters
@@ -26,19 +26,11 @@ Some of the methods listed above take a variable labeled `_cBridgeData`. This da
 
 ```solidity
 /// @param maxSlippage The max slippage accepted, given as percentage in point (pip).
-/// @param nonce A number input to guarantee uniqueness of transferId. Can be timestamp in practice.
-/// @param callTo the address of the contract to be called at destination
-/// @param callData the encoded calldata (bytes32 transactionId, LibSwap.SwapData[] memory swapData, address receiver, address refundAddress)
-/// @param messageBusFee the fee to be paid to CBridge message bus for relaying the message
-/// @param bridgeType defines the bridge operation type (must be one of the values of CBridge library MsgDataTypes.BridgeSendType)
-
+/// @param nonce A number input to guarantee uniqueness of transferId.
+///              Can be timestamp in practice.
 struct CBridgeData {
   uint32 maxSlippage;
   uint64 nonce;
-  bytes callTo;
-  bytes callData;
-  uint256 messageBusFee;
-  MsgDataTypes.BridgeSendType bridgeType;
 }
 ```
 

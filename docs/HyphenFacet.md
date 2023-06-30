@@ -12,9 +12,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaHyphen(BridgeData calldata _bridgeData)`
+- `function startBridgeTokensViaHyphen(BridgeData memory _bridgeData)`
   - Simply bridges tokens using Hyphen
-- `function swapAndStartBridgeTokensViaHyphen(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData)`
+- `function swapAndStartBridgeTokensViaHyphen(BridgeData memory _bridgeData, SwapData[] calldata _swapData)`
   - Performs swap(s) before bridging tokens using Hyphen
 
 ## Swap Data

@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Across Facet works by forwarding Across specific calls to one of [Across SpokePools](https://etherscan.io/address/0x4D9079Bb4165aeb4084c526a32695dCfd2F77381). All bridging is done by calling the `deposit` method.
+The Across Facet works by forwarding Across specific calls to one of [Across SpokePools](https://github.com/across-protocol/contracts-v2/tree/master/contracts). All bridging is done by calling the `deposit` method.
 
 ```mermaid
 graph LR;
@@ -12,9 +12,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaAcross(BridgeData calldata _bridgeData, AcrossData calldata _acrossData)`
+- `function startBridgeTokensViaAcross(BridgeData memory _bridgeData, AcrossData calldata _acrossData)`
   - Simply bridges tokens using Across
-- `swapAndStartBridgeTokensViaAcross(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, AcrossData memory _acrossData)`
+- `swapAndStartBridgeTokensViaAcross(BridgeData memory _bridgeData, SwapData[] calldata _swapData, AcrossData calldata _acrossData)`
   - Performs swap(s) before bridging tokens using Across
 
 ## Across Specific Parameters
@@ -24,9 +24,13 @@ The methods listed above take a variable labeled `_acrossData`. This data is spe
 ```solidity
 /// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
 /// @param quoteTimestamp The timestamp associated with the suggested fee.
+/// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens.
+/// @param maxCount Used to protect the depositor from frontrunning to guarantee their quote remains valid.
 struct AcrossData {
-  uint64 relayerFeePct;
+  int64 relayerFeePct;
   uint32 quoteTimestamp;
+  bytes message;
+  uint256 maxCount;
 }
 ```
 

@@ -5,8 +5,8 @@
 - [AllBridge Facet](./AllBridgeFacet.md)
 - [Amarok Facet](./AmarokFacet.md)
 - [Arbitrum Bridge Facet](./ArbitrumBridgeFacet.md)
-- [Axelar Facet](./AxelarFacet.md)
 - [CBridge Facet](./CBridgeFacet.md)
+- [Celer Circle Bridge Facet](./CelerCircleBridgeFacet.md)
 - [Circle Bridge Facet](./CircleBridgeFacet.md)
 - [DeBridge Facet](./DeBridgeFacet.md)
 - [DEX Manager Facet](./DexManagerFacet.md)
@@ -21,7 +21,6 @@
 - [LIFuel Facet](./LIFuelFacet.md)
 - [MakerTeleport Facet](./MakerTeleportFacet.md)
 - [Multichain Facet](./MultichainFacet.md)
-- [NXTP Facet](./NXTPFacet.md)
 - [OFTWrapper Facet](./OFTWrapperFacet.md)
 - [OmniBridge Facet](./OmniBridgeFacet.md)
 - [Optimism Bridge Facet](./OptimismBridgeFacet.md)
@@ -52,7 +51,6 @@
 
 # Periphery
 
-- [Axelar Executor](./AxelarExecutor.md)
 - [ERC20Proxy](./ERC20Proxy.md)
 - [Executor](./Executor.md)
 - [FeeCollector](./FeeCollector.md)
