@@ -19,32 +19,32 @@ export default function (
     actions: [
       {
         type: 'add',
-        path: 'src/Facets/{{titleCase name}}Facet.sol',
+        path: 'src/Facets/{{properCase name}}Facet.sol',
         templateFile: 'templates/facet.template.hbs',
       },
       {
         type: 'add',
-        path: 'docs/{{titleCase name}}Facet.md',
+        path: 'docs/{{properCase name}}Facet.md',
         templateFile: 'templates/facetDoc.template.hbs',
       },
       {
         type: 'add',
-        path: 'test/solidity/Facets/{{titleCase name}}Facet.t.sol',
+        path: 'test/solidity/Facets/{{properCase name}}Facet.t.sol',
         templateFile: 'templates/facetTest.template.hbs',
       },
       {
         type: 'add',
-        path: 'config/{{snakeCase name}}.json',
+        path: 'config/{{kebobCase name}}.json',
         templateFile: 'templates/facetConfig.template.hbs',
       },
       {
         type: 'add',
-        path: 'script/deploy/facets/Deploy{{titleCase name}}Facet.s.sol',
+        path: 'script/deploy/facets/Deploy{{properCase name}}Facet.s.sol',
         templateFile: 'templates/facetDeployScript.template.hbs',
       },
       {
         type: 'add',
-        path: 'script/deploy/facets/Update{{titleCase name}}Facet.s.sol',
+        path: 'script/deploy/facets/Update{{properCase name}}Facet.s.sol',
         templateFile: 'templates/facetUpdateScript.template.hbs',
       }
     ], // array of actions
