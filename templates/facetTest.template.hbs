@@ -1,0 +1,94 @@
+// SPDX-License-Identifier: Unlicense
+pragma solidity 0.8.17;
+
+import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { {{titleCase name}}Facet } from "lifi/Facets/{{titleCase name}}Facet.sol";
+
+// Stub {{titleCase name}}Facet Contract
+contract Test{{titleCase name}}Facet is {{titleCase name}}Facet {
+    constructor(
+        address _example
+    ) {{titleCase name}}Facet(_example) {}
+
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
+    }
+
+    function setFunctionApprovalBySignature(bytes4 _signature) external {
+        LibAllowList.addAllowedSelector(_signature);
+    }
+}
+
+contract {{titleCase name}}FacetTest is TestBaseFacet {
+    {{titleCase name}}Facet.{{titleCase name}}Data internal valid{{titleCase name}}Data;
+    Test{{titleCase name}}Facet internal {{snakeCase name}}Facet;
+
+    function setUp() public {
+        customBlockNumberForForking = 17130542;
+        initTestBase();
+
+        {{snakeCase name}}Facet = new Test{{titleCase name}}Facet(address(0xb33f));
+        bytes4[] memory functionSelectors = new bytes4[](4);
+        functionSelectors[0] = {{snakeCase name}}Facet.startBridgeTokensVia{{titleCase name}}.selector;
+        functionSelectors[1] = {{snakeCase name}}Facet
+            .swapAndStartBridgeTokensVia{{titleCase name}}
+            .selector;
+        functionSelectors[2] = {{snakeCase name}}Facet.addDex.selector;
+        functionSelectors[3] = {{snakeCase name}}Facet
+            .setFunctionApprovalBySignature
+            .selector;
+
+        addFacet(diamond, address({{snakeCase name}}Facet), functionSelectors);
+        {{snakeCase name}}Facet = Test{{titleCase name}}Facet(address(diamond));
+        {{snakeCase name}}Facet.addDex(ADDRESS_UNISWAP);
+        {{snakeCase name}}Facet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        {{snakeCase name}}Facet.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
+        {{snakeCase name}}Facet.setFunctionApprovalBySignature(
+            uniswap.swapETHForExactTokens.selector
+        );
+
+        setFacetAddressInTestBase(address({{snakeCase name}}Facet), "{{titleCase name}}Facet");
+
+        // adjust bridgeData
+        bridgeData.bridge = "{{snakeCase name}}";
+        bridgeData.destinationChainId = 137;
+
+        // produce valid {{titleCase name}}Data
+        valid{{titleCase name}}Data = {{titleCase name}}Facet.{{titleCase name}}Data({
+            exampleParam: "foo bar baz"
+        });
+    }
+
+    function initiateBridgeTxWithFacet(bool isNative) internal override {
+        if (isNative) {
+            {{snakeCase name}}Facet.startBridgeTokensVia{{titleCase name}}{
+                value: bridgeData.minAmount
+            }(bridgeData, valid{{titleCase name}}Data);
+        } else {
+            {{snakeCase name}}Facet.startBridgeTokensVia{{titleCase name}}(
+                bridgeData,
+                valid{{titleCase name}}Data
+            );
+        }
+    }
+
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
+        if (isNative) {
+            {{snakeCase name}}Facet.swapAndStartBridgeTokensVia{{titleCase name}}{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData, valid{{titleCase name}}Data);
+        } else {
+            {{snakeCase name}}Facet.swapAndStartBridgeTokensVia{{titleCase name}}(
+                bridgeData,
+                swapData,
+                valid{{titleCase name}}Data
+            );
+        }
+    }
+}

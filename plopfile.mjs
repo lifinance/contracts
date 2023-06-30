@@ -17,15 +17,35 @@ export default function (
       }
     ], // array of inquirer prompts
     actions: [
+      // {
+      //   type: 'add',
+      //   path: 'src/Facets/{{titleCase name}}Facet.sol',
+      //   templateFile: 'templates/facet.template.hbs',
+      // },
+      // {
+      //   type: 'add',
+      //   path: 'docs/{{titleCase name}}Facet.md',
+      //   templateFile: 'templates/facetDoc.template.hbs',
+      // },
+      // {
+      //   type: 'add',
+      //   path: 'test/solidity/Facets/{{titleCase name}}Facet.t.sol',
+      //   templateFile: 'templates/facetTest.template.hbs',
+      // },
+      // {
+      //   type: 'add',
+      //   path: 'config/{{snakeCase name}}.json',
+      //   templateFile: 'templates/facetConfig.template.hbs',
+      // },
+      // {
+      //   type: 'add',
+      //   path: 'script/deploy/facets/Deploy{{titleCase name}}Facet.s.sol',
+      //   templateFile: 'templates/facetDeployScript.template.hbs',
+      // },
       {
         type: 'add',
-        path: 'src/Facets/{{titleCase name}}Facet.sol',
-        templateFile: 'templates/facet.template.hbs',
-      },
-      {
-        type: 'add',
-        path: 'docs/{{titleCase name}}Facet.md',
-        templateFile: 'templates/facetDoc.template.hbs',
+        path: 'script/deploy/facets/Update{{titleCase name}}Facet.s.sol',
+        templateFile: 'templates/facetUpdateScript.template.hbs',
       }
     ], // array of actions
   })
