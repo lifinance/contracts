@@ -25,6 +25,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
     /// @param delegate Destination delegate address
     /// @param destChainDomainId The Amarok-specific domainId of the destination chain
+    /// @param payFeeWithSendingAsset Whether to pay the relayer fee with the sending asset or not
     struct AmarokData {
         bytes callData;
         address callTo;

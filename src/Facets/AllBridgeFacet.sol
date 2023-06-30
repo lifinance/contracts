@@ -24,6 +24,7 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param receiveToken The token to receive on the destination chain.
     /// @param nonce A random nonce to associate with the tx.
     /// @param messenger The messenger protocol enum
+    /// @param payFeeWithSendingAsset Whether to pay the relayer fee with the sending asset or not
     struct AllBridgeData {
         uint256 fees;
         bytes32 recipient;
