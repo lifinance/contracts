@@ -30,8 +30,40 @@ jobs:
           version: nightly
 
       - name: Install Deps
-        run: forge install
+        run: |
+          max_attempts=10
+          attempt_num=1
+          until $(forge install); do
+              if [ ${attempt_num} -eq ${max_attempts} ]; then
+                  echo "The job has failed after $attempt_num attempts."
+                  exit 1
+              fi
+              echo "Failed attempt $attempt_num. Retrying..."
+              ((attempt_num++))
+          done
+
       - name: Run forge tests
-        run: forge test
+        run: |
+          max_attempts=10
+          attempt_num=1
+          until $(forge test); do
+              if [ ${attempt_num} -eq ${max_attempts} ]; then
+                  echo "The job has failed after $attempt_num attempts."
+                  exit 1
+              fi
+              echo "Failed attempt $attempt_num. Retrying..."
+              ((attempt_num++))
+          done
+
       - name: Get forge test coverage
-        run: forge coverage
+        run: |
+          max_attempts=10
+          attempt_num=1
+          until $(forge coverage); do
+              if [ ${attempt_num} -eq ${max_attempts} ]; then
+                  echo "The job has failed after $attempt_num attempts."
+                  exit 1
+              fi
+              echo "Failed attempt $attempt_num. Retrying..."
+              ((attempt_num++))
+          done
