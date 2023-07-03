@@ -173,7 +173,7 @@ deploySingleContract() {
 
   # do not continue if data required for deployment is missing
   if [ $? -ne 0 ]; then
-    if [[ -z "$EXIT_ON_ERROR" ]]; then
+    if [[ -z "$EXIT_ON_ERROR" || $EXIT_ON_ERROR == "false" ]]; then
       return 1
     else
       exit 1
@@ -369,7 +369,7 @@ deploySingleContract() {
           RELAYER_CONSTRUCTOR_ARGS=$(echo "$RELAYER_LOG_ENTRY" | jq -r ".CONSTRUCTOR_ARGS")
 
           # update VERIFIED info in log file
-          logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$RELAYER_TIMESTAMP" "$RELAYER_VERSION" "$RELAYER_OPTIMIZER_RUNS" "$RELAYER_CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" "$RELAYER_VERIFIED" "$DEPLOYSALT"
+          logContractDeploymentInfo "$RELAYER_NAME" "$NETWORK" "$RELAYER_TIMESTAMP" "$RELAYER_VERSION" "$RELAYER_OPTIMIZER_RUNS" "$RELAYER_CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$RELAYER_ADDRESS" "$RELAYER_VERIFIED" "$SALT"
         fi
       else
         echoDebug "address of existing RelayerCelerIM log entry does not match with current deployed-to address (=re-deployment)"
@@ -445,6 +445,7 @@ deploySingleContract() {
     # write to logfile
     logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
   fi
+
 
   # save contract in network-specific deployment files
   saveContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$FILE_SUFFIX"

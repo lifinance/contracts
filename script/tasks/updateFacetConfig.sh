@@ -26,7 +26,7 @@ updateFacetConfig() {
   # ensure all required .env values are set
   checkRequiredVariablesInDotEnv $NETWORK
 
-  echo "CONFIG_SCRIPT_DIRECTORY: $CONFIG_SCRIPT_DIRECTORY"
+  echoDebug "CONFIG_SCRIPT_DIRECTORY: $CONFIG_SCRIPT_DIRECTORY"
 
   # select which script to execute
   local SCRIPT=$(ls -1 "$CONFIG_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | gum filter --placeholder "Please select a script to execute")
@@ -64,14 +64,16 @@ updateFacetConfig() {
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
       RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
-      echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
+      RETURN_CODE=$?
     else
       # do not print output to console
       RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy) 2>/dev/null
+      RETURN_CODE=$?
     fi
 
+    echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
     # exit the loop if the operation was successful
-    if [ $? -eq 0 ]; then
+    if [ "$RETURN_CODE" -eq 0 ]; then
       break
     fi
 

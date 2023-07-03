@@ -33,10 +33,6 @@
         "Name": "AcrossFacet",
         "Version": "2.0.0"
       },
-      "0xe7072402217EfF9b73cf457731cEE2A3824360dc": {
-        "Name": "AllBridgeFacet",
-        "Version": "2.0.0"
-      },
       "0x989e7bc2d25F5A610DEBaCc7f2ADDA3be0Fd0559": {
         "Name": "AmarokFacet",
         "Version": "2.0.0"

@@ -10,7 +10,7 @@ import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 
-/// @title Executor
+/// @title Receiver
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
 /// @custom:version 2.0.0

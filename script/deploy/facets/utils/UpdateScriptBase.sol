@@ -38,7 +38,7 @@ contract UpdateScriptBase is Script {
         network = vm.envString("NETWORK");
         fileSuffix = vm.envString("FILE_SUFFIX");
         useDefaultDiamond = vm.envBool("USE_DEF_DIAMOND");
-        noBroadcast = vm.envBool("NO_BROADCAST");
+        noBroadcast = vm.envOr("NO_BROADCAST", false);
 
         path = string.concat(
             root,

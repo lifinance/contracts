@@ -2,6 +2,9 @@
   "mainnet": {
     "gravityRouter": "0xa4108aA1Ec4967F8b52220a4f7e94A8201F2D906"
   },
+  "evmos": {
+    "gravityRouter": "0xa4108aA1Ec4967F8b52220a4f7e94A8201F2D906"
+  },
   "goerli": {
     "gravityRouter": "0xa4108aA1Ec4967F8b52220a4f7e94A8201F2D906"
   }

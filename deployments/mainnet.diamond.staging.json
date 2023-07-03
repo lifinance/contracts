@@ -1,52 +1,106 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0x3968cF36Ea531D35B82F56C23A1D933b7711b31f": {
+      "0xF1d67E1dddc87E2858C87EBd5b19f99a4E297541": {
         "Name": "DiamondCutFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0xF3bd241Bd31cc84D1A2824E3ffB481961FC1456A": {
+      "0x49d195D3138D4E0E2b4ea88484C54AEE45B04B9F": {
         "Name": "DiamondLoupeFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0x6B5183628Fb571145385C01AD64779D2F17e759a": {
+      "0x44beA2Ab010d1CedC4E60E97DA8F88b8840951B0": {
         "Name": "OwnershipFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0xeb244dc26396846aDD8eaF5A0e3Bc6617B58482e": {
+      "0x428C4abf8BB3ECc893bD3E0Be12b0f363c6e81aA": {
         "Name": "WithdrawFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0xcd14Ea63191E4B27ECA7c98C29c373E015a5545A": {
+      "0x64D41a7B52CA910f4995b1df33ea68471138374b": {
         "Name": "DexManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0x50F6AC46EB6cA7840e75fE5aFa50B8a3D6deeD26": {
+      "0xfaA5f885a54D22C8571806fC001E53F0191f5Aff": {
         "Name": "AccessManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0x99dC88607d3D6C2e08C9bC7fdDDFDcE438339E05": {
+      "0x2EfC66F1ff37fc5277De5526Ab5CB7650f2DD518": {
         "Name": "PeripheryRegistryFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0x6C0b23Ff05C68dc72B0994652895b8543FF55D99": {
+      "0x2fF4484bcaEf13e4a1Db84E6af882c9d66c97e3F": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x6e118Db5ab7018FcF195e1310074688B8A1912B3": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
+      },
+      "0xe80E2a7ea862AF5580fBa9B7092a397e3D73cb7f": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "1.0.1"
+      },
+      "0xFB4C992Cc7cfA7Eb3e44b928C6f756C07a3feb04": {
         "Name": "RoninBridgeFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
-      "0xAa7C9233Ffc72eCAddeC6bd98a7ca453a822bD6A": {
+      "0x933A3AfE2087FB8F5c9EE9A033477C42CC14c18E": {
+        "Name": "SquidFacet",
+        "Version": "1.0.0"
+      },
+      "0xe1FaF1759cAB242c5A790Da72c8f0cC7F5e09f59": {
+        "Name": "CircleBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x57F98A94AC66e197AF6776D5c094FF0da2C0B198": {
+        "Name": "SynapseBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0xa696287F37d21D566B9A80AC29b2640FF910C176": {
         "Name": "ThorSwapFacet",
-        "Version": ""
+        "Version": "1.0.0"
+      },
+      "0xe7072402217EfF9b73cf457731cEE2A3824360dc": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.0.0"
+      },
+      "0x987f67811Ef841da0466746E10B4139Daff95053": {
+        "Name": "ArbitrumBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x9dC5653ed59D0B927bF59b5A08FDFC4Ddd75AC3E": {
+        "Name": "DeBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x5fda594b67d38E05fb4C9A1a4Cf3B22f48c8de4E": {
+        "Name": "GnosisBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x7cFdffE0e298b3CAC2cFe1F31c9965d9A49C3184": {
+        "Name": "GravityFacet",
+        "Version": "1.0.0"
+      },
+      "0xd18C6a3488d424920dD9f6A4187645794df96383": {
+        "Name": "OFTWrapperFacet",
+        "Version": "1.0.0"
+      },
+      "0xC1E20466AD79BAe875568eb08ABaaEA1F0E25b7E": {
+        "Name": "OmniBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0xE8Ff7BFEF5DacB57E87bC2d0B6CCFefBE5f546BC": {
+        "Name": "OptimismBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "AxelarExecutor": "",
-      "ERC20Proxy": "",
-      "Executor": "",
-      "FeeCollector": "",
-      "FusePoolZap": "",
-      "Receiver": "",
+      "ERC20Proxy": "0x0654EbA982ec082036A3D0f59964D302f1ba5cdA",
+      "Executor": "0xBe27F03C8e6a61E2a4B1EE7940dbcb9204744d1c",
+      "FeeCollector": "0x9ca271A532392230EAe919Fb5460aEa9D9718424",
+      "Receiver": "0xC850013FC01A264018D58D112000E32835D15fBC",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": ""
+      "ServiceFeeCollector": "0xf068cc770f32042Ff4a8fD196045641234dFaa47"
     }
   }
 }

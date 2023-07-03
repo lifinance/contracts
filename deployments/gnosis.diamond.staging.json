@@ -29,26 +29,30 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x9E39c6906F8FBC16D7CC996aB81bcBeD0F6E021d": {
-        "Name": "AllBridgeFacet",
-        "Version": "2.0.0"
-      },
       "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
         "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x545326A460BDe1D0De5D80Bf6B5c2Db3C0dFeA5F": {
+        "Name": "GnosisBridgeL2Facet",
         "Version": "1.0.0"
       },
       "0x9a077b9dD746237d8854848BDB01521B47edC8DF": {
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
+      },
+      "0x52A30797a861d61Ab4084468Cd469d0bf312566e": {
+        "Name": "OmniBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0xf90a432dD1D0541470BC9C440d9dEc3659755238",
+      "ERC20Proxy": "0x6c93D0F446356725E3a51906285044f8788c72f2",
       "Executor": "0x4f3B1b1075cC19daA15b7cc681b28e2fB82145eD",
-      "FeeCollector": "0x7f98D45c7902f079fDb65811B633522e2d227BB6",
-      "Receiver": "0x76EE0F8fb09047284B6ea89881595Fc6F5B09E12",
+      "FeeCollector": "0x0222D030e8DFAEDE2a4e7B5F181Ac1A4206A75f0",
+      "Receiver": "0x59B341fF54543D66C7393FfD2A050E256c97669E",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d"
+      "ServiceFeeCollector": "0x9cc3164f01ED3796Fdf7Da538484D634608D2203"
     }
   }
 }

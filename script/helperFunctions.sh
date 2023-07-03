@@ -82,7 +82,7 @@ function logContractDeploymentInfo {
   local ENVIRONMENT="$7"
   local ADDRESS="$8"
   local VERIFIED="$9"
-  local DEPLOYSALT="${10}"
+  local SALT="${10}"
 
   if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
     error "trying to log an invalid address value (=$ADDRESS) for $CONTRACT on network $NETWORK (environment=$ENVIRONMENT) to master log file. Log will not be updated. Please check and run this script again to secure deploy log data."
@@ -101,7 +101,7 @@ function logContractDeploymentInfo {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "ADDRESS=$ADDRESS"
   echoDebug "VERIFIED=$VERIFIED"
-  echoDebug "DEPLOYSALT=$DEPLOYSALT"
+  echoDebug "SALT=$SALT"
   echo ""
 
   # Check if log FILE exists, if not create it
@@ -128,8 +128,8 @@ function logContractDeploymentInfo {
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
       --arg VERIFIED "$VERIFIED" \
-      --arg DEPLOYSALT "$DEPLOYSALT" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, DEPLOYSALT: $DEPLOYSALT, VERIFIED: $VERIFIED }]' \
+      --arg SALT "$SALT" \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION] += [{ ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }]' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   else
     jq --arg CONTRACT "$CONTRACT" \
@@ -141,8 +141,8 @@ function logContractDeploymentInfo {
       --arg TIMESTAMP "$TIMESTAMP" \
       --arg CONSTRUCTOR_ARGS "$CONSTRUCTOR_ARGS" \
       --arg VERIFIED "$VERIFIED" \
-      --arg DEPLOYSALT "$DEPLOYSALT" \
-      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, DEPLOYSALT: $DEPLOYSALT, VERIFIED: $VERIFIED }' \
+      --arg SALT "$SALT" \
+      '.[$CONTRACT][$NETWORK][$ENVIRONMENT][$VERSION][-1] |= { ADDRESS: $ADDRESS, OPTIMIZER_RUNS: $OPTIMIZER_RUNS, TIMESTAMP: $TIMESTAMP, CONSTRUCTOR_ARGS: $CONSTRUCTOR_ARGS, SALT: $SALT, VERIFIED: $VERIFIED }' \
       "$LOG_FILE_PATH" >tmpfile && mv tmpfile "$LOG_FILE_PATH"
   fi
 
@@ -933,10 +933,10 @@ function getContractFilePath() {
   # read function arguments into variables
   CONTRACT="$1"
 
-  # special handling for CelerIMFacet
-  if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
-    CONTRACT="CelerIMFacetBase"
-  fi
+#  # special handling for CelerIMFacet
+#  if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
+#    CONTRACT="CelerIMFacetBase"
+#  fi
 
   # define directory to be searched
   local dir=$CONTRACT_DIRECTORY
@@ -1118,7 +1118,7 @@ function parseTargetStateGoogleSpreadsheet() {
     # Increment the line number
     ((LINE_NUMBER++))
 
-    echoDebug "LINE $LINE_NUMBER: $LINE"
+#    echoDebug "LINE $LINE_NUMBER: $LINE"
 
     # Catch the line that contains the contract names
     if [[ LINE_NUMBER -eq "$ROW_WITH_CONTRACT_NAMES" ]]; then
@@ -1388,6 +1388,10 @@ function verifyAllUnverifiedContractsInLogFile() {
     # Loop through the array of second-level keys
     for NETWORK in "${NETWORKS[@]}"; do
 
+#      if [[ $NETWORK != "mainnet" ]]; then
+#        continue
+#      fi
+
       # Read ENVIRONMENT keys for the network
       ENVIRONMENTS=($(jq -r --arg contract "$CONTRACT" --arg network "$NETWORK" '.[$contract][$network] | keys[]' "$LOG_FILE_PATH"))
 
@@ -1425,7 +1429,7 @@ function verifyAllUnverifiedContractsInLogFile() {
             # check result
             if [ $? -eq 0 ]; then
               # update log file
-              logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true" "$DEPLOYSALT"
+              logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" "true" "$SALT"
 
               # increase COUNTER
               COUNTER=$((COUNTER+1))
@@ -3573,17 +3577,22 @@ function test_getContractNameFromDeploymentLogs() {
 
 function test_tmp() {
 
-    CONTRACT="ERC20Proxy"
-    NETWORK="mainnet"
+    CONTRACT="CelerIMFacetMutable"
+    NETWORK="arbitrum"
+    ADDRESS="0x4D476e7D7dbBAF55c04987523f9307Ede62b4689"
     ENVIRONMENT="production"
     VERSION="2.0.0"
     DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
+    ARGS="0x0000000000000000000000003ad9d0648cdaa2426331e894e980d0a5ed16257f000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000bebcdb5093b47cd7add8211e4c77b6826af7bc5f0000000000000000000000000000000000000000000000000000000000000000"
 
-  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
-  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
-    error "ERC20Proxy ownership was not transferred to address(0)"
-    exit 1
-  fi
+#  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
+#  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
+#    error "ERC20Proxy ownership was not transferred to address(0)"
+#    exit 1
+#  fi
+verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 }
 
+#getContractFilePath "CelerIMFacetImmutable"
+#getCurrentContractVersion "CelerIMFacetImmutable"
 #test_tmp

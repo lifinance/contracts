@@ -508,7 +508,7 @@ scriptMaster() {
 function cleanup() {
   # end local anvil network if flag in config is set
   if [[ "$END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION" == "true" ]]; then
-  echoDebug "ending anvil network and removing localanvil deploy logs"
+    echoDebug "ending anvil network and removing localanvil deploy logs"
     # kills all local anvil network sessions that might still be running
     killall anvil >/dev/null 2>&1
     # delete log files
