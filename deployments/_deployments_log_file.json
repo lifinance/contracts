@@ -8583,6 +8583,16 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000dbbe85a3e22f52f834c3d5ed627fb76db554669e",
             "VERIFIED": "true"
           }
+        ],
+        "2.0.0": [
+          {
+            "ADDRESS": "0xe7072402217EfF9b73cf457731cEE2A3824360dc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-07-03 12:30:19",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000007775d63836987f444e2f14aa0fa2602204d7d3e0",
+            "DEPLOYSALT": "",
+            "VERIFIED": "true"
+          }
         ]
       },
       "staging": {
@@ -8654,6 +8664,32 @@
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000003c4fa639c8d7e65c603145adad8bd12f2358312f",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      },
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xe7072402217EfF9b73cf457731cEE2A3824360dc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-07-03 12:42:51",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000003c4fa639c8d7e65c603145adad8bd12f2358312f",
+            "DEPLOYSALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xe7072402217EfF9b73cf457731cEE2A3824360dc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-07-03 12:25:45",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000609c690e8f7d68a59885c9132e812eebdaaf0c9e",
+            "DEPLOYSALT": "",
+            "VERIFIED": "false"
           }
         ]
       }

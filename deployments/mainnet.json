@@ -37,5 +37,6 @@
   "CelerCircleBridgeFacet": "0xf72169Fb511739CeFea9eBEffc5d39Dba1b33cD3",
   "LiFiDiamondImmutable": "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF",
   "RelayerCelerIMImmutable": "0x7b6d852f58C783BA3b1138C535ff57dDa4c826E0",
-  "CelerIMFacetImmutable": "0x0d26d248D4e80377f1d794AB88090e76B0903EDE"
+  "CelerIMFacetImmutable": "0x0d26d248D4e80377f1d794AB88090e76B0903EDE",
+  "AllBridgeFacet": "0xe7072402217EfF9b73cf457731cEE2A3824360dc"
 }

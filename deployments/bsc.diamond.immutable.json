@@ -84,6 +84,10 @@
       "0x8446a365f3F2eF6a050E5f9a568cf5A5Ca110886": {
         "Name": "AmarokFacet",
         "Version": "2.0.0"
+      },
+      "0xe7072402217EfF9b73cf457731cEE2A3824360dc": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
