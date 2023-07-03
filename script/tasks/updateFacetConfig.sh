@@ -8,14 +8,20 @@ updateFacetConfig() {
 
   # read function arguments into variables
   ENVIRONMENT="$2"
+  NETWORK="$3"
+  SCRIPT="$4"
+  DIAMOND_CONTRACT_NAME="$5"
 
-  # get user-selected network from list
-  NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+  # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
-    error "invalid selection - exiting script"
-    exit 1
+    # get user-selected network from list
+    NETWORK=$(cat ./networks | gum filter --placeholder "Network")
+    if [[ -z "$NETWORK" ]]; then
+      error "invalid selection - exiting script"
+      exit 1
+    fi
+    echo "[info] selected network: $NETWORK"
   fi
-  echo "[info] selected network: $NETWORK"
 
   # get deployer wallet balance
   echo "[info] loading deployer wallet balance for network $NETWORK..."
@@ -28,20 +34,26 @@ updateFacetConfig() {
 
   echoDebug "CONFIG_SCRIPT_DIRECTORY: $CONFIG_SCRIPT_DIRECTORY"
 
-  # select which script to execute
-  local SCRIPT=$(ls -1 "$CONFIG_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | gum filter --placeholder "Please select a script to execute")
-  echo "[info] selected script: $SCRIPT"
+  # if no SCRIPT was passed to this function, ask user to select it
+  if [[ -z "$SCRIPT" ]]; then
+    # select which script to execute
+    local SCRIPT=$(ls -1 "$CONFIG_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | gum filter --placeholder "Please select a script to execute")
+    echo "[info] selected script: $SCRIPT"
+  fi
 
   # determine full (relative) path of deploy script
   SCRIPT_PATH=$CONFIG_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
 
-
-  # ask user to select a diamond type for which to update the facet configuration
-  echo "[info] Please select the diamond type to be updated:"
-  DIAMOND_CONTRACT_NAME=$(gum choose \
-    "LiFiDiamond"\
-    "LiFiDiamondImmutable"\
-    )
+  # if no DIAMOND_CONTRACT_NAME was passed to this function, ask user to select it
+  if [[ -z "$DIAMOND_CONTRACT_NAME" ]]; then
+    # ask user to select a diamond type for which to update the facet configuration
+    echo "[info] Please select the diamond type to be updated:"
+    DIAMOND_CONTRACT_NAME=$(gum choose \
+      "LiFiDiamond"\
+      "LiFiDiamondImmutable"\
+      )
+    echo "[info] selected diamond: $DIAMOND_CONTRACT_NAME"
+  fi
 
   if [[ -z "$DIAMOND_CONTRACT_NAME" ]]; then
     error "invalid selection - exiting script"
