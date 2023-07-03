@@ -106,8 +106,21 @@ function diamondUpdatePeriphery() {
 
     # only continue if contract was found in target state
     if [[ "$?" -eq 0 ]]; then
-      # get address
-      local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT_NAME "$CONTRACT" '.[$CONTRACT_NAME] // "0x"' "$ADDRS")
+      # get contract address from deploy log
+      if [[ "$CONTRACT" == "RelayerCelerIM" ]]; then
+        # special handling for RelayerCelerIM
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
+          local CONTRACT_ADDRESS=$(jq -r '.[RelayerCelerIMMutable] // "0x"' "$ADDRS")
+        elif [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamondImmutable" ]]; then
+          local CONTRACT_ADDRESS=$(jq -r '.[RelayerCelerIMImmutable] // "0x"' "$ADDRS")
+        else
+          error "invalid value for DIAMOND_CONTRACT_NAME: ($DIAMOND_CONTRACT_NAME) in function diamondUpdatePeriphery()"
+        fi
+        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+      else
+        local CONTRACT_ADDRESS=$(jq -r --arg CONTRACT_NAME "$CONTRACT" '.[$CONTRACT_NAME] // "0x"' "$ADDRS")
+      fi
 
       # check if address available, otherwise throw error and skip iteration
       if [ "$CONTRACT_ADDRESS" != "0x" ]; then
