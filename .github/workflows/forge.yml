@@ -35,7 +35,7 @@ jobs:
         run: |
           max_attempts=10
           attempt_num=1
-          until $(forge test); do
+          until forge test; do
               if [ ${attempt_num} -eq ${max_attempts} ]; then
                   echo "The job has failed after $attempt_num attempts."
                   exit 1
