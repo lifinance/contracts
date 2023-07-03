@@ -55,7 +55,8 @@
     ]
   },
   "polygonzkevm": {
-    "cBridge": "0xD46F8E428A06789B5884df54E029e738277388D1"
+    "cBridge": "0xD46F8E428A06789B5884df54E029e738277388D1",
+    "messageBus": "0x9Bb46D5100d2Db4608112026951c9C965b233f4D"
   },
   "fantom": {
     "cBridge": "0x374B8a9f3eC5eB2D97ECA84Ea27aCa45aa1C57EF",
