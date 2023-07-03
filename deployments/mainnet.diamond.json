@@ -25,7 +25,7 @@
         "Name": "",
         "Version": ""
       },
-      "0x9Ab54F0cac6eE81083D8C78D30C904f2f3B95137": {
+      "0x0b5726b7348efBdA8620D5C374F85Cbe8f040B6a": {
         "Name": "",
         "Version": ""
       },
@@ -99,35 +99,41 @@
       },
       "0xbd8D369470169f9976c5bCc60318955836843a71": {
         "Name": "AmarokFacet",
-        "Version": ""
+        "Version": "1.0.1"
       },
       "0x5D3675D698A3DD53E3457951e1dEbEF717A29A72": {
         "Name": "",
         "Version": ""
       },
-      "0xF156dc1077213AA92a3Ed6008a7FF8aEA2633186": {
-        "Name": "",
-        "Version": ""
+      "0xf72169Fb511739CeFea9eBEffc5d39Dba1b33cD3": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "1.0.1"
       },
       "0x73d2d674449B3D8ad549cc3b04F8104C444FD34D": {
         "Name": "",
         "Version": ""
       },
       "0xEe1e83541054b0090fA42A16FB2c34CcdA5276C7": {
-        "Name": "CelerIMFacet",
-        "Version": "1.0.0"
+        "Name": "",
+        "Version": ""
       },
-      "0xf72169Fb511739CeFea9eBEffc5d39Dba1b33cD3": {
-        "Name": "CelerCircleBridgeFacet",
+      "0x5E3DC14bfc5aF89C2c34A24E2c1ba6430B9F4Fd2": {
+        "Name": "CBridgeFacetPacked",
         "Version": "1.0.1"
+      },
+      "0x2A7568Fd6dffA6F7578cdF010398BffAa53cc7c0": {
+        "Name": "AcrossFacet",
+        "Version": "2.0.0"
+      },
+      "0xe7072402217EfF9b73cf457731cEE2A3824360dc": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
-      "AxelarExecutor": "0x22C604b970DB9e4fD3b94914906bAf221013C9Bb",
       "ERC20Proxy": "0x856FF421D9b354ba1E909e26655E159F5Bd04F2E",
       "Executor": "0xDD1305150D27aecc60C066630105DB419977e367",
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
-      "FusePoolZap": "",
       "Receiver": "0x74674DAFd6f4495e7F63F7637E94b8B89B2f01dB",
       "RelayerCelerIM": "0x6A3fE66D2439893556663cFeeAaF202692d06440",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
