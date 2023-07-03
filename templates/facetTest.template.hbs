@@ -22,12 +22,19 @@ contract Test{{titleCase name}}Facet is {{titleCase name}}Facet {
 contract {{titleCase name}}FacetTest is TestBaseFacet {
     {{titleCase name}}Facet.{{titleCase name}}Data internal valid{{titleCase name}}Data;
     Test{{titleCase name}}Facet internal {{camelCase name}}Facet;
+    address internal EXAMPLE_PARAM = address(0xb33f);
+
 
     function setUp() public {
         customBlockNumberForForking = 17130542;
         initTestBase();
 
-        {{camelCase name}}Facet = new Test{{titleCase name}}Facet(address(0xb33f));
+        address[] memory EXAMPLE_ALLOWED_ADDRESSES = new address[](2);
+        EXAMPLE_ALLOWED_ADDRESSES[0] = address(1);
+        EXAMPLE_ALLOWED_ADDRESSES[1] = address(2);
+
+        {{camelCase name}}Facet = new Test{{titleCase name}}Facet(EXAMPLE_PARAM));
+        {{camelCase name}}Facet.init{{titleCase name}}(EXAMPLE_ALLOWED_ADDRESSES);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = {{camelCase name}}Facet.startBridgeTokensVia{{titleCase name}}.selector;
         functionSelectors[1] = {{camelCase name}}Facet

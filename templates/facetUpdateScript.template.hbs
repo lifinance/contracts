@@ -15,6 +15,19 @@ contract DeployScript is UpdateScriptBase {
     {
         address facet = json.readAddress(".{{titleCase name}}Facet");
 
+        path = string.concat(root, "/config/{{camelCase name}}.json");
+        json = vm.readFile(path);
+
+        exampleAllowedAddresses = json.readAddressArray(
+            string.concat(".", network, ".exampleAllowedAddresses")
+        );
+
+        /// You can remove this if you don't need to call init on the facet
+        bytes memory callData = abi.encodeWithSelector(
+            HopFacet.init{{titleCase name}}.selector,
+            exampleAllowedAddresses
+        );
+
         // {{titleCase name}}
         bytes4[] memory exclude;
         buildDiamondCut(getSelectors("{{titleCase name}}Facet", exclude), facet);
@@ -23,8 +36,8 @@ contract DeployScript is UpdateScriptBase {
                 cutData = abi.encodeWithSelector(
                     DiamondCutFacet.diamondCut.selector,
                     cut,
-                    address(0),
-                    ""
+                    address(facet), // address(0) if not calling init
+                    callData // "" if not calling init
                 );
             }
             return (facets, cutData);
@@ -32,7 +45,11 @@ contract DeployScript is UpdateScriptBase {
 
         vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
-            cutter.diamondCut(cut, address(0), "");
+            cutter.diamondCut(
+              cut, 
+              address(facet), // address(0) if not calling init
+              callData // "" if not calling init
+            );
         }
         facets = loupe.facetAddresses();
 

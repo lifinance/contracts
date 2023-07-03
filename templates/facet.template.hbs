@@ -15,22 +15,52 @@ import { Validatable } from "../Helpers/Validatable.sol";
 contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
     
-    address public immutable example;
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.{{lowerCase name}}"); // Optional. Only use if you need to store data in the diamond storage.
+   
+    /// @dev Local storage for the contract (optional)
+    struct Storage {
+        address[] exampleAllowedTokens;
+    }
 
+    address public immutable example;
 
     /// Types ///
 
+    /// @dev Optional bridge specific struct
     /// @param exampleParam Example paramter
     struct {{titleCase name}}Data {
       string exampleParam;
     }
 
+    /// Events ///
+    
+    event {{titleCase name}}Initialized();
+
     /// Constructor ///
 
-    /// @notice Initialize the contract.
+    /// @notice Constructor for the contract.
+    ///         Should only be used to set immutable variables.
+    ///         Anything that cannot be set as immutable should be set
+    ///         in an init() function called during a diamondCut().
     /// @param _example Example paramter.
     constructor(address _example) {
         example = _example;
+    }
+
+    /// Init ///
+
+    /// @notice Init function. Called in the context
+    ///         of the diamond contract when added as part of
+    ///         a diamondCut(). Use for config that can't be
+    ///         set as immutable or needs to change for any reason.
+    /// @param _exampleAllowedTokens Example array of allowed tokens for this chain.
+    function init{{titleCase name}}(address[] _exampleAllowedTokens) {
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage s = getStorage();
+        s.exampleAllowedTokens = _exampleAllowedTokens;
+
+        emit {{titleCase name}}Initialized();
     }
 
     /// External Methods ///
@@ -94,5 +124,14 @@ contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatab
     ) internal {
         // TODO: Implement business logic
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }
