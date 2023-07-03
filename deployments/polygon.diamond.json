@@ -25,7 +25,7 @@
         "Name": "",
         "Version": ""
       },
-      "0x5D3675D698A3DD53E3457951e1dEbEF717A29A72": {
+      "0x9Ab54F0cac6eE81083D8C78D30C904f2f3B95137": {
         "Name": "",
         "Version": ""
       },
@@ -41,7 +41,7 @@
         "Name": "",
         "Version": ""
       },
-      "0x3a60730cbcD91715E31830f125bB3eF1FA0a2c66": {
+      "0x0A9898651eEcBbBBC57f7736CdFF21b6F4258713": {
         "Name": "",
         "Version": ""
       },
@@ -74,8 +74,8 @@
         "Version": ""
       },
       "0xa1531BaCEb6178fd05bD80795C9C75Ac02438E49": {
-        "Name": "",
-        "Version": ""
+        "Name": "CelerIMFacet",
+        "Version": "1.0.1"
       },
       "0xbCe268B24155dF2a18982984e9716136278f38d6": {
         "Name": "",
@@ -87,25 +87,23 @@
       },
       "0xbd8D369470169f9976c5bCc60318955836843a71": {
         "Name": "AmarokFacet",
-        "Version": "1.0.1"
+        "Version": ""
       },
       "0xF156dc1077213AA92a3Ed6008a7FF8aEA2633186": {
         "Name": "",
         "Version": ""
       },
-      "0x2A7568Fd6dffA6F7578cdF010398BffAa53cc7c0": {
-        "Name": "AcrossFacet",
-        "Version": "2.0.0"
-      },
-      "0xe7072402217EfF9b73cf457731cEE2A3824360dc": {
-        "Name": "AllBridgeFacet",
-        "Version": "2.0.0"
+      "0x5D3675D698A3DD53E3457951e1dEbEF717A29A72": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
+      "AxelarExecutor": "0x22C604b970DB9e4fD3b94914906bAf221013C9Bb",
       "ERC20Proxy": "0x856FF421D9b354ba1E909e26655E159F5Bd04F2E",
       "Executor": "0xDD1305150D27aecc60C066630105DB419977e367",
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
+      "FusePoolZap": "",
       "Receiver": "0x74674DAFd6f4495e7F63F7637E94b8B89B2f01dB",
       "RelayerCelerIM": "0xB1Fe861ceae7BF4C40515cEEB851f2785d2A1008",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
