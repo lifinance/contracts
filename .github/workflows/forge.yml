@@ -39,7 +39,3 @@ jobs:
           attempt_delay: 5000
       - name: Get forge test coverage
         run: forge coverage
-
-
-
-
