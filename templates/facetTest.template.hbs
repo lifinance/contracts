@@ -33,7 +33,7 @@ contract {{titleCase name}}FacetTest is TestBaseFacet {
         EXAMPLE_ALLOWED_TOKENS[0] = address(1);
         EXAMPLE_ALLOWED_TOKENS[1] = address(2);
 
-        {{camelCase name}}Facet = new Test{{titleCase name}}Facet(EXAMPLE_PARAM));
+        {{camelCase name}}Facet = new Test{{titleCase name}}Facet(EXAMPLE_PARAM);
         {{camelCase name}}Facet.init{{titleCase name}}(EXAMPLE_ALLOWED_TOKENS);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = {{camelCase name}}Facet.startBridgeTokensVia{{titleCase name}}.selector;
@@ -70,7 +70,6 @@ contract {{titleCase name}}FacetTest is TestBaseFacet {
         });
     }
 
-    
     // All facet test files inherit from `utils/TestBaseFacet.sol` and require the following method overrides:
     // - function initiateBridgeTxWithFacet(bool isNative)
     // - function initiateSwapAndBridgeTxWithFacet(bool isNative)
