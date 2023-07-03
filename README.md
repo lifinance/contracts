@@ -19,6 +19,7 @@
    1. [INSTALL](#install)
    2. [TEST](#test)
    3. [TEST With Foundry/Forge](#foundry-forge)
+   4. [Adding a New Bridge](#new-bridge)
 7. [Contract Docs](#contract-docs)
 8. [DEPLOY](#deploy)
 9. [More Information](#more-information)
@@ -206,6 +207,12 @@ Run tests
 ```
 yarn test
 ```
+
+### Adding a New Bridge<a name="new-bridge"></a>
+
+We try to keep up with all the latest bridges and DEXes but can't always add them as fast as we would like. If you would like to speed up the process of adding your bridge, we've made it easy for you to contribute yourself.
+
+[Read More](./docs/AddingANewBridge.md)
 
 ### DEPLOY<a name="deploy"></a>
 

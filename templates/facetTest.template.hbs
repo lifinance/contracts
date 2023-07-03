@@ -1,0 +1,133 @@
+// SPDX-License-Identifier: Unlicense
+pragma solidity 0.8.17;
+
+import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { {{titleCase name}}Facet } from "lifi/Facets/{{titleCase name}}Facet.sol";
+
+// Stub {{titleCase name}}Facet Contract
+contract Test{{titleCase name}}Facet is {{titleCase name}}Facet {
+    constructor(
+        address _example
+    ) {{titleCase name}}Facet(_example) {}
+
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
+    }
+
+    function setFunctionApprovalBySignature(bytes4 _signature) external {
+        LibAllowList.addAllowedSelector(_signature);
+    }
+}
+
+contract {{titleCase name}}FacetTest is TestBaseFacet {
+    {{titleCase name}}Facet.{{titleCase name}}Data internal valid{{titleCase name}}Data;
+    Test{{titleCase name}}Facet internal {{camelCase name}}Facet;
+    address internal EXAMPLE_PARAM = address(0xb33f);
+
+
+    function setUp() public {
+        customBlockNumberForForking = 17130542;
+        initTestBase();
+
+        address[] memory EXAMPLE_ALLOWED_TOKENS = new address[](2);
+        EXAMPLE_ALLOWED_TOKENS[0] = address(1);
+        EXAMPLE_ALLOWED_TOKENS[1] = address(2);
+
+        {{camelCase name}}Facet = new Test{{titleCase name}}Facet(EXAMPLE_PARAM);
+        {{camelCase name}}Facet.init{{titleCase name}}(EXAMPLE_ALLOWED_TOKENS);
+        bytes4[] memory functionSelectors = new bytes4[](4);
+        functionSelectors[0] = {{camelCase name}}Facet.startBridgeTokensVia{{titleCase name}}.selector;
+        functionSelectors[1] = {{camelCase name}}Facet
+            .swapAndStartBridgeTokensVia{{titleCase name}}
+            .selector;
+        functionSelectors[2] = {{camelCase name}}Facet.addDex.selector;
+        functionSelectors[3] = {{camelCase name}}Facet
+            .setFunctionApprovalBySignature
+            .selector;
+
+        addFacet(diamond, address({{camelCase name}}Facet), functionSelectors);
+        {{camelCase name}}Facet = Test{{titleCase name}}Facet(address(diamond));
+        {{camelCase name}}Facet.addDex(ADDRESS_UNISWAP);
+        {{camelCase name}}Facet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        {{camelCase name}}Facet.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
+        {{camelCase name}}Facet.setFunctionApprovalBySignature(
+            uniswap.swapETHForExactTokens.selector
+        );
+
+        setFacetAddressInTestBase(address({{camelCase name}}Facet), "{{titleCase name}}Facet");
+
+        // adjust bridgeData
+        bridgeData.bridge = "{{camelCase name}}";
+        bridgeData.destinationChainId = 137;
+
+        // produce valid {{titleCase name}}Data
+        valid{{titleCase name}}Data = {{titleCase name}}Facet.{{titleCase name}}Data({
+            exampleParam: "foo bar baz"
+        });
+    }
+
+    // All facet test files inherit from `utils/TestBaseFacet.sol` and require the following method overrides:
+    // - function initiateBridgeTxWithFacet(bool isNative)
+    // - function initiateSwapAndBridgeTxWithFacet(bool isNative)
+    //
+    // These methods are used to run the following tests which must pass:
+    // - testBase_CanBridgeNativeTokens()
+    // - testBase_CanBridgeTokens()
+    // - testBase_CanBridgeTokens_fuzzed(uint256)
+    // - testBase_CanSwapAndBridgeNativeTokens()
+    // - testBase_CanSwapAndBridgeTokens()
+    // - testBase_Revert_BridgeAndSwapWithInvalidReceiverAddress()
+    // - testBase_Revert_BridgeToSameChainId()
+    // - testBase_Revert_BridgeWithInvalidAmount()
+    // - testBase_Revert_BridgeWithInvalidDestinationCallFlag()
+    // - testBase_Revert_BridgeWithInvalidReceiverAddress()
+    // - testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
+    // - testBase_Revert_CallerHasInsufficientFunds()
+    // - testBase_Revert_SwapAndBridgeToSameChainId()
+    // - testBase_Revert_SwapAndBridgeWithInvalidAmount()
+    // - testBase_Revert_SwapAndBridgeWithInvalidSwapData()
+    // 
+    // In some cases it doesn't make sense to have all tests. For example the bridge may not support native tokens.
+    // In that case you can override the test method and leave it empty. For example:
+    // 
+    // function testBase_CanBridgeNativeTokens() public override {
+    //     // facet does not support bridging of native assets
+    // }
+    // 
+    // function testBase_CanSwapAndBridgeNativeTokens() public override {
+    //     // facet does not support bridging of native assets
+    // }
+
+    function initiateBridgeTxWithFacet(bool isNative) internal override {
+        if (isNative) {
+            {{camelCase name}}Facet.startBridgeTokensVia{{titleCase name}}{
+                value: bridgeData.minAmount
+            }(bridgeData, valid{{titleCase name}}Data);
+        } else {
+            {{camelCase name}}Facet.startBridgeTokensVia{{titleCase name}}(
+                bridgeData,
+                valid{{titleCase name}}Data
+            );
+        }
+    }
+
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
+        if (isNative) {
+            {{camelCase name}}Facet.swapAndStartBridgeTokensVia{{titleCase name}}{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData, valid{{titleCase name}}Data);
+        } else {
+            {{camelCase name}}Facet.swapAndStartBridgeTokensVia{{titleCase name}}(
+                bridgeData,
+                swapData,
+                valid{{titleCase name}}Data
+            );
+        }
+    }
+}
