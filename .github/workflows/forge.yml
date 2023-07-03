@@ -32,16 +32,14 @@ jobs:
       - name: Install Deps
         run: forge install
       - name: Run forge tests
-        run: |
-          max_attempts=10
-          attempt_num=1
-          until forge test; do
-              if [ ${attempt_num} -eq ${max_attempts} ]; then
-                  echo "The job has failed after $attempt_num attempts."
-                  exit 1
-              fi
-              echo "Failed attempt $attempt_num. Retrying..."
-              ((attempt_num++))
-          done
+        uses: Wandalen/wretry.action@v1.3.0
+        with:
+          command: forge test
+          attempt_limit: 10
+          attempt_delay: 5000
       - name: Get forge test coverage
         run: forge coverage
+
+
+
+
