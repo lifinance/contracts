@@ -1388,6 +1388,10 @@ function verifyAllUnverifiedContractsInLogFile() {
     # Loop through the array of second-level keys
     for NETWORK in "${NETWORKS[@]}"; do
 
+      if [[ $NETWORK != "mainnet" ]]; then
+        continue
+      fi
+
       # Read ENVIRONMENT keys for the network
       ENVIRONMENTS=($(jq -r --arg contract "$CONTRACT" --arg network "$NETWORK" '.[$contract][$network] | keys[]' "$LOG_FILE_PATH"))
 

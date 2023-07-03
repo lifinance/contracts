@@ -36,6 +36,58 @@
       "0x6e118Db5ab7018FcF195e1310074688B8A1912B3": {
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
+      },
+      "0xe80E2a7ea862AF5580fBa9B7092a397e3D73cb7f": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "1.0.1"
+      },
+      "0xFB4C992Cc7cfA7Eb3e44b928C6f756C07a3feb04": {
+        "Name": "RoninBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x933A3AfE2087FB8F5c9EE9A033477C42CC14c18E": {
+        "Name": "SquidFacet",
+        "Version": "1.0.0"
+      },
+      "0xe1FaF1759cAB242c5A790Da72c8f0cC7F5e09f59": {
+        "Name": "CircleBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x57F98A94AC66e197AF6776D5c094FF0da2C0B198": {
+        "Name": "SynapseBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0xa696287F37d21D566B9A80AC29b2640FF910C176": {
+        "Name": "ThorSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0xe7072402217EfF9b73cf457731cEE2A3824360dc": {
+        "Name": "AllBridgeFacet",
+        "Version": ""
+      },
+      "0x987f67811Ef841da0466746E10B4139Daff95053": {
+        "Name": "ArbitrumBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x9dC5653ed59D0B927bF59b5A08FDFC4Ddd75AC3E": {
+        "Name": "DeBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x5fda594b67d38E05fb4C9A1a4Cf3B22f48c8de4E": {
+        "Name": "GnosisBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x7cFdffE0e298b3CAC2cFe1F31c9965d9A49C3184": {
+        "Name": "GravityFacet",
+        "Version": "1.0.0"
+      },
+      "0xd18C6a3488d424920dD9f6A4187645794df96383": {
+        "Name": "OFTWrapperFacet",
+        "Version": "1.0.0"
+      },
+      "0xC1E20466AD79BAe875568eb08ABaaEA1F0E25b7E": {
+        "Name": "OmniBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

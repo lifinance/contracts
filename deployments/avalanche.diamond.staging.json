@@ -44,6 +44,10 @@
       "0xa696287F37d21D566B9A80AC29b2640FF910C176": {
         "Name": "ThorSwapFacet",
         "Version": "1.0.0"
+      },
+      "0xe1FaF1759cAB242c5A790Da72c8f0cC7F5e09f59": {
+        "Name": "CircleBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

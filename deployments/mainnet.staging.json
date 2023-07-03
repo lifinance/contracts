@@ -14,10 +14,10 @@
   "FeeCollector": "0x9ca271A532392230EAe919Fb5460aEa9D9718424",
   "Receiver": "0xC850013FC01A264018D58D112000E32835D15fBC",
   "ServiceFeeCollector": "0xf068cc770f32042Ff4a8fD196045641234dFaa47",
-  "AllBridgeFacet": "0x3Ec2b30bCB094Ea35a3bdf48E192fcD9dD7c00dC",
+  "AllBridgeFacet": "0xe7072402217EfF9b73cf457731cEE2A3824360dc",
   "ArbitrumBridgeFacet": "0x987f67811Ef841da0466746E10B4139Daff95053",
-  "CelerCircleBridgeFacet": "0xf72169Fb511739CeFea9eBEffc5d39Dba1b33cD3",
-  "CircleBridgeFacet": "0x",
+  "CelerCircleBridgeFacet": "0xe80E2a7ea862AF5580fBa9B7092a397e3D73cb7f",
+  "CircleBridgeFacet": "0xe1FaF1759cAB242c5A790Da72c8f0cC7F5e09f59",
   "DeBridgeFacet": "0x9dC5653ed59D0B927bF59b5A08FDFC4Ddd75AC3E",
   "GnosisBridgeFacet": "0x5fda594b67d38E05fb4C9A1a4Cf3B22f48c8de4E",
   "GravityFacet": "0x7cFdffE0e298b3CAC2cFe1F31c9965d9A49C3184",
@@ -25,8 +25,8 @@
   "OmniBridgeFacet": "0xC1E20466AD79BAe875568eb08ABaaEA1F0E25b7E",
   "OptimismBridgeFacet": "0xE8Ff7BFEF5DacB57E87bC2d0B6CCFefBE5f546BC",
   "PolygonBridgeFacet": "0x0D062790F26947074B27da07346E4FF9FDf946EE",
-  "RoninBridgeFacet": "0x",
-  "SquidFacet": "0x",
-  "SynapseBridgeFacet": "0x",
-  "ThorswapFacet": "0x"
+  "RoninBridgeFacet": "0xFB4C992Cc7cfA7Eb3e44b928C6f756C07a3feb04",
+  "SquidFacet": "0x933A3AfE2087FB8F5c9EE9A033477C42CC14c18E",
+  "SynapseBridgeFacet": "0x57F98A94AC66e197AF6776D5c094FF0da2C0B198",
+  "ThorSwapFacet": "0xa696287F37d21D566B9A80AC29b2640FF910C176"
 }
