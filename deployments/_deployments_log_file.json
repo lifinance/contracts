@@ -110,7 +110,7 @@
             "TIMESTAMP": "2023-07-03 13:20:38",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -508,7 +508,7 @@
             "TIMESTAMP": "2023-07-03 13:20:45",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -905,7 +905,7 @@
             "TIMESTAMP": "2023-07-03 13:20:52",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1304,7 +1304,7 @@
             "TIMESTAMP": "2023-07-03 13:20:59",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1717,7 +1717,7 @@
             "TIMESTAMP": "2023-07-03 13:21:09",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2101,7 +2101,7 @@
             "TIMESTAMP": "2023-07-03 13:21:17",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2500,7 +2500,7 @@
             "TIMESTAMP": "2023-07-03 13:21:24",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2922,7 +2922,7 @@
             "TIMESTAMP": "2023-07-03 13:21:31",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000552008c0f6870c2f77e5cc1d2eb9bdff03e30ea000000000000000000000000006045f5fa6ea7c6aceb104b55bcd6c3de3a08831",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -3793,7 +3793,7 @@
             "TIMESTAMP": "2023-07-03 13:23:24",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -4567,7 +4567,7 @@
             "TIMESTAMP": "2023-07-03 13:24:10",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6111,7 +6111,7 @@
             "TIMESTAMP": "2023-07-03 13:27:03",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000f90a432dd1d0541470bc9c440d9dec3659755238",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7104,7 +7104,7 @@
             "TIMESTAMP": "2023-07-03 13:27:52",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000004a364f8c717caad9a442737eb7b8a55cc6cf18d8000000000000000000000000cd401c10afa37d641d2f594852da94c700e4f2ce0000000000000000000000004f3b1b1075cc19daa15b7cc681b28e2fb82145ed00000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -8626,8 +8626,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-07-03 12:25:45",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000609c690e8f7d68a59885c9132e812eebdaaf0c9e",
-            "DEPLOYSALT": "",
-            "VERIFIED": "false"
+            "SALT": "27062023",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -8641,7 +8641,7 @@
             "TIMESTAMP": "2023-07-03 13:22:45",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000003c4fa639c8d7e65c603145adad8bd12f2358312f",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       },
@@ -9393,7 +9393,7 @@
             "TIMESTAMP": "2023-07-03 12:28:09",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000006b25532e1060ce10cc3b0a99e5683b91bfde6982000000000000000000000000b97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
             "SALT": "27062023",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
