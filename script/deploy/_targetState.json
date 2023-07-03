@@ -302,6 +302,11 @@
         "OmniBridgeFacet": "1.0.0",
         "CelerIMFacetImmutable": "2.0.0"
       }
+    },
+    "staging": {
+      "LiFiDiamond": {
+        "AllBridgeFacet": "1.0.0"
+      }
     }
   },
   "gnosis": {
