@@ -2304,20 +2304,11 @@ function getPeripheryAddressFromDiamond() {
   local DIAMOND_ADDRESS="$2"
   local PERIPHERY_CONTRACT_NAME="$3"
 
-  # TODO: remove
-  if [[ "$NETWORK" == "testNetwork" ]]; then
-    PERIPHERY_CONTRACT_ADDRESS="0x1888"
-    echo "$PERIPHERY_CONTRACT_ADDRESS"
-    return 0
-  fi
-
   # get RPC URL for given network
   RPC_URL=$(getRPCUrl "$NETWORK")
 
   # call diamond to check for periphery address
   PERIPHERY_CONTRACT_ADDRESS=$(cast call "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$PERIPHERY_CONTRACT_NAME" --rpc-url "${RPC_URL}")
-
-
 
   if [[ "$PERIPHERY_CONTRACT_ADDRESS" == "$ZERO_ADDRESS" ]]; then
     return 1
@@ -3578,7 +3569,7 @@ function test_getContractNameFromDeploymentLogs() {
 function test_tmp() {
 
     CONTRACT="CelerIMFacetMutable"
-    NETWORK="arbitrum"
+    NETWORK="polygonzkevm"
     ADDRESS="0x4D476e7D7dbBAF55c04987523f9307Ede62b4689"
     ENVIRONMENT="production"
     VERSION="2.0.0"
@@ -3590,9 +3581,8 @@ function test_tmp() {
 #    error "ERC20Proxy ownership was not transferred to address(0)"
 #    exit 1
 #  fi
-verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
+getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
 }
 
-#getContractFilePath "CelerIMFacetImmutable"
-#getCurrentContractVersion "CelerIMFacetImmutable"
+
 #test_tmp
