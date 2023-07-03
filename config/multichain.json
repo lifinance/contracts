@@ -1,105 +1,4 @@
 {
-  "zksyncera": {
-    "routers": [
-      "0xd51194aa5c2e162371682cb43ed637bca632fac8"
-    ],
-    "anyNative": "0x7bcd44c0b91be28827426f607424e1a8a02d4e69",
-    "tokens": [
-      {
-        "a_tokenAddress": "0x6f1a89c16a49549508a2b6d2ac6f34523aa2a545",
-        "b_anyTokenAddress": "0xaa31c331db6993e1b931aa0fada97512506b4c66"
-      },
-      {
-        "a_tokenAddress": "0x6068ad384b4d330d4de77f47041885956c9f32a3",
-        "b_anyTokenAddress": "0x3ca0de796c89005efdaa1dbcb6339006b5b2e25b"
-      },
-      {
-        "a_tokenAddress": "0x1382628e018010035999a1ff330447a0751aa84f",
-        "b_anyTokenAddress": "0xb552ea4e2e7207c2c9b7151533dc3cc5c542fb5e"
-      },
-      {
-        "a_tokenAddress": "0x16a9494e257703797d747540f01683952547ee5b",
-        "b_anyTokenAddress": "0x20ec5d0ec0c833f1bc913f6b6f5071762d2381b7"
-      }
-    ]
-  },
-  "1088": {
-    "routers": [
-      "0x765277eebeca2e31912c9946eae1021199b39c61",
-      "0x0cae51e1032e8461f4806e26332c030e34de3adb",
-      "0xfbdd194376de19a88118e84e279b977f165d01b8",
-      "0x64d5baf5ac030e2b7c435add967f787ae94d0205"
-    ],
-    "tokens": [
-      {
-        "a_tokenAddress": "0xdfa46478f9e5ea86d57387849598dbfb2e964b02",
-        "b_anyTokenAddress": "0x2c78f1b70ccf63cdee49f9233e9faa99d43aa07e"
-      },
-      {
-        "a_tokenAddress": "0x3f56e0c36d275367b8c502090edf38289b3dea0d",
-        "b_anyTokenAddress": "0xc1be9a4d5d45beeacae296a7bd5fadbfc14602c4"
-      },
-      {
-        "a_tokenAddress": "0xc12cac7090baa48ec750cceec57c80768f6ee58e",
-        "b_anyTokenAddress": "0xa649325aa7c5093d12d6f98eb4378deae68ce23f"
-      }
-    ]
-  },
-  "polygonzkevm": {
-    "routers": ["0x218c3c3d49d0e7b37aff0d8bb079de36ae61a4c0"],
-    "anyNative": "0x765277eebeca2e31912c9946eae1021199b39c61",
-    "tokens": [
-      {
-        "a_tokenAddress": "0x1402d5a4f67c22bff31883dd509ef59cbe930b88",
-        "b_anyTokenAddress": "0x2c78f1b70ccf63cdee49f9233e9faa99d43aa07e"
-      }
-    ]
-  },
-  "aurora": {
-    "routers": [
-      "0x9fb83c0635de2e815fd1c21b3a292277540c2e8d",
-      "0xbfc044a234e45412ecfec2cd6aae2dd0c083a7cd"
-    ],
-    "anyNative": "0x0000000000000000000000000000000000000000",
-    "tokens": [
-      {
-        "a_tokenAddress": "0xdfa46478f9e5ea86d57387849598dbfb2e964b02",
-        "b_anyTokenAddress": "0xc9baa8cfdde8e328787e29b4b078abf2dadc2055"
-      },
-      {
-        "a_tokenAddress": "0xe4b9e004389d91e4134a28f19bd833cba1d994b6",
-        "b_anyTokenAddress": "0xb12c13e66ade1f72f71834f2fc5082db8c091358"
-      },
-      {
-        "a_tokenAddress": "0xbb8831701e68b99616bf940b7dafbeb4cdb23e0b",
-        "b_anyTokenAddress": "0x735abe48e8782948a37c7765ecb76b98cde97b0f"
-      },
-      {
-        "a_tokenAddress": "0xd126b48c072f4668e944a8895bc74044d5f2e85b",
-        "b_anyTokenAddress": "0x97513e975a7fa9072c72c92d8000b0db90b163c5"
-      },
-      {
-        "a_tokenAddress": "0x90eb16621274fb47a071001fbbf7550948874cb5",
-        "b_anyTokenAddress": "0xd6070ae98b8069de6b494332d1a1a81b6179d960"
-      },
-      {
-        "a_tokenAddress": "0xe723111a6ac865eb6e2d62e87432bdc6e2c4a86e",
-        "b_anyTokenAddress": "0x4792c1ecb969b036eb51330c63bd27899a13d84e"
-      },
-      {
-        "a_tokenAddress": "0x2efedebd6e29963511589731a33311196f00eacb",
-        "b_anyTokenAddress": "0x559f7afc3312ec94a8cc0dd6275716c68d345787"
-      },
-      {
-        "a_tokenAddress": "0xfc56694ab428e7b4a03b8299b502d4598d945217",
-        "b_anyTokenAddress": "0x86b3f23b6e90f5bbfac59b5b2661134ef8ffd255"
-      },
-      {
-        "a_tokenAddress": "0x513c3200f227ebb62e3b3d00b7a83779643a71cf",
-        "b_anyTokenAddress": "0x667fd83e24ca1d935d36717d305d54fa0cac991c"
-      }
-    ]
-  },
   "mainnet": {
     "routers": [
       "0xba8da9dcf11b50b03fd5284f164ef5cdef910705",
@@ -4080,6 +3979,90 @@
       }
     ]
   },
+  "zksyncera": {
+    "routers": [
+      "0xff7104537f33937c66ac0a65609eb8364be75c7a",
+      "0xd51194aa5c2e162371682cb43ed637bca632fac8"
+    ],
+    "anyNative": "0x7bcd44c0b91be28827426f607424e1a8a02d4e69",
+    "tokens": [
+      {
+        "a_tokenAddress": "0x3355df6d4c9c3035724fd0e3914de96a5a83aaf4",
+        "b_anyTokenAddress": "0x5f3268a22a624ae81281d47a247dab8f7105f2f9"
+      },
+      {
+        "a_tokenAddress": "0x6068ad384b4d330d4de77f47041885956c9f32a3",
+        "b_anyTokenAddress": "0x3ca0de796c89005efdaa1dbcb6339006b5b2e25b"
+      },
+      {
+        "a_tokenAddress": "0x1382628e018010035999a1ff330447a0751aa84f",
+        "b_anyTokenAddress": "0xb552ea4e2e7207c2c9b7151533dc3cc5c542fb5e"
+      },
+      {
+        "a_tokenAddress": "0x16a9494e257703797d747540f01683952547ee5b",
+        "b_anyTokenAddress": "0x20ec5d0ec0c833f1bc913f6b6f5071762d2381b7"
+      },
+      {
+        "a_tokenAddress": "0x7b3e1236c39ddd2e61cf6da6ac6d11193238ccb0",
+        "b_anyTokenAddress": "0x960336b0d9e480f4954fbb255eda5c2603b4a9c4"
+      }
+    ]
+  },
+  "metis": {
+    "routers": [
+      "0x765277eebeca2e31912c9946eae1021199b39c61",
+      "0xfbdd194376de19a88118e84e279b977f165d01b8",
+      "0x64d5baf5ac030e2b7c435add967f787ae94d0205"
+    ],
+    "tokens": [
+      {
+        "a_tokenAddress": "0xdfa46478f9e5ea86d57387849598dbfb2e964b02",
+        "b_anyTokenAddress": "0x2c78f1b70ccf63cdee49f9233e9faa99d43aa07e"
+      },
+      {
+        "a_tokenAddress": "0x3f56e0c36d275367b8c502090edf38289b3dea0d",
+        "b_anyTokenAddress": "0xc1be9a4d5d45beeacae296a7bd5fadbfc14602c4"
+      },
+      {
+        "a_tokenAddress": "0xc12cac7090baa48ec750cceec57c80768f6ee58e",
+        "b_anyTokenAddress": "0xa649325aa7c5093d12d6f98eb4378deae68ce23f"
+      }
+    ]
+  },
+  "polygonzkevm": {
+    "routers": [
+      "0xb12c13e66ade1f72f71834f2fc5082db8c091358",
+      "0x639a647fbe20b6c8ac19e48e2de44ea792c62c5c",
+      "0x218c3c3d49d0e7b37aff0d8bb079de36ae61a4c0"
+    ],
+    "anyNative": "0x765277eebeca2e31912c9946eae1021199b39c61",
+    "tokens": [
+      {
+        "a_tokenAddress": "0x1e4a5963abfd975d8c9021ce480b42188849d41d",
+        "b_anyTokenAddress": "0x332730a4f6e03d9c55829435f10360e13cfa41ff"
+      },
+      {
+        "a_tokenAddress": "0xa8ce8aee21bc2a48a5ef670afcc9274c7bbbc035",
+        "b_anyTokenAddress": "0xc9baa8cfdde8e328787e29b4b078abf2dadc2055"
+      },
+      {
+        "a_tokenAddress": "0xa2036f0538221a77a3937f1379699f44945018d0",
+        "b_anyTokenAddress": "0xd67de0e0a0fd7b15dc8348bb9be742f3c5850454"
+      },
+      {
+        "a_tokenAddress": "0xea034fb02eb1808c2cc3adbc15f447b93cbe08e1",
+        "b_anyTokenAddress": "0xdc42728b0ea910349ed3c6e1c9dc06b5fb591f98"
+      },
+      {
+        "a_tokenAddress": "0xc5015b9d9161dca7e18e32f6f25c4ad850731fd4",
+        "b_anyTokenAddress": "0xf390830df829cf22c53c8840554b98eafc5dcbc2"
+      },
+      {
+        "a_tokenAddress": "0x1fa03edb1b8839a5319a7d2c1ae6aae492342bad",
+        "b_anyTokenAddress": "0x97513e975a7fa9072c72c92d8000b0db90b163c5"
+      }
+    ]
+  },
   "moonbeam": {
     "routers": [
       "0x634398cb81b76bfc75ebb434cf7c82036f9e7d78",
@@ -4757,6 +4740,43 @@
       }
     ]
   },
+  "aurora": {
+    "routers": [
+      "0x9fb83c0635de2e815fd1c21b3a292277540c2e8d",
+      "0xbfc044a234e45412ecfec2cd6aae2dd0c083a7cd",
+      "0x133bf038277fda5eaa2b5fc4cc4e6e15bc5cace3"
+    ],
+    "tokens": [
+      {
+        "a_tokenAddress": "0xdfa46478f9e5ea86d57387849598dbfb2e964b02",
+        "b_anyTokenAddress": "0xc9baa8cfdde8e328787e29b4b078abf2dadc2055"
+      },
+      {
+        "a_tokenAddress": "0xe4b9e004389d91e4134a28f19bd833cba1d994b6",
+        "b_anyTokenAddress": "0xb12c13e66ade1f72f71834f2fc5082db8c091358"
+      },
+      {
+        "a_tokenAddress": "0xbb8831701e68b99616bf940b7dafbeb4cdb23e0b",
+        "b_anyTokenAddress": "0x735abe48e8782948a37c7765ecb76b98cde97b0f"
+      },
+      {
+        "a_tokenAddress": "0xd126b48c072f4668e944a8895bc74044d5f2e85b",
+        "b_anyTokenAddress": "0x97513e975a7fa9072c72c92d8000b0db90b163c5"
+      },
+      {
+        "a_tokenAddress": "0x90eb16621274fb47a071001fbbf7550948874cb5",
+        "b_anyTokenAddress": "0xd6070ae98b8069de6b494332d1a1a81b6179d960"
+      },
+      {
+        "a_tokenAddress": "0xe723111a6ac865eb6e2d62e87432bdc6e2c4a86e",
+        "b_anyTokenAddress": "0x4792c1ecb969b036eb51330c63bd27899a13d84e"
+      },
+      {
+        "a_tokenAddress": "0xe62233aeaed9b9ea007704262e15445e0d756c0b",
+        "b_anyTokenAddress": "0x306377cfa2ac72e757151591e9ecf0135d7c9613"
+      }
+    ]
+  },
   "harmony": {
     "routers": [
       "0x0dcb0cb0120d355cde1ce56040be57add0185baa",
@@ -4793,17 +4813,5 @@
         "b_anyTokenAddress": "0x3d4e1981f822e87a1a4c05f2e4b3bcade5406ae3"
       }
     ]
-  },
-  "mumbai": {
-    "routers": [
-      "0x0000000000000000000000000000000000000002"
-    ],
-    "anyNative": "0x0000000000000000000000000000000000000001"
-  },
-  "localanvil": {
-    "routers": [
-      "0x0000000000000000000000000000000000000002"
-    ],
-    "anyNative": "0x0000000000000000000000000000000000000001"
   }
 }
