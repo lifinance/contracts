@@ -44,6 +44,10 @@
       "0x07b7078D316AE023D19DB5AFeFe3f7EFE56F34B7": {
         "Name": "MultichainFacet",
         "Version": "1.0.1"
+      },
+      "0xDe7c6a3feDAe11B413237Be6ba0FE7db3D029F58": {
+        "Name": "CelerIMFacetImmutable",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
@@ -51,7 +55,7 @@
       "Executor": "0xBe27F03C8e6a61E2a4B1EE7940dbcb9204744d1c",
       "FeeCollector": "0xB49EaD76FE09967D7CA0dbCeF3C3A06eb3Aa0cB4",
       "Receiver": "0xC850013FC01A264018D58D112000E32835D15fBC",
-      "RelayerCelerIM": "",
+      "RelayerCelerIM": "0x11F71b02821158A7cc18AE90d79954f6132155Ff",
       "ServiceFeeCollector": "0x4b0B89b90fF83247aEa12469CeA9A6222e09d54c"
     }
   }

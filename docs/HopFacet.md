@@ -17,9 +17,9 @@ graph LR;
   - Initializer method. Sets bridges for the specific assets
 - `function registerBridge(address assetId, address bridge)`
   - Register method. Sets bridge for the specific asset
-- `function startBridgeTokensViaHop(BridgeData calldata _bridgeData, HopData calldata _hopData)`
+- `function startBridgeTokensViaHop(BridgeData memory _bridgeData, HopData calldata _hopData)`
   - Simply bridges tokens using Hop
-- `function swapAndStartBridgeTokensViaHop(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, HopData memory _hopData)`
+- `function swapAndStartBridgeTokensViaHop(BridgeData memory _bridgeData, SwapData[] calldata _swapData, HopData calldata _hopData)`
   - Performs swap(s) before bridging tokens using Hop
 
 ## Hop Specific Parameters
@@ -32,12 +32,18 @@ Some of the methods listed above take a variable labeled `_hopData`. This data i
 /// @param deadline The time the transaction must be completed or revert.
 /// @param destinationAmountOutMin The minimum acceptable amount of tokens to receive after bridging.
 /// @param destinationDeadline The time the transaction must be completed or revert.
+/// @param relayer The address of the relayer at the destination.
+/// @param relayerFee The amount distributed to the relayer at the destination. This is subtracted from the `amount`.
+/// @param nativeFee Native fee for the bridging.
 struct HopData {
   uint256 bonderFee;
   uint256 amountOutMin;
   uint256 deadline;
   uint256 destinationAmountOutMin;
   uint256 destinationDeadline;
+  address relayer;
+  uint256 relayerFee;
+  uint256 nativeFee;
 }
 ```
 

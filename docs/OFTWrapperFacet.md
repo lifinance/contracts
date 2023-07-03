@@ -16,7 +16,7 @@ graph LR;
   - Initializer method. Sets layerzero chain ids for chains.
 - `function startBridgeTokensViaOFTWrapper(BridgeData calldata _bridgeData, OFTWrapperData calldata _oftWrapperData)`
   - Simply bridges tokens using OFTWrapper
-- `function swapAndStartBridgeTokensViaOFTWrapper(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, OFTWrapperData calldata _oftWrapperData)`
+- `function swapAndStartBridgeTokensViaOFTWrapper(BridgeData memory _bridgeData, SwapData[] calldata _swapData, OFTWrapperData calldata _oftWrapperData)`
   - Performs swap(s) before bridging tokens using OFTWrapper
 - `function estimateSendFee(BridgeData calldata _bridgeData, OFTWrapperData calldata _oftWrapperData)`
   - Returns a required amount for native gass fee

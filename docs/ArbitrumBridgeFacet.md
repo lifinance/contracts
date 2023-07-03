@@ -12,9 +12,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaArbitrumBridge(BridgeData calldata _bridgeData, BridgeData calldata _arbitrumData)`
+- `function startBridgeTokensViaArbitrumBridge(BridgeData memory _bridgeData, BridgeData calldata _arbitrumData)`
   - Simply bridges tokens using Arbitrum Native Bridge
-- `function swapAndStartBridgeTokensViaArbitrumBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, BridgeData calldata _arbitrumData)`
+- `function swapAndStartBridgeTokensViaArbitrumBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData, BridgeData calldata _arbitrumData)`
   - Performs swap(s) before bridging tokens using Arbitrum Native Bridge
 
 ## Arbitrum Native Bridge Specific Parameters

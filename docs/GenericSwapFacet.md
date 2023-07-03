@@ -16,7 +16,7 @@ graph LR;
 
 ## Public Methods
 
-- `function swapTokensGeneric(bytes32 _transactionId, string calldata _integrator, string calldata _referrer, address payable _receiver, uint256 _minAmount, LibSwap.SwapData[] calldata _swapData)`
+- `function swapTokensGeneric(bytes32 _transactionId, string calldata _integrator, string calldata _referrer, address payable _receiver, uint256 _minAmount, SwapData[] calldata _swapData)`
   - Performs swap(s) before withdrawing the final token to the user
 
 ## Swap Data

@@ -14,9 +14,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaThorSwap(BridgeData calldata _bridgeData, ThorSwapData calldata _thorSwapData)`
+- `function startBridgeTokensViaThorSwap(BridgeData memory _bridgeData, ThorSwapData calldata _thorSwapData)`
   - Simply bridges tokens using ThorSwapFacet
-- `function swapAndStartBridgeTokensViaThorSwap(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, ThorSwapData calldata _thorSwapData)`
+- `function swapAndStartBridgeTokensViaThorSwap(BridgeData memory _bridgeData, SwapData[] calldata _swapData, ThorSwapData calldata _thorSwapData)`
   - Performs swap(s) before bridging tokens using bridgeFacet
 
 ## Bridge Specific Parameters
@@ -47,7 +47,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 ## LiFi Data
 
-Most of the methods accept a `ILiFiBridgeData _bridgeData` parameter.
+Most of the methods accept a `BridgeData _bridgeData` parameter.
 
 In the ThorSwap contract call the fields `minAmount` and `sendingAssetId` are used for the transfer amount and the asset to be sent. Since the ThorSwap bridge does not support native token bridging (it's mainly a stablecoin bridge) the methods will fail if native assets are tried to be bridged.
 
