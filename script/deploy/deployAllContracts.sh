@@ -63,8 +63,11 @@ deployAllContracts() {
   checkFailure $? "update core facets in $DIAMOND_CONTRACT_NAME on network $NETWORK"
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets update completed"
 
-  # TODO: add approve function signatures
   # approve refund wallet to execute refund-related functions
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now approving refund wallet to execute functions listed in config/global.json"
+  updateFacetConfig "" "$ENVIRONMENT" "$NETWORK" "ApproveRefundWalletInDiamond" "$DIAMOND_CONTRACT_NAME"
+  checkFailure $? "update approve refund wallet to execute refund-related functions"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< refund wallet approved"
 
   # run sync dexs script
   echo ""
