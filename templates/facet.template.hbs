@@ -2,6 +2,7 @@
 pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
@@ -54,7 +55,7 @@ contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatab
     ///         a diamondCut(). Use for config that can't be
     ///         set as immutable or needs to change for any reason.
     /// @param _exampleAllowedTokens Example array of allowed tokens for this chain.
-    function init{{titleCase name}}(address[] _exampleAllowedTokens) {
+    function init{{titleCase name}}(address[] memory _exampleAllowedTokens) external {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();

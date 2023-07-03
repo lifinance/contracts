@@ -18,14 +18,14 @@ contract DeployScript is UpdateScriptBase {
         path = string.concat(root, "/config/{{camelCase name}}.json");
         json = vm.readFile(path);
 
-        exampleAllowedAddresses = json.readAddressArray(
-            string.concat(".", network, ".exampleAllowedAddresses")
+        address[] memory exampleAllowedTokens = json.readAddressArray(
+            string.concat(".", network, ".exampleAllowedTokens")
         );
 
         /// You can remove this if you don't need to call init on the facet
         bytes memory callData = abi.encodeWithSelector(
-            HopFacet.init{{titleCase name}}.selector,
-            exampleAllowedAddresses
+            {{titleCase name}}Facet.init{{titleCase name}}.selector,
+            exampleAllowedTokens
         );
 
         // {{titleCase name}}
