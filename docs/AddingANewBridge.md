@@ -30,4 +30,5 @@ This will create all the required files to add a new bridge integration. The str
 ```
 
 4. Implement the bridge logic as required, add any tests and configuration
-5. Submit a PR to this repository
+5. Note any contract-specific deployment requirements and add them to `script/deploy/resources/deployRequirements.json`
+6. Submit a PR to this repository
