@@ -360,7 +360,6 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "GnosisBridgeFacet": "1.0.0",
         "GnosisBridgeL2Facet": "1.0.0",
         "OmniBridgeFacet": "1.0.0"
       }

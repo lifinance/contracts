@@ -63,7 +63,7 @@
       },
       "0xe7072402217EfF9b73cf457731cEE2A3824360dc": {
         "Name": "AllBridgeFacet",
-        "Version": ""
+        "Version": "2.0.0"
       },
       "0x987f67811Ef841da0466746E10B4139Daff95053": {
         "Name": "ArbitrumBridgeFacet",
@@ -87,6 +87,10 @@
       },
       "0xC1E20466AD79BAe875568eb08ABaaEA1F0E25b7E": {
         "Name": "OmniBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0xE8Ff7BFEF5DacB57E87bC2d0B6CCFefBE5f546BC": {
+        "Name": "OptimismBridgeFacet",
         "Version": "1.0.0"
       }
     },
