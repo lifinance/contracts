@@ -1,66 +1,50 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0x9F3cdB0393Dec04Ed20bd86fB0e8e1e98F719Bfe": {
-        "Name": "",
-        "Version": ""
-      },
-      "0xc66318d5B52E2Ad57132C0Ea8aAC587C64ebA5c1": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x5325FDD97Bc285221cEfFe5c8578F4cff27EF364": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x73Db174c969F0696A6c655d09e45f0b9a5D3E046": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x995d928EC803D21e0C880Edd95587387BFD2292C": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x76D86ce01E4c2f345fa7468394654609299531b5": {
-        "Name": "",
-        "Version": ""
-      },
-      "0xEE752f4D8CcBb687754AD6EC174877dC6b016E3b": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x010E49Df94969E03845eEe0C92ab89A40E0125D9": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x5f4E2f294aE3177215ffd4A06D7A920D0fbCEeb2": {
-        "Name": "",
-        "Version": ""
-      },
-      "0xC28F52D9DE2B644025C4B4ADF2389dB726de2Fd6": {
-        "Name": "AxelarFacet",
+      "0x06045F5FA6EA7c6AcEb104b55BcD6C3dE3a08831": {
+        "Name": "DiamondCutFacet",
         "Version": "1.0.0"
       },
-      "0x2c29ca74714d34C5fd34A824da9C021005B1fB91": {
-        "Name": "AcrossFacet",
-        "Version": "2.0.0"
-      },
-      "0xEe8538b8E097804De85284a801BD076875e435fA": {
-        "Name": "StargateFacet",
+      "0x8938CEa23C3c5eAABb895765f5B0b2b07D680402": {
+        "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
       },
-      "0x2EF189A965330f3800765B578834896245c66fbB": {
-        "Name": "CelerIMFacetMutable",
-        "Version": "2.0.0"
+      "0x53d4Bcd5BEa4e863376b7eA43D7465351a4d71B0": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x83be9a6642c41f7ef78A0B60a355B5D7f3C9A62f": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0xB94Fd26F6b138E1bE6CfEa5Ec4F67C5573F5d6AD": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x1A841931913806FB7570B43bcD64A487A8E7A50c": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x27A0B9Dd7ee2762e15CCF36DF2F54A4A7B7a9304": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0x9a077b9dD746237d8854848BDB01521B47edC8DF": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
+      },
+      "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0x006E78DB49Ad2a7650fF84FA86916A0805DF6D0A",
-      "Executor": "0x4DE055c2b7054b9B3Aa7c3891aacB9dE4F489D66",
-      "FeeCollector": "",
-      "Receiver": "",
-      "RelayerCelerIM": "0xa618404c4Eb0d39362d18e97f59AEc4203474E03",
-      "ServiceFeeCollector": ""
+      "ERC20Proxy": "0x6c93D0F446356725E3a51906285044f8788c72f2",
+      "Executor": "0x4f3B1b1075cC19daA15b7cc681b28e2fB82145eD",
+      "FeeCollector": "0x0222D030e8DFAEDE2a4e7B5F181Ac1A4206A75f0",
+      "Receiver": "0x76EE0F8fb09047284B6ea89881595Fc6F5B09E12",
+      "RelayerCelerIM": "",
+      "ServiceFeeCollector": "0x9cc3164f01ED3796Fdf7Da538484D634608D2203"
     }
   }
 }

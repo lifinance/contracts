@@ -42,17 +42,14 @@ contract DeployScript is Script {
             "json"
         );
         networkLogJSON = vm.readFile(path);
-        console.log("A");
         diamondImmutableAddress = networkLogJSON.readAddress(
             ".LiFiDiamondImmutable"
         );
-        console.log("B");
     }
 
     function run() public returns (bool) {
         vm.startBroadcast(deployerPrivateKey);
 
-        console.log("C");
         // get correct path of diamond log
         path = string.concat(
             root,

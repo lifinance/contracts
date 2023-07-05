@@ -24,6 +24,8 @@ contract DeployScript is UpdateScriptBase {
         address dexMgr = json.readAddress(".DexManagerFacet");
         address accessMgr = json.readAddress(".AccessManagerFacet");
         address peripheryRgs = json.readAddress(".PeripheryRegistryFacet");
+        address liFuelAddress = json.readAddress(".LIFuelFacet");
+        address genSwapAddress = json.readAddress(".GenericSwapFacet");
 
         bytes4[] memory exclude;
 
@@ -32,69 +34,91 @@ contract DeployScript is UpdateScriptBase {
         );
 
         // Diamond Loupe
-        bytes4[] memory loupeSelectors = getSelectors(
-            "DiamondLoupeFacet",
-            exclude
-        );
+        bytes4[] memory selectors = getSelectors("DiamondLoupeFacet", exclude);
 
         if (!loupeExists) {
-            buildInitialCut(loupeSelectors, diamondLoupe);
+            buildInitialCut(selectors, diamondLoupe);
         }
 
         // Ownership Facet
-        bytes4[] memory ownershipSelectors = getSelectors(
-            "OwnershipFacet",
-            exclude
-        );
+        selectors = getSelectors("OwnershipFacet", exclude);
         if (loupeExists) {
-            buildDiamondCut(ownershipSelectors, ownership);
+            buildDiamondCut(selectors, ownership);
         } else {
-            buildInitialCut(ownershipSelectors, ownership);
+            buildInitialCut(selectors, ownership);
         }
 
         // Withdraw Facet
-        bytes4[] memory withdrawSelectors = getSelectors(
-            "WithdrawFacet",
-            exclude
-        );
+        selectors = getSelectors("WithdrawFacet", exclude);
         if (loupeExists) {
-            buildDiamondCut(withdrawSelectors, withdraw);
+            buildDiamondCut(selectors, withdraw);
         } else {
-            buildInitialCut(withdrawSelectors, withdraw);
+            buildInitialCut(selectors, withdraw);
         }
 
         // Dex Manager Facet
-        bytes4[] memory dexMgrSelectors = getSelectors(
-            "DexManagerFacet",
-            exclude
-        );
+        selectors = getSelectors("DexManagerFacet", exclude);
         if (loupeExists) {
-            buildDiamondCut(dexMgrSelectors, dexMgr);
+            buildDiamondCut(selectors, dexMgr);
         } else {
-            buildInitialCut(dexMgrSelectors, dexMgr);
+            buildInitialCut(selectors, dexMgr);
         }
 
         // Access Manager Facet
-        bytes4[] memory accessMgrSelectors = getSelectors(
-            "AccessManagerFacet",
-            exclude
-        );
+        selectors = getSelectors("AccessManagerFacet", exclude);
         if (loupeExists) {
-            buildDiamondCut(accessMgrSelectors, accessMgr);
+            buildDiamondCut(selectors, accessMgr);
         } else {
-            buildInitialCut(accessMgrSelectors, accessMgr);
+            buildInitialCut(selectors, accessMgr);
         }
 
         // PeripheryRegistry
-        bytes4[] memory peripheryRgsSelectors = getSelectors(
-            "PeripheryRegistryFacet",
-            exclude
-        );
+        selectors = getSelectors("PeripheryRegistryFacet", exclude);
         if (loupeExists) {
-            buildDiamondCut(peripheryRgsSelectors, peripheryRgs);
+            buildDiamondCut(selectors, peripheryRgs);
         } else {
-            buildInitialCut(peripheryRgsSelectors, peripheryRgs);
+            buildInitialCut(selectors, peripheryRgs);
         }
+
+        // LIFuelFacet
+        selectors = getSelectors("LIFuelFacet", exclude);
+        if (loupeExists) {
+            buildDiamondCut(selectors, liFuelAddress);
+        } else {
+            buildInitialCut(selectors, liFuelAddress);
+        }
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(0),
+                    ""
+                );
+            }
+            return (facets, cutData);
+        }
+
+        // GenericSwapFacet
+        selectors = getSelectors("GenericSwapFacet", exclude);
+        if (loupeExists) {
+            buildDiamondCut(selectors, genSwapAddress);
+        } else {
+            buildInitialCut(selectors, genSwapAddress);
+        }
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    address(0),
+                    ""
+                );
+            }
+            return (facets, cutData);
+        }
+
+        // if noBroadcast is activated, we only prepare calldata for sending it to multisig SAFE
         if (noBroadcast) {
             if (cut.length > 0) {
                 cutData = abi.encodeWithSelector(
@@ -112,13 +136,6 @@ contract DeployScript is UpdateScriptBase {
             cutter.diamondCut(cut, address(0), "");
         }
         facets = loupe.facetAddresses();
-
-        // approve refundWallet to execute certain functions (as defined in config/global.json)
-        // exclude this step for localanvil network. Does not work there for some reason
-        if (
-            keccak256(abi.encodePacked(network)) !=
-            keccak256(abi.encodePacked("localanvil"))
-        ) approveRefundWallet();
 
         vm.stopBroadcast();
     }
