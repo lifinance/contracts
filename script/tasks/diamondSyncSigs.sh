@@ -50,8 +50,9 @@ function diamondSyncSigs {
   # logging for debug purposes
   echo ""
   echoDebug "in function syncSIGs"
-  echoDebug "NETWORK=$NETWORK"
+  echoDebug "NETWORKS=$NETWORKS"
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
   echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echo ""

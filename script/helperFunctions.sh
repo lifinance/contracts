@@ -964,7 +964,7 @@ function getCurrentContractVersion() {
 
       # Check if FILE exists
       if [ ! -f "$FILEPATH" ]; then
-          echo "[error]: the following filepath is invalid: $FILEPATH"
+          error "the following filepath is invalid: $FILEPATH"
           return 1
       fi
 
@@ -973,7 +973,7 @@ function getCurrentContractVersion() {
 
       # Check if VERSION is empty
       if [ -z "$VERSION" ]; then
-          echo "[error]: '@custom:version' string not found in $FILEPATH"
+          error "'@custom:version' string not found in $FILEPATH"
           return 1
       fi
 
@@ -1054,7 +1054,7 @@ function getOptimizerRuns() {
 
       # Check if FILE exists
       if [ ! -f "$FILEPATH" ]; then
-          echo "[error]: $FILEPATH does not exist."
+          error ": $FILEPATH does not exist."
           return 1
       fi
 
@@ -1063,7 +1063,7 @@ function getOptimizerRuns() {
 
       # Check if VERSION is empty
       if [ -z "$VERSION" ]; then
-          echo "[error]: optimizer_runs string not found in $FILEPATH."
+          error ": optimizer_runs string not found in $FILEPATH."
           return 1
       fi
 
@@ -2444,7 +2444,7 @@ function doesAddressContainBytecode() {
 
   # check if NODE_URL is available
   if [ -z "$NODE_URL" ]; then
-      echo "[error]: no node url found for NETWORK $NETWORK. Please update your .env FILE and make sure it has a value for the following key: $NODE_URL_KEY"
+      error ": no node url found for NETWORK $NETWORK. Please update your .env FILE and make sure it has a value for the following key: $NODE_URL_KEY"
       return 1
   fi
 
