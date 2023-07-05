@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { UpdateScriptBase, console } from "./utils/UpdateScriptBase.sol";
+import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet, IDiamondLoupe } from "lifi/Facets/DiamondLoupeFacet.sol";
@@ -105,17 +105,6 @@ contract DeployScript is UpdateScriptBase {
             buildDiamondCut(selectors, genSwapAddress);
         } else {
             buildInitialCut(selectors, genSwapAddress);
-        }
-        if (noBroadcast) {
-            if (cut.length > 0) {
-                cutData = abi.encodeWithSelector(
-                    DiamondCutFacet.diamondCut.selector,
-                    cut,
-                    address(0),
-                    ""
-                );
-            }
-            return (facets, cutData);
         }
 
         // if noBroadcast is activated, we only prepare calldata for sending it to multisig SAFE
