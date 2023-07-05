@@ -43,23 +43,6 @@ function diamondUpdatePeriphery() {
     return 1
   fi
 
-  # if no NETWORK was passed to this function, ask user to select it
-  if [[ -z "$NETWORK" ]]; then
-    NETWORK=$(getUserSelectedNetwork)
-
-    # check the return code the last call
-    if [ $? -ne 0 ]; then
-
-      exit 1
-    fi
-    # get deployer wallet balance
-    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
-
-    echo "[info] selected network: $NETWORK"
-    echo "[info] deployer wallet balance in this network: $BALANCE"
-    echo ""
-  fi
-
   # determine which periphery contracts to update
   if [[ -z "$UPDATE_ALL" || "$UPDATE_ALL" == "false" ]]; then
     # check to see if a single contract was passed that should be upgraded
