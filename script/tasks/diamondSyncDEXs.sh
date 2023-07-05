@@ -34,6 +34,7 @@ function diamondSyncDEXs {
     echo ""
     echo "Please select which type of diamond contract to sync:"
     DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
+    echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
   fi
 
   # create array with network/s for which the script should be executed
@@ -58,7 +59,6 @@ function diamondSyncDEXs {
   # go through all networks and execute the script
   for NETWORK in "${NETWORKS[@]}"; do
     # get diamond address from deployments script
-  #  DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "./deployments/${NETWORK}.${FILE_SUFFIX}json")
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
     # if no diamond address was found, throw an error and exit the script

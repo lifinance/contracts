@@ -88,7 +88,7 @@ scriptMaster() {
 
   # ask user to choose a deploy use case
   echo ""
-  echo "You are executing transactions from this address: $(getDeployerAddress "" "$ENVIRONMENT") (except for network 'localanvil')"
+  echo "You are executing transactions from this address: $(getDeployerAddress "" "$ENVIRONMENT") (except for network 'localanvil': 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266)"
   echo ""
   echo "Please choose one of the following options:"
   local SELECTION=$(

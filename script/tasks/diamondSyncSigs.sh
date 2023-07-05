@@ -17,35 +17,14 @@ function diamondSyncSigs {
 
   # if no NETWORK was passed to this function, ask user to select it
   if [[ -z "$NETWORK" ]]; then
-    NETWORK=$(cat ./networks | gum filter --placeholder "Network")
-    checkRequiredVariablesInDotEnv $NETWORK
-  fi
+    # find out if script should be executed for one network or for all networks
+    echo ""
+    echo "Should the script be executed on one network or all networks?"
+    NETWORK=$(echo -e "All (non-excluded) Networks\n$(cat ./networks)" | gum filter --placeholder "Network")
+    echo "[info] selected network: $NETWORK"
 
-  # if no ENVIRONMENT was passed to this function, determine it
-  if [[ -z "$ENVIRONMENT" ]]; then
-    if [[ "$PRODUCTION" == "true" ]]; then
-      # make sure that PRODUCTION was selected intentionally by user
-      echo "    "
-      echo "    "
-      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!!!!";
-      printf '\033[33m%s\033[0m\n' "The config environment variable PRODUCTION is set to true";
-      printf '\033[33m%s\033[0m\n' "This means you will be deploying contracts to production";
-      printf '\033[31m%s\031\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!";
-      echo "    "
-      printf '\033[33m%s\033[0m\n' "Last chance: Do you want to skip?";
-      PROD_SELECTION=$(gum choose \
-          "yes" \
-          "no" \
-          )
-
-      if [[ $PROD_SELECTION != "no" ]]; then
-        echo "...exiting script"
-        exit 0
-      fi
-
-      ENVIRONMENT="production"
-    else
-      ENVIRONMENT="staging"
+    if [[ "$NETWORK" != "All (non-excluded) Networks" ]]; then
+      checkRequiredVariablesInDotEnv $NETWORK
     fi
   fi
 
@@ -60,17 +39,13 @@ function diamondSyncSigs {
     echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
   fi
 
-  # get diamond address from deployments script
-  DIAMOND_ADDRESS=$(jq -r '.'"$DIAMOND_CONTRACT_NAME" "./deployments/${NETWORK}.${FILE_SUFFIX}json")
-
-  # if no diamond address was found, throw an error and exit the script
-  if [[ "$DIAMOND_ADDRESS" == "null" ]]; then
-    echo "[error] could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json' - exiting syncSIGs script now"
-    return 1
+  # create array with network/s for which the script should be executed
+  if [[ "$NETWORK" == "All (non-excluded) Networks" ]]; then
+    # get array with all network names
+    NETWORKS=($(getIncludedNetworksArray))
+  else
+    NETWORKS=($NETWORK)
   fi
-
-  # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
 
   # logging for debug purposes
   echo ""
@@ -89,41 +64,66 @@ function diamondSyncSigs {
     local PARAMS+="${d},"
   done
 
-  # call batchSetFunctionApprovalBySignature function in diamond to add function selectors
-  local ATTEMPTS=1
-  while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-    echo "[info] trying to add function selectors now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
+  # go through all networks and execute the script
+  for NETWORK in "${NETWORKS[@]}"; do
+    # get diamond address from deployments script
+    DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
-    # ensure that gas price is below maximum threshold (for mainnet only)
-    doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
+    echo ""
+    echo "[info] now syncing function signatures for $DIAMOND_CONTRACT_NAME on network $NETWORK with address $DIAMOND_ADDRESS"
 
-    # call diamond
-    if [[ "$DEBUG" == *"true"* ]]; then
-      # print output to console
-      cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy
-    else
-      # do not print output to console
-      cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null 2>&1
+    # if no diamond address was found, throw an error and exit the script
+      if [[ "$DIAMOND_ADDRESS" == "null" || -z "$DIAMOND_ADDRESS" ]]; then
+      error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json'"
+      local RETURN=1
+      continue
     fi
 
-    # check the return code of the last call
-    if [ $? -eq 0 ]; then
-      break # exit the loop if the operation was successful
-    fi
+    # get RPC URL for given network
+    RPC_URL=$(getRPCUrl "$NETWORK")
 
-    ATTEMPTS=$((ATTEMPTS + 1)) # increment ATTEMPTS
-    sleep 1                    # wait for 1 second before trying the operation again
+    # call batchSetFunctionApprovalBySignature function in diamond to add function selectors
+    local ATTEMPTS=1
+    while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+      echo "[info] trying to add function selectors now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
+
+      # ensure that gas price is below maximum threshold (for mainnet only)
+      doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
+
+      # call diamond
+      if [[ "$DEBUG" == *"true"* ]]; then
+        # print output to console
+        cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy
+      else
+        # do not print output to console
+        cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null 2>&1
+      fi
+
+      # check the return code of the last call
+      if [ $? -eq 0 ]; then
+        break # exit the loop if the operation was successful
+      fi
+
+      ATTEMPTS=$((ATTEMPTS + 1)) # increment ATTEMPTS
+      sleep 1                    # wait for 1 second before trying the operation again
+    done
+
+    # check if call was executed successfully or used all ATTEMPTS
+    if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
+      error "failed to add function selectors to $DIAMOND_CONTRACT_NAME with $DIAMOND_ADDRESS on network $NETWORK"
+      local RETURN=1
+    fi
   done
 
-  # check if call was executed successfully or used all ATTEMPTS
-  if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
-    echo "[error] failed to add function selectors to $DIAMOND_CONTRACT_NAME with $DIAMOND_ADDRESS on network $NETWORK"
-    # end this script according to flag
+  # end script according to return status
+  if [ "$RETURN" == 1 ]; then
     if [[ -z "$EXIT_ON_ERROR" ]]; then
       return 1
     else
       exit 1
     fi
+  else
+    return 0
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< script syncSIGs completed"
