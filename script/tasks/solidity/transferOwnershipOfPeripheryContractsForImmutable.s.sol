@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { Script, console } from "forge-std/Script.sol";
+import { Script } from "forge-std/Script.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
@@ -42,17 +42,14 @@ contract DeployScript is Script {
             "json"
         );
         networkLogJSON = vm.readFile(path);
-        console.log("A");
         diamondImmutableAddress = networkLogJSON.readAddress(
             ".LiFiDiamondImmutable"
         );
-        console.log("B");
     }
 
     function run() public returns (bool) {
         vm.startBroadcast(deployerPrivateKey);
 
-        console.log("C");
         // get correct path of diamond log
         path = string.concat(
             root,

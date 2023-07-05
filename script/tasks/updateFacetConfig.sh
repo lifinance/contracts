@@ -32,8 +32,6 @@ updateFacetConfig() {
   # ensure all required .env values are set
   checkRequiredVariablesInDotEnv $NETWORK
 
-  echoDebug "CONFIG_SCRIPT_DIRECTORY: $CONFIG_SCRIPT_DIRECTORY"
-
   # if no SCRIPT was passed to this function, ask user to select it
   if [[ -z "$SCRIPT" ]]; then
     # select which script to execute
