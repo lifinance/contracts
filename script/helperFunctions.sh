@@ -1071,6 +1071,31 @@ function getOptimizerRuns() {
       echo "$VERSION"
 
     }
+function removeExistingEntriesFromTargetStateJSON() {
+  local file="$1"
+  local value="$2"
+
+  # Check if the file exists
+  if [ ! -f "$file" ]; then
+    error "file not found: $file"
+    return 1
+  fi
+
+  # Remove staging entries on level 2
+  jq "map_values(del(.$value))" "$file" >"$file.tmp" && mv "$file.tmp" "$file"
+
+
+  if [ $? -eq 0 ]; then
+    echo "[info] existing '$value' entries removed successfully from target state file ($file)"
+    return 0
+  else
+    error "failed to remove entries with value '$value'."
+    rm "$temp_file" >/dev/null 2>&1
+    return 1
+  fi
+
+
+}
 function parseTargetStateGoogleSpreadsheet() {
   # read function arguments into variables
   local ENVIRONMENT="$1"
@@ -1107,6 +1132,15 @@ function parseTargetStateGoogleSpreadsheet() {
 
   echo "Updating $ENVIRONMENT target state from this Google sheet now: $SPREADSHEET_URL"
   echo ""
+
+  # remove existing entries from target state JSON file
+  removeExistingEntriesFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT"
+
+  # make sure existing entries were removed properly (to prevent corrupted target state)
+  if [[ $? -ne 0 ]]; then
+    error "unable to remove existing $ENVIRONMENT values from target state file ($TARGET_STATE_PATH). Cannot proceed."
+    exit 1
+  fi
 
   NETWORKS_START_AT_LINE=115
   PERIPHERY_STARTS_AT_COLUMN=3
@@ -3583,6 +3617,3 @@ function test_tmp() {
 #  fi
 getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
 }
-
-
-#test_tmp
