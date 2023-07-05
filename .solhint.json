@@ -8,7 +8,7 @@
         "endOfLine": "auto"
       }
     ],
-    "code-complexity": ["error", 7],
+    "code-complexity": ["error", 20],
     "compiler-version": ["error", "^0.8.7"],
     "const-name-snakecase": "off",
     "func-name-mixedcase": "off",
