@@ -4,24 +4,24 @@ pragma solidity 0.8.17;
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
-import { SGEthVault } from "../Interfaces/ISGEthValue.sol";
+import { ISGEthVault } from "../Interfaces/ISGEthVault.sol";
 
 /// @title SGEthVaultWrapper
 /// @author LI.FI (https://li.fi)
 /// @notice Wrapper for wrapping ETH into sgETH for use as part of a swap step
 /// @custom:version 1.0.0
 contract SGEthVaultWrapper is ReentrancyGuard {
-    using SafeERC20 for SGEthVault;
+    using SafeERC20 for ISGEthVault;
 
     /// State
 
     /// @notice Address of the sgETH vault
-    SGEthVault public immutable sgEthVault;
+    ISGEthVault public immutable sgEthVault;
 
     /// constructor
 
     /// @param _sgEthVault Address of the sgETH vault
-    constructor(SGEthVault _sgEthVault) {
+    constructor(ISGEthVault _sgEthVault) {
         sgEthVault = _sgEthVault;
     }
 
