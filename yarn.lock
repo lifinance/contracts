@@ -889,6 +889,13 @@
     mcl-wasm "^0.7.1"
     rustbn.js "~0.2.0"
 
+"@nomicfoundation/hardhat-foundry@^1.0.2":
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/@nomicfoundation/hardhat-foundry/-/hardhat-foundry-1.0.2.tgz#281627e4872bba47c1cd4fcf47fff2259df8d5c6"
+  integrity sha512-NbOrtIKcss51h+1h/TaZkCxOn9KaGbLd6/l75V4X7oDhonGmMWevwrKTNMHC90wCATDkV+B37jmn3fGbWCs+Vg==
+  dependencies:
+    chalk "^2.4.2"
+
 "@nomicfoundation/solidity-analyzer-darwin-arm64@0.1.0":
   version "0.1.0"
   resolved "https://registry.yarnpkg.com/@nomicfoundation/solidity-analyzer-darwin-arm64/-/solidity-analyzer-darwin-arm64-0.1.0.tgz#83a7367342bd053a76d04bbcf4f373fef07cf760"
@@ -5318,6 +5325,13 @@ hardhat-gas-reporter@^1.0.4:
     array-uniq "1.0.3"
     eth-gas-reporter "^0.2.25"
     sha1 "^1.1.1"
+
+hardhat-preprocessor@^0.1.5:
+  version "0.1.5"
+  resolved "https://registry.yarnpkg.com/hardhat-preprocessor/-/hardhat-preprocessor-0.1.5.tgz#75b22641fd6a680739c995d03bd5f7868eb72144"
+  integrity sha512-j8m44mmPxpxAAd0G8fPHRHOas/INZdzptSur0TNJvMEGcFdLDhbHHxBcqZVQ/bmiW42q4gC60AP4CXn9EF018g==
+  dependencies:
+    murmur-128 "^0.2.1"
 
 hardhat@^2.9.0:
   version "2.12.4"

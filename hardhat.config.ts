@@ -1,11 +1,22 @@
 import 'dotenv/config'
+import fs from 'fs'
 import '@nomiclabs/hardhat-ethers'
+import '@nomiclabs/hardhat-etherscan'
 import { HardhatUserConfig } from 'hardhat/types'
 import '@typechain/hardhat'
+import 'hardhat-preprocessor'
+import path from 'path'
 import { node_url, accounts } from './utils/network'
-import '@nomiclabs/hardhat-etherscan'
 
 require('./tasks/generateDiamondABI.ts')
+
+function getRemappings() {
+  return fs
+    .readFileSync('remappings.txt', 'utf8')
+    .split('\n')
+    .filter(Boolean) // remove empty lines
+    .map((line) => line.trim().split('='))
+}
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -42,6 +53,26 @@ const config: HardhatUserConfig = {
           }
         : undefined,
     },
+  },
+  preprocess: {
+    eachLine: (hre) => ({
+      transform: (line: string, sourceInfo: { absolutePath: string }) => {
+        if (line.match(/^\s*import /i)) {
+          for (const [from, to] of getRemappings()) {
+            if (line.includes(from)) {
+              line = line.replace(
+                from,
+                `${path
+                  .relative(sourceInfo.absolutePath, __dirname)
+                  .slice(0, -2)}${to}`
+              )
+              break
+            }
+          }
+        }
+        return line
+      },
+    }),
   },
   paths: {
     sources: 'src',

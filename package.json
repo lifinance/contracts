@@ -17,6 +17,7 @@
     "solidity"
   ],
   "devDependencies": {
+    "@nomicfoundation/hardhat-foundry": "^1.0.2",
     "@nomiclabs/hardhat-ethers": "^2.2.1",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "@openzeppelin/contracts": "4.8.0",
@@ -35,6 +36,7 @@
     "ethers": "^5.7.1",
     "fs-extra": "^10.0.1",
     "hardhat": "^2.9.0",
+    "hardhat-preprocessor": "^0.1.5",
     "husky": "^8.0.1",
     "lint-staged": "^13.2.3",
     "patch-package": "^6.4.7",
