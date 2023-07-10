@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { CBridgeFacet } from "./CBridgeFacet.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
@@ -14,7 +15,7 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 /// @title CBridge Facet Packed
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
-/// @custom:version 1.0.1
+/// @custom:version 1.0.2
 contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
     /// Storage ///
 
@@ -139,7 +140,12 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         uint256 amount = uint256(uint128(bytes16(msg.data[56:72])));
 
         // Deposit assets
-        ERC20(sendingAssetId).transferFrom(msg.sender, address(this), amount);
+        SafeERC20.safeTransferFrom(
+            IERC20(sendingAssetId),
+            msg.sender,
+            address(this),
+            amount
+        );
 
         // Bridge assets
         // solhint-disable-next-line check-send-result
@@ -173,7 +179,12 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         uint32 maxSlippage
     ) external {
         // Deposit assets
-        ERC20(sendingAssetId).transferFrom(msg.sender, address(this), amount);
+        SafeERC20.safeTransferFrom(
+            IERC20(sendingAssetId),
+            msg.sender,
+            address(this),
+            amount
+        );
 
         // Bridge assets
         // solhint-disable-next-line check-send-result
