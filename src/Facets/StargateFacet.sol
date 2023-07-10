@@ -22,6 +22,8 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice The contract address of the stargate router on the source chain.
     IStargateRouter private immutable router;
+    /// @notice The contract address of the native stargate router on the source chain.
+    IStargateRouter private immutable nativeRouter;
 
     /// Types ///
 
@@ -77,8 +79,9 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize the contract.
     /// @param _router The contract address of the stargate router on the source chain.
-    constructor(IStargateRouter _router) {
+    constructor(IStargateRouter _router, IStargateRouter _nativeRouter) {
         router = _router;
+        nativeRouter = _nativeRouter;
     }
 
     /// Init ///
@@ -119,7 +122,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
-        noNativeAsset(_bridgeData)
     {
         validateDestinationCallFlag(_bridgeData, _stargateData);
         LibAsset.depositAsset(
@@ -144,7 +146,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
-        noNativeAsset(_bridgeData)
     {
         validateDestinationCallFlag(_bridgeData, _stargateData);
         _bridgeData.minAmount = _depositAndSwap(
@@ -184,28 +185,38 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         StargateData calldata _stargateData
-    ) private noNativeAsset(_bridgeData) {
+    ) private {
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
             address(router),
             _bridgeData.minAmount
         );
 
-        router.swap{ value: _stargateData.lzFee }(
-            getLayerZeroChainId(_bridgeData.destinationChainId),
-            _stargateData.srcPoolId,
-            _stargateData.dstPoolId,
-            _stargateData.refundAddress,
-            _bridgeData.minAmount,
-            _stargateData.minAmountLD,
-            IStargateRouter.lzTxObj(
-                _stargateData.dstGasForCall,
-                0,
-                toBytes(address(0))
-            ),
-            _stargateData.callTo,
-            _stargateData.callData
-        );
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            router.swapETH{ value: msg.value }(
+                getLayerZeroChainId(_bridgeData.destinationChainId),
+                _stargateData.refundAddress,
+                abi.encodePacked(_bridgeData.receiver),
+                _bridgeData.minAmount,
+                _stargateData.minAmountLD
+            );
+        } else {
+            router.swap{ value: _stargateData.lzFee }(
+                getLayerZeroChainId(_bridgeData.destinationChainId),
+                _stargateData.srcPoolId,
+                _stargateData.dstPoolId,
+                _stargateData.refundAddress,
+                _bridgeData.minAmount,
+                _stargateData.minAmountLD,
+                IStargateRouter.lzTxObj(
+                    _stargateData.dstGasForCall,
+                    0,
+                    toBytes(address(0))
+                ),
+                _stargateData.callTo,
+                _stargateData.callData
+            );
+        }
 
         emit LiFiTransferStarted(_bridgeData);
     }

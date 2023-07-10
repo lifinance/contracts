@@ -12,7 +12,10 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 contract TestStargateFacet is StargateFacet {
     /// @notice Initialize the contract.
     /// @param _router The contract address of the stargatefacet router on the source chain.
-    constructor(IStargateRouter _router) StargateFacet(_router) {}
+    constructor(
+        IStargateRouter _router,
+        IStargateRouter _nativeRouter
+    ) StargateFacet(_router, _nativeRouter) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -35,6 +38,8 @@ contract StargateFacetTest is TestBaseFacet {
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address internal constant MAINNET_ROUTER =
         0x8731d54E9D02c286767d56ac03e8037C07e01e98;
+    address internal constant MAINNET_NATIVE_ROUTER =
+        0x150f94B44927F078737562f0fcF3C95c01Cc2376;
     uint256 internal constant DST_CHAIN_ID = 137;
     // -----
 
@@ -44,11 +49,14 @@ contract StargateFacetTest is TestBaseFacet {
 
     function setUp() public {
         // set custom block number for forking
-        customBlockNumberForForking = 15588208;
+        customBlockNumberForForking = 17661386;
 
         initTestBase();
 
-        stargateFacet = new TestStargateFacet(IStargateRouter(MAINNET_ROUTER));
+        stargateFacet = new TestStargateFacet(
+            IStargateRouter(MAINNET_ROUTER),
+            IStargateRouter(MAINNET_NATIVE_ROUTER)
+        );
         feeCollector = new FeeCollector(address(this));
 
         bytes4[] memory functionSelectors = new bytes4[](8);
@@ -142,13 +150,13 @@ contract StargateFacetTest is TestBaseFacet {
         }
     }
 
-    function testBase_CanBridgeNativeTokens() public override {
-        // facet does not support native bridging
-    }
+    //function testBase_CanBridgeNativeTokens() public override {
+    // facet does not support native bridging
+    //}
 
-    function testBase_CanSwapAndBridgeNativeTokens() public override {
-        // facet does not support native bridging
-    }
+    //function testBase_CanSwapAndBridgeNativeTokens() public override {
+    // facet does not support native bridging
+    //}
 
     function test_revert_SetLayerZeroChainIdAsNonOwner() public {
         vm.startPrank(USER_SENDER);
@@ -176,7 +184,10 @@ contract StargateFacetTest is TestBaseFacet {
 
     function test_revert_InitializeAsNonOwner() public {
         LiFiDiamond diamond2 = createDiamond();
-        stargateFacet = new TestStargateFacet(IStargateRouter(MAINNET_ROUTER));
+        stargateFacet = new TestStargateFacet(
+            IStargateRouter(MAINNET_ROUTER),
+            IStargateRouter(MAINNET_NATIVE_ROUTER)
+        );
         feeCollector = new FeeCollector(address(this));
 
         bytes4[] memory functionSelectors = new bytes4[](7);
