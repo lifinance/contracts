@@ -186,14 +186,8 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         StargateData calldata _stargateData
     ) private {
-        LibAsset.maxApproveERC20(
-            IERC20(_bridgeData.sendingAssetId),
-            address(router),
-            _bridgeData.minAmount
-        );
-
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            router.swapETH{ value: msg.value }(
+            nativeRouter.swapETH{ value: msg.value }(
                 getLayerZeroChainId(_bridgeData.destinationChainId),
                 _stargateData.refundAddress,
                 abi.encodePacked(_bridgeData.receiver),
@@ -201,6 +195,12 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _stargateData.minAmountLD
             );
         } else {
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(router),
+                _bridgeData.minAmount
+            );
+
             router.swap{ value: _stargateData.lzFee }(
                 getLayerZeroChainId(_bridgeData.destinationChainId),
                 _stargateData.srcPoolId,

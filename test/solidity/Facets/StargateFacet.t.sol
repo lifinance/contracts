@@ -7,6 +7,7 @@ import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 import { IStargateRouter } from "lifi/Interfaces/IStargateRouter.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 
 // Stub CBridgeFacet Contract
 contract TestStargateFacet is StargateFacet {
@@ -46,6 +47,7 @@ contract StargateFacetTest is TestBaseFacet {
     TestStargateFacet internal stargateFacet;
     FeeCollector internal feeCollector;
     StargateFacet.StargateData internal stargateData;
+    uint256 internal nativeAddToMessageValue;
 
     function setUp() public {
         // set custom block number for forking
@@ -77,9 +79,10 @@ contract StargateFacetTest is TestBaseFacet {
         addFacet(diamond, address(stargateFacet), functionSelectors);
 
         StargateFacet.ChainIdConfig[]
-            memory chainIdConfig = new StargateFacet.ChainIdConfig[](2);
+            memory chainIdConfig = new StargateFacet.ChainIdConfig[](3);
         chainIdConfig[0] = StargateFacet.ChainIdConfig(1, 101);
         chainIdConfig[1] = StargateFacet.ChainIdConfig(137, 109);
+        chainIdConfig[2] = StargateFacet.ChainIdConfig(10, 111);
 
         stargateFacet = TestStargateFacet(address(diamond));
         stargateFacet.initStargate(chainIdConfig);
@@ -122,12 +125,19 @@ contract StargateFacetTest is TestBaseFacet {
             stargateData
         );
         stargateData.lzFee = addToMessageValue = fees;
+
+        // No native route to Polygon so we use Optimism
+        (uint256 nativeFees, ) = stargateFacet.quoteLayerZeroFee(
+            10, // Optimism chainId
+            stargateData
+        );
+        nativeAddToMessageValue = nativeFees;
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             stargateFacet.startBridgeTokensViaStargate{
-                value: bridgeData.minAmount + addToMessageValue
+                value: bridgeData.minAmount + nativeAddToMessageValue
             }(bridgeData, stargateData);
         } else {
             stargateFacet.startBridgeTokensViaStargate{
@@ -141,7 +151,7 @@ contract StargateFacetTest is TestBaseFacet {
     ) internal override {
         if (isNative) {
             stargateFacet.swapAndStartBridgeTokensViaStargate{
-                value: swapData[0].fromAmount + addToMessageValue
+                value: swapData[0].fromAmount + nativeAddToMessageValue
             }(bridgeData, swapData, stargateData);
         } else {
             stargateFacet.swapAndStartBridgeTokensViaStargate{
@@ -150,9 +160,113 @@ contract StargateFacetTest is TestBaseFacet {
         }
     }
 
-    //function testBase_CanBridgeNativeTokens() public override {
-    // facet does not support native bridging
-    //}
+    function testBase_CanBridgeNativeTokens()
+        public
+        override
+        assertBalanceChange(
+            address(0),
+            USER_SENDER,
+            -int256((defaultNativeAmount + nativeAddToMessageValue))
+        )
+        assertBalanceChange(address(0), USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+        // customize bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+        bridgeData.destinationChainId = 10;
+
+        stargateData.lzFee = nativeAddToMessageValue;
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function testBase_CanSwapAndBridgeNativeTokens()
+        public
+        override
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+        // store initial balances
+        uint256 initialUSDCBalance = usdc.balanceOf(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+
+        stargateData.lzFee = nativeAddToMessageValue;
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WETH;
+
+        uint256 amountOut = defaultNativeAmount;
+
+        // Calculate USDC input amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        // approval
+        usdc.approve(_facetTestContractAddress, amountIn);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_USDC,
+            address(0),
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
+        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
+        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        // check balances after call
+        assertEq(
+            usdc.balanceOf(USER_SENDER),
+            initialUSDCBalance - swapData[0].fromAmount
+        );
+    }
 
     //function testBase_CanSwapAndBridgeNativeTokens() public override {
     // facet does not support native bridging
