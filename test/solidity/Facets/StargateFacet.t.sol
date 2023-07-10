@@ -99,6 +99,9 @@ contract StargateFacetTest is TestBaseFacet {
             uniswap.swapExactTokensForETH.selector
         );
         stargateFacet.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
+        stargateFacet.setFunctionApprovalBySignature(
             feeCollector.collectNativeFees.selector
         );
         stargateFacet.setFunctionApprovalBySignature(
@@ -137,7 +140,7 @@ contract StargateFacetTest is TestBaseFacet {
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             stargateFacet.startBridgeTokensViaStargate{
-                value: bridgeData.minAmount + nativeAddToMessageValue
+                value: bridgeData.minAmount
             }(bridgeData, stargateData);
         } else {
             stargateFacet.startBridgeTokensViaStargate{
@@ -146,19 +149,13 @@ contract StargateFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
-        if (isNative) {
-            stargateFacet.swapAndStartBridgeTokensViaStargate{
-                value: swapData[0].fromAmount + nativeAddToMessageValue
-            }(bridgeData, swapData, stargateData);
-        } else {
-            stargateFacet.swapAndStartBridgeTokensViaStargate{
-                value: addToMessageValue
-            }(bridgeData, swapData, stargateData);
-        }
+    function initiateSwapAndBridgeTxWithFacet(bool) internal override {
+        stargateFacet.swapAndStartBridgeTokensViaStargate{
+            value: addToMessageValue
+        }(bridgeData, swapData, stargateData);
     }
+
+    /// Overrides ///
 
     function testBase_CanBridgeNativeTokens()
         public
@@ -166,7 +163,7 @@ contract StargateFacetTest is TestBaseFacet {
         assertBalanceChange(
             address(0),
             USER_SENDER,
-            -int256((defaultNativeAmount + nativeAddToMessageValue))
+            -int256((defaultNativeAmount))
         )
         assertBalanceChange(address(0), USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
@@ -178,7 +175,9 @@ contract StargateFacetTest is TestBaseFacet {
         bridgeData.minAmount = defaultNativeAmount;
         bridgeData.destinationChainId = 10;
 
+        stargateData.minAmountLD = (defaultNativeAmount * 90) / 100;
         stargateData.lzFee = nativeAddToMessageValue;
+        addToMessageValue = 0;
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -201,6 +200,7 @@ contract StargateFacetTest is TestBaseFacet {
         // prepare bridgeData
         bridgeData.hasSourceSwaps = true;
         bridgeData.sendingAssetId = address(0);
+        bridgeData.destinationChainId = 10;
 
         stargateData.lzFee = nativeAddToMessageValue;
 
@@ -216,6 +216,8 @@ contract StargateFacetTest is TestBaseFacet {
         uint256 amountIn = amounts[0];
 
         bridgeData.minAmount = amountOut;
+        stargateData.minAmountLD = (amountOut * 90) / 100;
+        addToMessageValue = 0;
 
         delete swapData;
         swapData.push(
@@ -231,7 +233,7 @@ contract StargateFacetTest is TestBaseFacet {
                     amountIn,
                     path,
                     _facetTestContractAddress,
-                    block.timestamp + 20 minutes
+                    block.timestamp + 20 seconds
                 ),
                 requiresDeposit: true
             })
@@ -267,10 +269,6 @@ contract StargateFacetTest is TestBaseFacet {
             initialUSDCBalance - swapData[0].fromAmount
         );
     }
-
-    //function testBase_CanSwapAndBridgeNativeTokens() public override {
-    // facet does not support native bridging
-    //}
 
     function test_revert_SetLayerZeroChainIdAsNonOwner() public {
         vm.startPrank(USER_SENDER);

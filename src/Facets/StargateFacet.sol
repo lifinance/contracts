@@ -13,7 +13,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Stargate Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -153,7 +153,9 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender),
-            _stargateData.lzFee
+            LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
+                ? 0
+                : _stargateData.lzFee
         );
 
         _startBridge(_bridgeData, _stargateData);
@@ -187,11 +189,11 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         StargateData calldata _stargateData
     ) private {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            nativeRouter.swapETH{ value: msg.value }(
+            nativeRouter.swapETH{ value: _bridgeData.minAmount }(
                 getLayerZeroChainId(_bridgeData.destinationChainId),
                 _stargateData.refundAddress,
                 abi.encodePacked(_bridgeData.receiver),
-                _bridgeData.minAmount,
+                _bridgeData.minAmount - _stargateData.lzFee,
                 _stargateData.minAmountLD
             );
         } else {
