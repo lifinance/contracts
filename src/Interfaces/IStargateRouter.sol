@@ -9,6 +9,11 @@ interface IStargateRouter {
         bytes dstNativeAddr;
     }
 
+    struct SwapAmount {
+        uint256 amountLD; // the amount, in Local Decimals, to be swapped
+        uint256 minAmountLD; // the minimum amount accepted out on destination
+    }
+
     /// @notice Returns factory address used for creating pools.
     function factory() external view returns (address);
 
@@ -36,12 +41,13 @@ interface IStargateRouter {
         bytes calldata payload
     ) external payable;
 
-    function swapETH(
+    function swapETHAndCall(
         uint16 _dstChainId, // destination Stargate chainId
         address payable _refundAddress, // refund additional messageFee to this address
         bytes calldata _toAddress, // the receiver of the destination ETH
-        uint256 _amountLD, // the amount, in Local Decimals, to be swapped
-        uint256 _minAmountLD // the minimum amount accepted out on destination
+        SwapAmount memory _swapAmount, // the amount and the minimum swap amount
+        IStargateRouter.lzTxObj memory _lzTxParams, // the LZ tx params
+        bytes calldata _payload // the payload to send to the destination
     ) external payable;
 
     /// @notice Returns the native gas fee required for swap.

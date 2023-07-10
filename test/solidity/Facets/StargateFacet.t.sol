@@ -40,7 +40,7 @@ contract StargateFacetTest is TestBaseFacet {
     address internal constant MAINNET_ROUTER =
         0x8731d54E9D02c286767d56ac03e8037C07e01e98;
     address internal constant MAINNET_NATIVE_ROUTER =
-        0x150f94B44927F078737562f0fcF3C95c01Cc2376;
+        0xb1b2eeF380f21747944f46d28f683cD1FBB4d03c;
     uint256 internal constant DST_CHAIN_ID = 137;
     // -----
 
