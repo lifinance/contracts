@@ -14,17 +14,17 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const { deployer } = await getNamedAccounts()
 
-  // const diamondCutFacet = await deploy('DiamondCutFacet', {
-  //   from: deployer,
-  //   log: true,
-  //   skipIfAlreadyDeployed: true,
-  // })
+  const diamondCutFacet = await deploy('DiamondCutFacet', {
+    from: deployer,
+    log: true,
+    skipIfAlreadyDeployed: true,
+  })
 
-  // const diamondLoupeFacet = await deploy('DiamondLoupeFacet', {
-  //   from: deployer,
-  //   log: true,
-  //   skipIfAlreadyDeployed: true,
-  // })
+  const diamondLoupeFacet = await deploy('DiamondLoupeFacet', {
+    from: deployer,
+    log: true,
+    skipIfAlreadyDeployed: true,
+  })
 
   const ownershipFacet = await deploy('OwnershipFacet', {
     from: deployer,
@@ -32,12 +32,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     skipIfAlreadyDeployed: true,
   })
 
-  // await verifyContract(hre, 'DiamondCutFacet', {
-  //   address: diamondCutFacet.address,
-  // })
-  // await verifyContract(hre, 'DiamondLoupeFacet', {
-  //   address: diamondLoupeFacet.address,
-  // })
+  await verifyContract(hre, 'DiamondCutFacet', {
+    address: diamondCutFacet.address,
+  })
+  await verifyContract(hre, 'DiamondLoupeFacet', {
+    address: diamondLoupeFacet.address,
+  })
   await verifyContract(hre, 'OwnershipFacet', {
     address: ownershipFacet.address,
   })
