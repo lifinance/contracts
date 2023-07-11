@@ -14,7 +14,7 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 /// @title CBridge Facet Packed
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
-/// @custom:version 1.0.2
+/// @custom:version 1.0.3
 contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
     using SafeTransferLib for ERC20;
 
