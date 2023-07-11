@@ -1,9 +1,10 @@
+// // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
 import "ds-test/test.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
 import { Test } from "forge-std/Test.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
+import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
@@ -26,10 +27,16 @@ contract CallForwarder {
 }
 
 contract HopFacetPackedL1Test is Test, DiamondTest {
+    using SafeTransferLib for ERC20;
+
     address internal constant HOP_USDC_BRIDGE =
         0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a;
+    address internal constant HOP_USDT_BRIDGE =
+        0x3E4a3a4796d16c0Cd582C382691998f7c06420B6;
     address internal constant HOP_NATIVE_BRIDGE =
         0xb8901acB165ed027E32754E0FFe830802919727f;
+    address internal constant USDT_ADDRESS =
+        0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address internal constant USDC_ADDRESS =
         0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant WHALE =
@@ -39,6 +46,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
 
     IHopBridge internal hop;
     ERC20 internal usdc;
+    ERC20 internal usdt;
     LiFiDiamond internal diamond;
     HopFacetPacked internal hopFacetPacked;
     HopFacetPacked internal standAlone;
@@ -53,6 +61,11 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
     uint256 amountBonderFeeUSDC;
     uint256 amountOutMinUSDC;
     bytes packedUSDC;
+
+    uint256 amountUSDT;
+    uint256 amountBonderFeeUSDT;
+    uint256 amountOutMinUSDT;
+    bytes packedUSDT;
 
     uint256 amountNative;
     uint256 amountBonderFeeNative;
@@ -73,8 +86,11 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
         hopFacetPacked = new HopFacetPacked(address(this), address(0));
         standAlone = new HopFacetPacked(address(this), address(0));
         usdc = ERC20(USDC_ADDRESS);
+        usdt = ERC20(USDT_ADDRESS);
         hop = IHopBridge(HOP_USDC_BRIDGE);
         callForwarder = new CallForwarder();
+
+        deal(USDT_ADDRESS, address(WHALE), 100000 * 10 ** usdt.decimals());
 
         bytes4[] memory functionSelectors = new bytes4[](13);
         functionSelectors[0] = hopFacetPacked
@@ -121,10 +137,12 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
         hopFacetPacked = HopFacetPacked(address(diamond));
 
         /// Approval
-        address[] memory bridges = new address[](1);
+        address[] memory bridges = new address[](2);
         bridges[0] = HOP_USDC_BRIDGE;
-        address[] memory tokens = new address[](1);
+        bridges[1] = HOP_USDT_BRIDGE;
+        address[] memory tokens = new address[](2);
         tokens[0] = USDC_ADDRESS;
+        tokens[1] = USDT_ADDRESS;
 
         // > diamond
         HopFacetOptimized hopFacetOptimized = new HopFacetOptimized();
@@ -181,6 +199,24 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
                 address(0),
                 0,
                 HOP_USDC_BRIDGE
+            );
+
+        // USDT params
+        amountUSDT = 100 * 10 ** usdt.decimals();
+        amountBonderFeeUSDT = (amountUSDT / 100) * 1;
+        amountOutMinUSDT = (amountUSDT / 100) * 99;
+
+        packedUSDT = hopFacetPacked
+            .encode_startBridgeTokensViaHopL1ERC20Packed(
+                transactionId,
+                RECEIVER,
+                destinationChainId,
+                USDT_ADDRESS,
+                amountUSDT,
+                amountOutMinUSDT,
+                address(0),
+                0,
+                HOP_USDT_BRIDGE
             );
     }
 
@@ -260,9 +296,9 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
     }
 
     // L1 ERC20
-    function testStartBridgeTokensViaHopL1ERC20Packed() public {
+    function testStartBridgeTokensViaHopL1ERC20Packed_USDC() public {
         vm.startPrank(WHALE);
-        usdc.approve(address(diamond), amountUSDC);
+        usdc.safeApprove(address(diamond), amountUSDC);
         (bool success, ) = address(diamond).call(packedUSDC);
         if (!success) {
             revert();
@@ -270,9 +306,9 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
         vm.stopPrank();
     }
 
-    function testStartBridgeTokensViaHopL1ERC20PackedStandalone() public {
+    function testStartBridgeTokensViaHopL1ERC20PackedStandalone_USDC() public {
         vm.startPrank(WHALE);
-        usdc.approve(address(standAlone), amountUSDC);
+        usdc.safeApprove(address(standAlone), amountUSDC);
         (bool success, ) = address(standAlone).call(packedUSDC);
         if (!success) {
             revert();
@@ -280,7 +316,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
         vm.stopPrank();
     }
 
-    function testStartBridgeTokensViaHopL1ERC20PackedDecode() public {
+    function testStartBridgeTokensViaHopL1ERC20PackedDecode_USDC() public {
         (
             ILiFi.BridgeData memory decodedBridgeData,
             HopFacetOptimized.HopData memory decodedHopData
@@ -290,9 +326,9 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
         assertEq(decodedHopData.destinationAmountOutMin, amountOutMinUSDC);
     }
 
-    function testStartBridgeTokensViaHopL1ERC20Min() public {
+    function testStartBridgeTokensViaHopL1ERC20Min_USDC() public {
         vm.startPrank(WHALE);
-        usdc.approve(address(diamond), amountUSDC);
+        usdc.safeApprove(address(diamond), amountUSDC);
         hopFacetPacked.startBridgeTokensViaHopL1ERC20Min(
             transactionId,
             RECEIVER,
@@ -307,9 +343,9 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
         vm.stopPrank();
     }
 
-    function testStartBridgeTokensViaHopL1ERC20MinStandalone() public {
+    function testStartBridgeTokensViaHopL1ERC20MinStandalone_USDC() public {
         vm.startPrank(WHALE);
-        usdc.approve(address(standAlone), amountUSDC);
+        usdc.safeApprove(address(standAlone), amountUSDC);
         standAlone.startBridgeTokensViaHopL1ERC20Min(
             transactionId,
             RECEIVER,
@@ -320,6 +356,70 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
             address(0),
             0,
             HOP_USDC_BRIDGE
+        );
+        vm.stopPrank();
+    }
+
+    function testStartBridgeTokensViaHopL1ERC20Packed_USDT() public {
+        vm.startPrank(WHALE);
+        usdt.safeApprove(address(diamond), amountUSDT);
+        (bool success, ) = address(diamond).call(packedUSDT);
+        if (!success) {
+            revert();
+        }
+        vm.stopPrank();
+    }
+
+    function testStartBridgeTokensViaHopL1ERC20PackedStandalone_USDT() public {
+        vm.startPrank(WHALE);
+        usdt.safeApprove(address(standAlone), amountUSDT);
+        (bool success, ) = address(standAlone).call(packedUSDT);
+        if (!success) {
+            revert();
+        }
+        vm.stopPrank();
+    }
+
+    function testStartBridgeTokensViaHopL1ERC20PackedDecode_USDT() public {
+        (
+            ILiFi.BridgeData memory decodedBridgeData,
+            HopFacetOptimized.HopData memory decodedHopData
+        ) = standAlone.decode_startBridgeTokensViaHopL1ERC20Packed(packedUSDT);
+
+        assertEq(decodedBridgeData.transactionId, transactionId);
+        assertEq(decodedHopData.destinationAmountOutMin, amountOutMinUSDT);
+    }
+
+    function testStartBridgeTokensViaHopL1ERC20Min_USDT() public {
+        vm.startPrank(WHALE);
+        usdt.safeApprove(address(diamond), amountUSDT);
+        hopFacetPacked.startBridgeTokensViaHopL1ERC20Min(
+            transactionId,
+            RECEIVER,
+            destinationChainId,
+            USDT_ADDRESS,
+            amountUSDT,
+            amountOutMinUSDT,
+            address(0),
+            0,
+            HOP_USDT_BRIDGE
+        );
+        vm.stopPrank();
+    }
+
+    function testStartBridgeTokensViaHopL1ERC20MinStandalone_USDT() public {
+        vm.startPrank(WHALE);
+        usdt.safeApprove(address(standAlone), amountUSDT);
+        standAlone.startBridgeTokensViaHopL1ERC20Min(
+            transactionId,
+            RECEIVER,
+            destinationChainId,
+            USDT_ADDRESS,
+            amountUSDT,
+            amountOutMinUSDT,
+            address(0),
+            0,
+            HOP_USDT_BRIDGE
         );
         vm.stopPrank();
     }

@@ -1,8 +1,9 @@
+// // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
 import { IHopBridge, IL2AmmWrapper, ISwap } from "../Interfaces/IHopBridge.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { ERC20 } from "solmate/utils/SafeTransferLib.sol";
+import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
@@ -13,6 +14,8 @@ import { WETH } from "solmate/tokens/WETH.sol";
 /// @notice Provides functionality for bridging through Hop
 /// @custom:version 1.0.5
 contract HopFacetPacked is ILiFi, TransferrableOwnership {
+    using SafeTransferLib for ERC20;
+
     /// Storage ///
 
     address public immutable nativeBridge;
@@ -245,7 +248,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         );
 
         // Deposit assets
-        ERC20(address(bytes20(msg.data[36:56]))).transferFrom(
+        ERC20(address(bytes20(msg.data[36:56]))).safeTransferFrom(
             msg.sender,
             address(this),
             amount
@@ -298,7 +301,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         address hopBridge
     ) external {
         // Deposit assets
-        ERC20(sendingAssetId).transferFrom(
+        ERC20(sendingAssetId).safeTransferFrom(
             msg.sender,
             address(this),
             minAmount
@@ -567,7 +570,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         uint256 amount = uint256(uint128(bytes16(msg.data[56:72])));
 
         // Deposit assets
-        ERC20(address(bytes20(msg.data[36:56]))).transferFrom(
+        ERC20(address(bytes20(msg.data[36:56]))).safeTransferFrom(
             msg.sender,
             address(this),
             amount
@@ -609,7 +612,7 @@ contract HopFacetPacked is ILiFi, TransferrableOwnership {
         address hopBridge
     ) external {
         // Deposit assets
-        ERC20(sendingAssetId).transferFrom(
+        ERC20(sendingAssetId).safeTransferFrom(
             msg.sender,
             address(this),
             minAmount
