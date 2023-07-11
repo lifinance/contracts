@@ -5,6 +5,7 @@
 - [AllBridge Facet](./AllBridgeFacet.md)
 - [Amarok Facet](./AmarokFacet.md)
 - [Arbitrum Bridge Facet](./ArbitrumBridgeFacet.md)
+- [CalldataVerification Facet](./CalldataVerificationFacet.md)
 - [CBridge Facet](./CBridgeFacet.md)
 - [Celer Circle Bridge Facet](./CelerCircleBridgeFacet.md)
 - [Circle Bridge Facet](./CircleBridgeFacet.md)
