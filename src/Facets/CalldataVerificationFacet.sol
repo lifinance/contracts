@@ -18,8 +18,7 @@ contract CalldataVerificationFacet {
     function extractBridgeData(
         bytes calldata data
     ) external pure returns (ILiFi.BridgeData memory bridgeData) {
-        bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
-        return bridgeData;
+        bridgeData = _extractBridgeData(data);
     }
 
     /// @notice Extracts the swap data from the calldata
@@ -28,11 +27,7 @@ contract CalldataVerificationFacet {
     function extractSwapData(
         bytes calldata data
     ) external pure returns (LibSwap.SwapData[] memory swapData) {
-        (, swapData) = abi.decode(
-            data[4:],
-            (ILiFi.BridgeData, LibSwap.SwapData[])
-        );
-        return swapData;
+        swapData = _extractSwapData(data);
     }
 
     /// @notice Extracts the bridge data and swap data from the calldata
@@ -49,15 +44,10 @@ contract CalldataVerificationFacet {
             LibSwap.SwapData[] memory swapData
         )
     {
-        (bridgeData) = abi.decode(data[4:], (ILiFi.BridgeData));
+        bridgeData = _extractBridgeData(data);
         if (bridgeData.hasSourceSwaps) {
-            (, swapData) = abi.decode(
-                data[4:],
-                (ILiFi.BridgeData, LibSwap.SwapData[])
-            );
+            swapData = _extractSwapData(data);
         }
-
-        return (bridgeData, swapData);
     }
 
     /// @notice Extracts the main parameters from the calldata
@@ -84,15 +74,10 @@ contract CalldataVerificationFacet {
             bool hasDestinationCall
         )
     {
-        ILiFi.BridgeData memory bridgeData;
-        (bridgeData) = abi.decode(data[4:], (ILiFi.BridgeData));
+        ILiFi.BridgeData memory bridgeData = _extractBridgeData(data);
 
         if (bridgeData.hasSourceSwaps) {
-            LibSwap.SwapData[] memory swapData;
-            (, swapData) = abi.decode(
-                data[4:],
-                (ILiFi.BridgeData, LibSwap.SwapData[])
-            );
+            LibSwap.SwapData[] memory swapData = _extractSwapData(data);
             sendingAssetId = swapData[0].sendingAssetId;
             amount = swapData[0].fromAmount;
         } else {
@@ -292,5 +277,28 @@ contract CalldataVerificationFacet {
 
         // All other cases
         return false;
+    }
+
+    /// Internal Methods ///
+
+    /// @notice Extracts the bridge data from the calldata
+    /// @param data The calldata to extract the bridge data from
+    /// @return bridgeData The bridge data extracted from the calldata
+    function _extractBridgeData(
+        bytes calldata data
+    ) internal pure returns (ILiFi.BridgeData memory bridgeData) {
+        bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
+    }
+
+    /// @notice Extracts the swap data from the calldata
+    /// @param data The calldata to extract the swap data from
+    /// @return swapData The swap data extracted from the calldata
+    function _extractSwapData(
+        bytes calldata data
+    ) internal pure returns (LibSwap.SwapData[] memory swapData) {
+        (, swapData) = abi.decode(
+            data[4:],
+            (ILiFi.BridgeData, LibSwap.SwapData[])
+        );
     }
 }
