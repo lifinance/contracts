@@ -67,7 +67,7 @@ const config: HardhatUserConfig = {
         'https://zksync2-testnet-explorer.zksync.dev/contract_verification',
       verify: {
         etherscan: {
-          apiKey: process.env.ETHERSCAN_API_KEY!,
+          apiKey: process.env.GOERLI_ETHERSCAN_API_KEY!,
           apiUrl: 'https://zksync2-testnet.zkscan.io',
         },
       },
@@ -75,7 +75,7 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
-      goerli: process.env.ETHERSCAN_API_KEY!,
+      goerli: process.env.GOERLI_ETHERSCAN_API_KEY!,
     },
     customChains: [
       {
