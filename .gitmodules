@@ -16,3 +16,6 @@
 [submodule "lib/safe-tx-cli"]
 	path = lib/safe-tx-cli
 	url = https://github.com/sambacha/safe-tx-cli
+[submodule "lib/openzeppelin-contracts"]
+	path = lib/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts
