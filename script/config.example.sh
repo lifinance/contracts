@@ -74,7 +74,7 @@ EXCLUDE_PERIPHERY_CONTRACTS=""
 EXCLUDE_FACET_CONTRACTS=""
 
 # contains a list of all facets that are considered core facets (and will be deployed to every network)
-CORE_FACETS="DiamondCutFacet,DiamondLoupeFacet,OwnershipFacet,DexManagerFacet,AccessManagerFacet,WithdrawFacet,PeripheryRegistryFacet"
+CORE_FACETS="DiamondCutFacet,DiamondLoupeFacet,OwnershipFacet,DexManagerFacet,AccessManagerFacet,WithdrawFacet,PeripheryRegistryFacet,LIFuelFacet,GenericSwapFacet"
 
 # enable/disable notification sounds for long-running scripts
 NOTIFICATION_SOUNDS=true
