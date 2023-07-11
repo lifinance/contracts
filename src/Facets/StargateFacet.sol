@@ -6,7 +6,7 @@ import { IStargateRouter } from "../Interfaces/IStargateRouter.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InformationMismatch, InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
@@ -30,11 +30,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct Storage {
         mapping(uint256 => uint16) layerZeroChainId;
         bool initialized;
-    }
-
-    struct PoolIdConfig {
-        address token;
-        uint16 poolId;
     }
 
     struct ChainIdConfig {
@@ -64,7 +59,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Errors ///
 
     error UnknownLayerZeroChain();
-    error InvalidStargateRouter();
 
     /// Events ///
 
@@ -79,6 +73,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize the contract.
     /// @param _router The contract address of the stargate router on the source chain.
+    /// @param _nativeRouter The contract address of the native token stargate router on the source chain.
     constructor(IStargateRouter _router, IStargateRouter _nativeRouter) {
         router = _router;
         nativeRouter = _nativeRouter;
@@ -113,7 +108,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _stargateData Data specific to Stargate Bridge
     function startBridgeTokensViaStargate(
-        ILiFi.BridgeData memory _bridgeData,
+        ILiFi.BridgeData calldata _bridgeData,
         StargateData calldata _stargateData
     )
         external

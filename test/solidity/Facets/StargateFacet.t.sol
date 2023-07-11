@@ -9,10 +9,11 @@ import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 
-// Stub CBridgeFacet Contract
+// Stub StargateFacet Contract
 contract TestStargateFacet is StargateFacet {
     /// @notice Initialize the contract.
     /// @param _router The contract address of the stargatefacet router on the source chain.
+    /// @param _nativeRouter The contract address of the native stargatefacet router on the source chain.
     constructor(
         IStargateRouter _router,
         IStargateRouter _nativeRouter
