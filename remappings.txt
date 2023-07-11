@@ -1,6 +1,6 @@
 @connext/=node_modules/@connext/
 @eth-optimism/=node_modules/@hop-protocol/sdk/node_modules/@eth-optimism/
-@openzeppelin/=node_modules/@openzeppelin/
+@openzeppelin/=lib/openzeppelin-contracts/
 @uniswap/=node_modules/@uniswap/
 create3-factory/=lib/create3-factory/src/
 ds-test/=lib/ds-test/src/
