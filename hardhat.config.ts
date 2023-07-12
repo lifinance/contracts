@@ -51,8 +51,23 @@ const config: HardhatUserConfig = {
     hardhat: {
       zksync: true,
     },
+    mainnet: {
+      url: node_url('mainnet'),
+    },
     goerli: {
       url: node_url('goerli'),
+    },
+    zksync: {
+      url: node_url('zksync'),
+      accounts: PKEY ? [PKEY] : accounts(),
+      chainId: 324,
+      companionNetworks: {
+        hub: 'mainnet',
+      },
+      zksync: true,
+      ethNetwork: 'mainnet',
+      verifyURL:
+        'https://zksync2-mainnet-explorer.zksync.io/contract_verification',
     },
     zksyncGoerli: {
       url: node_url('zksync_goerli'),
@@ -65,28 +80,7 @@ const config: HardhatUserConfig = {
       ethNetwork: 'goerli',
       verifyURL:
         'https://zksync2-testnet-explorer.zksync.dev/contract_verification',
-      verify: {
-        etherscan: {
-          apiKey: process.env.GOERLI_ETHERSCAN_API_KEY!,
-          apiUrl: 'https://zksync2-testnet.zkscan.io',
-        },
-      },
     },
-  },
-  etherscan: {
-    apiKey: {
-      goerli: process.env.GOERLI_ETHERSCAN_API_KEY!,
-    },
-    customChains: [
-      {
-        network: 'zksyncGoerli',
-        chainId: 280,
-        urls: {
-          apiURL: 'https://zksync2-testnet.zkscan.io/api',
-          browserURL: 'https://zksync2-testnet.zkscan.io',
-        },
-      },
-    ],
   },
   preprocess: {
     eachLine: (hre) => ({
