@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ICBridge } from "../Interfaces/ICBridge.sol";
 import { CBridgeFacet } from "./CBridgeFacet.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { ERC20 } from "solmate/utils/SafeTransferLib.sol";
+import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ContractCallNotAllowed, ExternalCallFailed } from "../Errors/GenericErrors.sol";
@@ -15,8 +14,10 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 /// @title CBridge Facet Packed
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through CBridge
-/// @custom:version 1.0.2
+/// @custom:version 1.0.3
 contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
+    using SafeTransferLib for ERC20;
+
     /// Storage ///
 
     /// @notice The contract address of the cbridge on the source chain.
@@ -140,8 +141,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         uint256 amount = uint256(uint128(bytes16(msg.data[56:72])));
 
         // Deposit assets
-        SafeERC20.safeTransferFrom(
-            IERC20(sendingAssetId),
+        ERC20(sendingAssetId).safeTransferFrom(
             msg.sender,
             address(this),
             amount
@@ -179,8 +179,7 @@ contract CBridgeFacetPacked is ILiFi, TransferrableOwnership {
         uint32 maxSlippage
     ) external {
         // Deposit assets
-        SafeERC20.safeTransferFrom(
-            IERC20(sendingAssetId),
+        ERC20(sendingAssetId).safeTransferFrom(
             msg.sender,
             address(this),
             amount
