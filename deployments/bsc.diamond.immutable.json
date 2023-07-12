@@ -69,13 +69,13 @@
         "Name": "WormholeFacet",
         "Version": "1.0.0"
       },
-      "0x0aE0a1Ae2703A27bC518fd7d9DCB3F6C69CfccD2": {
+      "0xed662c027c985B73A732975E3B4CeadC97AAF145": {
         "Name": "HopFacetPacked",
-        "Version": "1.0.4"
+        "Version": "1.0.6"
       },
-      "0x5E3DC14bfc5aF89C2c34A24E2c1ba6430B9F4Fd2": {
+      "0xa4eB2EF4064197De6517A53d36263e4591cD0B34": {
         "Name": "CBridgeFacetPacked",
-        "Version": "1.0.1"
+        "Version": "1.0.3"
       },
       "0x0d26d248D4e80377f1d794AB88090e76B0903EDE": {
         "Name": "CelerIMFacetImmutable",
