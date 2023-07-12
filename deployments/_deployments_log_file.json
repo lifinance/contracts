@@ -8863,6 +8863,20 @@
           }
         ]
       }
+    },
+    "arbitrum": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xB4e0Cfb32d77051BeB53404b94829D906d035B77",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-07-12 18:17:11",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009ce3447b58d58e8602b7306316a5ff011b92d189",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "ArbitrumBridgeFacet": {
