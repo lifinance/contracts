@@ -106,5 +106,9 @@
   "localanvil": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
+  },
+  "zksyncGoerli": {
+    "connextHandler": "0xB0694fEcEdd88e5590A563aDb5f194d2dE30F0b6",
+    "domain": "2053862260"
   }
 }

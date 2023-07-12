@@ -15,7 +15,6 @@
     "acrossSpokePool": "0x9295ee1d8C5b022Be115A2AD3c30C72E34e7F096",
     "weth": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
   },
-
   "goerli": {
     "acrossSpokePool": "0xEc88d3C08E2939562Ff8188B4e30A52236C3FF09",
     "weth": "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6"
