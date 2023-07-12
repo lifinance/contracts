@@ -6,7 +6,7 @@ import { addFacets, addOrReplaceFacets } from '../utils/diamond'
 
 const func: DeployFunction = async function () {
   // Protect against unwanted redeployments
-  if (network.name !== 'zksyncGoerli') {
+  if (network.name !== 'zksync' && network.name !== 'zksyncGoerli') {
     return
   }
 

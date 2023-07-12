@@ -5,7 +5,7 @@ import { verifyContract } from './9999_verify_all_facets'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Protect against unwanted redeployments
-  if (network.name !== 'zksyncGoerli') {
+  if (network.name !== 'zksync' && network.name !== 'zksyncGoerli') {
     return
   }
 

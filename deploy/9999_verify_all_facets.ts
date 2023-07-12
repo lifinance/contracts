@@ -1,5 +1,5 @@
 import { DeployFunction } from 'hardhat-deploy/types'
-import { getNamedAccounts } from 'hardhat'
+import { network, getNamedAccounts } from 'hardhat'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 
 export const verifyContract = async function (
@@ -7,7 +7,7 @@ export const verifyContract = async function (
   name: string,
   options?: { address?: string; args?: any[] }
 ) {
-  if (hre.network.name === 'hardhat') {
+  if (network.name !== 'zksync' && network.name !== 'zksyncGoerli') {
     return
   }
 
