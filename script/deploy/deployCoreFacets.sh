@@ -40,15 +40,6 @@ deployCoreFacets() {
 
     # call deploy script for current contract
     deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" "false"
-
-    # TODO: reactivate or delete if not needed
-    # check if function call was successful
-    #if [ $? -ne 0 ]
-    #then
-    #  warning "deployment of contract $CONTRACT to network $NETWORK failed :("
-    #else
-    #  echo "[info] deployment of contract $CONTRACT to network $NETWORK successful :)"
-    #fi
   done
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets deployed (please check for warnings)"
   echo ""
