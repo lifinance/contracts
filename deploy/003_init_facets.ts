@@ -1,6 +1,5 @@
-import { ethers } from 'hardhat'
+import { ethers, network } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
-import { network } from 'hardhat'
 import { IDiamondLoupe } from '../typechain'
 import { addFacets, addOrReplaceFacets } from '../utils/diamond'
 

@@ -1,5 +1,5 @@
 import { DeployFunction } from 'hardhat-deploy/types'
-import { network, getNamedAccounts } from 'hardhat'
+import { ethers, network, getNamedAccounts } from 'hardhat'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 
 export const verifyContract = async function (
@@ -17,13 +17,11 @@ export const verifyContract = async function (
       constructorArguments: options?.args || [],
     })
   } catch (e) {
-    console.log(`Failed to verify contract: ${e}`)
+    console.log(`Failed to verify ${name} contract: ${e}`)
   }
 }
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
-  const { network } = hre
-
   if (network.name === 'hardhat') return
 
   const { deployer } = await getNamedAccounts()
@@ -35,6 +33,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   await verifyContract(hre, 'DiamondLoupeFacet')
   await verifyContract(hre, 'DiamondCutFacet')
   await verifyContract(hre, 'OwnershipFacet')
+
+  await verifyContract(hre, 'PeripheryRegistryFacet')
+  await verifyContract(hre, 'Executor')
+  await verifyContract(hre, 'Receiver')
 }
 export default func
 func.id = 'verify_all_facets'
