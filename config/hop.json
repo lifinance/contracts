@@ -233,6 +233,237 @@
       }
     ]
   },
+  "gnosis": {
+    "chainId": 100,
+    "tokens": [
+      {
+        "name": "USDC",
+        "bridge": "0x25D8039bB044dC227f741a9e381CA4cEAE2E6aE8",
+        "token": "0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83",
+        "ammWrapper": "0x76b22b8C1079A44F1211D867D68b1eda76a635A7"
+      },
+      {
+        "name": "USDT",
+        "bridge": "0xFD5a186A7e8453Eb867A360526c5d987A00ACaC2",
+        "token": "0x4ECaBa5870353805a9F068101A40E0f32ed605C6",
+        "ammWrapper": "0x49094a1B3463c4e2E82ca41b8e6A023bdd6E222f"
+      },
+      {
+        "name": "MATIC",
+        "bridge": "0x7ac71c29fEdF94BAc5A5C9aB76E1Dd12Ea885CCC",
+        "token": "0x7122d7661c4564b7C6Cd4878B06766489a6028A2",
+        "ammWrapper": "0x86cA30bEF97fB651b8d866D45503684b90cb3312"
+      },
+      {
+        "name": "DAI",
+        "bridge": "0x0460352b91D7CF42B0E1C1c30f06B602D9ef2238",
+        "token": "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d",
+        "ammWrapper": "0x6C928f435d1F3329bABb42d69CCF043e3900EcF1"
+      },
+      {
+        "name": "DAI",
+        "bridge": "0x0460352b91D7CF42B0E1C1c30f06B602D9ef2238",
+        "token": "0x0000000000000000000000000000000000000000",
+        "ammWrapper": "0x6C928f435d1F3329bABb42d69CCF043e3900EcF1"
+      },
+      {
+        "name": "ETH",
+        "bridge": "0xD8926c12C0B2E5Cd40cFdA49eCaFf40252Af491B",
+        "token": "0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1",
+        "ammWrapper": "0x03D7f750777eC48d39D080b020D83Eb2CB4e3547"
+      },
+      {
+        "name": "HOP",
+        "bridge": "0x6F03052743CD99ce1b29265E377e320CD24Eb632",
+        "token": "0xc5102fE9359FD9a28f877a67E36B0F050d81a3CC",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      }
+    ],
+    "approvals": [
+      {
+        "a_tokenAddress": "0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83",
+        "b_contractAddress": "0x76b22b8C1079A44F1211D867D68b1eda76a635A7",
+        "c_tokenName": "USDC",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83",
+        "b_contractAddress": "0x5C32143C8B198F392d01f8446b754c181224ac26",
+        "c_tokenName": "USDC",
+        "d_contractName": "l2SaddleSwap"
+      },
+      {
+        "a_tokenAddress": "0x4ECaBa5870353805a9F068101A40E0f32ed605C6",
+        "b_contractAddress": "0x49094a1B3463c4e2E82ca41b8e6A023bdd6E222f",
+        "c_tokenName": "USDT",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0x4ECaBa5870353805a9F068101A40E0f32ed605C6",
+        "b_contractAddress": "0x3Aa637D6853f1d9A9354FE4301Ab852A88b237e7",
+        "c_tokenName": "USDT",
+        "d_contractName": "l2SaddleSwap"
+      },
+      {
+        "a_tokenAddress": "0x7122d7661c4564b7C6Cd4878B06766489a6028A2",
+        "b_contractAddress": "0x86cA30bEF97fB651b8d866D45503684b90cb3312",
+        "c_tokenName": "MATIC",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0x7122d7661c4564b7C6Cd4878B06766489a6028A2",
+        "b_contractAddress": "0xaa30D6bba6285d0585722e2440Ff89E23EF68864",
+        "c_tokenName": "MATIC",
+        "d_contractName": "l2SaddleSwap"
+      },
+      {
+        "a_tokenAddress": "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d",
+        "b_contractAddress": "0x6C928f435d1F3329bABb42d69CCF043e3900EcF1",
+        "c_tokenName": "DAI",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d",
+        "b_contractAddress": "0x24afDcA4653042C6D08fb1A754b2535dAcF6Eb24",
+        "c_tokenName": "DAI",
+        "d_contractName": "l2SaddleSwap"
+      },
+      {
+        "a_tokenAddress": "0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1",
+        "b_contractAddress": "0x03D7f750777eC48d39D080b020D83Eb2CB4e3547",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1",
+        "b_contractAddress": "0x4014DC015641c08788F15bD6eB20dA4c47D936d8",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2SaddleSwap"
+      },
+      {
+        "a_tokenAddress": "0xc5102fE9359FD9a28f877a67E36B0F050d81a3CC",
+        "b_contractAddress": "0x6F03052743CD99ce1b29265E377e320CD24Eb632",
+        "c_tokenName": "HOP",
+        "d_contractName": "l2Bridge"
+      }
+    ]
+  },
+  "localanvil": {
+    "chainId": 31337,
+    "tokens": [
+      {
+        "name": "ETH",
+        "bridge": "0x3E4a3a4796d16c0Cd582C382691998f7c06420B6",
+        "token": "0x2C1b868d6596a18e32E61B901E4060C872647b6C",
+        "ammWrapper": "0xC08055b634D43F2176d721E26A3428D3b7E7DdB5"
+      },
+      {
+        "name": "HOP",
+        "bridge": "0x2E9bB44C9CB774939462eF874Fc854D8df524F13",
+        "token": "0x6F03052743CD99ce1b29265E377e320CD24Eb632",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "USDC",
+        "bridge": "0x884d1Aa15F9957E1aEAA86a82a72e49Bc2bfCbe3",
+        "token": "0xf56dc6695cF1f5c364eDEbC7Dc7077ac9B586068",
+        "ammWrapper": "0x50d7d8B850e0e880295800790551928F4546BfE2"
+      },
+      {
+        "name": "USDT",
+        "bridge": "0xdb16fbF595C02EeF7D9233d38C232495734F3D85",
+        "token": "0x1990BC6dfe2ef605Bfc08f5A23564dB75642Ad73",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "DAI",
+        "bridge": "0xf11EBB94EC986EA891Aec29cfF151345C83b33Ec",
+        "token": "0x8741Ba6225A6BF91f9D73531A98A89807857a2B3",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "UNI",
+        "bridge": "0xb07c6505e1E41112494123e40330c5Ac09817CFB",
+        "token": "0x7823E8DCC8bfc23EA3AC899EB86921f90e80F499",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      }
+    ],
+    "approvals": [
+      {
+        "a_tokenAddress": "0x2C1b868d6596a18e32E61B901E4060C872647b6C",
+        "b_contractAddress": "0xC08055b634D43F2176d721E26A3428D3b7E7DdB5",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0x2C1b868d6596a18e32E61B901E4060C872647b6C",
+        "b_contractAddress": "0x7191061D5d4C60f598214cC6913502184BAddf18",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2SaddleSwap"
+      },
+      {
+        "a_tokenAddress": "0x6F03052743CD99ce1b29265E377e320CD24Eb632",
+        "b_contractAddress": "0x2E9bB44C9CB774939462eF874Fc854D8df524F13",
+        "c_tokenName": "HOP",
+        "d_contractName": "l2Bridge"
+      },
+      {
+        "a_tokenAddress": "0xf56dc6695cF1f5c364eDEbC7Dc7077ac9B586068",
+        "b_contractAddress": "0x50d7d8B850e0e880295800790551928F4546BfE2",
+        "c_tokenName": "USDC",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0xf56dc6695cF1f5c364eDEbC7Dc7077ac9B586068",
+        "b_contractAddress": "0x723194C6Cfed24883b598931Ee802ab80952C001",
+        "c_tokenName": "USDC",
+        "d_contractName": "l2SaddleSwap"
+      },
+      {
+        "a_tokenAddress": "0x1990BC6dfe2ef605Bfc08f5A23564dB75642Ad73",
+        "b_contractAddress": "0xdb16fbF595C02EeF7D9233d38C232495734F3D85",
+        "c_tokenName": "USDT",
+        "d_contractName": "l2Bridge"
+      },
+      {
+        "a_tokenAddress": "0x8741Ba6225A6BF91f9D73531A98A89807857a2B3",
+        "b_contractAddress": "0xf11EBB94EC986EA891Aec29cfF151345C83b33Ec",
+        "c_tokenName": "DAI",
+        "d_contractName": "l2Bridge"
+      },
+      {
+        "a_tokenAddress": "0x7823E8DCC8bfc23EA3AC899EB86921f90e80F499",
+        "b_contractAddress": "0xb07c6505e1E41112494123e40330c5Ac09817CFB",
+        "c_tokenName": "UNI",
+        "d_contractName": "l2Bridge"
+      }
+    ]
+  },
+  "nova": {
+    "chainId": 42170,
+    "tokens": [
+      {
+        "name": "ETH",
+        "bridge": "0x8796860ca1677Bf5d54cE5A348Fe4b779a8212f3",
+        "token": "0x722E8BdD2ce80A4422E880164f2079488e115365",
+        "ammWrapper": "0xd6bFB71b5Ad5fD378CaC15C72D8652E3b8D542c4"
+      }
+    ],
+    "approvals": [
+      {
+        "a_tokenAddress": "0x722E8BdD2ce80A4422E880164f2079488e115365",
+        "b_contractAddress": "0xd6bFB71b5Ad5fD378CaC15C72D8652E3b8D542c4",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0x722E8BdD2ce80A4422E880164f2079488e115365",
+        "b_contractAddress": "0x9908109e51D093cF17ef945Df2C62cb17cB877c4",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2SaddleSwap"
+      }
+    ]
+  },
   "optimism": {
     "chainId": 10,
     "tokens": [
@@ -384,121 +615,6 @@
       }
     ]
   },
-  "gnosis": {
-    "chainId": 100,
-    "tokens": [
-      {
-        "name": "USDC",
-        "bridge": "0x25D8039bB044dC227f741a9e381CA4cEAE2E6aE8",
-        "token": "0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83",
-        "ammWrapper": "0x76b22b8C1079A44F1211D867D68b1eda76a635A7"
-      },
-      {
-        "name": "USDT",
-        "bridge": "0xFD5a186A7e8453Eb867A360526c5d987A00ACaC2",
-        "token": "0x4ECaBa5870353805a9F068101A40E0f32ed605C6",
-        "ammWrapper": "0x49094a1B3463c4e2E82ca41b8e6A023bdd6E222f"
-      },
-      {
-        "name": "MATIC",
-        "bridge": "0x7ac71c29fEdF94BAc5A5C9aB76E1Dd12Ea885CCC",
-        "token": "0x7122d7661c4564b7C6Cd4878B06766489a6028A2",
-        "ammWrapper": "0x86cA30bEF97fB651b8d866D45503684b90cb3312"
-      },
-      {
-        "name": "DAI",
-        "bridge": "0x0460352b91D7CF42B0E1C1c30f06B602D9ef2238",
-        "token": "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d",
-        "ammWrapper": "0x6C928f435d1F3329bABb42d69CCF043e3900EcF1"
-      },
-      {
-        "name": "DAI",
-        "bridge": "0x0460352b91D7CF42B0E1C1c30f06B602D9ef2238",
-        "token": "0x0000000000000000000000000000000000000000",
-        "ammWrapper": "0x6C928f435d1F3329bABb42d69CCF043e3900EcF1"
-      },
-      {
-        "name": "ETH",
-        "bridge": "0xD8926c12C0B2E5Cd40cFdA49eCaFf40252Af491B",
-        "token": "0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1",
-        "ammWrapper": "0x03D7f750777eC48d39D080b020D83Eb2CB4e3547"
-      },
-      {
-        "name": "HOP",
-        "bridge": "0x6F03052743CD99ce1b29265E377e320CD24Eb632",
-        "token": "0xc5102fE9359FD9a28f877a67E36B0F050d81a3CC",
-        "ammWrapper": "0x0000000000000000000000000000000000000000"
-      }
-    ],
-    "approvals": [
-      {
-        "a_tokenAddress": "0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83",
-        "b_contractAddress": "0x76b22b8C1079A44F1211D867D68b1eda76a635A7",
-        "c_tokenName": "USDC",
-        "d_contractName": "l2AmmWrapper"
-      },
-      {
-        "a_tokenAddress": "0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83",
-        "b_contractAddress": "0x5C32143C8B198F392d01f8446b754c181224ac26",
-        "c_tokenName": "USDC",
-        "d_contractName": "l2SaddleSwap"
-      },
-      {
-        "a_tokenAddress": "0x4ECaBa5870353805a9F068101A40E0f32ed605C6",
-        "b_contractAddress": "0x49094a1B3463c4e2E82ca41b8e6A023bdd6E222f",
-        "c_tokenName": "USDT",
-        "d_contractName": "l2AmmWrapper"
-      },
-      {
-        "a_tokenAddress": "0x4ECaBa5870353805a9F068101A40E0f32ed605C6",
-        "b_contractAddress": "0x3Aa637D6853f1d9A9354FE4301Ab852A88b237e7",
-        "c_tokenName": "USDT",
-        "d_contractName": "l2SaddleSwap"
-      },
-      {
-        "a_tokenAddress": "0x7122d7661c4564b7C6Cd4878B06766489a6028A2",
-        "b_contractAddress": "0x86cA30bEF97fB651b8d866D45503684b90cb3312",
-        "c_tokenName": "MATIC",
-        "d_contractName": "l2AmmWrapper"
-      },
-      {
-        "a_tokenAddress": "0x7122d7661c4564b7C6Cd4878B06766489a6028A2",
-        "b_contractAddress": "0xaa30D6bba6285d0585722e2440Ff89E23EF68864",
-        "c_tokenName": "MATIC",
-        "d_contractName": "l2SaddleSwap"
-      },
-      {
-        "a_tokenAddress": "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d",
-        "b_contractAddress": "0x6C928f435d1F3329bABb42d69CCF043e3900EcF1",
-        "c_tokenName": "DAI",
-        "d_contractName": "l2AmmWrapper"
-      },
-      {
-        "a_tokenAddress": "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d",
-        "b_contractAddress": "0x24afDcA4653042C6D08fb1A754b2535dAcF6Eb24",
-        "c_tokenName": "DAI",
-        "d_contractName": "l2SaddleSwap"
-      },
-      {
-        "a_tokenAddress": "0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1",
-        "b_contractAddress": "0x03D7f750777eC48d39D080b020D83Eb2CB4e3547",
-        "c_tokenName": "ETH",
-        "d_contractName": "l2AmmWrapper"
-      },
-      {
-        "a_tokenAddress": "0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1",
-        "b_contractAddress": "0x4014DC015641c08788F15bD6eB20dA4c47D936d8",
-        "c_tokenName": "ETH",
-        "d_contractName": "l2SaddleSwap"
-      },
-      {
-        "a_tokenAddress": "0xc5102fE9359FD9a28f877a67E36B0F050d81a3CC",
-        "b_contractAddress": "0x6F03052743CD99ce1b29265E377e320CD24Eb632",
-        "c_tokenName": "HOP",
-        "d_contractName": "l2Bridge"
-      }
-    ]
-  },
   "polygon": {
     "chainId": 137,
     "tokens": [
@@ -614,31 +730,6 @@
       }
     ]
   },
-  "nova": {
-    "chainId": 42170,
-    "tokens": [
-      {
-        "name": "ETH",
-        "bridge": "0x8796860ca1677Bf5d54cE5A348Fe4b779a8212f3",
-        "token": "0x722E8BdD2ce80A4422E880164f2079488e115365",
-        "ammWrapper": "0xd6bFB71b5Ad5fD378CaC15C72D8652E3b8D542c4"
-      }
-    ],
-    "approvals": [
-      {
-        "a_tokenAddress": "0x722E8BdD2ce80A4422E880164f2079488e115365",
-        "b_contractAddress": "0xd6bFB71b5Ad5fD378CaC15C72D8652E3b8D542c4",
-        "c_tokenName": "ETH",
-        "d_contractName": "l2AmmWrapper"
-      },
-      {
-        "a_tokenAddress": "0x722E8BdD2ce80A4422E880164f2079488e115365",
-        "b_contractAddress": "0x9908109e51D093cF17ef945Df2C62cb17cB877c4",
-        "c_tokenName": "ETH",
-        "d_contractName": "l2SaddleSwap"
-      }
-    ]
-  },
   "goerli": {
     "chainId": 5,
     "tokens": [
@@ -742,56 +833,6 @@
       }
     ]
   },
-  "mumbai": {
-    "chainId": 80001,
-    "tokens": [
-      {
-        "name": "ETH",
-        "bridge": "0x34E8251051687BfF4EA23C18e466b3Ed13492abd",
-        "token": "0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa",
-        "ammWrapper": "0x0e0E3d2C5c292161999474247956EF542caBF8dd"
-      }
-    ],
-    "approvals": [
-      {
-        "a_tokenAddress": "0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa",
-        "b_contractAddress": "0x0e0E3d2C5c292161999474247956EF542caBF8dd",
-        "c_tokenName": "ETH",
-        "d_contractName": "l2AmmWrapper"
-      },
-      {
-        "a_tokenAddress": "0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa",
-        "b_contractAddress": "0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a",
-        "c_tokenName": "ETH",
-        "d_contractName": "l2SaddleSwap"
-      }
-    ]
-  },
-  "optimismTestnet": {
-    "chainId": 420,
-    "tokens": [
-      {
-        "name": "ETH",
-        "bridge": "0x2708E5C7087d4C6D295c8B58b2D452c360D505C7",
-        "token": "0xDc38c5aF436B9652225f92c370A011C673FA7Ba5",
-        "ammWrapper": "0xC1985d7a3429cDC85E59E2E4Fcc805b857e6Ee2E"
-      }
-    ],
-    "approvals": [
-      {
-        "a_tokenAddress": "0xDc38c5aF436B9652225f92c370A011C673FA7Ba5",
-        "b_contractAddress": "0xC1985d7a3429cDC85E59E2E4Fcc805b857e6Ee2E",
-        "c_tokenName": "ETH",
-        "d_contractName": "l2AmmWrapper"
-      },
-      {
-        "a_tokenAddress": "0xDc38c5aF436B9652225f92c370A011C673FA7Ba5",
-        "b_contractAddress": "0xa50395bdEaca7062255109fedE012eFE63d6D402",
-        "c_tokenName": "ETH",
-        "d_contractName": "l2SaddleSwap"
-      }
-    ]
-  },
   "arbitrumTestnet": {
     "chainId": 421613,
     "tokens": [
@@ -812,6 +853,37 @@
       {
         "a_tokenAddress": "0xcb5ddfb8d0038247dc0beeecaa7f3457befcb77c",
         "b_contractAddress": "0x69a71b7F6Ff088a0310b4f911b4f9eA11e2E9740",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2SaddleSwap"
+      }
+    ]
+  },
+  "baseTestnet": {
+    "chainId": 84531,
+    "tokens": [
+      {
+        "name": "ETH",
+        "bridge": "0xCB4cEeFce514B2d910d3ac529076D18e3aDD3775",
+        "token": "0x4200000000000000000000000000000000000006",
+        "ammWrapper": "0xCbb852A6274e03fA00fb4895dE0463f66dF27a11"
+      },
+      {
+        "name": "ETH",
+        "bridge": "0xCB4cEeFce514B2d910d3ac529076D18e3aDD3775",
+        "token": "0x0000000000000000000000000000000000000000",
+        "ammWrapper": "0xCbb852A6274e03fA00fb4895dE0463f66dF27a11"
+      }
+    ],
+    "approvals": [
+      {
+        "a_tokenAddress": "0x4200000000000000000000000000000000000006",
+        "b_contractAddress": "0xCbb852A6274e03fA00fb4895dE0463f66dF27a11",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0x4200000000000000000000000000000000000006",
+        "b_contractAddress": "0xB87aC009F61Fa214f196e232fD14A6f8AE422FA1",
         "c_tokenName": "ETH",
         "d_contractName": "l2SaddleSwap"
       }
@@ -908,125 +980,53 @@
       }
     ]
   },
-  "baseTestnet": {
-    "chainId": 84531,
+  "mumbai": {
+    "chainId": 80001,
     "tokens": [
       {
         "name": "ETH",
-        "bridge": "0xCB4cEeFce514B2d910d3ac529076D18e3aDD3775",
-        "token": "0x4200000000000000000000000000000000000006",
-        "ammWrapper": "0xCbb852A6274e03fA00fb4895dE0463f66dF27a11"
-      },
-      {
-        "name": "ETH",
-        "bridge": "0xCB4cEeFce514B2d910d3ac529076D18e3aDD3775",
-        "token": "0x0000000000000000000000000000000000000000",
-        "ammWrapper": "0xCbb852A6274e03fA00fb4895dE0463f66dF27a11"
+        "bridge": "0x34E8251051687BfF4EA23C18e466b3Ed13492abd",
+        "token": "0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa",
+        "ammWrapper": "0x0e0E3d2C5c292161999474247956EF542caBF8dd"
       }
     ],
     "approvals": [
       {
-        "a_tokenAddress": "0x4200000000000000000000000000000000000006",
-        "b_contractAddress": "0xCbb852A6274e03fA00fb4895dE0463f66dF27a11",
+        "a_tokenAddress": "0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa",
+        "b_contractAddress": "0x0e0E3d2C5c292161999474247956EF542caBF8dd",
         "c_tokenName": "ETH",
         "d_contractName": "l2AmmWrapper"
       },
       {
-        "a_tokenAddress": "0x4200000000000000000000000000000000000006",
-        "b_contractAddress": "0xB87aC009F61Fa214f196e232fD14A6f8AE422FA1",
+        "a_tokenAddress": "0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa",
+        "b_contractAddress": "0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a",
         "c_tokenName": "ETH",
         "d_contractName": "l2SaddleSwap"
       }
     ]
   },
-  "localanvil": {
-    "chainId": 31337,
+  "optimismTestnet": {
+    "chainId": 420,
     "tokens": [
       {
         "name": "ETH",
-        "bridge": "0x3E4a3a4796d16c0Cd582C382691998f7c06420B6",
-        "token": "0x2C1b868d6596a18e32E61B901E4060C872647b6C",
-        "ammWrapper": "0xC08055b634D43F2176d721E26A3428D3b7E7DdB5"
-      },
-      {
-        "name": "HOP",
-        "bridge": "0x2E9bB44C9CB774939462eF874Fc854D8df524F13",
-        "token": "0x6F03052743CD99ce1b29265E377e320CD24Eb632",
-        "ammWrapper": "0x0000000000000000000000000000000000000000"
-      },
-      {
-        "name": "USDC",
-        "bridge": "0x884d1Aa15F9957E1aEAA86a82a72e49Bc2bfCbe3",
-        "token": "0xf56dc6695cF1f5c364eDEbC7Dc7077ac9B586068",
-        "ammWrapper": "0x50d7d8B850e0e880295800790551928F4546BfE2"
-      },
-      {
-        "name": "USDT",
-        "bridge": "0xdb16fbF595C02EeF7D9233d38C232495734F3D85",
-        "token": "0x1990BC6dfe2ef605Bfc08f5A23564dB75642Ad73",
-        "ammWrapper": "0x0000000000000000000000000000000000000000"
-      },
-      {
-        "name": "DAI",
-        "bridge": "0xf11EBB94EC986EA891Aec29cfF151345C83b33Ec",
-        "token": "0x8741Ba6225A6BF91f9D73531A98A89807857a2B3",
-        "ammWrapper": "0x0000000000000000000000000000000000000000"
-      },
-      {
-        "name": "UNI",
-        "bridge": "0xb07c6505e1E41112494123e40330c5Ac09817CFB",
-        "token": "0x7823E8DCC8bfc23EA3AC899EB86921f90e80F499",
-        "ammWrapper": "0x0000000000000000000000000000000000000000"
+        "bridge": "0x2708E5C7087d4C6D295c8B58b2D452c360D505C7",
+        "token": "0xDc38c5aF436B9652225f92c370A011C673FA7Ba5",
+        "ammWrapper": "0xC1985d7a3429cDC85E59E2E4Fcc805b857e6Ee2E"
       }
     ],
     "approvals": [
       {
-        "a_tokenAddress": "0x2C1b868d6596a18e32E61B901E4060C872647b6C",
-        "b_contractAddress": "0xC08055b634D43F2176d721E26A3428D3b7E7DdB5",
+        "a_tokenAddress": "0xDc38c5aF436B9652225f92c370A011C673FA7Ba5",
+        "b_contractAddress": "0xC1985d7a3429cDC85E59E2E4Fcc805b857e6Ee2E",
         "c_tokenName": "ETH",
         "d_contractName": "l2AmmWrapper"
       },
       {
-        "a_tokenAddress": "0x2C1b868d6596a18e32E61B901E4060C872647b6C",
-        "b_contractAddress": "0x7191061D5d4C60f598214cC6913502184BAddf18",
+        "a_tokenAddress": "0xDc38c5aF436B9652225f92c370A011C673FA7Ba5",
+        "b_contractAddress": "0xa50395bdEaca7062255109fedE012eFE63d6D402",
         "c_tokenName": "ETH",
         "d_contractName": "l2SaddleSwap"
-      },
-      {
-        "a_tokenAddress": "0x6F03052743CD99ce1b29265E377e320CD24Eb632",
-        "b_contractAddress": "0x2E9bB44C9CB774939462eF874Fc854D8df524F13",
-        "c_tokenName": "HOP",
-        "d_contractName": "l2Bridge"
-      },
-      {
-        "a_tokenAddress": "0xf56dc6695cF1f5c364eDEbC7Dc7077ac9B586068",
-        "b_contractAddress": "0x50d7d8B850e0e880295800790551928F4546BfE2",
-        "c_tokenName": "USDC",
-        "d_contractName": "l2AmmWrapper"
-      },
-      {
-        "a_tokenAddress": "0xf56dc6695cF1f5c364eDEbC7Dc7077ac9B586068",
-        "b_contractAddress": "0x723194C6Cfed24883b598931Ee802ab80952C001",
-        "c_tokenName": "USDC",
-        "d_contractName": "l2SaddleSwap"
-      },
-      {
-        "a_tokenAddress": "0x1990BC6dfe2ef605Bfc08f5A23564dB75642Ad73",
-        "b_contractAddress": "0xdb16fbF595C02EeF7D9233d38C232495734F3D85",
-        "c_tokenName": "USDT",
-        "d_contractName": "l2Bridge"
-      },
-      {
-        "a_tokenAddress": "0x8741Ba6225A6BF91f9D73531A98A89807857a2B3",
-        "b_contractAddress": "0xf11EBB94EC986EA891Aec29cfF151345C83b33Ec",
-        "c_tokenName": "DAI",
-        "d_contractName": "l2Bridge"
-      },
-      {
-        "a_tokenAddress": "0x7823E8DCC8bfc23EA3AC899EB86921f90e80F499",
-        "b_contractAddress": "0xb07c6505e1E41112494123e40330c5Ac09817CFB",
-        "c_tokenName": "UNI",
-        "d_contractName": "l2Bridge"
       }
     ]
   }

@@ -176,6 +176,23 @@
       }
     ]
   },
+  "localanvil": {
+    "standardBridge": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1",
+    "tokens": [
+      {
+        "assetId": "0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f",
+        "bridge": "0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4"
+      },
+      {
+        "assetId": "0x6b175474e89094c44da98b954eedeac495271d0f",
+        "bridge": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1"
+      },
+      {
+        "assetId": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+        "bridge": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1"
+      }
+    ]
+  },
   "mumbai": {
     "standardBridge": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1",
     "tokens": [
@@ -350,23 +367,6 @@
       {
         "assetId": "0xbb9bc244d798123fde783fcc1c72d3bb8c189413",
         "bridge": "0xd8f365c2c85648f9b89d9f1bf72c0ae4b1c36cfd"
-      }
-    ]
-  },
-  "localanvil": {
-    "standardBridge": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1",
-    "tokens": [
-      {
-        "assetId": "0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f",
-        "bridge": "0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4"
-      },
-      {
-        "assetId": "0x6b175474e89094c44da98b954eedeac495271d0f",
-        "bridge": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1"
-      },
-      {
-        "assetId": "0xdac17f958d2ee523a2206206994597c13d831ec7",
-        "bridge": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1"
       }
     ]
   }

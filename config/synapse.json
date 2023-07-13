@@ -2,34 +2,34 @@
   "mainnet": {
     "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
   },
-  "bsc": {
-    "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
-  },
-  "polygon": {
-    "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
-  },
-  "fantom": {
-    "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
-  },
-  "optimism": {
-    "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
-  },
   "arbitrum": {
     "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
   },
   "avalanche": {
     "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
   },
-  "moonriver": {
+  "boba": {
     "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
   },
-  "moonbeam": {
+  "bsc": {
     "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
   },
   "cronos": {
     "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
   },
-  "boba": {
+  "fantom": {
+    "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
+  },
+  "moonbeam": {
+    "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
+  },
+  "moonriver": {
+    "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
+  },
+  "optimism": {
+    "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
+  },
+  "polygon": {
     "router": "0x7E7A0e201FD38d3ADAA9523Da6C109a07118C96a"
   }
 }
