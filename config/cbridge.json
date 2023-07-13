@@ -13,14 +13,31 @@
       "0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0"
     ]
   },
-  "optimism": {
-    "cBridge": "0x9D39Fc627A6d9d9F8C831c16995b209548cc3401",
-    "messageBus": "0x0D71D18126E03646eb09FEc929e2ae87b7CAE69d",
+  "arbitrum": {
+    "cBridge": "0x1619DE6B6B20eD217a58d00f37B9d47C7663feca",
+    "messageBus": "0x3Ad9d0648CDAA2426331e894e980D0a5Ed16257f",
     "tokensToApprove": [
-      "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58",
-      "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
+      "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+      "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8",
       "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1"
     ]
+  },
+  "aurora": {
+    "cBridge": "0x841ce48F9446C8E281D3F1444cB859b4A6D0738C",
+    "messageBus": "0xc1a2D967DfAa6A10f3461bc21864C23C1DD51EeA"
+  },
+  "avalanche": {
+    "cBridge": "0xef3c714c9425a8F3697A9C969Dc1af30ba82e5d4",
+    "messageBus": "0x5a926eeeAFc4D217ADd17e9641e8cE23Cd01Ad57",
+    "tokensToApprove": [
+      "0xc7198437980c041c805a1edcba50c1ce5db95118",
+      "0xa7d7079b0fead91f3e65f86e8915cb59c1a4c664",
+      "0xd586e7f844cea2f87f50152665bcbc2c279d8d70",
+      "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab"
+    ]
+  },
+  "boba": {
+    "cBridge": "0x841ce48F9446C8E281D3F1444cB859b4A6D0738C"
   },
   "bsc": {
     "cBridge": "0xdd90E5E87A2081Dcf0391920868eBc2FFB81a1aF",
@@ -34,14 +51,48 @@
       "0x1ce0c2827e2ef14d5c4f29a091d735a204794041"
     ]
   },
-  "okx": {
-    "cBridge": "0x6a2d262D56735DbA19Dd70682B39F6bE9a931D98"
+  "celo": {
+    "cBridge": "0xBB7684Cc5408F4DD0921E5c2Cadd547b8f1AD573"
+  },
+  "evmos": {
+    "cBridge": "0x5F52B9d1C0853da636e178169e6B426E4cCfA813"
+  },
+  "fantom": {
+    "cBridge": "0x374B8a9f3eC5eB2D97ECA84Ea27aCa45aa1C57EF",
+    "messageBus": "0xFF4E183a0Ceb4Fa98E63BbF8077B929c8E5A2bA4"
   },
   "gnosis": {
     "cBridge": "0x3795C36e7D12A8c252A20C5a7B455f7c57b60283"
   },
+  "harmony": {
+    "cBridge": "0x78a21C1D3ED53A82d4247b9Ee5bF001f4620Ceec"
+  },
   "heco": {
     "cBridge": "0xBB7684Cc5408F4DD0921E5c2Cadd547b8f1AD573"
+  },
+  "localanvil": {
+    "cBridge": "0xf89354F314faF344Abd754924438bA798E306DF2",
+    "cfUSDC": "0x0000000000000000000000000000000000000000",
+    "messageBus": "0xAd204986D6cB67A5Bc76a3CB8974823F43Cb9AAA"
+  },
+  "moonbeam": {
+    "cBridge": "0x841ce48F9446C8E281D3F1444cB859b4A6D0738C"
+  },
+  "moonriver": {
+    "cBridge": "0x841ce48F9446C8E281D3F1444cB859b4A6D0738C",
+    "messageBus": "0x940dAAbA3F713abFabD79CdD991466fe698CBe54"
+  },
+  "okx": {
+    "cBridge": "0x6a2d262D56735DbA19Dd70682B39F6bE9a931D98"
+  },
+  "optimism": {
+    "cBridge": "0x9D39Fc627A6d9d9F8C831c16995b209548cc3401",
+    "messageBus": "0x0D71D18126E03646eb09FEc929e2ae87b7CAE69d",
+    "tokensToApprove": [
+      "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58",
+      "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
+      "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1"
+    ]
   },
   "polygon": {
     "cBridge": "0x88DCDC47D2f83a99CF0000FDF667A468bB958a78",
@@ -58,58 +109,9 @@
     "cBridge": "0xD46F8E428A06789B5884df54E029e738277388D1",
     "messageBus": "0x9Bb46D5100d2Db4608112026951c9C965b233f4D"
   },
-  "fantom": {
-    "cBridge": "0x374B8a9f3eC5eB2D97ECA84Ea27aCa45aa1C57EF",
-    "messageBus": "0xFF4E183a0Ceb4Fa98E63BbF8077B929c8E5A2bA4"
-  },
-  "boba": {
-    "cBridge": "0x841ce48F9446C8E281D3F1444cB859b4A6D0738C"
-  },
-  "moonbeam": {
-    "cBridge": "0x841ce48F9446C8E281D3F1444cB859b4A6D0738C"
-  },
-  "moonriver": {
-    "cBridge": "0x841ce48F9446C8E281D3F1444cB859b4A6D0738C",
-    "messageBus": "0x940dAAbA3F713abFabD79CdD991466fe698CBe54"
-  },
-  "evmos": {
-    "cBridge": "0x5F52B9d1C0853da636e178169e6B426E4cCfA813"
-  },
-  "arbitrum": {
-    "cBridge": "0x1619DE6B6B20eD217a58d00f37B9d47C7663feca",
-    "messageBus": "0x3Ad9d0648CDAA2426331e894e980D0a5Ed16257f",
-    "tokensToApprove": [
-      "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
-      "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8",
-      "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1"
-    ]
-  },
-  "celo": {
-    "cBridge": "0xBB7684Cc5408F4DD0921E5c2Cadd547b8f1AD573"
-  },
-  "avalanche": {
-    "cBridge": "0xef3c714c9425a8F3697A9C969Dc1af30ba82e5d4",
-    "messageBus": "0x5a926eeeAFc4D217ADd17e9641e8cE23Cd01Ad57",
-    "tokensToApprove": [
-      "0xc7198437980c041c805a1edcba50c1ce5db95118",
-      "0xa7d7079b0fead91f3e65f86e8915cb59c1a4c664",
-      "0xd586e7f844cea2f87f50152665bcbc2c279d8d70",
-      "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab"
-    ]
-  },
-  "aurora": {
-    "cBridge": "0x841ce48F9446C8E281D3F1444cB859b4A6D0738C",
-    "messageBus": "0xc1a2D967DfAa6A10f3461bc21864C23C1DD51EeA"
-  },
-  "harmony": {
-    "cBridge": "0x78a21C1D3ED53A82d4247b9Ee5bF001f4620Ceec"
-  },
   "goerli": {
     "cBridge": "0x358234B325EF9eA8115291A8b81b7d33A2Fa762D",
     "messageBus": "0xF25170F86E4291a99a9A560032Fe9948b8BcFBB2"
-  },
-  "optimisticKovan": {
-    "cBridge": "0x265B25e22bcd7f10a5bD6E6410F10537Cc7567e8"
   },
   "bscTestnet": {
     "cBridge": "0xf89354F314faF344Abd754924438bA798E306DF2",
@@ -120,9 +122,7 @@
     "cfUSDC": "0x0000000000000000000000000000000000000000",
     "messageBus": "0xAd204986D6cB67A5Bc76a3CB8974823F43Cb9AAA"
   },
-  "localanvil": {
-    "cBridge": "0xf89354F314faF344Abd754924438bA798E306DF2",
-    "cfUSDC": "0x0000000000000000000000000000000000000000",
-    "messageBus": "0xAd204986D6cB67A5Bc76a3CB8974823F43Cb9AAA"
+  "optimisticKovan": {
+    "cBridge": "0x265B25e22bcd7f10a5bD6E6410F10537Cc7567e8"
   }
 }
