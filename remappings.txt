@@ -1,4 +1,3 @@
-@connext/=node_modules/@connext/
 @eth-optimism/=node_modules/@hop-protocol/sdk/node_modules/@eth-optimism/
 @uniswap/=node_modules/@uniswap/
 eth-gas-reporter/=node_modules/eth-gas-reporter/

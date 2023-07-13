@@ -88,7 +88,7 @@ Our [API](https://apidocs.li.fi/) and [SDK](https://docs.li.fi/products/integrat
 Our backend will calculate the best possible routes based on the transaction fees, gas costs and execution duration.
 
 The then returned routes contain already populated transactions which can directly be sent via the user's wallet to our contracts.
-A single transaction can contain multiple steps (e.g. AAVE on Polygon -> DAI on Polygon using Paraswap -> DAI on Avalanche using NXTP -> SPELL on Avalanche using Paraswap) which will be executed by our contract.
+A single transaction can contain multiple steps (e.g. AAVE on Polygon -> DAI on Polygon using Paraswap -> DAI on Avalanche using Stargate -> SPELL on Avalanche using Paraswap) which will be executed by our contract.
 Finally, the final amount of the requested token is sent to the user's wallet.
 
 ## Architecture<a name="architecture"></a>
@@ -109,7 +109,6 @@ The basic flow is illustrated below.
 
 ```mermaid
 graph TD;
-    D{LiFiDiamond}-- DELEGATECALL -->NXTPFacet;
     D{LiFiDiamond}-- DELEGATECALL -->HopFacet;
     D{LiFiDiamond}-- DELEGATECALL -->AnyswapFacet;
     D{LiFiDiamond}-- DELEGATECALL -->CBridgeFacet;

@@ -68,7 +68,6 @@ Deploy (in this order) using `./scripts/deploy.sh`:
    - Across
    - Amarok
      - ❗️needs to be initialized with chainId ↔ domainId mappings after deployment
-   - Axelar
    - Arbitrum\*
    - CBridge
    - GenericSwap
@@ -79,7 +78,6 @@ Deploy (in this order) using `./scripts/deploy.sh`:
      - ❗️maxApproval calls
    - Hyphen
    - Multichain
-   - NXTP
    - Omni\*
    - Optimism\*
    - Polygon\*
@@ -88,7 +86,7 @@ Deploy (in this order) using `./scripts/deploy.sh`:
 ## <a name="add-periphery"></a>Periphery
 
 1. For each periphery contract that you want to deploy and add to the diamond run the deploy script (i.e. `./scripts/deploy.sh`)
-   (you will be prompted to select a network and facet to deploy/update) 1. ERC20 2. AxelarExecutor 3. Executor 4. Receiver 5. FeeCollector 6. RelayerCBridge
+   (you will be prompted to select a network and facet to deploy/update) 1. ERC20 2. Executor 3. Receiver 4. FeeCollector 5. RelayerCBridge
 2. After you deployed all periphery contracts, execute the update script (i.e.`./scripts/update-periphery.sh`) for each contract to be registered
    (you will be prompted to select a network and contract to register)
 
