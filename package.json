@@ -80,9 +80,6 @@
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
-    "@connext/nxtp-contracts": "^0.1.31",
-    "@connext/nxtp-sdk": "^0.1.31",
-    "@connext/nxtp-utils": "^0.1.31",
     "@hop-protocol/sdk": "0.0.1-beta.310",
     "@safe-global/api-kit": "^1.1.0",
     "@safe-global/protocol-kit": "^1.0.1",

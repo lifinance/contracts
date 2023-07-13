@@ -34,6 +34,7 @@ test/logs
 
 .gas-snapshot
 
+.invalid-dexs
 
 # script config
 script/config.sh

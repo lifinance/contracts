@@ -1,41 +1,13 @@
 {
-  "goerli": {
-    "connextHandler": "0xFCa08024A6D4bCc87275b1E4A1E22B71fAD7f649",
-    "domain": "1735353714"
-  },
   "mainnet": {
     "connextHandler": "0x8898B472C54c31894e3B9bb83cEA802a5d0e63C6",
     "domain": "6648936"
-  },
-  "optimism": {
-    "connextHandler": "0x8f7492DE823025b4CfaAB1D34c58963F2af5DEDA",
-    "domain": "1869640809"
-  },
-  "bsc": {
-    "connextHandler": "0xCd401c10afa37d641d2F594852DA94C700e4F2CE",
-    "domain": "6450786"
-  },
-  "gnosis": {
-    "connextHandler": "0x5bB83e95f63217CDa6aE3D181BA580Ef377D2109",
-    "domain": "6778479"
-  },
-  "polygon": {
-    "connextHandler": "0x11984dc4465481512eb5b777E44061C158CF2259",
-    "domain": "1886350457"
-  },
-  "moonbeam": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "1650811245"
   },
   "arbitrum": {
     "connextHandler": "0xEE9deC2712cCE65174B561151701Bf54b99C24C8",
     "domain": "1634886255"
   },
-  "fantom": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "okx": {
+  "aurora": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   },
@@ -43,15 +15,15 @@
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   },
-  "moonriver": {
+  "boba": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
+  },
+  "bsc": {
+    "connextHandler": "0xCd401c10afa37d641d2F594852DA94C700e4F2CE",
+    "domain": "6450786"
   },
   "celo": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "fuse": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   },
@@ -59,23 +31,35 @@
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   },
-  "velas": {
+  "evmos": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
+  },
+  "fantom": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "fuse": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "gnosis": {
+    "connextHandler": "0x5bB83e95f63217CDa6aE3D181BA580Ef377D2109",
+    "domain": "6778479"
   },
   "harmony": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   },
-  "evmos": {
+  "localanvil": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   },
-  "aurora": {
+  "moonbeam": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
+    "domain": "1650811245"
   },
-  "boba": {
+  "moonriver": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   },
@@ -83,15 +67,31 @@
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   },
+  "okx": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "optimism": {
+    "connextHandler": "0x8f7492DE823025b4CfaAB1D34c58963F2af5DEDA",
+    "domain": "1869640809"
+  },
+  "polygon": {
+    "connextHandler": "0x11984dc4465481512eb5b777E44061C158CF2259",
+    "domain": "1886350457"
+  },
+  "polygonzkevm": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "velas": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
+  "goerli": {
+    "connextHandler": "0xFCa08024A6D4bCc87275b1E4A1E22B71fAD7f649",
+    "domain": "1735353714"
+  },
   "bsc-testnet": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "sepolia": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "mumbai": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   },
@@ -99,11 +99,11 @@
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   },
-  "polygonzkevm": {
+  "mumbai": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   },
-  "localanvil": {
+  "sepolia": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   },
