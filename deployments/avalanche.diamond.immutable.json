@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x5E3DC14bfc5aF89C2c34A24E2c1ba6430B9F4Fd2": {
+      "0xa4eB2EF4064197De6517A53d36263e4591cD0B34": {
         "Name": "CBridgeFacetPacked",
-        "Version": "1.0.1"
+        "Version": "1.0.3"
       },
       "0xbd8D369470169f9976c5bCc60318955836843a71": {
         "Name": "AmarokFacet",
@@ -76,6 +76,10 @@
       "0x55c51beF79d16F5f0875E11207B17E885c21c13d": {
         "Name": "AxelarFacet",
         "Version": "1.0.0"
+      },
+      "0xed662c027c985B73A732975E3B4CeadC97AAF145": {
+        "Name": "HopFacetPacked",
+        "Version": "1.0.6"
       }
     },
     "Periphery": {
