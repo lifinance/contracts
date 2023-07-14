@@ -31,6 +31,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 }
 
 export default func
+
 func.id = 'deploy_periphery_registry_facet'
 func.tags = ['DeployPeripheryRegistryFacet']
 func.dependencies = ['InitialFacets', 'LiFiDiamond', 'InitFacets']

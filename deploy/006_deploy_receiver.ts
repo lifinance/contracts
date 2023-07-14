@@ -32,11 +32,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  const refundWalletAddress = globalConfig.refundWallet
-  const stargateRouter =
+  const REFUND_WALLET = globalConfig.refundWallet
+  const STARGATE_ROUTER =
     (stargateConfig as StargateConfig).routers[network.name] ||
     ethers.constants.AddressZero
-  const amarokRouter =
+  const AMAROK_ROUTER =
     (amarokConfig as AmarokConfig)[network.name]?.connextHandler ||
     ethers.constants.AddressZero
 
@@ -50,13 +50,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   await deploy('Receiver', {
     from: deployer,
     log: true,
-    args: [
-      refundWalletAddress,
-      stargateRouter,
-      amarokRouter,
-      executorAddr,
-      100000,
-    ],
+    args: [REFUND_WALLET, STARGATE_ROUTER, AMAROK_ROUTER, executorAddr, 100000],
     skipIfAlreadyDeployed: true,
   })
 
@@ -71,17 +65,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   await verifyContract(hre, 'Receiver', {
     address: receiver.address,
-    args: [
-      refundWalletAddress,
-      stargateRouter,
-      amarokRouter,
-      executorAddr,
-      100000,
-    ],
+    args: [REFUND_WALLET, STARGATE_ROUTER, AMAROK_ROUTER, executorAddr, 100000],
   })
 }
 
 export default func
+
 func.id = 'deploy_receiver'
 func.tags = ['DeployReceiver']
 func.dependencies = ['DeployPeripheryRegistryFacet']

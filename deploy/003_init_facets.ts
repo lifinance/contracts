@@ -27,6 +27,7 @@ const func: DeployFunction = async function () {
 }
 
 export default func
+
 func.id = 'init_facets'
 func.tags = ['InitFacets']
 func.dependencies = ['InitialFacets', 'LiFiDiamond']

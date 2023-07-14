@@ -15,7 +15,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  const withdrawWalletAddress = globalConfig.withdrawWallet
+  const WITHDRAW_WALLET_ADDR = globalConfig.withdrawWallet
 
   const diamond = await ethers.getContract('LiFiDiamond')
 
@@ -25,7 +25,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   await deploy('ServiceFeeCollector', {
     from: deployer,
-    args: [withdrawWalletAddress],
+    args: [WITHDRAW_WALLET_ADDR],
     log: true,
     skipIfAlreadyDeployed: true,
   })
@@ -46,10 +46,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   await verifyContract(hre, 'ServiceFeeCollector', {
     address: serviceFeeCollector.address,
-    args: [withdrawWalletAddress],
+    args: [WITHDRAW_WALLET_ADDR],
   })
 }
+
 export default func
+
 func.id = 'deploy_service_fee_collector'
 func.tags = ['DeployServiceFeeCollector']
 func.dependencies = ['DeployPeripheryRegistryFacet']

@@ -1,6 +1,6 @@
+import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network, getNamedAccounts } from 'hardhat'
-import { HardhatRuntimeEnvironment } from 'hardhat/types'
 
 export const verifyContract = async function (
   hre: HardhatRuntimeEnvironment,

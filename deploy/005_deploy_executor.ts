@@ -64,6 +64,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 }
 
 export default func
+
 func.id = 'deploy_executor'
 func.tags = ['DeployExecutor']
 func.dependencies = ['DeployPeripheryRegistryFacet']
