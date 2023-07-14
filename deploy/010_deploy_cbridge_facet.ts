@@ -1,7 +1,7 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { network } from 'hardhat'
-import { deployFacet } from './9998_deploy_facet'
+import { diamondContractName, deployFacet } from './9999_utils'
 import config from '../config/cbridge.json'
 
 interface CBridgeConfig {
@@ -30,7 +30,7 @@ func.id = 'deploy_cbridge_facet'
 func.tags = ['DeployCBridgeFacet']
 func.dependencies = [
   'InitialFacets',
-  'LiFiDiamond',
+  diamondContractName,
   'InitFacets',
   'DeployDexManagerFacet',
 ]

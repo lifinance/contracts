@@ -3,7 +3,7 @@ import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
 import { addOrReplaceFacets } from '../utils/diamond'
 import { DexManagerFacet } from '../typechain'
-import { verifyContract } from './9999_verify_all_facets'
+import { diamondContractName, verifyContract } from './9999_utils'
 import dexsConfig from '../config/dexs.json'
 import sigsConfig from '../config/sigs.json'
 
@@ -32,7 +32,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   })
 
   const dexManagerFacet = await ethers.getContract('DexManagerFacet')
-  const diamond = await ethers.getContract('LiFiDiamond')
+  const diamond = await ethers.getContract(diamondContractName)
 
   await addOrReplaceFacets([dexManagerFacet], diamond.address)
 
@@ -95,4 +95,4 @@ export default func
 
 func.id = 'deploy_dex_manager_facet'
 func.tags = ['DeployDexManagerFacet']
-func.dependencies = ['InitialFacets', 'LiFiDiamond', 'InitFacets']
+func.dependencies = ['InitialFacets', diamondContractName, 'InitFacets']

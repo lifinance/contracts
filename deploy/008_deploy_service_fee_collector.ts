@@ -2,7 +2,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
 import { PeripheryRegistryFacet } from '../typechain'
-import { verifyContract } from './9999_verify_all_facets'
+import { diamondContractName, verifyContract } from './9999_utils'
 import globalConfig from '../config/global.json'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
@@ -17,7 +17,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const WITHDRAW_WALLET_ADDR = globalConfig.withdrawWallet
 
-  const diamond = await ethers.getContract('LiFiDiamond')
+  const diamond = await ethers.getContract(diamondContractName)
 
   const registryFacet = <PeripheryRegistryFacet>(
     await ethers.getContractAt('PeripheryRegistryFacet', diamond.address)

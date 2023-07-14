@@ -2,7 +2,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
 import { addOrReplaceFacets } from '../utils/diamond'
-import { verifyContract } from './9999_verify_all_facets'
+import { diamondContractName, verifyContract } from './9999_utils'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Protect against unwanted redeployments
@@ -21,7 +21,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   })
 
   const registryFacet = await ethers.getContract('PeripheryRegistryFacet')
-  const diamond = await ethers.getContract('LiFiDiamond')
+  const diamond = await ethers.getContract(diamondContractName)
 
   await addOrReplaceFacets([registryFacet], diamond.address)
 
@@ -34,4 +34,4 @@ export default func
 
 func.id = 'deploy_periphery_registry_facet'
 func.tags = ['DeployPeripheryRegistryFacet']
-func.dependencies = ['InitialFacets', 'LiFiDiamond', 'InitFacets']
+func.dependencies = ['InitialFacets', diamondContractName, 'InitFacets']

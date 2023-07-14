@@ -1,32 +1,14 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network, getNamedAccounts } from 'hardhat'
-
-export const verifyContract = async function (
-  hre: HardhatRuntimeEnvironment,
-  name: string,
-  options?: { address?: string; args?: any[] }
-) {
-  if (network.name !== 'zksync' && network.name !== 'zksyncGoerli') {
-    return
-  }
-
-  try {
-    await hre.run('verify:verify', {
-      address: options?.address || (await ethers.getContract(name)).address,
-      constructorArguments: options?.args || [],
-    })
-  } catch (e) {
-    console.log(`Failed to verify ${name} contract: ${e}`)
-  }
-}
+import { diamondContractName, verifyContract } from './9999_utils'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   if (network.name === 'hardhat') return
 
   const { deployer } = await getNamedAccounts()
 
-  await verifyContract(hre, 'LiFiDiamond', {
+  await verifyContract(hre, diamondContractName, {
     args: [deployer, (await ethers.getContract('DiamondCutFacet')).address],
   })
 

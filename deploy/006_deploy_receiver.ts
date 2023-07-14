@@ -2,7 +2,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
 import { Receiver, PeripheryRegistryFacet } from '../typechain'
-import { verifyContract } from './9999_verify_all_facets'
+import { diamondContractName, verifyContract } from './9999_utils'
 import globalConfig from '../config/global.json'
 import stargateConfig from '../config/stargate.json'
 import amarokConfig from '../config/amarok.json'
@@ -40,7 +40,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     (amarokConfig as AmarokConfig)[network.name]?.connextHandler ||
     ethers.constants.AddressZero
 
-  const diamond = await ethers.getContract('LiFiDiamond')
+  const diamond = await ethers.getContract(diamondContractName)
 
   const registryFacet = <PeripheryRegistryFacet>(
     await ethers.getContractAt('PeripheryRegistryFacet', diamond.address)

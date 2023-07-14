@@ -1,7 +1,11 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { ethers, network } from 'hardhat'
 import { addOrReplaceFacets } from '../utils/diamond'
-import { verifyContract } from './9999_verify_all_facets'
+
+export const diamondContractName =
+  process.env.USE_DEF_DIAMOND?.toLowerCase() === 'false'
+    ? 'LiFiDiamondImmutable'
+    : 'LiFiDiamond'
 
 export const deployFacet = async function (
   hre: HardhatRuntimeEnvironment,
@@ -24,7 +28,7 @@ export const deployFacet = async function (
   })
 
   const facet = await ethers.getContract(name)
-  const diamond = await ethers.getContract('LiFiDiamond')
+  const diamond = await ethers.getContract(diamondContractName)
 
   await addOrReplaceFacets([facet], diamond.address)
 
@@ -32,4 +36,23 @@ export const deployFacet = async function (
     address: facet.address,
     args: options?.args,
   })
+}
+
+export const verifyContract = async function (
+  hre: HardhatRuntimeEnvironment,
+  name: string,
+  options?: { address?: string; args?: any[] }
+) {
+  if (network.name !== 'zksync' && network.name !== 'zksyncGoerli') {
+    return
+  }
+
+  try {
+    await hre.run('verify:verify', {
+      address: options?.address || (await ethers.getContract(name)).address,
+      constructorArguments: options?.args || [],
+    })
+  } catch (e) {
+    console.log(`Failed to verify ${name} contract: ${e}`)
+  }
 }

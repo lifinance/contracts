@@ -1,7 +1,7 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { network } from 'hardhat'
-import { verifyContract } from './9999_verify_all_facets'
+import { diamondContractName, verifyContract } from './9999_utils'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Protect against unwanted redeployments
@@ -15,14 +15,14 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const diamondCutFacet = await ethers.getContract('DiamondCutFacet')
 
-  const lifiDiamond = await deploy('LiFiDiamond', {
+  const lifiDiamond = await deploy(diamondContractName, {
     from: deployer,
     args: [deployer, diamondCutFacet.address],
     log: true,
     skipIfAlreadyDeployed: true,
   })
 
-  await verifyContract(hre, 'LiFiDiamond', {
+  await verifyContract(hre, diamondContractName, {
     address: lifiDiamond.address,
     args: [deployer, diamondCutFacet.address],
   })
@@ -30,4 +30,4 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func
 
 func.id = 'deploy_lifi_diamond'
-func.tags = ['LiFiDiamond']
+func.tags = [diamondContractName]

@@ -2,7 +2,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
 import { Executor, ERC20Proxy, PeripheryRegistryFacet } from '../typechain'
-import { verifyContract } from './9999_verify_all_facets'
+import { diamondContractName, verifyContract } from './9999_utils'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Protect against unwanted redeployments
@@ -14,7 +14,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  const diamond = await ethers.getContract('LiFiDiamond')
+  const diamond = await ethers.getContract(diamondContractName)
 
   const registryFacet = <PeripheryRegistryFacet>(
     await ethers.getContractAt('PeripheryRegistryFacet', diamond.address)

@@ -1,7 +1,7 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { network } from 'hardhat'
-import { verifyContract } from './9999_verify_all_facets'
+import { verifyContract } from './9999_utils'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Protect against unwanted redeployments
