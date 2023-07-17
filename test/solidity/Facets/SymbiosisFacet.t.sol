@@ -26,37 +26,6 @@ contract SymbiosisFacetTest is TestBaseFacet {
     TestSymbiosisFacet internal symbiosisFacet;
     SymbiosisFacet.SymbiosisData internal symbiosisData;
 
-    function initiateBridgeTxWithFacet(bool isNative) internal override {
-
-        if (isNative) {
-            symbiosisFacet.startBridgeTokensViaSymbiosis{
-                value: bridgeData.minAmount
-            }(bridgeData, symbiosisData);
-        } else {
-            symbiosisFacet.startBridgeTokensViaSymbiosis(
-                bridgeData, symbiosisData
-            );
-        }
-    }
-
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
-
-        if (isNative) {
-            symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis{
-                value: swapData[0].fromAmount
-            }(bridgeData,swapData, symbiosisData);
-        } else {
-
-            symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis{ value: addToMessageValue }(
-                bridgeData,
-                    swapData,
-                    symbiosisData
-            );
-        }
-    }
-
     function setUp() public {
         initTestBase();
 
@@ -114,6 +83,37 @@ contract SymbiosisFacetTest is TestBaseFacet {
             //swap after bridging
             _otherSideCalldata
         );
+    }
+
+    function initiateBridgeTxWithFacet(bool isNative) internal override {
+
+        if (isNative) {
+            symbiosisFacet.startBridgeTokensViaSymbiosis{
+            value: bridgeData.minAmount
+            }(bridgeData, symbiosisData);
+        } else {
+            symbiosisFacet.startBridgeTokensViaSymbiosis(
+                bridgeData, symbiosisData
+            );
+        }
+    }
+
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
+
+        if (isNative) {
+            symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis{
+            value: swapData[0].fromAmount
+            }(bridgeData,swapData, symbiosisData);
+        } else {
+
+            symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis{ value: addToMessageValue }(
+                bridgeData,
+                swapData,
+                symbiosisData
+            );
+        }
     }
 
 
