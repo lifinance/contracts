@@ -9,7 +9,9 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Symbiosis Facet
+/// @author Symbiosis (https://symbiosis.finance)
 /// @notice Provides functionality for bridging through Symbiosis Protocol
+/// @custom:version 1.0.0
 contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The contract address of the Symbiosis router on the source chain
     ISymbiosisMetaRouter private immutable symbiosisMetaRouter;
@@ -46,7 +48,7 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _symbiosisData data specific to Symbiosis
     function startBridgeTokensViaSymbiosis(
-        ILiFi.BridgeData memory _bridgeData,
+        ILiFi.BridgeData calldata _bridgeData,
         SymbiosisData calldata _symbiosisData
     )
         external
@@ -70,7 +72,7 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _symbiosisData data specific to Symbiosis
     function swapAndStartBridgeTokensViaSymbiosis(
-        ILiFi.BridgeData memory _bridgeData,
+        ILiFi.BridgeData calldata _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         SymbiosisData calldata _symbiosisData
     )
@@ -97,7 +99,7 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _symbiosisData data specific to Symbiosis
     function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
+        ILiFi.BridgeData calldata _bridgeData,
         SymbiosisData calldata _symbiosisData
     ) internal {
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);

@@ -2,6 +2,16 @@
 pragma solidity 0.8.17;
 
 interface ISymbiosisMetaRouter {
+    /// @notice entry point data to Symbiosis contracts
+    /// @param firstSwapCalldata calldata for the dex swap to get corresponding asset (USDC) on init chain
+    /// @param secondSwapCalldata calldata for swapping wrapped assets on managing chain, wUSDC_eth->wUSDC_polygon
+    /// @param approvedTokens set of token for firstSwapCalldata and secondSwapCalldata approving
+    /// @param firstDexRouter entry point for firstSwapCalldata
+    /// @param secondDexRouter entry point for secondSwapCalldata
+    /// @param entry amount of tokens
+    /// @param nativeIn native token in amount or not
+    /// @param relayRecipient inner object of bridge provided from API
+    /// @param otherSideCalldata calldata with unwrapping and swap on dest chain (if packed)
     struct MetaRouteTransaction {
         bytes firstSwapCalldata;
         bytes secondSwapCalldata;
