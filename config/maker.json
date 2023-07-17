@@ -1,24 +1,24 @@
 {
-  "optimism": {
-    "makerTeleport": "0x18d2CF2296c5b29343755E6B7e37679818913f88",
-    "dai": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
-    "dstChainId": 1,
-    "l1Domain": "ETH-MAIN-A"
-  },
   "arbitrum": {
     "makerTeleport": "0x5dBaf6F2bEDebd414F8d78d13499222347e59D5E",
     "dai": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     "dstChainId": 1,
     "l1Domain": "ETH-MAIN-A"
   },
-  "optimismGoerli": {
-    "makerTeleport": "0xd9e000C419F3aA4EA1C519497f5aF249b496a00f",
+  "optimism": {
+    "makerTeleport": "0x18d2CF2296c5b29343755E6B7e37679818913f88",
+    "dai": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
+    "dstChainId": 1,
+    "l1Domain": "ETH-MAIN-A"
+  },
+  "arbitrumGoerli": {
+    "makerTeleport": "0x8334a747731Be3a58bCcAf9a3D35EbC968806223",
     "dai": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     "dstChainId": 5,
     "l1Domain": "ETH-GOER-A"
   },
-  "arbitrumGoerli": {
-    "makerTeleport": "0x8334a747731Be3a58bCcAf9a3D35EbC968806223",
+  "optimismGoerli": {
+    "makerTeleport": "0xd9e000C419F3aA4EA1C519497f5aF249b496a00f",
     "dai": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     "dstChainId": 5,
     "l1Domain": "ETH-GOER-A"

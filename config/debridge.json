@@ -16,18 +16,6 @@
       "chainId": 1,
       "deBridgeGate": "0x43dE2d77BF8027e25dBD179B491e8d64f38398aA"
     },
-    "bsc": {
-      "chainId": 56,
-      "deBridgeGate": "0x43dE2d77BF8027e25dBD179B491e8d64f38398aA"
-    },
-    "heco": {
-      "chainId": 128,
-      "deBridgeGate": "0x43dE2d77BF8027e25dBD179B491e8d64f38398aA"
-    },
-    "polygon": {
-      "chainId": 137,
-      "deBridgeGate": "0x43dE2d77BF8027e25dBD179B491e8d64f38398aA"
-    },
     "arbitrum": {
       "chainId": 42161,
       "deBridgeGate": "0x43dE2d77BF8027e25dBD179B491e8d64f38398aA"
@@ -36,8 +24,20 @@
       "chainId": 43114,
       "deBridgeGate": "0x43dE2d77BF8027e25dBD179B491e8d64f38398aA"
     },
+    "bsc": {
+      "chainId": 56,
+      "deBridgeGate": "0x43dE2d77BF8027e25dBD179B491e8d64f38398aA"
+    },
     "fantom": {
       "chainId": 250,
+      "deBridgeGate": "0x43dE2d77BF8027e25dBD179B491e8d64f38398aA"
+    },
+    "heco": {
+      "chainId": 128,
+      "deBridgeGate": "0x43dE2d77BF8027e25dBD179B491e8d64f38398aA"
+    },
+    "polygon": {
+      "chainId": 137,
       "deBridgeGate": "0x43dE2d77BF8027e25dBD179B491e8d64f38398aA"
     }
   }

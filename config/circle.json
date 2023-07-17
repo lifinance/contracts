@@ -4,15 +4,15 @@
     "usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     "domain": 0
   },
-  "avalanche": {
-    "tokenMessenger": "0x6b25532e1060ce10cc3b0a99e5683b91bfde6982",
-    "usdc": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-    "domain": 1
-  },
   "arbitrum": {
     "tokenMessenger": "0x19330d10D9Cc8751218eaf51E8885D058642E08A",
     "usdc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     "domain": 3
+  },
+  "avalanche": {
+    "tokenMessenger": "0x6b25532e1060ce10cc3b0a99e5683b91bfde6982",
+    "usdc": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    "domain": 1
   },
   "goerli": {
     "tokenMessenger": "0xD0C3da58f55358142b8d3e06C1C30c5C6114EFE8",

@@ -4,9 +4,9 @@ function diamondSyncDEXs {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script syncDEXs now...."
   # load env variables
-	source .env
+  source .env
 
-	# load config & helper functions
+  # load config & helper functions
   source script/helperFunctions.sh
 
   # read function arguments into variables
@@ -55,7 +55,6 @@ function diamondSyncDEXs {
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echo ""
 
-
   # go through all networks and execute the script
   for NETWORK in "${NETWORKS[@]}"; do
     # get diamond address from deployments script
@@ -84,11 +83,16 @@ function diamondSyncDEXs {
 
     # Loop through all DEX addresses from config and check if they are already known by the diamond
     NEW_DEXS=()
-    for DEX_ADDRESS in $CFG_DEXS
-    do
+    for DEX_ADDRESS in $CFG_DEXS; do
       # if address is in config file but not in DEX addresses returned from diamond...
       if [[ ! " ${DEXS[*]} " == *" $(echo "$DEX_ADDRESS" | tr '[:upper:]' '[:lower:]')"* ]]; then
         CHECKSUMMED=$(cast --to-checksum-address "$DEX_ADDRESS")
+        CODE=$(cast code $CHECKSUMMED --rpc-url "$RPC_URL")
+        if [[ "$CODE" == "0x" ]]; then
+          echo "[warning] DEX $CHECKSUMMED is not deployed on network $NETWORK - skipping"
+          echo "$NETWORK - $CHECKSUMMED" >>.invalid-dexs
+          continue
+        fi
         # ... add it to the array
         NEW_DEXS+=("$CHECKSUMMED")
       fi
