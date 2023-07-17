@@ -110,8 +110,8 @@
     "messageBus": "0x9Bb46D5100d2Db4608112026951c9C965b233f4D"
   },
   "zksync": {
-    "cBridge": "0xd8EB4AF624ff9172992F632d48566faBd7fd71e8",
-    "messageBus": "0x9a98a376D30f2c9A0A7332715c15D940dE3da0e2",
+    "cBridge": "0x54069e96C4247b37C2fbd9559CA99f08CD1CD66c",
+    "messageBus": "0xd8EB4AF624ff9172992F632d48566faBd7fd71e8",
     "tokensToApprove": [
       "0x7400793aAd94C8CA801aa036357d10F5Fd0ce08f",
       "0x2039bb4116B4EFc145Ec4f0e2eA75012D6C0f181",
