@@ -48,7 +48,7 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _symbiosisData data specific to Symbiosis
     function startBridgeTokensViaSymbiosis(
-        ILiFi.BridgeData calldata _bridgeData,
+        ILiFi.BridgeData memory _bridgeData,
         SymbiosisData calldata _symbiosisData
     )
         external
@@ -72,7 +72,7 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _symbiosisData data specific to Symbiosis
     function swapAndStartBridgeTokensViaSymbiosis(
-        ILiFi.BridgeData calldata _bridgeData,
+        ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
         SymbiosisData calldata _symbiosisData
     )
@@ -99,7 +99,7 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _symbiosisData data specific to Symbiosis
     function _startBridge(
-        ILiFi.BridgeData calldata _bridgeData,
+        ILiFi.BridgeData memory _bridgeData,
         SymbiosisData calldata _symbiosisData
     ) internal {
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
