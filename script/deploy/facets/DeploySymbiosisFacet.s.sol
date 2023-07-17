@@ -34,25 +34,18 @@ contract DeployScript is DeployScriptBase {
             return (SymbiosisFacet(payable(predicted)), constructorArgs);
         }
 
-        if (networkSupportsCreate3(network)) {
-            deployed = SymbiosisFacet(
-                payable(
-                    factory.deploy(
-                        salt,
-                        bytes.concat(
-                            type(SymbiosisFacet).creationCode,
-                            constructorArgs
-                        )
+
+        deployed = SymbiosisFacet(
+            payable(
+                factory.deploy(
+                    salt,
+                    bytes.concat(
+                        type(SymbiosisFacet).creationCode,
+                        constructorArgs
                     )
                 )
-            );
-        } else {
-            deployed = new SymbiosisFacet(
-                ISymbiosisMetaRouter(metaRouter),
-                gateway
-            );
-        }
-
+            )
+        );
         vm.stopBroadcast();
     }
 }
