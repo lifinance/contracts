@@ -1,0 +1,77 @@
+{
+  "_format": "hh-zksolc-artifact-1",
+  "contractName": "IExecutor",
+  "sourceName": "src/Interfaces/IExecutor.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_transactionId",
+          "type": "bytes32"
+        },
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "callTo",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "approveTo",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "sendingAssetId",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "receivingAssetId",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "fromAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "callData",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bool",
+              "name": "requiresDeposit",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct LibSwap.SwapData[]",
+          "name": "_swapData",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "address",
+          "name": "transferredAssetId",
+          "type": "address"
+        },
+        {
+          "internalType": "address payable",
+          "name": "receiver",
+          "type": "address"
+        }
+      ],
+      "name": "swapAndCompleteBridgeTokens",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "factoryDeps": {}
+}

@@ -1,0 +1,205 @@
+{
+  "_format": "hh-zksolc-artifact-1",
+  "contractName": "IBridge",
+  "sourceName": "lib/sgn-v2-contracts/contracts/interfaces/IBridge.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_relayRequest",
+          "type": "bytes"
+        },
+        {
+          "internalType": "bytes[]",
+          "name": "_sigs",
+          "type": "bytes[]"
+        },
+        {
+          "internalType": "address[]",
+          "name": "_signers",
+          "type": "address[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "_powers",
+          "type": "uint256[]"
+        }
+      ],
+      "name": "relay",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_receiver",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_token",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint64",
+          "name": "_dstChainId",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "_nonce",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint32",
+          "name": "_maxSlippage",
+          "type": "uint32"
+        }
+      ],
+      "name": "send",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_receiver",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint64",
+          "name": "_dstChainId",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "_nonce",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint32",
+          "name": "_maxSlippage",
+          "type": "uint32"
+        }
+      ],
+      "name": "sendNative",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "transferId",
+          "type": "bytes32"
+        }
+      ],
+      "name": "transfers",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_msg",
+          "type": "bytes"
+        },
+        {
+          "internalType": "bytes[]",
+          "name": "_sigs",
+          "type": "bytes[]"
+        },
+        {
+          "internalType": "address[]",
+          "name": "_signers",
+          "type": "address[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "_powers",
+          "type": "uint256[]"
+        }
+      ],
+      "name": "verifySigs",
+      "outputs": [],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_wdmsg",
+          "type": "bytes"
+        },
+        {
+          "internalType": "bytes[]",
+          "name": "_sigs",
+          "type": "bytes[]"
+        },
+        {
+          "internalType": "address[]",
+          "name": "_signers",
+          "type": "address[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "_powers",
+          "type": "uint256[]"
+        }
+      ],
+      "name": "withdraw",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "withdrawId",
+          "type": "bytes32"
+        }
+      ],
+      "name": "withdraws",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "factoryDeps": {}
+}

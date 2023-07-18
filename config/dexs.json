@@ -337,7 +337,8 @@
     "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
     "0xE592427A0AEce92De3Edee1F18E0157C05861564",
     "0x67dC2703D306F72E94DbB0cE0aa0CB86149EAc70",
-    "0xC0788A3aD43d79aa53B09c2EaCc313A787d1d607"
+    "0xC0788A3aD43d79aa53B09c2EaCc313A787d1d607",
+    "0xe7F5FF6da6DdF45F43aE7c8217AEC3ec5a0569c5"
   ],
   "polygonzkevm": [
     "0xf068cc770f32042Ff4a8fD196045641234dFaa47",
@@ -375,9 +376,7 @@
     "0xf91bb752490473b8342a3e964e855b9f9a2a668e"
   ],
   "avalancheFujiTestnet": [],
-  "bscTestnet": [
-    "0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"
-  ],
+  "bscTestnet": ["0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"],
   "localanvil": [],
   "mumbai": [
     "0xfD0af5274aA16C72B7c463B22a435C06DEBbe894",

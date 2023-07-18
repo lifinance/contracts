@@ -1,0 +1,202 @@
+{
+  "_format": "hh-zksolc-artifact-1",
+  "contractName": "IMessageReceiverApp",
+  "sourceName": "lib/sgn-v2-contracts/contracts/message/interfaces/IMessageReceiverApp.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_sender",
+          "type": "bytes"
+        },
+        {
+          "internalType": "uint64",
+          "name": "_srcChainId",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_message",
+          "type": "bytes"
+        },
+        {
+          "internalType": "address",
+          "name": "_executor",
+          "type": "address"
+        }
+      ],
+      "name": "executeMessage",
+      "outputs": [
+        {
+          "internalType": "enum IMessageReceiverApp.ExecutionStatus",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_sender",
+          "type": "address"
+        },
+        {
+          "internalType": "uint64",
+          "name": "_srcChainId",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_message",
+          "type": "bytes"
+        },
+        {
+          "internalType": "address",
+          "name": "_executor",
+          "type": "address"
+        }
+      ],
+      "name": "executeMessage",
+      "outputs": [
+        {
+          "internalType": "enum IMessageReceiverApp.ExecutionStatus",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_sender",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_token",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint64",
+          "name": "_srcChainId",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_message",
+          "type": "bytes"
+        },
+        {
+          "internalType": "address",
+          "name": "_executor",
+          "type": "address"
+        }
+      ],
+      "name": "executeMessageWithTransfer",
+      "outputs": [
+        {
+          "internalType": "enum IMessageReceiverApp.ExecutionStatus",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_sender",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_token",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint64",
+          "name": "_srcChainId",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_message",
+          "type": "bytes"
+        },
+        {
+          "internalType": "address",
+          "name": "_executor",
+          "type": "address"
+        }
+      ],
+      "name": "executeMessageWithTransferFallback",
+      "outputs": [
+        {
+          "internalType": "enum IMessageReceiverApp.ExecutionStatus",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_token",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_message",
+          "type": "bytes"
+        },
+        {
+          "internalType": "address",
+          "name": "_executor",
+          "type": "address"
+        }
+      ],
+      "name": "executeMessageWithTransferRefund",
+      "outputs": [
+        {
+          "internalType": "enum IMessageReceiverApp.ExecutionStatus",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "factoryDeps": {}
+}

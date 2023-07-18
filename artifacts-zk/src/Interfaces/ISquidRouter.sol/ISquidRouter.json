@@ -1,0 +1,244 @@
+{
+  "_format": "hh-zksolc-artifact-1",
+  "contractName": "ISquidRouter",
+  "sourceName": "src/Interfaces/ISquidRouter.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "destinationChain",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "bridgedTokenSymbol",
+          "type": "string"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "enum ISquidMulticall.CallType",
+              "name": "callType",
+              "type": "uint8"
+            },
+            {
+              "internalType": "address",
+              "name": "target",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "value",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "callData",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bytes",
+              "name": "payload",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct ISquidMulticall.Call[]",
+          "name": "calls",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "address",
+          "name": "refundRecipient",
+          "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "forecallEnabled",
+          "type": "bool"
+        }
+      ],
+      "name": "bridgeCall",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "destinationChain",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "destinationAddress",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "bridgedTokenSymbol",
+          "type": "string"
+        },
+        {
+          "components": [
+            {
+              "internalType": "enum ISquidMulticall.CallType",
+              "name": "callType",
+              "type": "uint8"
+            },
+            {
+              "internalType": "address",
+              "name": "target",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "value",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "callData",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bytes",
+              "name": "payload",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct ISquidMulticall.Call[]",
+          "name": "calls",
+          "type": "tuple[]"
+        }
+      ],
+      "name": "callBridge",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "destinationChain",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "bridgedTokenSymbol",
+          "type": "string"
+        },
+        {
+          "components": [
+            {
+              "internalType": "enum ISquidMulticall.CallType",
+              "name": "callType",
+              "type": "uint8"
+            },
+            {
+              "internalType": "address",
+              "name": "target",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "value",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "callData",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bytes",
+              "name": "payload",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct ISquidMulticall.Call[]",
+          "name": "sourceCalls",
+          "type": "tuple[]"
+        },
+        {
+          "components": [
+            {
+              "internalType": "enum ISquidMulticall.CallType",
+              "name": "callType",
+              "type": "uint8"
+            },
+            {
+              "internalType": "address",
+              "name": "target",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "value",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes",
+              "name": "callData",
+              "type": "bytes"
+            },
+            {
+              "internalType": "bytes",
+              "name": "payload",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct ISquidMulticall.Call[]",
+          "name": "destinationCalls",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "address",
+          "name": "refundRecipient",
+          "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "forecallEnabled",
+          "type": "bool"
+        }
+      ],
+      "name": "callBridgeCall",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "factoryDeps": {}
+}

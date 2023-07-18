@@ -1,0 +1,128 @@
+{
+  "_format": "hh-zksolc-artifact-1",
+  "contractName": "LibDiamond",
+  "sourceName": "src/Libraries/LibDiamond.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "CalldataEmptyButInitNotZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "FacetAddressIsNotZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "FacetAddressIsZero",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "FacetContainsNoCode",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "FunctionAlreadyExists",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "FunctionDoesNotExist",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "FunctionIsImmutable",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "IncorrectFacetCutAction",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InitReverted",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InitZeroButCalldataNotEmpty",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoSelectorsInFace",
+      "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "facetAddress",
+              "type": "address"
+            },
+            {
+              "internalType": "enum IDiamondCut.FacetCutAction",
+              "name": "action",
+              "type": "uint8"
+            },
+            {
+              "internalType": "bytes4[]",
+              "name": "functionSelectors",
+              "type": "bytes4[]"
+            }
+          ],
+          "indexed": false,
+          "internalType": "struct IDiamondCut.FacetCut[]",
+          "name": "_diamondCut",
+          "type": "tuple[]"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "_init",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "_calldata",
+          "type": "bytes"
+        }
+      ],
+      "name": "DiamondCut",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    }
+  ],
+  "bytecode": "0x00000001012001900000000b0000613d0000008001000039000000400010043f0000000001000416000000000110004c0000000b0000c13d0000002001000039000001000010044300000120000004430010000c0000040f0010000e0000040f0000000501000041000000110001042e000000000100001900000012000104300000001000000432000000110001042e0000001200010430000000000000000000000002000000000000000000000000000000400000010000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+  "deployedBytecode": "0x00000001012001900000000b0000613d0000008001000039000000400010043f0000000001000416000000000110004c0000000b0000c13d0000002001000039000001000010044300000120000004430010000c0000040f0010000e0000040f0000000501000041000000110001042e000000000100001900000012000104300000001000000432000000110001042e0000001200010430000000000000000000000002000000000000000000000000000000400000010000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "factoryDeps": {}
+}

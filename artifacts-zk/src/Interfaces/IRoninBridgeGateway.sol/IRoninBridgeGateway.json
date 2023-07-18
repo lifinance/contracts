@@ -1,0 +1,59 @@
+{
+  "_format": "hh-zksolc-artifact-1",
+  "contractName": "IRoninBridgeGateway",
+  "sourceName": "src/Interfaces/IRoninBridgeGateway.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "recipientAddr",
+              "type": "address"
+            },
+            {
+              "internalType": "address",
+              "name": "tokenAddr",
+              "type": "address"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "enum IRoninBridgeGateway.Standard",
+                  "name": "erc",
+                  "type": "uint8"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "id",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "quantity",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct IRoninBridgeGateway.Info",
+              "name": "info",
+              "type": "tuple"
+            }
+          ],
+          "internalType": "struct IRoninBridgeGateway.Request",
+          "name": "_request",
+          "type": "tuple"
+        }
+      ],
+      "name": "requestDepositFor",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "factoryDeps": {}
+}
