@@ -2,8 +2,8 @@
 pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IOFTV2 } from "../Interfaces/IOFTV2.sol";
 import { IOFTWrapper } from "../Interfaces/IOFTWrapper.sol";
+import { IProxyOFT } from "../Interfaces/IProxyOFT.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
@@ -344,7 +344,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             tokenType == TokenType.ProxyOFTV2 ||
             tokenType == TokenType.ProxyOFTFeeV2
         ) {
-            if (IOFTV2(proxyOFT).token() != sendingAssetId) {
+            if (IProxyOFT(proxyOFT).token() != sendingAssetId) {
                 revert InvalidProxyOFTAddress();
             }
         }
