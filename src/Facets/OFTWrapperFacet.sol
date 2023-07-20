@@ -126,12 +126,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        _checkProxyOFTAddress(
-            _bridgeData.sendingAssetId,
-            _oftWrapperData.tokenType,
-            _oftWrapperData.proxyOFT
-        );
-
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -158,12 +152,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        _checkProxyOFTAddress(
-            _bridgeData.sendingAssetId,
-            _oftWrapperData.tokenType,
-            _oftWrapperData.proxyOFT
-        );
-
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -227,6 +215,12 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         OFTWrapperData calldata _oftWrapperData
     ) internal {
+        _checkProxyOFTAddress(
+            _bridgeData.sendingAssetId,
+            _oftWrapperData.tokenType,
+            _oftWrapperData.proxyOFT
+        );
+
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
             address(oftWrapper),
