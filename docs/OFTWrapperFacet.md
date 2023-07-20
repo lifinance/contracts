@@ -30,13 +30,15 @@ To populate `_oftWrapperData` you will need to get the chain ID you are bridging
 This data is specific to OFTWrapper and is represented as the following struct type:
 
 ```solidity
-/// @param tokenType Type of OFT token(OFT, OFTV2, OFTFeeV2, ProxyOFTV2, ProxyOFTFeeV2).
+/// @param tokenType Type of OFT token(OFT, OFTV2, OFTFeeV2, ProxyOFT, ProxyOFTV2, ProxyOFTFeeV2).
+/// @param proxyOFT Address of 
 /// @param receiver Receiver address for non-EVM chain.
 /// @param minAmount The min qty you would accept on the destination.
 /// @param lzFee Estimated fee.
 /// @param adapterParams Parameters for custom functionality.
 struct OFTWrapperData {
   TokenType tokenType;
+  address proxyOFT;
   bytes32 receiver;
   uint256 minAmount;
   uint256 lzFee;
