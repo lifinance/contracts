@@ -174,7 +174,10 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.destinationChainId
         );
 
-        if (_oftWrapperData.tokenType == TokenType.OFT) {
+        if (
+            _oftWrapperData.tokenType == TokenType.OFT ||
+            _oftWrapperData.tokenType == TokenType.ProxyOFT
+        ) {
             return
                 oftWrapper.estimateSendFee(
                     _bridgeData.sendingAssetId,
