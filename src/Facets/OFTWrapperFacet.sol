@@ -2,8 +2,7 @@
 pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IOFTWrapper } from "../Interfaces/IOFTWrapper.sol";
-import { IProxyOFT } from "../Interfaces/IProxyOFT.sol";
+import { IOFTWrapper, IProxyOFT } from "../Interfaces/IOFTWrapper.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
