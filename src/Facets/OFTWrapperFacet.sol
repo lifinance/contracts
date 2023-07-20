@@ -14,7 +14,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title OFTWrapper Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through OFTWrapper
-/// @custom:version 1.0.1
+/// @custom:version 2.0.0
 contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
