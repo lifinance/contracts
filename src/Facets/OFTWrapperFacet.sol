@@ -2,6 +2,7 @@
 pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
+import { IOFTV2 } from "../Interfaces/IOFTV2.sol";
 import { IOFTWrapper } from "../Interfaces/IOFTWrapper.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
@@ -13,7 +14,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title OFTWrapper Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through OFTWrapper
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -32,6 +33,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         OFT,
         OFTV2,
         OFTFeeV2,
+        ProxyOFT,
         ProxyOFTV2,
         ProxyOFTFeeV2
     }
@@ -48,6 +50,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     struct OFTWrapperData {
         TokenType tokenType;
+        address proxyOFT;
         bytes32 receiver;
         uint256 minAmount;
         uint256 lzFee;
@@ -57,6 +60,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Errors ///
 
     error UnknownLayerZeroChain();
+    error InvalidProxyOFTAddress();
 
     /// Events ///
 
@@ -122,6 +126,12 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         noNativeAsset(_bridgeData)
     {
+        _checkProxyOFTAddress(
+            _bridgeData.sendingAssetId,
+            _oftWrapperData.tokenType,
+            _oftWrapperData.proxyOFT
+        );
+
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -148,6 +158,12 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         noNativeAsset(_bridgeData)
     {
+        _checkProxyOFTAddress(
+            _bridgeData.sendingAssetId,
+            _oftWrapperData.tokenType,
+            _oftWrapperData.proxyOFT
+        );
+
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -229,6 +245,18 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _oftWrapperData.adapterParams,
                 IOFTWrapper.FeeObj(0, address(0), "")
             );
+        } else if (_oftWrapperData.tokenType == TokenType.ProxyOFT) {
+            oftWrapper.sendProxyOFT{ value: _oftWrapperData.lzFee }(
+                _oftWrapperData.proxyOFT,
+                getOFTLayerZeroChainId(_bridgeData.destinationChainId),
+                abi.encodePacked(_bridgeData.receiver),
+                _bridgeData.minAmount,
+                _oftWrapperData.minAmount,
+                payable(msg.sender),
+                address(0),
+                _oftWrapperData.adapterParams,
+                IOFTWrapper.FeeObj(0, address(0), "")
+            );
         } else {
             _sendOFTV2(_bridgeData, _oftWrapperData);
         }
@@ -283,7 +311,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         } else if (_oftWrapperData.tokenType == TokenType.ProxyOFTV2) {
             oftWrapper.sendProxyOFTV2{ value: _oftWrapperData.lzFee }(
-                _bridgeData.sendingAssetId,
+                _oftWrapperData.proxyOFT,
                 layerZeroChainId,
                 receiver,
                 _bridgeData.minAmount,
@@ -293,7 +321,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         } else if (_oftWrapperData.tokenType == TokenType.ProxyOFTFeeV2) {
             oftWrapper.sendProxyOFTFeeV2{ value: _oftWrapperData.lzFee }(
-                _bridgeData.sendingAssetId,
+                _oftWrapperData.proxyOFT,
                 layerZeroChainId,
                 receiver,
                 _bridgeData.minAmount,
@@ -309,6 +337,22 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 layerZeroChainId,
                 _oftWrapperData.receiver
             );
+        }
+    }
+
+    function _checkProxyOFTAddress(
+        address sendingAssetId,
+        TokenType tokenType,
+        address proxyOFT
+    ) internal view {
+        if (
+            tokenType == TokenType.ProxyOFT ||
+            tokenType == TokenType.ProxyOFTV2 ||
+            tokenType == TokenType.ProxyOFTFeeV2
+        ) {
+            if (IOFTV2(proxyOFT).token() != sendingAssetId) {
+                revert InvalidProxyOFTAddress();
+            }
         }
     }
 
