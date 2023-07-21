@@ -136,6 +136,7 @@ contract OFTWrapperFacetTest is TestBaseFacet {
 
         oftWrapperData = OFTWrapperFacet.OFTWrapperData({
             tokenType: OFTWrapperFacet.TokenType.OFTFeeV2,
+            proxyOFT: address(0),
             receiver: bytes32(uint256(uint160(USER_SENDER)) << 96),
             minAmount: (defaultUSDCAmount * 90) / 100,
             lzFee: 0,

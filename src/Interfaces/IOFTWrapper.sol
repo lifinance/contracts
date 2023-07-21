@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
+interface IProxyOFT {
+    function token() external view returns (address);
+}
+
 interface IOFTWrapper {
     struct LzCallParams {
         address payable refundAddress;
@@ -18,7 +22,19 @@ interface IOFTWrapper {
         address _oft,
         uint16 _dstChainId,
         bytes calldata _toAddress,
-        uint _amount,
+        uint256 _amount,
+        uint256 _minAmount,
+        address payable _refundAddress,
+        address _zroPaymentAddress,
+        bytes calldata _adapterParams,
+        FeeObj calldata _feeObj
+    ) external payable;
+
+    function sendProxyOFT(
+        address _proxyOft,
+        uint16 _dstChainId,
+        bytes calldata _toAddress,
+        uint256 _amount,
         uint256 _minAmount,
         address payable _refundAddress,
         address _zroPaymentAddress,
@@ -30,7 +46,7 @@ interface IOFTWrapper {
         address _oft,
         uint16 _dstChainId,
         bytes32 _toAddress,
-        uint _amount,
+        uint256 _amount,
         uint256 _minAmount,
         LzCallParams calldata _callParams,
         FeeObj calldata _feeObj
@@ -50,7 +66,7 @@ interface IOFTWrapper {
         address _proxyOft,
         uint16 _dstChainId,
         bytes32 _toAddress,
-        uint _amount,
+        uint256 _amount,
         uint256 _minAmount,
         LzCallParams calldata _callParams,
         FeeObj calldata _feeObj
@@ -60,7 +76,7 @@ interface IOFTWrapper {
         address _proxyOft,
         uint16 _dstChainId,
         bytes32 _toAddress,
-        uint _amount,
+        uint256 _amount,
         uint256 _minAmount,
         LzCallParams calldata _callParams,
         FeeObj calldata _feeObj
@@ -70,7 +86,7 @@ interface IOFTWrapper {
         address _oft,
         uint16 _dstChainId,
         bytes calldata _toAddress,
-        uint _amount,
+        uint256 _amount,
         bool _useZro,
         bytes calldata _adapterParams,
         FeeObj calldata _feeObj
@@ -80,7 +96,7 @@ interface IOFTWrapper {
         address _oft,
         uint16 _dstChainId,
         bytes32 _toAddress,
-        uint _amount,
+        uint256 _amount,
         bool _useZro,
         bytes calldata _adapterParams,
         FeeObj calldata _feeObj

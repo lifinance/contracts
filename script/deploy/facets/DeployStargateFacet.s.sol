@@ -22,8 +22,11 @@ contract DeployScript is DeployScriptBase {
         address stargateRouter = json.readAddress(
             string.concat(".routers.", network)
         );
+        address stargateNativeRouter = json.readAddress(
+            string.concat(".nativeRouters.", network)
+        );
 
-        constructorArgs = abi.encode(stargateRouter);
+        constructorArgs = abi.encode(stargateRouter, stargateNativeRouter);
 
         vm.startBroadcast(deployerPrivateKey);
 
