@@ -45,10 +45,10 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via Symbiosis
     /// @param _bridgeData the core information needed for bridging
     /// @param _symbiosisData data specific to Symbiosis
-    function startBridge(
-        ILiFi.BridgeData calldata _bridgeData,
+    function _startBridge(
+        ILiFi.BridgeData memory _bridgeData,
         SymbiosisData calldata _symbiosisData
-    ) public {
+    ) internal {
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
         uint256 nativeAssetAmount;
 
@@ -90,7 +90,7 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _symbiosisData data specific to Symbiosis
     function startBridgeTokensViaSymbiosis(
-        ILiFi.BridgeData calldata _bridgeData,
+        ILiFi.BridgeData memory _bridgeData,
         SymbiosisData calldata _symbiosisData
     )
         external
@@ -106,7 +106,7 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount
         );
 
-        startBridge(_bridgeData, _symbiosisData);
+        _startBridge(_bridgeData, _symbiosisData);
     }
 
     /// @notice Performs a swap before bridging via Symbiosis
@@ -132,6 +132,6 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             payable(msg.sender)
         );
 
-        this.startBridge(_bridgeData, _symbiosisData);
+        _startBridge(_bridgeData, _symbiosisData);
     }
 }
