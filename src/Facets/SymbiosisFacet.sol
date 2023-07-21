@@ -42,66 +42,13 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         symbiosisGateway = _symbiosisGateway;
     }
 
-    /// External Methods ///
-
-    /// @notice Bridges tokens via Symbiosis
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _symbiosisData data specific to Symbiosis
-    function startBridgeTokensViaSymbiosis(
-        ILiFi.BridgeData memory _bridgeData,
-        SymbiosisData calldata _symbiosisData
-    )
-        external
-        payable
-        nonReentrant
-        refundExcessNative(payable(msg.sender))
-        validateBridgeData(_bridgeData)
-        doesNotContainSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
-    {
-        LibAsset.depositAsset(
-            _bridgeData.sendingAssetId,
-            _bridgeData.minAmount
-        );
-
-        _startBridge(_bridgeData, _symbiosisData);
-    }
-
-    /// @notice Performs a swap before bridging via Symbiosis
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _swapData an array of swap related data for performing swaps before bridging
-    /// @param _symbiosisData data specific to Symbiosis
-    function swapAndStartBridgeTokensViaSymbiosis(
-        ILiFi.BridgeData memory _bridgeData,
-        LibSwap.SwapData[] calldata _swapData,
-        SymbiosisData calldata _symbiosisData
-    )
-        external
-        payable
-        nonReentrant
-        refundExcessNative(payable(msg.sender))
-        containsSourceSwaps(_bridgeData)
-        validateBridgeData(_bridgeData)
-    {
-        _bridgeData.minAmount = _depositAndSwap(
-            _bridgeData.transactionId,
-            _bridgeData.minAmount,
-            _swapData,
-            payable(msg.sender)
-        );
-
-        _startBridge(_bridgeData, _symbiosisData);
-    }
-
-    /// Internal Methods ///
-
     /// @dev Contains the business logic for the bridge via Symbiosis
     /// @param _bridgeData the core information needed for bridging
     /// @param _symbiosisData data specific to Symbiosis
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
+    function startBridge(
+        ILiFi.BridgeData calldata _bridgeData,
         SymbiosisData calldata _symbiosisData
-    ) internal {
+    ) public {
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
         uint256 nativeAssetAmount;
 
@@ -135,5 +82,56 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// External Methods ///
+
+    /// @notice Bridges tokens via Symbiosis
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _symbiosisData data specific to Symbiosis
+    function startBridgeTokensViaSymbiosis(
+        ILiFi.BridgeData calldata _bridgeData,
+        SymbiosisData calldata _symbiosisData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        validateBridgeData(_bridgeData)
+        doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+    {
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
+
+        startBridge(_bridgeData, _symbiosisData);
+    }
+
+    /// @notice Performs a swap before bridging via Symbiosis
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _swapData an array of swap related data for performing swaps before bridging
+    /// @param _symbiosisData data specific to Symbiosis
+    function swapAndStartBridgeTokensViaSymbiosis(
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
+        SymbiosisData calldata _symbiosisData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        containsSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
+    {
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender)
+        );
+
+        this.startBridge(_bridgeData, _symbiosisData);
     }
 }
