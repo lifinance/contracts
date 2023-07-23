@@ -2587,6 +2587,83 @@ function getPendingContractOwner() {
   echo "$owner"
   return 0
 }
+function getContractNameFromAddressThroughBlockExplorer(){
+  # read function arguments into variables
+  local contract_address="$1"
+  local network="$2"
+
+  # get API key for respective network
+  if [[ "$network" == "bsc-testnet" ]]; then
+    api_key="BSC_ETHERSCAN_API_KEY"
+  else
+    api_key="$(tr '[:lower:]' '[:upper:]' <<<$network)_ETHERSCAN_API_KEY"
+    api_key=${!api_key}
+  fi
+
+  # get correct API link
+  if [[ $network == "mainnet" ]]; then
+    link="https://api.etherscan.io/api?module=contract&action=getsourcecode&address=$contract_address&apikey=$api_key"
+  elif [[ $network == "bsc" ]]; then
+    link="https://api.bscscan.com/api?module=contract&action=getsourcecode&address=$contract_address&apikey=$api_key"
+  elif [[ $network == "polygon" ]]; then
+    link="https://api.polygonscan.com/api?module=contract&action=getsourcecode&address=$contract_address&apikey=$api_key"
+  elif [[ $network == "fantom" ]]; then
+    link="https://api.ftmscan.com/api?module=contract&action=getsourcecode&address=$contract_address&apikey=$api_key"
+  elif [[ $network == "avalanche" ]]; then
+    link="https://api.snowtrace.io/api?module=contract&action=getsourcecode&address=$contract_address&apikey=$api_key"
+  elif [[ $network == "gnosis" ]]; then
+    link="https://api.gnosisscan.io/api?module=contract&action=getsourcecode&address=$contract_address&apikey=$api_key"
+  elif [[ $network == "arbitrum" ]]; then
+    link="https://api.arbiscan.io/api?module=contract&action=getsourcecode&address=$contract_address&apikey=$api_key"
+  elif [[ $network == "aurora" ]]; then
+    link=""
+    warning "the API connection for this network is not yet implemented"
+  elif [[ $network == "boba" ]]; then
+    link="https://api.bobascan.com/api?module=contract&action=getsourcecode&address=$contract_address&apikey=$api_key"
+  elif [[ $network == "celo" ]]; then
+    link="https://api.celoscan.io/api?module=contract&action=getsourcecode&address=$contract_address&apikey=$api_key"
+  elif [[ $network == "cronos" ]]; then
+    link="https://api.cronosscan.com/api?module=contract&action=getsourcecode&address=$contract_address&apikey=$api_key"
+    warning "the API connection for this network is not yet implemented"
+  elif [[ $network == "evmos" ]]; then
+    link=""
+    warning "the API connection for this network is not yet implemented"
+  elif [[ $network == "fuse" ]]; then
+    link="https://explorer.fuse.io/api?module=contract&action=getsourcecode&address=$contract_address"
+  elif [[ $network == "moonbeam" ]]; then
+    link="https://api-moonbeam.moonscan.io/api?module=contract&action=getsourcecode&address=$contract_address&apikey=$api_key"
+  elif [[ $network == "moonriver" ]]; then
+    link="https://api-moonriver.moonscan.io/api?module=contract&action=getsourcecode&address=$contract_address&apikey=$api_key"
+  elif [[ $network == "okx" ]]; then
+    link=""
+    warning "the API connection for this network is not yet implemented"
+  elif [[ $network == "optimism" ]]; then
+    link="https://api-optimistic.etherscan.io/api?module=contract&action=getsourcecode&address=$contract_address&apikey=$api_key"
+  elif [[ $network == "polygonzkevm" ]]; then
+    link=""
+    warning "the API connection for this network is not yet implemented"
+  elif [[ $network == "velas" ]]; then
+    link=""
+    warning "the API connection for this network is not yet implemented"
+  else
+    echo "Unknown contract"
+    return 1
+  fi
+
+  # Send request to block explorer API
+  response=$(curl -s "$link")
+
+  # Use jq to parse JSON and get contract name
+  contract_name=$(echo $response | jq -r '.result[0].ContractName')
+
+  if [[ -z $contract_name ]];then
+    echo "Unknown contract"
+    return 0
+  fi
+
+  echo "$contract_name"
+  return 0
+}
 # <<<<<< read from blockchain
 
 # >>>>>> miscellaneous
