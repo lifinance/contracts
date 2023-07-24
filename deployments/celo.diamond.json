@@ -9,39 +9,39 @@
         "Name": "",
         "Version": ""
       },
-      "0x2327f3FBeC98B836012639545bE35e6e8F83892a": {
-        "Name": "",
-        "Version": ""
+      "0x43BCA3B49947fb553BB8CD5ff6de5753931672bB": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
       },
-      "0x756061F9c646a755233c63f5bc6e7Ad0D3B54Fc3": {
-        "Name": "",
-        "Version": ""
+      "0xA633Df0Da77C863756428E900EC76Ba009E1Ea1C": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
       },
-      "0x4f90dC98674a7bc597E70D1D4B8D72D75Be09732": {
-        "Name": "",
-        "Version": ""
+      "0xE6007dA020680eC279Ac4F25F153689B75192fb4": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.0"
       },
-      "0x8F1f3113DbF717A53eDFDdf3a7E4168E45Fd62F5": {
-        "Name": "",
-        "Version": ""
+      "0x354C19F0656AeC67e013De4fAEA10b7F9286b26b": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
       },
-      "0x3b2B473B2e390aAEB76FF00A4278045DA25e2Bfb": {
-        "Name": "",
-        "Version": ""
+      "0x0708c608e53B25d4B323E21a07d7a183a90C1D1E": {
+        "Name": "CBridgeFacet",
+        "Version": "1.0.0"
       },
-      "0x7dB3E450d818cE91CeC519425385BCf8C4CFFda9": {
-        "Name": "",
-        "Version": ""
+      "0x63fE6c5B4338116E4cC9BC536A8b61AA16003C50": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
       },
-      "0x6444cC208FB4f9059813Ad795faD0c07dB8793a2": {
-        "Name": "",
-        "Version": ""
+      "0x02063A0d7a222c16D5b63213262596B83b07150c": {
+        "Name": "MultichainFacet",
+        "Version": "1.0.1"
       },
-      "0x8E4097eCfcc60F25fF2D7EE4d472ECa4A28a8425": {
-        "Name": "",
-        "Version": ""
+      "0x6066f5B7566081DD1F0b216c9283A9888ba5688d": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
       },
-      "0xD15849eC70de4bc9d61362F9F3d4AB49d1CB8368": {
+      "0x0b5726b7348efBdA8620D5C374F85Cbe8f040B6a": {
         "Name": "",
         "Version": ""
       },
@@ -49,20 +49,18 @@
         "Name": "",
         "Version": ""
       },
-      "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59": {
-        "Name": "",
-        "Version": ""
+      "0x8269DCa8A7Ed9EE72ea19F27A950Cc10FDafFD8D": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "AxelarExecutor": "",
-      "ERC20Proxy": "0x856FF421D9b354ba1E909e26655E159F5Bd04F2E",
-      "Executor": "0x10F9E0d93EbE3f054369758Ec22d42543a147DF1",
-      "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-      "FusePoolZap": "",
-      "Receiver": "0x74674DAFd6f4495e7F63F7637E94b8B89B2f01dB",
+      "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+      "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
+      "FeeCollector": "0x44Ff747185C9Df233D07536E08341ff624896164",
+      "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+      "ServiceFeeCollector": "0xC85c2B19958D116d79C654ecE73b359c08802A76"
     }
   }
 }

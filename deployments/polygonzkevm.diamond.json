@@ -1,13 +1,13 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
-        "Name": "",
-        "Version": ""
+      "0xaD50118509eB4c8e3E39a370151B0fD5D5957013": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
       },
-      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
-        "Name": "",
-        "Version": ""
+      "0xc21a00a346d5b29955449Ca912343a3bB4c5552f": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
       },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
@@ -25,30 +25,34 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
-        "Name": "GetGasFacet",
-        "Version": ""
-      },
       "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
+      },
+      "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
+        "Name": "CBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
+        "Name": "CelerIMFacetMutable",
+        "Version": ""
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0x856FF421D9b354ba1E909e26655E159F5Bd04F2E",
-      "Executor": "0x10F9E0d93EbE3f054369758Ec22d42543a147DF1",
-      "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-      "Receiver": "0x74674DAFd6f4495e7F63F7637E94b8B89B2f01dB",
+      "ERC20Proxy": "",
+      "Executor": "",
+      "FeeCollector": "",
+      "Receiver": "",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+      "ServiceFeeCollector": ""
     }
   }
 }

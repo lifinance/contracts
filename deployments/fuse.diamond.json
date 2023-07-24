@@ -9,25 +9,25 @@
         "Name": "",
         "Version": ""
       },
-      "0x2327f3FBeC98B836012639545bE35e6e8F83892a": {
-        "Name": "",
-        "Version": ""
+      "0x6faA6906b9e4A59020e673910105567e809789E0": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
       },
-      "0x756061F9c646a755233c63f5bc6e7Ad0D3B54Fc3": {
-        "Name": "",
-        "Version": ""
+      "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
       },
-      "0x4f90dC98674a7bc597E70D1D4B8D72D75Be09732": {
-        "Name": "",
-        "Version": ""
+      "0x4bEAa5D26300e81cd17e0981fc15494Bb4B10959": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.0"
       },
-      "0x8F1f3113DbF717A53eDFDdf3a7E4168E45Fd62F5": {
-        "Name": "",
-        "Version": ""
+      "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
       },
-      "0x7dB3E450d818cE91CeC519425385BCf8C4CFFda9": {
-        "Name": "",
-        "Version": ""
+      "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
       },
       "0x6444cC208FB4f9059813Ad795faD0c07dB8793a2": {
         "Name": "",
@@ -37,25 +37,23 @@
         "Name": "",
         "Version": ""
       },
-      "0x8E4097eCfcc60F25fF2D7EE4d472ECa4A28a8425": {
-        "Name": "",
-        "Version": ""
+      "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
       },
       "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
         "Name": "",
         "Version": ""
       },
-      "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59": {
-        "Name": "",
-        "Version": ""
+      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "AxelarExecutor": "",
       "ERC20Proxy": "0x856FF421D9b354ba1E909e26655E159F5Bd04F2E",
       "Executor": "0xDD1305150D27aecc60C066630105DB419977e367",
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-      "FusePoolZap": "",
       "Receiver": "0x0BAEE5700179d87FabAd13022447Bd4E160374DD",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
