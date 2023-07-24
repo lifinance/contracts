@@ -44,6 +44,7 @@ async function main() {
 
     const oftWrapperData = {
       tokenType: 0, // OFT
+      proxyOFT: ZERO_ADDRESS,
       receiver: utils.zeroPad(walletAddress, 32),
       minAmount: amount.mul(9).div(10),
       lzFee: BigNumber.from(0),
@@ -87,6 +88,7 @@ async function main() {
 
     const oftWrapperData = {
       tokenType: 1, // OFTV2
+      proxyOFT: ZERO_ADDRESS,
       receiver: utils.zeroPad(walletAddress, 32),
       minAmount: amount.mul(9).div(10),
       lzFee: BigNumber.from(0),
@@ -130,6 +132,7 @@ async function main() {
 
     const oftWrapperData = {
       tokenType: 2, // OFTFEEV2
+      proxyOFT: ZERO_ADDRESS,
       receiver: utils.zeroPad(walletAddress, 32),
       minAmount: amount.mul(9).div(10),
       lzFee: BigNumber.from(0),
