@@ -18,8 +18,8 @@ graph LR;
   - Simply bridges tokens using OFTWrapper
 - `function swapAndStartBridgeTokensViaOFTWrapper(BridgeData memory _bridgeData, SwapData[] calldata _swapData, OFTWrapperData calldata _oftWrapperData)`
   - Performs swap(s) before bridging tokens using OFTWrapper
-- `function estimateSendFee(BridgeData calldata _bridgeData, OFTWrapperData calldata _oftWrapperData)`
-  - Returns a required amount for native gass fee
+- `function estimateFeesAndAmountOut(address _sendingAssetId, uint256 _destinationChainId, uint256 _amount, bytes32 _receiver, TokenType _tokenType, bool _useZro, bytes memory _adapterParams, uint256 _callerBps)`
+  - Returns a required amount for native fee, zro fee, wrapper fee, caller fee and amount out
 
 ## OFTWrapper Specific Parameters
 
@@ -31,18 +31,22 @@ This data is specific to OFTWrapper and is represented as the following struct t
 
 ```solidity
 /// @param tokenType Type of OFT token(OFT, OFTV2, OFTFeeV2, ProxyOFT, ProxyOFTV2, ProxyOFTFeeV2).
-/// @param proxyOFT Address of 
+/// @param proxyOFT Address of proxy OFT.
 /// @param receiver Receiver address for non-EVM chain.
 /// @param minAmount The min qty you would accept on the destination.
 /// @param lzFee Estimated fee.
+/// @param zroPaymentAddress The address to pay fee in ZRO token.
 /// @param adapterParams Parameters for custom functionality.
+/// @param feeObj Struct data for caller bps and partner id.
 struct OFTWrapperData {
   TokenType tokenType;
   address proxyOFT;
   bytes32 receiver;
   uint256 minAmount;
   uint256 lzFee;
+  address zroPaymentAddress;
   bytes adapterParams;
+  IOFTWrapper.FeeObj feeObj;
 }
 ```
 
