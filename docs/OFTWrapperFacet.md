@@ -18,7 +18,7 @@ graph LR;
   - Simply bridges tokens using OFTWrapper
 - `function swapAndStartBridgeTokensViaOFTWrapper(BridgeData memory _bridgeData, SwapData[] calldata _swapData, OFTWrapperData calldata _oftWrapperData)`
   - Performs swap(s) before bridging tokens using OFTWrapper
-- `function estimateFeesAndAmountOut(address _sendingAssetId, uint256 _destinationChainId, uint256 _amount, bytes32 _receiver, TokenType _tokenType, bool _useZro, bytes memory _adapterParams, uint256 _callerBps)`
+- `function estimateOFTFeesAndAmountOut(address _sendingAssetId, uint256 _destinationChainId, uint256 _amount, bytes32 _receiver, TokenType _tokenType, bool _useZro, bytes memory _adapterParams, uint256 _callerBps)`
   - Returns a required amount for native fee, zro fee, wrapper fee, caller fee and amount out
 
 ## OFTWrapper Specific Parameters

@@ -57,7 +57,7 @@ async function main() {
       },
     }
 
-    const [nativeFee] = await lifi.estimateFeesAndAmountOut(
+    const [nativeFee] = await lifi.estimateOFTFeesAndAmountOut(
       OFT_ADDRESS,
       destinationChainId,
       amount,
@@ -116,7 +116,7 @@ async function main() {
       },
     }
 
-    const [nativeFee] = await lifi.estimateFeesAndAmountOut(
+    const [nativeFee] = await lifi.estimateOFTFeesAndAmountOut(
       OFTV2_ADDRESS,
       destinationChainId,
       amount,
@@ -175,7 +175,7 @@ async function main() {
       },
     }
 
-    const [nativeFee] = await lifi.estimateFeesAndAmountOut(
+    const [nativeFee] = await lifi.estimateOFTFeesAndAmountOut(
       OFTFEEV2_ADDRESS,
       destinationChainId,
       amount,

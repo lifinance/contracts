@@ -94,7 +94,7 @@ contract OFTWrapperFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[3] = oftWrapperFacet.setOFTLayerZeroChainId.selector;
         functionSelectors[4] = oftWrapperFacet
-            .estimateFeesAndAmountOut
+            .estimateOFTFeesAndAmountOut
             .selector;
         functionSelectors[5] = oftWrapperFacet.addDex.selector;
         functionSelectors[6] = oftWrapperFacet
@@ -151,7 +151,7 @@ contract OFTWrapperFacetTest is TestBaseFacet {
             })
         });
 
-        (uint256 fees, , , , ) = oftWrapperFacet.estimateFeesAndAmountOut(
+        (uint256 fees, , , , ) = oftWrapperFacet.estimateOFTFeesAndAmountOut(
             bridgeData.sendingAssetId,
             bridgeData.destinationChainId,
             oftWrapperData.minAmount,
@@ -229,7 +229,7 @@ contract OFTWrapperFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 11111;
         bridgeData.receiver = NON_EVM_ADDRESS;
 
-        (uint256 fees, , , , ) = oftWrapperFacet.estimateFeesAndAmountOut(
+        (uint256 fees, , , , ) = oftWrapperFacet.estimateOFTFeesAndAmountOut(
             bridgeData.sendingAssetId,
             bridgeData.destinationChainId,
             oftWrapperData.minAmount,
@@ -386,7 +386,7 @@ contract OFTWrapperFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[3] = oftWrapperFacet.setOFTLayerZeroChainId.selector;
         functionSelectors[4] = oftWrapperFacet
-            .estimateFeesAndAmountOut
+            .estimateOFTFeesAndAmountOut
             .selector;
         functionSelectors[5] = oftWrapperFacet.addDex.selector;
         functionSelectors[6] = oftWrapperFacet

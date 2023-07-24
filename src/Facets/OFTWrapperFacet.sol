@@ -173,7 +173,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _useZro Whether fee should be paid in ZRO token or not.
     /// @param _adapterParams Parameters for custom functionality.
     /// @param _callerBps Basis points given to the caller/app.
-    function estimateFeesAndAmountOut(
+    function estimateOFTFeesAndAmountOut(
         address _sendingAssetId,
         uint256 _destinationChainId,
         uint256 _amount,
