@@ -1,6 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
+interface IOFT {
+    function estimateSendFee(
+        uint16 _dstChainId,
+        bytes calldata _toAddress,
+        uint _amount,
+        bool _useZro,
+        bytes calldata _adapterParams
+    ) external view returns (uint nativeFee, uint zroFee);
+}
+
+interface IOFTV2 {
+    function estimateSendFee(
+        uint16 _dstChainId,
+        bytes32 _toAddress,
+        uint _amount,
+        bool _useZro,
+        bytes calldata _adapterParams
+    ) external view returns (uint nativeFee, uint zroFee);
+}
+
 interface IProxyOFT {
     function token() external view returns (address);
 }
@@ -81,6 +101,15 @@ interface IOFTWrapper {
         LzCallParams calldata _callParams,
         FeeObj calldata _feeObj
     ) external payable;
+
+    function getAmountAndFees(
+        address _token,
+        uint256 _amount,
+        uint256 _callerBps
+    )
+        external
+        view
+        returns (uint256 amount, uint256 wrapperFee, uint256 callerFee);
 
     function estimateSendFee(
         address _oft,

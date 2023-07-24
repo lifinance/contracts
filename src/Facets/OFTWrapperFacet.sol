@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IOFTWrapper, IProxyOFT } from "../Interfaces/IOFTWrapper.sol";
+import { IOFTWrapper, IOFT, IOFTV2, IProxyOFT } from "../Interfaces/IOFTWrapper.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
@@ -53,7 +53,9 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes32 receiver;
         uint256 minAmount;
         uint256 lzFee;
+        address zroPaymentAddress;
         bytes adapterParams;
+        IOFTWrapper.FeeObj feeObj;
     }
 
     /// Errors ///
@@ -163,48 +165,58 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// @notice Get fee estimation.
-    /// @param _bridgeData The core information needed for bridging.
-    /// @param _oftWrapperData Data specific to OFT Wrapper.
-    function estimateSendFee(
-        ILiFi.BridgeData calldata _bridgeData,
-        OFTWrapperData calldata _oftWrapperData
-    ) external view returns (uint256 nativeFee, uint256 zroFee) {
-        uint16 layerZeroChainId = getOFTLayerZeroChainId(
-            _bridgeData.destinationChainId
+    /// @param _sendingAssetId The address of briding asset.
+    /// @param _destinationChainId The id of destination chain.
+    /// @param _amount The amount of sending asset.
+    /// @param _receiver Receiver address evm chain.
+    /// @param _tokenType Type of OFT token.
+    /// @param _useZro Whether fee should be paid in ZRO token or not.
+    /// @param _adapterParams Parameters for custom functionality.
+    /// @param _callerBps Basis points given to the caller/app.
+    function estimateOFTFeesAndAmountOut(
+        address _sendingAssetId,
+        uint256 _destinationChainId,
+        uint256 _amount,
+        bytes32 _receiver,
+        TokenType _tokenType,
+        bool _useZro,
+        bytes memory _adapterParams,
+        uint256 _callerBps
+    )
+        external
+        view
+        returns (
+            uint256 nativeFee,
+            uint256 zroFee,
+            uint256 wrapperFee,
+            uint256 callerFee,
+            uint256 amountOut
+        )
+    {
+        (amountOut, wrapperFee, callerFee) = oftWrapper.getAmountAndFees(
+            _sendingAssetId,
+            _amount,
+            _callerBps
         );
 
-        if (
-            _oftWrapperData.tokenType == TokenType.OFT ||
-            _oftWrapperData.tokenType == TokenType.ProxyOFT
-        ) {
-            return
-                oftWrapper.estimateSendFee(
-                    _bridgeData.sendingAssetId,
-                    layerZeroChainId,
-                    abi.encodePacked(_bridgeData.receiver),
-                    _bridgeData.minAmount,
-                    false,
-                    _oftWrapperData.adapterParams,
-                    IOFTWrapper.FeeObj(0, address(0), "")
-                );
-        } else {
-            bytes32 receiver;
-            if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-                receiver = _oftWrapperData.receiver;
-            } else {
-                receiver = bytes32(uint256(uint160(_bridgeData.receiver)));
-            }
+        uint16 layerZeroChainId = getOFTLayerZeroChainId(_destinationChainId);
 
-            return
-                oftWrapper.estimateSendFeeV2(
-                    _bridgeData.sendingAssetId,
-                    layerZeroChainId,
-                    receiver,
-                    _bridgeData.minAmount,
-                    false,
-                    _oftWrapperData.adapterParams,
-                    IOFTWrapper.FeeObj(0, address(0), "")
-                );
+        if (_tokenType == TokenType.OFT || _tokenType == TokenType.ProxyOFT) {
+            (nativeFee, zroFee) = IOFT(_sendingAssetId).estimateSendFee(
+                layerZeroChainId,
+                abi.encodePacked(bytes20(_receiver << 96)),
+                _amount,
+                _useZro,
+                _adapterParams
+            );
+        } else {
+            (nativeFee, zroFee) = IOFTV2(_sendingAssetId).estimateSendFee(
+                layerZeroChainId,
+                _receiver,
+                _amount,
+                _useZro,
+                _adapterParams
+            );
         }
     }
 
@@ -237,9 +249,9 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount,
                 _oftWrapperData.minAmount,
                 payable(msg.sender),
-                address(0),
+                _oftWrapperData.zroPaymentAddress,
                 _oftWrapperData.adapterParams,
-                IOFTWrapper.FeeObj(0, address(0), "")
+                _oftWrapperData.feeObj
             );
         } else if (_oftWrapperData.tokenType == TokenType.ProxyOFT) {
             oftWrapper.sendProxyOFT{ value: _oftWrapperData.lzFee }(
@@ -249,9 +261,9 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount,
                 _oftWrapperData.minAmount,
                 payable(msg.sender),
-                address(0),
+                _oftWrapperData.zroPaymentAddress,
                 _oftWrapperData.adapterParams,
-                IOFTWrapper.FeeObj(0, address(0), "")
+                _oftWrapperData.feeObj
             );
         } else {
             _sendOFTV2(_bridgeData, _oftWrapperData);
@@ -293,7 +305,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount,
                 _oftWrapperData.minAmount,
                 lzCallParams,
-                IOFTWrapper.FeeObj(0, address(0), "")
+                _oftWrapperData.feeObj
             );
         } else if (_oftWrapperData.tokenType == TokenType.OFTFeeV2) {
             oftWrapper.sendOFTFeeV2{ value: _oftWrapperData.lzFee }(
@@ -303,7 +315,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount,
                 _oftWrapperData.minAmount,
                 lzCallParams,
-                IOFTWrapper.FeeObj(0, address(0), "")
+                _oftWrapperData.feeObj
             );
         } else if (_oftWrapperData.tokenType == TokenType.ProxyOFTV2) {
             oftWrapper.sendProxyOFTV2{ value: _oftWrapperData.lzFee }(
@@ -313,7 +325,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount,
                 _oftWrapperData.minAmount,
                 lzCallParams,
-                IOFTWrapper.FeeObj(0, address(0), "")
+                _oftWrapperData.feeObj
             );
         } else if (_oftWrapperData.tokenType == TokenType.ProxyOFTFeeV2) {
             oftWrapper.sendProxyOFTFeeV2{ value: _oftWrapperData.lzFee }(
@@ -323,7 +335,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount,
                 _oftWrapperData.minAmount,
                 lzCallParams,
-                IOFTWrapper.FeeObj(0, address(0), "")
+                _oftWrapperData.feeObj
             );
         }
 
