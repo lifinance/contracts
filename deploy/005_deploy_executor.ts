@@ -2,7 +2,11 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
 import { Executor, ERC20Proxy, PeripheryRegistryFacet } from '../typechain'
-import { diamondContractName, verifyContract } from './9999_utils'
+import {
+  diamondContractName,
+  updateDeploymentLogs,
+  verifyContract,
+} from './9999_utils'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Protect against unwanted redeployments
@@ -20,7 +24,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     await ethers.getContractAt('PeripheryRegistryFacet', diamond.address)
   )
 
-  await deploy('ERC20Proxy', {
+  const deployedERC20Proxy = await deploy('ERC20Proxy', {
     from: deployer,
     log: true,
     args: [deployer],
@@ -39,7 +43,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     console.log('Done!')
   }
 
-  await deploy('Executor', {
+  const deployedExecutor = await deploy('Executor', {
     from: deployer,
     log: true,
     args: [erc20Proxy.address],
@@ -57,10 +61,21 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   await erc20Proxy.setAuthorizedCaller(executor.address, true)
 
-  await verifyContract(hre, 'Executor', {
+  const isERC20ProxyVerified = await verifyContract(hre, 'ERC20Proxy', {
+    address: erc20Proxy.address,
+    args: [deployer],
+  })
+  const isExecutorVerified = await verifyContract(hre, 'Executor', {
     address: executor.address,
     args: [erc20Proxy.address],
   })
+
+  await updateDeploymentLogs(
+    'ERC20Proxy',
+    deployedERC20Proxy,
+    isERC20ProxyVerified
+  )
+  await updateDeploymentLogs('Executor', deployedExecutor, isExecutorVerified)
 }
 
 export default func

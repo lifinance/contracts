@@ -1,7 +1,7 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { network } from 'hardhat'
-import { verifyContract } from './9999_utils'
+import { updateDeploymentLogs, verifyContract } from './9999_utils'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Protect against unwanted redeployments
@@ -31,15 +31,39 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     skipIfAlreadyDeployed: true,
   })
 
-  await verifyContract(hre, 'DiamondCutFacet', {
-    address: diamondCutFacet.address,
-  })
-  await verifyContract(hre, 'DiamondLoupeFacet', {
-    address: diamondLoupeFacet.address,
-  })
-  await verifyContract(hre, 'OwnershipFacet', {
+  const isDiamondCutFacetVerified = await verifyContract(
+    hre,
+    'DiamondCutFacet',
+    {
+      address: diamondCutFacet.address,
+    }
+  )
+  const isDiamondLoupeFacetVerified = await verifyContract(
+    hre,
+    'DiamondLoupeFacet',
+    {
+      address: diamondLoupeFacet.address,
+    }
+  )
+  const isOwnershipFacetVerified = await verifyContract(hre, 'OwnershipFacet', {
     address: ownershipFacet.address,
   })
+
+  await updateDeploymentLogs(
+    'DiamondCutFacet',
+    diamondCutFacet,
+    isDiamondCutFacetVerified
+  )
+  await updateDeploymentLogs(
+    'DiamondLoupeFacet',
+    diamondLoupeFacet,
+    isDiamondLoupeFacetVerified
+  )
+  await updateDeploymentLogs(
+    'OwnershipFacet',
+    ownershipFacet,
+    isOwnershipFacetVerified
+  )
 }
 
 export default func

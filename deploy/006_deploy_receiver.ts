@@ -2,7 +2,11 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
 import { Receiver, PeripheryRegistryFacet } from '../typechain'
-import { diamondContractName, verifyContract } from './9999_utils'
+import {
+  diamondContractName,
+  updateDeploymentLogs,
+  verifyContract,
+} from './9999_utils'
 import globalConfig from '../config/global.json'
 import stargateConfig from '../config/stargate.json'
 import amarokConfig from '../config/amarok.json'
@@ -47,7 +51,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   )
   const executorAddr = await registryFacet.getPeripheryContract('Executor')
 
-  await deploy('Receiver', {
+  const deployedReceiver = await deploy('Receiver', {
     from: deployer,
     log: true,
     args: [REFUND_WALLET, STARGATE_ROUTER, AMAROK_ROUTER, executorAddr, 100000],
@@ -63,10 +67,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     console.log('Done!')
   }
 
-  await verifyContract(hre, 'Receiver', {
+  const isVerified = await verifyContract(hre, 'Receiver', {
     address: receiver.address,
     args: [REFUND_WALLET, STARGATE_ROUTER, AMAROK_ROUTER, executorAddr, 100000],
   })
+
+  await updateDeploymentLogs('Receiver', deployedReceiver, isVerified)
 }
 
 export default func

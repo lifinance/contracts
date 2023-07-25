@@ -3,7 +3,11 @@ import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
 import { addOrReplaceFacets } from '../utils/diamond'
 import { DexManagerFacet } from '../typechain'
-import { diamondContractName, verifyContract } from './9999_utils'
+import {
+  diamondContractName,
+  updateDeploymentLogs,
+  verifyContract,
+} from './9999_utils'
 import dexsConfig from '../config/dexs.json'
 import sigsConfig from '../config/sigs.json'
 
@@ -25,7 +29,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  await deploy('DexManagerFacet', {
+  const deployedDexManagerFacet = await deploy('DexManagerFacet', {
     from: deployer,
     log: true,
     skipIfAlreadyDeployed: true,
@@ -86,9 +90,15 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     console.log('Done!')
   }
 
-  await verifyContract(hre, 'DexManagerFacet', {
+  const isVerified = await verifyContract(hre, 'DexManagerFacet', {
     address: dexManagerFacet.address,
   })
+
+  await updateDeploymentLogs(
+    'DexManagerFacet',
+    deployedDexManagerFacet,
+    isVerified
+  )
 }
 
 export default func

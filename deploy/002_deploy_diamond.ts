@@ -1,7 +1,11 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { network } from 'hardhat'
-import { diamondContractName, verifyContract } from './9999_utils'
+import {
+  diamondContractName,
+  updateDeploymentLogs,
+  verifyContract,
+} from './9999_utils'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Protect against unwanted redeployments
@@ -22,10 +26,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     skipIfAlreadyDeployed: true,
   })
 
-  await verifyContract(hre, diamondContractName, {
+  const isVerified = await verifyContract(hre, diamondContractName, {
     address: lifiDiamond.address,
     args: [deployer, diamondCutFacet.address],
   })
+
+  await updateDeploymentLogs(diamondContractName, lifiDiamond, isVerified)
 }
 export default func
 

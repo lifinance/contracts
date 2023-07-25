@@ -2,7 +2,11 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
 import { PeripheryRegistryFacet } from '../typechain'
-import { diamondContractName, verifyContract } from './9999_utils'
+import {
+  diamondContractName,
+  updateDeploymentLogs,
+  verifyContract,
+} from './9999_utils'
 import globalConfig from '../config/global.json'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
@@ -23,7 +27,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     await ethers.getContractAt('PeripheryRegistryFacet', diamond.address)
   )
 
-  await deploy('ServiceFeeCollector', {
+  const deployedServiceFeeCollector = await deploy('ServiceFeeCollector', {
     from: deployer,
     args: [WITHDRAW_WALLET_ADDR],
     log: true,
@@ -44,10 +48,16 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     console.log('Done!')
   }
 
-  await verifyContract(hre, 'ServiceFeeCollector', {
+  const isVerified = await verifyContract(hre, 'ServiceFeeCollector', {
     address: serviceFeeCollector.address,
     args: [WITHDRAW_WALLET_ADDR],
   })
+
+  await updateDeploymentLogs(
+    'ServiceFeeCollector',
+    deployedServiceFeeCollector,
+    isVerified
+  )
 }
 
 export default func

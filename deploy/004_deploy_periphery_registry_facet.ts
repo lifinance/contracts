@@ -2,7 +2,11 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
 import { addOrReplaceFacets } from '../utils/diamond'
-import { diamondContractName, verifyContract } from './9999_utils'
+import {
+  diamondContractName,
+  updateDeploymentLogs,
+  verifyContract,
+} from './9999_utils'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Protect against unwanted redeployments
@@ -14,7 +18,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  await deploy('PeripheryRegistryFacet', {
+  const deployedFacet = await deploy('PeripheryRegistryFacet', {
     from: deployer,
     log: true,
     skipIfAlreadyDeployed: true,
@@ -25,9 +29,15 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   await addOrReplaceFacets([registryFacet], diamond.address)
 
-  await verifyContract(hre, 'PeripheryRegistryFacet', {
+  const isVerified = await verifyContract(hre, 'PeripheryRegistryFacet', {
     address: registryFacet.address,
   })
+
+  await updateDeploymentLogs(
+    'PeripheryRegistryFacet',
+    deployedFacet,
+    isVerified
+  )
 }
 
 export default func
