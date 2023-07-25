@@ -112,7 +112,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     ) external nonReentrant onlySGRouter {
         (
             bytes32 transactionId,
-            LibSwap.SwapData[] memory swapData,
+            LibSwap.SwapData[] memory swapData, // TODO: this should be removed in the next Receiver version (+ adapt backend)
             ,
             address receiver
         ) = abi.decode(

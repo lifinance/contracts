@@ -2592,6 +2592,11 @@ function getContractNameFromAddressThroughBlockExplorer(){
   local contract_address="$1"
   local network="$2"
 
+  if [[ "$contract_address" == "$ZERO_ADDRESS" ]]; then
+    echo "address(0) / nativeToken"
+    return 0
+  fi
+
   # get API key for respective network
   if [[ "$network" == "bsc-testnet" ]]; then
     api_key="BSC_ETHERSCAN_API_KEY"
