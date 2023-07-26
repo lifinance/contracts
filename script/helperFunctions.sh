@@ -1287,7 +1287,7 @@ function getBytecodeFromArtifact() {
   # read bytecode value from json
   bytecode_json=$(getValueFromJSONFile "$file_path" "bytecode.object")
 
-  # Check if the the value obtained starts with "0x"
+  # Check if the value obtained starts with "0x"
   if [[ $bytecode_json == 0x* ]]; then
     echo "$bytecode_json"
     return 0
