@@ -108,7 +108,7 @@
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
       "Receiver": "0xC850013FC01A264018D58D112000E32835D15fBC",
       "RelayerCelerIM": "0x7b6d852f58C783BA3b1138C535ff57dDa4c826E0",
-      "ServiceFeeCollector": "0xe7F5FF6da6DdF45F43aE7c8217AEC3ec5a0569c5"
+      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
   }
 }

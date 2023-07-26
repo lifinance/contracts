@@ -6,14 +6,14 @@ import { IStargateRouter } from "../Interfaces/IStargateRouter.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { InformationMismatch, InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
 /// @title Stargate Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -22,17 +22,14 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice The contract address of the stargate router on the source chain.
     IStargateRouter private immutable router;
+    /// @notice The contract address of the native stargate router on the source chain.
+    IStargateRouter private immutable nativeRouter;
 
     /// Types ///
 
     struct Storage {
         mapping(uint256 => uint16) layerZeroChainId;
         bool initialized;
-    }
-
-    struct PoolIdConfig {
-        address token;
-        uint16 poolId;
     }
 
     struct ChainIdConfig {
@@ -62,7 +59,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Errors ///
 
     error UnknownLayerZeroChain();
-    error InvalidStargateRouter();
 
     /// Events ///
 
@@ -77,8 +73,10 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize the contract.
     /// @param _router The contract address of the stargate router on the source chain.
-    constructor(IStargateRouter _router) {
+    /// @param _nativeRouter The contract address of the native token stargate router on the source chain.
+    constructor(IStargateRouter _router, IStargateRouter _nativeRouter) {
         router = _router;
+        nativeRouter = _nativeRouter;
     }
 
     /// Init ///
@@ -110,7 +108,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _stargateData Data specific to Stargate Bridge
     function startBridgeTokensViaStargate(
-        ILiFi.BridgeData memory _bridgeData,
+        ILiFi.BridgeData calldata _bridgeData,
         StargateData calldata _stargateData
     )
         external
@@ -119,7 +117,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         refundExcessNative(payable(msg.sender))
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
-        noNativeAsset(_bridgeData)
     {
         validateDestinationCallFlag(_bridgeData, _stargateData);
         LibAsset.depositAsset(
@@ -144,7 +141,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
-        noNativeAsset(_bridgeData)
     {
         validateDestinationCallFlag(_bridgeData, _stargateData);
         _bridgeData.minAmount = _depositAndSwap(
@@ -152,7 +148,9 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender),
-            _stargateData.lzFee
+            LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
+                ? 0
+                : _stargateData.lzFee
         );
 
         _startBridge(_bridgeData, _stargateData);
@@ -184,28 +182,46 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         StargateData calldata _stargateData
-    ) private noNativeAsset(_bridgeData) {
-        LibAsset.maxApproveERC20(
-            IERC20(_bridgeData.sendingAssetId),
-            address(router),
-            _bridgeData.minAmount
-        );
+    ) private {
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            nativeRouter.swapETHAndCall{ value: _bridgeData.minAmount }(
+                getLayerZeroChainId(_bridgeData.destinationChainId),
+                _stargateData.refundAddress,
+                _stargateData.callTo,
+                IStargateRouter.SwapAmount(
+                    _bridgeData.minAmount - _stargateData.lzFee,
+                    _stargateData.minAmountLD
+                ),
+                IStargateRouter.lzTxObj(
+                    _stargateData.dstGasForCall,
+                    0,
+                    toBytes(address(0))
+                ),
+                _stargateData.callData
+            );
+        } else {
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(router),
+                _bridgeData.minAmount
+            );
 
-        router.swap{ value: _stargateData.lzFee }(
-            getLayerZeroChainId(_bridgeData.destinationChainId),
-            _stargateData.srcPoolId,
-            _stargateData.dstPoolId,
-            _stargateData.refundAddress,
-            _bridgeData.minAmount,
-            _stargateData.minAmountLD,
-            IStargateRouter.lzTxObj(
-                _stargateData.dstGasForCall,
-                0,
-                toBytes(address(0))
-            ),
-            _stargateData.callTo,
-            _stargateData.callData
-        );
+            router.swap{ value: _stargateData.lzFee }(
+                getLayerZeroChainId(_bridgeData.destinationChainId),
+                _stargateData.srcPoolId,
+                _stargateData.dstPoolId,
+                _stargateData.refundAddress,
+                _bridgeData.minAmount,
+                _stargateData.minAmountLD,
+                IStargateRouter.lzTxObj(
+                    _stargateData.dstGasForCall,
+                    0,
+                    toBytes(address(0))
+                ),
+                _stargateData.callTo,
+                _stargateData.callData
+            );
+        }
 
         emit LiFiTransferStarted(_bridgeData);
     }

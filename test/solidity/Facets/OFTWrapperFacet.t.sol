@@ -93,7 +93,9 @@ contract OFTWrapperFacetTest is TestBaseFacet {
             .swapAndStartBridgeTokensViaOFTWrapper
             .selector;
         functionSelectors[3] = oftWrapperFacet.setOFTLayerZeroChainId.selector;
-        functionSelectors[4] = oftWrapperFacet.estimateSendFee.selector;
+        functionSelectors[4] = oftWrapperFacet
+            .estimateOFTFeesAndAmountOut
+            .selector;
         functionSelectors[5] = oftWrapperFacet.addDex.selector;
         functionSelectors[6] = oftWrapperFacet
             .setFunctionApprovalBySignature
@@ -136,15 +138,28 @@ contract OFTWrapperFacetTest is TestBaseFacet {
 
         oftWrapperData = OFTWrapperFacet.OFTWrapperData({
             tokenType: OFTWrapperFacet.TokenType.OFTFeeV2,
+            proxyOFT: address(0),
             receiver: bytes32(uint256(uint160(USER_SENDER)) << 96),
             minAmount: (defaultUSDCAmount * 90) / 100,
             lzFee: 0,
-            adapterParams: abi.encodePacked(uint16(1), uint256(2000000))
+            zroPaymentAddress: address(0),
+            adapterParams: abi.encodePacked(uint16(1), uint256(2000000)),
+            feeObj: IOFTWrapper.FeeObj({
+                callerBps: 0,
+                caller: address(0),
+                partnerId: bytes2("")
+            })
         });
 
-        (uint256 fees, ) = oftWrapperFacet.estimateSendFee(
-            bridgeData,
-            oftWrapperData
+        (uint256 fees, , , , ) = oftWrapperFacet.estimateOFTFeesAndAmountOut(
+            bridgeData.sendingAssetId,
+            bridgeData.destinationChainId,
+            oftWrapperData.minAmount,
+            bytes32(uint256(uint160(bridgeData.receiver))),
+            oftWrapperData.tokenType,
+            false,
+            oftWrapperData.adapterParams,
+            0
         );
 
         oftWrapperData.lzFee = addToMessageValue = fees;
@@ -214,9 +229,15 @@ contract OFTWrapperFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 11111;
         bridgeData.receiver = NON_EVM_ADDRESS;
 
-        (uint256 fees, ) = oftWrapperFacet.estimateSendFee(
-            bridgeData,
-            oftWrapperData
+        (uint256 fees, , , , ) = oftWrapperFacet.estimateOFTFeesAndAmountOut(
+            bridgeData.sendingAssetId,
+            bridgeData.destinationChainId,
+            oftWrapperData.minAmount,
+            bytes32(uint256(uint160(bridgeData.receiver))),
+            oftWrapperData.tokenType,
+            false,
+            oftWrapperData.adapterParams,
+            0
         );
 
         oftWrapperData.lzFee = addToMessageValue = fees;
@@ -364,7 +385,9 @@ contract OFTWrapperFacetTest is TestBaseFacet {
             .swapAndStartBridgeTokensViaOFTWrapper
             .selector;
         functionSelectors[3] = oftWrapperFacet.setOFTLayerZeroChainId.selector;
-        functionSelectors[4] = oftWrapperFacet.estimateSendFee.selector;
+        functionSelectors[4] = oftWrapperFacet
+            .estimateOFTFeesAndAmountOut
+            .selector;
         functionSelectors[5] = oftWrapperFacet.addDex.selector;
         functionSelectors[6] = oftWrapperFacet
             .setFunctionApprovalBySignature
