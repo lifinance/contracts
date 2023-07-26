@@ -14,35 +14,19 @@ contract DeployScript is DeployScriptBase {
         public
         returns (WormholeFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/wormhole.json"
-        );
+        constructorArgs = getConstructorArgs();
+
+        deployed = WormholeFacet(deploy(type(WormholeFacet).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/wormhole.json");
         string memory json = vm.readFile(path);
+
         address wormholeRouter = json.readAddress(
             string.concat(".routers.", network)
         );
 
-        constructorArgs = abi.encode(wormholeRouter);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (WormholeFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = WormholeFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(WormholeFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(wormholeRouter);
     }
 }

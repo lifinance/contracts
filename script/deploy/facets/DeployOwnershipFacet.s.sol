@@ -8,16 +8,6 @@ contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("OwnershipFacet") {}
 
     function run() public returns (OwnershipFacet deployed) {
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return OwnershipFacet(predicted);
-        }
-
-        deployed = OwnershipFacet(
-            factory.deploy(salt, type(OwnershipFacet).creationCode)
-        );
-
-        vm.stopBroadcast();
+        deployed = OwnershipFacet(deploy(type(OwnershipFacet).creationCode));
     }
 }

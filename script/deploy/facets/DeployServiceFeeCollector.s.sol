@@ -17,35 +17,28 @@ contract DeployScript is DeployScriptBase {
         public
         returns (ServiceFeeCollector deployed, bytes memory constructorArgs)
     {
+        constructorArgs = getConstructorArgs();
+
+        deployed = ServiceFeeCollector(
+            deploy(type(ServiceFeeCollector).creationCode)
+        );
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
         // get path of global config file
-        globalConfigPath = string.concat(root, "/config/global.json");
+        string memory globalConfigPath = string.concat(
+            root,
+            "/config/global.json"
+        );
 
         // read file into json variable
-        globalConfigJson = vm.readFile(globalConfigPath);
+        string memory globalConfigJson = vm.readFile(globalConfigPath);
 
         // extract refundWallet address
         address withdrawWalletAddress = globalConfigJson.readAddress(
             ".withdrawWallet"
         );
 
-        vm.startBroadcast(deployerPrivateKey);
-
-        constructorArgs = abi.encode(withdrawWalletAddress);
-
-        if (isDeployed()) {
-            return (ServiceFeeCollector(predicted), constructorArgs);
-        }
-
-        deployed = ServiceFeeCollector(
-            factory.deploy(
-                salt,
-                bytes.concat(
-                    type(ServiceFeeCollector).creationCode,
-                    constructorArgs
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(withdrawWalletAddress);
     }
 }

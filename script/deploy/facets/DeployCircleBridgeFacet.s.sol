@@ -14,36 +14,22 @@ contract DeployScript is DeployScriptBase {
         public
         returns (CircleBridgeFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/circle.json"
+        constructorArgs = getConstructorArgs();
+
+        deployed = CircleBridgeFacet(
+            deploy(type(CircleBridgeFacet).creationCode)
         );
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/circle.json");
         string memory json = vm.readFile(path);
+
         address tokenMessenger = json.readAddress(
             string.concat(".", network, ".tokenMessenger")
         );
         address usdc = json.readAddress(string.concat(".", network, ".usdc"));
 
-        constructorArgs = abi.encode(tokenMessenger, usdc);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (CircleBridgeFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = CircleBridgeFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(CircleBridgeFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(tokenMessenger, usdc);
     }
 }

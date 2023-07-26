@@ -14,35 +14,19 @@ contract DeployScript is DeployScriptBase {
         public
         returns (SquidFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/squid.json"
-        );
+        constructorArgs = getConstructorArgs();
+
+        deployed = SquidFacet(deploy(type(SquidFacet).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/squid.json");
         string memory json = vm.readFile(path);
+
         address router = json.readAddress(
             string.concat(".", network, ".router")
         );
 
-        constructorArgs = abi.encode(router);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (SquidFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = SquidFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(SquidFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(router);
     }
 }

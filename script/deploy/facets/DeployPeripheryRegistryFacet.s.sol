@@ -8,16 +8,8 @@ contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("PeripheryRegistryFacet") {}
 
     function run() public returns (PeripheryRegistryFacet deployed) {
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return PeripheryRegistryFacet(predicted);
-        }
-
         deployed = PeripheryRegistryFacet(
-            factory.deploy(salt, type(PeripheryRegistryFacet).creationCode)
+            deploy(type(PeripheryRegistryFacet).creationCode)
         );
-
-        vm.stopBroadcast();
     }
 }

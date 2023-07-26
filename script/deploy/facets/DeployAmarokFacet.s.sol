@@ -14,35 +14,19 @@ contract DeployScript is DeployScriptBase {
         public
         returns (AmarokFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/amarok.json"
-        );
+        constructorArgs = getConstructorArgs();
+
+        deployed = AmarokFacet(deploy(type(AmarokFacet).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/amarok.json");
         string memory json = vm.readFile(path);
+
         address connextHandler = json.readAddress(
             string.concat(".", network, ".connextHandler")
         );
 
-        constructorArgs = abi.encode(connextHandler);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (AmarokFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = AmarokFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(AmarokFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(connextHandler);
     }
 }

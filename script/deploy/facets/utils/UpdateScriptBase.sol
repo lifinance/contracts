@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { Script } from "forge-std/Script.sol";
+import "./ScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
-import { console } from "forge-std/console.sol";
 
-contract UpdateScriptBase is Script {
+contract UpdateScriptBase is ScriptBase {
+    using stdJson for string;
+
     struct FunctionSignature {
         string name;
         bytes sig;
     }
-
-    using stdJson for string;
 
     address internal diamond;
     IDiamondCut.FacetCut[] internal cut;
@@ -23,20 +22,12 @@ contract UpdateScriptBase is Script {
     bytes4[] internal selectorsToAdd;
     DiamondCutFacet internal cutter;
     DiamondLoupeFacet internal loupe;
-    uint256 internal deployerPrivateKey;
-    string internal root;
-    string internal network;
-    string internal fileSuffix;
     string internal path;
     string internal json;
     bool internal noBroadcast = false;
     bool internal useDefaultDiamond;
 
     constructor() {
-        deployerPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY"));
-        root = vm.projectRoot();
-        network = vm.envString("NETWORK");
-        fileSuffix = vm.envString("FILE_SUFFIX");
         useDefaultDiamond = vm.envBool("USE_DEF_DIAMOND");
         noBroadcast = vm.envOr("NO_BROADCAST", false);
 

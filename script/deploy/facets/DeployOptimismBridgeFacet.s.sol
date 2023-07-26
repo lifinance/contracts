@@ -8,16 +8,8 @@ contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("OptimismBridgeFacet") {}
 
     function run() public returns (OptimismBridgeFacet deployed) {
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return OptimismBridgeFacet(predicted);
-        }
-
         deployed = OptimismBridgeFacet(
-            factory.deploy(salt, type(OptimismBridgeFacet).creationCode)
+            deploy(type(OptimismBridgeFacet).creationCode)
         );
-
-        vm.stopBroadcast();
     }
 }

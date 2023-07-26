@@ -14,30 +14,19 @@ contract DeployScript is DeployScriptBase {
         public
         returns (ThorSwapFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/thorswap.json"
-        );
+        constructorArgs = getConstructorArgs();
+
+        deployed = ThorSwapFacet(deploy(type(ThorSwapFacet).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/thorswap.json");
         string memory json = vm.readFile(path);
+
         address thorchainRouter = json.readAddress(
             string.concat(".", network, ".thorchainRouter")
         );
 
-        constructorArgs = abi.encode(thorchainRouter);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (ThorSwapFacet(predicted), constructorArgs);
-        }
-
-        deployed = ThorSwapFacet(
-            factory.deploy(
-                salt,
-                bytes.concat(type(ThorSwapFacet).creationCode, constructorArgs)
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(thorchainRouter);
     }
 }
