@@ -21,7 +21,7 @@ graph LR;
 
 Some methods accept a `SwapData _swapData` parameter.
 
-Swapping is performed by a swap specific library that expects an array of calldata to can be run on variaous DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
+Swapping is performed by a swap specific library that expects an array of calldata to can be run on various DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
 
 The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
@@ -60,7 +60,7 @@ const quoteResult = {
 }
 ```
 
-A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://apidocs.li.finance/reference/how-to-transfer-tokens).
+A detailed explanation of how to use the /quote endpoint and how to trigger the transaction can be found [here](https://apidocs.li.finance/reference/how-to-transfer-tokens).
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 
