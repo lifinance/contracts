@@ -100,7 +100,7 @@ export const updateAddress = function (name: string, address: string) {
 
   data[name] = address
 
-  fs.writeFileSync(addressesFile, JSON.stringify(data, null, 4))
+  fs.writeFileSync(addressesFile, JSON.stringify(data, null, 2))
 }
 
 export const updateDiamond = function (
@@ -132,7 +132,7 @@ export const updateDiamond = function (
     }
   }
 
-  fs.writeFileSync(diamondFile, JSON.stringify(data, null, 4))
+  fs.writeFileSync(diamondFile, JSON.stringify(data, null, 2))
 }
 
 export const updateLog = function (name: string, version: string, info: any) {
@@ -162,7 +162,7 @@ export const updateLog = function (name: string, version: string, info: any) {
 
   fs.writeFileSync(
     'deployments/_deployments_log_file.json',
-    JSON.stringify(data, null, 4)
+    JSON.stringify(data, null, 2)
   )
 }
 
