@@ -44,7 +44,7 @@ checkExecutorAndReceiver() {
   # get array of networks in which the script should be run
   if [[ "$SELECTION_NETWORK" == *"1)"* ]]; then
     # get array of all (not-excluded) networks
-    NETWORKS=($(getAllNetworksArray))
+    NETWORKS=($(getIncludedNetworksArray))
   else
     # get user-selected network from list
     local NETWORK=$(cat ./networks | gum filter --placeholder "Network")
