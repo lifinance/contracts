@@ -88,7 +88,7 @@ checkExecutorAndReceiver() {
       # get the status from the return data
       MATCH=$(echo $RETURN_DATA | jq -r '."0".value')
 
-      if [[ $MATCH != "true" ]]; then
+      if [[ $MATCH == "true" ]]; then
         RESULT="[info] Executor and Receiver match on network: $NETWORK"
         MATCH_RESULTS="$MATCH_RESULTS\n$RESULT"
       else
