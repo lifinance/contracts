@@ -65,13 +65,13 @@
         "Name": "",
         "Version": ""
       },
-      "0x2FD7d88c4abfC35749C75F9eEEb68cb8F41e3CaC": {
-        "Name": "",
-        "Version": ""
+      "0xF609fdBA8f7A020975a7c82C82f6A1f526F9A8fC": {
+        "Name": "PolygonBridgeFacet",
+        "Version": "1.0.0"
       },
-      "0x353268a8eb912BE2079876bc1faca109e89E5308": {
-        "Name": "",
-        "Version": ""
+      "0x3d5F2cC1A2a05448C0d8Fcd628E2b53d93DC12e4": {
+        "Name": "StargateFacet",
+        "Version": "2.0.0"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
@@ -135,12 +135,12 @@
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0x856FF421D9b354ba1E909e26655E159F5Bd04F2E",
-      "Executor": "0xDD1305150D27aecc60C066630105DB419977e367",
-      "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
-      "Receiver": "0x74674DAFd6f4495e7F63F7637E94b8B89B2f01dB",
-      "RelayerCelerIM": "0x6A3fE66D2439893556663cFeeAaF202692d06440",
-      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+      "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+      "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
+      "FeeCollector": "0x44Ff747185C9Df233D07536E08341ff624896164",
+      "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
+      "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
+      "ServiceFeeCollector": "0xC85c2B19958D116d79C654ecE73b359c08802A76"
     }
   }
 }
