@@ -17,7 +17,7 @@ contract DeployScript is UpdateScriptBase {
         // @DEV: Workaround: approve each function selector in a single script execution
         if (
             keccak256(abi.encodePacked(network)) !=
-            keccak256(abi.encodePacked("mainnet"))
+            keccak256(abi.encodePacked("localanvil"))
         ) approveRefundWallet();
 
         vm.stopBroadcast();
