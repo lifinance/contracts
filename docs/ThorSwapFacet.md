@@ -4,7 +4,7 @@
 
 The ThorSwap bridge facet works by forwarding calls to the Thorchain router contract on the source chain. Quotes are obtained using the ThorSwap API.
 
-THORSwap is a multi-chain DEX aggregator built on THORChain's cross-chain liquidity protocol and the #1 interface for all THORChain services such as Savers, liquidity providing, THORNames, Synthetic Assets & THORSafe multisig wallets. In our belief that the future is multi-chain, THORSwap developed a secure solution to remove technical barriers for trading any assets accross chains, without relying on wrapped assets or bridges.
+THORSwap is a multi-chain DEX aggregator built on THORChain's cross-chain liquidity protocol and the #1 interface for all THORChain services such as Savers, liquidity providing, THORNames, Synthetic Assets & THORSafe multisig wallets. In our belief that the future is multi-chain, THORSwap developed a secure solution to remove technical barriers for trading any assets across chains, without relying on wrapped assets or bridges.
 
 ```mermaid
 graph LR;
@@ -41,7 +41,7 @@ struct ThorSwapData {
 
 Some methods accept a `SwapData _swapData` parameter.
 
-Swapping is performed by a swap specific library that expects an array of calldata to can be run on variaous DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
+Swapping is performed by a swap specific library that expects an array of calldata to can be run on various DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
 
 The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
