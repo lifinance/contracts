@@ -105,10 +105,12 @@
     "Periphery": {
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
-      "FeeCollector": "0x44Ff747185C9Df233D07536E08341ff624896164",
+      "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
       "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
       "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
-      "ServiceFeeCollector": "0xC85c2B19958D116d79C654ecE73b359c08802A76"
+      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
-  }
+  },
+  "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
+  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
 }
