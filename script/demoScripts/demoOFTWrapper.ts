@@ -44,13 +44,29 @@ async function main() {
 
     const oftWrapperData = {
       tokenType: 0, // OFT
+      proxyOFT: ZERO_ADDRESS,
       receiver: utils.zeroPad(walletAddress, 32),
       minAmount: amount.mul(9).div(10),
       lzFee: BigNumber.from(0),
+      zroPaymentAddress: ZERO_ADDRESS,
       adapterParams: utils.solidityPack(['uint16', 'uint256'], [1, 500000]),
+      feeObj: {
+        callerBps: 0,
+        caller: ZERO_ADDRESS,
+        partnerId: '',
+      },
     }
 
-    const [nativeFee] = await lifi.estimateSendFee(bridgeData, oftWrapperData)
+    const [nativeFee] = await lifi.estimateOFTFeesAndAmountOut(
+      OFT_ADDRESS,
+      destinationChainId,
+      amount,
+      utils.zeroPad(walletAddress, 32),
+      0,
+      false,
+      utils.solidityPack(['uint16', 'uint256'], [1, 500000]),
+      0
+    )
 
     oftWrapperData.lzFee = nativeFee
 
@@ -87,13 +103,29 @@ async function main() {
 
     const oftWrapperData = {
       tokenType: 1, // OFTV2
+      proxyOFT: ZERO_ADDRESS,
       receiver: utils.zeroPad(walletAddress, 32),
       minAmount: amount.mul(9).div(10),
       lzFee: BigNumber.from(0),
+      zroPaymentAddress: ZERO_ADDRESS,
       adapterParams: utils.solidityPack(['uint16', 'uint256'], [1, 500000]),
+      feeObj: {
+        callerBps: 0,
+        caller: ZERO_ADDRESS,
+        partnerId: '',
+      },
     }
 
-    const [nativeFee] = await lifi.estimateSendFee(bridgeData, oftWrapperData)
+    const [nativeFee] = await lifi.estimateOFTFeesAndAmountOut(
+      OFTV2_ADDRESS,
+      destinationChainId,
+      amount,
+      utils.zeroPad(walletAddress, 32),
+      1,
+      false,
+      utils.solidityPack(['uint16', 'uint256'], [1, 500000]),
+      0
+    )
 
     oftWrapperData.lzFee = nativeFee
 
@@ -130,13 +162,29 @@ async function main() {
 
     const oftWrapperData = {
       tokenType: 2, // OFTFEEV2
+      proxyOFT: ZERO_ADDRESS,
       receiver: utils.zeroPad(walletAddress, 32),
       minAmount: amount.mul(9).div(10),
       lzFee: BigNumber.from(0),
+      zroPaymentAddress: ZERO_ADDRESS,
       adapterParams: utils.solidityPack(['uint16', 'uint256'], [1, 500000]),
+      feeObj: {
+        callerBps: 0,
+        caller: ZERO_ADDRESS,
+        partnerId: '',
+      },
     }
 
-    const [nativeFee] = await lifi.estimateSendFee(bridgeData, oftWrapperData)
+    const [nativeFee] = await lifi.estimateOFTFeesAndAmountOut(
+      OFTFEEV2_ADDRESS,
+      destinationChainId,
+      amount,
+      utils.zeroPad(walletAddress, 32),
+      2,
+      false,
+      utils.solidityPack(['uint16', 'uint256'], [1, 500000]),
+      0
+    )
 
     oftWrapperData.lzFee = nativeFee
 
