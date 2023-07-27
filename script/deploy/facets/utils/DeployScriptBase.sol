@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import "./ScriptBase.sol";
+import { ScriptBase } from "./ScriptBase.sol";
 import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
 
 contract DeployScriptBase is ScriptBase {

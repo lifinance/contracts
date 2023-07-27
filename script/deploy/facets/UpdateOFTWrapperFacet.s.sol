@@ -3,7 +3,6 @@ pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { OFTWrapperFacet } from "lifi/Facets/OFTWrapperFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
@@ -18,11 +17,20 @@ contract DeployScript is UpdateScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        address facet = json.readAddress(".OFTWrapperFacet");
+        return update("OFTWrapperFacet");
+    }
 
+    function getExcludes() internal pure override returns (bytes4[] memory) {
+        bytes4[] memory excludes = new bytes4[](1);
+        excludes[0] = OFTWrapperFacet.initOFTWrapper.selector;
+
+        return excludes;
+    }
+
+    function getCallData() internal override returns (bytes memory) {
         path = string.concat(root, "/config/oftwrapper.json");
         json = vm.readFile(path);
-        bytes memory rawChains = json.parseRaw(string.concat(".chains"));
+        bytes memory rawChains = json.parseRaw(".chains");
         ChainIdConfig[] memory cidCfg = abi.decode(
             rawChains,
             (ChainIdConfig[])
@@ -33,28 +41,6 @@ contract DeployScript is UpdateScriptBase {
             cidCfg
         );
 
-        // OFTWrapper
-        bytes4[] memory exclude = new bytes4[](1);
-        exclude[0] = OFTWrapperFacet.initOFTWrapper.selector;
-        buildDiamondCut(getSelectors("OFTWrapperFacet", exclude), facet);
-        if (noBroadcast) {
-            if (cut.length > 0) {
-                cutData = abi.encodeWithSelector(
-                    DiamondCutFacet.diamondCut.selector,
-                    cut,
-                    address(facet),
-                    callData
-                );
-            }
-            return (facets, cutData);
-        }
-
-        vm.startBroadcast(deployerPrivateKey);
-        if (cut.length > 0) {
-            cutter.diamondCut(cut, address(facet), callData);
-        }
-        facets = loupe.facetAddresses();
-
-        vm.stopBroadcast();
+        return callData;
     }
 }

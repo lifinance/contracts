@@ -8,9 +8,6 @@ import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    string internal globalConfigPath;
-    string internal globalConfigJson;
-
     constructor() DeployScriptBase("RelayerCelerIM") {}
 
     function run()

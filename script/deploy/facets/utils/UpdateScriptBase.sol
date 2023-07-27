@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import "./ScriptBase.sol";
+import { ScriptBase } from "./ScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
@@ -46,6 +46,51 @@ contract UpdateScriptBase is ScriptBase {
         cutter = DiamondCutFacet(diamond);
         loupe = DiamondLoupeFacet(diamond);
     }
+
+    function update(
+        string memory name
+    )
+        internal
+        virtual
+        returns (address[] memory facets, bytes memory cutData)
+    {
+        address facet = json.readAddress(string.concat(".", name));
+
+        bytes4[] memory excludes = getExcludes();
+        bytes memory callData = getCallData();
+
+        buildDiamondCut(getSelectors(name, excludes), facet);
+
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    callData.length > 0 ? facet : address(0),
+                    callData
+                );
+            }
+            return (facets, cutData);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        if (cut.length > 0) {
+            cutter.diamondCut(
+                cut,
+                callData.length > 0 ? facet : address(0),
+                callData
+            );
+        }
+
+        facets = loupe.facetAddresses();
+
+        vm.stopBroadcast();
+    }
+
+    function getExcludes() internal virtual returns (bytes4[] memory) {}
+
+    function getCallData() internal virtual returns (bytes memory) {}
 
     function getSelectors(
         string memory _facetName,
