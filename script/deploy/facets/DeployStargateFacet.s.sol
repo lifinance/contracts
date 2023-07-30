@@ -14,11 +14,15 @@ contract DeployScript is DeployScriptBase {
         public
         returns (StargateFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/stargate.json"
-        );
+        constructorArgs = getConstructorArgs();
+
+        deployed = StargateFacet(deploy(type(StargateFacet).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/stargate.json");
         string memory json = vm.readFile(path);
+
         address stargateRouter = json.readAddress(
             string.concat(".routers.", network)
         );
@@ -26,26 +30,6 @@ contract DeployScript is DeployScriptBase {
             string.concat(".nativeRouters.", network)
         );
 
-        constructorArgs = abi.encode(stargateRouter, stargateNativeRouter);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (StargateFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = StargateFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(StargateFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(stargateRouter, stargateNativeRouter);
     }
 }

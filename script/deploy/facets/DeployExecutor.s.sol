@@ -14,6 +14,12 @@ contract DeployScript is DeployScriptBase {
         public
         returns (Executor deployed, bytes memory constructorArgs)
     {
+        constructorArgs = getConstructorArgs();
+
+        deployed = Executor(deploy(type(Executor).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(
             root,
             "/deployments/",
@@ -23,30 +29,9 @@ contract DeployScript is DeployScriptBase {
             "json"
         );
         string memory json = vm.readFile(path);
+
         address erc20Proxy = json.readAddress(".ERC20Proxy");
 
-        constructorArgs = abi.encode(erc20Proxy);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (Executor(payable(address(predicted))), constructorArgs);
-        }
-
-        deployed = Executor(
-            payable(
-                address(
-                    factory.deploy(
-                        salt,
-                        bytes.concat(
-                            type(Executor).creationCode,
-                            constructorArgs
-                        )
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(erc20Proxy);
     }
 }

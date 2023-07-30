@@ -14,35 +14,21 @@ contract DeployScript is DeployScriptBase {
         public
         returns (RoninBridgeFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/ronin.json"
+        constructorArgs = getConstructorArgs();
+
+        deployed = RoninBridgeFacet(
+            deploy(type(RoninBridgeFacet).creationCode)
         );
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/ronin.json");
         string memory json = vm.readFile(path);
+
         address gateway = json.readAddress(
             string.concat(".", network, ".gateway")
         );
 
-        constructorArgs = abi.encode(gateway);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (RoninBridgeFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = RoninBridgeFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(RoninBridgeFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(gateway);
     }
 }

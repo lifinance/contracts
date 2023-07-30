@@ -17,10 +17,15 @@
     "solidity"
   ],
   "devDependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.2.1",
-    "@nomiclabs/hardhat-etherscan": "^3.0.3",
-    "@typechain/ethers-v5": "^10.0.0",
-    "@typechain/hardhat": "^6.0.0",
+    "@matterlabs/hardhat-zksync-deploy": "0.6.3",
+    "@matterlabs/hardhat-zksync-solc": "0.3.17",
+    "@matterlabs/hardhat-zksync-verify": "0.1.7",
+    "@nomicfoundation/hardhat-foundry": "^1.0.2",
+    "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers@^0.3.0-beta.13",
+    "@nomiclabs/hardhat-etherscan": "3.1.6",
+    "@nomiclabs/hardhat-waffle": "2.0.5",
+    "@typechain/ethers-v5": "10.2.0",
+    "@typechain/hardhat": "^6.1.5",
     "@types/inquirer": "^8.2.0",
     "@types/node": "^17.0.23",
     "@types/pino": "^7.0.5",
@@ -31,9 +36,11 @@
     "eslint": "^8.11.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-import": "^2.27.5",
-    "ethers": "^5.7.1",
+    "ethers": "5.7.2",
     "fs-extra": "^10.0.1",
-    "hardhat": "^2.9.0",
+    "hardhat": "2.12.7",
+    "hardhat-deploy": "^0.11.34",
+    "hardhat-preprocessor": "^0.1.5",
     "husky": "^8.0.1",
     "lint-staged": "^13.2.3",
     "patch-package": "^6.4.7",
@@ -47,7 +54,8 @@
     "ts-generator": "^0.1.1",
     "ts-node": "^10.7.0",
     "typechain": "^8.0.0",
-    "typescript": "4.8.4"
+    "typescript": "4.8.4",
+    "zksync-web3": "^0.14.3"
   },
   "resolutions": {
     "hardhat/**/@ethereumjs/tx": "3.5.0"

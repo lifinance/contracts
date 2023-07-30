@@ -14,11 +14,17 @@ contract DeployScript is DeployScriptBase {
         public
         returns (PolygonBridgeFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/polygon.json"
+        constructorArgs = getConstructorArgs();
+
+        deployed = PolygonBridgeFacet(
+            deploy(type(PolygonBridgeFacet).creationCode)
         );
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/polygon.json");
         string memory json = vm.readFile(path);
+
         address rootChainManager = json.readAddress(
             string.concat(".", network, ".rootChainManager")
         );
@@ -26,26 +32,6 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".erc20Predicate")
         );
 
-        constructorArgs = abi.encode(rootChainManager, erc20Predicate);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (PolygonBridgeFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = PolygonBridgeFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(PolygonBridgeFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(rootChainManager, erc20Predicate);
     }
 }

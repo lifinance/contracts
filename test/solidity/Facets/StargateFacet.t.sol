@@ -35,6 +35,8 @@ contract StargateFacetTest is TestBaseFacet {
         uint16 layerZeroChainId
     );
 
+    event PartnerSwap(bytes2 partnerId);
+
     // These values are for Mainnet
     address internal constant WETH_ADDRESS =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
@@ -182,6 +184,10 @@ contract StargateFacetTest is TestBaseFacet {
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit PartnerSwap(0x0006);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
         initiateBridgeTxWithFacet(true);
@@ -254,6 +260,10 @@ contract StargateFacetTest is TestBaseFacet {
             bridgeData.minAmount,
             block.timestamp
         );
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit PartnerSwap(0x0006);
 
         //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
         //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)

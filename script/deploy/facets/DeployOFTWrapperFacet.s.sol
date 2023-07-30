@@ -14,44 +14,19 @@ contract DeployScript is DeployScriptBase {
         public
         returns (OFTWrapperFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/oftwrapper.json"
-        );
+        constructorArgs = getConstructorArgs();
+
+        deployed = OFTWrapperFacet(deploy(type(OFTWrapperFacet).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/oftwrapper.json");
         string memory json = vm.readFile(path);
+
         address oftWrapper = json.readAddress(
             string.concat(".wrappers.", network)
         );
 
-        if (oftWrapper == address(32)) {
-            revert(
-                string.concat(
-                    "OFTWrapper address not found in config for network ",
-                    network
-                )
-            );
-        }
-
-        constructorArgs = abi.encode(oftWrapper);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (OFTWrapperFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = OFTWrapperFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(OFTWrapperFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(oftWrapper);
     }
 }

@@ -1,5 +1,7 @@
 cache/
+cache-zk/
 artifacts/
+artifacts-zk/
 out/
 broadcast/
 

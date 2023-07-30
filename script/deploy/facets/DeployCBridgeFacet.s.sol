@@ -14,35 +14,19 @@ contract DeployScript is DeployScriptBase {
         public
         returns (CBridgeFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/cbridge.json"
-        );
+        constructorArgs = getConstructorArgs();
+
+        deployed = CBridgeFacet(deploy(type(CBridgeFacet).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/cbridge.json");
         string memory json = vm.readFile(path);
+
         address cBridge = json.readAddress(
             string.concat(".", network, ".cBridge")
         );
 
-        constructorArgs = abi.encode(cBridge);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (CBridgeFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = CBridgeFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(CBridgeFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(cBridge);
     }
 }

@@ -19,6 +19,14 @@ contract DeployScript is DeployScriptBase {
         public
         returns (LiFiDiamondImmutable deployed, bytes memory constructorArgs)
     {
+        constructorArgs = getConstructorArgs();
+
+        deployed = LiFiDiamondImmutable(
+            deploy(type(LiFiDiamondImmutable).creationCode)
+        );
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(
             root,
             "/deployments/",
@@ -28,28 +36,9 @@ contract DeployScript is DeployScriptBase {
             "json"
         );
         string memory json = vm.readFile(path);
+
         address diamondCut = json.readAddress(".DiamondCutFacet");
 
-        constructorArgs = abi.encode(deployerAddress, diamondCut);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (LiFiDiamondImmutable(payable(predicted)), constructorArgs);
-        }
-
-        deployed = LiFiDiamondImmutable(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(LiFiDiamondImmutable).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(deployerAddress, diamondCut);
     }
 }

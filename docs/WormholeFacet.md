@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Wormhole Facet works by forwarding Wormhole (Portal) specific calls to the [Wormhole Router](https://etherscan.io/address/0x98f3c9e6E3fAce36bAAd05FE09d375Ef1464288B). All bridging is done by calling the `transferTokens` method. Currently we do not support transferring native tokens trough Wormhole.
+The Wormhole Facet works by forwarding Wormhole (Portal) specific calls to the [Wormhole Router](https://etherscan.io/address/0x98f3c9e6E3fAce36bAAd05FE09d375Ef1464288B). All bridging is done by calling the `transferTokens` method. Currently we do not support transferring native tokens through Wormhole.
 
 ```mermaid
 graph LR;
@@ -34,7 +34,7 @@ struct WormholeData {
 
 Some methods accept a `SwapData _swapData` parameter.
 
-Swapping is performed by a swap specific library that expects an array of calldata to can be run on variaous DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
+Swapping is performed by a swap specific library that expects an array of calldata to can be run on various DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
 
 The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
@@ -56,7 +56,7 @@ The quote result looks like the following:
 const quoteResult = {
   id: '0x...', // quote id
   type: 'lifi', // the type of the quote (all lifi contract calls have the type "lifi")
-  tool: 'portal', // the bridge tool used for the transaction -- wormhole is the prototol, Portal is the actual bridge.
+  tool: 'portal', // the bridge tool used for the transaction -- wormhole is the protocol, Portal is the actual bridge.
   action: {}, // information about what is going to happen
   estimate: {}, // information about the estimated outcome of the call
   includedSteps: [], // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step
@@ -73,7 +73,7 @@ const quoteResult = {
 }
 ```
 
-A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/products/more-integration-options/li.fi-api/transferring-tokens-example).
+A detailed explanation of how to use the /quote endpoint and how to trigger the transaction can be found [here](https://docs.li.fi/products/more-integration-options/li.fi-api/transferring-tokens-example).
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 

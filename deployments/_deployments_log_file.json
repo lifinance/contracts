@@ -10347,6 +10347,20 @@
           }
         ]
       }
+    },
+    "bsc": {
+      "staging": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x3004db169fa7956609A872736452E4951D4BDA8b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-07-26 09:36:16",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002ef002aa0ab6761b6aea8d639dcdaa20d79b768c",
+            "SALT": "27062023",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "RelayerCelerIM": {

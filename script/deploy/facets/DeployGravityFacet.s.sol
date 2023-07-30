@@ -14,35 +14,19 @@ contract DeployScript is DeployScriptBase {
         public
         returns (GravityFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/gravity.json"
-        );
+        constructorArgs = getConstructorArgs();
+
+        deployed = GravityFacet(deploy(type(GravityFacet).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/gravity.json");
         string memory json = vm.readFile(path);
+
         address gravity = json.readAddress(
             string.concat(".", network, ".gravityRouter")
         );
 
-        constructorArgs = abi.encode(gravity);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (GravityFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = GravityFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(GravityFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(gravity);
     }
 }
