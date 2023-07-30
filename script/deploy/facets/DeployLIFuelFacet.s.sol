@@ -14,16 +14,6 @@ contract DeployScript is DeployScriptBase {
         public
         returns (LIFuelFacet deployed, bytes memory constructorArgs)
     {
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (LIFuelFacet(predicted), "");
-        }
-
-        deployed = LIFuelFacet(
-            factory.deploy(salt, type(LIFuelFacet).creationCode)
-        );
-
-        vm.stopBroadcast();
+        deployed = LIFuelFacet(deploy(type(LIFuelFacet).creationCode));
     }
 }

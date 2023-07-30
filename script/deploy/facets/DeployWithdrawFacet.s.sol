@@ -8,16 +8,6 @@ contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("WithdrawFacet") {}
 
     function run() public returns (WithdrawFacet deployed) {
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return WithdrawFacet(predicted);
-        }
-
-        deployed = WithdrawFacet(
-            factory.deploy(salt, type(WithdrawFacet).creationCode)
-        );
-
-        vm.stopBroadcast();
+        deployed = WithdrawFacet(deploy(type(WithdrawFacet).creationCode));
     }
 }

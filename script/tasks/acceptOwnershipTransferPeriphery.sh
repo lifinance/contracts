@@ -54,7 +54,7 @@ acceptOwnershipTransferPeriphery() {
 
     while [ $attempts -lt 11 ]; do
       # try to execute call
-      RAW_RETURN_DATA=$(NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/acceptOwnershipTransferPeriphery.s.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy --tc DeployScript)
+      RAW_RETURN_DATA=$(NETWORK=$CURRENT_NETWORK FILE_SUFFIX=$FILE_SUFFIX forge script script/tasks/solidity/AcceptOwnershipTransferPeriphery.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy --tc DeployScript)
       RETURN_CODE=$?
 
       # print return data only if debug mode is activated

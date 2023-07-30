@@ -14,35 +14,21 @@ contract DeployScript is DeployScriptBase {
         public
         returns (GnosisBridgeL2Facet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/gnosis.json"
+        constructorArgs = getConstructorArgs();
+
+        deployed = GnosisBridgeL2Facet(
+            deploy(type(GnosisBridgeL2Facet).creationCode)
         );
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/gnosis.json");
         string memory json = vm.readFile(path);
+
         address xDaiBridge = json.readAddress(
             string.concat(".", network, ".xDaiBridge")
         );
 
-        constructorArgs = abi.encode(xDaiBridge);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (GnosisBridgeL2Facet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = GnosisBridgeL2Facet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(GnosisBridgeL2Facet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(xDaiBridge);
     }
 }

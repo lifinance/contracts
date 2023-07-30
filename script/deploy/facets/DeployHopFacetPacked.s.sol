@@ -8,9 +8,6 @@ import { stdJson } from "forge-std/StdJson.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    string internal json;
-    string internal path;
-
     struct Config {
         address ammWrapper;
         address bridge;
@@ -24,8 +21,15 @@ contract DeployScript is DeployScriptBase {
         public
         returns (HopFacetPacked deployed, bytes memory constructorArgs)
     {
-        path = string.concat(root, "/config/hop.json");
-        json = vm.readFile(path);
+        constructorArgs = getConstructorArgs();
+
+        deployed = HopFacetPacked(deploy(type(HopFacetPacked).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/hop.json");
+        string memory json = vm.readFile(path);
+
         bytes memory rawConfig = json.parseRaw(
             string.concat(".", network, ".tokens")
         );
@@ -41,24 +45,6 @@ contract DeployScript is DeployScriptBase {
             }
         }
 
-        vm.startBroadcast(deployerPrivateKey);
-
-        constructorArgs = abi.encode(deployerAddress, ammWrapper);
-
-        if (isDeployed()) {
-            return (HopFacetPacked(predicted), constructorArgs);
-        }
-
-        deployed = HopFacetPacked(
-            factory.deploy(
-                salt,
-                bytes.concat(
-                    type(HopFacetPacked).creationCode,
-                    constructorArgs
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(deployerAddress, ammWrapper);
     }
 }
