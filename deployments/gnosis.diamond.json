@@ -57,9 +57,9 @@
         "Name": "",
         "Version": ""
       },
-      "0xbCe268B24155dF2a18982984e9716136278f38d6": {
-        "Name": "",
-        "Version": ""
+      "0x3C826D17B47DB69E1a9C1e32E10768d3709f1b9A": {
+        "Name": "OmniBridgeFacet",
+        "Version": "1.0.0"
       },
       "0xbd8D369470169f9976c5bCc60318955836843a71": {
         "Name": "AmarokFacet",
@@ -77,9 +77,9 @@
         "Name": "GnosisBridgeL2Facet",
         "Version": "1.0.0"
       },
-      "0x3C826D17B47DB69E1a9C1e32E10768d3709f1b9A": {
-        "Name": "OmniBridgeFacet",
-        "Version": "1.0.0"
+      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
+        "Name": "HopFacetOptimized",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
@@ -90,7 +90,5 @@
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
-  },
-  "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+  }
 }
