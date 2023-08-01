@@ -41,20 +41,12 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
-      "0x26cDC2C58bDC2D3028A7a37F5D7e479eB7bf025C": {
-        "Name": "",
-        "Version": ""
+      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
-        "Version": "1.0.0"
-      },
-      "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
-        "Name": "LIFuelFacet",
         "Version": "1.0.0"
       }
     },
@@ -66,7 +58,5 @@
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
-  },
-  "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+  }
 }

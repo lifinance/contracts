@@ -93,9 +93,9 @@
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0xbCe268B24155dF2a18982984e9716136278f38d6": {
-        "Name": "",
-        "Version": ""
+      "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
+        "Name": "CBridgeFacetPacked",
+        "Version": "1.0.3"
       },
       "0xbd8D369470169f9976c5bCc60318955836843a71": {
         "Name": "AmarokFacet",
@@ -129,9 +129,9 @@
         "Name": "AmarokFacet",
         "Version": "2.0.0"
       },
-      "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.3"
+      "0xc673c3df4fff2C499009E5fCa94bc446f5B07772": {
+        "Name": "HopFacetOptimized",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
@@ -142,7 +142,5 @@
       "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
-  },
-  "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+  }
 }

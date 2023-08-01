@@ -5,7 +5,7 @@
         "Name": "",
         "Version": ""
       },
-      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
+      "0x0b5726b7348efBdA8620D5C374F85Cbe8f040B6a": {
         "Name": "",
         "Version": ""
       },
@@ -25,9 +25,9 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0xb0D0Bc62FbbE8D275b308C8Ae18b7BBc52aa0e0D": {
-        "Name": "",
-        "Version": ""
+      "0xc21a00a346d5b29955449Ca912343a3bB4c5552f": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
       },
       "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
         "Name": "CBridgeFacet",
@@ -45,9 +45,9 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
-      "0x26cDC2C58bDC2D3028A7a37F5D7e479eB7bf025C": {
-        "Name": "",
-        "Version": ""
+      "0x6731C946747bA54c78e7a65d416Cde39E478ECeb": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "1.0.1"
       },
       "0x3d5F2cC1A2a05448C0d8Fcd628E2b53d93DC12e4": {
         "Name": "StargateFacet",
@@ -57,7 +57,7 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
+      "0x5D3675D698A3DD53E3457951e1dEbEF717A29A72": {
         "Name": "",
         "Version": ""
       },
@@ -72,18 +72,6 @@
       "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
-      },
-      "0x5D3675D698A3DD53E3457951e1dEbEF717A29A72": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x6731C946747bA54c78e7a65d416Cde39E478ECeb": {
-        "Name": "CelerCircleBridgeFacet",
-        "Version": "1.0.1"
-      },
-      "0x0b5726b7348efBdA8620D5C374F85Cbe8f040B6a": {
-        "Name": "",
-        "Version": ""
       }
     },
     "Periphery": {
@@ -94,7 +82,5 @@
       "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
-  },
-  "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+  }
 }

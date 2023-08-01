@@ -5,7 +5,7 @@
         "Name": "",
         "Version": ""
       },
-      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
+      "0x0b5726b7348efBdA8620D5C374F85Cbe8f040B6a": {
         "Name": "",
         "Version": ""
       },
@@ -49,9 +49,9 @@
         "Name": "CelerIMFacetMutable",
         "Version": ""
       },
-      "0x0b5726b7348efBdA8620D5C374F85Cbe8f040B6a": {
-        "Name": "",
-        "Version": ""
+      "0xc21a00a346d5b29955449Ca912343a3bB4c5552f": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -62,7 +62,5 @@
       "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
-  },
-  "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+  }
 }

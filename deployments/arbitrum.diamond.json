@@ -5,9 +5,9 @@
         "Name": "",
         "Version": ""
       },
-      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
-        "Name": "",
-        "Version": ""
+      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
+        "Name": "HopFacetOptimized",
+        "Version": "2.0.0"
       },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
@@ -89,9 +89,9 @@
         "Name": "WormholeFacet",
         "Version": "1.0.0"
       },
-      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
-        "Name": "HopFacetOptimized",
-        "Version": "2.0.0"
+      "0xc21a00a346d5b29955449Ca912343a3bB4c5552f": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
