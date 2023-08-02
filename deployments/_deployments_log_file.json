@@ -4668,10 +4668,10 @@
           {
             "ADDRESS": "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-07-31 16:55:43",
+            "TIMESTAMP": "2023-08-01 20:19:47",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -4694,11 +4694,12 @@
       "production": {
         "2.0.0": [
           {
-            "ADDRESS": "0xc673c3df4fff2C499009E5fCa94bc446f5B07772",
+            "ADDRESS": "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-05-12 16:24:15",
+            "TIMESTAMP": "2023-08-01 21:24:05",
             "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "true"
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }

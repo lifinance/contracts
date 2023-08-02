@@ -77,9 +77,9 @@
         "Name": "CelerIMFacetMutable",
         "Version": ""
       },
-      "0xbCe268B24155dF2a18982984e9716136278f38d6": {
-        "Name": "",
-        "Version": ""
+      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
+        "Name": "HopFacetOptimized",
+        "Version": "2.0.0"
       },
       "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
         "Name": "LIFuelFacet",
