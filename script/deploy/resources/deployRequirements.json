@@ -317,6 +317,15 @@
       }
     }
   },
+  "ThorSwapFacet": {
+    "configData": {
+      "_thorchainRouter": {
+        "configFileName": "thorswap.json",
+        "keyInConfigFile": ".<NETWORK>.thorchainRouter",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "WormholeFacet": {
     "configData": {
       "_router": {
