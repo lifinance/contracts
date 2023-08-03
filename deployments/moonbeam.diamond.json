@@ -1,14 +1,6 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
-        "Name": "",
-        "Version": ""
-      },
-      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
-        "Name": "",
-        "Version": ""
-      },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
@@ -25,10 +17,6 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0xb0D0Bc62FbbE8D275b308C8Ae18b7BBc52aa0e0D": {
-        "Name": "AxelarFacet",
-        "Version": ""
-      },
       "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
         "Name": "CBridgeFacet",
         "Version": "1.0.0"
@@ -41,10 +29,6 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
-      "0x26cDC2C58bDC2D3028A7a37F5D7e479eB7bf025C": {
-        "Name": "",
-        "Version": ""
-      },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
@@ -53,17 +37,9 @@
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
-        "Name": "",
-        "Version": ""
-      },
       "0xbd8D369470169f9976c5bCc60318955836843a71": {
         "Name": "AmarokFacet",
-        "Version": ""
-      },
-      "0x0b5726b7348efBdA8620D5C374F85Cbe8f040B6a": {
-        "Name": "",
-        "Version": ""
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

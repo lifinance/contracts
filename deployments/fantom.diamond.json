@@ -1,15 +1,7 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
-        "Name": "",
-        "Version": ""
-      },
-      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x6faA6906b9e4A59020e673910105567e809789E0": {
+       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
@@ -25,11 +17,7 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0xb0D0Bc62FbbE8D275b308C8Ae18b7BBc52aa0e0D": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
+       "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
         "Name": "CBridgeFacet",
         "Version": "1.0.0"
       },
@@ -45,11 +33,7 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
-      "0x26cDC2C58bDC2D3028A7a37F5D7e479eB7bf025C": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x3d5F2cC1A2a05448C0d8Fcd628E2b53d93DC12e4": {
+       "0x3d5F2cC1A2a05448C0d8Fcd628E2b53d93DC12e4": {
         "Name": "StargateFacet",
         "Version": "2.0.0"
       },
@@ -57,23 +41,15 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
+       "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
       "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
         "Name": "CelerIMFacetMutable",
         "Version": ""
-      },
-      "0x0b5726b7348efBdA8620D5C374F85Cbe8f040B6a": {
-        "Name": "",
-        "Version": ""
       }
-    },
+     },
     "Periphery": {
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
