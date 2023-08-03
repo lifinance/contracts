@@ -222,12 +222,20 @@ contract UpdateScriptBase is ScriptBase {
 
         // go through array with function signatures
         for (uint i = 0; i < funcSigsToBeApproved.length; i++) {
-            // Register refundWallet as authorized wallet to call these functions
-            AccessManagerFacet(diamond).setCanExecute(
-                bytes4(funcSigsToBeApproved[i].sig),
-                refundWallet,
-                true
-            );
+            // Check if access needs to be added
+            bool isApproved = AccessManagerFacet(diamond)
+                .addressCanExecuteMethod(
+                    bytes4(funcSigsToBeApproved[i].sig),
+                    refundWallet
+                );
+            if (!isApproved) {
+                // Register refundWallet as authorized wallet to call these functions
+                AccessManagerFacet(diamond).setCanExecute(
+                    bytes4(funcSigsToBeApproved[i].sig),
+                    refundWallet,
+                    true
+                );
+            }
         }
     }
 }

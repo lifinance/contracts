@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { Script, console } from "forge-std/Script.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
+import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 
 contract DeployScript is Script {
     using stdJson for string;
@@ -37,44 +38,95 @@ contract DeployScript is Script {
             "json"
         );
         diamondLogJSON = vm.readFile(path);
+        // FIXME: Diamond should be selectable from script
         diamondImmutableAddress = diamondLogJSON.readAddress(
             ".LiFiDiamondImmutable"
         );
     }
 
     function run() public returns (bool) {
+        // get new wallet addresses
+        // > get correct path of config
+        path = string.concat(root, "/config/global.json");
+        // > read file into json variable
+        globalConfigJson = vm.readFile(path);
+        // > extract values
+        address refundWalletAddress = globalConfigJson.readAddress(
+            ".refundWallet"
+        );
+        address withdrawWalletAddress = globalConfigJson.readAddress(
+            ".withdrawWallet"
+        );
+
         // gather required periphery contract addresses
-        address feeCollectorAddress = diamondLogJSON.readAddress(
-            ".LiFiDiamondImmutable.Periphery.FeeCollector"
+        PeripheryRegistryFacet peripheryReg = PeripheryRegistryFacet(
+            diamondImmutableAddress
         );
-        address receiverAddress = diamondLogJSON.readAddress(
-            ".LiFiDiamondImmutable.Periphery.Receiver"
+        address feeCollectorAddress = peripheryReg.getPeripheryContract(
+            "FeeCollector"
         );
-        address relayerCelerIMAddress = diamondLogJSON.readAddress(
-            ".LiFiDiamondImmutable.Periphery.RelayerCelerIM"
+        address receiverAddress = peripheryReg.getPeripheryContract(
+            "Receiver"
         );
-        address serviceFeeCollectorAddress = diamondLogJSON.readAddress(
-            ".LiFiDiamondImmutable.Periphery.ServiceFeeCollector"
+        address relayerCelerIMAddress = peripheryReg.getPeripheryContract(
+            "RelayerCelerIM"
+        );
+        address serviceFeeCollectorAddress = peripheryReg.getPeripheryContract(
+            "ServiceFeeCollector"
         );
 
         // start broadcast for withdraw wallet
         vm.startBroadcast(withdrawPrivateKey);
 
-        // accept ownership transfer for FeeCollector / ServiceFeeCollector
-        TransferrableOwnership(feeCollectorAddress).confirmOwnershipTransfer();
-        TransferrableOwnership(serviceFeeCollectorAddress)
-            .confirmOwnershipTransfer();
+        // accept ownership transfer for FeeCollector / ServiceFeeCollector if pending
+        if (
+            feeCollectorAddress != address(0) &&
+            TransferrableOwnership(feeCollectorAddress).owner() !=
+            withdrawWalletAddress &&
+            TransferrableOwnership(feeCollectorAddress).pendingOwner() ==
+            withdrawWalletAddress
+        ) {
+            TransferrableOwnership(feeCollectorAddress)
+                .confirmOwnershipTransfer();
+        }
+        if (
+            serviceFeeCollectorAddress != address(0) &&
+            TransferrableOwnership(serviceFeeCollectorAddress).owner() !=
+            withdrawWalletAddress &&
+            TransferrableOwnership(serviceFeeCollectorAddress)
+                .pendingOwner() ==
+            withdrawWalletAddress
+        ) {
+            TransferrableOwnership(serviceFeeCollectorAddress)
+                .confirmOwnershipTransfer();
+        }
 
-        // end broadcast for withdraw wallet
+        // end broadcast for refund wallet
         vm.stopBroadcast();
 
         // start broadcast for refund wallet
         vm.startBroadcast(refundPrivateKey);
 
-        // accept ownership transfer for FeeCollector / ServiceFeeCollector
-        TransferrableOwnership(receiverAddress).confirmOwnershipTransfer();
-        TransferrableOwnership(relayerCelerIMAddress)
-            .confirmOwnershipTransfer();
+        // accept ownership transfer for Receiver / RelayerCelerIM
+        if (
+            receiverAddress != address(0) &&
+            TransferrableOwnership(receiverAddress).owner() !=
+            refundWalletAddress &&
+            TransferrableOwnership(receiverAddress).pendingOwner() ==
+            refundWalletAddress
+        ) {
+            TransferrableOwnership(receiverAddress).confirmOwnershipTransfer();
+        }
+        if (
+            relayerCelerIMAddress != address(0) &&
+            TransferrableOwnership(relayerCelerIMAddress).owner() !=
+            refundWalletAddress &&
+            TransferrableOwnership(relayerCelerIMAddress).pendingOwner() ==
+            refundWalletAddress
+        ) {
+            TransferrableOwnership(relayerCelerIMAddress)
+                .confirmOwnershipTransfer();
+        }
 
         // end broadcast for refund wallet
         vm.stopBroadcast();

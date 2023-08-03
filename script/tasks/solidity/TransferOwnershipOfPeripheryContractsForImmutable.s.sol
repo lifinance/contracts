@@ -12,20 +12,22 @@ import { Receiver } from "lifi/Periphery/Receiver.sol";
 import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 import { ServiceFeeCollector } from "lifi/Periphery/ServiceFeeCollector.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
+import { console } from "test/solidity/utils/Console.sol";
 
 contract DeployScript is Script {
     using stdJson for string;
 
     string internal path;
     string internal networkLogJSON;
-    string internal diamondLogJSON;
     string internal globalConfigJson;
     uint256 internal deployerPrivateKey;
     string internal network;
     string internal fileSuffix;
     string internal root;
-    address internal diamondImmutableAddress;
+    address internal diamond;
     address internal contractAddress;
+    // TODO: I only want to change the owner of other contracts for now
+    bool internal makeErc20ProxyImmutable = false;
 
     constructor() {
         deployerPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY"));
@@ -42,32 +44,22 @@ contract DeployScript is Script {
             "json"
         );
         networkLogJSON = vm.readFile(path);
-        diamondImmutableAddress = networkLogJSON.readAddress(
-            ".LiFiDiamondImmutable"
-        );
+        // FIXME: Check if selection work in combination with makeImmutable script
+        bool useDefaultDiamond = vm.envBool("USE_DEF_DIAMOND");
+        diamond = useDefaultDiamond
+            ? networkLogJSON.readAddress(".LiFiDiamond")
+            : networkLogJSON.readAddress(".LiFiDiamondImmutable");
     }
 
     function run() public returns (bool) {
         vm.startBroadcast(deployerPrivateKey);
 
-        // get correct path of diamond log
-        path = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".diamond.immutable.",
-            fileSuffix,
-            "json"
-        );
-
-        // read file into json variable
-        diamondLogJSON = vm.readFile(path);
-
-        // get correct path of diamond log
+        // get new wallet addresses
+        // > get correct path of config
         path = string.concat(root, "/config/global.json");
-
-        // read file into json variable
+        // > read file into json variable
         globalConfigJson = vm.readFile(path);
+        // > extract values
         address refundWalletAddress = globalConfigJson.readAddress(
             ".refundWallet"
         );
@@ -76,99 +68,86 @@ contract DeployScript is Script {
         );
 
         // ------- ERC20Proxy
-        address erc20ProxyAddressByDiamond = PeripheryRegistryFacet(
-            diamondImmutableAddress
-        ).getPeripheryContract("ERC20Proxy");
+        address erc20ProxyAddressByDiamond = PeripheryRegistryFacet(diamond)
+            .getPeripheryContract("ERC20Proxy");
+        address executorAddressByDiamond = PeripheryRegistryFacet(diamond)
+            .getPeripheryContract("Executor");
         // check if contract is registered in diamond and if owner is already correctly assigned
 
         if (
             erc20ProxyAddressByDiamond != address(0) &&
             Ownable(erc20ProxyAddressByDiamond).owner() != address(0)
         ) {
-            // get contract address
-            contractAddress = diamondLogJSON.readAddress(
-                ".LiFiDiamondImmutable.Periphery.ERC20Proxy"
-            );
-
-            address executorAddress = diamondLogJSON.readAddress(
-                ".LiFiDiamondImmutable.Periphery.Executor"
-            );
-
             // set Executor contract as authorized caller, if not already done
             if (
-                !ERC20Proxy(contractAddress).authorizedCallers(executorAddress)
+                !ERC20Proxy(erc20ProxyAddressByDiamond).authorizedCallers(
+                    executorAddressByDiamond
+                )
             )
-                ERC20Proxy(contractAddress).setAuthorizedCaller(
-                    executorAddress,
+                ERC20Proxy(erc20ProxyAddressByDiamond).setAuthorizedCaller(
+                    executorAddressByDiamond,
                     true
                 );
 
             // renounceOwnership
-            Ownable(contractAddress).renounceOwnership();
+            if (makeErc20ProxyImmutable) {
+                Ownable(erc20ProxyAddressByDiamond).renounceOwnership();
+            }
         }
 
         // ------- FeeCollector
-        address feeCollectorAddressByDiamond = PeripheryRegistryFacet(
-            diamondImmutableAddress
-        ).getPeripheryContract("FeeCollector");
-        // check if contract is registered in diamond and if owner is already correctly assigned
-        if (
-            feeCollectorAddressByDiamond != address(0) &&
-            TransferrableOwnership(feeCollectorAddressByDiamond).owner() !=
-            withdrawWalletAddress
-        ) {
-            // get contract address
-            contractAddress = diamondLogJSON.readAddress(
-                ".LiFiDiamondImmutable.Periphery.FeeCollector"
-            );
-
-            // transfer ownership to withdraw wallet
-            TransferrableOwnership(contractAddress).transferOwnership(
-                withdrawWalletAddress
-            );
-        }
+        // TODO: Hot Wallet owns the FeeCollector currently
+        // address feeCollectorAddressByDiamond = PeripheryRegistryFacet(
+        //     diamond
+        // ).getPeripheryContract("FeeCollector");
+        // // check if contract is registered in diamond and if owner is already correctly assigned or pending
+        // if (
+        //     feeCollectorAddressByDiamond != address(0) &&
+        //     TransferrableOwnership(feeCollectorAddressByDiamond).owner() !=
+        //     withdrawWalletAddress &&
+        //     TransferrableOwnership(feeCollectorAddressByDiamond).pendingOwner() !=
+        //     withdrawWalletAddress
+        // ) {
+        //     // transfer ownership to withdraw wallet
+        //     TransferrableOwnership(feeCollectorAddressByDiamond).transferOwnership(
+        //         withdrawWalletAddress
+        //     );
+        // }
 
         // ------- Receiver
-        address receiverAddressByDiamond = PeripheryRegistryFacet(
-            diamondImmutableAddress
-        ).getPeripheryContract("Receiver");
-        // check if contract is registered in diamond and if owner is already correctly assigned
+        address receiverAddressByDiamond = PeripheryRegistryFacet(diamond)
+            .getPeripheryContract("Receiver");
+        // check if contract is registered in diamond and if owner is already correctly assigned or pending
         if (
             receiverAddressByDiamond != address(0) &&
             TransferrableOwnership(receiverAddressByDiamond).owner() !=
+            refundWalletAddress &&
+            TransferrableOwnership(receiverAddressByDiamond).pendingOwner() !=
             refundWalletAddress
         ) {
-            // get contract address
-            contractAddress = diamondLogJSON.readAddress(
-                ".LiFiDiamondImmutable.Periphery.Receiver"
-            );
-
             // transfer ownership to refund wallet
-            TransferrableOwnership(contractAddress).transferOwnership(
+            TransferrableOwnership(receiverAddressByDiamond).transferOwnership(
                 refundWalletAddress
             );
         }
 
         // ------- ServiceFeeCollector
         address serviceFeeCollectorAddressByDiamond = PeripheryRegistryFacet(
-            diamondImmutableAddress
+            diamond
         ).getPeripheryContract("ServiceFeeCollector");
-        // check if contract is registered in diamond and if owner is already correctly assigned
+        // check if contract is registered in diamond and if owner is already correctly assigned or pending
         if (
             serviceFeeCollectorAddressByDiamond != address(0) &&
             TransferrableOwnership(serviceFeeCollectorAddressByDiamond)
                 .owner() !=
+            withdrawWalletAddress &&
+            TransferrableOwnership(serviceFeeCollectorAddressByDiamond)
+                .pendingOwner() !=
             withdrawWalletAddress
         ) {
-            // get contract address
-            contractAddress = diamondLogJSON.readAddress(
-                ".LiFiDiamondImmutable.Periphery.ServiceFeeCollector"
-            );
-
             // transfer ownership to withdraw wallet
-            TransferrableOwnership(contractAddress).transferOwnership(
-                withdrawWalletAddress
-            );
+            TransferrableOwnership(serviceFeeCollectorAddressByDiamond)
+                .transferOwnership(withdrawWalletAddress);
         }
 
         vm.stopBroadcast();
