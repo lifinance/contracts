@@ -165,6 +165,15 @@
       }
     }
   },
+  "GravityFacet": {
+    "configData": {
+      "_router": {
+        "configFileName": "gravity.json",
+        "keyInConfigFile": ".<NETWORK>.gravityRouter",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "HopFacet": {
     "configData": {
       "_router": {
