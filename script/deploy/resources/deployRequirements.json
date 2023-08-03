@@ -299,6 +299,15 @@
       }
     }
   },
+  "SquidFacet": {
+    "configData": {
+      "_squidRouter": {
+        "configFileName": "squid.json",
+        "keyInConfigFile": ".<NETWORK>.router",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "StargateFacet": {
     "configData": {
       "_router": {

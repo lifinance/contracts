@@ -28,6 +28,7 @@
 - [Periphery Registry Facet](./PeripheryRegistryFacet.md)
 - [Polygon Bridge Facet](./PolygonBridgeFacet.md)
 - [Ronin Bridge Facet](./RoninBridgeFacet.md)
+- [Squid Facet](./SquidFacet.md)
 - [Stargate Facet](./StargateFacet.md)
 - [Synapse Bridge Facet](./SynapseBridgeFacet.md)
 - [ThorSwap Facet](./ThorSwapFacet.md)
