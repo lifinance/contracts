@@ -30,7 +30,6 @@
 - [Ronin Bridge Facet](./RoninBridgeFacet.md)
 - [Stargate Facet](./StargateFacet.md)
 - [Synapse Bridge Facet](./SynapseBridgeFacet.md)
-- [ThorSwap Facet](./ThorSwapFacet.md)
 - [Withdraw Facet](./WithdrawFacet.md)
 - [Wormhole Facet](./WormholeFacet.md)
 
