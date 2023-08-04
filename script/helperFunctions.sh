@@ -1181,6 +1181,11 @@ function parseTargetStateGoogleSpreadsheet() {
       # extract network name
       NETWORK=$(echo "$LINE" | cut -d',' -f1)
 
+      if [[ "$NETWORK"  == "<placeholder>" ]];then
+        echoDebug "skipping network (placeholder)"
+        continue
+      fi
+
       # check if this line contains data (=starts with a network name), otherwise skip to next line
       if [[ ! -z "$NETWORK" ]]; then
         echo ""
@@ -1206,6 +1211,13 @@ function parseTargetStateGoogleSpreadsheet() {
             echoDebug "skipping iteration (no contract name in column)"
             continue
           fi
+
+          # skip the iteration if contract is placeholder
+          if [[ "$CONTRACT" == "<placeholder>" ]]; then
+            echoDebug "skipping iteration (placeholder)"
+            continue
+          fi
+
 
           # skip the iteration if the contract is empty (=empty placeholder column for future contracts)
           if [[ -z "$CELL_VALUE" ]]; then
