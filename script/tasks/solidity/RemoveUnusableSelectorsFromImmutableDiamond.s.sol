@@ -18,7 +18,6 @@ import { HopFacet } from "lifi/Facets/HopFacet.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
 import { MultichainFacet } from "lifi/Facets/MultichainFacet.sol";
-import { OFTWrapperFacet } from "lifi/Facets/OFTWrapperFacet.sol";
 import { OptimismBridgeFacet } from "lifi/Facets/OptimismBridgeFacet.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 
