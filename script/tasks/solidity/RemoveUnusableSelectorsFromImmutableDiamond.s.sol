@@ -102,15 +102,6 @@ contract DeployScript is UpdateScriptBase {
             selectors.push(MultichainFacet.updateAddressMappings.selector);
         }
 
-        // OFTWrapperFacet
-        if (
-            DiamondLoupeFacet(diamond).facetAddress(
-                OFTWrapperFacet.setOFTLayerZeroChainId.selector
-            ) != address(0)
-        ) {
-            selectors.push(OFTWrapperFacet.setOFTLayerZeroChainId.selector);
-        }
-
         // OptimismBridgeFacet
         if (
             DiamondLoupeFacet(diamond).facetAddress(
