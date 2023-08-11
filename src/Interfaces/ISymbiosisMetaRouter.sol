@@ -4,14 +4,14 @@ pragma solidity 0.8.17;
 interface ISymbiosisMetaRouter {
     /// @notice entry point data to Symbiosis contracts
     /// @param firstSwapCalldata calldata for the dex swap to get corresponding asset (USDC) on init chain
-    /// @param secondSwapCalldata calldata for swapping wrapped assets on managing chain, wUSDC_eth->wUSDC_polygon
-    /// @param approvedTokens set of token for firstSwapCalldata and secondSwapCalldata approving
+    /// @param secondSwapCalldata legacy calldata from v1, should be empty
+    /// @param approvedTokens set of token for firstSwapCalldata, and o bridgingCalldata
     /// @param firstDexRouter entry point for firstSwapCalldata
-    /// @param secondDexRouter entry point for secondSwapCalldata
-    /// @param entry amount of tokens
+    /// @param secondDexRouter legacy entry point from v1, should be empty
+    /// @param amount of tokens
     /// @param nativeIn native token in amount or not
-    /// @param relayRecipient inner object of bridge provided from API
-    /// @param otherSideCalldata calldata with unwrapping and swap on dest chain (if packed)
+    /// @param relayRecipient entry point to bridge provided from API
+    /// @param otherSideCalldata bridging calldata
     struct MetaRouteTransaction {
         bytes firstSwapCalldata;
         bytes secondSwapCalldata;
@@ -25,9 +25,7 @@ interface ISymbiosisMetaRouter {
     }
 
     /**
-     * @notice Method that starts the Meta Routing
-     * @dev external + internal swap for burn scheme, only external for synth scheme
-     * @dev calls the next method on the other side
+     * @notice Method that starts the Meta Routing in Symbiosis
      * @param _metarouteTransaction metaRoute offchain transaction data
      */
     function metaRoute(
