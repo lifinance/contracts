@@ -62,10 +62,9 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         }
 
-        address[] memory approvedTokens = new address[](3);
+        address[] memory approvedTokens = new address[](1);
         approvedTokens[0] = _bridgeData.sendingAssetId;
-        approvedTokens[1] = _symbiosisData.intermediateToken;
-        approvedTokens[2] = _symbiosisData.bridgingToken;
+
 
         symbiosisMetaRouter.metaRoute{ value: nativeAssetAmount }(
             ISymbiosisMetaRouter.MetaRouteTransaction(
@@ -87,8 +86,8 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// External Methods ///
 
     /// @notice Bridges tokens via Symbiosis
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _symbiosisData data specific to Symbiosis
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _symbiosisData The data specific to Symbiosis
     function startBridgeTokensViaSymbiosis(
         ILiFi.BridgeData memory _bridgeData,
         SymbiosisData calldata _symbiosisData
@@ -110,9 +109,9 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// @notice Performs a swap before bridging via Symbiosis
-    /// @param _bridgeData the core information needed for bridging
-    /// @param _swapData an array of swap related data for performing swaps before bridging
-    /// @param _symbiosisData data specific to Symbiosis
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _swapData An array of swap related data for performing swaps before bridging
+    /// @param _symbiosisData The data specific to Symbiosis
     function swapAndStartBridgeTokensViaSymbiosis(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
