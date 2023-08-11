@@ -19,7 +19,7 @@ graph LR;
 
 ## Symbiosis Specific Parameters
 
-Some of the methods listed above take a variable labeled `_symbiosisData`. This data is specific to Symbiosis and is represented as the following struct type:
+Some methods listed above take a variable labeled `_symbiosisData`. This data is specific to Symbiosis and is represented as the following struct type:
 
 ```solidity
 /// @param firstSwapCalldata payload for the first swap on the source chain.
