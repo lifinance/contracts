@@ -10,11 +10,11 @@ contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     function run() public returns (address[] memory facets, bytes memory cutData) {
-        address facet = json.readAddress(".SymbiosisFacet");
-
         path = string.concat(root, "/config/symbiosis.json");
 
         json = vm.readFile(path);
+
+        address facet = json.readAddress(".SymbiosisFacet");
 
         bytes4[] memory exclude;
         buildDiamondCut(getSelectors("SymbiosisFacet", exclude), facet);
@@ -24,7 +24,7 @@ contract DeployScript is UpdateScriptBase {
                 cutData = abi.encodeWithSelector(
                     DiamondCutFacet.diamondCut.selector,
                     cut,
-                    address(facet),
+                    address(0),
                     ""
                 );
             }
@@ -33,12 +33,11 @@ contract DeployScript is UpdateScriptBase {
 
         vm.startBroadcast(deployerPrivateKey);
         if (cut.length > 0) {
-            cutter.diamondCut(cut, address(facet), "");
+            cutter.diamondCut(cut, address(0), "");
         }
         facets = loupe.facetAddresses();
 
         vm.stopBroadcast();
-
 
     }
 }

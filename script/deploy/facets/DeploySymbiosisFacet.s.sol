@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { SymbiosisFacet, ISymbiosisMetaRouter } from "lifi/Facets/SymbiosisFacet.sol";
+import { SymbiosisFacet } from "lifi/Facets/SymbiosisFacet.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
