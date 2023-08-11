@@ -14,11 +14,17 @@ contract DeployScript is DeployScriptBase {
         public
         returns (ArbitrumBridgeFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/arbitrum.json"
+        constructorArgs = getConstructorArgs();
+
+        deployed = ArbitrumBridgeFacet(
+            deploy(type(ArbitrumBridgeFacet).creationCode)
         );
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/arbitrum.json");
         string memory json = vm.readFile(path);
+
         address gatewayRouter = json.readAddress(
             string.concat(".", network, ".gatewayRouter")
         );
@@ -26,26 +32,6 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".inbox")
         );
 
-        constructorArgs = abi.encode(gatewayRouter, inbox);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (ArbitrumBridgeFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = ArbitrumBridgeFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(ArbitrumBridgeFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(gatewayRouter, inbox);
     }
 }

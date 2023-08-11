@@ -52,7 +52,7 @@ diamondMakeImmutable() {
   do
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>> Trying to transfer ownership of periphery contracts now - attempt ${attempts}"
     # try to execute call
-    RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script script/tasks/solidity/transferOwnershipOfPeripheryContractsForImmutable.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy --tc DeployScript)
+    RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script script/tasks/solidity/TransferOwnershipOfPeripheryContractsForImmutable.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy --tc DeployScript)
     RETURN_CODE=$?
 
     # print return data only if debug mode is activated

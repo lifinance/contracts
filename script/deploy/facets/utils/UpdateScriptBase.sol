@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { Script } from "forge-std/Script.sol";
+import { ScriptBase } from "./ScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
-import { console } from "forge-std/console.sol";
 
-contract UpdateScriptBase is Script {
+contract UpdateScriptBase is ScriptBase {
+    using stdJson for string;
+
     struct FunctionSignature {
         string name;
         bytes sig;
     }
-
-    using stdJson for string;
 
     address internal diamond;
     IDiamondCut.FacetCut[] internal cut;
@@ -23,20 +22,12 @@ contract UpdateScriptBase is Script {
     bytes4[] internal selectorsToAdd;
     DiamondCutFacet internal cutter;
     DiamondLoupeFacet internal loupe;
-    uint256 internal deployerPrivateKey;
-    string internal root;
-    string internal network;
-    string internal fileSuffix;
     string internal path;
     string internal json;
     bool internal noBroadcast = false;
     bool internal useDefaultDiamond;
 
     constructor() {
-        deployerPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY"));
-        root = vm.projectRoot();
-        network = vm.envString("NETWORK");
-        fileSuffix = vm.envString("FILE_SUFFIX");
         useDefaultDiamond = vm.envBool("USE_DEF_DIAMOND");
         noBroadcast = vm.envOr("NO_BROADCAST", false);
 
@@ -55,6 +46,51 @@ contract UpdateScriptBase is Script {
         cutter = DiamondCutFacet(diamond);
         loupe = DiamondLoupeFacet(diamond);
     }
+
+    function update(
+        string memory name
+    )
+        internal
+        virtual
+        returns (address[] memory facets, bytes memory cutData)
+    {
+        address facet = json.readAddress(string.concat(".", name));
+
+        bytes4[] memory excludes = getExcludes();
+        bytes memory callData = getCallData();
+
+        buildDiamondCut(getSelectors(name, excludes), facet);
+
+        if (noBroadcast) {
+            if (cut.length > 0) {
+                cutData = abi.encodeWithSelector(
+                    DiamondCutFacet.diamondCut.selector,
+                    cut,
+                    callData.length > 0 ? facet : address(0),
+                    callData
+                );
+            }
+            return (facets, cutData);
+        }
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        if (cut.length > 0) {
+            cutter.diamondCut(
+                cut,
+                callData.length > 0 ? facet : address(0),
+                callData
+            );
+        }
+
+        facets = loupe.facetAddresses();
+
+        vm.stopBroadcast();
+    }
+
+    function getExcludes() internal virtual returns (bytes4[] memory) {}
+
+    function getCallData() internal virtual returns (bytes memory) {}
 
     function getSelectors(
         string memory _facetName,
@@ -77,6 +113,10 @@ contract UpdateScriptBase is Script {
         address newFacet
     ) internal {
         address oldFacet;
+
+        selectorsToAdd = new bytes4[](0);
+        selectorsToReplace = new bytes4[](0);
+        selectorsToRemove = new bytes4[](0);
 
         // Get selectors to add or replace
         for (uint256 i; i < newSelectors.length; i++) {
@@ -185,7 +225,7 @@ contract UpdateScriptBase is Script {
         );
 
         // go through array with function signatures
-        for (uint i = 0; i < funcSigsToBeApproved.length; i++) {
+        for (uint256 i = 0; i < funcSigsToBeApproved.length; i++) {
             // Register refundWallet as authorized wallet to call these functions
             AccessManagerFacet(diamond).setCanExecute(
                 bytes4(funcSigsToBeApproved[i].sig),

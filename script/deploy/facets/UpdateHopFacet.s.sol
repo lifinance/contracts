@@ -3,7 +3,6 @@ pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
@@ -27,8 +26,17 @@ contract DeployScript is UpdateScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        address facet = json.readAddress(".HopFacet");
+        return update("HopFacet");
+    }
 
+    function getExcludes() internal pure override returns (bytes4[] memory) {
+        bytes4[] memory excludes = new bytes4[](1);
+        excludes[0] = HopFacet.initHop.selector;
+
+        return excludes;
+    }
+
+    function getCallData() internal override returns (bytes memory) {
         path = string.concat(root, "/config/hop.json");
         json = vm.readFile(path);
         bytes memory rawConfig = json.parseRaw(
@@ -49,28 +57,6 @@ contract DeployScript is UpdateScriptBase {
             bridges
         );
 
-        // Hop
-        bytes4[] memory exclude = new bytes4[](1);
-        exclude[0] = HopFacet.initHop.selector;
-        buildDiamondCut(getSelectors("HopFacet", exclude), facet);
-        if (noBroadcast) {
-            if (cut.length > 0) {
-                cutData = abi.encodeWithSelector(
-                    DiamondCutFacet.diamondCut.selector,
-                    cut,
-                    address(facet),
-                    callData
-                );
-            }
-            return (facets, cutData);
-        }
-
-        vm.startBroadcast(deployerPrivateKey);
-        if (cut.length > 0) {
-            cutter.diamondCut(cut, address(facet), callData);
-        }
-        facets = loupe.facetAddresses();
-
-        vm.stopBroadcast();
+        return callData;
     }
 }

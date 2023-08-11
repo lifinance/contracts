@@ -36,8 +36,8 @@ This data is specific to Stargate and is represented as the following struct typ
 /// @param srcPoolId Source pool id.
 /// @param dstPoolId Dest pool id.
 /// @param minAmountLD The min qty you would accept on the destination.
-/// @param dstGasForCall Additional gas fee for extral call on the destination.
-/// @param refundAddress Refund adddress. Extra gas (if any) is returned to this address
+/// @param dstGasForCall Additional gas fee for extra call on the destination.
+/// @param refundAddress Refund address. Extra gas (if any) is returned to this address
 /// @param lzFee Estimated message fee.
 /// @param callTo The address to send the tokens to on the destination.
 /// @param callData Additional payload.
@@ -57,7 +57,7 @@ struct StargateData {
 
 Some methods accept a `SwapData _swapData` parameter.
 
-Swapping is performed by a swap specific library that expects an array of calldata to can be run on variaous DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
+Swapping is performed by a swap specific library that expects an array of calldata to can be run on various DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
 
 The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
@@ -96,7 +96,7 @@ const quoteResult = {
 }
 ```
 
-A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://apidocs.li.finance/reference/how-to-transfer-tokens).
+A detailed explanation of how to use the /quote endpoint and how to trigger the transaction can be found [here](https://apidocs.li.finance/reference/how-to-transfer-tokens).
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 

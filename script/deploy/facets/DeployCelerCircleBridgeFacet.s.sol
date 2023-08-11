@@ -14,39 +14,22 @@ contract DeployScript is DeployScriptBase {
         public
         returns (CelerCircleBridgeFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/celerCircle.json"
+        constructorArgs = getConstructorArgs();
+
+        deployed = CelerCircleBridgeFacet(
+            deploy(type(CelerCircleBridgeFacet).creationCode)
         );
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/celerCircle.json");
         string memory json = vm.readFile(path);
+
         address circleBridgeProxy = json.readAddress(
             string.concat(".", network, ".circleBridgeProxy")
         );
         address usdc = json.readAddress(string.concat(".", network, ".usdc"));
 
-        constructorArgs = abi.encode(circleBridgeProxy, usdc);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (
-                CelerCircleBridgeFacet(payable(predicted)),
-                constructorArgs
-            );
-        }
-
-        deployed = CelerCircleBridgeFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(CelerCircleBridgeFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(circleBridgeProxy, usdc);
     }
 }

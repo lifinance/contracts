@@ -14,35 +14,21 @@ contract DeployScript is DeployScriptBase {
         public
         returns (SynapseBridgeFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/synapse.json"
+        constructorArgs = getConstructorArgs();
+
+        deployed = SynapseBridgeFacet(
+            deploy(type(SynapseBridgeFacet).creationCode)
         );
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/synapse.json");
         string memory json = vm.readFile(path);
+
         address synapseRouter = json.readAddress(
             string.concat(".", network, ".router")
         );
 
-        constructorArgs = abi.encode(synapseRouter);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (SynapseBridgeFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = SynapseBridgeFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(SynapseBridgeFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(synapseRouter);
     }
 }

@@ -14,35 +14,19 @@ contract DeployScript is DeployScriptBase {
         public
         returns (DeBridgeFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/debridge.json"
-        );
+        constructorArgs = getConstructorArgs();
+
+        deployed = DeBridgeFacet(deploy(type(DeBridgeFacet).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/debridge.json");
         string memory json = vm.readFile(path);
+
         address deBridgeGate = json.readAddress(
             string.concat(".config.", network, ".deBridgeGate")
         );
 
-        constructorArgs = abi.encode(deBridgeGate);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (DeBridgeFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = DeBridgeFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(DeBridgeFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(deBridgeGate);
     }
 }

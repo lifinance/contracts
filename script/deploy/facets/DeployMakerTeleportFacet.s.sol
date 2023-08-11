@@ -14,11 +14,17 @@ contract DeployScript is DeployScriptBase {
         public
         returns (MakerTeleportFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/maker.json"
+        constructorArgs = getConstructorArgs();
+
+        deployed = MakerTeleportFacet(
+            deploy(type(MakerTeleportFacet).creationCode)
         );
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/maker.json");
         string memory json = vm.readFile(path);
+
         address makerTeleport = json.readAddress(
             string.concat(".", network, ".makerTeleport")
         );
@@ -30,26 +36,6 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".l1Domain")
         );
 
-        constructorArgs = abi.encode(makerTeleport, dai, dstChainId, l1Domain);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (MakerTeleportFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = MakerTeleportFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(MakerTeleportFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(makerTeleport, dai, dstChainId, l1Domain);
     }
 }

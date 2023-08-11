@@ -13,17 +13,19 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Stargate Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate
-/// @custom:version 2.0.0
+/// @custom:version 2.0.1
 contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    /// Storage ///
-
-    bytes32 internal constant NAMESPACE =
-        keccak256("com.lifi.facets.stargate");
+    /// CONSTANTS ///
 
     /// @notice The contract address of the stargate router on the source chain.
     IStargateRouter private immutable router;
     /// @notice The contract address of the native stargate router on the source chain.
     IStargateRouter private immutable nativeRouter;
+
+    /// Storage ///
+
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.stargate");
 
     /// Types ///
 
@@ -68,6 +70,10 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 indexed chainId,
         uint16 layerZeroChainId
     );
+
+    /// @notice Emit to get credited for referral
+    /// @dev Our partner id is 0x0006
+    event PartnerSwap(bytes2 partnerId);
 
     /// Constructor ///
 
@@ -222,6 +228,8 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _stargateData.callData
             );
         }
+
+        emit PartnerSwap(0x0006);
 
         emit LiFiTransferStarted(_bridgeData);
     }
