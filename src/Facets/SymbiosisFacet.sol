@@ -25,8 +25,8 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address bridgingToken;
         address firstDexRouter;
         address secondDexRouter;
-        address relayRecipient;
-        bytes otherSideCalldata;
+        address callTo;    // bridging entrypoint
+        bytes callData;   // bridging calldata
     }
 
     /// Constructor ///
@@ -75,8 +75,8 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _symbiosisData.secondDexRouter,
                 _bridgeData.minAmount,
                 isNative,
-                _symbiosisData.relayRecipient,
-                _symbiosisData.otherSideCalldata
+                _symbiosisData.callTo,
+                _symbiosisData.callData
             )
         );
 
