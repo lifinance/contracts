@@ -8,31 +8,35 @@ import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    string internal globalConfigPath;
-    string internal globalConfigJson;
-
     constructor() DeployScriptBase("RelayerCelerIM") {}
 
     function run()
         public
         returns (RelayerCelerIM deployed, bytes memory constructorArgs)
     {
+        constructorArgs = getConstructorArgs();
+
+        deployed = RelayerCelerIM(deploy(type(RelayerCelerIM).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
         // get path of global config file
-        globalConfigPath = string.concat(root, "/config/global.json");
+        string memory globalConfigPath = string.concat(
+            root,
+            "/config/global.json"
+        );
 
         // read file into json variable
-        globalConfigJson = vm.readFile(globalConfigPath);
+        string memory globalConfigJson = vm.readFile(globalConfigPath);
 
         // extract refundWallet address
         address refundWalletAddress = globalConfigJson.readAddress(
             ".refundWallet"
         );
 
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/cbridge.json"
-        );
+        string memory path = string.concat(root, "/config/cbridge.json");
         string memory json = vm.readFile(path);
+
         address messageBus = json.readAddress(
             string.concat(".", network, ".messageBus")
         );
@@ -46,28 +50,9 @@ contract DeployScript is DeployScriptBase {
             "json"
         );
         json = vm.readFile(path);
+
         address diamond = json.readAddress(".LiFiDiamond");
 
-        constructorArgs = abi.encode(refundWalletAddress, messageBus, diamond);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (RelayerCelerIM(payable(predicted)), constructorArgs);
-        }
-
-        deployed = RelayerCelerIM(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(RelayerCelerIM).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(refundWalletAddress, messageBus, diamond);
     }
 }

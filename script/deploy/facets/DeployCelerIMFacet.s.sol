@@ -10,22 +10,37 @@ import { CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    address internal diamondAddress;
-    string internal globalConfigPath;
-    string internal globalConfigJson;
-
     constructor() DeployScriptBase("CelerIMFacet") {}
 
     function run()
         public
         returns (CelerIMFacetBase deployed, bytes memory constructorArgs)
     {
+        constructorArgs = getConstructorArgs();
+
+        // check which diamond to use (from env variable)
+        string memory diamondType = vm.envString("DIAMOND_TYPE");
+        // check which kind of diamond is being deployed
+        bool deployMutable = keccak256(abi.encodePacked(diamondType)) ==
+            keccak256(abi.encodePacked("LiFiDiamond"));
+
+        // select the correct version of the CelerIM contract for deployment
+        if (deployMutable) {
+            deployed = CelerIMFacetMutable(
+                deploy(type(CelerIMFacetMutable).creationCode)
+            );
+        } else {
+            deployed = CelerIMFacetImmutable(
+                deploy(type(CelerIMFacetImmutable).creationCode)
+            );
+        }
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
         // get messageBus address
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/cbridge.json"
-        );
+        string memory path = string.concat(root, "/config/cbridge.json");
         string memory json = vm.readFile(path);
+
         address messageBus = json.readAddress(
             string.concat(".", network, ".messageBus")
         );
@@ -42,7 +57,7 @@ contract DeployScript is DeployScriptBase {
 
         // get path of network deploy file
         path = string.concat(
-            vm.projectRoot(),
+            root,
             "/deployments/",
             network,
             ".",
@@ -58,15 +73,18 @@ contract DeployScript is DeployScriptBase {
             keccak256(abi.encodePacked("LiFiDiamond"));
 
         // get address of the correct diamond contract from network log file
-        diamondAddress = deployMutable
-            ? json.readAddress(string.concat(".LiFiDiamond"))
-            : json.readAddress(string.concat(".LiFiDiamondImmutable"));
+        address diamondAddress = deployMutable
+            ? json.readAddress(".LiFiDiamond")
+            : json.readAddress(".LiFiDiamondImmutable");
 
         // get path of global config file
-        globalConfigPath = string.concat(root, "/config/global.json");
+        string memory globalConfigPath = string.concat(
+            root,
+            "/config/global.json"
+        );
 
         // read file into json variable
-        globalConfigJson = vm.readFile(globalConfigPath);
+        string memory globalConfigJson = vm.readFile(globalConfigPath);
 
         // extract refundWallet address
         address refundWalletAddress = globalConfigJson.readAddress(
@@ -74,45 +92,12 @@ contract DeployScript is DeployScriptBase {
         );
 
         // prepare constructorArgs
-        constructorArgs = abi.encode(
-            messageBus,
-            refundWalletAddress,
-            diamondAddress,
-            cfUSDCAddress
-        );
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (CelerIMFacetBase(payable(predicted)), constructorArgs);
-        }
-
-        // select the correct version of the CelerIM contract for deployment
-        if (deployMutable)
-            deployed = CelerIMFacetMutable(
-                payable(
-                    factory.deploy(
-                        salt,
-                        bytes.concat(
-                            type(CelerIMFacetMutable).creationCode,
-                            constructorArgs
-                        )
-                    )
-                )
+        return
+            abi.encode(
+                messageBus,
+                refundWalletAddress,
+                diamondAddress,
+                cfUSDCAddress
             );
-        else
-            deployed = CelerIMFacetImmutable(
-                payable(
-                    factory.deploy(
-                        salt,
-                        bytes.concat(
-                            type(CelerIMFacetImmutable).creationCode,
-                            constructorArgs
-                        )
-                    )
-                )
-            );
-
-        vm.stopBroadcast();
     }
 }

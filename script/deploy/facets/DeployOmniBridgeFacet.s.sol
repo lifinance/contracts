@@ -14,11 +14,15 @@ contract DeployScript is DeployScriptBase {
         public
         returns (OmniBridgeFacet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/omni.json"
-        );
+        constructorArgs = getConstructorArgs();
+
+        deployed = OmniBridgeFacet(deploy(type(OmniBridgeFacet).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        string memory path = string.concat(root, "/config/omni.json");
         string memory json = vm.readFile(path);
+
         address foreignOmniBridge = json.readAddress(
             string.concat(".", network, ".foreignOmniBridge")
         );
@@ -26,26 +30,6 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".wethOmniBridge")
         );
 
-        constructorArgs = abi.encode(foreignOmniBridge, wethOmniBridge);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return (OmniBridgeFacet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = OmniBridgeFacet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type(OmniBridgeFacet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(foreignOmniBridge, wethOmniBridge);
     }
 }

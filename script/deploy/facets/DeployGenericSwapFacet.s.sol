@@ -8,16 +8,8 @@ contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("GenericSwapFacet") {}
 
     function run() public returns (GenericSwapFacet deployed) {
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return GenericSwapFacet(predicted);
-        }
-
         deployed = GenericSwapFacet(
-            factory.deploy(salt, type(GenericSwapFacet).creationCode)
+            deploy(type(GenericSwapFacet).creationCode)
         );
-
-        vm.stopBroadcast();
     }
 }

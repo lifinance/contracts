@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { console, UpdateScriptBase } from "../../deploy/facets/utils/UpdateScriptBase.sol";
+import { UpdateScriptBase } from "../../deploy/facets/utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";

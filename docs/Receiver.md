@@ -2,7 +2,7 @@
 
 ## Description
 
-Periphery contract used for aribitrary cross-chain and same chain execution, swaps and transfers
+Periphery contract used for arbitrary cross-chain and same chain execution, swaps and transfers
 
 ## How To Use
 
