@@ -11,13 +11,39 @@ contract StandardizedCallFacet {
     /// External Methods ///
 
     // @notice Make a standardized call to a facet
-    // @param calldata The calldata to forward to the facet
-    function standardizedCall(bytes calldata callData) external payable {
+    // @param callData The calldata to forward to the facet
+    function standardizedCall(bytes memory callData) external payable {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         address facetAddress = ds
-            .selectorToFacetAndPosition[bytes4(callData[:4])]
+            .selectorToFacetAndPosition[bytes4(callData)]
             .facetAddress;
-        (bool success, ) = facetAddress.delegatecall(callData);
-        require(success, "Standardized Call: failed");
+
+        if (facetAddress == address(0)) {
+            revert LibDiamond.FunctionDoesNotExist();
+        }
+
+        // Execute external function from facet using delegatecall and return any value.
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            // execute function call using the facet
+            let result := delegatecall(
+                gas(),
+                facetAddress,
+                add(callData, 0x20),
+                mload(callData),
+                0,
+                0
+            )
+            // get any return value
+            returndatacopy(0, 0, returndatasize())
+            // return any return value or error back to the caller
+            switch result
+            case 0 {
+                revert(0, returndatasize())
+            }
+            default {
+                return(0, returndatasize())
+            }
+        }
     }
 }

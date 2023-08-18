@@ -19,6 +19,10 @@ interface Diamond {
     ) external view returns (address);
 }
 
+contract NotAContract {
+    function notAFunction() external {}
+}
+
 contract StandardizedCallFacetTest is DiamondTest, Test {
     Diamond internal diamond;
     StandardizedCallFacet internal standardizedCallFacet;
@@ -48,5 +52,13 @@ contract StandardizedCallFacetTest is DiamondTest, Test {
         diamond.standardizedCall(data);
         address result = diamond.getPeripheryContract("Foobar");
         assertEq(result, address(0xf00));
+    }
+
+    function testFailWhenCallingANonExistentFunction() public {
+        bytes memory data = abi.encodeWithSelector(
+            NotAContract.notAFunction.selector
+        );
+
+        diamond.standardizedCall(data);
     }
 }
