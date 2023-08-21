@@ -65,6 +65,7 @@ contract StandardizedCallFacetTest is DiamondTest, Test {
     MockFacet internal mockFacet;
 
     event ContextEvent(string);
+    event LiFiTransferStarted(ILiFi.BridgeData bridgeData);
 
     function setUp() public {
         LiFiDiamond tmpDiamond = createDiamond();
@@ -97,8 +98,12 @@ contract StandardizedCallFacetTest is DiamondTest, Test {
             bridgeData
         );
 
-        vm.expectEmit();
+        // This call should be made within the context of the diamond
+        // and should show that it can access diamond storage
+        vm.expectEmit(address(diamond));
         emit ContextEvent("LIFI");
+        vm.expectEmit(address(diamond));
+        emit LiFiTransferStarted(bridgeData);
 
         diamond.standardizedCall(data);
     }
