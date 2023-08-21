@@ -27,6 +27,8 @@ contract StandardizedCallFacetTest is DiamondTest, Test {
     Diamond internal diamond;
     StandardizedCallFacet internal standardizedCallFacet;
 
+    error FunctionDoesNotExist();
+
     function setUp() public {
         LiFiDiamond tmpDiamond = createDiamond();
         standardizedCallFacet = new StandardizedCallFacet();
@@ -54,7 +56,8 @@ contract StandardizedCallFacetTest is DiamondTest, Test {
         assertEq(result, address(0xf00));
     }
 
-    function testFailWhenCallingANonExistentFunction() public {
+    function testRevertsWhenCallingANonExistentFunction() public {
+        vm.expectRevert(FunctionDoesNotExist.selector);
         bytes memory data = abi.encodeWithSelector(
             NotAContract.notAFunction.selector
         );
