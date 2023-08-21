@@ -88,6 +88,26 @@ contract DiamondTest {
         address _facet,
         bytes4[] memory _selectors
     ) internal {
+        _addFacet(_diamond, _facet, _selectors, address(0), "");
+    }
+
+    function addFacet(
+        LiFiDiamond _diamond,
+        address _facet,
+        bytes4[] memory _selectors,
+        address _init,
+        bytes memory _initCallData
+    ) internal {
+        _addFacet(_diamond, _facet, _selectors, _init, _initCallData);
+    }
+
+    function _addFacet(
+        LiFiDiamond _diamond,
+        address _facet,
+        bytes4[] memory _selectors,
+        address _init,
+        bytes memory _initCallData
+    ) internal {
         cut.push(
             IDiamondCut.FacetCut({
                 facetAddress: _facet,
@@ -96,7 +116,11 @@ contract DiamondTest {
             })
         );
 
-        DiamondCutFacet(address(_diamond)).diamondCut(cut, address(0), "");
+        DiamondCutFacet(address(_diamond)).diamondCut(
+            cut,
+            _init,
+            _initCallData
+        );
 
         delete cut;
     }

@@ -5,18 +5,54 @@ import { Test } from "forge-std/Test.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { DiamondTest } from "../utils/DiamondTest.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 
 interface Diamond {
     function standardizedCall(bytes calldata _data) external payable;
 
-    function registerPeripheryContract(
-        string calldata _name,
-        address _contract
-    ) external;
+    function startBridgeTokensViaMock(
+        ILiFi.BridgeData memory _bridgeData
+    ) external payable;
+}
 
-    function getPeripheryContract(
-        string calldata _name
-    ) external view returns (address);
+contract MockFacet is ILiFi {
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.mock");
+
+    event ContextEvent(string);
+
+    constructor() {
+        // Set contract storage
+        Storage storage s = getStorage();
+        s.context = "Mock";
+    }
+
+    function init() external {
+        // Set diamond storage
+        Storage storage s = getStorage();
+        s.context = "LIFI";
+    }
+
+    struct Storage {
+        string context;
+    }
+
+    function startBridgeTokensViaMock(
+        ILiFi.BridgeData memory _bridgeData
+    ) external payable {
+        Storage memory s = getStorage();
+        string memory context = s.context;
+        emit ContextEvent(context);
+        emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
+    }
 }
 
 contract NotAContract {
@@ -26,12 +62,14 @@ contract NotAContract {
 contract StandardizedCallFacetTest is DiamondTest, Test {
     Diamond internal diamond;
     StandardizedCallFacet internal standardizedCallFacet;
+    MockFacet internal mockFacet;
 
-    error FunctionDoesNotExist();
+    event ContextEvent(string);
 
     function setUp() public {
         LiFiDiamond tmpDiamond = createDiamond();
         standardizedCallFacet = new StandardizedCallFacet();
+        mockFacet = new MockFacet();
 
         bytes4[] memory functionSelectors = new bytes4[](1);
         functionSelectors[0] = standardizedCallFacet.standardizedCall.selector;
@@ -41,23 +79,31 @@ contract StandardizedCallFacetTest is DiamondTest, Test {
             functionSelectors
         );
 
+        functionSelectors[0] = mockFacet.startBridgeTokensViaMock.selector;
+        addFacet(
+            tmpDiamond,
+            address(mockFacet),
+            functionSelectors,
+            address(mockFacet),
+            abi.encodeWithSelector(mockFacet.init.selector)
+        );
         diamond = Diamond(address(tmpDiamond));
     }
 
-    function testCanCallOtherFacet() public {
+    function testMakeABridgeCallWithinTheContextOfTheDiamond() public {
+        ILiFi.BridgeData memory bridgeData;
         bytes memory data = abi.encodeWithSelector(
-            diamond.registerPeripheryContract.selector,
-            "Foobar",
-            address(0xf00)
+            diamond.startBridgeTokensViaMock.selector,
+            bridgeData
         );
 
+        vm.expectEmit();
+        emit ContextEvent("LIFI");
+
         diamond.standardizedCall(data);
-        address result = diamond.getPeripheryContract("Foobar");
-        assertEq(result, address(0xf00));
     }
 
-    function testRevertsWhenCallingANonExistentFunction() public {
-        vm.expectRevert(FunctionDoesNotExist.selector);
+    function testFailWhenCallingANonExistentFunction() public {
         bytes memory data = abi.encodeWithSelector(
             NotAContract.notAFunction.selector
         );
