@@ -44,6 +44,7 @@ bsc-testnet = "${ETH_NODE_URI_BSCTEST}"
 lineatest = "${ETH_NODE_URI_LINEATEST}"
 localanvil = "${ETH_NODE_URI_LOCALANVIL}"
 mumbai = "${ETH_NODE_URI_MUMBAI}"
+base = "${ETH_NODE_URI_BASE}"
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
@@ -63,6 +64,7 @@ nova = { key = "${NOVA_ETHERSCAN_API_KEY}", url = "https://nova.arbiscan.io/api"
 optimism = { key = "${OPTIMISM_ETHERSCAN_API_KEY}", url = "https://api-optimistic.etherscan.io/api" }
 polygon = { key = "${POLYGON_ETHERSCAN_API_KEY}", url = "https://api.polygonscan.com/api" }
 polygonzkevm = { key = "${POLYGONZKEVM_ETHERSCAN_API_KEY}", url = "https://api-zkevm.polygonscan.com/api" }
+base = { key = "${BASE_ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api"}
 
 #testnets
 goerli = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
