@@ -3,16 +3,18 @@ pragma solidity 0.8.17;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 
-/// @title StandardizedCallFacet Facet
+/// @title Standardized Call Facet
 /// @author LIFI https://li.finance ed@li.finance
 /// @notice Allows calling different facet methods through a single standardized entrypoint
 /// @custom:version 1.0.0
 contract StandardizedCallFacet {
     /// External Methods ///
 
-    // @notice Make a standardized call to a facet
-    // @param callData The calldata to forward to the facet
+    /// @notice Make a standardized call to a facet
+    /// @param callData The calldata to forward to the facet
     function standardizedCall(bytes memory callData) external payable {
+        // Fetch the facetAddress from the dimaond's internal storage
+        // Cheaper than calling the external facetAddress(selector) method directly
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         address facetAddress = ds
             .selectorToFacetAndPosition[bytes4(callData)]

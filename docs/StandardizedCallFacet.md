@@ -1,4 +1,4 @@
-# StandardizedCallFacet Facet
+# Standardized Call Facet
 
 ## How it works
 
