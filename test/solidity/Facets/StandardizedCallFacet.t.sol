@@ -67,6 +67,8 @@ contract StandardizedCallFacetTest is DiamondTest, Test {
     event ContextEvent(string);
     event LiFiTransferStarted(ILiFi.BridgeData bridgeData);
 
+    error FunctionDoesNotExist();
+
     function setUp() public {
         LiFiDiamond tmpDiamond = createDiamond();
         standardizedCallFacet = new StandardizedCallFacet();
@@ -108,10 +110,12 @@ contract StandardizedCallFacetTest is DiamondTest, Test {
         diamond.standardizedCall(data);
     }
 
-    function testFailWhenCallingANonExistentFunction() public {
+    function testRevertsWhenCallingANonExistentFunction() public {
         bytes memory data = abi.encodeWithSelector(
             NotAContract.notAFunction.selector
         );
+
+        vm.expectRevert(FunctionDoesNotExist.selector);
 
         diamond.standardizedCall(data);
     }
