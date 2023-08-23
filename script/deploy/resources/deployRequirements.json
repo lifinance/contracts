@@ -165,15 +165,6 @@
       }
     }
   },
-  "GravityFacet": {
-    "configData": {
-      "_router": {
-        "configFileName": "gravity.json",
-        "keyInConfigFile": ".<NETWORK>.gravityRouter",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "HopFacet": {
     "configData": {
       "_router": {
@@ -239,15 +230,6 @@
       }
     }
   },
-  "OFTWrapperFacet": {
-    "configData": {
-      "_oftWrapper": {
-        "configFileName": "oftwrapper.json",
-        "keyInConfigFile": ".wrappers.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "OmniBridgeFacet": {
     "configData": {
       "_foreignOmniBridge": {
@@ -286,15 +268,6 @@
       "_erc20Predicate": {
         "configFileName": "polygon.json",
         "keyInConfigFile": ".<NETWORK>.erc20Predicate",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "RoninBridgeFacet": {
-    "configData": {
-      "_gateway": {
-        "configFileName": "ronin.json",
-        "keyInConfigFile": ".<NETWORK>.gateway",
         "allowToDeployWithZeroAddress": "false"
       }
     }
