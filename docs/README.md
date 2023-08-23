@@ -26,6 +26,7 @@
 - [Optimism Bridge Facet](./OptimismBridgeFacet.md)
 - [Periphery Registry Facet](./PeripheryRegistryFacet.md)
 - [Polygon Bridge Facet](./PolygonBridgeFacet.md)
+- [Standardized Call Facet](./StandardizedCallFacet.md)
 - [Stargate Facet](./StargateFacet.md)
 - [Synapse Bridge Facet](./SynapseBridgeFacet.md)
 - [Withdraw Facet](./WithdrawFacet.md)

@@ -94,9 +94,9 @@ function diamondUpdatePeriphery() {
         # special handling for RelayerCelerIM
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         if [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]]; then
-          local CONTRACT_ADDRESS=$(jq -r '.[RelayerCelerIMMutable] // "0x"' "$ADDRS")
+          local CONTRACT_ADDRESS=$(jq -r '.RelayerCelerIMMutable // "0x"' "$ADDRS")
         elif [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamondImmutable" ]]; then
-          local CONTRACT_ADDRESS=$(jq -r '.[RelayerCelerIMImmutable] // "0x"' "$ADDRS")
+          local CONTRACT_ADDRESS=$(jq -r '.RelayerCelerIMImmutable // "0x"' "$ADDRS")
         else
           error "invalid value for DIAMOND_CONTRACT_NAME: ($DIAMOND_CONTRACT_NAME) in function diamondUpdatePeriphery()"
         fi
@@ -145,7 +145,6 @@ function diamondUpdatePeriphery() {
     saveDiamondPeriphery "$NETWORK" "$ENVIRONMENT" false
   fi
 
-
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"
 }
 
@@ -160,18 +159,15 @@ register() {
   # register periphery contract
   local ATTEMPTS=1
 
-
-    # logging for debug purposes
-    echoDebug "in function register"
-    echoDebug "NETWORK=$NETWORK"
-    echoDebug "DIAMOND=$DIAMOND"
-    echoDebug "CONTRACT_NAME=$CONTRACT_NAME"
-    echoDebug "ADDR=$ADDR"
-    echoDebug "RPC=${!RPC}"
-    echoDebug "ENVIRONMENT=$ENVIRONMENT"
-    echo ""
-
-
+  # logging for debug purposes
+  echoDebug "in function register"
+  echoDebug "NETWORK=$NETWORK"
+  echoDebug "DIAMOND=$DIAMOND"
+  echoDebug "CONTRACT_NAME=$CONTRACT_NAME"
+  echoDebug "ADDR=$ADDR"
+  echoDebug "RPC=${!RPC}"
+  echoDebug "ENVIRONMENT=$ENVIRONMENT"
+  echo ""
 
   while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     # try to execute call
@@ -183,7 +179,7 @@ register() {
 
       # print output to console
       cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "${!RPC}" --legacy
-#      cast send 0xd37c412F1a782332a91d183052427a5336438cD3 'registerPeripheryContract(string,address)' "Executor" "0x68895782994F1d7eE13AD210b63B66c81ec7F772" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" --rpc-url "${!RPC}" --legacy
+      #      cast send 0xd37c412F1a782332a91d183052427a5336438cD3 'registerPeripheryContract(string,address)' "Executor" "0x68895782994F1d7eE13AD210b63B66c81ec7F772" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" --rpc-url "${!RPC}" --legacy
     else
       # do not print output to console
       cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
