@@ -56,5 +56,7 @@
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x0874Be3949ABF784C11E5f822F1a54c8655904C1"
     }
-  }
+  },
+  "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
+  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
 }
