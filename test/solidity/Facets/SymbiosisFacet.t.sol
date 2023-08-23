@@ -128,16 +128,4 @@ contract SymbiosisFacetTest is TestBaseFacet {
     function testBase_CanSwapAndBridgeNativeTokens() public override {
         //native token bridging not supported by core bridge, it's supported by swapping to USDC/WETH on metaRouter
     }
-
-    function testBase_CanBridgeTokens() public override {
-        //        // amount should be greater than execution fee
-        //        vm.assume(amount > 10);
-        super.testBase_CanBridgeTokens();
-    }
-
-    function testBase_CanSwapAndBridgeTokens() public override {
-        //        // amount should be greater than execution fee
-        //        vm.assume(amount > 10);
-        //        super.testBase_CanBridgeTokens_fuzzed(amount);
-    }
 }
