@@ -2,10 +2,6 @@ name: Types Bindings
 
 on:
   push:
-    branches:
-      - "master"
-      - "staging"
-      - "dev"
 
 env:
   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
