@@ -81,9 +81,9 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
-      "0x5B65c0363D3523f5451b681f1197d229c33b8437": {
+      "0x7D421EffC29B1712a20F22f478778693CE7c5E94": {
         "Name": "OFTWrapperFacet",
-        "Version": "2.0.0"
+        "Version": "0.0.3"
       },
       "0x933A3AfE2087FB8F5c9EE9A033477C42CC14c18E": {
         "Name": "SquidFacet",

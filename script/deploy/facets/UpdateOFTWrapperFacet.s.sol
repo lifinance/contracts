@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
+import { UpdateScriptBase, console } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { OFTWrapperFacet } from "lifi/Facets/OFTWrapperFacet.sol";
 
@@ -40,6 +40,7 @@ contract DeployScript is UpdateScriptBase {
             rawChains,
             (ChainIdConfig[])
         );
+        console.log("in getCallData#1");
 
         bytes memory rawContracts = json.parseRaw(".chains");
         address[] memory whitelistedContracts = abi.decode(
@@ -47,18 +48,21 @@ contract DeployScript is UpdateScriptBase {
             (address[])
         );
         WhitelistConfig[] memory whitelistCfg = new WhitelistConfig[](
-            rawContracts.length
+            whitelistedContracts.length
         );
-        for (uint i; i < rawContracts.length; i++) {
+        console.log("in getCallData#2");
+        for (uint i; i < whitelistedContracts.length; i++) {
             whitelistCfg[i] = WhitelistConfig(whitelistedContracts[i], true);
         }
 
+        console.log("in getCallData#3");
         bytes memory callData = abi.encodeWithSelector(
             OFTWrapperFacet.initOFTWrapper.selector,
             cidCfg,
             whitelistCfg
         );
 
+        console.log("in getCallData#4");
         return callData;
     }
 }
