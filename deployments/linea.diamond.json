@@ -1,0 +1,50 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "0x93bb2f207B9E3D8bAa3523fA2ce3D8411fc419b8": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0xff32427f9aAb70109DEBA6ebBD9A1D4B77b5Fa9e": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0xF0Cf76d40E69809b4b9762C125af50F8d09073fE": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0xbA2E7e3541FBf5921616E5007CdB8799C34e08E4": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0x563d03b1DD11C894cC6d7C8Aa40f611C55E24b56": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x2619cBe40e1136C6Db74E6Ee1F2A15A95442C7AB": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xcB62A1B9Ab262df717926B4b24D468bb5f18F24b": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0x45A208ab68A7A18533bbbb2649a6Acd5f9B12d24": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
+      },
+      "0x340E2d16cb0DE6F4a8bF2B8905cBA287cEE718A3": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      }
+    },
+    "Periphery": {
+      "ERC20Proxy": "",
+      "Executor": "",
+      "FeeCollector": "",
+      "Receiver": "",
+      "RelayerCelerIM": "",
+      "ServiceFeeCollector": ""
+    }
+  }
+}

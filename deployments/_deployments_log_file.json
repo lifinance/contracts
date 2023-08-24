@@ -466,6 +466,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x93bb2f207B9E3D8bAa3523fA2ce3D8411fc419b8",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-23 13:49:44",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -919,6 +933,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xff32427f9aAb70109DEBA6ebBD9A1D4B77b5Fa9e",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-24 11:14:01",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -1379,6 +1407,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF0Cf76d40E69809b4b9762C125af50F8d09073fE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-24 11:15:00",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "DexManagerFacet": {
@@ -1820,6 +1862,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x563d03b1DD11C894cC6d7C8Aa40f611C55E24b56",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-24 11:16:10",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -2266,6 +2322,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2619cBe40e1136C6Db74E6Ee1F2A15A95442C7AB",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-24 11:17:49",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -2707,6 +2777,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xbA2E7e3541FBf5921616E5007CdB8799C34e08E4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-24 11:18:58",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -3167,6 +3251,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xcB62A1B9Ab262df717926B4b24D468bb5f18F24b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-24 11:19:44",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -3599,6 +3697,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xDE1E598b81620773454588B85D6b5D4eEC32573e",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-24 11:26:57",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce4400000000000000000000000093bb2f207b9e3d8baa3523fa2ce3d8411fc419b8",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamondImmutable": {
@@ -3913,6 +4025,20 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000b09e20930242327f9ac4da95dd0c421fbe15d4db",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF3a09f97D6074394E8a1606988fE92aF37c4a33c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-24 11:29:09",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce4400000000000000000000000093bb2f207b9e3d8baa3523fa2ce3d8411fc419b8",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -4819,6 +4945,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x340E2d16cb0DE6F4a8bF2B8905cBA287cEE718A3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-24 11:20:45",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "HopFacetOptimized": {
@@ -5680,6 +5820,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x45A208ab68A7A18533bbbb2649a6Acd5f9B12d24",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-24 11:23:12",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
