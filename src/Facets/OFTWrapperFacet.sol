@@ -4,16 +4,18 @@ pragma solidity 0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IOFTWrapper, IOFT, IOFTV2, IProxyOFT } from "../Interfaces/IOFTWrapper.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibAccess } from "lifi/Libraries/LibAccess.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
+import { AlreadyInitialized, NotInitialized, ExternalCallFailed, InvalidCallData, ContractCallNotAllowed } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { console } from "test/solidity/utils/Console.sol";
 
 /// @title OFTWrapper Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through OFTWrapper
-/// @custom:version 2.0.0
+/// @custom:version 0.0.3
 contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -34,7 +36,8 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         OFTFeeV2,
         ProxyOFT,
         ProxyOFTV2,
-        ProxyOFTFeeV2
+        ProxyOFTFeeV2,
+        CustomCodeOFT
     }
 
     struct ChainIdConfig {
@@ -42,8 +45,14 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint16 layerZeroChainId;
     }
 
+    struct WhitelistConfig {
+        address contractAddress;
+        bool whitelisted;
+    }
+
     struct Storage {
         mapping(uint256 => uint16) layerZeroChainId;
+        mapping(address => bool) whitelistedCustomOFTs;
         bool initialized;
     }
 
@@ -56,6 +65,8 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address zroPaymentAddress;
         bytes adapterParams;
         IOFTWrapper.FeeObj feeObj;
+        bytes customCode_sendTokensCallData; // contains function identifier and parameters for sending tokens
+        address customCode_approveTo; // in case approval to a custom contract is required
     }
 
     /// Errors ///
@@ -66,6 +77,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Events ///
 
     event OFTWrapperInitialized(ChainIdConfig[] chainIdConfigs);
+    event WhitelistUpdated(WhitelistConfig[] whitelistConfigs);
 
     event LayerZeroChainIdSet(
         uint256 indexed chainId,
@@ -90,7 +102,12 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize local variables for the OFTWrapper Facet.
     /// @param chainIdConfigs Chain Id configuration data.
-    function initOFTWrapper(ChainIdConfig[] calldata chainIdConfigs) external {
+    /// @param whitelistConfigs contracts to be whitelisted
+    function initOFTWrapper(
+        ChainIdConfig[] calldata chainIdConfigs,
+        WhitelistConfig[] calldata whitelistConfigs
+    ) external {
+        //TODO: add initial whitelisting of contracts
         LibDiamond.enforceIsContractOwner();
 
         Storage storage sm = getStorage();
@@ -98,18 +115,45 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (sm.initialized) {
             revert AlreadyInitialized();
         }
+        sm.initialized = true;
 
+        // add layerZero custom chainIds
         for (uint256 i = 0; i < chainIdConfigs.length; i++) {
             sm.layerZeroChainId[chainIdConfigs[i].chainId] = chainIdConfigs[i]
                 .layerZeroChainId;
         }
 
-        sm.initialized = true;
+        // whitelist contracts
+        batchWhitelist(whitelistConfigs);
 
         emit OFTWrapperInitialized(chainIdConfigs);
     }
 
     /// External Methods ///
+
+    /// @notice Register the address of a DEX contract to be approved for swapping.
+    /// @param configs configuration data about contracts to be whitelisted (or removed from whitelist)
+    function batchWhitelist(WhitelistConfig[] calldata configs) public {
+        // ensure that this function can only be executed by authorized addresses
+        if (msg.sender != LibDiamond.contractOwner()) {
+            LibAccess.enforceAccessControl();
+        }
+
+        // get storage object
+        Storage storage sm = getStorage();
+
+        // go through arrays and update whitelist
+        for (uint i; i < configs.length; ) {
+            sm.whitelistedCustomOFTs[configs[i].contractAddress] = configs[i]
+                .whitelisted;
+            unchecked {
+                ++i;
+            }
+        }
+
+        // emit event with parameters
+        emit WhitelistUpdated(configs);
+    }
 
     /// @notice Bridges tokens via OFT Wrapper.
     /// @param _bridgeData The core information needed for bridging.
@@ -205,7 +249,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             (nativeFee, zroFee) = IOFT(_sendingAssetId).estimateSendFee(
                 layerZeroChainId,
                 abi.encodePacked(bytes20(_receiver << 96)),
-                _amount,
+                amountOut,
                 _useZro,
                 _adapterParams
             );
@@ -213,7 +257,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             (nativeFee, zroFee) = IOFTV2(_sendingAssetId).estimateSendFee(
                 layerZeroChainId,
                 _receiver,
-                _amount,
+                amountOut,
                 _useZro,
                 _adapterParams
             );
@@ -235,12 +279,21 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _oftWrapperData.proxyOFT
         );
 
-        LibAsset.maxApproveERC20(
-            IERC20(_bridgeData.sendingAssetId),
-            address(oftWrapper),
-            _bridgeData.minAmount
-        );
+        // set approval for OFTWrapper or custom contract (e.g. proxy)
+        if (_oftWrapperData.tokenType == TokenType.CustomCodeOFT)
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                _oftWrapperData.customCode_approveTo,
+                _bridgeData.minAmount
+            );
+        else
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(oftWrapper),
+                _bridgeData.minAmount
+            );
 
+        // call the correct OFTWrapper send function depending on OFT type
         if (_oftWrapperData.tokenType == TokenType.OFT) {
             oftWrapper.sendOFT{ value: _oftWrapperData.lzFee }(
                 _bridgeData.sendingAssetId,
@@ -265,6 +318,30 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _oftWrapperData.adapterParams,
                 _oftWrapperData.feeObj
             );
+            // the following OFT type does not use the OFTWrapper contract, instead we call the token contract/or its
+            // proxy directly. Since the send function/signature in these contracts differs, we prepare the calldata
+            // in the backend and execute the calldata here.
+            // the (token/proxy) contract to be called must be whitelisted to prevent general attack vectors on our diamond
+        } else if (_oftWrapperData.tokenType == TokenType.CustomCodeOFT) {
+            // get storage object
+            Storage storage sm = getStorage();
+
+            // make sure calldata isnt empty
+            if (_oftWrapperData.customCode_sendTokensCallData.length == 0)
+                revert InvalidCallData();
+
+            // check if proxy contract is whitelisted
+            if (!sm.whitelistedCustomOFTs[_oftWrapperData.proxyOFT])
+                revert ContractCallNotAllowed();
+
+            // call proxy token contract with prepared calldata
+            // solhint-disable-next-line avoid-low-level-calls
+            (bool success, ) = _oftWrapperData.proxyOFT.call{
+                value: _oftWrapperData.lzFee
+            }(_oftWrapperData.customCode_sendTokensCallData);
+            if (!success) {
+                revert ExternalCallFailed();
+            }
         } else {
             _sendOFTV2(_bridgeData, _oftWrapperData);
         }

@@ -13,6 +13,11 @@ contract DeployScript is UpdateScriptBase {
         uint16 layerZeroChainId;
     }
 
+    struct WhitelistConfig {
+        address contractAddress;
+        bool whitelisted;
+    }
+
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
@@ -36,9 +41,22 @@ contract DeployScript is UpdateScriptBase {
             (ChainIdConfig[])
         );
 
+        bytes memory rawContracts = json.parseRaw(".chains");
+        address[] memory whitelistedContracts = abi.decode(
+            rawContracts,
+            (address[])
+        );
+        WhitelistConfig[] memory whitelistCfg = new WhitelistConfig[](
+            rawContracts.length
+        );
+        for (uint i; i < rawContracts.length; i++) {
+            whitelistCfg[i] = WhitelistConfig(whitelistedContracts[i], true);
+        }
+
         bytes memory callData = abi.encodeWithSelector(
             OFTWrapperFacet.initOFTWrapper.selector,
-            cidCfg
+            cidCfg,
+            whitelistCfg
         );
 
         return callData;

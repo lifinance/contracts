@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { LibAllowList, TestBaseFacet, LiFiDiamond } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, LiFiDiamond, console } from "../utils/TestBaseFacet.sol";
 import { OnlyContractOwner, AlreadyInitialized } from "src/Errors/GenericErrors.sol";
 import { OFTWrapperFacet } from "lifi/Facets/OFTWrapperFacet.sol";
 import { IOFTWrapper } from "lifi/Interfaces/IOFTWrapper.sol";
@@ -27,6 +27,74 @@ interface IUniswapV2Router01 {
         address to,
         uint deadline
     ) external returns (uint amountA, uint amountB, uint liquidity);
+}
+
+interface ILayerZeroOracleV2 {
+    function assignJob(
+        uint16 _dstChainId,
+        uint16 outboundProofType,
+        uint64 outboundBlockConfirmations,
+        address _ua
+    ) external returns (uint256);
+}
+
+contract OhmProxyContract {
+    function sendOhm(
+        uint16 dstChainId_,
+        address to_,
+        uint256 amount_
+    ) external payable {}
+}
+
+contract AgEurProxyContract {
+    function estimateSendFee(
+        uint16 _dstChainId,
+        bytes calldata _toAddress,
+        uint256 _amount,
+        bool _useZro,
+        bytes calldata _adapterParams
+    ) external view returns (uint256 nativeFee, uint256 zroFee) {}
+
+    function send(
+        uint16 _dstChainId,
+        bytes calldata _toAddress,
+        uint256 _amount,
+        address payable _refundAddress,
+        address _zroPaymentAddress,
+        bytes calldata _adapterParams
+    ) external payable {}
+}
+
+contract STGContract {
+    function estimateSendTokensFee(
+        uint16 _dstChainId,
+        bool _useZro,
+        bytes calldata txParameters
+    ) external view returns (uint256 nativeFee, uint256 zroFee) {}
+
+    function sendTokens(
+        uint16 _dstChainId,
+        bytes calldata _to,
+        uint256 _qty,
+        address zroPaymentAddress,
+        bytes calldata adapterParam
+    ) public payable {}
+}
+
+contract UltraLightNodeV2Contract {
+    struct ApplicationConfiguration {
+        uint16 inboundProofLibraryVersion;
+        uint64 inboundBlockConfirmations;
+        address relayer;
+        uint16 outboundProofType;
+        uint64 outboundBlockConfirmations;
+        address oracle;
+    }
+
+    function getAppConfig(
+        uint16 _remoteChainId,
+        address _ua
+    ) external view returns (ApplicationConfiguration memory) {}
 }
 
 // Stub OFTWrapperFacet Contract
@@ -61,6 +129,14 @@ contract OFTWrapperFacetTest is TestBaseFacet {
         0x2eF002aa0AB6761B6aEa8d639DcdAa20d79b768c;
     address internal constant BTCBOFT_ADDRESS =
         0x2297aEbD383787A160DD0d9F71508148769342E3;
+    address internal constant CUSTOM_TOKEN_OHM_ADDRESS =
+        0x64aa3364F17a4D01c6f1751Fd97C2BD3D7e7f1D5; // OHM on ETH
+    address internal constant CUSTOM_TOKEN_OHM_PROXY_ADDRESS =
+        0x45e563c39cDdbA8699A90078F42353A57509543a; // OHM Proxy on ETH
+    address internal constant CUSTOM_TOKEN_agEUR_ADDRESS =
+        0x1a7e4e63778B4f12a199C062f3eFdD288afCBce8; // agEUR on ETH
+    address internal constant CUSTOM_TOKEN_agEUR_PROXY_ADDRESS =
+        0x4Fa745FCCC04555F2AFA8874cd23961636CdF982; // agEUR Proxy on ETH
     address internal UNISWAP_FACTORY =
         0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
     address internal constant NON_EVM_ADDRESS =
@@ -71,20 +147,32 @@ contract OFTWrapperFacetTest is TestBaseFacet {
     TestOFTWrapperFacet internal oftWrapperFacet;
     OFTWrapperFacet.OFTWrapperData internal oftWrapperData;
     ERC20 internal btcboft;
+    ERC20 internal customTokenOHM;
+    bytes internal adapterParamsV1;
+    bytes internal adapterParamsV2;
 
     function setUp() public {
         // set custom block number for forking
-        customBlockNumberForForking = 17063500;
+        //        customBlockNumberForForking = 17063500;
+        customBlockNumberForForking = 17977594;
+        adapterParamsV1 = abi.encodePacked(uint16(1), uint256(2000000));
+        adapterParamsV2 = abi.encodePacked(
+            uint16(1),
+            uint256(2000000),
+            uint256(0),
+            address(0)
+        );
 
         initTestBase();
 
         btcboft = ERC20(BTCBOFT_ADDRESS);
+        customTokenOHM = ERC20(CUSTOM_TOKEN_OHM_ADDRESS);
 
         oftWrapperFacet = new TestOFTWrapperFacet(
             IOFTWrapper(MAINNET_OFTWRAPPER)
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](7);
+        bytes4[] memory functionSelectors = new bytes4[](8);
         functionSelectors[0] = oftWrapperFacet.initOFTWrapper.selector;
         functionSelectors[1] = oftWrapperFacet
             .startBridgeTokensViaOFTWrapper
@@ -100,19 +188,25 @@ contract OFTWrapperFacetTest is TestBaseFacet {
         functionSelectors[6] = oftWrapperFacet
             .setFunctionApprovalBySignature
             .selector;
+        functionSelectors[7] = oftWrapperFacet.batchWhitelist.selector;
 
         addFacet(diamond, address(oftWrapperFacet), functionSelectors);
 
         OFTWrapperFacet.ChainIdConfig[]
-            memory chainIdConfig = new OFTWrapperFacet.ChainIdConfig[](3);
+            memory chainIdConfig = new OFTWrapperFacet.ChainIdConfig[](4);
         chainIdConfig[0] = OFTWrapperFacet.ChainIdConfig(1, 101);
         chainIdConfig[1] = OFTWrapperFacet.ChainIdConfig(137, 109);
         // Test purpose
         // 108 is LayerZero Chain id for Aptos
         chainIdConfig[2] = OFTWrapperFacet.ChainIdConfig(11111, 108);
+        chainIdConfig[3] = OFTWrapperFacet.ChainIdConfig(42161, 110);
 
         oftWrapperFacet = TestOFTWrapperFacet(address(diamond));
-        oftWrapperFacet.initOFTWrapper(chainIdConfig);
+
+        // create empty whitelistConfig
+        OFTWrapperFacet.WhitelistConfig[] memory whitelistConfig;
+
+        oftWrapperFacet.initOFTWrapper(chainIdConfig, whitelistConfig);
 
         oftWrapperFacet.addDex(address(uniswap));
         oftWrapperFacet.setFunctionApprovalBySignature(
@@ -148,7 +242,9 @@ contract OFTWrapperFacetTest is TestBaseFacet {
                 callerBps: 0,
                 caller: address(0),
                 partnerId: bytes2("")
-            })
+            }),
+            customCode_sendTokensCallData: "",
+            customCode_approveTo: address(0)
         });
 
         (uint256 fees, , , , ) = oftWrapperFacet.estimateOFTFeesAndAmountOut(
@@ -163,6 +259,27 @@ contract OFTWrapperFacetTest is TestBaseFacet {
         );
 
         oftWrapperData.lzFee = addToMessageValue = fees;
+
+        // add labels for better logs
+        vm.label(0x4Fa745FCCC04555F2AFA8874cd23961636CdF982, "agEUR_PROXY");
+        vm.label(
+            0xd735611AE930D2fd3788AAbf7696e6D8f664d15e,
+            "agEUR_PROXY_IMPL"
+        );
+        vm.label(0x1a7e4e63778B4f12a199C062f3eFdD288afCBce8, "agEUR_TOKEN");
+        vm.label(0x45e563c39cDdbA8699A90078F42353A57509543a, "OHM_PROXY");
+        vm.label(0x64aa3364F17a4D01c6f1751Fd97C2BD3D7e7f1D5, "OHM_TOKEN");
+        vm.label(0x4Fa745FCCC04555F2AFA8874cd23961636CdF982, "STG_TOKEN");
+        vm.label(0x66A71Dcef29A0fFBDBE3c6a460a3B5BC225Cd675, "lzEndpoint");
+        vm.label(0x3773E1E9Deb273fCdf9f80bc88bB387B1e6Ce34d, "TreasuryV2");
+        vm.label(
+            0x4D73AdB72bC3DD368966edD0f0b2148401A178E2,
+            "UltraLightNodeV2"
+        );
+        vm.label(
+            0x5a54fe5234E811466D5366846283323c954310B2,
+            "LayerZeroOracleV2"
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -366,8 +483,11 @@ contract OFTWrapperFacetTest is TestBaseFacet {
         chainIdConfig[0] = OFTWrapperFacet.ChainIdConfig(1, 101);
         chainIdConfig[1] = OFTWrapperFacet.ChainIdConfig(137, 109);
 
+        // create empty whitelistConfig
+        OFTWrapperFacet.WhitelistConfig[] memory whitelistConfig;
+
         vm.expectRevert(AlreadyInitialized.selector);
-        oftWrapperFacet.initOFTWrapper(chainIdConfig);
+        oftWrapperFacet.initOFTWrapper(chainIdConfig, whitelistConfig);
     }
 
     function test_revert_InitializeAsNonOwner() public {
@@ -400,12 +520,15 @@ contract OFTWrapperFacetTest is TestBaseFacet {
         chainIdConfig[0] = OFTWrapperFacet.ChainIdConfig(1, 101);
         chainIdConfig[1] = OFTWrapperFacet.ChainIdConfig(137, 109);
 
+        // create empty whitelistConfig
+        OFTWrapperFacet.WhitelistConfig[] memory whitelistConfig;
+
         oftWrapperFacet = TestOFTWrapperFacet(address(diamond2));
 
         vm.startPrank(USER_SENDER);
 
         vm.expectRevert(OnlyContractOwner.selector);
-        oftWrapperFacet.initOFTWrapper(chainIdConfig);
+        oftWrapperFacet.initOFTWrapper(chainIdConfig, whitelistConfig);
     }
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
@@ -422,6 +545,191 @@ contract OFTWrapperFacetTest is TestBaseFacet {
 
         bridgeData.minAmount = amount;
         oftWrapperData.minAmount = (amount * 90) / 100;
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    // test with OHM token - not able to get it passing
+    function test_CanBridgeWhitelistedCustomToken_OHM() public {
+        // deal tokens to user
+        deal(CUSTOM_TOKEN_OHM_ADDRESS, USER_SENDER, 100_000e8);
+
+        // add custom token (OHM) to whitelist
+        OFTWrapperFacet.WhitelistConfig[]
+            memory whitelistConfig = new OFTWrapperFacet.WhitelistConfig[](1);
+        whitelistConfig[0] = OFTWrapperFacet.WhitelistConfig(
+            CUSTOM_TOKEN_OHM_PROXY_ADDRESS,
+            true
+        );
+        oftWrapperFacet.batchWhitelist(whitelistConfig);
+
+        vm.startPrank(USER_SENDER);
+
+        // prepare oftWrapperData
+        oftWrapperData.proxyOFT = CUSTOM_TOKEN_OHM_PROXY_ADDRESS; // OHM Proxy on ETH
+        uint16 lzChainIdArbitrum = 110;
+        oftWrapperData
+            .customCode_approveTo = 0xa90bFe53217da78D900749eb6Ef513ee5b6a491e; // Olympus Minter contract
+        oftWrapperData.tokenType = OFTWrapperFacet.TokenType.CustomCodeOFT;
+        oftWrapperData.customCode_sendTokensCallData = abi.encodeWithSelector(
+            OhmProxyContract.sendOhm.selector,
+            lzChainIdArbitrum,
+            USER_SENDER,
+            bridgeData.minAmount
+        );
+        oftWrapperData.lzFee = addToMessageValue = 1000e12;
+
+        // update bridgeData
+        bridgeData.destinationChainId = 42161; // Arbitrum chainId
+        bridgeData.sendingAssetId = CUSTOM_TOKEN_OHM_ADDRESS; // OHM Token on ETH
+
+        // approval
+        customTokenOHM.approve(
+            _facetTestContractAddress,
+            bridgeData.minAmount
+        );
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    // test with agEUR token
+    function test_CanBridgeWhitelistedCustomToken_agEUR() public {
+        uint16 lzChainIdArbitrum = 110;
+
+        // deal tokens to user
+        deal(CUSTOM_TOKEN_agEUR_ADDRESS, USER_SENDER, 100_000e18);
+
+        // add custom token (agEUR) to whitelist
+        OFTWrapperFacet.WhitelistConfig[]
+            memory whitelistConfig = new OFTWrapperFacet.WhitelistConfig[](1);
+        whitelistConfig[0] = OFTWrapperFacet.WhitelistConfig(
+            CUSTOM_TOKEN_agEUR_PROXY_ADDRESS,
+            true
+        );
+        oftWrapperFacet.batchWhitelist(whitelistConfig);
+
+        // update bridgeData
+        bridgeData.destinationChainId = 42161; // Arbitrum chainId
+        bridgeData.sendingAssetId = CUSTOM_TOKEN_agEUR_ADDRESS; // agEUR Token on ETH
+        bridgeData.minAmount = 100e18;
+
+        // estimate sendFee
+        AgEurProxyContract agEurProxy = AgEurProxyContract(
+            CUSTOM_TOKEN_agEUR_PROXY_ADDRESS
+        );
+        (uint256 nativeFee, ) = agEurProxy.estimateSendFee(
+            lzChainIdArbitrum,
+            abi.encodePacked(bytes20(USER_SENDER)),
+            bridgeData.minAmount,
+            false,
+            oftWrapperData.adapterParams
+        );
+
+        vm.startPrank(USER_SENDER);
+
+        // prepare oftWrapperData
+        oftWrapperData.lzFee = addToMessageValue = nativeFee;
+        oftWrapperData.proxyOFT = CUSTOM_TOKEN_agEUR_PROXY_ADDRESS; // agEUR Proxy on ETH
+        oftWrapperData.tokenType = OFTWrapperFacet.TokenType.CustomCodeOFT;
+        oftWrapperData.customCode_sendTokensCallData = abi.encodeWithSelector(
+            AgEurProxyContract.send.selector,
+            lzChainIdArbitrum,
+            abi.encodePacked(bytes20(USER_SENDER)),
+            bridgeData.minAmount,
+            USER_SENDER,
+            address(0),
+            adapterParamsV1
+        );
+        oftWrapperData.customCode_approveTo = CUSTOM_TOKEN_agEUR_PROXY_ADDRESS;
+
+        // approval
+        ERC20 agEurToken = ERC20(CUSTOM_TOKEN_agEUR_ADDRESS);
+        agEurToken.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    // test with STG token
+    // TODO: this test needs to be fixed (nativeFee estimations returned by token contract are insufficient)
+    // waiting for response of lz team
+    function test_CanBridgeWhitelistedCustomToken_STG() public {
+        address CUSTOM_TOKEN_STG_ADDRESS = 0xAf5191B0De278C7286d6C7CC6ab6BB8A73bA2Cd6;
+
+        uint16 lzChainIdPolygon = 109;
+
+        // deal tokens to user
+        deal(CUSTOM_TOKEN_STG_ADDRESS, USER_SENDER, 100_000e18);
+
+        // add custom token (agEUR) to whitelist
+        OFTWrapperFacet.WhitelistConfig[]
+            memory whitelistConfig = new OFTWrapperFacet.WhitelistConfig[](1);
+        whitelistConfig[0] = OFTWrapperFacet.WhitelistConfig(
+            CUSTOM_TOKEN_STG_ADDRESS,
+            true
+        );
+        oftWrapperFacet.batchWhitelist(whitelistConfig);
+
+        // update bridgeData
+        bridgeData.destinationChainId = 137; // polygon chainId
+        bridgeData.sendingAssetId = CUSTOM_TOKEN_STG_ADDRESS; // STG Token on ETH
+        bridgeData.minAmount = 100e18;
+
+        // estimate sendFee
+        STGContract stgToken = STGContract(CUSTOM_TOKEN_STG_ADDRESS);
+        (uint256 nativeFee, ) = stgToken.estimateSendTokensFee(
+            lzChainIdPolygon, // 109
+            false,
+            adapterParamsV1 // 0x000100000000000000000000000000000000000000000000000000000000001e8480
+        );
+
+        console.log("nativeFee: ", nativeFee); // result (example): 651029113874149
+        // late on the test calls =>  TreasuryV2::getFees(false, 646376348505924, 4747807653363)
+        // from which I can derive that these fee values have been determined in the UltraLightNodeV2.send() function:
+        //      relayerFee: 646376348505924
+        //      oracleFee :   4747807653363
+        //           total: 651124156159287 (is less than the native fee estimated by estimateSendTokensFee function)
+
+        // get oracle fee
+        //uint256 oracleFee = LayerZeroOracleV2(oracleAddress).assignJob(_dstChainId, _uaConfig.outboundProofType, _uaConfig.outboundBlockConfirmations, _ua);
+
+        vm.startPrank(USER_SENDER);
+
+        // prepare oftWrapperData
+        //        oftWrapperData.lzFee = addToMessageValue = nativeFee + 1 ether; // this works //TODO remove
+        oftWrapperData.lzFee = addToMessageValue = nativeFee; // this does not work
+        oftWrapperData.proxyOFT = CUSTOM_TOKEN_STG_ADDRESS; // STG on ETH
+        oftWrapperData.tokenType = OFTWrapperFacet.TokenType.CustomCodeOFT;
+        oftWrapperData.customCode_sendTokensCallData = abi.encodeWithSelector(
+            STGContract.sendTokens.selector,
+            lzChainIdPolygon,
+            abi.encodePacked(bytes20(USER_SENDER)),
+            bridgeData.minAmount,
+            address(0),
+            adapterParamsV1
+        );
+        oftWrapperData.customCode_approveTo = CUSTOM_TOKEN_STG_ADDRESS;
+
+        // approval
+        ERC20 stgTokenERC20 = ERC20(CUSTOM_TOKEN_STG_ADDRESS);
+        stgTokenERC20.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
