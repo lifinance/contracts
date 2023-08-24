@@ -1,83 +1,76 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
-        "Name": "",
-        "Version": ""
+      "0x6faA6906b9e4A59020e673910105567e809789E0": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
       },
-      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
-        "Name": "",
-        "Version": ""
+      "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
       },
-      "0x2327f3FBeC98B836012639545bE35e6e8F83892a": {
-        "Name": "",
-        "Version": ""
+      "0x4bEAa5D26300e81cd17e0981fc15494Bb4B10959": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.0"
       },
-      "0x756061F9c646a755233c63f5bc6e7Ad0D3B54Fc3": {
-        "Name": "",
-        "Version": ""
+      "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
       },
-      "0x4f90dC98674a7bc597E70D1D4B8D72D75Be09732": {
-        "Name": "",
-        "Version": ""
+      "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
+        "Name": "CBridgeFacet",
+        "Version": "1.0.0"
       },
-      "0x8F1f3113DbF717A53eDFDdf3a7E4168E45Fd62F5": {
-        "Name": "",
-        "Version": ""
+      "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
       },
-      "0x3b2B473B2e390aAEB76FF00A4278045DA25e2Bfb": {
-        "Name": "",
-        "Version": ""
+      "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
       },
-      "0x7dB3E450d818cE91CeC519425385BCf8C4CFFda9": {
-        "Name": "",
-        "Version": ""
+      "0x02063A0d7a222c16D5b63213262596B83b07150c": {
+        "Name": "MultichainFacet",
+        "Version": "1.0.1"
       },
-      "0x8E4097eCfcc60F25fF2D7EE4d472ECa4A28a8425": {
-        "Name": "",
-        "Version": ""
+      "0xd84d9A8Bf830496C4DEc917bC27D22E09E01cB8A": {
+        "Name": "HopFacet",
+        "Version": "2.0.0"
       },
-      "0x6444cC208FB4f9059813Ad795faD0c07dB8793a2": {
-        "Name": "",
-        "Version": ""
+      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
       },
-      "0x26cDC2C58bDC2D3028A7a37F5D7e479eB7bf025C": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x0Cf028b3c8d4DFd8ddF59AB480d45C24BffBb8f2": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x1D8f23CfFda7c259A1A5d2Dc776309Acb3AFDa59": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
-        "Name": "",
-        "Version": ""
-      },
-      "0xbCe268B24155dF2a18982984e9716136278f38d6": {
-        "Name": "",
-        "Version": ""
+      "0x3C826D17B47DB69E1a9C1e32E10768d3709f1b9A": {
+        "Name": "OmniBridgeFacet",
+        "Version": "1.0.0"
       },
       "0xbd8D369470169f9976c5bCc60318955836843a71": {
         "Name": "AmarokFacet",
-        "Version": ""
-      },
-      "0xA57862295BdF8A680fda893B9bd3b935236d18bA": {
-        "Name": "HopFacetPacked",
         "Version": "1.0.1"
+      },
+      "0x6eF81a18E1E432C289DC0d1a670B78E8bbF9AA35": {
+        "Name": "HopFacetPacked",
+        "Version": "1.0.6"
+      },
+      "0x411F81f16FF40984ac8a4546f2Ad19e22704693F": {
+        "Name": "AmarokFacet",
+        "Version": "2.0.0"
+      },
+      "0xF4636c311bDfF2360D39B6e750C256A4e58Eb360": {
+        "Name": "GnosisBridgeL2Facet",
+        "Version": "1.0.0"
+      },
+      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
+        "Name": "HopFacetOptimized",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
-      "AxelarExecutor": "",
-      "ERC20Proxy": "0x856FF421D9b354ba1E909e26655E159F5Bd04F2E",
-      "Executor": "0xDD1305150D27aecc60C066630105DB419977e367",
+      "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+      "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
-      "FusePoolZap": "",
-      "Receiver": "0x74674DAFd6f4495e7F63F7637E94b8B89B2f01dB",
-      "RelayerCelerIM": "",
+      "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
   }
