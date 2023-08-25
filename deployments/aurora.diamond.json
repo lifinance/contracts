@@ -1,6 +1,14 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xc21a00a346d5b29955449Ca912343a3bB4c5552f": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
@@ -29,16 +37,16 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
-        "Name": "LIFuelFacet",
-        "Version": "1.0.0"
-      },
       "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
         "Name": "CelerIMFacetMutable",
         "Version": ""
       },
-      "0xc21a00a346d5b29955449Ca912343a3bB4c5552f": {
-        "Name": "DiamondLoupeFacet",
+      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
+      },
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       }
     },

@@ -1,6 +1,14 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
+        "Name": "",
+        "Version": ""
+      },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
@@ -41,6 +49,10 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
+      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
+        "Name": "HopFacetOptimized",
+        "Version": "2.0.0"
+      },
       "0x3d5F2cC1A2a05448C0d8Fcd628E2b53d93DC12e4": {
         "Name": "StargateFacet",
         "Version": "2.0.0"
@@ -73,13 +85,17 @@
         "Name": "HopFacetPacked",
         "Version": "1.0.1"
       },
+      "0x62dE2C0a71cd722bF3e6f9a8470887319b1c7B20": {
+        "Name": "",
+        "Version": ""
+      },
       "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
       },
-      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
-        "Name": "HopFacetOptimized",
-        "Version": "2.0.0"
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

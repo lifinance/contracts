@@ -1,6 +1,10 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+        "Name": "",
+        "Version": ""
+      },
       "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
         "Name": "HopFacetOptimized",
         "Version": "2.0.0"
@@ -87,6 +91,10 @@
       },
       "0xc21a00a346d5b29955449Ca912343a3bB4c5552f": {
         "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       }
     },

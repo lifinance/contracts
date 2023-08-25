@@ -48,6 +48,10 @@
       "0x02063A0d7a222c16D5b63213262596B83b07150c": {
         "Name": "MultichainFacet",
         "Version": "1.0.1"
+      },
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

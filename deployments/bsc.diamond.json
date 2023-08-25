@@ -1,6 +1,14 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
+        "Name": "",
+        "Version": ""
+      },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
@@ -16,6 +24,10 @@
       "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
+      },
+      "0xC0c42d148241c5b5BB38e974d40Fc9087f7F9ecD": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.0.0"
       },
       "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
         "Name": "CBridgeFacet",
@@ -33,6 +45,10 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
+      "0x3C826D17B47DB69E1a9C1e32E10768d3709f1b9A": {
+        "Name": "OmniBridgeFacet",
+        "Version": "1.0.0"
+      },
       "0x3d5F2cC1A2a05448C0d8Fcd628E2b53d93DC12e4": {
         "Name": "StargateFacet",
         "Version": "2.0.0"
@@ -41,32 +57,28 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
+      "0x3a60730cbcD91715E31830f125bB3eF1FA0a2c66": {
+        "Name": "",
+        "Version": ""
+      },
       "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
-      },
-      "0xbd8D369470169f9976c5bCc60318955836843a71": {
-        "Name": "AmarokFacet",
-        "Version": "1.0.1"
-      },
-      "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.3"
-      },
-      "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
-        "Name": "CelerIMFacetMutable",
-        "Version": ""
-      },
-      "0xC0c42d148241c5b5BB38e974d40Fc9087f7F9ecD": {
-        "Name": "AllBridgeFacet",
-        "Version": "2.0.0"
       },
       "0x411F81f16FF40984ac8a4546f2Ad19e22704693F": {
         "Name": "AmarokFacet",
         "Version": "2.0.0"
       },
-      "0x3C826D17B47DB69E1a9C1e32E10768d3709f1b9A": {
-        "Name": "OmniBridgeFacet",
+      "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
+        "Name": "CelerIMFacetMutable",
+        "Version": ""
+      },
+      "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
+        "Name": "CBridgeFacetPacked",
+        "Version": "1.0.3"
+      },
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       }
     },

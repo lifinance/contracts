@@ -1,6 +1,14 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
+        "Name": "",
+        "Version": ""
+      },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
@@ -16,6 +24,14 @@
       "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
+      },
+      "0x0b5726b7348efBdA8620D5C374F85Cbe8f040B6a": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x411F81f16FF40984ac8a4546f2Ad19e22704693F": {
+        "Name": "AmarokFacet",
+        "Version": "2.0.0"
       },
       "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
         "Name": "CBridgeFacet",
@@ -37,9 +53,17 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
+      "0xBeE13d99dD633fEAa2a0935f00CbC859F8305FA7": {
+        "Name": "AcrossFacet",
+        "Version": "2.0.0"
+      },
       "0x3C826D17B47DB69E1a9C1e32E10768d3709f1b9A": {
         "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
+      },
+      "0x87C10910DA7258E55dA2C5d43739fB68B12E6a4b": {
+        "Name": "",
+        "Version": ""
       },
       "0xF609fdBA8f7A020975a7c82C82f6A1f526F9A8fC": {
         "Name": "PolygonBridgeFacet",
@@ -61,6 +85,10 @@
         "Name": "HopFacet",
         "Version": "2.0.0"
       },
+      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
+        "Name": "HopFacetOptimized",
+        "Version": "2.0.0"
+      },
       "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
@@ -69,9 +97,9 @@
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
       },
-      "0xbd8D369470169f9976c5bCc60318955836843a71": {
-        "Name": "AmarokFacet",
-        "Version": "1.0.1"
+      "0xC0c42d148241c5b5BB38e974d40Fc9087f7F9ecD": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.0.0"
       },
       "0x6eF81a18E1E432C289DC0d1a670B78E8bbF9AA35": {
         "Name": "HopFacetPacked",
@@ -85,21 +113,9 @@
         "Name": "CelerIMFacetMutable",
         "Version": ""
       },
-      "0xBeE13d99dD633fEAa2a0935f00CbC859F8305FA7": {
-        "Name": "AcrossFacet",
-        "Version": "2.0.0"
-      },
-      "0xC0c42d148241c5b5BB38e974d40Fc9087f7F9ecD": {
-        "Name": "AllBridgeFacet",
-        "Version": "2.0.0"
-      },
-      "0x411F81f16FF40984ac8a4546f2Ad19e22704693F": {
-        "Name": "AmarokFacet",
-        "Version": "2.0.0"
-      },
-      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
-        "Name": "HopFacetOptimized",
-        "Version": "2.0.0"
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
