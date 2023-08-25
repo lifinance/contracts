@@ -6,12 +6,17 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { AmarokFacet } from "./AmarokFacet.sol";
 import { StargateFacet } from "./StargateFacet.sol";
 import { CelerIMFacetBase, CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
+import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
+import { console } from "../../lib/forge-std/src/console.sol";
+import { LibBytes } from "../Libraries/LibBytes.sol";
 
 /// @title Calldata Verification Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
 /// @custom:version 1.0.1
 contract CalldataVerificationFacet {
+    using LibBytes for bytes;
+
     /// @notice Extracts the bridge data from the calldata
     /// @param data The calldata to extract the bridge data from
     /// @return bridgeData The bridge data extracted from the calldata
@@ -287,6 +292,17 @@ contract CalldataVerificationFacet {
     function _extractBridgeData(
         bytes calldata data
     ) internal pure returns (ILiFi.BridgeData memory bridgeData) {
+        if (
+            abi.decode(data, (bytes4)) ==
+            StandardizedCallFacet.standardizedCall.selector
+        ) {
+            bytes memory unwrappedData = abi.decode(data[4:], (bytes));
+            bridgeData = abi.decode(
+                unwrappedData.slice(4, unwrappedData.length - 4),
+                (ILiFi.BridgeData)
+            );
+            return bridgeData;
+        }
         bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
     }
 
@@ -296,6 +312,17 @@ contract CalldataVerificationFacet {
     function _extractSwapData(
         bytes calldata data
     ) internal pure returns (LibSwap.SwapData[] memory swapData) {
+        if (
+            abi.decode(data, (bytes4)) ==
+            StandardizedCallFacet.standardizedCall.selector
+        ) {
+            bytes memory unwrappedData = abi.decode(data[4:], (bytes));
+            (, swapData) = abi.decode(
+                unwrappedData.slice(4, unwrappedData.length - 4),
+                (ILiFi.BridgeData, LibSwap.SwapData[])
+            );
+            return swapData;
+        }
         (, swapData) = abi.decode(
             data[4:],
             (ILiFi.BridgeData, LibSwap.SwapData[])

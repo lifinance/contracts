@@ -5,6 +5,7 @@ import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet
 import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
+import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { CelerIM, CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
@@ -51,7 +52,18 @@ contract CallVerificationFacetTest is TestBase {
             swapData
         );
 
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
         bytes memory fullCalldata = bytes.concat(callData, "extra stuff");
+        calldataVerificationFacet.extractBridgeData(fullCalldata);
+        calldataVerificationFacet.extractSwapData(fullCalldata);
+        calldataVerificationFacet.extractData(fullCalldata);
+        calldataVerificationFacet.extractMainParameters(fullCalldata);
+
+        fullCalldata = bytes.concat(standardizedCallData, "extra stuff");
         calldataVerificationFacet.extractBridgeData(fullCalldata);
         calldataVerificationFacet.extractSwapData(fullCalldata);
         calldataVerificationFacet.extractData(fullCalldata);
@@ -81,6 +93,18 @@ contract CallVerificationFacetTest is TestBase {
             .extractSwapData(callData);
 
         checkSwapData(returnedData);
+
+        // standardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        returnedData = calldataVerificationFacet.extractSwapData(
+            standardizedCallData
+        );
+
+        checkSwapData(returnedData);
     }
 
     function test_CanExtractBridgeAndSwapData() public {
@@ -98,6 +122,17 @@ contract CallVerificationFacetTest is TestBase {
 
         checkBridgeData(returnedBridgeData);
         checkSwapData(returnedSwapData);
+
+        // standardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+        (returnedBridgeData, returnedSwapData) = calldataVerificationFacet
+            .extractData(standardizedCallData);
+
+        checkBridgeData(returnedBridgeData);
+        checkSwapData(returnedSwapData);
     }
 
     function test_CanExtractBridgeAndSwapDataNoSwaps() public {
@@ -110,6 +145,17 @@ contract CallVerificationFacetTest is TestBase {
             ILiFi.BridgeData memory returnedBridgeData,
             LibSwap.SwapData[] memory returnedSwapData
         ) = calldataVerificationFacet.extractData(callData);
+
+        checkBridgeData(returnedBridgeData);
+        assertEq(returnedSwapData.length, 0);
+
+        // standardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+        (returnedBridgeData, returnedSwapData) = calldataVerificationFacet
+            .extractData(standardizedCallData);
 
         checkBridgeData(returnedBridgeData);
         assertEq(returnedSwapData.length, 0);
@@ -130,6 +176,32 @@ contract CallVerificationFacetTest is TestBase {
             bool hasSourceSwaps,
             bool hasDestinationCall
         ) = calldataVerificationFacet.extractMainParameters(callData);
+
+        assertEq(bridge, bridgeData.bridge);
+        assertEq(receiver, bridgeData.receiver);
+        assertEq(sendingAssetId, bridgeData.sendingAssetId);
+        assertEq(minAmount, bridgeData.minAmount);
+        assertEq(destinationChainId, bridgeData.destinationChainId);
+        assertEq(hasSourceSwaps, bridgeData.hasSourceSwaps);
+        assertEq(hasDestinationCall, bridgeData.hasDestinationCall);
+
+        // standardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        (
+            bridge,
+            sendingAssetId,
+            receiver,
+            minAmount,
+            destinationChainId,
+            hasSourceSwaps,
+            hasDestinationCall
+        ) = calldataVerificationFacet.extractMainParameters(
+            standardizedCallData
+        );
 
         assertEq(bridge, bridgeData.bridge);
         assertEq(receiver, bridgeData.receiver);
