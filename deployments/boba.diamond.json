@@ -1,14 +1,6 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
-        "Name": "",
-        "Version": ""
-      },
-      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
-        "Name": "",
-        "Version": ""
-      },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
@@ -24,10 +16,6 @@
       "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
-      },
-      "0x6622D02754559BF2A6A4f5cc3469846900Dcd395": {
-        "Name": "",
-        "Version": ""
       },
       "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
         "Name": "CBridgeFacet",
