@@ -88,6 +88,10 @@
       "0xc21a00a346d5b29955449Ca912343a3bB4c5552f": {
         "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
+      },
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

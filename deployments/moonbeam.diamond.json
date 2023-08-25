@@ -1,10 +1,6 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0x6faA6906b9e4A59020e673910105567e809789E0": {
-        "Name": "OwnershipFacet",
-        "Version": "1.0.0"
-      },
       "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
@@ -15,6 +11,10 @@
       },
       "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
         "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
+        "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
       "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
@@ -33,13 +33,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
-        "Name": "LIFuelFacet",
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
-      },
-      "0xbd8D369470169f9976c5bCc60318955836843a71": {
-        "Name": "AmarokFacet",
-        "Version": "2.0.0"
       }
     },
     "Periphery": {
@@ -48,7 +44,7 @@
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
       "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": ""
+      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
   }
 }
