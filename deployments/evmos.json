@@ -17,5 +17,6 @@
   "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
   "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
   "LIFuelFacet": "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF",
-  "LiFiDiamondImmutable": "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF"
+  "LiFiDiamondImmutable": "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF",
+  "StandardizedCallFacet": "0x2E61751366B7e006f8D53becB4b697890B30144F"
 }

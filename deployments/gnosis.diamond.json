@@ -33,6 +33,10 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
+      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
+        "Name": "HopFacetOptimized",
+        "Version": "2.0.0"
+      },
       "0xd84d9A8Bf830496C4DEc917bC27D22E09E01cB8A": {
         "Name": "HopFacet",
         "Version": "2.0.0"
@@ -41,29 +45,25 @@
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
+      "0xF4636c311bDfF2360D39B6e750C256A4e58Eb360": {
+        "Name": "GnosisBridgeL2Facet",
+        "Version": "1.0.0"
+      },
       "0x3C826D17B47DB69E1a9C1e32E10768d3709f1b9A": {
         "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
-      },
-      "0xbd8D369470169f9976c5bCc60318955836843a71": {
-        "Name": "AmarokFacet",
-        "Version": "1.0.1"
-      },
-      "0x6eF81a18E1E432C289DC0d1a670B78E8bbF9AA35": {
-        "Name": "HopFacetPacked",
-        "Version": "1.0.6"
       },
       "0x411F81f16FF40984ac8a4546f2Ad19e22704693F": {
         "Name": "AmarokFacet",
         "Version": "2.0.0"
       },
-      "0xF4636c311bDfF2360D39B6e750C256A4e58Eb360": {
-        "Name": "GnosisBridgeL2Facet",
-        "Version": "1.0.0"
+      "0x6eF81a18E1E432C289DC0d1a670B78E8bbF9AA35": {
+        "Name": "HopFacetPacked",
+        "Version": "1.0.6"
       },
-      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
-        "Name": "HopFacetOptimized",
-        "Version": "2.0.0"
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -71,6 +71,7 @@
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
       "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
+      "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
   }

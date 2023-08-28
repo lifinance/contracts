@@ -39,6 +39,10 @@
       },
       "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
         "Name": "CelerIMFacetMutable",
+        "Version": ""
+      },
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       }
     },
