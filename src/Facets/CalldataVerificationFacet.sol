@@ -7,7 +7,6 @@ import { AmarokFacet } from "./AmarokFacet.sol";
 import { StargateFacet } from "./StargateFacet.sol";
 import { CelerIMFacetBase, CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
-import { console } from "../../lib/forge-std/src/console.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
 
 /// @title Calldata Verification Facet
@@ -122,23 +121,20 @@ contract CalldataVerificationFacet {
         )
     {
         LibSwap.SwapData[] memory swapData;
+        bytes memory callData = data;
+
         if (
             abi.decode(data, (bytes4)) ==
             StandardizedCallFacet.standardizedCall.selector
         ) {
             // standardizedCall
-            bytes memory unwrappedData = abi.decode(data[4:], (bytes));
-            (, , , receiver, receivingAmount, swapData) = abi.decode(
-                unwrappedData.slice(4, unwrappedData.length - 4),
-                (bytes32, string, string, address, uint256, LibSwap.SwapData[])
-            );
-        } else {
-            // normal call
-            (, , , receiver, receivingAmount, swapData) = abi.decode(
-                data[4:],
-                (bytes32, string, string, address, uint256, LibSwap.SwapData[])
-            );
+            callData = abi.decode(data[4:], (bytes));
         }
+        (, , , receiver, receivingAmount, swapData) = abi.decode(
+            callData.slice(4, callData.length - 4),
+            (bytes32, string, string, address, uint256, LibSwap.SwapData[])
+        );
+
         sendingAssetId = swapData[0].sendingAssetId;
         amount = swapData[0].fromAmount;
         receivingAssetId = swapData[swapData.length - 1].receivingAssetId;

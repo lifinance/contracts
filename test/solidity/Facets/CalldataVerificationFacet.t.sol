@@ -380,10 +380,10 @@ contract CallVerificationFacetTest is TestBase {
     function test_CanValidateAmarokDestinationCalldata() public {
         AmarokFacet.AmarokData memory amarokData = AmarokFacet.AmarokData({
             callData: bytes("foobarbytes"),
-            callTo: address(0xdeadbeef),
+            callTo: USER_RECEIVER,
             relayerFee: 0,
             slippageTol: 0,
-            delegate: address(0xdeadbeef),
+            delegate: USER_RECEIVER,
             destChainDomainId: 1234,
             payFeeWithSendingAsset: false
         });
@@ -403,19 +403,19 @@ contract CallVerificationFacetTest is TestBase {
 
         bool validCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("foobarbytes")
         );
         bool validCallWithSwap = calldataVerificationFacet
             .validateDestinationCalldata(
                 callDataWithSwap,
-                abi.encode(address(0xdeadbeef)),
+                abi.encode(USER_RECEIVER),
                 bytes("foobarbytes")
             );
 
         bool badCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("badbytes")
         );
 
@@ -435,19 +435,19 @@ contract CallVerificationFacetTest is TestBase {
 
         validCall = calldataVerificationFacet.validateDestinationCalldata(
             standardizedCallData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("foobarbytes")
         );
         validCallWithSwap = calldataVerificationFacet
             .validateDestinationCalldata(
                 standardizedCallDataWithSwap,
-                abi.encode(address(0xdeadbeef)),
+                abi.encode(USER_RECEIVER),
                 bytes("foobarbytes")
             );
 
         badCall = calldataVerificationFacet.validateDestinationCalldata(
             standardizedCallData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("badbytes")
         );
 
@@ -464,7 +464,7 @@ contract CallVerificationFacetTest is TestBase {
             dstGasForCall: 4,
             lzFee: 5,
             refundAddress: payable(address(0x1234)),
-            callTo: abi.encode(address(0xdeadbeef)),
+            callTo: abi.encode(USER_RECEIVER),
             callData: bytes("foobarbytes")
         });
 
@@ -483,19 +483,19 @@ contract CallVerificationFacetTest is TestBase {
 
         bool validCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("foobarbytes")
         );
         bool validCallWithSwap = calldataVerificationFacet
             .validateDestinationCalldata(
                 callDataWithSwap,
-                abi.encode(address(0xdeadbeef)),
+                abi.encode(USER_RECEIVER),
                 bytes("foobarbytes")
             );
 
         bool badCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("badbytes")
         );
 
@@ -516,19 +516,19 @@ contract CallVerificationFacetTest is TestBase {
 
         validCall = calldataVerificationFacet.validateDestinationCalldata(
             standardizedCallData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("foobarbytes")
         );
         validCallWithSwap = calldataVerificationFacet
             .validateDestinationCalldata(
                 standardizedCallDataWithSwap,
-                abi.encode(address(0xdeadbeef)),
+                abi.encode(USER_RECEIVER),
                 bytes("foobarbytes")
             );
 
         badCall = calldataVerificationFacet.validateDestinationCalldata(
             standardizedCallData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("badbytes")
         );
 
@@ -541,7 +541,7 @@ contract CallVerificationFacetTest is TestBase {
         CelerIM.CelerIMData memory cimData = CelerIM.CelerIMData({
             maxSlippage: 1,
             nonce: 2,
-            callTo: abi.encode(address(0xdeadbeef)),
+            callTo: abi.encode(USER_RECEIVER),
             callData: bytes("foobarbytes"),
             messageBusFee: 3,
             bridgeType: MsgDataTypes.BridgeSendType.Liquidity
@@ -562,19 +562,19 @@ contract CallVerificationFacetTest is TestBase {
 
         bool validCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("foobarbytes")
         );
         bool validCallWithSwap = calldataVerificationFacet
             .validateDestinationCalldata(
                 callDataWithSwap,
-                abi.encode(address(0xdeadbeef)),
+                abi.encode(USER_RECEIVER),
                 bytes("foobarbytes")
             );
 
         bool badCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("badbytes")
         );
 
@@ -595,19 +595,19 @@ contract CallVerificationFacetTest is TestBase {
 
         validCall = calldataVerificationFacet.validateDestinationCalldata(
             standardizedCallData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("foobarbytes")
         );
         validCallWithSwap = calldataVerificationFacet
             .validateDestinationCalldata(
                 standardizedCallDataWithSwap,
-                abi.encode(address(0xdeadbeef)),
+                abi.encode(USER_RECEIVER),
                 bytes("foobarbytes")
             );
 
         badCall = calldataVerificationFacet.validateDestinationCalldata(
             standardizedCallData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("badbytes")
         );
 
