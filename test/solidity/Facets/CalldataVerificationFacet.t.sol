@@ -239,6 +239,31 @@ contract CallVerificationFacetTest is TestBase {
             swapData[swapData.length - 1].receivingAssetId
         );
         assertEq(receivingAmount, 1 ether);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        (
+            sendingAssetId,
+            amount,
+            receiver,
+            receivingAssetId,
+            receivingAmount
+        ) = calldataVerificationFacet.extractGenericSwapParameters(
+            standardizedCallData
+        );
+
+        assertEq(sendingAssetId, swapData[0].sendingAssetId);
+        assertEq(amount, swapData[0].fromAmount);
+        assertEq(receiver, address(1234));
+        assertEq(
+            receivingAssetId,
+            swapData[swapData.length - 1].receivingAssetId
+        );
+        assertEq(receivingAmount, 1 ether);
     }
 
     function test_CanExtractMainParametersWithSwap() public {
@@ -258,6 +283,31 @@ contract CallVerificationFacetTest is TestBase {
             bool hasSourceSwaps,
             bool hasDestinationCall
         ) = calldataVerificationFacet.extractMainParameters(callData);
+
+        assertEq(bridge, bridgeData.bridge);
+        assertEq(receiver, bridgeData.receiver);
+        assertEq(sendingAssetId, swapData[0].sendingAssetId);
+        assertEq(minAmount, swapData[0].fromAmount);
+        assertEq(destinationChainId, bridgeData.destinationChainId);
+        assertEq(hasSourceSwaps, bridgeData.hasSourceSwaps);
+        assertEq(hasDestinationCall, bridgeData.hasDestinationCall);
+
+        // standardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+        (
+            bridge,
+            sendingAssetId,
+            receiver,
+            minAmount,
+            destinationChainId,
+            hasSourceSwaps,
+            hasDestinationCall
+        ) = calldataVerificationFacet.extractMainParameters(
+            standardizedCallData
+        );
 
         assertEq(bridge, bridgeData.bridge);
         assertEq(receiver, bridgeData.receiver);
@@ -286,6 +336,35 @@ contract CallVerificationFacetTest is TestBase {
         );
         bool invalidCall = calldataVerificationFacet.validateCalldata(
             callData,
+            bridgeData.bridge,
+            bridgeData.sendingAssetId,
+            address(0xb33f),
+            bridgeData.minAmount,
+            bridgeData.destinationChainId,
+            bridgeData.hasSourceSwaps,
+            bridgeData.hasDestinationCall
+        );
+        assertTrue(validCall);
+        assertFalse(invalidCall);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        validCall = calldataVerificationFacet.validateCalldata(
+            standardizedCallData,
+            bridgeData.bridge,
+            bridgeData.sendingAssetId,
+            bridgeData.receiver,
+            bridgeData.minAmount,
+            bridgeData.destinationChainId,
+            bridgeData.hasSourceSwaps,
+            bridgeData.hasDestinationCall
+        );
+        invalidCall = calldataVerificationFacet.validateCalldata(
+            standardizedCallData,
             bridgeData.bridge,
             bridgeData.sendingAssetId,
             address(0xb33f),
@@ -343,6 +422,38 @@ contract CallVerificationFacetTest is TestBase {
         assertTrue(validCall);
         assertTrue(validCallWithSwap);
         assertFalse(badCall);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+        bytes memory standardizedCallDataWithSwap = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callDataWithSwap
+        );
+
+        validCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(address(0xdeadbeef)),
+            bytes("foobarbytes")
+        );
+        validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                standardizedCallDataWithSwap,
+                abi.encode(address(0xdeadbeef)),
+                bytes("foobarbytes")
+            );
+
+        badCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(address(0xdeadbeef)),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
     }
 
     function test_CanValidateStargateDestinationCalldata() public {
@@ -391,6 +502,39 @@ contract CallVerificationFacetTest is TestBase {
         assertTrue(validCall);
         assertTrue(validCallWithSwap);
         assertFalse(badCall);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        bytes memory standardizedCallDataWithSwap = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callDataWithSwap
+        );
+
+        validCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(address(0xdeadbeef)),
+            bytes("foobarbytes")
+        );
+        validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                standardizedCallDataWithSwap,
+                abi.encode(address(0xdeadbeef)),
+                bytes("foobarbytes")
+            );
+
+        badCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(address(0xdeadbeef)),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
     }
 
     function test_CanValidateCelerIMDestinationCalldata() public {
@@ -430,6 +574,39 @@ contract CallVerificationFacetTest is TestBase {
 
         bool badCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
+            abi.encode(address(0xdeadbeef)),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        bytes memory standardizedCallDataWithSwap = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        validCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(address(0xdeadbeef)),
+            bytes("foobarbytes")
+        );
+        validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                standardizedCallDataWithSwap,
+                abi.encode(address(0xdeadbeef)),
+                bytes("foobarbytes")
+            );
+
+        badCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
             abi.encode(address(0xdeadbeef)),
             bytes("badbytes")
         );
