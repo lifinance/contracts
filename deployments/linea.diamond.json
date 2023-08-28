@@ -44,6 +44,10 @@
       "0x21972996244aa8E469F5b4c8658e9546af259683": {
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
+      },
+      "0xC543CEdA9362748Be1EEC5c82B4d91845F725a7b": {
+        "Name": "StandardizedCallFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
