@@ -2274,9 +2274,9 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc",
+            "ADDRESS": "0xFf296c17499C8eda2DdF61db580149bB819C804A",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-07-25 19:01:05",
+            "TIMESTAMP": "2023-08-29 17:08:30",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false"
@@ -12461,6 +12461,246 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "CalldataVerificationFacet": {
+    "arbitrum": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 16:13:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "aurora": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 16:15:23",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "avalanche": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 16:48:29",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "base": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 16:49:19",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "bsc": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 16:50:12",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "boba": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 16:50:13",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "evmos": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 16:51:15",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "fantom": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 16:51:41",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "fuse": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 17:00:21",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "gnosis": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 17:00:25",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "moonriver": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 17:00:47",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "moonbeam": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 17:01:12",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "optimism": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 17:07:58",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "okx": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 17:08:00",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 17:08:22",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "polygonzkevm": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 17:09:43",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "velas": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-29 17:11:24",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
