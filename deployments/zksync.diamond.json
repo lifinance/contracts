@@ -24,6 +24,10 @@
       "0x7dEfADC99d3E3f5f8d0C7dCFA7D2495B898ef5D8": {
         "Name": "AcrossFacet",
         "Version": "2.0.0"
+      },
+      "0x587B5B33D935F06a41D9fb7197C36c4411D05a96": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

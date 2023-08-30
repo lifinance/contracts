@@ -28,8 +28,8 @@ export default func
 func.id = 'deploy_across_facet'
 func.tags = ['DeployAcrossFacet']
 func.dependencies = [
-  // 'InitialFacets',
-  // diamondContractName,
-  // 'InitFacets',
-  // 'DeployDexManagerFacet',
+  'InitialFacets',
+  diamondContractName,
+  'InitFacets',
+  'DeployDexManagerFacet',
 ]

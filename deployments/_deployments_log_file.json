@@ -4975,6 +4975,19 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x587B5B33D935F06a41D9fb7197C36c4411D05a96",
+            "OPTIMIZER_RUNS": "10000",
+            "TIMESTAMP": "2023-08-30 14:32:33",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "HopFacetOptimized": {
