@@ -165,15 +165,6 @@
       }
     }
   },
-  "GravityFacet": {
-    "configData": {
-      "_router": {
-        "configFileName": "gravity.json",
-        "keyInConfigFile": ".<NETWORK>.gravityRouter",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "HopFacet": {
     "configData": {
       "_router": {
@@ -239,15 +230,6 @@
       }
     }
   },
-  "OFTWrapperFacet": {
-    "configData": {
-      "_oftWrapper": {
-        "configFileName": "oftwrapper.json",
-        "keyInConfigFile": ".wrappers.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "OmniBridgeFacet": {
     "configData": {
       "_foreignOmniBridge": {
@@ -290,24 +272,6 @@
       }
     }
   },
-  "RoninBridgeFacet": {
-    "configData": {
-      "_gateway": {
-        "configFileName": "ronin.json",
-        "keyInConfigFile": ".<NETWORK>.gateway",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "SquidFacet": {
-    "configData": {
-      "_squidRouter": {
-        "configFileName": "squid.json",
-        "keyInConfigFile": ".<NETWORK>.router",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "StargateFacet": {
     "configData": {
       "_router": {
@@ -322,15 +286,6 @@
       "_synapseRouter": {
         "configFileName": "synapse.json",
         "keyInConfigFile": ".<NETWORK>.router",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "ThorSwapFacet": {
-    "configData": {
-      "_thorchainRouter": {
-        "configFileName": "thorswap.json",
-        "keyInConfigFile": ".<NETWORK>.thorchainRouter",
         "allowToDeployWithZeroAddress": "false"
       }
     }

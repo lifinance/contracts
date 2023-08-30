@@ -8,16 +8,8 @@ contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("AccessManagerFacet") {}
 
     function run() public returns (AccessManagerFacet deployed) {
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return AccessManagerFacet(predicted);
-        }
-
         deployed = AccessManagerFacet(
-            factory.deploy(salt, type(AccessManagerFacet).creationCode)
+            deploy(type(AccessManagerFacet).creationCode)
         );
-
-        vm.stopBroadcast();
     }
 }

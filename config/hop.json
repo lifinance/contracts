@@ -233,6 +233,61 @@
       }
     ]
   },
+  "base": {
+    "chainId": 8453,
+    "tokens": [
+      {
+        "name": "USDC",
+        "bridge": "0x46ae9BaB8CEA96610807a275EBD36f8e916b5C61",
+        "token": "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA",
+        "ammWrapper": "0x7D269D3E0d61A05a0bA976b7DBF8805bF844AF3F"
+      },
+      {
+        "name": "ETH",
+        "bridge": "0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a",
+        "token": "0x4200000000000000000000000000000000000006",
+        "ammWrapper": "0x10541b07d8Ad2647Dc6cD67abd4c03575dade261"
+      },
+      {
+        "name": "HOP",
+        "bridge": "0xe22D2beDb3Eca35E6397e0C6D62857094aA26F52",
+        "token": "0xc5102fE9359FD9a28f877a67E36B0F050d81a3CC",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      }
+    ],
+    "approvals": [
+      {
+        "a_tokenAddress": "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA",
+        "b_contractAddress": "0x7D269D3E0d61A05a0bA976b7DBF8805bF844AF3F",
+        "c_tokenName": "USDC",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA",
+        "b_contractAddress": "0x022C5cE6F1Add7423268D41e08Df521D5527C2A0",
+        "c_tokenName": "USDC",
+        "d_contractName": "l2SaddleSwap"
+      },
+      {
+        "a_tokenAddress": "0x4200000000000000000000000000000000000006",
+        "b_contractAddress": "0x10541b07d8Ad2647Dc6cD67abd4c03575dade261",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0x4200000000000000000000000000000000000006",
+        "b_contractAddress": "0x0ce6c85cF43553DE10FC56cecA0aef6Ff0DD444d",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2SaddleSwap"
+      },
+      {
+        "a_tokenAddress": "0xc5102fE9359FD9a28f877a67E36B0F050d81a3CC",
+        "b_contractAddress": "0xe22D2beDb3Eca35E6397e0C6D62857094aA26F52",
+        "c_tokenName": "HOP",
+        "d_contractName": "l2Bridge"
+      }
+    ]
+  },
   "gnosis": {
     "chainId": 100,
     "tokens": [

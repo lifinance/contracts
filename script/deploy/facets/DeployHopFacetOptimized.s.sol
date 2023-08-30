@@ -8,16 +8,8 @@ contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("HopFacetOptimized") {}
 
     function run() public returns (HopFacetOptimized deployed) {
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return HopFacetOptimized(predicted);
-        }
-
         deployed = HopFacetOptimized(
-            factory.deploy(salt, type(HopFacetOptimized).creationCode)
+            deploy(type(HopFacetOptimized).creationCode)
         );
-
-        vm.stopBroadcast();
     }
 }

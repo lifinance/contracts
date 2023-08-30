@@ -8,16 +8,6 @@ contract DeployScript is DeployScriptBase {
     constructor() DeployScriptBase("DexManagerFacet") {}
 
     function run() public returns (DexManagerFacet deployed) {
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return DexManagerFacet(predicted);
-        }
-
-        deployed = DexManagerFacet(
-            factory.deploy(salt, type(DexManagerFacet).creationCode)
-        );
-
-        vm.stopBroadcast();
+        deployed = DexManagerFacet(deploy(type(DexManagerFacet).creationCode));
     }
 }

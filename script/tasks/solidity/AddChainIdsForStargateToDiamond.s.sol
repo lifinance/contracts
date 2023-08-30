@@ -23,7 +23,7 @@ contract DeployScript is UpdateScriptBase {
         // load config
         path = string.concat(root, "/config/stargate.json");
         json = vm.readFile(path);
-        bytes memory rawChains = json.parseRaw(string.concat(".chains"));
+        bytes memory rawChains = json.parseRaw(".chains");
         ChainIdConfig[] memory cidCfg = abi.decode(
             rawChains,
             (ChainIdConfig[])

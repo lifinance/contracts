@@ -11,21 +11,12 @@ contract DeployScript is DeployScriptBase {
         public
         returns (ERC20Proxy deployed, bytes memory constructorArgs)
     {
-        constructorArgs = abi.encode(deployerAddress);
+        constructorArgs = getConstructorArgs();
 
-        vm.startBroadcast(deployerPrivateKey);
+        deployed = ERC20Proxy(deploy(type(ERC20Proxy).creationCode));
+    }
 
-        if (isDeployed()) {
-            return (ERC20Proxy(predicted), constructorArgs);
-        }
-
-        deployed = ERC20Proxy(
-            factory.deploy(
-                salt,
-                bytes.concat(type(ERC20Proxy).creationCode, constructorArgs)
-            )
-        );
-
-        vm.stopBroadcast();
+    function getConstructorArgs() internal override returns (bytes memory) {
+        return abi.encode(deployerAddress);
     }
 }
