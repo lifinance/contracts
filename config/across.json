@@ -26,5 +26,9 @@
   "mumbai": {
     "acrossSpokePool": "0x45fF03629D024b7763275e732a2d80202c18b31C",
     "weth": "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889"
+  },
+  "zksync": {
+    "acrossSpokePool": "0xE0B015E54d54fc84a6cB9B666099c46adE9335FF",
+    "weth": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
   }
 }
