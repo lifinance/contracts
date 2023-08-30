@@ -12704,6 +12704,20 @@
           }
         ]
       }
+    },
+    "mainnet": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-30 10:46:16",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   }
 }
