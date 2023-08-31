@@ -9963,6 +9963,20 @@
           }
         ]
       }
+    },
+    "optimism": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x16d7Cff1992F17E46fa98284CCaAC1A19788B6B9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-08-31 12:35:19",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000697ac93c9263346c5ad0412f9356d5789a3aa6870000000000000000000000000b2c639c533813f4aa9d7837caf62653d097ff85",
+            "SALT": "31082023",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "WormholeFacet": {
