@@ -44,6 +44,10 @@
       "0x2E61751366B7e006f8D53becB4b697890B30144F": {
         "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
+      },
+      "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {

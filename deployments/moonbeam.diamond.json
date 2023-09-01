@@ -1,6 +1,10 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0x6faA6906b9e4A59020e673910105567e809789E0": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
       "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
@@ -36,6 +40,10 @@
       "0x2E61751366B7e006f8D53becB4b697890B30144F": {
         "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
+      },
+      "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
