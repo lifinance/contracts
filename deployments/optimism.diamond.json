@@ -88,6 +88,10 @@
       "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.0"
+      },
+      "0x16d7Cff1992F17E46fa98284CCaAC1A19788B6B9": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
