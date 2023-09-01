@@ -10,12 +10,12 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { AlreadyInitialized, NotInitialized, ExternalCallFailed, InvalidCallData, ContractCallNotAllowed } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { console } from "test/solidity/utils/Console.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /// @title OFTWrapper Facet
 /// @author LI.FI (https://li.fi)
-/// @notice Provides functionality for bridging through OFTWrapper
-/// @custom:version 0.0.3
+/// @notice Provides functionality for bridging various types of Omnichain Fungible Tokens (OFTs)
+/// @custom:version 0.0.4
 contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -25,20 +25,14 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
 
+    bytes4 public constant INTERFACE_ID_IOFTV2 = 0x1f7ecdf7;
+    bytes4 public constant INTERFACE_ID_IOFTCore = 0x14e4ceea; // => OFTV1
+    bytes4 public constant INTERFACE_ID_IOFTWithFee = 0x6984a9e8;
+
     /// @notice The contract address of the OFTWrapper on the source chain.
     IOFTWrapper private immutable oftWrapper;
 
     /// Types ///
-
-    enum TokenType {
-        OFT,
-        OFTV2,
-        OFTFeeV2,
-        ProxyOFT,
-        ProxyOFTV2,
-        ProxyOFTFeeV2,
-        CustomCodeOFT
-    }
 
     struct ChainIdConfig {
         uint256 chainId;
@@ -57,14 +51,13 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     struct OFTWrapperData {
-        TokenType tokenType;
-        address proxyOFT;
-        bytes32 receiver;
-        uint256 minAmount;
-        uint256 lzFee;
-        address zroPaymentAddress;
-        bytes adapterParams;
-        IOFTWrapper.FeeObj feeObj;
+        address proxyOftAddress; // contains address of proxy OFT contract or address(0), if token does not have proxy
+        bytes32 receiver; // exclusively used for non-EVM receiver addresses (usually we use _bridgeData.receiver)
+        uint256 minAmount; // minAmount to be received on dst chain
+        uint256 lzFee; // amount of native fee to be sent to Layer Zero endpoint for relaying message
+        address zroPaymentAddress; // should be set to address(0) if not paying with ZRO token
+        bytes adapterParams; // parameters for the adapter service, e.g. send some dust native token to dstChain
+        IOFTWrapper.FeeObj feeObj; // contains information about optional callerFee (= fee taken by dApp)
         bytes customCode_sendTokensCallData; // contains function identifier and parameters for sending tokens
         address customCode_approveTo; // in case approval to a custom contract is required
     }
@@ -107,7 +100,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ChainIdConfig[] calldata chainIdConfigs,
         WhitelistConfig[] calldata whitelistConfigs
     ) external {
-        //TODO: add initial whitelisting of contracts
         LibDiamond.enforceIsContractOwner();
 
         Storage storage sm = getStorage();
@@ -129,7 +121,634 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit OFTWrapperInitialized(chainIdConfigs);
     }
 
-    /// External Methods ///
+    /// OFT V1 ---------------------------------------------------------------------------------------------------------
+
+    /// @notice Bridges OFT V1 tokens via OFT Wrapper
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _oftWrapperData Specific information required for bridging OFTs
+    function startBridgeTokensViaOFTWrapperV1(
+        ILiFi.BridgeData calldata _bridgeData,
+        OFTWrapperData calldata _oftWrapperData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        validateBridgeData(_bridgeData)
+        doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        noNativeAsset(_bridgeData)
+    {
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
+
+        _startBridgeOFTV1(_bridgeData, _oftWrapperData);
+    }
+
+    /// @notice Executes one or several swaps at src chain and bridges the resulting OFT V1 tokens via OFT Wrapper
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _oftWrapperData Specific information required for bridging OFTs
+    function swapAndStartBridgeTokensViaOFTWrapperV1(
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
+        OFTWrapperData calldata _oftWrapperData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        validateBridgeData(_bridgeData)
+        containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        noNativeAsset(_bridgeData)
+    {
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender),
+            _oftWrapperData.lzFee
+        );
+
+        _startBridgeOFTV1(_bridgeData, _oftWrapperData);
+    }
+
+    /// @dev Contains the business logic for the bridge via OFT Wrapper.
+    /// @param _bridgeData The core information needed for bridging.
+    /// @param _oftWrapperData Specific information required for bridging OFTs.
+    function _startBridgeOFTV1(
+        ILiFi.BridgeData memory _bridgeData,
+        OFTWrapperData calldata _oftWrapperData
+    ) internal {
+        // set approval for OFTWrapper
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            address(oftWrapper),
+            _bridgeData.minAmount
+        );
+
+        // check if OFT requires proxy contract for bridging
+        if (_oftWrapperData.proxyOftAddress != address(0)) {
+            // check proxy address
+            _checkProxyOFTAddress(
+                _bridgeData.sendingAssetId,
+                _oftWrapperData.proxyOftAddress
+            );
+
+            // start bridging using OFT proxy contract address
+            oftWrapper.sendProxyOFT{ value: _oftWrapperData.lzFee }(
+                _oftWrapperData.proxyOftAddress,
+                getOFTLayerZeroChainId(_bridgeData.destinationChainId),
+                abi.encodePacked(_bridgeData.receiver),
+                _bridgeData.minAmount,
+                _oftWrapperData.minAmount,
+                payable(msg.sender),
+                _oftWrapperData.zroPaymentAddress,
+                _oftWrapperData.adapterParams,
+                _oftWrapperData.feeObj
+            );
+        } else {
+            // no proxy required - start bridging using OFT contract address
+            oftWrapper.sendOFT{ value: _oftWrapperData.lzFee }(
+                _bridgeData.sendingAssetId,
+                getOFTLayerZeroChainId(_bridgeData.destinationChainId),
+                abi.encodePacked(_bridgeData.receiver),
+                _bridgeData.minAmount,
+                _oftWrapperData.minAmount,
+                payable(msg.sender),
+                _oftWrapperData.zroPaymentAddress,
+                _oftWrapperData.adapterParams,
+                _oftWrapperData.feeObj
+            );
+        }
+
+        emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// OFT V2 ---------------------------------------------------------------------------------------------------------
+
+    /// @notice Bridges OFT V2 tokens via OFT Wrapper
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _oftWrapperData Specific information required for bridging OFTs
+    function startBridgeTokensViaOFTWrapperV2(
+        ILiFi.BridgeData calldata _bridgeData,
+        OFTWrapperData calldata _oftWrapperData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        validateBridgeData(_bridgeData)
+        doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        noNativeAsset(_bridgeData)
+    {
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
+
+        _startBridgeOFTV2(_bridgeData, _oftWrapperData);
+    }
+
+    /// @notice Executes one or several swaps at src chain and bridges the resulting OFT V2 tokens via OFT Wrapper
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _oftWrapperData Specific information required for bridging OFTs
+    function swapAndStartBridgeTokensViaOFTWrapperV2(
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
+        OFTWrapperData calldata _oftWrapperData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        validateBridgeData(_bridgeData)
+        containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        noNativeAsset(_bridgeData)
+    {
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender),
+            _oftWrapperData.lzFee
+        );
+
+        _startBridgeOFTV2(_bridgeData, _oftWrapperData);
+    }
+
+    /// @dev Contains the business logic for the bridge via OFT Wrapper.
+    /// @param _bridgeData The core information needed for bridging.
+    /// @param _oftWrapperData Specific information required for bridging OFTs.
+    function _startBridgeOFTV2(
+        ILiFi.BridgeData memory _bridgeData,
+        OFTWrapperData calldata _oftWrapperData
+    ) internal {
+        // set approval for OFTWrapper
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            address(oftWrapper),
+            _bridgeData.minAmount
+        );
+
+        // prepare required information for bridging OFT V2
+        (
+            uint16 layerZeroChainId,
+            bytes32 receiver,
+            IOFTWrapper.LzCallParams memory LzCallParams
+        ) = _prepareV2(_bridgeData, _oftWrapperData);
+
+        // check if OFT requires proxy contract for bridging
+        if (_oftWrapperData.proxyOftAddress != address(0)) {
+            // check proxy address
+            _checkProxyOFTAddress(
+                _bridgeData.sendingAssetId,
+                _oftWrapperData.proxyOftAddress
+            );
+
+            // start bridging using OFT proxy contract address
+            oftWrapper.sendProxyOFTV2{ value: _oftWrapperData.lzFee }(
+                _oftWrapperData.proxyOftAddress,
+                layerZeroChainId,
+                receiver,
+                _bridgeData.minAmount,
+                _oftWrapperData.minAmount,
+                LzCallParams,
+                _oftWrapperData.feeObj
+            );
+        } else {
+            // no proxy required - start bridging using OFT contract address
+            oftWrapper.sendOFTV2{ value: _oftWrapperData.lzFee }(
+                _bridgeData.sendingAssetId,
+                layerZeroChainId,
+                receiver,
+                _bridgeData.minAmount,
+                _oftWrapperData.minAmount,
+                LzCallParams,
+                _oftWrapperData.feeObj
+            );
+        }
+
+        // emits LifiTransferStarted event and BridgeToNonEVMChain event, if applicable
+        _emitEvents(_bridgeData, layerZeroChainId, _oftWrapperData.receiver);
+    }
+
+    /// OFT V2 With Fee-------------------------------------------------------------------------------------------------
+
+    /// @notice Bridges OFT V2WithFee tokens via OFT Wrapper
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _oftWrapperData Specific information required for bridging OFTs
+    function startBridgeTokensViaOFTWrapperV2WithFee(
+        ILiFi.BridgeData calldata _bridgeData,
+        OFTWrapperData calldata _oftWrapperData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        validateBridgeData(_bridgeData)
+        doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        noNativeAsset(_bridgeData)
+    {
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
+
+        _startBridgeOFTV2WithFee(_bridgeData, _oftWrapperData);
+    }
+
+    /// @notice Executes one or several swaps at src chain and bridges the resulting OFTV2WithFee tokens via OFT Wrapper
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _oftWrapperData Specific information required for bridging OFTs
+    function swapAndStartBridgeTokensViaOFTWrapperV2WithFee(
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
+        OFTWrapperData calldata _oftWrapperData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        validateBridgeData(_bridgeData)
+        containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        noNativeAsset(_bridgeData)
+    {
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender),
+            _oftWrapperData.lzFee
+        );
+
+        _startBridgeOFTV2WithFee(_bridgeData, _oftWrapperData);
+    }
+
+    /// @dev Contains the business logic for the bridge via OFT Wrapper.
+    /// @param _bridgeData The core information needed for bridging.
+    /// @param _oftWrapperData Specific information required for bridging OFTs.
+    function _startBridgeOFTV2WithFee(
+        ILiFi.BridgeData memory _bridgeData,
+        OFTWrapperData calldata _oftWrapperData
+    ) internal {
+        // set approval for OFTWrapper
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            address(oftWrapper),
+            _bridgeData.minAmount
+        );
+
+        // prepare required information for bridging OFT V2
+        (
+            uint16 layerZeroChainId,
+            bytes32 receiver,
+            IOFTWrapper.LzCallParams memory LzCallParams
+        ) = _prepareV2(_bridgeData, _oftWrapperData);
+
+        // check if OFT requires proxy contract for bridging
+        if (_oftWrapperData.proxyOftAddress != address(0)) {
+            // check proxy address
+            _checkProxyOFTAddress(
+                _bridgeData.sendingAssetId,
+                _oftWrapperData.proxyOftAddress
+            );
+
+            // start bridging using OFT proxy contract address
+            oftWrapper.sendProxyOFTFeeV2{ value: _oftWrapperData.lzFee }(
+                _oftWrapperData.proxyOftAddress,
+                layerZeroChainId,
+                receiver,
+                _bridgeData.minAmount,
+                _oftWrapperData.minAmount,
+                LzCallParams,
+                _oftWrapperData.feeObj
+            );
+        } else {
+            // no proxy required - start bridging using OFT contract address
+            oftWrapper.sendOFTFeeV2{ value: _oftWrapperData.lzFee }(
+                _bridgeData.sendingAssetId,
+                layerZeroChainId,
+                receiver,
+                _bridgeData.minAmount,
+                _oftWrapperData.minAmount,
+                LzCallParams,
+                _oftWrapperData.feeObj
+            );
+        }
+
+        // emits LifiTransferStarted event and BridgeToNonEVMChain event, if applicable
+        _emitEvents(_bridgeData, layerZeroChainId, _oftWrapperData.receiver);
+    }
+
+    /// Custom Code OFT-------------------------------------------------------------------------------------------------
+
+    /// @notice Bridges custom code OFTs via their own contract
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _oftWrapperData Specific information required for bridging OFTs
+    function startBridgeTokensViaCustomCodeOFT(
+        ILiFi.BridgeData calldata _bridgeData,
+        OFTWrapperData calldata _oftWrapperData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        validateBridgeData(_bridgeData)
+        doesNotContainSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        noNativeAsset(_bridgeData)
+    {
+        LibAsset.depositAsset(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount
+        );
+
+        _startBridgeCustomCodeOFT(_bridgeData, _oftWrapperData);
+    }
+
+    /// @notice Executes one or several swaps at src chain and bridges the resulting custom code OFT tokens
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _oftWrapperData Specific information required for bridging OFTs
+    function swapAndStartBridgeTokensViaCustomCodeOFT(
+        ILiFi.BridgeData memory _bridgeData,
+        LibSwap.SwapData[] calldata _swapData,
+        OFTWrapperData calldata _oftWrapperData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        validateBridgeData(_bridgeData)
+        containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
+        noNativeAsset(_bridgeData)
+    {
+        _bridgeData.minAmount = _depositAndSwap(
+            _bridgeData.transactionId,
+            _bridgeData.minAmount,
+            _swapData,
+            payable(msg.sender),
+            _oftWrapperData.lzFee
+        );
+
+        _startBridgeCustomCodeOFT(_bridgeData, _oftWrapperData);
+    }
+
+    /// @dev Contains the business logic for bridging via custom code OFTs
+    /// @param _bridgeData The core information needed for bridging.
+    /// @param _oftWrapperData Specific information required for bridging OFTs.
+    function _startBridgeCustomCodeOFT(
+        ILiFi.BridgeData memory _bridgeData,
+        OFTWrapperData calldata _oftWrapperData
+    ) internal {
+        // set approval for custom OFT bridge contract
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            _oftWrapperData.customCode_approveTo,
+            _bridgeData.minAmount
+        );
+
+        // this OFT type does not use the OFTWrapper contract, instead we call the token contract/or its
+        // proxy directly. Since the send function/signature in these contracts differ, we prepare the calldata
+        // in the backend and execute the calldata here via a low-level call. The (token/proxy) contract to be called
+        // must be whitelisted prior to executing this function for security for security reasons
+
+        // get storage object
+        Storage storage sm = getStorage();
+
+        // make sure calldata isnt empty
+        if (_oftWrapperData.customCode_sendTokensCallData.length == 0)
+            revert InvalidCallData();
+
+        // check if proxy contract is whitelisted
+        if (!sm.whitelistedCustomOFTs[_oftWrapperData.proxyOftAddress])
+            revert ContractCallNotAllowed();
+
+        // call proxy token contract with prepared calldata
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, ) = _oftWrapperData.proxyOftAddress.call{
+            value: _oftWrapperData.lzFee
+        }(_oftWrapperData.customCode_sendTokensCallData);
+        if (!success) {
+            revert ExternalCallFailed();
+        }
+
+        // emits LifiTransferStarted event and BridgeToNonEVMChain event, if applicable
+        uint16 layerZeroChainId = getOFTLayerZeroChainId(
+            _bridgeData.destinationChainId
+        );
+        _emitEvents(_bridgeData, layerZeroChainId, _oftWrapperData.receiver);
+    }
+
+    /// HELPER FUNCTIONS------------------------------------------------------------------------------------------------
+
+    /// @notice Returns the function selector that should be used for bridging the given OFT if it can be determined
+    /// @param _sendingAssetId The address of briding asset.
+    /// @param _withSrcSwap set to true if you want to swapAndBridge, otherwise set to false
+    function determineOFTBridgeSendFunction(
+        address _sendingAssetId,
+        bool _withSrcSwap
+    ) external view returns (bytes4 bridgeFunctionSelector) {
+        if (isOftV1(_sendingAssetId)) {
+            if (_withSrcSwap)
+                return
+                    OFTWrapperFacet
+                        .swapAndStartBridgeTokensViaOFTWrapperV1
+                        .selector;
+            else
+                return
+                    OFTWrapperFacet.startBridgeTokensViaOFTWrapperV1.selector;
+        }
+        if (isOftV2(_sendingAssetId)) {
+            if (_withSrcSwap)
+                return
+                    OFTWrapperFacet
+                        .swapAndStartBridgeTokensViaOFTWrapperV2
+                        .selector;
+            else
+                return
+                    OFTWrapperFacet.startBridgeTokensViaOFTWrapperV2.selector;
+        }
+        if (isOftV2WithFee(_sendingAssetId)) {
+            if (_withSrcSwap)
+                return
+                    OFTWrapperFacet
+                        .swapAndStartBridgeTokensViaOFTWrapperV2WithFee
+                        .selector;
+            else
+                return
+                    OFTWrapperFacet
+                        .startBridgeTokensViaOFTWrapperV2WithFee
+                        .selector;
+        }
+
+        // if non of the above checks was successful, we will return the function selector for customCodeOFTs
+        // however, this does not mean that the token is bridgeable via this facet as there are too many different
+        // implementations out there to cover for all possibilities
+        if (_withSrcSwap)
+            return
+                OFTWrapperFacet
+                    .swapAndStartBridgeTokensViaCustomCodeOFT
+                    .selector;
+        else return OFTWrapperFacet.startBridgeTokensViaCustomCodeOFT.selector;
+    }
+
+    function isOftV1(address _sendingAssetId) public view returns (bool) {
+        try
+            IERC165(_sendingAssetId).supportsInterface(INTERFACE_ID_IOFTCore)
+        returns (bool result) {
+            return result;
+        } catch {
+            return false;
+        }
+    }
+
+    function isOftV2(address _sendingAssetId) public view returns (bool) {
+        try
+            IERC165(_sendingAssetId).supportsInterface(INTERFACE_ID_IOFTV2)
+        returns (bool result) {
+            return result;
+        } catch {
+            return false;
+        }
+    }
+
+    function isOftV2WithFee(
+        address _sendingAssetId
+    ) public view returns (bool) {
+        try
+            IERC165(_sendingAssetId).supportsInterface(
+                INTERFACE_ID_IOFTWithFee
+            )
+        returns (bool result) {
+            return result;
+        } catch {
+            return false;
+        }
+    }
+
+    /// @notice Get fee estimation.
+    /// @param _sendingAssetId The address of briding asset.
+    /// @param _destinationChainId The id of destination chain.
+    /// @param _amount The amount of sending asset.
+    /// @param _receiver Receiver address evm chain.
+    /// @param _useZro Whether fee should be paid in ZRO token or not.
+    /// @param _adapterParams Parameters for custom functionality.
+    /// @param _callerBps Basis points given to the caller/app.
+    function estimateOFTFeesAndAmountOut(
+        address _sendingAssetId,
+        uint256 _destinationChainId,
+        uint256 _amount,
+        bytes32 _receiver,
+        bool _useZro,
+        bytes memory _adapterParams,
+        uint256 _callerBps
+    )
+        external
+        view
+        returns (
+            uint256 nativeFee,
+            uint256 zroFee,
+            uint256 wrapperFee,
+            uint256 callerFee,
+            uint256 amountOut
+        )
+    {
+        (amountOut, wrapperFee, callerFee) = oftWrapper.getAmountAndFees(
+            _sendingAssetId,
+            _amount,
+            _callerBps
+        );
+
+        uint16 layerZeroChainId = getOFTLayerZeroChainId(_destinationChainId);
+
+        // Try IOFT function
+        try
+            IOFT(_sendingAssetId).estimateSendFee(
+                layerZeroChainId,
+                abi.encodePacked(bytes20(_receiver << 96)),
+                amountOut,
+                _useZro,
+                _adapterParams
+            )
+        returns (uint256 _nativeFee, uint256 _zroFee) {
+            nativeFee = _nativeFee;
+            zroFee = _zroFee;
+        } catch {
+            // If IOFT call fails, try IOFTV2 function
+            (nativeFee, zroFee) = IOFTV2(_sendingAssetId).estimateSendFee(
+                layerZeroChainId,
+                _receiver,
+                amountOut,
+                _useZro,
+                _adapterParams
+            );
+        }
+    }
+
+    /// Internal Helper Functions ///
+
+    function _emitEvents(
+        ILiFi.BridgeData memory _bridgeData,
+        uint16 layerZeroChainId,
+        bytes32 nonEvmReceiver
+    ) internal {
+        if (_bridgeData.receiver == NON_EVM_ADDRESS)
+            emit BridgeToNonEVMChain(
+                _bridgeData.transactionId,
+                layerZeroChainId,
+                nonEvmReceiver
+            );
+
+        emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function _prepareV2(
+        ILiFi.BridgeData memory _bridgeData,
+        OFTWrapperData calldata _oftWrapperData
+    )
+        internal
+        view
+        returns (
+            uint16 layerZeroChainId,
+            bytes32 receiver,
+            IOFTWrapper.LzCallParams memory LzCallParams
+        )
+    {
+        layerZeroChainId = getOFTLayerZeroChainId(
+            _bridgeData.destinationChainId
+        );
+
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            receiver = _oftWrapperData.receiver;
+        } else {
+            receiver = bytes32(uint256(uint160(_bridgeData.receiver)));
+        }
+
+        LzCallParams = IOFTWrapper.LzCallParams(
+            payable(msg.sender),
+            address(0),
+            _oftWrapperData.adapterParams
+        );
+    }
+
+    function _checkProxyOFTAddress(
+        address sendingAssetId,
+        address proxyOFT
+    ) internal view {
+        if (IProxyOFT(proxyOFT).token() != sendingAssetId) {
+            revert InvalidProxyOFTAddress();
+        }
+    }
+
+    /// Mappings and Whitelist Management ///
 
     /// @notice Register the address of a DEX contract to be approved for swapping.
     /// @param configs configuration data about contracts to be whitelisted (or removed from whitelist)
@@ -154,294 +773,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // emit event with parameters
         emit WhitelistUpdated(configs);
     }
-
-    /// @notice Bridges tokens via OFT Wrapper.
-    /// @param _bridgeData The core information needed for bridging.
-    /// @param _oftWrapperData Data specific to OFT Wrapper.
-    function startBridgeTokensViaOFTWrapper(
-        ILiFi.BridgeData calldata _bridgeData,
-        OFTWrapperData calldata _oftWrapperData
-    )
-        external
-        payable
-        nonReentrant
-        refundExcessNative(payable(msg.sender))
-        validateBridgeData(_bridgeData)
-        doesNotContainSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
-        noNativeAsset(_bridgeData)
-    {
-        LibAsset.depositAsset(
-            _bridgeData.sendingAssetId,
-            _bridgeData.minAmount
-        );
-
-        _startBridge(_bridgeData, _oftWrapperData);
-    }
-
-    /// @notice Performs a swap before bridging via OFT Wrapper.
-    /// @param _bridgeData The core information needed for bridging.
-    /// @param _swapData An array of swap related data for performing swaps before bridging.
-    /// @param _oftWrapperData Data specific to OFT Wrapper.
-    function swapAndStartBridgeTokensViaOFTWrapper(
-        ILiFi.BridgeData memory _bridgeData,
-        LibSwap.SwapData[] calldata _swapData,
-        OFTWrapperData calldata _oftWrapperData
-    )
-        external
-        payable
-        nonReentrant
-        refundExcessNative(payable(msg.sender))
-        validateBridgeData(_bridgeData)
-        containsSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
-        noNativeAsset(_bridgeData)
-    {
-        _bridgeData.minAmount = _depositAndSwap(
-            _bridgeData.transactionId,
-            _bridgeData.minAmount,
-            _swapData,
-            payable(msg.sender),
-            _oftWrapperData.lzFee
-        );
-
-        _startBridge(_bridgeData, _oftWrapperData);
-    }
-
-    /// @notice Get fee estimation.
-    /// @param _sendingAssetId The address of briding asset.
-    /// @param _destinationChainId The id of destination chain.
-    /// @param _amount The amount of sending asset.
-    /// @param _receiver Receiver address evm chain.
-    /// @param _tokenType Type of OFT token.
-    /// @param _useZro Whether fee should be paid in ZRO token or not.
-    /// @param _adapterParams Parameters for custom functionality.
-    /// @param _callerBps Basis points given to the caller/app.
-    function estimateOFTFeesAndAmountOut(
-        address _sendingAssetId,
-        uint256 _destinationChainId,
-        uint256 _amount,
-        bytes32 _receiver,
-        TokenType _tokenType,
-        bool _useZro,
-        bytes memory _adapterParams,
-        uint256 _callerBps
-    )
-        external
-        view
-        returns (
-            uint256 nativeFee,
-            uint256 zroFee,
-            uint256 wrapperFee,
-            uint256 callerFee,
-            uint256 amountOut
-        )
-    {
-        (amountOut, wrapperFee, callerFee) = oftWrapper.getAmountAndFees(
-            _sendingAssetId,
-            _amount,
-            _callerBps
-        );
-
-        uint16 layerZeroChainId = getOFTLayerZeroChainId(_destinationChainId);
-
-        if (_tokenType == TokenType.OFT || _tokenType == TokenType.ProxyOFT) {
-            (nativeFee, zroFee) = IOFT(_sendingAssetId).estimateSendFee(
-                layerZeroChainId,
-                abi.encodePacked(bytes20(_receiver << 96)),
-                amountOut,
-                _useZro,
-                _adapterParams
-            );
-        } else {
-            (nativeFee, zroFee) = IOFTV2(_sendingAssetId).estimateSendFee(
-                layerZeroChainId,
-                _receiver,
-                amountOut,
-                _useZro,
-                _adapterParams
-            );
-        }
-    }
-
-    /// Internal Methods ///
-
-    /// @dev Contains the business logic for the bridge via OFT Wrapper.
-    /// @param _bridgeData The core information needed for bridging.
-    /// @param _oftWrapperData Data specific to OFT Wrapper.
-    function _startBridge(
-        ILiFi.BridgeData memory _bridgeData,
-        OFTWrapperData calldata _oftWrapperData
-    ) internal {
-        _checkProxyOFTAddress(
-            _bridgeData.sendingAssetId,
-            _oftWrapperData.tokenType,
-            _oftWrapperData.proxyOFT
-        );
-
-        // set approval for OFTWrapper or custom contract (e.g. proxy)
-        if (_oftWrapperData.tokenType == TokenType.CustomCodeOFT)
-            LibAsset.maxApproveERC20(
-                IERC20(_bridgeData.sendingAssetId),
-                _oftWrapperData.customCode_approveTo,
-                _bridgeData.minAmount
-            );
-        else
-            LibAsset.maxApproveERC20(
-                IERC20(_bridgeData.sendingAssetId),
-                address(oftWrapper),
-                _bridgeData.minAmount
-            );
-
-        // call the correct OFTWrapper send function depending on OFT type
-        if (_oftWrapperData.tokenType == TokenType.OFT) {
-            oftWrapper.sendOFT{ value: _oftWrapperData.lzFee }(
-                _bridgeData.sendingAssetId,
-                getOFTLayerZeroChainId(_bridgeData.destinationChainId),
-                abi.encodePacked(_bridgeData.receiver),
-                _bridgeData.minAmount,
-                _oftWrapperData.minAmount,
-                payable(msg.sender),
-                _oftWrapperData.zroPaymentAddress,
-                _oftWrapperData.adapterParams,
-                _oftWrapperData.feeObj
-            );
-        } else if (_oftWrapperData.tokenType == TokenType.ProxyOFT) {
-            oftWrapper.sendProxyOFT{ value: _oftWrapperData.lzFee }(
-                _oftWrapperData.proxyOFT,
-                getOFTLayerZeroChainId(_bridgeData.destinationChainId),
-                abi.encodePacked(_bridgeData.receiver),
-                _bridgeData.minAmount,
-                _oftWrapperData.minAmount,
-                payable(msg.sender),
-                _oftWrapperData.zroPaymentAddress,
-                _oftWrapperData.adapterParams,
-                _oftWrapperData.feeObj
-            );
-            // the following OFT type does not use the OFTWrapper contract, instead we call the token contract/or its
-            // proxy directly. Since the send function/signature in these contracts differs, we prepare the calldata
-            // in the backend and execute the calldata here.
-            // the (token/proxy) contract to be called must be whitelisted to prevent general attack vectors on our diamond
-        } else if (_oftWrapperData.tokenType == TokenType.CustomCodeOFT) {
-            // get storage object
-            Storage storage sm = getStorage();
-
-            // make sure calldata isnt empty
-            if (_oftWrapperData.customCode_sendTokensCallData.length == 0)
-                revert InvalidCallData();
-
-            // check if proxy contract is whitelisted
-            if (!sm.whitelistedCustomOFTs[_oftWrapperData.proxyOFT])
-                revert ContractCallNotAllowed();
-
-            // call proxy token contract with prepared calldata
-            // solhint-disable-next-line avoid-low-level-calls
-            (bool success, ) = _oftWrapperData.proxyOFT.call{
-                value: _oftWrapperData.lzFee
-            }(_oftWrapperData.customCode_sendTokensCallData);
-            if (!success) {
-                revert ExternalCallFailed();
-            }
-        } else {
-            _sendOFTV2(_bridgeData, _oftWrapperData);
-        }
-
-        emit LiFiTransferStarted(_bridgeData);
-    }
-
-    /// @dev Contains the logic for the bridge OFT V2 tokens via OFT Wrapper.
-    /// @param _bridgeData The core information needed for bridging.
-    /// @param _oftWrapperData Data specific to OFT Wrapper.
-    function _sendOFTV2(
-        ILiFi.BridgeData memory _bridgeData,
-        OFTWrapperData calldata _oftWrapperData
-    ) internal {
-        uint16 layerZeroChainId = getOFTLayerZeroChainId(
-            _bridgeData.destinationChainId
-        );
-
-        bytes32 receiver;
-        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-            receiver = _oftWrapperData.receiver;
-        } else {
-            receiver = bytes32(uint256(uint160(_bridgeData.receiver)));
-        }
-
-        IOFTWrapper.LzCallParams memory lzCallParams = IOFTWrapper
-            .LzCallParams(
-                payable(msg.sender),
-                address(0),
-                _oftWrapperData.adapterParams
-            );
-
-        if (_oftWrapperData.tokenType == TokenType.OFTV2) {
-            oftWrapper.sendOFTV2{ value: _oftWrapperData.lzFee }(
-                _bridgeData.sendingAssetId,
-                layerZeroChainId,
-                receiver,
-                _bridgeData.minAmount,
-                _oftWrapperData.minAmount,
-                lzCallParams,
-                _oftWrapperData.feeObj
-            );
-        } else if (_oftWrapperData.tokenType == TokenType.OFTFeeV2) {
-            oftWrapper.sendOFTFeeV2{ value: _oftWrapperData.lzFee }(
-                _bridgeData.sendingAssetId,
-                layerZeroChainId,
-                receiver,
-                _bridgeData.minAmount,
-                _oftWrapperData.minAmount,
-                lzCallParams,
-                _oftWrapperData.feeObj
-            );
-        } else if (_oftWrapperData.tokenType == TokenType.ProxyOFTV2) {
-            oftWrapper.sendProxyOFTV2{ value: _oftWrapperData.lzFee }(
-                _oftWrapperData.proxyOFT,
-                layerZeroChainId,
-                receiver,
-                _bridgeData.minAmount,
-                _oftWrapperData.minAmount,
-                lzCallParams,
-                _oftWrapperData.feeObj
-            );
-        } else if (_oftWrapperData.tokenType == TokenType.ProxyOFTFeeV2) {
-            oftWrapper.sendProxyOFTFeeV2{ value: _oftWrapperData.lzFee }(
-                _oftWrapperData.proxyOFT,
-                layerZeroChainId,
-                receiver,
-                _bridgeData.minAmount,
-                _oftWrapperData.minAmount,
-                lzCallParams,
-                _oftWrapperData.feeObj
-            );
-        }
-
-        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-            emit BridgeToNonEVMChain(
-                _bridgeData.transactionId,
-                layerZeroChainId,
-                _oftWrapperData.receiver
-            );
-        }
-    }
-
-    function _checkProxyOFTAddress(
-        address sendingAssetId,
-        TokenType tokenType,
-        address proxyOFT
-    ) internal view {
-        if (
-            tokenType == TokenType.ProxyOFT ||
-            tokenType == TokenType.ProxyOFTV2 ||
-            tokenType == TokenType.ProxyOFTFeeV2
-        ) {
-            if (IProxyOFT(proxyOFT).token() != sendingAssetId) {
-                revert InvalidProxyOFTAddress();
-            }
-        }
-    }
-
-    /// Mappings management ///
 
     /// @notice Sets the Layer zero chain Id for a given chain Id.
     /// @param _chainId Chain Id.
@@ -468,7 +799,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @return layerZeroChainId Layer zero chain Id.
     function getOFTLayerZeroChainId(
         uint256 _chainId
-    ) private view returns (uint16 layerZeroChainId) {
+    ) public view returns (uint16 layerZeroChainId) {
         Storage storage sm = getStorage();
         layerZeroChainId = sm.layerZeroChainId[_chainId];
 
