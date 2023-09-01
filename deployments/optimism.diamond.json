@@ -84,6 +84,10 @@
       "0x2E61751366B7e006f8D53becB4b697890B30144F": {
         "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
+      },
+      "0x16d7Cff1992F17E46fa98284CCaAC1A19788B6B9": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
