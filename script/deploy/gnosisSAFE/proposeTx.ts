@@ -5,15 +5,14 @@ import SafeApiKit, {
   OwnerResponse,
   ProposeTransactionProps,
 } from '@safe-global/api-kit'
-import dotenv from 'dotenv'
 import { SafeTransactionDataPartial } from '@safe-global/safe-core-sdk-types'
 import { safeApiUrls } from './config'
-import { exit } from 'process'
-dotenv.config()
+import { argv, exit } from 'process'
+import enquirer from 'enquirer'
 
-const [, , diamondAddress, rawCuts, network, rpcUrl] = process.argv
+const [, , diamondAddress, rawCuts, network, rpcUrl, privateKey] = argv
 
-let safeOwner = new ethers.Wallet(process.env.PRIVATE_KEY_PRODUCTION as string)
+let safeOwner = new ethers.Wallet(privateKey as string)
 const provider = new ethers.providers.JsonRpcProvider(rpcUrl)
 safeOwner = safeOwner.connect(provider)
 
@@ -32,8 +31,16 @@ const main = async () => {
   const res: OwnerResponse = await safeService.getSafesByOwner(
     await safeOwner.getAddress()
   )
-  const safeAddress = res.safes[0]
-  console.info('SAFE Address: ', res.safes[0])
+
+  const choice = await enquirer.prompt({
+    type: 'select',
+    name: 'safeAddress',
+    message: 'Choose the SAFE address you would like to use.',
+    choices: res.safes,
+  })
+
+  const safeAddress = (<{ safeAddress: string }>choice).safeAddress
+  console.info('SAFE Address: ', safeAddress)
   console.info('Diamond Address: ', diamondAddress)
 
   const safeSdk: Safe = await Safe.create({
@@ -47,7 +54,7 @@ const main = async () => {
   let i = 1
   for (const cut of cuts) {
     const safeTransactionData: SafeTransactionDataPartial = {
-      to: '0x9FcB9Aaa138DBb2Cbf484Ba43285ca4b60b56D09',
+      to: diamondAddress,
       value: '0',
       data: cut,
       nonce,
@@ -63,7 +70,7 @@ const main = async () => {
       senderSignature: txHashSignature.data,
     }
     console.info(`Sending proposal [${i}]...`)
-    // await safeService.proposeTransaction(proposal)
+    await safeService.proposeTransaction(proposal)
     nonce++
     i++
   }

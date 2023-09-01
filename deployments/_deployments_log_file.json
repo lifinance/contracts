@@ -5224,6 +5224,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xa238D40993Ddb720a470ACAFbc62CC19cac9B102",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-01 16:35:26",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
       }
     },
     "arbitrum": {

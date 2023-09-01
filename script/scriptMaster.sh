@@ -489,7 +489,7 @@ scriptMaster() {
   #---------------------------------------------------------------------------------------------------------------------
   # use case 11: Propose upgrade TX to Gnosis SAFE
   elif [[ "$SELECTION" == "11)"* ]]; then
-    deployUpgradesToSAFE
+    deployUpgradesToSAFE $ENVIRONMENT
   else
     error "invalid use case selected ('$SELECTION') - exiting script"
     cleanup
