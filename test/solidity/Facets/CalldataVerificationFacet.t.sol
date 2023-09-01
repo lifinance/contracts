@@ -5,6 +5,7 @@ import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet
 import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
+import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { CelerIM, CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
@@ -51,7 +52,18 @@ contract CallVerificationFacetTest is TestBase {
             swapData
         );
 
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
         bytes memory fullCalldata = bytes.concat(callData, "extra stuff");
+        calldataVerificationFacet.extractBridgeData(fullCalldata);
+        calldataVerificationFacet.extractSwapData(fullCalldata);
+        calldataVerificationFacet.extractData(fullCalldata);
+        calldataVerificationFacet.extractMainParameters(fullCalldata);
+
+        fullCalldata = bytes.concat(standardizedCallData, "extra stuff");
         calldataVerificationFacet.extractBridgeData(fullCalldata);
         calldataVerificationFacet.extractSwapData(fullCalldata);
         calldataVerificationFacet.extractData(fullCalldata);
@@ -81,6 +93,18 @@ contract CallVerificationFacetTest is TestBase {
             .extractSwapData(callData);
 
         checkSwapData(returnedData);
+
+        // standardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        returnedData = calldataVerificationFacet.extractSwapData(
+            standardizedCallData
+        );
+
+        checkSwapData(returnedData);
     }
 
     function test_CanExtractBridgeAndSwapData() public {
@@ -98,6 +122,17 @@ contract CallVerificationFacetTest is TestBase {
 
         checkBridgeData(returnedBridgeData);
         checkSwapData(returnedSwapData);
+
+        // standardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+        (returnedBridgeData, returnedSwapData) = calldataVerificationFacet
+            .extractData(standardizedCallData);
+
+        checkBridgeData(returnedBridgeData);
+        checkSwapData(returnedSwapData);
     }
 
     function test_CanExtractBridgeAndSwapDataNoSwaps() public {
@@ -110,6 +145,17 @@ contract CallVerificationFacetTest is TestBase {
             ILiFi.BridgeData memory returnedBridgeData,
             LibSwap.SwapData[] memory returnedSwapData
         ) = calldataVerificationFacet.extractData(callData);
+
+        checkBridgeData(returnedBridgeData);
+        assertEq(returnedSwapData.length, 0);
+
+        // standardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+        (returnedBridgeData, returnedSwapData) = calldataVerificationFacet
+            .extractData(standardizedCallData);
 
         checkBridgeData(returnedBridgeData);
         assertEq(returnedSwapData.length, 0);
@@ -130,6 +176,32 @@ contract CallVerificationFacetTest is TestBase {
             bool hasSourceSwaps,
             bool hasDestinationCall
         ) = calldataVerificationFacet.extractMainParameters(callData);
+
+        assertEq(bridge, bridgeData.bridge);
+        assertEq(receiver, bridgeData.receiver);
+        assertEq(sendingAssetId, bridgeData.sendingAssetId);
+        assertEq(minAmount, bridgeData.minAmount);
+        assertEq(destinationChainId, bridgeData.destinationChainId);
+        assertEq(hasSourceSwaps, bridgeData.hasSourceSwaps);
+        assertEq(hasDestinationCall, bridgeData.hasDestinationCall);
+
+        // standardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        (
+            bridge,
+            sendingAssetId,
+            receiver,
+            minAmount,
+            destinationChainId,
+            hasSourceSwaps,
+            hasDestinationCall
+        ) = calldataVerificationFacet.extractMainParameters(
+            standardizedCallData
+        );
 
         assertEq(bridge, bridgeData.bridge);
         assertEq(receiver, bridgeData.receiver);
@@ -167,6 +239,31 @@ contract CallVerificationFacetTest is TestBase {
             swapData[swapData.length - 1].receivingAssetId
         );
         assertEq(receivingAmount, 1 ether);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        (
+            sendingAssetId,
+            amount,
+            receiver,
+            receivingAssetId,
+            receivingAmount
+        ) = calldataVerificationFacet.extractGenericSwapParameters(
+            standardizedCallData
+        );
+
+        assertEq(sendingAssetId, swapData[0].sendingAssetId);
+        assertEq(amount, swapData[0].fromAmount);
+        assertEq(receiver, address(1234));
+        assertEq(
+            receivingAssetId,
+            swapData[swapData.length - 1].receivingAssetId
+        );
+        assertEq(receivingAmount, 1 ether);
     }
 
     function test_CanExtractMainParametersWithSwap() public {
@@ -186,6 +283,31 @@ contract CallVerificationFacetTest is TestBase {
             bool hasSourceSwaps,
             bool hasDestinationCall
         ) = calldataVerificationFacet.extractMainParameters(callData);
+
+        assertEq(bridge, bridgeData.bridge);
+        assertEq(receiver, bridgeData.receiver);
+        assertEq(sendingAssetId, swapData[0].sendingAssetId);
+        assertEq(minAmount, swapData[0].fromAmount);
+        assertEq(destinationChainId, bridgeData.destinationChainId);
+        assertEq(hasSourceSwaps, bridgeData.hasSourceSwaps);
+        assertEq(hasDestinationCall, bridgeData.hasDestinationCall);
+
+        // standardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+        (
+            bridge,
+            sendingAssetId,
+            receiver,
+            minAmount,
+            destinationChainId,
+            hasSourceSwaps,
+            hasDestinationCall
+        ) = calldataVerificationFacet.extractMainParameters(
+            standardizedCallData
+        );
 
         assertEq(bridge, bridgeData.bridge);
         assertEq(receiver, bridgeData.receiver);
@@ -224,15 +346,44 @@ contract CallVerificationFacetTest is TestBase {
         );
         assertTrue(validCall);
         assertFalse(invalidCall);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        validCall = calldataVerificationFacet.validateCalldata(
+            standardizedCallData,
+            bridgeData.bridge,
+            bridgeData.sendingAssetId,
+            bridgeData.receiver,
+            bridgeData.minAmount,
+            bridgeData.destinationChainId,
+            bridgeData.hasSourceSwaps,
+            bridgeData.hasDestinationCall
+        );
+        invalidCall = calldataVerificationFacet.validateCalldata(
+            standardizedCallData,
+            bridgeData.bridge,
+            bridgeData.sendingAssetId,
+            address(0xb33f),
+            bridgeData.minAmount,
+            bridgeData.destinationChainId,
+            bridgeData.hasSourceSwaps,
+            bridgeData.hasDestinationCall
+        );
+        assertTrue(validCall);
+        assertFalse(invalidCall);
     }
 
     function test_CanValidateAmarokDestinationCalldata() public {
         AmarokFacet.AmarokData memory amarokData = AmarokFacet.AmarokData({
             callData: bytes("foobarbytes"),
-            callTo: address(0xdeadbeef),
+            callTo: USER_RECEIVER,
             relayerFee: 0,
             slippageTol: 0,
-            delegate: address(0xdeadbeef),
+            delegate: USER_RECEIVER,
             destChainDomainId: 1234,
             payFeeWithSendingAsset: false
         });
@@ -252,19 +403,51 @@ contract CallVerificationFacetTest is TestBase {
 
         bool validCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("foobarbytes")
         );
         bool validCallWithSwap = calldataVerificationFacet
             .validateDestinationCalldata(
                 callDataWithSwap,
-                abi.encode(address(0xdeadbeef)),
+                abi.encode(USER_RECEIVER),
                 bytes("foobarbytes")
             );
 
         bool badCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+        bytes memory standardizedCallDataWithSwap = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callDataWithSwap
+        );
+
+        validCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
+            bytes("foobarbytes")
+        );
+        validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                standardizedCallDataWithSwap,
+                abi.encode(USER_RECEIVER),
+                bytes("foobarbytes")
+            );
+
+        badCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
             bytes("badbytes")
         );
 
@@ -281,7 +464,7 @@ contract CallVerificationFacetTest is TestBase {
             dstGasForCall: 4,
             lzFee: 5,
             refundAddress: payable(address(0x1234)),
-            callTo: abi.encode(address(0xdeadbeef)),
+            callTo: abi.encode(USER_RECEIVER),
             callData: bytes("foobarbytes")
         });
 
@@ -300,19 +483,52 @@ contract CallVerificationFacetTest is TestBase {
 
         bool validCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("foobarbytes")
         );
         bool validCallWithSwap = calldataVerificationFacet
             .validateDestinationCalldata(
                 callDataWithSwap,
-                abi.encode(address(0xdeadbeef)),
+                abi.encode(USER_RECEIVER),
                 bytes("foobarbytes")
             );
 
         bool badCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        bytes memory standardizedCallDataWithSwap = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callDataWithSwap
+        );
+
+        validCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
+            bytes("foobarbytes")
+        );
+        validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                standardizedCallDataWithSwap,
+                abi.encode(USER_RECEIVER),
+                bytes("foobarbytes")
+            );
+
+        badCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
             bytes("badbytes")
         );
 
@@ -325,7 +541,7 @@ contract CallVerificationFacetTest is TestBase {
         CelerIM.CelerIMData memory cimData = CelerIM.CelerIMData({
             maxSlippage: 1,
             nonce: 2,
-            callTo: abi.encode(address(0xdeadbeef)),
+            callTo: abi.encode(USER_RECEIVER),
             callData: bytes("foobarbytes"),
             messageBusFee: 3,
             bridgeType: MsgDataTypes.BridgeSendType.Liquidity
@@ -346,19 +562,52 @@ contract CallVerificationFacetTest is TestBase {
 
         bool validCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
             bytes("foobarbytes")
         );
         bool validCallWithSwap = calldataVerificationFacet
             .validateDestinationCalldata(
                 callDataWithSwap,
-                abi.encode(address(0xdeadbeef)),
+                abi.encode(USER_RECEIVER),
                 bytes("foobarbytes")
             );
 
         bool badCall = calldataVerificationFacet.validateDestinationCalldata(
             callData,
-            abi.encode(address(0xdeadbeef)),
+            abi.encode(USER_RECEIVER),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        bytes memory standardizedCallDataWithSwap = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        validCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
+            bytes("foobarbytes")
+        );
+        validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                standardizedCallDataWithSwap,
+                abi.encode(USER_RECEIVER),
+                bytes("foobarbytes")
+            );
+
+        badCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
             bytes("badbytes")
         );
 

@@ -41,6 +41,10 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
+      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
+        "Name": "HopFacetOptimized",
+        "Version": "2.0.0"
+      },
       "0x3d5F2cC1A2a05448C0d8Fcd628E2b53d93DC12e4": {
         "Name": "StargateFacet",
         "Version": "2.0.0"
@@ -77,9 +81,17 @@
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
       },
-      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
-        "Name": "HopFacetOptimized",
-        "Version": "2.0.0"
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
+        "Version": "1.0.0"
+      },
+      "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.1.0"
+      },
+      "0x16d7Cff1992F17E46fa98284CCaAC1A19788B6B9": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
