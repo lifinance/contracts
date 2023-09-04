@@ -10,12 +10,15 @@ import { safeApiUrls } from './config'
 import { argv, exit } from 'process'
 import enquirer from 'enquirer'
 
+// Parse incoming arguments
 const [, , diamondAddress, rawCuts, network, rpcUrl, privateKey] = argv
 
+// Create ethers provider and signer from private key
 let safeOwner = new ethers.Wallet(privateKey as string)
 const provider = new ethers.providers.JsonRpcProvider(rpcUrl)
 safeOwner = safeOwner.connect(provider)
 
+// Initialize the Safe API
 const ethAdapter = new EthersAdapter({
   ethers,
   signerOrProvider: safeOwner,
@@ -28,10 +31,13 @@ const safeService = new SafeApiKit({
 
 const main = async () => {
   console.info('Building SAFE TX Proposal..')
+
+  // Get owned SAFE addresses
   const res: OwnerResponse = await safeService.getSafesByOwner(
     await safeOwner.getAddress()
   )
 
+  // Prompt the user to choose a SAFE address
   const choice = await enquirer.prompt({
     type: 'select',
     name: 'safeAddress',
@@ -43,13 +49,19 @@ const main = async () => {
   console.info('SAFE Address: ', safeAddress)
   console.info('Diamond Address: ', diamondAddress)
 
+  // Instantiate a SAFE instance
   const safeSdk: Safe = await Safe.create({
     ethAdapter,
     safeAddress,
   })
 
+  // Parse the raw diamond cuts
   const cuts = JSON.parse(rawCuts)
+
+  // Get the latest nonce from the SAFE
   let nonce = await safeSdk.getNonce()
+
+  // Broadcast each cut as a SAFE transaction proposal
   console.info(`Proposing ${cuts.length} transactions...`)
   let i = 1
   for (const cut of cuts) {
@@ -76,6 +88,7 @@ const main = async () => {
   }
 }
 
+// Main entry point
 main()
   .then(() => {
     console.info('Done!')
