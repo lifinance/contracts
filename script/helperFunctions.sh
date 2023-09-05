@@ -1169,7 +1169,7 @@ function parseTargetStateGoogleSpreadsheet() {
       # extract network name
       NETWORK=$(echo "$LINE" | cut -d',' -f1)
 
-      if [[ "$NETWORK"  == "<placeholder>" ]];then
+      if [[ "$NETWORK" == "<placeholder>" ]]; then
         echoDebug "skipping network (placeholder)"
         continue
       fi
@@ -1205,7 +1205,6 @@ function parseTargetStateGoogleSpreadsheet() {
             echoDebug "skipping iteration (placeholder)"
             continue
           fi
-
 
           # skip the iteration if the contract is empty (=empty placeholder column for future contracts)
           if [[ -z "$CELL_VALUE" ]]; then
@@ -2799,6 +2798,10 @@ function getChainId() {
     ;;
   "lineatest")
     echo "59140"
+    return 0
+    ;;
+  "linea")
+    echo "59144"
     return 0
     ;;
   "localanvil")
