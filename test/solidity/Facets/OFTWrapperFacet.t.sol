@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-//import { LibAllowList, TestBaseFacet, LiFiDiamond, console } from "../utils/TestBaseFacet.sol";
 import { LibAllowList, TestBase, LiFiDiamond, console } from "../utils/TestBase.sol";
 import { OnlyContractOwner, AlreadyInitialized, UnAuthorized } from "src/Errors/GenericErrors.sol";
 import { OFTWrapperFacet } from "lifi/Facets/OFTWrapperFacet.sol";
@@ -183,13 +182,13 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
     address internal ADDRESS_UNISWAP =
         0x10ED43C718714eb63d5aA57B78B54704E256024E; // PANCAKESWAP @ BSC
 
-    address internal ADDRESS_USH_PROXYOFTV1_BSC =
+    address internal ADDRESS_USH_OFTV1_BSC =
         0x91d6d6aF7635B7b23A8CED9508117965180e2362;
     address internal ADDRESS_RDNT_OFTV2_BSC =
         0xf7DE7E8A6bd59ED41a4b5fe50278b3B7f31384dF;
     address internal ADDRESS_JOE_OFTV2WITHFEE_BSC =
         0x371c7ec6D8039ff7933a2AA28EB827Ffe1F52f07;
-    address internal ADDRESS_ARKEN_PRXYOFTV2_ARB =
+    address internal ADDRESS_ARKEN_PROXYOFTV2_ARB =
         0x64F282290e8d0196c2929a9119250C361e025BAB;
     address internal ADDRESS_JOE_PROXYOFTV2WITHFEE_AVA =
         0x371c7ec6D8039ff7933a2AA28EB827Ffe1F52f07;
@@ -346,6 +345,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         // prepare bridgeData
         bridgeData.bridge = "oft";
         bridgeData.sendingAssetId = BTCBOFT_ADDRESS;
+        bridgeData.destinationChainId = 42161; // Arbitrum chainId
         bridgeData.minAmount = 10e18;
 
         // prepare oftWrapperData
@@ -376,6 +376,25 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
             0x5a54fe5234E811466D5366846283323c954310B2,
             "LayerZeroOracleV2"
         );
+        vm.label(0x4Fa745FCCC04555F2AFA8874cd23961636CdF982, "agEUR OFT");
+        vm.label(0xAf5191B0De278C7286d6C7CC6ab6BB8A73bA2Cd6, "STG OFT");
+        vm.label(0x45e563c39cDdbA8699A90078F42353A57509543a, "OHM OFT");
+        vm.label(0xA8b326Ca02650Ac968C554d6C534412e49c92BC4, "USH PROXYOFTV1");
+        vm.label(
+            0x371c7ec6D8039ff7933a2AA28EB827Ffe1F52f07,
+            "JOE PROXYOFTV2WITHFEE"
+        );
+        vm.label(
+            0x64F282290e8d0196c2929a9119250C361e025BAB,
+            "ARKEN PRXYOFTV2"
+        );
+        vm.label(
+            0x371c7ec6D8039ff7933a2AA28EB827Ffe1F52f07,
+            "JOE OFTV2WITHFEE"
+        );
+        vm.label(0xf7DE7E8A6bd59ED41a4b5fe50278b3B7f31384dF, "RDNT OFTV2");
+        vm.label(0x91d6d6aF7635B7b23A8CED9508117965180e2362, "USH PROXYOFTV1");
+        vm.label(0x10ED43C718714eb63d5aA57B78B54704E256024E, "UNISWAP");
 
         _makeDiamondWithAllFacetsPersistent(address(diamond));
     }
@@ -408,7 +427,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         bridgeData.receiver = USER_RECEIVER;
 
         // estimate fee
-        (uint256 nativeFee, , , , ) = oftWrapperFacet
+        OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
             .estimateOFTFeesAndAmountOut(
                 testTokenProxy,
                 bridgeData.destinationChainId,
@@ -416,14 +435,15 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_SENDER)) << 96),
                 false,
                 oftWrapperData.adapterParams,
-                0
+                0,
+                ""
             );
 
         // prepare oftWrapperData
         oftWrapperData.proxyOftAddress = testTokenProxy;
         oftWrapperData.customCode_approveTo = address(0);
         oftWrapperData.customCode_sendTokensCallData = "";
-        oftWrapperData.lzFee = nativeFee;
+        oftWrapperData.lzFee = feeEstimate.nativeFee;
 
         // approval
         ERC20(testTokenUSH).approve(
@@ -499,7 +519,6 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         //            adapterParamsV1 // 0x000100000000000000000000000000000000000000000000000000000000001e8480
         //        );
 
-        console.log("nativeFee: ", nativeFee); // result from STGContract: 651029113874149  // result from lzEndPoint: 651100395588002 << still insufficient
         // late on the test calls =>  TreasuryV2::getFees(false, 646376348505924, 4747807653363)
         // from which I can derive that these fee values have been determined in the UltraLightNodeV2.send() function:
         //      relayerFee: 646376348505924
@@ -544,9 +563,9 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
     function test_canBridgeOftV1() public {
         // add labels for better logs
-        vm.label(ADDRESS_USH_PROXYOFTV1_BSC, "USH_PROXY");
+        vm.label(ADDRESS_USH_OFTV1_BSC, "USH_PROXY");
 
-        address testToken = ADDRESS_USH_PROXYOFTV1_BSC; // USH
+        address testToken = ADDRESS_USH_OFTV1_BSC; // USH
 
         // deal tokens to user
         deal(testToken, USER_SENDER, 10e18);
@@ -561,7 +580,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         bridgeData.receiver = USER_RECEIVER;
 
         // estimate fee
-        (uint256 nativeFee, , , , ) = oftWrapperFacet
+        OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
             .estimateOFTFeesAndAmountOut(
                 testToken,
                 bridgeData.destinationChainId,
@@ -569,14 +588,15 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_SENDER)) << 96),
                 false,
                 oftWrapperData.adapterParams,
-                0
+                0,
+                ""
             );
 
         // prepare oftWrapperData
         oftWrapperData.proxyOftAddress = address(0);
         oftWrapperData.customCode_approveTo = address(0);
         oftWrapperData.customCode_sendTokensCallData = "";
-        oftWrapperData.lzFee = nativeFee;
+        oftWrapperData.lzFee = feeEstimate.nativeFee;
 
         // approval
         ERC20(testToken).approve(
@@ -615,7 +635,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         bridgeData.receiver = USER_RECEIVER;
 
         // estimate fee
-        (uint256 nativeFee, , , , ) = oftWrapperFacet
+        OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
             .estimateOFTFeesAndAmountOut(
                 testToken,
                 bridgeData.destinationChainId,
@@ -623,14 +643,15 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_SENDER)) << 96),
                 false,
                 oftWrapperData.adapterParams,
-                0
+                0,
+                ""
             );
 
         // prepare oftWrapperData
         oftWrapperData.proxyOftAddress = address(0);
         oftWrapperData.customCode_approveTo = address(0);
         oftWrapperData.customCode_sendTokensCallData = "";
-        oftWrapperData.lzFee = nativeFee;
+        oftWrapperData.lzFee = feeEstimate.nativeFee;
 
         // approval
         ERC20(testToken).approve(
@@ -654,7 +675,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         vm.selectFork(forkId_ARB);
 
         // get actual token
-        address testTokenProxy = ADDRESS_ARKEN_PRXYOFTV2_ARB; // ArkenProxyOFT
+        address testTokenProxy = ADDRESS_ARKEN_PROXYOFTV2_ARB; // ArkenProxyOFT
         address testTokenARKEN = IProxy(testTokenProxy).token();
 
         // add labels for better logs
@@ -674,7 +695,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         bridgeData.receiver = USER_RECEIVER;
 
         // estimate fee
-        (uint256 nativeFee, , , , ) = oftWrapperFacet
+        OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
             .estimateOFTFeesAndAmountOut(
                 testTokenProxy,
                 bridgeData.destinationChainId,
@@ -682,14 +703,15 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_SENDER)) << 96),
                 false,
                 oftWrapperData.adapterParams,
-                0
+                0,
+                ""
             );
 
         // prepare oftWrapperData
         oftWrapperData.proxyOftAddress = testTokenProxy;
         oftWrapperData.customCode_approveTo = address(0);
         oftWrapperData.customCode_sendTokensCallData = "";
-        oftWrapperData.lzFee = nativeFee;
+        oftWrapperData.lzFee = feeEstimate.nativeFee;
 
         // approval
         ERC20(testTokenARKEN).approve(
@@ -728,7 +750,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         bridgeData.receiver = USER_RECEIVER;
 
         // estimate fee
-        (uint256 nativeFee, , , , ) = oftWrapperFacet
+        OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
             .estimateOFTFeesAndAmountOut(
                 testToken,
                 bridgeData.destinationChainId,
@@ -736,14 +758,15 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_SENDER)) << 96),
                 false,
                 oftWrapperData.adapterParams,
-                0
+                0,
+                ""
             );
 
         // prepare oftWrapperData
         oftWrapperData.proxyOftAddress = address(0);
         oftWrapperData.customCode_approveTo = address(0);
         oftWrapperData.customCode_sendTokensCallData = "";
-        oftWrapperData.lzFee = nativeFee;
+        oftWrapperData.lzFee = feeEstimate.nativeFee;
 
         // approval
         ERC20(testToken).approve(
@@ -771,7 +794,6 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         address testToken = IProxy(testTokenProxy).token();
 
         // add labels for better logs
-        vm.label(testTokenProxy, "JoeProxyOFT");
         vm.label(testToken, "JoeToken");
 
         // deal tokens to user
@@ -787,7 +809,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         bridgeData.receiver = USER_RECEIVER;
 
         // estimate fee
-        (uint256 nativeFee, , , , ) = oftWrapperFacet
+        OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
             .estimateOFTFeesAndAmountOut(
                 testTokenProxy,
                 bridgeData.destinationChainId,
@@ -795,14 +817,15 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_SENDER)) << 96),
                 false,
                 oftWrapperData.adapterParams,
-                0
+                0,
+                ""
             );
 
         // prepare oftWrapperData
         oftWrapperData.proxyOftAddress = testTokenProxy;
         oftWrapperData.customCode_approveTo = address(0);
         oftWrapperData.customCode_sendTokensCallData = "";
-        oftWrapperData.lzFee = nativeFee;
+        oftWrapperData.lzFee = feeEstimate.nativeFee;
 
         // approval
         ERC20(testToken).approve(
@@ -946,14 +969,15 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         bridgeData.minAmount = 10e14;
 
         // estimate fee
-        (uint256 nativeFee, ) = IOhmProxyOFT(testTokenProxy).estimateSendFee(
-            oftWrapperFacet.getOFTLayerZeroChainId(
-                bridgeData.destinationChainId
-            ),
-            USER_SENDER,
-            bridgeData.minAmount,
-            oftWrapperData.adapterParams
-        );
+        (uint256 nativeFee, uint256 zroFee) = IOhmProxyOFT(testTokenProxy)
+            .estimateSendFee(
+                oftWrapperFacet.getOFTLayerZeroChainId(
+                    bridgeData.destinationChainId
+                ),
+                USER_SENDER,
+                bridgeData.minAmount,
+                oftWrapperData.adapterParams
+            );
 
         // prepare oftWrapperData
         oftWrapperData.proxyOftAddress = testTokenProxy; // OHM Proxy on ETH
@@ -1068,14 +1092,14 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         assertEq(
             OFTWrapperFacet.startBridgeTokensViaOFTWrapperV1.selector,
             oftWrapperFacet.determineOFTBridgeSendFunction(
-                ADDRESS_USH_PROXYOFTV1_BSC,
+                ADDRESS_USH_OFTV1_BSC,
                 false
             )
         );
         assertEq(
             OFTWrapperFacet.swapAndStartBridgeTokensViaOFTWrapperV1.selector,
             oftWrapperFacet.determineOFTBridgeSendFunction(
-                ADDRESS_USH_PROXYOFTV1_BSC,
+                ADDRESS_USH_OFTV1_BSC,
                 true
             )
         );
@@ -1125,14 +1149,14 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         assertEq(
             OFTWrapperFacet.startBridgeTokensViaOFTWrapperV2.selector,
             oftWrapperFacet.determineOFTBridgeSendFunction(
-                ADDRESS_ARKEN_PRXYOFTV2_ARB,
+                ADDRESS_ARKEN_PROXYOFTV2_ARB,
                 false
             )
         );
         assertEq(
             OFTWrapperFacet.swapAndStartBridgeTokensViaOFTWrapperV2.selector,
             oftWrapperFacet.determineOFTBridgeSendFunction(
-                ADDRESS_ARKEN_PRXYOFTV2_ARB,
+                ADDRESS_ARKEN_PROXYOFTV2_ARB,
                 true
             )
         );
@@ -1225,5 +1249,229 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 true
             )
         );
+    }
+
+    function test_estimateOFTFeesAndAmountOut_V11() public {
+        // activate BSC fork
+        vm.selectFork(forkId_BSC);
+
+        // set active fork to given block (to ensure predictable results
+        vm.rollFork(31470699);
+
+        uint256 testAmount = 123456789;
+
+        // get fee estimate from our facet
+        OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
+            .estimateOFTFeesAndAmountOut(
+                ADDRESS_USH_OFTV1_BSC,
+                bridgeData.destinationChainId,
+                testAmount,
+                bytes32(uint256(uint160(USER_RECEIVER)) << 96),
+                false,
+                adapterParamsV1,
+                0,
+                ""
+            );
+
+        uint256 expectedWrapperFee = 24691;
+
+        assertEq(feeEstimate.nativeFee, 4085019515262038); // not sure if this value remains stable
+        assertEq(feeEstimate.zroFee, 0);
+        assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
+        assertEq(feeEstimate.callerFee, 0);
+        assertEq(feeEstimate.amountOut, testAmount - expectedWrapperFee);
+    }
+
+    function test_estimateOFTFeesAndAmountOut_V1Proxy() public {
+        // activate BSC fork
+        vm.selectFork(forkId_BSC);
+
+        // set active fork to given block (to ensure predictable results
+        vm.rollFork(31470699);
+
+        uint256 testAmount = 123456789;
+
+        // get fee estimate from our facet
+        OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
+            .estimateOFTFeesAndAmountOut(
+                ADDRESS_USH_OFTV1_BSC,
+                bridgeData.destinationChainId,
+                testAmount,
+                bytes32(uint256(uint160(USER_RECEIVER)) << 96),
+                false,
+                adapterParamsV1,
+                0,
+                ""
+            );
+
+        uint256 expectedWrapperFee = 24691;
+
+        assertEq(feeEstimate.nativeFee, 4085019515262038); // not sure if this value remains stable
+        assertEq(feeEstimate.zroFee, 0);
+        assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
+        assertEq(feeEstimate.callerFee, 0);
+        assertEq(feeEstimate.amountOut, testAmount - expectedWrapperFee);
+    }
+
+    function test_estimateOFTFeesAndAmountOut_V2() public {
+        // activate BSC fork
+        vm.selectFork(forkId_BSC);
+
+        // set active fork to given block (to ensure predictable results
+        vm.rollFork(31470699);
+
+        uint256 testAmount = 123456789;
+
+        // get fee estimate from our facet
+        OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
+            .estimateOFTFeesAndAmountOut(
+                ADDRESS_RDNT_OFTV2_BSC,
+                bridgeData.destinationChainId,
+                testAmount,
+                bytes32(uint256(uint160(USER_RECEIVER)) << 96),
+                false,
+                adapterParamsV1,
+                0,
+                ""
+            );
+
+        uint256 expectedWrapperFee = 24691;
+
+        assertEq(feeEstimate.nativeFee, 4035021132398375); // not sure if this value remains stable
+        assertEq(feeEstimate.zroFee, 0);
+        assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
+        assertEq(feeEstimate.callerFee, 0);
+        assertEq(feeEstimate.amountOut, testAmount - expectedWrapperFee);
+    }
+
+    function test_estimateOFTFeesAndAmountOut_V2Proxy() public {
+        // activate Avalanche fork
+        vm.selectFork(forkId_ARB);
+
+        // set active fork to given block (to ensure predictable results
+        vm.rollFork(128176701);
+
+        uint256 testAmount = 123456789;
+
+        // get fee estimate from our facet
+        OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
+            .estimateOFTFeesAndAmountOut(
+                ADDRESS_ARKEN_PROXYOFTV2_ARB,
+                bridgeData.destinationChainId,
+                testAmount,
+                bytes32(uint256(uint160(USER_RECEIVER)) << 96),
+                false,
+                adapterParamsV1,
+                0,
+                ""
+            );
+
+        uint256 expectedWrapperFee = 24691;
+
+        assertEq(feeEstimate.nativeFee, 532625681436064); // not sure if this value remains stable
+        assertEq(feeEstimate.zroFee, 0);
+        assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
+        assertEq(feeEstimate.callerFee, 0);
+        assertEq(feeEstimate.amountOut, testAmount - expectedWrapperFee);
+    }
+
+    function test_estimateOFTFeesAndAmountOut_V2WithFee() public {
+        // set active fork to given block (to ensure predictable results
+        vm.rollFork(31470148);
+
+        uint256 testAmount = 123456789;
+
+        // get fee estimate from our facet
+        OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
+            .estimateOFTFeesAndAmountOut(
+                ADDRESS_JOE_OFTV2WITHFEE_BSC,
+                bridgeData.destinationChainId,
+                testAmount,
+                bytes32(uint256(uint160(USER_RECEIVER)) << 96),
+                false,
+                adapterParamsV1,
+                0,
+                ""
+            );
+
+        uint256 expectedWrapperFee = 24691;
+
+        assertEq(feeEstimate.nativeFee, 6269688761801826); // not sure if this value remains stable
+        assertEq(feeEstimate.zroFee, 0);
+        assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
+        assertEq(feeEstimate.callerFee, 0);
+        assertEq(feeEstimate.amountOut, testAmount - expectedWrapperFee);
+    }
+
+    function test_estimateOFTFeesAndAmountOut_V2WithFeeProxy() public {
+        // activate Avalanche fork
+        vm.selectFork(forkId_AVA);
+
+        // set active fork to given block (to ensure predictable results
+        vm.rollFork(34789856);
+
+        uint256 testAmount = 123456789;
+
+        // get fee estimate from our facet
+        OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
+            .estimateOFTFeesAndAmountOut(
+                ADDRESS_JOE_PROXYOFTV2WITHFEE_AVA,
+                bridgeData.destinationChainId,
+                testAmount,
+                bytes32(uint256(uint160(USER_RECEIVER)) << 96),
+                false,
+                adapterParamsV1,
+                0,
+                ""
+            );
+
+        uint256 expectedWrapperFee = 24691;
+
+        assertEq(feeEstimate.nativeFee, 136838283700560541); // not sure if this value remains stable
+        assertEq(feeEstimate.zroFee, 0);
+        assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
+        assertEq(feeEstimate.callerFee, 0);
+        assertEq(feeEstimate.amountOut, testAmount - expectedWrapperFee);
+    }
+
+    function test_estimateOFTFeesAndAmountOut_CustomCode() public {
+        // activate ETH fork
+        vm.selectFork(forkId_ETH);
+
+        // set active fork to given block (to ensure predictable results
+        vm.rollFork(18068415);
+
+        uint16 layerZeroChainId = oftWrapperFacet.getOFTLayerZeroChainId(
+            bridgeData.destinationChainId
+        );
+
+        // prepare callData for customCodeOFT fee estimate
+        bytes memory customCodeOftCallData = abi.encodeWithSignature(
+            "estimateSendTokensFee(uint16,bool,bytes)",
+            layerZeroChainId,
+            false,
+            adapterParamsV1
+        );
+
+        uint256 testAmount = 123456789;
+
+        // get fee estimate with pre-computed calldata (no other parameters required)
+        OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
+            .estimateOFTFeesAndAmountOut(
+                ADDRESS_STG_CustomCode_ETH,
+                0,
+                testAmount,
+                bytes32(uint256(uint160(0)) << 96),
+                false,
+                "",
+                0,
+                customCodeOftCallData
+            );
+
+        assertEq(feeEstimate.nativeFee, 888436917822948);
+        assertEq(feeEstimate.zroFee, 0);
+        assertEq(feeEstimate.wrapperFee, 0);
+        assertEq(feeEstimate.callerFee, 0);
+        assertEq(feeEstimate.amountOut, testAmount);
     }
 }

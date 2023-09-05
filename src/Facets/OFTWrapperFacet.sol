@@ -44,6 +44,14 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bool whitelisted;
     }
 
+    struct OftFeeEstimate {
+        uint256 nativeFee;
+        uint256 zroFee;
+        uint256 wrapperFee;
+        uint256 callerFee;
+        uint256 amountOut;
+    }
+
     struct Storage {
         mapping(uint256 => uint16) layerZeroChainId;
         mapping(address => bool) whitelistedCustomOFTs;
@@ -66,6 +74,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     error UnknownLayerZeroChain();
     error InvalidProxyOFTAddress();
+    error ContractWithNonStandardFeeEstimateFunction(string originalError);
 
     /// Events ///
 
@@ -635,61 +644,95 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// @notice Get fee estimation.
-    /// @param _sendingAssetId The address of briding asset.
+    /// @param _sendingAssetId The address of the asset to be sent
     /// @param _destinationChainId The id of destination chain.
     /// @param _amount The amount of sending asset.
     /// @param _receiver Receiver address evm chain.
     /// @param _useZro Whether fee should be paid in ZRO token or not.
     /// @param _adapterParams Parameters for custom functionality.
     /// @param _callerBps Basis points given to the caller/app.
+    /// @param _customCodeCallData The calldata to obtain a fee estimate for a customCodeOFT, otherwise empty
     function estimateOFTFeesAndAmountOut(
         address _sendingAssetId,
         uint256 _destinationChainId,
         uint256 _amount,
         bytes32 _receiver,
         bool _useZro,
-        bytes memory _adapterParams,
-        uint256 _callerBps
-    )
-        external
-        view
-        returns (
-            uint256 nativeFee,
-            uint256 zroFee,
-            uint256 wrapperFee,
-            uint256 callerFee,
-            uint256 amountOut
-        )
-    {
-        (amountOut, wrapperFee, callerFee) = oftWrapper.getAmountAndFees(
-            _sendingAssetId,
-            _amount,
-            _callerBps
-        );
-
-        uint16 layerZeroChainId = getOFTLayerZeroChainId(_destinationChainId);
-
-        // Try IOFT function
-        try
-            IOFT(_sendingAssetId).estimateSendFee(
-                layerZeroChainId,
-                abi.encodePacked(bytes20(_receiver << 96)),
-                amountOut,
-                _useZro,
-                _adapterParams
-            )
-        returns (uint256 _nativeFee, uint256 _zroFee) {
-            nativeFee = _nativeFee;
-            zroFee = _zroFee;
-        } catch {
-            // If IOFT call fails, try IOFTV2 function
-            (nativeFee, zroFee) = IOFTV2(_sendingAssetId).estimateSendFee(
-                layerZeroChainId,
-                _receiver,
-                amountOut,
-                _useZro,
-                _adapterParams
+        bytes calldata _adapterParams,
+        uint256 _callerBps,
+        bytes calldata _customCodeCallData
+    ) external view returns (OftFeeEstimate memory feeEstimate) {
+        // check if called for customCodeOFT
+        if (_customCodeCallData.length == 0) {
+            // obtain wrapperFee/callerFee and amountOut from OFTWrapper contract
+            (
+                feeEstimate.amountOut,
+                feeEstimate.wrapperFee,
+                feeEstimate.callerFee
+            ) = oftWrapper.getAmountAndFees(
+                _sendingAssetId,
+                _amount,
+                _callerBps
             );
+
+            uint16 layerZeroChainId = getOFTLayerZeroChainId(
+                _destinationChainId
+            );
+
+            // Obtain estimates for native/zroFee via token contract
+            try
+                // Try IOFTV2 function
+                IOFTV2(_sendingAssetId).estimateSendFee(
+                    layerZeroChainId,
+                    _receiver,
+                    feeEstimate.amountOut,
+                    _useZro,
+                    _adapterParams
+                )
+            returns (uint256 _nativeFee, uint256 _zroFee) {
+                feeEstimate.nativeFee = _nativeFee;
+                feeEstimate.zroFee = _zroFee;
+            } catch {
+                try
+                    // Try OFTV1 function
+                    IOFT(_sendingAssetId).estimateSendFee(
+                        layerZeroChainId,
+                        abi.encodePacked(bytes20(_receiver << 96)),
+                        feeEstimate.amountOut,
+                        _useZro,
+                        _adapterParams
+                    )
+                returns (uint256 _nativeFee, uint256 _zroFee) {
+                    feeEstimate.nativeFee = _nativeFee;
+                    feeEstimate.zroFee = _zroFee;
+                } catch Error(string memory reason) {
+                    revert ContractWithNonStandardFeeEstimateFunction(reason);
+                } catch (bytes memory) {
+                    revert ContractWithNonStandardFeeEstimateFunction(
+                        "failed without error message"
+                    );
+                }
+            }
+        } else {
+            // obtain fee estimate directly from customCodeOFT contract
+            // using assembly here since low-level calls in view functions are not permitted
+            (bool success, bytes memory result) = _sendingAssetId.staticcall(
+                _customCodeCallData
+            );
+
+            // check result of call and, if call successful, make sure result has data
+            if (!success || result.length == 0) {
+                revert ExternalCallFailed();
+            } else {
+                // decode result data
+                (feeEstimate.nativeFee, feeEstimate.zroFee) = abi.decode(
+                    result,
+                    (uint256, uint256)
+                );
+
+                // set amountOut to initial amount (since no caller or wrapperFee is taken by customCodeOFTs)
+                feeEstimate.amountOut = _amount;
+            }
         }
     }
 
