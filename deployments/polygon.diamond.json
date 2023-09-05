@@ -25,6 +25,10 @@
         "Name": "CBridgeFacet",
         "Version": "1.0.0"
       },
+      "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
+        "Name": "CBridgeFacetPacked",
+        "Version": "1.0.3"
+      },
       "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
@@ -37,6 +41,10 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
+      "0x411F81f16FF40984ac8a4546f2Ad19e22704693F": {
+        "Name": "AmarokFacet",
+        "Version": "2.0.0"
+      },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
@@ -47,6 +55,10 @@
       },
       "0xd84d9A8Bf830496C4DEc917bC27D22E09E01cB8A": {
         "Name": "HopFacet",
+        "Version": "2.0.0"
+      },
+      "0xC0c42d148241c5b5BB38e974d40Fc9087f7F9ecD": {
+        "Name": "AllBridgeFacet",
         "Version": "2.0.0"
       },
       "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
@@ -61,25 +73,17 @@
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0xbd8D369470169f9976c5bCc60318955836843a71": {
-        "Name": "AmarokFacet",
-        "Version": "1.0.1"
-      },
-      "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.3"
-      },
       "0xBeE13d99dD633fEAa2a0935f00CbC859F8305FA7": {
         "Name": "AcrossFacet",
         "Version": "2.0.0"
       },
-      "0xC0c42d148241c5b5BB38e974d40Fc9087f7F9ecD": {
-        "Name": "AllBridgeFacet",
-        "Version": "2.0.0"
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
+        "Version": "1.0.0"
       },
-      "0x411F81f16FF40984ac8a4546f2Ad19e22704693F": {
-        "Name": "AmarokFacet",
-        "Version": "2.0.0"
+      "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
