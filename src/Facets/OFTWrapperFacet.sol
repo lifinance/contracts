@@ -717,6 +717,9 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 }
             }
         } else {
+            // make sure customCodeCallData is available
+            if (_customCodeCallData.length == 0) revert InvalidCallData();
+
             // obtain fee estimate directly from customCodeOFT contract
             // using assembly here since low-level calls in view functions are not permitted
             (bool success, bytes memory result) = _sendingAssetId.staticcall(
