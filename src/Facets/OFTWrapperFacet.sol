@@ -564,7 +564,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function determineOFTBridgeSendFunction(
         address _sendingAssetId,
         bool _withSrcSwap
-    ) external view returns (bytes4 bridgeFunctionSelector) {
+    ) public view returns (bytes4 bridgeFunctionSelector) {
         if (isOftV1(_sendingAssetId)) {
             if (_withSrcSwap)
                 return
@@ -663,7 +663,10 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes calldata _customCodeCallData
     ) external view returns (OftFeeEstimate memory feeEstimate) {
         // check if called for customCodeOFT
-        if (_customCodeCallData.length == 0) {
+        if (
+            determineOFTBridgeSendFunction(_sendingAssetId, false) !=
+            OFTWrapperFacet.startBridgeTokensViaCustomCodeOFT.selector
+        ) {
             // obtain wrapperFee/callerFee and amountOut from OFTWrapper contract
             (
                 feeEstimate.amountOut,
