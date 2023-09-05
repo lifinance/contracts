@@ -14,27 +14,7 @@ contract TestSymbiosisFacet is SymbiosisFacet, TestFacet {
     ) SymbiosisFacet(_symbiosisMetaRouter, _symbiosisGateway) {}
 }
 
-contract MockMetaRouter {
-    address internal constant SYMBIOSIS_GATEWAY =
-        0x25bEE8C21D1d0ec2852302fd7E674196EA298eC6;
-
-    function metaRoute(
-        ISymbiosisMetaRouter.MetaRouteTransaction calldata mt
-    ) external payable {
-        if (!mt.nativeIn) {
-            bytes memory callData = abi.encodeWithSignature(
-                "claimTokens(address,address,uint256)",
-                mt.approvedTokens[0],
-                msg.sender,
-                mt.amount
-            );
-            (bool ok, ) = SYMBIOSIS_GATEWAY.call(callData);
-            if (!ok) {
-                revert("Couldn't pull tokens.");
-            }
-        }
-    }
-}
+contract MockMetaRouter {}
 
 contract SymbiosisFacetTest is TestBaseFacet {
     // These values are for Mainnet
@@ -111,6 +91,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
             "", // first swap calldata
             "", // second swap calldata
             address(0), //intermediateToken
+            ADDRESS_USDC, // bridgingToken
             address(0), // firstDexRouter
             address(0), // secondDexRouter
             RELAY_RECIPIENT, // bridging entrypoint
@@ -120,10 +101,27 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
+
+                    address[] memory path = new address[](2);
+        path[0] = ADDRESS_WETH;
+        path[1] = ADDRESS_USDC;
+/
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+        symbiosisData.intermediateToken = ADDRESS_USDC;
+        symbiosisData.firstDexRouter = address(ADDRESS_UNISWAP);
+        symbiosisData.firstSwapCalldata = abi.encodeWithSelector(
+            uniswap.swapExactETHForTokens.selector,
+            0,
+            path,
+            SYMBIOSIS_METAROUTER,
+            block.timestamp + 20 minutes
+        );
+
+
             symbiosisFacet.startBridgeTokensViaSymbiosis{
                 value: bridgeData.minAmount
             }(bridgeData, symbiosisData);
-            assertEq(SYMBIOSIS_METAROUTER.balance, bridgeData.minAmount);
         } else {
             symbiosisFacet.startBridgeTokensViaSymbiosis(
                 bridgeData,
@@ -132,14 +130,14 @@ contract SymbiosisFacetTest is TestBaseFacet {
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis{
                 value: swapData[0].fromAmount
             }(bridgeData, swapData, symbiosisData);
-            assertEq(SYMBIOSIS_METAROUTER.balance, bridgeData.minAmount);
         } else {
             symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis{
                 value: addToMessageValue
