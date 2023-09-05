@@ -969,15 +969,14 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         bridgeData.minAmount = 10e14;
 
         // estimate fee
-        (uint256 nativeFee, uint256 zroFee) = IOhmProxyOFT(testTokenProxy)
-            .estimateSendFee(
-                oftWrapperFacet.getOFTLayerZeroChainId(
-                    bridgeData.destinationChainId
-                ),
-                USER_SENDER,
-                bridgeData.minAmount,
-                oftWrapperData.adapterParams
-            );
+        (uint256 nativeFee, ) = IOhmProxyOFT(testTokenProxy).estimateSendFee(
+            oftWrapperFacet.getOFTLayerZeroChainId(
+                bridgeData.destinationChainId
+            ),
+            USER_SENDER,
+            bridgeData.minAmount,
+            oftWrapperData.adapterParams
+        );
 
         // prepare oftWrapperData
         oftWrapperData.proxyOftAddress = testTokenProxy; // OHM Proxy on ETH
