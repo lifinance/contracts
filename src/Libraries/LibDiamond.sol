@@ -4,7 +4,6 @@ pragma solidity 0.8.17;
 import { IDiamondCut } from "../Interfaces/IDiamondCut.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { OnlyContractOwner } from "../Errors/GenericErrors.sol";
-import { console } from "forge-std/Console.sol";
 
 /// Implementation of EIP-2535 Diamond Standard
 /// https://eips.ethereum.org/EIPS/eip-2535
