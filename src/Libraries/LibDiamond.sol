@@ -98,19 +98,16 @@ library LibDiamond {
         for (uint256 facetIndex; facetIndex < _diamondCut.length; ) {
             IDiamondCut.FacetCutAction action = _diamondCut[facetIndex].action;
             if (action == IDiamondCut.FacetCutAction.Add) {
-                console.log("in diamondCut:add");
                 addFunctions(
                     _diamondCut[facetIndex].facetAddress,
                     _diamondCut[facetIndex].functionSelectors
                 );
             } else if (action == IDiamondCut.FacetCutAction.Replace) {
-                console.log("in diamondCut:replace");
                 replaceFunctions(
                     _diamondCut[facetIndex].facetAddress,
                     _diamondCut[facetIndex].functionSelectors
                 );
             } else if (action == IDiamondCut.FacetCutAction.Remove) {
-                console.log("in diamondCut:remove");
                 removeFunctions(
                     _diamondCut[facetIndex].facetAddress,
                     _diamondCut[facetIndex].functionSelectors
