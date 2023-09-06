@@ -4216,6 +4216,32 @@
           }
         ]
       }
+    },
+    "base": {
+      "staging": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x2b1efBFbe38920959F5C4d90C235272474978a1F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-06 11:13:26",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000009aea4b2242abc8bb4bb78d537a67a245a7bec640000000000000000000000004200000000000000000000000000000000000006",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      },
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x98e3E949E8310D836A625495eA70eEAa92073862",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-06 11:22:20",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000009aea4b2242abc8bb4bb78d537a67a245a7bec640000000000000000000000004200000000000000000000000000000000000006",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "CBridgeFacet": {
