@@ -10,6 +10,8 @@ import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
+import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
+import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
@@ -26,6 +28,10 @@ contract DeployScript is UpdateScriptBase {
         address peripheryRgs = json.readAddress(".PeripheryRegistryFacet");
         address liFuelAddress = json.readAddress(".LIFuelFacet");
         address genSwapAddress = json.readAddress(".GenericSwapFacet");
+        address standCallAddress = json.readAddress(".StandardizedCallFacet");
+        address calldVerifAddress = json.readAddress(
+            ".CalldataVerificationFacet"
+        );
 
         bytes4[] memory exclude;
 
@@ -105,6 +111,22 @@ contract DeployScript is UpdateScriptBase {
             buildDiamondCut(selectors, genSwapAddress);
         } else {
             buildInitialCut(selectors, genSwapAddress);
+        }
+
+        // StandardizedCallFacet
+        selectors = getSelectors("StandardizedCallFacet", exclude);
+        if (loupeExists) {
+            buildDiamondCut(selectors, standCallAddress);
+        } else {
+            buildInitialCut(selectors, standCallAddress);
+        }
+
+        // CalldataVerificationFacet
+        selectors = getSelectors("CalldataVerificationFacet", exclude);
+        if (loupeExists) {
+            buildDiamondCut(selectors, calldVerifAddress);
+        } else {
+            buildInitialCut(selectors, calldVerifAddress);
         }
 
         // if noBroadcast is activated, we only prepare calldata for sending it to multisig SAFE
