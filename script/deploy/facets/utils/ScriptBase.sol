@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { Script, console } from "forge-std/Script.sol";
+import { Script, console, console2 } from "forge-std/Script.sol";
 import { DSTest } from "ds-test/test.sol";
 
 contract ScriptBase is Script, DSTest {

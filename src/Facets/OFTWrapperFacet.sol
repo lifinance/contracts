@@ -55,7 +55,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct Storage {
         mapping(uint256 => uint16) layerZeroChainId;
         mapping(address => bool) whitelistedCustomOFTs;
-        bool initialized;
     }
 
     struct OFTWrapperData {
@@ -112,11 +111,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage sm = getStorage();
-
-        if (sm.initialized) {
-            revert AlreadyInitialized();
-        }
-        sm.initialized = true;
 
         // add layerZero custom chainIds
         for (uint256 i = 0; i < chainIdConfigs.length; i++) {
@@ -833,10 +827,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ) external {
         LibDiamond.enforceIsContractOwner();
         Storage storage sm = getStorage();
-
-        if (!sm.initialized) {
-            revert NotInitialized();
-        }
 
         sm.layerZeroChainId[_chainId] = _layerZeroChainId;
 

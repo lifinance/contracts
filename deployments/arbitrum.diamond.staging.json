@@ -77,9 +77,9 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
-      "0x7D421EffC29B1712a20F22f478778693CE7c5E94": {
-        "Name": "OFTWrapperFacet",
-        "Version": "0.0.3"
+      "0x7260Fd3F8D0bEb06fF5935C6eadE9f406107c270": {
+        "Name": "WormholeFacet",
+        "Version": "1.0.0"
       },
       "0x933A3AfE2087FB8F5c9EE9A033477C42CC14c18E": {
         "Name": "SquidFacet",
@@ -93,9 +93,9 @@
         "Name": "SynapseBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x7260Fd3F8D0bEb06fF5935C6eadE9f406107c270": {
-        "Name": "WormholeFacet",
-        "Version": "1.0.0"
+      "0x4E32c544a3498AE561c89E71Bcc7582C79D7eA84": {
+        "Name": "OFTWrapperFacet",
+        "Version": "0.0.4"
       }
     },
     "Periphery": {

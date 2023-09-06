@@ -16,6 +16,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import "./OwnershipFacet.t.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
+import { stdJson } from "forge-std/StdJson.sol";
 
 interface IUniswapV2Factory {
     function createPair(
@@ -150,6 +151,8 @@ contract TestOFTWrapperFacet is OFTWrapperFacet {
 }
 
 contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
+    using stdJson for string;
+
     // EVENTS
     event LayerZeroChainIdSet(
         uint256 indexed chainId,
@@ -897,20 +900,6 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         oftWrapperFacet.batchWhitelist(whitelistConfig);
     }
 
-    function test_revert_InitializeAgain() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-        OFTWrapperFacet.ChainIdConfig[]
-            memory chainIdConfig = new OFTWrapperFacet.ChainIdConfig[](2);
-        chainIdConfig[0] = OFTWrapperFacet.ChainIdConfig(1, 101);
-        chainIdConfig[1] = OFTWrapperFacet.ChainIdConfig(137, 109);
-
-        // create empty whitelistConfig
-        OFTWrapperFacet.WhitelistConfig[] memory whitelistConfig;
-
-        vm.expectRevert(AlreadyInitialized.selector);
-        oftWrapperFacet.initOFTWrapper(chainIdConfig, whitelistConfig);
-    }
-
     function test_revert_InitializeAsNonOwner() public {
         LiFiDiamond diamond2 = createDiamond();
         oftWrapperFacet = new TestOFTWrapperFacet(
@@ -932,6 +921,55 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         vm.startPrank(USER_SENDER);
 
         vm.expectRevert(OnlyContractOwner.selector);
+        oftWrapperFacet.initOFTWrapper(chainIdConfig, whitelistConfig);
+    }
+
+    function test_InitializeAsOwnerWithActualData() public {
+        string memory root = vm.projectRoot();
+        string memory path = string.concat(root, "/config/oftwrapper.json");
+        string memory json = vm.readFile(path);
+
+        LiFiDiamond diamond2 = createDiamond();
+        oftWrapperFacet = new TestOFTWrapperFacet(
+            IOFTWrapper(MAINNET_OFTWRAPPER)
+        );
+
+        addFacet(diamond2, address(oftWrapperFacet), functionSelectors);
+
+        // create chainId mapping from config file
+        bytes memory rawChains = json.parseRaw(".chains");
+        OFTWrapperFacet.ChainIdConfig[] memory chainIdConfig = abi.decode(
+            rawChains,
+            (OFTWrapperFacet.ChainIdConfig[])
+        );
+
+        // create whitelisted contracts parameter from config file
+        bytes memory rawContracts = json.parseRaw(
+            string.concat(".whitelistedOftBridgeContracts", ".", "mainnet")
+        );
+        console.log("rawContracts.length: ", rawContracts.length);
+        address[] memory whitelistedContracts = abi.decode(
+            rawContracts,
+            (address[])
+        );
+
+        console.log(
+            "whitelistedContracts.length: ",
+            whitelistedContracts.length
+        );
+        OFTWrapperFacet.WhitelistConfig[]
+            memory whitelistConfig = new OFTWrapperFacet.WhitelistConfig[](
+                whitelistedContracts.length
+            );
+        for (uint i; i < whitelistedContracts.length; i++) {
+            whitelistConfig[i] = OFTWrapperFacet.WhitelistConfig(
+                whitelistedContracts[i],
+                true
+            );
+        }
+
+        oftWrapperFacet = TestOFTWrapperFacet(address(diamond2));
+
         oftWrapperFacet.initOFTWrapper(chainIdConfig, whitelistConfig);
     }
 

@@ -41,9 +41,9 @@
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0x7D421EffC29B1712a20F22f478778693CE7c5E94": {
+      "0x4E32c544a3498AE561c89E71Bcc7582C79D7eA84": {
         "Name": "OFTWrapperFacet",
-        "Version": "0.0.3"
+        "Version": "0.0.4"
       }
     },
     "Periphery": {
