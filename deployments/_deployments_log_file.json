@@ -12773,5 +12773,21 @@
         ]
       }
     }
+  },
+  "OpBNBBridgeFacet": {
+    "bsc-testnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xBe322A97F688A9d3A786adCcB42BFc5Cb36Ace85",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-07 12:24:15",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
   }
 }

@@ -872,17 +872,10 @@ function checkRequiredVariablesInDotEnv() {
   fi
 
   local PRIVATE_KEY="$PRIVATE_KEY"
-  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK" | sed s/-/_/g)"
   local RPC_URL="${!RPC}"
 
-  # special handling for BSC testnet
-  # uses same block explorer key as bsc mainnet
-  if [[ "$NETWORK" == "bsc-testnet" ]]; then
-    NETWORK="bsc"
-    RPC_URL="${!ETH_NODE_URI_BSCTEST}"
-  fi
-
-  local BLOCKEXPLORER_API="$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")""_ETHERSCAN_API_KEY"
+  local BLOCKEXPLORER_API="$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK" | sed s/-/_/g)""_ETHERSCAN_API_KEY"
   local BLOCKEXPLORER_API_KEY="${!BLOCKEXPLORER_API}"
 
   if [[ -z "$PRIVATE_KEY" || -z "$RPC_URL" || -z "$BLOCKEXPLORER_API_KEY" ]]; then
@@ -1310,7 +1303,7 @@ function verifyContract() {
   if [[ "$NETWORK" == "bsc-testnet" ]]; then
     API_KEY="BSC_ETHERSCAN_API_KEY"
   else
-    API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)_ETHERSCAN_API_KEY"
+    API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK | sed s/-/_/g)_ETHERSCAN_API_KEY"
   fi
 
   # logging for debug purposes
@@ -2209,7 +2202,7 @@ function getContractAddressFromSalt() {
   local ENVIRONMENT=$4
 
   # get RPC URL
-  local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  local RPC_URL="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK" | sed s/-/_/g)"
 
   # get deployer address
   local DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
@@ -2455,7 +2448,7 @@ function doesAddressContainBytecode() {
   fi
 
   # get correct node URL for given NETWORK
-  NODE_URL_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<$NETWORK)"
+  NODE_URL_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<$NETWORK | sed s/-/_/g)"
   NODE_URL=${!NODE_URL_KEY}
 
   # check if NODE_URL is available
@@ -2604,7 +2597,7 @@ function getRPCUrl() {
   local NETWORK=$1
 
   # get RPC KEY
-  RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK" | sed s/-/_/g)"
 
   # return RPC URL
   echo "${!RPC_KEY}"
