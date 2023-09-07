@@ -60,6 +60,10 @@
       "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.0"
+      },
+      "0x98e3E949E8310D836A625495eA70eEAa92073862": {
+        "Name": "AcrossFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
