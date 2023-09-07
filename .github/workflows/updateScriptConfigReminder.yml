@@ -1,0 +1,20 @@
+name: Notify SmartContract channel when scripts config file changes
+
+on:
+  pull_request:
+    paths:
+      - 'script/config.example.sh'
+    types:
+      - opened
+      - synchronize
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord message
+        uses: Ilshidur/action-discord@0.3.2
+        with:
+          args: "Hey team, please update your scripts/config.sh file (see config.example.sh for latest changes)"
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
