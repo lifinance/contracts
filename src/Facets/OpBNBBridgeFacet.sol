@@ -25,7 +25,6 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct Storage {
         mapping(address => IL1StandardBridge) bridges;
         IL1StandardBridge standardBridge;
-        bool initialized;
     }
 
     struct Config {
@@ -56,10 +55,6 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         Storage storage s = getStorage();
 
-        if (s.initialized) {
-            revert AlreadyInitialized();
-        }
-
         for (uint256 i = 0; i < configs.length; i++) {
             if (configs[i].bridge == address(0)) {
                 revert InvalidConfig();
@@ -70,7 +65,6 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         s.standardBridge = standardBridge;
-        s.initialized = true;
 
         emit OptimismInitialized(configs);
     }
@@ -84,8 +78,6 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
-
-        if (!s.initialized) revert NotInitialized();
 
         if (bridge == address(0)) {
             revert InvalidConfig();

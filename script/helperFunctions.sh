@@ -293,7 +293,7 @@ function findContractInMasterLogByAddress() {
   for CONTRACT in "${CONTRACTS[@]}"; do
 
     # Read VERSION keys for the network
-    VERSIONS=($(jq -r "if .${CONTRACT}.${NETWORK}.${ENVIRONMENT} | type == \"object\" then .${CONTRACT}.${NETWORK}.${ENVIRONMENT} | keys[] else empty end" "$LOG_FILE_PATH"))
+    VERSIONS=($(jq -r "if .${CONTRACT}.\"${NETWORK}\".${ENVIRONMENT} | type == \"object\" then .${CONTRACT}.\"${NETWORK}\".${ENVIRONMENT} | keys[] else empty end" "$LOG_FILE_PATH"))
 
     # go through all versions
     for VERSION in "${VERSIONS[@]}"; do
@@ -1299,12 +1299,7 @@ function verifyContract() {
   local ADDRESS=$3
   local ARGS=$4
 
-  # get API key for blockchain explorer
-  if [[ "$NETWORK" == "bsc-testnet" ]]; then
-    API_KEY="BSC_ETHERSCAN_API_KEY"
-  else
-    API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK | sed s/-/_/g)_ETHERSCAN_API_KEY"
-  fi
+  API_KEY="$(tr '[:lower:]' '[:upper:]' <<<$NETWORK | sed s/-/_/g)_ETHERSCAN_API_KEY"
 
   # logging for debug purposes
   echo ""

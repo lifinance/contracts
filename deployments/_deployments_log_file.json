@@ -950,6 +950,20 @@
           }
         ]
       }
+    },
+    "bsc-testnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x48Fb9d260c36709D48a9DfDef7c055672e445e8C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-07 12:53:25",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "OwnershipFacet": {
@@ -1421,6 +1435,20 @@
           }
         ]
       }
+    },
+    "bsc-testnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x03106740Ec9558c8D1cb1076255E9a5c76bB1745",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-07 12:53:53",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "DexManagerFacet": {
@@ -1876,6 +1904,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "bsc-testnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD19dAc7519387533C4DB1B38337EA488599Fa612",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-07 12:54:54",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -2336,6 +2378,20 @@
           }
         ]
       }
+    },
+    "bsc-testnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xFf296c17499C8eda2DdF61db580149bB819C804A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-07 12:56:05",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -2791,6 +2847,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "bsc-testnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x3cC42345FdbfEaAD668074ba3F8d3f664A243188",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-07 12:56:38",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -3262,6 +3332,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "bsc-testnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf1269030deB739edB0b7dABA9b701E102116d86c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-07 12:57:03",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -5001,6 +5085,20 @@
           }
         ]
       }
+    },
+    "bsc-testnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD79087Bfc48506f4B4d0B82547d708051af0f513",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-07 12:57:33",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "HopFacetOptimized": {
@@ -5876,6 +5974,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "bsc-testnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x487a39b6c8A379E1EFA10b59ED1E39b9b1AcBa3a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-07 12:58:08",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -12779,9 +12891,9 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0xBe322A97F688A9d3A786adCcB42BFc5Cb36Ace85",
+            "ADDRESS": "0xc40572B9d7B61CCB70Ab05267CcF42fB57e1ad29",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-09-07 12:24:15",
+            "TIMESTAMP": "2023-09-07 13:58:00",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false"

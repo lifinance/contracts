@@ -1,9 +1,45 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "null": {
-        "Name": "",
-        "Version": ""
+      "0xF1d67E1dddc87E2858C87EBd5b19f99a4E297541": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0x48Fb9d260c36709D48a9DfDef7c055672e445e8C": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0x03106740Ec9558c8D1cb1076255E9a5c76bB1745": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x3cC42345FdbfEaAD668074ba3F8d3f664A243188": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0xD19dAc7519387533C4DB1B38337EA488599Fa612": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xFf296c17499C8eda2DdF61db580149bB819C804A": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xf1269030deB739edB0b7dABA9b701E102116d86c": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0x487a39b6c8A379E1EFA10b59ED1E39b9b1AcBa3a": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
+      },
+      "0xD79087Bfc48506f4B4d0B82547d708051af0f513": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0xc40572B9d7B61CCB70Ab05267CcF42fB57e1ad29": {
+        "Name": "OpBNBBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
