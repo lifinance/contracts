@@ -44,7 +44,7 @@ jobs:
           repository: lifinance/lifi-contract-types
           path: lifi-contract-types
           ssh-key: ${{ secrets.SSH_REPO_TOKEN }}
-          ref: master
+          ref: main
 
       - name: Copy types bindings
         run: |
