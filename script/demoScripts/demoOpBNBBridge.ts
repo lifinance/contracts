@@ -1,5 +1,5 @@
 import { providers, Wallet, utils, constants } from 'ethers'
-import { OpBNBBridgeFacet__factory } from '../../typechain'
+import { OpBNBBridgeFacet__factory, ERC20__factory } from '../../typechain'
 import chalk from 'chalk'
 import dotenv from 'dotenv'
 
@@ -10,6 +10,8 @@ const msg = (msg: string) => {
 }
 
 const LIFI_ADDRESS = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE' // LiFiDiamond address on BSC Testnet
+const L1_USDC_ADDRESS = '0x64544969ed7EBf5f083679233325356EbE738930'
+const L2_USDC_ADDRESS = '0x845e27b8a4ad1fe3dc0b41b900dc8c1bb45141c3'
 const L2_GAS = 2000 // L2 Gas, Don't need to change it.
 const destinationChainId = 5611 // Optimism Kovan chain id
 
@@ -52,15 +54,29 @@ async function main() {
     }
 
     // Call LiFi smart contract to start the bridge process -- WITH SWAP
-    msg('Sending TX to OpBNB...')
-    const tx = await lifi.startBridgeTokensViaOpBNBBridge(
-      lifiData,
-      bridgeData,
-      {
-        gasLimit: '500000',
-        value: amount,
-      }
-    )
+    msg('Sending ETH to OpBNB...')
+    let tx = await lifi.startBridgeTokensViaOpBNBBridge(lifiData, bridgeData, {
+      gasLimit: '500000',
+      value: amount,
+    })
+    msg('TX Sent. Waiting for receipt...')
+    await tx.wait()
+    msg('Done!')
+
+    // Bridge ERC20
+    lifiData.sendingAssetId = L1_USDC_ADDRESS
+    bridgeData.assetIdOnL2 = L2_USDC_ADDRESS
+
+    msg('Approving USDC...')
+    const USDC = ERC20__factory.connect(L1_USDC_ADDRESS, wallet)
+    tx = await USDC.approve(LIFI_ADDRESS, amount)
+    await tx.wait()
+
+    msg('Sending USDC to OpBNB...')
+    tx = await lifi.startBridgeTokensViaOpBNBBridge(lifiData, bridgeData, {
+      gasLimit: '500000',
+      value: amount,
+    })
     msg('TX Sent. Waiting for receipt...')
     await tx.wait()
     msg('Done!')
