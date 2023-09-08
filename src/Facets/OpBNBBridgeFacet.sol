@@ -32,7 +32,7 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address bridge;
     }
 
-    struct OptimismData {
+    struct OpBNBData {
         address assetIdOnL2;
         uint32 l2Gas;
         bool isSynthetix;
@@ -93,7 +93,7 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData Data specific to OpBNB Bridge
     function startBridgeTokensViaOpBNBBridge(
         ILiFi.BridgeData memory _bridgeData,
-        OptimismData calldata _optimismData
+        OpBNBData calldata _opBNBData
     )
         external
         payable
@@ -107,7 +107,7 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
-        _startBridge(_bridgeData, _optimismData);
+        _startBridge(_bridgeData, _opBNBData);
     }
 
     /// @notice Performs a swap before bridging via OpBNB Bridge
@@ -117,7 +117,7 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaOpBNBBridge(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        OptimismData calldata _optimismData
+        OpBNBData calldata _opBNBData
     )
         external
         payable
@@ -133,7 +133,7 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
-        _startBridge(_bridgeData, _optimismData);
+        _startBridge(_bridgeData, _opBNBData);
     }
 
     /// Private Methods ///
@@ -143,7 +143,7 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData Data specific to OpBNB Bridge
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        OptimismData calldata _optimismData
+        OpBNBData calldata _opBNBData
     ) private {
         Storage storage s = getStorage();
         IL1StandardBridge nonStandardBridge = s.bridges[
@@ -158,7 +158,7 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             bridge.depositETHTo{ value: _bridgeData.minAmount }(
                 _bridgeData.receiver,
-                _optimismData.l2Gas,
+                _opBNBData.l2Gas,
                 ""
             );
         } else {
@@ -168,15 +168,15 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount
             );
 
-            if (_optimismData.isSynthetix) {
+            if (_opBNBData.isSynthetix) {
                 bridge.depositTo(_bridgeData.receiver, _bridgeData.minAmount);
             } else {
                 bridge.depositERC20To(
                     _bridgeData.sendingAssetId,
-                    _optimismData.assetIdOnL2,
+                    _opBNBData.assetIdOnL2,
                     _bridgeData.receiver,
                     _bridgeData.minAmount,
-                    _optimismData.l2Gas,
+                    _opBNBData.l2Gas,
                     ""
                 );
             }
