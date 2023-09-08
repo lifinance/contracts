@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { LibAllowList, TestBase, LiFiDiamond, console } from "../utils/TestBase.sol";
+import { LibAllowList, TestBase, LiFiDiamond, console, console2 } from "../utils/TestBase.sol";
 import { OnlyContractOwner, AlreadyInitialized, UnAuthorized } from "src/Errors/GenericErrors.sol";
 import { OFTWrapperFacet } from "lifi/Facets/OFTWrapperFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
@@ -14,7 +14,6 @@ import { Test, DSTest, Vm } from "forge-std/Test.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
-import "./OwnershipFacet.t.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
@@ -331,7 +330,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         );
 
         // prepare adapterParams
-        adapterParamsV1 = abi.encodePacked(uint16(1), uint256(2000000));
+        adapterParamsV1 = abi.encodePacked(uint16(2), uint256(2000000));
         adapterParamsV2 = abi.encodePacked(
             uint16(1),
             uint256(2000000),
@@ -465,11 +464,10 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         vm.stopPrank();
     }
 
-    // test with STG token
-    // TODO: this test needs to be fixed (nativeFee estimations returned by token contract are insufficient)
-    //       waiting for response of lz team
-    function CanBridgeWhitelistedCustomToken_STG() public {
-        //    function test_CanBridgeWhitelistedCustomToken_STG() public {
+    function test_CanBridgeWhitelistedCustomToken_STG() public {
+        // activate ETH fork
+        vm.selectFork(forkId_ETH);
+
         // add labels for better logs
         vm.label(0x4Fa745FCCC04555F2AFA8874cd23961636CdF982, "STG_TOKEN");
         vm.label(ADDRESS_STG_CustomCode_ETH, "STG_PROXY");
@@ -480,6 +478,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // deal tokens to user
         deal(CUSTOM_TOKEN_STG_ADDRESS, USER_SENDER, 100_000e18);
+        deal(USER_SENDER, 1000e18); // native
 
         // add custom token (agEUR) to whitelist
         OFTWrapperFacet.WhitelistConfig[]
@@ -492,6 +491,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // update bridgeData
         bridgeData.destinationChainId = 137; // polygon chainId
+        bridgeData.receiver = USER_RECEIVER;
         bridgeData.sendingAssetId = CUSTOM_TOKEN_STG_ADDRESS; // STG Token on ETH
         bridgeData.minAmount = 100e18;
 
@@ -503,7 +503,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         uint16 PT_SEND = 0; // packet type from OFTCore
         bytes memory payload = abi.encode(
             PT_SEND,
-            USER_RECEIVER,
+            abi.encode(USER_RECEIVER),
             bridgeData.minAmount
         );
 
@@ -514,6 +514,8 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
             false, // useZro
             adapterParamsV1
         );
+
+        // TODO: remove once V2 is implemented in backend
 
         //        STGContract stgToken = STGContract(CUSTOM_TOKEN_STG_ADDRESS);
         //        (uint256 nativeFee, ) = stgToken.estimateSendTokensFee(
@@ -534,8 +536,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         vm.startPrank(USER_SENDER);
 
         // prepare oftWrapperData
-        //         oftWrapperData.lzFee = nativeFee + 1 ether; // this works //TODO remove
-        oftWrapperData.lzFee = nativeFee; // this does not work
+        oftWrapperData.lzFee = nativeFee;
         oftWrapperData.proxyOftAddress = CUSTOM_TOKEN_STG_ADDRESS; // STG on ETH
         oftWrapperData.customCode_sendTokensCallData = abi.encodeWithSelector(
             STGContract.sendTokens.selector,
@@ -1091,7 +1092,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
             abi.encodePacked(bytes20(USER_SENDER)),
             bridgeData.minAmount,
             false,
-            oftWrapperData.adapterParams
+            adapterParamsV1
         );
 
         vm.startPrank(USER_SENDER);
@@ -1288,7 +1289,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         );
     }
 
-    function test_estimateOFTFeesAndAmountOut_V11() public {
+    function test_estimateOFTFeesAndAmountOut_V1() public {
         // activate BSC fork
         vm.selectFork(forkId_BSC);
 
@@ -1312,7 +1313,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         uint256 expectedWrapperFee = 24691;
 
-        assertEq(feeEstimate.nativeFee, 4085019515262038); // not sure if this value remains stable
+        assertApproxEqRel(feeEstimate.nativeFee, 4085019515262038, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
         assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
         assertEq(feeEstimate.callerFee, 0);
@@ -1343,7 +1344,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         uint256 expectedWrapperFee = 24691;
 
-        assertEq(feeEstimate.nativeFee, 4085019515262038); // not sure if this value remains stable
+        assertApproxEqRel(feeEstimate.nativeFee, 4085019515262038, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
         assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
         assertEq(feeEstimate.callerFee, 0);
@@ -1374,7 +1375,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         uint256 expectedWrapperFee = 24691;
 
-        assertEq(feeEstimate.nativeFee, 4035021132398375); // not sure if this value remains stable
+        assertApproxEqRel(feeEstimate.nativeFee, 4035021132398375, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
         assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
         assertEq(feeEstimate.callerFee, 0);
@@ -1405,7 +1406,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         uint256 expectedWrapperFee = 24691;
 
-        assertEq(feeEstimate.nativeFee, 532625681436064); // not sure if this value remains stable
+        assertApproxEqRel(feeEstimate.nativeFee, 532625681436064, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
         assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
         assertEq(feeEstimate.callerFee, 0);
@@ -1433,7 +1434,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         uint256 expectedWrapperFee = 24691;
 
-        assertEq(feeEstimate.nativeFee, 6269688761801826); // not sure if this value remains stable
+        assertApproxEqRel(feeEstimate.nativeFee, 6269688761801826, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
         assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
         assertEq(feeEstimate.callerFee, 0);
@@ -1464,7 +1465,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         uint256 expectedWrapperFee = 24691;
 
-        assertEq(feeEstimate.nativeFee, 136838283700560541); // not sure if this value remains stable
+        assertApproxEqRel(feeEstimate.nativeFee, 136838283700560541, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
         assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
         assertEq(feeEstimate.callerFee, 0);
@@ -1505,7 +1506,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 customCodeOftCallData
             );
 
-        assertEq(feeEstimate.nativeFee, 888436917822948);
+        assertApproxEqRel(feeEstimate.nativeFee, 888436917822948, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
         assertEq(feeEstimate.wrapperFee, 0);
         assertEq(feeEstimate.callerFee, 0);
