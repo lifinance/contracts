@@ -44,13 +44,13 @@ jobs:
           repository: lifinance/lifi-contract-types
           path: lifi-contract-types
           ssh-key: ${{ secrets.SSH_REPO_TOKEN }}
-          ref: master
+          ref: main
 
       - name: Copy types bindings
         run: |
           rm -r lifi-contract-types/src/
           mv typechain lifi-contract-types/src
-          cp diamondABI/diamond.json lifi-contract-types/dist/
+          cp diamond.json lifi-contract-types/dist/
 
       - name: Build contract types
         run: cd lifi-contract-types && yarn install && yarn build
