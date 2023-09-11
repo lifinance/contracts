@@ -1,79 +1,5 @@
 {
   "mainnet": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "AcrossFacet": "2.0.0",
-        "AllBridgeFacet": "2.0.0",
-        "AmarokFacet": "1.0.1",
-        "ArbitrumBridgeFacet": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.1",
-        "CelerCircleBridgeFacet": "1.0.1",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0",
-        "GnosisBridgeFacet": "1.0.0",
-        "HopFacet": "2.0.0",
-        "HopFacetPacked": "1.0.5",
-        "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
-        "OmniBridgeFacet": "1.0.0",
-        "OptimismBridgeFacet": "1.0.0",
-        "PolygonBridgeFacet": "1.0.0",
-        "StargateFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "AcrossFacet": "2.0.0",
-        "AllBridgeFacet": "2.0.0",
-        "AmarokFacet": "1.0.1",
-        "ArbitrumBridgeFacet": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.1",
-        "CelerCircleBridgeFacet": "1.0.1",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0",
-        "GnosisBridgeFacet": "1.0.0",
-        "HopFacet": "2.0.0",
-        "HopFacetPacked": "1.0.5",
-        "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
-        "OmniBridgeFacet": "1.0.0",
-        "OptimismBridgeFacet": "1.0.0",
-        "PolygonBridgeFacet": "1.0.0",
-        "StargateFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
-      }
-    },
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -125,9 +51,7 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
-    }
-  },
-  "polygon": {
+    },
     "production": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -139,6 +63,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -147,17 +73,26 @@
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AllBridgeFacet": "2.0.0",
-        "AmarokFacet": "1.0.1",
+        "AmarokFacet": "2.0.0",
+        "ArbitrumBridgeFacet": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.1",
+        "CBridgeFacetPacked": "1.0.3",
+        "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
+        "GnosisBridgeFacet": "1.0.0",
         "HopFacet": "2.0.0",
-        "HopFacetPacked": "1.0.5",
+        "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
+        "OmniBridgeFacet": "1.0.0",
+        "OptimismBridgeFacet": "1.0.0",
+        "PolygonBridgeFacet": "1.0.0",
+        "StargateFacet": "2.0.0",
+        "WormholeFacet": "1.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -169,6 +104,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -177,19 +114,30 @@
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AllBridgeFacet": "2.0.0",
-        "AmarokFacet": "1.0.1",
+        "AmarokFacet": "2.0.0",
+        "ArbitrumBridgeFacet": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.1",
+        "CBridgeFacetPacked": "1.0.3",
+        "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
+        "GnosisBridgeFacet": "1.0.0",
         "HopFacet": "2.0.0",
-        "HopFacetPacked": "1.0.5",
+        "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
+        "OmniBridgeFacet": "1.0.0",
+        "OptimismBridgeFacet": "1.0.0",
+        "PolygonBridgeFacet": "1.0.0",
+        "StargateFacet": "2.0.0",
+        "WormholeFacet": "1.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       }
-    },
+    }
+  },
+  "polygon": {
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -245,6 +193,78 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
+    },
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "AcrossFacet": "2.0.0",
+        "AllBridgeFacet": "2.0.0",
+        "AmarokFacet": "2.0.0",
+        "CBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.3",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetMutable": "2.0.0",
+        "HopFacet": "2.0.0",
+        "HopFacetPacked": "1.0.6",
+        "HyphenFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
+        "StargateFacet": "2.0.0",
+        "WormholeFacet": "1.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "AcrossFacet": "2.0.0",
+        "AllBridgeFacet": "2.0.0",
+        "AmarokFacet": "2.0.0",
+        "CBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.3",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetImmutable": "2.0.0",
+        "HopFacet": "2.0.0",
+        "HopFacetPacked": "1.0.6",
+        "HyphenFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
+        "StargateFacet": "2.0.0",
+        "WormholeFacet": "1.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+      }
     }
   },
   "base": {
@@ -259,12 +279,20 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0"
+        "ServiceFeeCollector": "1.0.0",
+        "AcrossFacet": "2.0.0",
+        "HopFacet": "2.0.0",
+        "HopFacetPacked": "1.0.6",
+        "StargateFacet": "2.0.1",
+        "HopFacetOptimized": "2.0.0",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -276,126 +304,25 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0"
-      }
-    }
-  },
-  "bsc": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "AllBridgeFacet": "2.0.0",
-        "AmarokFacet": "1.0.1",
-        "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.1",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0",
-        "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
-        "OmniBridgeFacet": "1.0.0",
-        "StargateFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "AllBridgeFacet": "2.0.0",
-        "AmarokFacet": "1.0.1",
-        "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.1",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0",
-        "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
-        "OmniBridgeFacet": "1.0.0",
-        "StargateFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
+        "AcrossFacet": "2.0.0",
+        "HopFacet": "2.0.0",
+        "HopFacetPacked": "1.0.6",
+        "StargateFacet": "2.0.1",
+        "HopFacetOptimized": "2.0.0",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       }
     }
   },
+  "bsc": {},
   "gnosis": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "AmarokFacet": "1.0.1",
-        "CBridgeFacet": "1.0.0",
-        "GnosisBridgeL2Facet": "1.0.0",
-        "HopFacet": "2.0.0",
-        "HopFacetPacked": "1.0.5",
-        "MultichainFacet": "1.0.1",
-        "OmniBridgeFacet": "1.0.0"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "AmarokFacet": "1.0.1",
-        "CBridgeFacet": "1.0.0",
-        "GnosisBridgeL2Facet": "1.0.0",
-        "HopFacet": "2.0.0",
-        "HopFacetPacked": "1.0.5",
-        "MultichainFacet": "1.0.1",
-        "OmniBridgeFacet": "1.0.0"
-      }
-    },
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -440,6 +367,45 @@
     }
   },
   "fantom": {
+    "staging": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0"
+      }
+    },
     "production": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -451,6 +417,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -462,7 +430,7 @@
         "CelerIMFacetMutable": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "1.0.0",
+        "StargateFacet": "2.0.0",
         "WormholeFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -475,6 +443,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -486,10 +456,12 @@
         "CelerIMFacetImmutable": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "1.0.0",
+        "StargateFacet": "2.0.0",
         "WormholeFacet": "1.0.0"
       }
-    },
+    }
+  },
+  "okx": {
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -528,9 +500,7 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
-    }
-  },
-  "okx": {
+    },
     "production": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -542,6 +512,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -561,6 +533,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -569,45 +543,6 @@
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "MultichainFacet": "1.0.1"
-      }
-    },
-    "staging": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.1.0",
-        "StandardizedCallFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.1.0",
-        "StandardizedCallFacet": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0"
       }
     }
   },
@@ -623,6 +558,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -630,14 +567,15 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.1",
+        "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
+        "StargateFacet": "2.0.0",
+        "WormholeFacet": "1.0.0",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -649,6 +587,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -656,82 +596,19 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.1",
+        "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
+        "StargateFacet": "2.0.0",
+        "WormholeFacet": "1.0.0",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       }
     }
   },
   "arbitrum": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "AcrossFacet": "2.0.0",
-        "AllBridgeFacet": "2.0.0",
-        "AmarokFacet": "1.0.1",
-        "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.1",
-        "CelerCircleBridgeFacet": "1.0.1",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0",
-        "HopFacet": "2.0.0",
-        "HopFacetPacked": "1.0.5",
-        "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
-        "StargateFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "AcrossFacet": "2.0.0",
-        "AllBridgeFacet": "2.0.0",
-        "AmarokFacet": "1.0.1",
-        "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.1",
-        "CelerCircleBridgeFacet": "1.0.1",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0",
-        "HopFacet": "2.0.0",
-        "HopFacetPacked": "1.0.5",
-        "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
-        "StargateFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
-      }
-    },
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -787,9 +664,7 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
-    }
-  },
-  "optimism": {
+    },
     "production": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -801,6 +676,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -808,17 +685,22 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
-        "AmarokFacet": "1.0.1",
+        "AllBridgeFacet": "2.0.0",
+        "AmarokFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.1",
+        "CBridgeFacetPacked": "1.0.3",
+        "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
         "HopFacet": "2.0.0",
-        "HopFacetPacked": "1.0.5",
+        "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
+        "StargateFacet": "2.0.0",
+        "WormholeFacet": "1.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -830,6 +712,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -837,19 +721,26 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
-        "AmarokFacet": "1.0.1",
+        "AllBridgeFacet": "2.0.0",
+        "AmarokFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.1",
+        "CBridgeFacetPacked": "1.0.3",
+        "CelerCircleBridgeFacet": "1.0.1",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
         "HopFacet": "2.0.0",
-        "HopFacetPacked": "1.0.5",
+        "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
+        "StargateFacet": "2.0.0",
+        "WormholeFacet": "1.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       }
-    },
+    }
+  },
+  "optimism": {
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -887,10 +778,121 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
+      }
+    },
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "AcrossFacet": "2.0.0",
+        "AmarokFacet": "2.0.0",
+        "CBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.3",
+        "CelerCircleBridgeFacet": "1.0.1",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetMutable": "2.0.0",
+        "HopFacet": "2.0.0",
+        "HopFacetPacked": "1.0.6",
+        "HyphenFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
+        "StargateFacet": "2.0.0",
+        "WormholeFacet": "1.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "AcrossFacet": "2.0.0",
+        "AmarokFacet": "2.0.0",
+        "CBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.3",
+        "CelerCircleBridgeFacet": "1.0.1",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetImmutable": "2.0.0",
+        "HopFacet": "2.0.0",
+        "HopFacetPacked": "1.0.6",
+        "HyphenFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
+        "StargateFacet": "2.0.0",
+        "WormholeFacet": "1.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       }
     }
   },
   "moonriver": {
+    "staging": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0"
+      }
+    },
     "production": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -902,6 +904,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -923,6 +927,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -934,90 +940,9 @@
         "CelerIMFacetImmutable": "2.0.0",
         "MultichainFacet": "1.0.1"
       }
-    },
-    "staging": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.1.0",
-        "StandardizedCallFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.1.0",
-        "StandardizedCallFacet": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0"
-      }
     }
   },
   "moonbeam": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
-        "WormholeFacet": "1.0.0"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
-        "WormholeFacet": "1.0.0"
-      }
-    },
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1056,10 +981,30 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
-    }
-  },
-  "celo": {
+    },
     "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "CBridgeFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
+        "WormholeFacet": "1.0.0"
+      },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
@@ -1070,58 +1015,22 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "MultichainFacet": "1.0.1"
-      },
-      "LiFiDiamond": {
-        "MultichainFacet": "1.0.1"
+        "CBridgeFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
+        "WormholeFacet": "1.0.0"
       }
     }
   },
+  "celo": {},
   "fuse": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "MultichainFacet": "1.0.1"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "MultichainFacet": "1.0.1"
-      }
-    },
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1160,10 +1069,28 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
-    }
-  },
-  "cronos": {
+    },
     "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "MultichainFacet": "1.0.1"
+      },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
@@ -1174,6 +1101,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -1181,51 +1110,11 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "MultichainFacet": "1.0.1"
-      },
-      "LiFiDiamond": {
-        "MultichainFacet": "1.0.1"
       }
     }
   },
+  "cronos": {},
   "velas": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "MultichainFacet": "1.0.1"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "MultichainFacet": "1.0.1"
-      }
-    },
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1263,48 +1152,52 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
+      }
+    },
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "MultichainFacet": "1.0.1"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "MultichainFacet": "1.0.1"
       }
     }
   },
   "harmony": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "MultichainFacet": "1.0.1"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "MultichainFacet": "1.0.1"
-      }
-    },
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1343,9 +1236,7 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
-    }
-  },
-  "evmos": {
+    },
     "production": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1357,13 +1248,14 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "CBridgeFacet": "1.0.0",
         "MultichainFacet": "1.0.1"
       },
       "LiFiDiamondImmutable": {
@@ -1376,16 +1268,19 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
-        "CBridgeFacet": "1.0.0",
         "MultichainFacet": "1.0.1"
       }
-    },
+    }
+  },
+  "evmos": {
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1425,9 +1320,7 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
-    }
-  },
-  "aurora": {
+    },
     "production": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1439,6 +1332,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -1446,10 +1341,7 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0",
-        "MultichainFacet": "1.0.1",
-        "WormholeFacet": "1.0.0"
+        "MultichainFacet": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1461,6 +1353,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -1468,12 +1362,11 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0",
-        "MultichainFacet": "1.0.1",
-        "WormholeFacet": "1.0.0"
+        "MultichainFacet": "1.0.1"
       }
-    },
+    }
+  },
+  "aurora": {
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1511,50 +1404,60 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
+      }
+    },
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "CBridgeFacet": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetMutable": "2.0.0",
+        "MultichainFacet": "1.0.1",
+        "WormholeFacet": "1.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "CBridgeFacet": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetImmutable": "2.0.0",
+        "MultichainFacet": "1.0.1",
+        "WormholeFacet": "1.0.0"
       }
     }
   },
   "boba": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1"
-      }
-    },
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1593,9 +1496,7 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
-    }
-  },
-  "nova": {
+    },
     "production": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1607,6 +1508,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -1614,9 +1517,8 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0",
-        "MultichainFacet": "1.0.1"
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1628,6 +1530,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -1635,11 +1539,12 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0",
-        "MultichainFacet": "1.0.1"
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       }
-    },
+    }
+  },
+  "nova": {
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1681,50 +1586,6 @@
     }
   },
   "zksyncera": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0",
-        "MultichainFacet": "1.0.1"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0",
-        "MultichainFacet": "1.0.1"
-      }
-    },
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1766,50 +1627,6 @@
     }
   },
   "polygonzkevm": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0",
-        "MultichainFacet": "1.0.1"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0",
-        "MultichainFacet": "1.0.1"
-      }
-    },
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1851,46 +1668,6 @@
     }
   },
   "goerli": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0"
-      }
-    },
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1928,9 +1705,7 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
-    }
-  },
-  "bsc-testnet": {
+    },
     "production": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -1942,6 +1717,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -1961,6 +1738,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -1972,43 +1751,8 @@
       }
     }
   },
+  "bsc-testnet": {},
   "sepolia": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0"
-      }
-    },
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -2046,9 +1790,7 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
-    }
-  },
-  "mumbai": {
+    },
     "production": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -2060,90 +1802,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0"
-      }
-    }
-  },
-  "lineatest": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0"
-      }
-    }
-  },
-  "zksynceratest": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -2161,6 +1821,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -2170,6 +1832,9 @@
       }
     }
   },
+  "mumbai": {},
+  "lineatest": {},
+  "zksynceratest": {},
   "linea": {
     "production": {
       "LiFiDiamond": {
@@ -2182,6 +1847,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -2189,7 +1856,9 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.3"
+        "CBridgeFacetPacked": "1.0.3",
+        "StargateFacet": "2.0.1",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2201,6 +1870,8 @@
         "PeripheryRegistryFacet": "1.0.0",
         "GenericSwapFacet": "1.0.0",
         "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
         "LiFiDiamondImmutable": "1.0.0",
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
@@ -2208,7 +1879,9 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.3"
+        "CBridgeFacetPacked": "1.0.3",
+        "StargateFacet": "2.0.1",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       }
     }
   },
@@ -2308,6 +1981,72 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
+    },
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "AllBridgeFacet": "2.0.0",
+        "AmarokFacet": "2.0.0",
+        "CBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.3",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetMutable": "2.0.0",
+        "HyphenFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
+        "OmniBridgeFacet": "1.0.0",
+        "StargateFacet": "2.0.0",
+        "WormholeFacet": "1.0.0",
+        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "AllBridgeFacet": "2.0.0",
+        "AmarokFacet": "2.0.0",
+        "CBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.3",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetImmutable": "2.0.0",
+        "HyphenFacet": "1.0.0",
+        "MultichainFacet": "1.0.1",
+        "OmniBridgeFacet": "1.0.0",
+        "StargateFacet": "2.0.0",
+        "WormholeFacet": "1.0.0",
+        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+      }
     }
   },
   "xdai": {
@@ -2351,6 +2090,64 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
+    },
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "AmarokFacet": "2.0.0",
+        "CBridgeFacet": "1.0.0",
+        "GnosisBridgeL2Facet": "1.0.0",
+        "HopFacet": "2.0.0",
+        "HopFacetPacked": "1.0.6",
+        "MultichainFacet": "1.0.1",
+        "OmniBridgeFacet": "1.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "AmarokFacet": "2.0.0",
+        "CBridgeFacet": "1.0.0",
+        "GnosisBridgeL2Facet": "1.0.0",
+        "HopFacet": "2.0.0",
+        "HopFacetPacked": "1.0.6",
+        "MultichainFacet": "1.0.1",
+        "OmniBridgeFacet": "1.0.0",
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m"
+      }
     }
   },
   "binancesmartchaintestnet": {
@@ -2390,6 +2187,50 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
+      }
+    },
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetMutable": "2.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetImmutable": "2.0.0"
       }
     }
   },
@@ -2431,6 +2272,50 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
+    },
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetMutable": "2.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetImmutable": "2.0.0"
+      }
     }
   },
   "lineatestnet": {
@@ -2471,6 +2356,50 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
       }
+    },
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetMutable": "2.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetImmutable": "2.0.0"
+      }
     }
   },
   "zksync-testnet": {
@@ -2510,6 +2439,202 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
+      }
+    },
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0"
+      }
+    }
+  },
+  "arbitrumnova": {
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "CBridgeFacet": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetMutable": "2.0.0",
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "CBridgeFacet": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetImmutable": "2.0.0",
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+      }
+    }
+  },
+  "zksync": {
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "AcrossFacet": "2.0.0",
+        "CBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.3",
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "AcrossFacet": "2.0.0",
+        "CBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.3",
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+      }
+    }
+  },
+  "polygon-zkevm": {
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "CBridgeFacet": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetMutable": "2.0.0",
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.0",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "CBridgeFacet": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetImmutable": "2.0.0",
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
       }
     }
   }
