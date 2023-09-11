@@ -1130,9 +1130,8 @@ function parseTargetStateGoogleSpreadsheet() {
     exit 1
   fi
 
-  NETWORKS_START_AT_LINE=115
-  PERIPHERY_STARTS_AT_COLUMN=3
-  ROW_WITH_CONTRACT_NAMES=5
+  NETWORKS_START_AT_LINE=0
+  FACETS_STARTS_AT_COLUMN=3 # this value is hardcoded and not expected to change
 
   # process the CSV file line by line
   LINE_NUMBER=0
@@ -1140,10 +1139,10 @@ function parseTargetStateGoogleSpreadsheet() {
     # Increment the line number
     ((LINE_NUMBER++))
 
-    #    echoDebug "LINE $LINE_NUMBER: $LINE"
+#    echoDebug "LINE $LINE_NUMBER: $LINE"
 
-    # Catch the line that contains the contract names
-    if [[ LINE_NUMBER -eq "$ROW_WITH_CONTRACT_NAMES" ]]; then
+    # find and store the row that contains all the contract names (determined by recognizing hardcoded value in cell A1)
+    if [[ "$LINE" == *"Blue = Periphery"* ]]; then
       # Remove the unneeded values from the line
       STRING_TO_REMOVE='  Blue = Periphery",EXAMPLE,,'
       CONTRACTS_LINE=$(echo "$LINE" | sed "s/^${STRING_TO_REMOVE}//")
@@ -1163,8 +1162,13 @@ function parseTargetStateGoogleSpreadsheet() {
       #        break
     fi
 
+    # find row with the first network ('mainnet'), stop once it has been found
+    if [[ "$NETWORKS_START_AT_LINE" == 0 && $LINE == "mainnet"* ]]; then
+      NETWORKS_START_AT_LINE=$LINE_NUMBER
+    fi
+
     # lines containing network-specific data will start earliest in line 130
-    if [[ $((LINE_NUMBER)) -gt "$NETWORKS_START_AT_LINE" ]]; then
+    if [[ $NETWORKS_START_AT_LINE != 0 && $((LINE_NUMBER)) -ge "$NETWORKS_START_AT_LINE" ]]; then
 
       # extract network name
       NETWORK=$(echo "$LINE" | cut -d',' -f1)
@@ -1183,8 +1187,8 @@ function parseTargetStateGoogleSpreadsheet() {
         IFS=',' read -ra LINE_ARRAY <<<"$LINE"
 
         CONTRACT_INDEX=0
-        # iterate through the array (start with index 5 to skip network name, EXAMPLE and PERIPHERY columns)
-        for ((INDEX = "$PERIPHERY_STARTS_AT_COLUMN"; INDEX < ${#LINE_ARRAY[@]}; INDEX += 1)); do
+        # iterate through the array (start with index 5 to skip network name and EXAMPLE columns)
+        for ((INDEX = "$FACETS_STARTS_AT_COLUMN"; INDEX < ${#LINE_ARRAY[@]}; INDEX += 1)); do
           # read cell value and current contract into variables
           CELL_VALUE=${LINE_ARRAY[$INDEX]}
           CONTRACT=${CONTRACTS_ARRAY[$CONTRACT_INDEX]}
