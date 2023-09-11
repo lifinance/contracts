@@ -4242,6 +4242,20 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x25350de1ba213e17dd9fc7a88261db615268e15f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-11 14:22:20",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e0b015e54d54fc84a6cb9b666099c46ade9335ff0000000000000000000000005aea5775959fbc2557cc8789bc1bf90a239d9a91",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "CBridgeFacet": {
