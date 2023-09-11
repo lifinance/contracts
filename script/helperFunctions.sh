@@ -1178,6 +1178,11 @@ function parseTargetStateGoogleSpreadsheet() {
         continue
       fi
 
+      if [[ "$NETWORK" == "DEACTIVATED" ]]; then
+        echoDebug "reached deactivated network2 - ending script parsing now"
+        break
+      fi
+
       # check if this line contains data (=starts with a network name), otherwise skip to next line
       if [[ ! -z "$NETWORK" ]]; then
         echo ""
