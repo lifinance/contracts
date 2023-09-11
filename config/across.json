@@ -33,6 +33,6 @@
   },
   "zksync": {
     "acrossSpokePool": "0xE0B015E54d54fc84a6cB9B666099c46adE9335FF",
-    "weth": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    "weth": "0x5AEa5775959fBC2557Cc8789bC1bf90A239D9a91"
   }
 }
