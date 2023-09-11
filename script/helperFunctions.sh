@@ -1162,7 +1162,7 @@ function parseTargetStateGoogleSpreadsheet() {
       #        break
     fi
 
-    # find row with the first network ('mainnet'), stop once it has been found
+    # find row with the first network ('mainnet'), do not execute again once it has been found
     if [[ "$NETWORKS_START_AT_LINE" == 0 && $LINE == "mainnet"* ]]; then
       NETWORKS_START_AT_LINE=$LINE_NUMBER
     fi
