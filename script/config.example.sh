@@ -74,7 +74,7 @@ EXCLUDE_PERIPHERY_CONTRACTS=""
 EXCLUDE_FACET_CONTRACTS=""
 
 # contains a list of all facets that are considered core facets (and will be deployed to every network)
-CORE_FACETS="DiamondCutFacet,DiamondLoupeFacet,OwnershipFacet,DexManagerFacet,AccessManagerFacet,WithdrawFacet,PeripheryRegistryFacet,LIFuelFacet,GenericSwapFacet"
+CORE_FACETS="DiamondCutFacet,DiamondLoupeFacet,OwnershipFacet,DexManagerFacet,AccessManagerFacet,WithdrawFacet,PeripheryRegistryFacet,LIFuelFacet,GenericSwapFacet,StandardizedCallFacet,CalldataVerificationFacet"
 
 # enable/disable notification sounds for long-running scripts
 NOTIFICATION_SOUNDS=true
@@ -97,4 +97,3 @@ MNEMONIC="test test test test test test test test test test test junk"
 PRIVATE_KEY_ANVIL=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 # address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 START_LOCAL_ANVIL_NETWORK_ON_SCRIPT_STARTUP=false
 END_LOCAL_ANVIL_NETWORK_ON_SCRIPT_COMPLETION=true # set to false if you want to run several scripts on the same data/contracts without redeploying
-
