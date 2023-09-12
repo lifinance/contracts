@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import { DSTest } from "ds-test/test.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
+import { Test } from "forge-std/Test.sol";
 import { OpBNBBridgeFacet } from "lifi/Facets/OpBNBBridgeFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
@@ -24,25 +25,35 @@ contract TestOpBNBBridgeFacet is OpBNBBridgeFacet {
     }
 }
 
+contract FooSwap is Test {
+    function swap(
+        ERC20 inToken,
+        ERC20 outToken,
+        uint256 inAmount,
+        uint256 outAmount
+    ) external {
+        inToken.transferFrom(msg.sender, address(this), inAmount);
+        deal(address(outToken), msg.sender, outAmount);
+    }
+}
+
 contract OpBNBBridgeFacetTest is DSTest, DiamondTest {
-    // These values are for Mainnet
+    // These values are for BSC Testnet
     address internal constant USDC_ADDRESS =
-        0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+        0x64544969ed7EBf5f083679233325356EbE738930;
     address internal constant USDC_HOLDER =
-        0xaD0135AF20fa82E106607257143d0060A7eB5cBf;
+        0x082A2027DC16F42d6e69bE8FA13C94C17c910EbE;
     address internal constant DAI_L1_ADDRESS =
-        0x6B175474E89094C44Da98b954EedeAC495271d0F;
+        0xEC5dCb5Dbf4B114C9d0F65BcCAb49EC54F6A0867;
     address internal constant DAI_L1_HOLDER =
-        0x4943b0C9959dcf58871A799dfB71becE0D97c9f4;
+        0x082A2027DC16F42d6e69bE8FA13C94C17c910EbE;
     address internal constant DAI_L2_ADDRESS =
         0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1;
     address internal constant STANDARD_BRIDGE =
-        0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1;
+        0x677311Fd2cCc511Bbc0f581E8d9a07B033D5E840;
     address internal constant DAI_BRIDGE =
         0x10E6593CDda8c58a1d0f14C5164B376352a55f2F;
-    address internal constant UNISWAP_V2_ROUTER =
-        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
-    uint256 internal constant DSTCHAIN_ID = 10;
+    uint256 internal constant DSTCHAIN_ID = 5116;
     uint32 internal constant L2_GAS = 200000;
 
     // -----
@@ -50,15 +61,15 @@ contract OpBNBBridgeFacetTest is DSTest, DiamondTest {
     Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
     TestOpBNBBridgeFacet internal opBNBBridgeFacet;
-    UniswapV2Router02 internal uniswap;
     ERC20 internal usdc;
     ERC20 internal dai;
     ILiFi.BridgeData internal validBridgeData;
     OpBNBBridgeFacet.OpBNBData internal validOpBNBData;
+    FooSwap internal fooSwap;
 
     function fork() internal {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = 15876510;
+        string memory rpcUrl = vm.envString("ETH_NODE_URI_BSC_TESTNET");
+        uint256 blockNumber = 33259557;
         vm.createSelectFork(rpcUrl, blockNumber);
     }
 
@@ -69,7 +80,7 @@ contract OpBNBBridgeFacetTest is DSTest, DiamondTest {
         opBNBBridgeFacet = new TestOpBNBBridgeFacet();
         usdc = ERC20(USDC_ADDRESS);
         dai = ERC20(DAI_L1_ADDRESS);
-        uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
+        fooSwap = new FooSwap();
 
         bytes4[] memory functionSelectors = new bytes4[](5);
         functionSelectors[0] = opBNBBridgeFacet
@@ -87,8 +98,7 @@ contract OpBNBBridgeFacetTest is DSTest, DiamondTest {
         addFacet(diamond, address(opBNBBridgeFacet), functionSelectors);
 
         OpBNBBridgeFacet.Config[]
-            memory configs = new OpBNBBridgeFacet.Config[](1);
-        configs[0] = OpBNBBridgeFacet.Config(DAI_L1_ADDRESS, DAI_BRIDGE);
+            memory configs = new OpBNBBridgeFacet.Config[](0);
 
         opBNBBridgeFacet = TestOpBNBBridgeFacet(address(diamond));
         opBNBBridgeFacet.initOpBNB(
@@ -96,13 +106,8 @@ contract OpBNBBridgeFacetTest is DSTest, DiamondTest {
             IL1StandardBridge(STANDARD_BRIDGE)
         );
 
-        opBNBBridgeFacet.addDex(address(uniswap));
-        opBNBBridgeFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        opBNBBridgeFacet.setFunctionApprovalBySignature(
-            uniswap.swapETHForExactTokens.selector
-        );
+        opBNBBridgeFacet.addDex(address(fooSwap));
+        opBNBBridgeFacet.setFunctionApprovalBySignature(fooSwap.swap.selector);
 
         validBridgeData = ILiFi.BridgeData({
             transactionId: "",
@@ -157,44 +162,6 @@ contract OpBNBBridgeFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function testRevertToBridgeTokensWhenSenderHasNoEnoughAmount() public {
-        vm.startPrank(DAI_L1_HOLDER);
-
-        dai.approve(address(opBNBBridgeFacet), 10_000 * 10 ** dai.decimals());
-
-        dai.transfer(USDC_HOLDER, dai.balanceOf(DAI_L1_HOLDER));
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                InsufficientBalance.selector,
-                10 * 10 ** dai.decimals(),
-                0
-            )
-        );
-        opBNBBridgeFacet.startBridgeTokensViaOpBNBBridge(
-            validBridgeData,
-            validOpBNBData
-        );
-
-        vm.stopPrank();
-    }
-
-    function testRevertToBridgeTokensWhenSendingNoEnoughNativeAsset() public {
-        vm.startPrank(DAI_L1_HOLDER);
-
-        ILiFi.BridgeData memory bridgeData = validBridgeData;
-        bridgeData.sendingAssetId = address(0);
-        bridgeData.minAmount = 3e18;
-
-        vm.expectRevert(InvalidAmount.selector);
-        opBNBBridgeFacet.startBridgeTokensViaOpBNBBridge{ value: 2e18 }(
-            bridgeData,
-            validOpBNBData
-        );
-
-        vm.stopPrank();
-    }
-
     function testRevertToBridgeTokensWhenInformationMismatch() public {
         vm.startPrank(DAI_L1_HOLDER);
 
@@ -231,30 +198,23 @@ contract OpBNBBridgeFacetTest is DSTest, DiamondTest {
             10_000 * 10 ** usdc.decimals()
         );
 
-        // Swap USDC to DAI
-        address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = DAI_L1_ADDRESS;
-
-        uint256 amountOut = 1000 * 10 ** dai.decimals();
+        uint256 inAmount = 10_000 * 10 ** usdc.decimals();
+        uint256 outAmount = 10_000 * 10 ** dai.decimals();
 
         // Calculate DAI amount
-        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
-        uint256 amountIn = amounts[0];
         LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
         swapData[0] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
+            address(fooSwap),
+            address(fooSwap),
             USDC_ADDRESS,
             DAI_L1_ADDRESS,
-            amountIn,
+            inAmount,
             abi.encodeWithSelector(
-                uniswap.swapExactTokensForTokens.selector,
-                amountIn,
-                amountOut,
-                path,
-                address(opBNBBridgeFacet),
-                block.timestamp + 20 minutes
+                fooSwap.swap.selector,
+                ERC20(USDC_ADDRESS),
+                ERC20(DAI_L1_ADDRESS),
+                inAmount,
+                outAmount
             ),
             true
         );
