@@ -90,9 +90,9 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via OpBNB Bridge
     /// @param _bridgeData Data contaning core information for bridging
-    /// @param _bridgeData Data specific to OpBNB Bridge
+    /// @param _opBNBData Data specific to OpBNB Bridge
     function startBridgeTokensViaOpBNBBridge(
-        ILiFi.BridgeData memory _bridgeData,
+        ILiFi.BridgeData calldata _bridgeData,
         OpBNBData calldata _opBNBData
     )
         external
