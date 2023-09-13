@@ -12914,6 +12914,20 @@
           }
         ]
       }
+    },
+    "bsc": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xd6aba485e836d1C717734fFD00A25d16Cf738b49",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-13 18:14:54",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   }
 }
