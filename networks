@@ -2,6 +2,7 @@ mainnet
 arbitrum
 aurora
 avalanche
+base
 boba
 bsc
 celo
@@ -10,6 +11,7 @@ evmos
 fantom
 fuse
 gnosis
+linea
 localanvil
 moonbeam
 moonriver
@@ -23,3 +25,4 @@ bsc-testnet
 lineatest
 mumbai
 sepolia
+zksync

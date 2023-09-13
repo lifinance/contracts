@@ -114,6 +114,10 @@ contract UpdateScriptBase is ScriptBase {
     ) internal {
         address oldFacet;
 
+        selectorsToAdd = new bytes4[](0);
+        selectorsToReplace = new bytes4[](0);
+        selectorsToRemove = new bytes4[](0);
+
         // Get selectors to add or replace
         for (uint256 i; i < newSelectors.length; i++) {
             if (loupe.facetAddress(newSelectors[i]) == address(0)) {
@@ -221,7 +225,7 @@ contract UpdateScriptBase is ScriptBase {
         );
 
         // go through array with function signatures
-        for (uint i = 0; i < funcSigsToBeApproved.length; i++) {
+        for (uint256 i = 0; i < funcSigsToBeApproved.length; i++) {
             // Register refundWallet as authorized wallet to call these functions
             AccessManagerFacet(diamond).setCanExecute(
                 bytes4(funcSigsToBeApproved[i].sig),

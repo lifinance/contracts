@@ -165,15 +165,6 @@
       }
     }
   },
-  "GravityFacet": {
-    "configData": {
-      "_router": {
-        "configFileName": "gravity.json",
-        "keyInConfigFile": ".<NETWORK>.gravityRouter",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "HopFacet": {
     "configData": {
       "_router": {
@@ -235,15 +226,6 @@
       "_txManager": {
         "configFileName": "nxtp.json",
         "keyInConfigFile": ".<NETWORK>.txManagerAddress",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "OFTWrapperFacet": {
-    "configData": {
-      "_oftWrapper": {
-        "configFileName": "oftwrapper.json",
-        "keyInConfigFile": ".wrappers.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -322,15 +304,6 @@
       "_synapseRouter": {
         "configFileName": "synapse.json",
         "keyInConfigFile": ".<NETWORK>.router",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "ThorSwapFacet": {
-    "configData": {
-      "_thorchainRouter": {
-        "configFileName": "thorswap.json",
-        "keyInConfigFile": ".<NETWORK>.thorchainRouter",
         "allowToDeployWithZeroAddress": "false"
       }
     }
