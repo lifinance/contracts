@@ -41,5 +41,7 @@
   "AllBridgeFacet": "0xC0c42d148241c5b5BB38e974d40Fc9087f7F9ecD",
   "RelayerCelerIMMutable": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
   "CelerIMFacetMutable": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
-  "WormholeFacet": "0x52a29e1f32DEd47B6FfF036e95667125921faE50"
+  "WormholeFacet": "0x52a29e1f32DEd47B6FfF036e95667125921faE50",
+  "StandardizedCallFacet": "0x2E61751366B7e006f8D53becB4b697890B30144F",
+  "CalldataVerificationFacet": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567"
 }

@@ -25,17 +25,21 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x50b4cB2C152322760a8fA59105A46745CE2B7Eac": {
-        "Name": "GetGasFacet",
-        "Version": ""
+      "0x02063A0d7a222c16D5b63213262596B83b07150c": {
+        "Name": "MultichainFacet",
+        "Version": "1.0.1"
       },
       "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0x02063A0d7a222c16D5b63213262596B83b07150c": {
-        "Name": "MultichainFacet",
-        "Version": "1.0.1"
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
+        "Version": "1.0.0"
+      },
+      "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
@@ -46,7 +50,5 @@
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
-  },
-  "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+  }
 }

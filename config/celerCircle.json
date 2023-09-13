@@ -13,5 +13,10 @@
     "circleBridgeProxy": "0x9744ae566c64B6B6f7F9A4dD50f7496Df6Fef990",
     "usdc": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
     "domain": 1
+  },
+  "optimism": {
+    "circleBridgeProxy": "0x697aC93c9263346c5Ad0412F9356D5789a3AA687",
+    "usdc": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+    "domain": 2
   }
 }
