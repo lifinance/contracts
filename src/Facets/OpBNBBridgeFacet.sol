@@ -27,6 +27,10 @@ contract OpBNBBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         IL1StandardBridge standardBridge;
     }
 
+    // @notice OpBNB Config
+    // @notice some assets but not all require a non-standard bridge
+    // @param assetId Address of token
+    // @param bridge Address of non-standard bridge for asset
     struct Config {
         address assetId;
         address bridge;
