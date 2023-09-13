@@ -25,20 +25,29 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
+      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
+      },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
-        "Name": "LIFuelFacet",
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
+      },
+      "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+      "ERC20Proxy": "",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
-      "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
+      "FeeCollector": "",
       "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
+      "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
   }

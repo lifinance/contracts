@@ -2,10 +2,6 @@ name: Types Bindings
 
 on:
   push:
-    branches:
-      - "master"
-      - "staging"
-      - "dev"
 
 env:
   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
@@ -48,13 +44,13 @@ jobs:
           repository: lifinance/lifi-contract-types
           path: lifi-contract-types
           ssh-key: ${{ secrets.SSH_REPO_TOKEN }}
-          ref: master
+          ref: main
 
       - name: Copy types bindings
         run: |
           rm -r lifi-contract-types/src/
           mv typechain lifi-contract-types/src
-          cp diamondABI/diamond.json lifi-contract-types/dist/
+          cp diamond.json lifi-contract-types/dist/
 
       - name: Build contract types
         run: cd lifi-contract-types && yarn install && yarn build
@@ -69,7 +65,7 @@ jobs:
           LATEST_TAG=$(echo "$release_json" | jq -r '.[0].name')
 
           # we need to make sure that on staging we're going to update a -beta version, if any
-          if [[ "$BRANCH_NAME" != "master" ]]; then
+          if [[ "$BRANCH_NAME" != "main" ]]; then
             # if it has already "-beta", no other action is required, since it means
             # that we're already going to update the latest staging release
             if [[ "$LATEST_TAG" != *"beta"* ]]; then
@@ -94,7 +90,7 @@ jobs:
         uses: christian-draeger/increment-semantic-version@1.1.0
         with:
           current-version: "${{ env.LATEST_TAG }}"
-          version-fragment: "${{ env.BRANCH_NAME == 'master' && (contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || 'bug') || 'beta' }}"
+          version-fragment: "${{ env.BRANCH_NAME == 'main' && (contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || 'bug') || 'beta' }}"
 
       - name: Push tag
         if: steps.bump_version.outputs.next-version
@@ -111,6 +107,6 @@ jobs:
           git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
           git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ github.event.head_commit.message }}"
           git push origin tag v${{ steps.bump_version.outputs.next-version }}
-          if [[ "$BRANCH_NAME" == "master" ]]; then
+          if [[ "$BRANCH_NAME" == "main" ]]; then
             git push -u origin $BRANCH_NAME
           fi
