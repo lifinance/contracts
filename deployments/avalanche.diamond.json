@@ -1,6 +1,14 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x0b5726b7348efBdA8620D5C374F85Cbe8f040B6a": {
+        "Name": "",
+        "Version": ""
+      },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
@@ -41,13 +49,17 @@
         "Name": "CelerCircleBridgeFacet",
         "Version": "1.0.1"
       },
-      "0x3d5F2cC1A2a05448C0d8Fcd628E2b53d93DC12e4": {
+      "0x9aD9aC39749B7b76294bF65E11a040fb57643b3A": {
         "Name": "StargateFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.1"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
+      },
+      "0x5D3675D698A3DD53E3457951e1dEbEF717A29A72": {
+        "Name": "",
+        "Version": ""
       },
       "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
         "Name": "LIFuelFacet",
