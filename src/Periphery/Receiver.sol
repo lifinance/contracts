@@ -13,7 +13,7 @@ import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 /// @title Receiver
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-/// @custom:version 2.0.0
+/// @custom:version 2.0.1
 contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
