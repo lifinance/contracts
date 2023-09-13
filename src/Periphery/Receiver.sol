@@ -99,7 +99,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @param * (unused) The remote chainId sending the tokens
     /// @param * (unused) The remote Bridge address
     /// @param * (unused) Nonce
-    /// @param * (unused) The token contract on the local chain
+    /// @param _token The token contract on the local chain
     /// @param _amountLD The amount of tokens received through bridging
     /// @param _payload The data to execute
     function sgReceive(
@@ -123,7 +123,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         _swapAndCompleteBridgeTokens(
             transactionId,
             swapData,
-            _token,
+            swapData.length > 0 ? swapData[0].sendingAssetId : _token, // If swapping assume sent token is the first token in swapData
             payable(receiver),
             _amountLD,
             true
