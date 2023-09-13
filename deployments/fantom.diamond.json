@@ -1,14 +1,6 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
-        "Name": "",
-        "Version": ""
-      },
-      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
-        "Name": "",
-        "Version": ""
-      },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
@@ -25,10 +17,6 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0xb0D0Bc62FbbE8D275b308C8Ae18b7BBc52aa0e0D": {
-        "Name": "",
-        "Version": ""
-      },
       "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
         "Name": "CBridgeFacet",
         "Version": "1.0.0"
@@ -44,10 +32,6 @@
       "0x02063A0d7a222c16D5b63213262596B83b07150c": {
         "Name": "MultichainFacet",
         "Version": "1.0.1"
-      },
-      "0x0b5726b7348efBdA8620D5C374F85Cbe8f040B6a": {
-        "Name": "",
-        "Version": ""
       },
       "0x9aD9aC39749B7b76294bF65E11a040fb57643b3A": {
         "Name": "StargateFacet",
