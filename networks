@@ -11,6 +11,7 @@ evmos
 fantom
 fuse
 gnosis
+linea
 localanvil
 moonbeam
 moonriver
@@ -24,3 +25,4 @@ bsc-testnet
 lineatest
 mumbai
 sepolia
+zksync

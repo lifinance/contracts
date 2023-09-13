@@ -3,7 +3,7 @@
   "DiamondLoupeFacet": "0xc21a00a346d5b29955449Ca912343a3bB4c5552f",
   "OwnershipFacet": "0x6faA6906b9e4A59020e673910105567e809789E0",
   "DexManagerFacet": "0x4bEAa5D26300e81cd17e0981fc15494Bb4B10959",
-  "AccessManagerFacet": "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc",
+  "AccessManagerFacet": "0xFf296c17499C8eda2DdF61db580149bB819C804A",
   "WithdrawFacet": "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B",
   "PeripheryRegistryFacet": "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15",
   "LiFiDiamondImmutable": "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF",
@@ -20,5 +20,7 @@
   "LIFuelFacet": "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF",
   "LiFiDiamond": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
   "RelayerCelerIMMutable": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
-  "CelerIMFacetMutable": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64"
+  "CelerIMFacetMutable": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
+  "StandardizedCallFacet": "0x2E61751366B7e006f8D53becB4b697890B30144F",
+  "CalldataVerificationFacet": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567"
 }

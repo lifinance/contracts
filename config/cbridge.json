@@ -70,6 +70,9 @@
   "heco": {
     "cBridge": "0xBB7684Cc5408F4DD0921E5c2Cadd547b8f1AD573"
   },
+  "linea": {
+    "cBridge": "0x9B36f165baB9ebe611d491180418d8De4b8f3a1f"
+  },
   "localanvil": {
     "cBridge": "0xf89354F314faF344Abd754924438bA798E306DF2",
     "cfUSDC": "0x0000000000000000000000000000000000000000",

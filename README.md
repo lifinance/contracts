@@ -2,6 +2,8 @@
 
 # LI.FI Smart Contracts
 
+You can find the ABI of LifiDiamond in our auto generated [lifi-contract-types repository](https://github.com/lifinance/lifi-contract-types/blob/main/dist/diamond.json).
+
 ## Table of contents
 
 1. [General](#general)
