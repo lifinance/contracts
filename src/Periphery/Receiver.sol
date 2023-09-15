@@ -13,7 +13,7 @@ import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 /// @title Receiver
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-/// @custom:version 2.0.0
+/// @custom:version 2.0.1
 contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
@@ -99,7 +99,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @param * (unused) The remote chainId sending the tokens
     /// @param * (unused) The remote Bridge address
     /// @param * (unused) Nonce
-    /// @param * (unused) The token contract on the local chain
+    /// @param _token The token contract on the local chain
     /// @param _amountLD The amount of tokens received through bridging
     /// @param _payload The data to execute
     function sgReceive(
@@ -123,7 +123,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         _swapAndCompleteBridgeTokens(
             transactionId,
             swapData,
-            _token,
+            swapData.length > 0 ? swapData[0].sendingAssetId : _token, // If swapping assume sent token is the first token in swapData
             payable(receiver),
             _amountLD,
             true
