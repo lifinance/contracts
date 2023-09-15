@@ -103,6 +103,14 @@
     {
       "chainId": 59144,
       "lzChainId": 183
+    },
+    {
+      "chainId": 324,
+      "lzChainId": 165
+    },
+    {
+      "chainId": 1101,
+      "lzChainId": 158
     }
   ]
 }
