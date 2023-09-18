@@ -90,9 +90,7 @@
         "PolygonBridgeFacet": "1.0.0",
         "StargateFacet": "2.0.1",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0",
-        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "HopFacetOptimized": "2.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -131,9 +129,7 @@
         "PolygonBridgeFacet": "1.0.0",
         "StargateFacet": "2.0.1",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0",
-        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "HopFacetOptimized": "2.0.0"
       }
     }
   },
@@ -226,9 +222,7 @@
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.0.1",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0",
-        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "HopFacetOptimized": "2.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -261,9 +255,7 @@
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.0.1",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0",
-        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "HopFacetOptimized": "2.0.0"
       }
     }
   },
@@ -291,8 +283,7 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "StargateFacet": "2.0.1",
-        "HopFacetOptimized": "2.0.0",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "HopFacetOptimized": "2.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -316,8 +307,7 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "StargateFacet": "2.0.1",
-        "HopFacetOptimized": "2.0.0",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "HopFacetOptimized": "2.0.0"
       }
     }
   },
@@ -574,8 +564,7 @@
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.0.1",
-        "WormholeFacet": "1.0.0",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "WormholeFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -603,8 +592,7 @@
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.0.1",
-        "WormholeFacet": "1.0.0",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "WormholeFacet": "1.0.0"
       }
     }
   },
@@ -698,9 +686,7 @@
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.0.1",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0",
-        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "HopFacetOptimized": "2.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -734,9 +720,7 @@
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.0.1",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0",
-        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "HopFacetOptimized": "2.0.0"
       }
     }
   },
@@ -812,9 +796,7 @@
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.0.1",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0",
-        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "HopFacetOptimized": "2.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -847,9 +829,7 @@
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.0.1",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0",
-        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "HopFacetOptimized": "2.0.0"
       }
     }
   },
@@ -1517,8 +1497,7 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "MultichainFacet": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1539,8 +1518,7 @@
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -1857,8 +1835,7 @@
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "StargateFacet": "2.0.1",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "StargateFacet": "2.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1880,8 +1857,7 @@
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "StargateFacet": "2.0.1",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "StargateFacet": "2.0.1"
       }
     }
   },
@@ -2011,10 +1987,7 @@
         "MultichainFacet": "1.0.1",
         "OmniBridgeFacet": "1.0.0",
         "StargateFacet": "2.0.1",
-        "WormholeFacet": "1.0.0",
-        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m",
-        "OpBNBBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OpBNBBridgeFacet\u001b[0m\u001b[0m"
+        "WormholeFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2044,10 +2017,7 @@
         "MultichainFacet": "1.0.1",
         "OmniBridgeFacet": "1.0.0",
         "StargateFacet": "2.0.1",
-        "WormholeFacet": "1.0.0",
-        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m",
-        "OpBNBBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OpBNBBridgeFacet\u001b[0m\u001b[0m"
+        "WormholeFacet": "1.0.0"
       }
     }
   },
@@ -2119,8 +2089,7 @@
         "HopFacetPacked": "1.0.6",
         "MultichainFacet": "1.0.1",
         "OmniBridgeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0",
-        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m"
+        "HopFacetOptimized": "2.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2147,8 +2116,7 @@
         "HopFacetPacked": "1.0.6",
         "MultichainFacet": "1.0.1",
         "OmniBridgeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0",
-        "AmarokFacetPacked": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AmarokFacetPacked\u001b[0m\u001b[0m"
+        "HopFacetOptimized": "2.0.0"
       }
     }
   },
@@ -2507,8 +2475,7 @@
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "MultichainFacet": "1.0.1",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "MultichainFacet": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2531,8 +2498,7 @@
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
-        "MultichainFacet": "1.0.1",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -2559,8 +2525,7 @@
         "AcrossFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "MultichainFacet": "1.0.1",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "MultichainFacet": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2583,8 +2548,7 @@
         "AcrossFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "MultichainFacet": "1.0.1",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -2611,8 +2575,7 @@
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "MultichainFacet": "1.0.1",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "MultichainFacet": "1.0.1"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2635,8 +2598,7 @@
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
-        "MultichainFacet": "1.0.1",
-        "SymbiosisFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract SymbiosisFacet\u001b[0m\u001b[0m"
+        "MultichainFacet": "1.0.1"
       }
     }
   },
@@ -2659,8 +2621,7 @@
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.1",
-        "ServiceFeeCollector": "1.0.0",
-        "OpBNBBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OpBNBBridgeFacet\u001b[0m\u001b[0m"
+        "ServiceFeeCollector": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2679,8 +2640,7 @@
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.1",
-        "ServiceFeeCollector": "1.0.0",
-        "OpBNBBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OpBNBBridgeFacet\u001b[0m\u001b[0m"
+        "ServiceFeeCollector": "1.0.0"
       }
     }
   }
