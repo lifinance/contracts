@@ -47,7 +47,7 @@ deployUpgradesToSAFE() {
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
   # Call the proposeTx script ts-node proposeTx.ts diamondAddress cuts network rpcUrl
-  ts-node script/deploy/gnosisSAFE/proposeTx.ts "$DIAMOND_ADDRESS" "$CUTS_JSON" "$NETWORK" $(getRPCUrl $NETWORK) "$PRIVATE_KEY"
+  yarn ts-node script/deploy/gnosisSAFE/proposeTx.ts "$DIAMOND_ADDRESS" "$CUTS_JSON" "$NETWORK" $(getRPCUrl $NETWORK) "$PRIVATE_KEY"
   exit 0
 }
 

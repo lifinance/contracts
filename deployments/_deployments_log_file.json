@@ -6596,6 +6596,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "2.0.1": [
+          {
+            "ADDRESS": "0x793B051eEB7154A04C5462988ce93638b80782e3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-20 10:49:41",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b0d502e938ed5f4df2e681fe6e419ff29631d62b000000000000000000000000b1b2eef380f21747944f46d28f683cd1fbb4d03c",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
       }
     },
     "arbitrum": {
