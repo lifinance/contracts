@@ -1,16 +1,57 @@
 {
-  "mainnet": {
-    "example": "0x0000000000000000000000000000000000000000",
-    "exampleAllowedTokens": [
-      "0x0000000000000000000000000000000000000000",
-      "0x0000000000000000000000000000000000000000"
-    ]
+  "routers": {
+    "mainnet": {
+      "router": "0xE561d5E02207fb5eB32cca20a699E0d8919a1476"
+    },
+    "sepolia": {
+      "router": "0xD0daae2231E9CB96b94C8512223533293C3693Bf"
+    },
+    "optimism": {
+      "router": "0x261c05167db67B2b619f9d312e0753f3721ad6E8"
+    },
+    "avalanche": {
+      "router": "0x27F39D0af3303703750D4001fCc1844c6491563c"
+    },
+    "mumbai": {
+      "router": "0x70499c328e1E2a3c41108bd3730F6670a44595D1"
+    },
+    "polygon": {
+      "router": "0x3C3D92629A02a8D95D5CB9650fe49C3544f69B43"
+    },
+    "bsc-testnet": {
+      "router": "0x9527e2d01a3064ef6b50c1da1c0cc523803bcff2"
+    }
   },
-  "arbitrum": {
-    "example": "0x0000000000000000000000000000000000000000",
-    "exampleAllowedTokens": [
-      "0x0000000000000000000000000000000000000000",
-      "0x0000000000000000000000000000000000000000"
-    ]
-  }
+  "chainSelectors": [
+    {
+      "chainId": 1,
+      "selector": 5009297550715157269
+    },
+    {
+      "chainId": 10,
+      "selector": 3734403246176062136
+    },
+    {
+      "chainId": 43114,
+      "selector": 6433500567565415381
+    },
+    {
+      "chainId": 137,
+      "selector": 4051577828743386545
+    }
+  ],
+  "testChainSelectors": [
+    {
+      "chainId": 11155111,
+      "selector": 16015286601757825753
+    },
+    {
+      "chainId": 80001,
+      "selector": 12532609583862916517
+    },
+    {
+      "chainId": 97,
+      "selector": 13264668187771770619
+    }
+  ]
 }

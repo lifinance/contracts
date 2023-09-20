@@ -8,6 +8,8 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { Client } from "@chainlink-ccip/v0.8/ccip/libraries/Client.sol";
+import { IRouterClient } from "@chainlink-ccip/v0.8/ccip/interfaces/IRouterClient.sol";
 
 /// @title CCIP Facet
 /// @author Li.Finance (https://li.finance)
@@ -17,6 +19,9 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.ccip"); // Optional. Only use if you need to store data in the diamond storage.
+
+    // @notice the CCIP router contract
+    IRouterClient public immutable routerClient;
 
     /// @dev Local storage for the contract (optional)
     struct Storage {
@@ -30,7 +35,8 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Optional bridge specific struct
     /// @param exampleParam Example paramter
     struct CCIPData {
-        string exampleParam;
+        bytes callData;
+        bytes extraArgs;
     }
 
     /// Events ///
@@ -40,12 +46,9 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Constructor ///
 
     /// @notice Constructor for the contract.
-    ///         Should only be used to set immutable variables.
-    ///         Anything that cannot be set as immutable should be set
-    ///         in an init() function called during a diamondCut().
-    /// @param _example Example paramter.
-    constructor(address _example) {
-        example = _example;
+    /// @param _routerClient CCIP router contract.
+    constructor(IRouterClient _routerClient) {
+        routerClient = _routerClient;
     }
 
     /// Init ///
