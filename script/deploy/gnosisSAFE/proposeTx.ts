@@ -8,7 +8,6 @@ import SafeApiKit, {
 import { SafeTransactionDataPartial } from '@safe-global/safe-core-sdk-types'
 import { safeApiUrls } from './config'
 import { argv, exit } from 'process'
-import enquirer from 'enquirer'
 
 // Parse incoming arguments
 const [, , diamondAddress, rawCuts, network, rpcUrl, privateKey] = argv
