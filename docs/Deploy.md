@@ -14,10 +14,10 @@ If you want to deploy an immutable diamond, please skip to [this section](#deplo
 This needs to be deployed ahead of time on every chain you plan to deploy to. LI.FI has gone ahead and deployed a version of the CREATE3 factory on a handful of chains already.
 (can be verified here: [https://github.com/lifinance/create3-factory/tree/main/deployments](https://github.com/lifinance/create3-factory/tree/main/deployments))
 
-**ETH_NODE_URI_\<NETWORK\>**=<add your own RPC link here> (NETWORK being the network you deploy to e.g. MAINNET, POLYGON or BSC)
+**ETH*NODE_URI*\<NETWORK\>**=<add your own RPC link here> (NETWORK being the network you deploy to e.g. MAINNET, POLYGON or BSC)
 (e.g. [https://1rpc.io/eth](https://1rpc.io/eth))
 
-**\<NETWORK\>_ETHERSCAN_API_KEY**=<add your own Etherscan API key here>
+**\<NETWORK\>\_ETHERSCAN_API_KEY**=<add your own Etherscan API key here>
 
 > > if you deploy to another network, make sure you have both variables set for that specific network. E.g.: **ETH_NODE_URI_GOERLI** and **GOERLI_ETHERSCAN_API_KEY** for deployments to Goerli etc.
 
@@ -35,75 +35,15 @@ This needs to be deployed ahead of time on every chain you plan to deploy to. LI
 
 Scripts:
 
-- /scripts/deploy.sh (for deploying any of our contracts)
-  - execute with command `./scripts/deploy.sh` in your console
-- /scripts/diamond-update.sh (update / add to diamond)
-  - execute with command `./scripts/diamond-update.sh` in your console
-- /scripts/update-periphery.sh (add new contract to periphery registry)
-  - execute with command `./scripts/update-periphery.sh` in your console
-
-## Deploy facet and LiFiDiamond contracts
-
-Deploy (in this order) using `./scripts/deploy.sh`:
-
-- [ ] DiamondCutFacet
-- [ ] DiamondLoupeFacet
-- [ ] OwnershipFacet
-- [ ] DexManagerFacet
-- [ ] AccessManagerFacet
-- [ ] WithdrawFacet
-- [ ] PeripheryRegistryFacet
-- [ ] **LiFiDiamond**
-- [ ] <a name="update-core"></a>Update the diamond contract using `./scripts/diamond-update.sh`:
-  - select “UpdateCoreFacets”
-- <a name="update-sigs"></a>Run:
-  - [ ] `./scripts/sync-dexs.sh`
-  - [ ] `./scripts/sync-sigs.sh`
-
-## <a name="add-bridge"></a>Bridges / Facets
-
-1. For each facet that you want to deploy and add to the diamond, run first the deploy script (i.e. `./scripts/deploy.sh`) and, upon success, the update script (i.e.`./scripts/diamond-update.sh`)
-   (you will be prompted to select a network and facet to deploy/update)
-2. Available facets (\* = ETH Mainnet only)
-   - Across
-   - Amarok
-     - ❗️needs to be initialized with chainId ↔ domainId mappings after deployment
-   - Arbitrum\*
-   - CBridge
-   - GenericSwap
-   - Gnosis\*
-   - Gravity
-   - Hop
-   - HopFacetOptimized
-     - ❗️maxApproval calls
-   - Hyphen
-   - Multichain
-   - Omni\*
-   - Optimism\*
-   - Polygon\*
-   - Stargate
-
-## <a name="add-periphery"></a>Periphery
-
-1. For each periphery contract that you want to deploy and add to the diamond run the deploy script (i.e. `./scripts/deploy.sh`)
-   (you will be prompted to select a network and facet to deploy/update) 1. ERC20 2. Executor 3. Receiver 4. FeeCollector 5. RelayerCBridge
-2. After you deployed all periphery contracts, execute the update script (i.e.`./scripts/update-periphery.sh`) for each contract to be registered
-   (you will be prompted to select a network and contract to register)
-
----
-
----
+- /scripts/scriptMaster.sh (for deploying any of our contracts)
+  - execute with command `./scripts/scriptMaster.sh` in your console
 
 ## <a name="deploy-new"></a>Deploy a new diamond (e.g. staging) and add already deployed facets
 
 (find detailed instructions for each step above)
 
-- [ ] deploy new diamond contract
-- [ ] Update core facets as described [here](#update-core)
-- [ ] run `./scripts/sync-dexs.sh`
-- [ ] run `./scripts/sync-sigs.sh`
-- [ ] add bridge facets as needed (as described [here](#add-bridge))
-  - ❗️dont forget any required configuration calls
+- [ ] Run this script `./scripts/scriptMaster.sh` and select `3) Deploy all contracts to one selected network (=new network)`
+- [ ] Choose a network and choose `Immutable` as diamond version
 
 ---
 
@@ -111,17 +51,9 @@ Deploy (in this order) using `./scripts/deploy.sh`:
 
 ## <a name="deploy-immutable"></a>Deploy immutable diamond
 
-- [ ] Run this script `./scripts/deploy.sh`, select desired network and option `DeployLiFiDiamondImmutable`
-- [ ] Update core facets as described [here](#update-core)
-- [ ] Sync DEXs and Sigs as described [here](#update-sigs)
-- [ ] Deploy bridge facets (if needed) - in most cases we can use the existing deployments
-- [ ] add bridge facets as needed (as described [here](#add-bridge))
-- [ ] Run facet-specific configuration calls
-  1. **Amarok:** add domainIds
-  2. **HopFacetOptimized:** run maxApproval calls for tokens
-- [ ] Deploy periphery contracts (if needed) - in most cases we can use the existing deployments
-- [ ] Add periphery contracts to registry as described [here](#add-periphery)
-- [ ] Run script `./scripts/make-diamond-immutable.sh`
+- [ ] Run this script `./scripts/scriptMaster.sh` and select `3) Deploy all contracts to one selected network (=new network)`
+- [ ] Choose a network and choose `Immutable` as diamond version
+- [ ] Run the `./scripts/scriptMaster.sh` script again and select `5) Execute a script` then `diamondMakeImmutable`
   - will transfer Ownership of diamond to address(0)
   - will remove the diamondCut facet so that no further contract changes are possible
 - [ ] Update docs
@@ -133,3 +65,30 @@ When releasing a new version of the immutable diamond, some scripts and files ne
 - deploy.sh
 - DeployLiFiDiamondImmutable.s.sol
 - UpdateScriptBase.sol
+
+---
+
+---
+
+## <a name="deploying-contracts"></a>Deploying contracts
+
+- [ ] Run the script `./scripts/scriptMaster.sh` and select `1) Deploy one specific contract to one network`
+- [ ] Choose the network
+- [ ] Choose the contract you want to deploy and choose to add it to the `Mutable`, `Immutable` or not at all (choose not at all if you plan to upgrade using a SAFE)
+
+---
+
+---
+
+## <a name="upgrade-using-safe"></a>Upgrade using SAFE wallet
+
+- [ ] Make sure you have deployed a new diamond contract (see above)
+- [ ] Make sure the diamond contract is owned by the SAFE wallet your will use for the upgrade
+- [ ] Make sure the facet you wish to upgrade is deployed but not added to the diamond yet
+- [ ] Run this script `./scripts/scriptMaster.sh`, select `11) Propose upgrade TX to Gnosis SAFE`
+- [ ] Choose the network you want to run the upgrade on
+- [ ] Choose the diamond version `Mutable` or `Immutable`
+- [ ] Choose the facet(s) you want to upgrade (you can select multiple using the spacebar)
+- [ ] Hit enter and select the SAFE wallet you want to use
+- [ ] Hit enter again and wait for the script to finish
+- [ ] Go to the Gnosis SAFE app and confirm the transaction
