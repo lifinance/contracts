@@ -13,11 +13,11 @@ import { argv, exit } from 'process'
 const [, , diamondAddress, rawCuts, network, rpcUrl, privateKey] = argv
 
 const ownerABI = ['function owner() external view returns (address)']
-const contract = new ethers.Contract(diamondAddress, ownerABI)
 
 // Create ethers provider and signer from private key
 let safeOwner = new ethers.Wallet(privateKey as string)
 const provider = new ethers.providers.JsonRpcProvider(rpcUrl)
+const contract = new ethers.Contract(diamondAddress, ownerABI, provider)
 safeOwner = safeOwner.connect(provider)
 
 // Initialize the Safe API
