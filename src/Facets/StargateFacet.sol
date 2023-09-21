@@ -101,10 +101,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         Storage storage sm = getStorage();
 
-        if (sm.initialized) {
-            revert AlreadyInitialized();
-        }
-
         for (uint256 i = 0; i < chainIdConfigs.length; i++) {
             sm.layerZeroChainId[chainIdConfigs[i].chainId] = chainIdConfigs[i]
                 .layerZeroChainId;
@@ -173,6 +169,8 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 _destinationChainId,
         StargateData calldata _stargateData
     ) external view returns (uint256, uint256) {
+        // Transfers with callData have to be routed via the composer which adds additional overhead in fees.
+        // The composer exposes the same function as the router to calculate those fees.
         IStargateRouter stargate = _stargateData.callData.length > 0
             ? composer
             : router;
@@ -200,9 +198,11 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         StargateData calldata _stargateData
     ) private {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            // All transfers with destination calls need to be routed via the composer contract
             IStargateRouter stargate = _bridgeData.hasDestinationCall
                 ? composer
                 : nativeRouter;
+
             stargate.swapETHAndCall{ value: _bridgeData.minAmount }(
                 getLayerZeroChainId(_bridgeData.destinationChainId),
                 _stargateData.refundAddress,
@@ -219,6 +219,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _stargateData.callData
             );
         } else {
+            // All transfers with destination calls need to be routed via the composer contract
             IStargateRouter stargate = _bridgeData.hasDestinationCall
                 ? composer
                 : router;
