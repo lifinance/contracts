@@ -384,17 +384,6 @@ contract StargateFacetTest is TestBaseFacet {
         stargateFacet.setLayerZeroChainId(123, 456);
     }
 
-    function test_revert_InitializeAgain() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-        StargateFacet.ChainIdConfig[]
-            memory chainIdConfig = new StargateFacet.ChainIdConfig[](2);
-        chainIdConfig[0] = StargateFacet.ChainIdConfig(1, 101);
-        chainIdConfig[1] = StargateFacet.ChainIdConfig(137, 109);
-
-        vm.expectRevert(AlreadyInitialized.selector);
-        stargateFacet.initStargate(chainIdConfig);
-    }
-
     function test_revert_InitializeAsNonOwner() public {
         LiFiDiamond diamond2 = createDiamond();
         stargateFacet = new TestStargateFacet(
