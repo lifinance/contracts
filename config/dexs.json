@@ -425,7 +425,10 @@
   "avalancheFujiTestnet": [],
   "bscTestnet": ["0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"],
   "localanvil": [],
-  "linea": ["0x8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb"],
+  "linea": [
+    "0x8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb", 
+    "0x2205ebb740c7c98eD52cf7F0FC302EB8a4afD5a4"
+  ],
   "mumbai": [
     "0xfD0af5274aA16C72B7c463B22a435C06DEBbe894",
     "0xf471d32cb40837bf24529fcf17418fc1a4807626",
