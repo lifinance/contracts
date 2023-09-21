@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Stargate Facet works by forwarding Stargate specific calls to a token specific [router contract](https://stargateprotocol.gitbook.io/stargate/developers/how-to-swap). Stargate is a community-driven organization building the first fully composable native asset bridge, and the first dApp built on LayerZero. Stargate's vision is to make cross-chain liquidity transfer a seamless, single transaction process. Stargate is the first bridge to solve the [bridging trilemma](https://www.dropbox.com/s/gf3606jedromp61/Delta-Solving.The.Bridging-Trilemma.pdf).
+The Stargate Facet works by forwarding Stargate specific calls to a token specific [router contract](https://stargateprotocol.gitbook.io/stargate/developers/how-to-swap) or to a [composer contract](https://stargateprotocol.gitbook.io/stargate/stargate-composability/stargatecomposer.sol) if destination calls are involved. Stargate is a community-driven organization building the first fully composable native asset bridge, and the first dApp built on LayerZero. Stargate's vision is to make cross-chain liquidity transfer a seamless, single transaction process. Stargate is the first bridge to solve the [bridging trilemma](https://www.dropbox.com/s/gf3606jedromp61/Delta-Solving.The.Bridging-Trilemma.pdf).
 
 ```mermaid
 graph LR;
