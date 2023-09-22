@@ -12,7 +12,7 @@ import { LibBytes } from "../Libraries/LibBytes.sol";
 /// @title Calldata Verification Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
-/// @custom:version 1.1.0
+/// @custom:version 1.1.1
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
