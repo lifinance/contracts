@@ -52,6 +52,10 @@
       "0x5CDdf4C75E9Cf1157263Ff3c6A2CC1067555beBa": {
         "Name": "StargateFacet",
         "Version": "2.1.0"
+      },
+      "0x6F1330cC587a2be7eC61e04ba64267ff90cC0315": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.1.1"
       }
     },
     "Periphery": {

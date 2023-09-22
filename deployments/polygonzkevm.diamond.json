@@ -21,10 +21,6 @@
         "Name": "DexManagerFacet",
         "Version": "1.0.0"
       },
-      "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
-        "Name": "AccessManagerFacet",
-        "Version": "1.0.0"
-      },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
@@ -53,9 +49,9 @@
         "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       },
-      "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
+      "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.0"
+        "Version": "1.1.1"
       }
     },
     "Periphery": {
