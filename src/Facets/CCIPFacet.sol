@@ -23,13 +23,6 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     // @notice the CCIP router contract
     IRouterClient public immutable routerClient;
 
-    /// @dev Local storage for the contract (optional)
-    struct Storage {
-        address[] exampleAllowedTokens;
-    }
-
-    address public immutable example;
-
     /// Types ///
 
     /// @dev Optional bridge specific struct
@@ -39,9 +32,25 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes extraArgs;
     }
 
+    /// @dev Local storage layout for CCIP
+    struct Storage {
+        mapping(uint256 => uint64) chainSelectors;
+    }
+
+    struct ChainSelector {
+        uint256 chainId;
+        uint64 selector;
+    }
+
+    /// Errors ///
+
+    error UnknownCCIPChainSelector();
+
     /// Events ///
 
-    event CCIPInitialized();
+    event CCIPInitialized(ChainSelector[] chainSelectors);
+
+    event CCIPChainSelectorUpdated(uint256 indexed chainId, uint64 selector);
 
     /// Constructor ///
 
@@ -53,18 +62,19 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Init ///
 
-    /// @notice Init function. Called in the context
-    ///         of the diamond contract when added as part of
-    ///         a diamondCut(). Use for config that can't be
-    ///         set as immutable or needs to change for any reason.
-    /// @param _exampleAllowedTokens Example array of allowed tokens for this chain.
-    function initCCIP(address[] memory _exampleAllowedTokens) external {
+    /// @notice Initializes the CCIP facet.
+    /// @param chainSelectors An array of chain selectors for CCIP
+    function initCCIP(ChainSelector[] calldata chainSelectors) external {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage s = getStorage();
-        s.exampleAllowedTokens = _exampleAllowedTokens;
 
-        emit CCIPInitialized();
+        for (uint256 i = 0; i < chainSelectors.length; i++) {
+            s.chainSelectors[chainSelectors[i].chainId] = chainSelectors[i]
+                .selector;
+        }
+
+        emit CCIPInitialized(chainSelectors);
     }
 
     /// External Methods ///
@@ -126,8 +136,54 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         CCIPData calldata _ccipData
     ) internal {
-        // TODO: Implement business logic
+        Client.EVMTokenAmount[] memory amounts = new Client.EVMTokenAmount[](
+            1
+        );
+        amounts[0] = Client.EVMTokenAmount({
+            token: _bridgeData.sendingAssetId,
+            amount: _bridgeData.minAmount
+        });
+
+        Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
+            receiver: abi.encode(_bridgeData),
+            data: _ccipData.callData,
+            tokenAmounts: amounts,
+            feeToken: address(0),
+            extraArgs: _ccipData.extraArgs
+        });
+
+        routerClient.ccipSend(
+            getCCIPChainSelector(_bridgeData.destinationChainId),
+            message
+        );
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @notice Sets the CCIP chain selector for a given chain ID
+    /// @param _chainId Standard chain ID
+    /// @param _selector CCIP specific chain selector
+    /// @dev This is used to map a chain ID to its CCIP chain selector
+    function setCCIPChainSelector(
+        uint256 _chainId,
+        uint64 _selector
+    ) external {
+        LibDiamond.enforceIsContractOwner();
+        Storage storage s = getStorage();
+
+        s.chainSelectors[_chainId] = _selector;
+        emit CCIPChainSelectorUpdated(_chainId, _selector);
+    }
+
+    /// @notice Gets the CCIP chain selector for a given chain ID
+    /// @param _chainId Standard chain ID
+    /// @return selector CCIP specific chain selector
+    function getCCIPChainSelector(
+        uint256 _chainId
+    ) private view returns (uint64) {
+        Storage storage s = getStorage();
+        uint64 selector = s.chainSelectors[_chainId];
+        if (selector == 0) revert UnknownCCIPChainSelector();
+        return selector;
     }
 
     /// @dev fetch local storage
