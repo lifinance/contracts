@@ -124,8 +124,7 @@ contract CalldataVerificationFacet {
         bytes memory callData = data;
 
         if (
-            abi.decode(data, (bytes4)) ==
-            StandardizedCallFacet.standardizedCall.selector
+            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
         ) {
             // standardizedCall
             callData = abi.decode(data[4:], (bytes));
@@ -217,8 +216,7 @@ contract CalldataVerificationFacet {
 
         // Handle standardizedCall
         if (
-            abi.decode(data, (bytes4)) ==
-            StandardizedCallFacet.standardizedCall.selector
+            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
         ) {
             callData = abi.decode(data[4:], (bytes));
         }
@@ -312,8 +310,7 @@ contract CalldataVerificationFacet {
         bytes calldata data
     ) internal pure returns (ILiFi.BridgeData memory bridgeData) {
         if (
-            abi.decode(data, (bytes4)) ==
-            StandardizedCallFacet.standardizedCall.selector
+            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
         ) {
             // StandardizedCall
             bytes memory unwrappedData = abi.decode(data[4:], (bytes));
@@ -334,8 +331,7 @@ contract CalldataVerificationFacet {
         bytes calldata data
     ) internal pure returns (LibSwap.SwapData[] memory swapData) {
         if (
-            abi.decode(data, (bytes4)) ==
-            StandardizedCallFacet.standardizedCall.selector
+            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
         ) {
             // standardizedCall
             bytes memory unwrappedData = abi.decode(data[4:], (bytes));
