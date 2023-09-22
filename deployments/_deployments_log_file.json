@@ -12933,9 +12933,9 @@
       "production": {
         "1.1.0": [
           {
-            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "ADDRESS": "0x2Efb1F589aD594c05a79A9066702Aa4b37D56469",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-08-29 16:13:40",
+            "TIMESTAMP": "2023-09-22 16:15:28",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"

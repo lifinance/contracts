@@ -36,5 +36,5 @@
   "WormholeFacet": "0x52a29e1f32DEd47B6FfF036e95667125921faE50",
   "RelayerCelerIM": "0x1C97BE47f6Da4d2e09B3A11B0A17C513dfD0e896",
   "StandardizedCallFacet": "0x2E61751366B7e006f8D53becB4b697890B30144F",
-  "CalldataVerificationFacet": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567"
+  "CalldataVerificationFacet": "0x2Efb1F589aD594c05a79A9066702Aa4b37D56469"
 }
