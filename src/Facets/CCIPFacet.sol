@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
@@ -145,14 +145,20 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         });
 
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
-            receiver: abi.encode(_bridgeData),
+            receiver: abi.encode(_bridgeData.receiver),
             data: _ccipData.callData,
             tokenAmounts: amounts,
             feeToken: address(0),
             extraArgs: _ccipData.extraArgs
         });
 
-        routerClient.ccipSend(
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            address(routerClient),
+            _bridgeData.minAmount
+        );
+
+        routerClient.ccipSend{ value: msg.value }(
             getCCIPChainSelector(_bridgeData.destinationChainId),
             message
         );

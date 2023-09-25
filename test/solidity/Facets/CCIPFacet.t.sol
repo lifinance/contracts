@@ -46,7 +46,7 @@ contract CCIPFacetTest is Test, DiamondTest {
     address internal constant CCIP_TEST_TOKEN_ADDRESS =
         0x79a4Fc27f69323660f5Bfc12dEe21c3cC14f5901; // CCIP Burn & Mint Test Token
     address internal constant ROUTER_CLIENT =
-        0x677311Fd2cCc511Bbc0f581E8d9a07B033D5E840;
+        0x9527E2d01A3064ef6b50c1Da1C0cC523803BCFF2;
     uint256 internal constant DSTCHAIN_ID = 11155111; // Sepolia
 
     // -----
@@ -186,21 +186,15 @@ contract CCIPFacetTest is Test, DiamondTest {
             10_000 * 10 ** ccipTestToken.decimals()
         );
 
-        ccipFacet.startBridgeTokensViaCCIP(validBridgeData, validCCIPData);
+        ccipFacet.startBridgeTokensViaCCIP{ value: 0.1 ether }(
+            validBridgeData,
+            validCCIPData
+        );
     }
 
     function testCanSwapAndBridgeTokens() public {
+        deal(address(usdc), address(this), 10_000 * 10 ** usdc.decimals());
         usdc.approve(address(ccipFacet), 10_000 * 10 ** usdc.decimals());
-        deal(
-            address(ccipTestToken),
-            address(this),
-            10 * 10 ** ccipTestToken.decimals()
-        );
-
-        ccipTestToken.approve(
-            address(ccipFacet),
-            10_000 * 10 ** ccipTestToken.decimals()
-        );
 
         uint256 inAmount = 10_000 * 10 ** usdc.decimals();
         uint256 outAmount = 10_000 * 10 ** ccipTestToken.decimals();
@@ -226,12 +220,10 @@ contract CCIPFacetTest is Test, DiamondTest {
         ILiFi.BridgeData memory bridgeData = validBridgeData;
         bridgeData.hasSourceSwaps = true;
 
-        ccipFacet.swapAndStartBridgeTokensViaCCIP(
+        ccipFacet.swapAndStartBridgeTokensViaCCIP{ value: 0.1 ether }(
             bridgeData,
             swapData,
             validCCIPData
         );
-
-        vm.stopPrank();
     }
 }
