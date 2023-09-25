@@ -3,10 +3,11 @@ pragma solidity 0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { CCIPFacet } from "lifi/Facets/CCIPFacet.sol";
+import { IRouterClient } from "@chainlink-ccip/v0.8/ccip/interfaces/IRouterClient.sol";
 
 // Stub CCIPFacet Contract
 contract TestCCIPFacet is CCIPFacet {
-    constructor(address _example) CCIPFacet(_example) {}
+    constructor(IRouterClient _routerClient) CCIPFacet(_routerClient) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -20,18 +21,14 @@ contract TestCCIPFacet is CCIPFacet {
 contract CCIPFacetTest is TestBaseFacet {
     CCIPFacet.CCIPData internal validCCIPData;
     TestCCIPFacet internal ccipFacet;
-    address internal EXAMPLE_PARAM = address(0xb33f);
+    IRouterClient internal ROUTER_CLIENT =
+        IRouterClient(0x9527E2d01A3064ef6b50c1Da1C0cC523803BCFF2);
 
     function setUp() public {
-        customBlockNumberForForking = 17130542;
+        customBlockNumberForForking = 32915829;
         initTestBase();
 
-        address[] memory EXAMPLE_ALLOWED_TOKENS = new address[](2);
-        EXAMPLE_ALLOWED_TOKENS[0] = address(1);
-        EXAMPLE_ALLOWED_TOKENS[1] = address(2);
-
-        ccipFacet = new TestCCIPFacet(EXAMPLE_PARAM);
-        ccipFacet.initCCIP(EXAMPLE_ALLOWED_TOKENS);
+        ccipFacet = new TestCCIPFacet(ROUTER_CLIENT);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = ccipFacet.startBridgeTokensViaCCIP.selector;
         functionSelectors[1] = ccipFacet
@@ -62,7 +59,7 @@ contract CCIPFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 137;
 
         // produce valid CCIPData
-        validCCIPData = CCIPFacet.CCIPData({ exampleParam: "foo bar baz" });
+        validCCIPData = CCIPFacet.CCIPData({ callData: "", extraArgs: "" });
     }
 
     // All facet test files inherit from `utils/TestBaseFacet.sol` and require the following method overrides:
