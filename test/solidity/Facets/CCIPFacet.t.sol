@@ -1,9 +1,18 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { DSTest } from "ds-test/test.sol";
+import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
+import { Vm } from "forge-std/Vm.sol";
+import { Test } from "forge-std/Test.sol";
 import { CCIPFacet } from "lifi/Facets/CCIPFacet.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
+import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { IRouterClient } from "@chainlink-ccip/v0.8/ccip/interfaces/IRouterClient.sol";
+import "lifi/Errors/GenericErrors.sol";
 
 // Stub CCIPFacet Contract
 contract TestCCIPFacet is CCIPFacet {
@@ -18,106 +27,211 @@ contract TestCCIPFacet is CCIPFacet {
     }
 }
 
-contract CCIPFacetTest is TestBaseFacet {
-    CCIPFacet.CCIPData internal validCCIPData;
+contract FooSwap is Test {
+    function swap(
+        ERC20 inToken,
+        ERC20 outToken,
+        uint256 inAmount,
+        uint256 outAmount
+    ) external {
+        inToken.transferFrom(msg.sender, address(this), inAmount);
+        deal(address(outToken), msg.sender, outAmount);
+    }
+}
+
+contract CCIPFacetTest is Test, DiamondTest {
+    // These values are for BSC Testnet
+    address internal constant USDC_ADDRESS =
+        0x64544969ed7EBf5f083679233325356EbE738930;
+    address internal constant CCIP_TEST_TOKEN_ADDRESS =
+        0x79a4Fc27f69323660f5Bfc12dEe21c3cC14f5901; // CCIP Burn & Mint Test Token
+    address internal constant ROUTER_CLIENT =
+        0x677311Fd2cCc511Bbc0f581E8d9a07B033D5E840;
+    uint256 internal constant DSTCHAIN_ID = 11155111; // Sepolia
+
+    // -----
+
+    LiFiDiamond internal diamond;
     TestCCIPFacet internal ccipFacet;
-    IRouterClient internal ROUTER_CLIENT =
-        IRouterClient(0x9527E2d01A3064ef6b50c1Da1C0cC523803BCFF2);
+    ERC20 internal usdc;
+    ERC20 internal ccipTestToken;
+    ILiFi.BridgeData internal validBridgeData;
+    CCIPFacet.CCIPData internal validCCIPData;
+    FooSwap internal fooSwap;
+
+    function fork() internal {
+        string memory rpcUrl = vm.envString("ETH_NODE_URI_BSC_TESTNET");
+        uint256 blockNumber = 33259557;
+        vm.createSelectFork(rpcUrl, blockNumber);
+    }
 
     function setUp() public {
-        customBlockNumberForForking = 32915829;
-        initTestBase();
+        fork();
 
-        ccipFacet = new TestCCIPFacet(ROUTER_CLIENT);
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        diamond = createDiamond();
+        ccipFacet = new TestCCIPFacet(IRouterClient(ROUTER_CLIENT));
+        ccipTestToken = ERC20(CCIP_TEST_TOKEN_ADDRESS);
+        usdc = ERC20(USDC_ADDRESS);
+        fooSwap = new FooSwap();
+
+        bytes4[] memory functionSelectors = new bytes4[](5);
         functionSelectors[0] = ccipFacet.startBridgeTokensViaCCIP.selector;
         functionSelectors[1] = ccipFacet
             .swapAndStartBridgeTokensViaCCIP
             .selector;
-        functionSelectors[2] = ccipFacet.addDex.selector;
-        functionSelectors[3] = ccipFacet
+        functionSelectors[2] = ccipFacet.initCCIP.selector;
+        functionSelectors[3] = ccipFacet.addDex.selector;
+        functionSelectors[4] = ccipFacet
             .setFunctionApprovalBySignature
             .selector;
 
         addFacet(diamond, address(ccipFacet), functionSelectors);
+
+        CCIPFacet.ChainSelector[]
+            memory configs = new CCIPFacet.ChainSelector[](2);
+        configs[0] = CCIPFacet.ChainSelector(97, 13264668187771770619); // BSC Testnet
+        configs[1] = CCIPFacet.ChainSelector(11155111, 16015286601757825753); // Sepolia
+
         ccipFacet = TestCCIPFacet(address(diamond));
-        ccipFacet.addDex(ADDRESS_UNISWAP);
-        ccipFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        ccipFacet.setFunctionApprovalBySignature(
-            uniswap.swapTokensForExactETH.selector
-        );
-        ccipFacet.setFunctionApprovalBySignature(
-            uniswap.swapETHForExactTokens.selector
-        );
+        ccipFacet.initCCIP(configs);
 
-        setFacetAddressInTestBase(address(ccipFacet), "CCIPFacet");
+        ccipFacet.addDex(address(fooSwap));
+        ccipFacet.setFunctionApprovalBySignature(fooSwap.swap.selector);
 
-        // adjust bridgeData
-        bridgeData.bridge = "ccip";
-        bridgeData.destinationChainId = 137;
+        vm.label(CCIP_TEST_TOKEN_ADDRESS, "CCIP Test Token");
+        vm.label(USDC_ADDRESS, "USDC Token");
+        vm.label(ROUTER_CLIENT, "CCIP Router");
 
-        // produce valid CCIPData
-        validCCIPData = CCIPFacet.CCIPData({ callData: "", extraArgs: "" });
+        validBridgeData = ILiFi.BridgeData({
+            transactionId: "ccipId",
+            bridge: "ccip",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: CCIP_TEST_TOKEN_ADDRESS,
+            receiver: address(this),
+            minAmount: 10 * 10 ** ccipTestToken.decimals(),
+            destinationChainId: DSTCHAIN_ID,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
+        validCCIPData = CCIPFacet.CCIPData("", "");
     }
 
-    // All facet test files inherit from `utils/TestBaseFacet.sol` and require the following method overrides:
-    // - function initiateBridgeTxWithFacet(bool isNative)
-    // - function initiateSwapAndBridgeTxWithFacet(bool isNative)
-    //
-    // These methods are used to run the following tests which must pass:
-    // - testBase_CanBridgeNativeTokens()
-    // - testBase_CanBridgeTokens()
-    // - testBase_CanBridgeTokens_fuzzed(uint256)
-    // - testBase_CanSwapAndBridgeNativeTokens()
-    // - testBase_CanSwapAndBridgeTokens()
-    // - testBase_Revert_BridgeAndSwapWithInvalidReceiverAddress()
-    // - testBase_Revert_BridgeToSameChainId()
-    // - testBase_Revert_BridgeWithInvalidAmount()
-    // - testBase_Revert_BridgeWithInvalidDestinationCallFlag()
-    // - testBase_Revert_BridgeWithInvalidReceiverAddress()
-    // - testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
-    // - testBase_Revert_CallerHasInsufficientFunds()
-    // - testBase_Revert_SwapAndBridgeToSameChainId()
-    // - testBase_Revert_SwapAndBridgeWithInvalidAmount()
-    // - testBase_Revert_SwapAndBridgeWithInvalidSwapData()
-    //
-    // In some cases it doesn't make sense to have all tests. For example the bridge may not support native tokens.
-    // In that case you can override the test method and leave it empty. For example:
-    //
-    // function testBase_CanBridgeNativeTokens() public override {
-    //     // facet does not support bridging of native assets
-    // }
-    //
-    // function testBase_CanSwapAndBridgeNativeTokens() public override {
-    //     // facet does not support bridging of native assets
-    // }
+    function testRevertToBridgeTokensWhenSendingAmountIsZero() public {
+        deal(
+            address(ccipTestToken),
+            address(this),
+            10 * 10 ** ccipTestToken.decimals()
+        );
 
-    function initiateBridgeTxWithFacet(bool isNative) internal override {
-        if (isNative) {
-            ccipFacet.startBridgeTokensViaCCIP{ value: bridgeData.minAmount }(
-                bridgeData,
-                validCCIPData
-            );
-        } else {
-            ccipFacet.startBridgeTokensViaCCIP(bridgeData, validCCIPData);
-        }
+        ccipTestToken.approve(
+            address(ccipFacet),
+            10_000 * 10 ** ccipTestToken.decimals()
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.minAmount = 0;
+
+        vm.expectRevert(InvalidAmount.selector);
+        ccipFacet.startBridgeTokensViaCCIP(bridgeData, validCCIPData);
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
-        if (isNative) {
-            ccipFacet.swapAndStartBridgeTokensViaCCIP{
-                value: swapData[0].fromAmount
-            }(bridgeData, swapData, validCCIPData);
-        } else {
-            ccipFacet.swapAndStartBridgeTokensViaCCIP(
-                bridgeData,
-                swapData,
-                validCCIPData
-            );
-        }
+    function testRevertToBridgeTokensWhenReceiverIsZeroAddress() public {
+        deal(
+            address(ccipTestToken),
+            address(this),
+            10 * 10 ** ccipTestToken.decimals()
+        );
+
+        ccipTestToken.approve(
+            address(ccipFacet),
+            10_000 * 10 ** ccipTestToken.decimals()
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.receiver = address(0);
+
+        vm.expectRevert(InvalidReceiver.selector);
+        ccipFacet.startBridgeTokensViaCCIP(bridgeData, validCCIPData);
+    }
+
+    function testRevertToBridgeTokensWhenInformationMismatch() public {
+        deal(
+            address(ccipTestToken),
+            address(this),
+            10 * 10 ** ccipTestToken.decimals()
+        );
+
+        ccipTestToken.approve(
+            address(ccipFacet),
+            10_000 * 10 ** ccipTestToken.decimals()
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.hasSourceSwaps = true;
+
+        vm.expectRevert(InformationMismatch.selector);
+        ccipFacet.startBridgeTokensViaCCIP(bridgeData, validCCIPData);
+    }
+
+    function testCanBridgeERC20Tokens() public {
+        deal(
+            address(ccipTestToken),
+            address(this),
+            10 * 10 ** ccipTestToken.decimals()
+        );
+
+        ccipTestToken.approve(
+            address(ccipFacet),
+            10_000 * 10 ** ccipTestToken.decimals()
+        );
+
+        ccipFacet.startBridgeTokensViaCCIP(validBridgeData, validCCIPData);
+    }
+
+    function testCanSwapAndBridgeTokens() public {
+        usdc.approve(address(ccipFacet), 10_000 * 10 ** usdc.decimals());
+        deal(
+            address(ccipTestToken),
+            address(this),
+            10 * 10 ** ccipTestToken.decimals()
+        );
+
+        ccipTestToken.approve(
+            address(ccipFacet),
+            10_000 * 10 ** ccipTestToken.decimals()
+        );
+
+        uint256 inAmount = 10_000 * 10 ** usdc.decimals();
+        uint256 outAmount = 10_000 * 10 ** ccipTestToken.decimals();
+
+        // Calculate DAI amount
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(fooSwap),
+            address(fooSwap),
+            USDC_ADDRESS,
+            CCIP_TEST_TOKEN_ADDRESS,
+            inAmount,
+            abi.encodeWithSelector(
+                fooSwap.swap.selector,
+                ERC20(USDC_ADDRESS),
+                ERC20(CCIP_TEST_TOKEN_ADDRESS),
+                inAmount,
+                outAmount
+            ),
+            true
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.hasSourceSwaps = true;
+
+        ccipFacet.swapAndStartBridgeTokensViaCCIP(
+            bridgeData,
+            swapData,
+            validCCIPData
+        );
+
+        vm.stopPrank();
     }
 }
