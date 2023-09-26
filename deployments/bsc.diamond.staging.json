@@ -33,17 +33,17 @@
         "Name": "AllBridgeFacet",
         "Version": "2.0.0"
       },
-      "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0x9a077b9dD746237d8854848BDB01521B47edC8DF": {
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0x3004db169fa7956609A872736452E4951D4BDA8b": {
-        "Name": "OFTWrapperFacet",
-        "Version": "2.0.0"
+      "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x0e0c82A2246aaFaafDBC614222eBFdE6A56ABB6a": {
+        "Name": "StargateFacet",
+        "Version": "2.2.0"
       }
     },
     "Periphery": {
