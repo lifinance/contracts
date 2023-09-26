@@ -48,7 +48,7 @@ contract StargateFacetTest is TestBaseFacet {
 
     function setUp() public {
         // set custom block number for forking
-        customBlockNumberForForking = 18188069;
+        customBlockNumberForForking = 18218201;
 
         initTestBase();
 
