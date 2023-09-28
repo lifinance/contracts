@@ -49,9 +49,9 @@
         "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       },
-      "0x5CDdf4C75E9Cf1157263Ff3c6A2CC1067555beBa": {
+      "0xEDB61cDace9733f9F2dD18eb414dEa613cc0226d": {
         "Name": "StargateFacet",
-        "Version": "2.1.0"
+        "Version": "2.2.0"
       },
       "0x6F1330cC587a2be7eC61e04ba64267ff90cC0315": {
         "Name": "CalldataVerificationFacet",
@@ -62,7 +62,7 @@
       "ERC20Proxy": "0x57ec2C57fA654aABAeCc63c8dad47cb6efaCCC24",
       "Executor": "0x2a202Ed587F0BC7dfa80ea1DD943d8470492Dd0F",
       "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
-      "Receiver": "0x534f8c40813B3E1dC1627709b2350e92F44Ee147",
+      "Receiver": "0xc10d6962bFF9516ec1584D334A482f36Af98B191",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0xA8Fe73F7b3a825fF51f2200af12c16B3BA95394d"
     }
