@@ -45,9 +45,9 @@
         "Name": "HopFacetPacked",
         "Version": "1.0.6"
       },
-      "0x98EEee64f37B97456C76C644C55B741a7533c8A7": {
+      "0x6E30A793AD7679e3754311db960eE4ED0DcE57fA": {
         "Name": "StargateFacet",
-        "Version": "2.0.1"
+        "Version": "2.1.0"
       },
       "0xa662972b4004Ec10f5C6189DBc6E44F90149fA98": {
         "Name": "HopFacetOptimized",
@@ -57,18 +57,22 @@
         "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       },
-      "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
+      "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.0"
+        "Version": "1.1.1"
+      },
+      "0x98e3E949E8310D836A625495eA70eEAa92073862": {
+        "Name": "AcrossFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x74a55CaDb12501A3707E9F3C5dfd8b563C6A5940",
       "Executor": "0x4DaC9d1769b9b304cb04741DCDEb2FC14aBdF110",
       "FeeCollector": "0x0A6d96E7f4D7b96CFE42185DF61E64d255c12DFf",
-      "Receiver": "0x86909B8A19a86f46A6fB0A97CDb81888DB20b7AE",
+      "Receiver": "0xE86E49C05dBBC72427678B3cd1F5fd14b6c90D12",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0xD25b43AAd2311Ef3C5518FF1336e95424F473C44"
+      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
     }
   }
 }

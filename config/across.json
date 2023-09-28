@@ -7,6 +7,10 @@
     "acrossSpokePool": "0xe35e9842fceaca96570b734083f4a58e8f7c5f2a",
     "weth": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
   },
+  "base": {
+    "acrossSpokePool": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
+    "weth": "0x4200000000000000000000000000000000000006"
+  },
   "optimism": {
     "acrossSpokePool": "0x6f26Bf09B1C792e3228e5467807a900A503c0281",
     "weth": "0x4200000000000000000000000000000000000006"
@@ -29,6 +33,6 @@
   },
   "zksync": {
     "acrossSpokePool": "0xE0B015E54d54fc84a6cB9B666099c46adE9335FF",
-    "weth": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    "weth": "0x5AEa5775959fBC2557Cc8789bC1bf90A239D9a91"
   }
 }

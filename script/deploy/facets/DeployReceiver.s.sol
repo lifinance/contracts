@@ -39,7 +39,7 @@ contract DeployScript is DeployScriptBase {
         string memory json = vm.readFile(path);
 
         address stargateRouter = json.readAddress(
-            string.concat(".routers.", network)
+            string.concat(".composers.", network)
         );
 
         // obtain address of Amarok router in current network from config file
