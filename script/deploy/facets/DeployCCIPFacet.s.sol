@@ -19,11 +19,11 @@ contract DeployScript is DeployScriptBase {
             "/config/ccip.json"
         );
         string memory json = vm.readFile(path);
-        address example = json.readAddress(
-            string.concat(".", network, ".example")
+        address router = json.readAddress(
+            string.concat(".routers.", network, ".router")
         );
 
-        constructorArgs = abi.encode(example);
+        constructorArgs = abi.encode(router);
 
         vm.startBroadcast(deployerPrivateKey);
 

@@ -3,7 +3,6 @@ pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { CCIPFacet } from "lifi/Facets/CCIPFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
@@ -13,46 +12,30 @@ contract DeployScript is UpdateScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        address facet = json.readAddress(".CCIPFacet");
+        return update("CCIPFacet");
+    }
 
+    function getExcludes() internal pure override returns (bytes4[] memory) {
+        bytes4[] memory excludes = new bytes4[](1);
+        excludes[0] = CCIPFacet.initCCIP.selector;
+
+        return excludes;
+    }
+
+    function getCallData() internal override returns (bytes memory) {
         path = string.concat(root, "/config/ccip.json");
         json = vm.readFile(path);
-
-        address[] memory exampleAllowedTokens = json.readAddressArray(
-            string.concat(".", network, ".exampleAllowedTokens")
+        bytes memory rawChainSelectors = json.parseRaw(".chainSelectors");
+        CCIPFacet.ChainSelector[] memory chainSelectors = abi.decode(
+            rawChainSelectors,
+            (CCIPFacet.ChainSelector[])
         );
 
-        /// You can remove this if you don't need to call init on the facet
         bytes memory callData = abi.encodeWithSelector(
             CCIPFacet.initCCIP.selector,
-            exampleAllowedTokens
+            chainSelectors
         );
 
-        // CCIP
-        bytes4[] memory exclude;
-        buildDiamondCut(getSelectors("CCIPFacet", exclude), facet);
-        if (noBroadcast) {
-            if (cut.length > 0) {
-                cutData = abi.encodeWithSelector(
-                    DiamondCutFacet.diamondCut.selector,
-                    cut,
-                    address(facet), // address(0) if not calling init
-                    callData // "" if not calling init
-                );
-            }
-            return (facets, cutData);
-        }
-
-        vm.startBroadcast(deployerPrivateKey);
-        if (cut.length > 0) {
-            cutter.diamondCut(
-                cut,
-                address(facet), // address(0) if not calling init
-                callData // "" if not calling init
-            );
-        }
-        facets = loupe.facetAddresses();
-
-        vm.stopBroadcast();
+        return callData;
     }
 }
