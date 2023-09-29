@@ -12363,6 +12363,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x8c7043706A914bF803dC6Ce649a6E9134C6Ce2b2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-29 14:59:46",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002ef002aa0ab6761b6aea8d639dcdaa20d79b768c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "bsc": {
