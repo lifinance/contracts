@@ -2,6 +2,16 @@
 pragma solidity 0.8.17;
 
 interface IOFT {
+    function sendFrom(
+        address _from,
+        uint16 _dstChainId,
+        bytes _toAddress,
+        uint256 _amount,
+        address _refundAddress,
+        address _zroPaymentAddress,
+        bytes _adapterParams
+    ) external;
+
     function estimateSendFee(
         uint16 _dstChainId,
         bytes calldata _toAddress,
@@ -12,6 +22,21 @@ interface IOFT {
 }
 
 interface IOFTV2 {
+    struct LzCallParams {
+        address payable refundAddress;
+        address zroPaymentAddress;
+        bytes adapterParams;
+    }
+
+    function sendFrom(
+        address _from,
+        uint16 _dstChainId,
+        bytes32 _toAddress,
+        uint256 _amount,
+        bytes _adapterParams,
+        LzCallParams _callParams
+    ) external;
+
     function estimateSendFee(
         uint16 _dstChainId,
         bytes32 _toAddress,
@@ -21,10 +46,23 @@ interface IOFTV2 {
     ) external view returns (uint nativeFee, uint zroFee);
 }
 
+interface IOFTV2WithFee {
+    function sendFrom(
+        address _from,
+        uint16 _dstChainId,
+        bytes32 _toAddress,
+        uint256 _amount,
+        uint256 _minAmount,
+        bytes _adapterParams,
+        IOFTV2.LzCallParams _callParams
+    ) external;
+}
+
 interface IProxyOFT {
     function token() external view returns (address);
 }
 
+//TODO: remove if sure that we do not need this anymore
 interface IOFTWrapper {
     struct LzCallParams {
         address payable refundAddress;

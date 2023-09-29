@@ -54,7 +54,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     struct Storage {
         mapping(uint256 => uint16) layerZeroChainId;
-        mapping(address => bool) whitelistedCustomOFTs;
+        mapping(address => bool) whitelistedOFTs;
     }
 
     struct OFTWrapperData {
@@ -90,14 +90,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint16 indexed layerZeroChainId,
         bytes32 receiver
     );
-
-    /// Constructor ///
-
-    /// @notice Initialize the contract.
-    /// @param _oftWrapper The contract address of the OFTWrapper on the source chain.
-    constructor(IOFTWrapper _oftWrapper) {
-        oftWrapper = _oftWrapper;
-    }
 
     /// Init ///
 
@@ -185,13 +177,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         OFTWrapperData calldata _oftWrapperData
     ) internal {
-        // set approval for OFTWrapper
-        LibAsset.maxApproveERC20(
-            IERC20(_bridgeData.sendingAssetId),
-            address(oftWrapper),
-            _bridgeData.minAmount
-        );
-
+        address oftContract = _bridgeData.sendingAssetId;
         // check if OFT requires proxy contract for bridging
         if (_oftWrapperData.proxyOftAddress != address(0)) {
             // check proxy address
@@ -200,32 +186,31 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _oftWrapperData.proxyOftAddress
             );
 
-            // start bridging using OFT proxy contract address
-            oftWrapper.sendProxyOFT{ value: _oftWrapperData.lzFee }(
-                _oftWrapperData.proxyOftAddress,
-                getOFTLayerZeroChainId(_bridgeData.destinationChainId),
-                abi.encodePacked(_bridgeData.receiver),
-                _bridgeData.minAmount,
-                _oftWrapperData.minAmount,
-                payable(msg.sender),
-                _oftWrapperData.zroPaymentAddress,
-                _oftWrapperData.adapterParams,
-                _oftWrapperData.feeObj
-            );
-        } else {
-            // no proxy required - start bridging using OFT contract address
-            oftWrapper.sendOFT{ value: _oftWrapperData.lzFee }(
-                _bridgeData.sendingAssetId,
-                getOFTLayerZeroChainId(_bridgeData.destinationChainId),
-                abi.encodePacked(_bridgeData.receiver),
-                _bridgeData.minAmount,
-                _oftWrapperData.minAmount,
-                payable(msg.sender),
-                _oftWrapperData.zroPaymentAddress,
-                _oftWrapperData.adapterParams,
-                _oftWrapperData.feeObj
-            );
+            // use proxy address for bridging
+            oftContract = _oftWrapperData.proxyOftAddress;
         }
+
+        // set approval for oft contract
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            oftContract,
+            _bridgeData.minAmount
+        );
+        // TODO: should we set allowance back to 0 after this?
+
+        // make sure oft contract is whitelisted
+        if (!_isWhitelisted(oftContract)) revert ContractCallNotAllowed;
+
+        // start bridging
+        IOFT(oftContract).sendFrom{ value: _oftWrapperData.lzFee }(
+            oftContract,
+            getOFTLayerZeroChainId(_bridgeData.destinationChainId),
+            abi.encodePacked(_bridgeData.receiver),
+            _bridgeData.minAmount,
+            payable(msg.sender),
+            _oftWrapperData.zroPaymentAddress,
+            _oftWrapperData.adapterParams
+        );
 
         emit LiFiTransferStarted(_bridgeData);
     }
@@ -291,21 +276,15 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         OFTWrapperData calldata _oftWrapperData
     ) internal {
-        // set approval for OFTWrapper
-        LibAsset.maxApproveERC20(
-            IERC20(_bridgeData.sendingAssetId),
-            address(oftWrapper),
-            _bridgeData.minAmount
-        );
-
         // prepare required information for bridging OFT V2
         (
             uint16 layerZeroChainId,
             bytes32 receiver,
-            IOFTWrapper.LzCallParams memory LzCallParams
+            IOFTWrapper.LzCallParams memory lzCallParams
         ) = _prepareV2(_bridgeData, _oftWrapperData);
 
         // check if OFT requires proxy contract for bridging
+        address oftContract = _bridgeData.sendingAssetId;
         if (_oftWrapperData.proxyOftAddress != address(0)) {
             // check proxy address
             _checkProxyOFTAddress(
@@ -313,28 +292,29 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _oftWrapperData.proxyOftAddress
             );
 
-            // start bridging using OFT proxy contract address
-            oftWrapper.sendProxyOFTV2{ value: _oftWrapperData.lzFee }(
-                _oftWrapperData.proxyOftAddress,
-                layerZeroChainId,
-                receiver,
-                _bridgeData.minAmount,
-                _oftWrapperData.minAmount,
-                LzCallParams,
-                _oftWrapperData.feeObj
-            );
-        } else {
-            // no proxy required - start bridging using OFT contract address
-            oftWrapper.sendOFTV2{ value: _oftWrapperData.lzFee }(
-                _bridgeData.sendingAssetId,
-                layerZeroChainId,
-                receiver,
-                _bridgeData.minAmount,
-                _oftWrapperData.minAmount,
-                LzCallParams,
-                _oftWrapperData.feeObj
-            );
+            // use proxy address for bridging
+            oftContract = _oftWrapperData.proxyOftAddress;
         }
+
+        // set approval for oft contract
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            oftContract,
+            _bridgeData.minAmount
+        );
+        // TODO: should we set allowance back to 0 after this?
+
+        // make sure oft contract is whitelisted
+        if (!_isWhitelisted(oftContract)) revert ContractCallNotAllowed;
+
+        // start bridging
+        IOFTV2(oftContract).sendFrom{ value: _oftWrapperData.lzFee }(
+            address(this),
+            layerZeroChainId,
+            receiver,
+            _bridgeData.minAmount,
+            lzCallParams
+        );
 
         // emits LifiTransferStarted event and BridgeToNonEVMChain event, if applicable
         _emitEvents(_bridgeData, layerZeroChainId, _oftWrapperData.receiver);
@@ -401,21 +381,15 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         OFTWrapperData calldata _oftWrapperData
     ) internal {
-        // set approval for OFTWrapper
-        LibAsset.maxApproveERC20(
-            IERC20(_bridgeData.sendingAssetId),
-            address(oftWrapper),
-            _bridgeData.minAmount
-        );
-
         // prepare required information for bridging OFT V2
         (
             uint16 layerZeroChainId,
             bytes32 receiver,
-            IOFTWrapper.LzCallParams memory LzCallParams
+            IOFTWrapper.LzCallParams memory lzCallParams
         ) = _prepareV2(_bridgeData, _oftWrapperData);
 
         // check if OFT requires proxy contract for bridging
+        address oftContract = _bridgeData.sendingAssetId;
         if (_oftWrapperData.proxyOftAddress != address(0)) {
             // check proxy address
             _checkProxyOFTAddress(
@@ -423,28 +397,30 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _oftWrapperData.proxyOftAddress
             );
 
-            // start bridging using OFT proxy contract address
-            oftWrapper.sendProxyOFTFeeV2{ value: _oftWrapperData.lzFee }(
-                _oftWrapperData.proxyOftAddress,
-                layerZeroChainId,
-                receiver,
-                _bridgeData.minAmount,
-                _oftWrapperData.minAmount,
-                LzCallParams,
-                _oftWrapperData.feeObj
-            );
-        } else {
-            // no proxy required - start bridging using OFT contract address
-            oftWrapper.sendOFTFeeV2{ value: _oftWrapperData.lzFee }(
-                _bridgeData.sendingAssetId,
-                layerZeroChainId,
-                receiver,
-                _bridgeData.minAmount,
-                _oftWrapperData.minAmount,
-                LzCallParams,
-                _oftWrapperData.feeObj
-            );
+            // use proxy address for bridging
+            oftContract = _oftWrapperData.proxyOftAddress;
         }
+
+        // set approval for oft contract
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            oftContract,
+            _bridgeData.minAmount
+        );
+        // TODO: should we set allowance back to 0 after this?
+
+        // make sure oft contract is whitelisted
+        if (!_isWhitelisted(oftContract)) revert ContractCallNotAllowed;
+
+        // start bridging
+        IOFTV2WithFee(oftContract).sendFrom{ value: _oftWrapperData.lzFee }(
+            address(this),
+            layerZeroChainId,
+            receiver,
+            _bridgeData.minAmount,
+            _oftWrapperData.minAmount,
+            lzCallParams
+        );
 
         // emits LifiTransferStarted event and BridgeToNonEVMChain event, if applicable
         _emitEvents(_bridgeData, layerZeroChainId, _oftWrapperData.receiver);
@@ -523,15 +499,12 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // in the backend and execute the calldata here via a low-level call. The (token/proxy) contract to be called
         // must be whitelisted prior to executing this function for security for security reasons
 
-        // get storage object
-        Storage storage sm = getStorage();
-
         // make sure calldata isnt empty
         if (_oftWrapperData.customCode_sendTokensCallData.length == 0)
             revert InvalidCallData();
 
         // check if proxy contract is whitelisted
-        if (!sm.whitelistedCustomOFTs[_oftWrapperData.proxyOftAddress])
+        if (!isWhitelisted(_oftWrapperData.proxyOftAddress))
             revert ContractCallNotAllowed();
 
         // call proxy token contract with prepared calldata
@@ -738,6 +711,18 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Internal Helper Functions ///
 
+    function _isWhitelisted(
+        address contractAddress
+    ) internal view returns (bool) {
+        // get storage object
+        Storage storage sm = getStorage();
+
+        // check if contract address is whitelisted
+        if (sm.whitelistedOFTs[contractAddress]) return true;
+
+        return false;
+    }
+
     function _emitEvents(
         ILiFi.BridgeData memory _bridgeData,
         uint16 layerZeroChainId,
@@ -806,7 +791,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // go through arrays and update whitelist
         for (uint i; i < configs.length; ) {
-            sm.whitelistedCustomOFTs[configs[i].contractAddress] = configs[i]
+            sm.whitelistedOFTs[configs[i].contractAddress] = configs[i]
                 .whitelisted;
             unchecked {
                 ++i;
