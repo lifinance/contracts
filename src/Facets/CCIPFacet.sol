@@ -10,11 +10,12 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { Client } from "@chainlink-ccip/v0.8/ccip/libraries/Client.sol";
 import { IRouterClient } from "@chainlink-ccip/v0.8/ccip/interfaces/IRouterClient.sol";
+import { InformationMismatch } from "../Errors/GenericErrors.sol";
 
 /// @title CCIP Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Allows for bridging assets using Chainlink's CCIP protocol
-/// @custom:version 1.0.0
+/// @custom:version 0.0.1
 contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -92,8 +93,8 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
     {
+        validateDestinationCallFlag(_bridgeData, _ccipData);
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -115,9 +116,9 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        validateDestinationCallFlag(_bridgeData, _ccipData);
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -125,6 +126,50 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             payable(msg.sender)
         );
         _startBridge(_bridgeData, _ccipData);
+    }
+
+    /// @notice Quotes the fee for bridging via CCIP
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _ccipData Data specific to CCIP
+    function quoteCCIPFee(
+        ILiFi.BridgeData memory _bridgeData,
+        CCIPData calldata _ccipData
+    ) external view returns (uint256) {
+        Client.EVMTokenAmount[] memory amounts = new Client.EVMTokenAmount[](
+            1
+        );
+        amounts[0] = Client.EVMTokenAmount({
+            token: _bridgeData.sendingAssetId,
+            amount: _bridgeData.minAmount
+        });
+
+        Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
+            receiver: abi.encode(_bridgeData.receiver),
+            data: _ccipData.callData,
+            tokenAmounts: amounts,
+            feeToken: address(0),
+            extraArgs: _ccipData.extraArgs
+        });
+
+        return
+            routerClient.getFee(
+                getCCIPChainSelector(_bridgeData.destinationChainId),
+                message
+            );
+    }
+
+    /// @notice Encodes the extra arguments for the destination call
+    /// @param gasLimit The gas limit for the destination call
+    /// @param strictSequencing Whether or not to use strict sequencing (see https://docs.chain.link/ccip/best-practices#sequencing)
+    function encodeDestinationArgs(
+        uint256 gasLimit,
+        bool strictSequencing
+    ) external pure returns (bytes memory) {
+        Client.EVMExtraArgsV1 memory args = Client.EVMExtraArgsV1({
+            gasLimit: gasLimit,
+            strict: strictSequencing
+        });
+        return Client._argsToBytes(args);
     }
 
     /// Internal Methods ///
@@ -190,6 +235,18 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint64 selector = s.chainSelectors[_chainId];
         if (selector == 0) revert UnknownCCIPChainSelector();
         return selector;
+    }
+
+    /// @dev Validates the destination call flag
+    function validateDestinationCallFlag(
+        ILiFi.BridgeData memory _bridgeData,
+        CCIPData calldata _ccipData
+    ) private pure {
+        if (
+            (_ccipData.callData.length > 0) != _bridgeData.hasDestinationCall
+        ) {
+            revert InformationMismatch();
+        }
     }
 
     /// @dev fetch local storage

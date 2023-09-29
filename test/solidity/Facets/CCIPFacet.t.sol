@@ -74,7 +74,7 @@ contract CCIPFacetTest is Test, DiamondTest {
         usdc = ERC20(USDC_ADDRESS);
         fooSwap = new FooSwap();
 
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](7);
         functionSelectors[0] = ccipFacet.startBridgeTokensViaCCIP.selector;
         functionSelectors[1] = ccipFacet
             .swapAndStartBridgeTokensViaCCIP
@@ -84,6 +84,8 @@ contract CCIPFacetTest is Test, DiamondTest {
         functionSelectors[4] = ccipFacet
             .setFunctionApprovalBySignature
             .selector;
+        functionSelectors[5] = ccipFacet.quoteCCIPFee.selector;
+        functionSelectors[6] = ccipFacet.encodeDestinationArgs.selector;
 
         addFacet(diamond, address(ccipFacet), functionSelectors);
 
@@ -186,7 +188,9 @@ contract CCIPFacetTest is Test, DiamondTest {
             10_000 * 10 ** ccipTestToken.decimals()
         );
 
-        ccipFacet.startBridgeTokensViaCCIP{ value: 0.1 ether }(
+        uint256 fee = ccipFacet.quoteCCIPFee(validBridgeData, validCCIPData);
+
+        ccipFacet.startBridgeTokensViaCCIP{ value: fee }(
             validBridgeData,
             validCCIPData
         );
@@ -220,7 +224,86 @@ contract CCIPFacetTest is Test, DiamondTest {
         ILiFi.BridgeData memory bridgeData = validBridgeData;
         bridgeData.hasSourceSwaps = true;
 
-        ccipFacet.swapAndStartBridgeTokensViaCCIP{ value: 0.1 ether }(
+        uint256 fee = ccipFacet.quoteCCIPFee(validBridgeData, validCCIPData);
+
+        ccipFacet.swapAndStartBridgeTokensViaCCIP{ value: fee }(
+            bridgeData,
+            swapData,
+            validCCIPData
+        );
+    }
+
+    function testCanBridgeERC20TokensWithDestinationCall() public {
+        deal(
+            address(ccipTestToken),
+            address(this),
+            10 * 10 ** ccipTestToken.decimals()
+        );
+
+        ccipTestToken.approve(
+            address(ccipFacet),
+            10_000 * 10 ** ccipTestToken.decimals()
+        );
+
+        bytes memory callData = abi.encodeWithSignature("foo()");
+        bytes memory args = ccipFacet.encodeDestinationArgs({
+            gasLimit: 100000,
+            strictSequencing: false
+        });
+
+        validCCIPData.callData = callData;
+        validCCIPData.extraArgs = args;
+        validBridgeData.hasDestinationCall = true;
+
+        uint256 fee = ccipFacet.quoteCCIPFee(validBridgeData, validCCIPData);
+
+        ccipFacet.startBridgeTokensViaCCIP{ value: fee }(
+            validBridgeData,
+            validCCIPData
+        );
+    }
+
+    function testCanSwapAndBridgeTokensWithDestinationCall() public {
+        deal(address(usdc), address(this), 10_000 * 10 ** usdc.decimals());
+        usdc.approve(address(ccipFacet), 10_000 * 10 ** usdc.decimals());
+
+        uint256 inAmount = 10_000 * 10 ** usdc.decimals();
+        uint256 outAmount = 10_000 * 10 ** ccipTestToken.decimals();
+
+        // Calculate DAI amount
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(fooSwap),
+            address(fooSwap),
+            USDC_ADDRESS,
+            CCIP_TEST_TOKEN_ADDRESS,
+            inAmount,
+            abi.encodeWithSelector(
+                fooSwap.swap.selector,
+                ERC20(USDC_ADDRESS),
+                ERC20(CCIP_TEST_TOKEN_ADDRESS),
+                inAmount,
+                outAmount
+            ),
+            true
+        );
+
+        ILiFi.BridgeData memory bridgeData = validBridgeData;
+        bridgeData.hasSourceSwaps = true;
+
+        bytes memory callData = abi.encodeWithSignature("foo()");
+        bytes memory args = ccipFacet.encodeDestinationArgs({
+            gasLimit: 100000,
+            strictSequencing: false
+        });
+
+        validCCIPData.callData = callData;
+        validCCIPData.extraArgs = args;
+        bridgeData.hasDestinationCall = true;
+
+        uint256 fee = ccipFacet.quoteCCIPFee(validBridgeData, validCCIPData);
+
+        ccipFacet.swapAndStartBridgeTokensViaCCIP{ value: fee }(
             bridgeData,
             swapData,
             validCCIPData
