@@ -92,6 +92,10 @@
       "0xE8Ff7BFEF5DacB57E87bC2d0B6CCFefBE5f546BC": {
         "Name": "OptimismBridgeFacet",
         "Version": "1.0.0"
+      },
+      "0x6982237928de8e4a1a3622226D3a9C2bd89515Fc": {
+        "Name": "CCIPFacet",
+        "Version": "0.0.1"
       }
     },
     "Periphery": {

@@ -13375,5 +13375,35 @@
         ]
       }
     }
+  },
+  "CCIPFacet": {
+    "avalanche": {
+      "staging": {
+        "0.0.1": [
+          {
+            "ADDRESS": "0x6982237928de8e4a1a3622226D3a9C2bd89515Fc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-29 16:56:13",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000027f39d0af3303703750d4001fcc1844c6491563c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "staging": {
+        "0.0.1": [
+          {
+            "ADDRESS": "0x6982237928de8e4a1a3622226D3a9C2bd89515Fc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-29 16:55:28",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e561d5e02207fb5eb32cca20a699e0d8919a1476",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
   }
 }
