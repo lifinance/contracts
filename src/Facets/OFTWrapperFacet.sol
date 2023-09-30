@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IOFTWrapper, IOFT, IOFTV2, IProxyOFT } from "../Interfaces/IOFTWrapper.sol";
+import { IOFTWrapper, IOFT, IOFTV2, IOFTV2WithFee, IProxyOFT } from "../Interfaces/IOFTWrapper.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibAccess } from "lifi/Libraries/LibAccess.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
@@ -29,9 +29,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     bytes4 public constant INTERFACE_ID_IOFTCore = 0x14e4ceea; // => OFTV1
     bytes4 public constant INTERFACE_ID_IOFTWithFee = 0x6984a9e8;
 
-    /// @notice The contract address of the OFTWrapper on the source chain.
-    IOFTWrapper private immutable oftWrapper;
-
     /// Types ///
 
     struct ChainIdConfig {
@@ -47,9 +44,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct OftFeeEstimate {
         uint256 nativeFee;
         uint256 zroFee;
-        uint256 wrapperFee;
-        uint256 callerFee;
-        uint256 amountOut;
     }
 
     struct Storage {
@@ -199,11 +193,11 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // TODO: should we set allowance back to 0 after this?
 
         // make sure oft contract is whitelisted
-        if (!_isWhitelisted(oftContract)) revert ContractCallNotAllowed;
+        if (!_isWhitelisted(oftContract)) revert ContractCallNotAllowed();
 
         // start bridging
         IOFT(oftContract).sendFrom{ value: _oftWrapperData.lzFee }(
-            oftContract,
+            address(this),
             getOFTLayerZeroChainId(_bridgeData.destinationChainId),
             abi.encodePacked(_bridgeData.receiver),
             _bridgeData.minAmount,
@@ -280,7 +274,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         (
             uint16 layerZeroChainId,
             bytes32 receiver,
-            IOFTWrapper.LzCallParams memory lzCallParams
+            IOFTV2.LzCallParams memory lzCallParams
         ) = _prepareV2(_bridgeData, _oftWrapperData);
 
         // check if OFT requires proxy contract for bridging
@@ -305,7 +299,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // TODO: should we set allowance back to 0 after this?
 
         // make sure oft contract is whitelisted
-        if (!_isWhitelisted(oftContract)) revert ContractCallNotAllowed;
+        if (!_isWhitelisted(oftContract)) revert ContractCallNotAllowed();
 
         // start bridging
         IOFTV2(oftContract).sendFrom{ value: _oftWrapperData.lzFee }(
@@ -385,7 +379,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         (
             uint16 layerZeroChainId,
             bytes32 receiver,
-            IOFTWrapper.LzCallParams memory lzCallParams
+            IOFTV2.LzCallParams memory lzCallParams
         ) = _prepareV2(_bridgeData, _oftWrapperData);
 
         // check if OFT requires proxy contract for bridging
@@ -410,7 +404,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // TODO: should we set allowance back to 0 after this?
 
         // make sure oft contract is whitelisted
-        if (!_isWhitelisted(oftContract)) revert ContractCallNotAllowed;
+        if (!_isWhitelisted(oftContract)) revert ContractCallNotAllowed();
 
         // start bridging
         IOFTV2WithFee(oftContract).sendFrom{ value: _oftWrapperData.lzFee }(
@@ -504,7 +498,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InvalidCallData();
 
         // check if proxy contract is whitelisted
-        if (!isWhitelisted(_oftWrapperData.proxyOftAddress))
+        if (!_isWhitelisted(_oftWrapperData.proxyOftAddress))
             revert ContractCallNotAllowed();
 
         // call proxy token contract with prepared calldata
@@ -617,7 +611,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _receiver Receiver address evm chain.
     /// @param _useZro Whether fee should be paid in ZRO token or not.
     /// @param _adapterParams Parameters for custom functionality.
-    /// @param _callerBps Basis points given to the caller/app.
     /// @param _customCodeCallData The calldata to obtain a fee estimate for a customCodeOFT, otherwise empty
     function estimateOFTFeesAndAmountOut(
         address _sendingAssetId,
@@ -626,7 +619,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes32 _receiver,
         bool _useZro,
         bytes calldata _adapterParams,
-        uint256 _callerBps,
         bytes calldata _customCodeCallData
     ) external view returns (OftFeeEstimate memory feeEstimate) {
         // check if called for customCodeOFT
@@ -634,17 +626,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             determineOFTBridgeSendFunction(_sendingAssetId, false) !=
             OFTWrapperFacet.startBridgeTokensViaCustomCodeOFT.selector
         ) {
-            // obtain wrapperFee/callerFee and amountOut from OFTWrapper contract
-            (
-                feeEstimate.amountOut,
-                feeEstimate.wrapperFee,
-                feeEstimate.callerFee
-            ) = oftWrapper.getAmountAndFees(
-                _sendingAssetId,
-                _amount,
-                _callerBps
-            );
-
             uint16 layerZeroChainId = getOFTLayerZeroChainId(
                 _destinationChainId
             );
@@ -655,7 +636,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 IOFTV2(_sendingAssetId).estimateSendFee(
                     layerZeroChainId,
                     _receiver,
-                    feeEstimate.amountOut,
+                    _amount,
                     _useZro,
                     _adapterParams
                 )
@@ -668,7 +649,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     IOFT(_sendingAssetId).estimateSendFee(
                         layerZeroChainId,
                         abi.encodePacked(bytes20(_receiver << 96)),
-                        feeEstimate.amountOut,
+                        _amount,
                         _useZro,
                         _adapterParams
                     )
@@ -702,9 +683,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     result,
                     (uint256, uint256)
                 );
-
-                // set amountOut to initial amount (since no caller or wrapperFee is taken by customCodeOFTs)
-                feeEstimate.amountOut = _amount;
             }
         }
     }
@@ -747,7 +725,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         returns (
             uint16 layerZeroChainId,
             bytes32 receiver,
-            IOFTWrapper.LzCallParams memory LzCallParams
+            IOFTV2.LzCallParams memory LzCallParams
         )
     {
         layerZeroChainId = getOFTLayerZeroChainId(
@@ -760,7 +738,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             receiver = bytes32(uint256(uint160(_bridgeData.receiver)));
         }
 
-        LzCallParams = IOFTWrapper.LzCallParams(
+        LzCallParams = IOFTV2.LzCallParams(
             payable(msg.sender),
             address(0),
             _oftWrapperData.adapterParams

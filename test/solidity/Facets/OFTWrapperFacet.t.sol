@@ -137,8 +137,7 @@ contract UltraLightNodeV2Contract {
 // Stub OFTWrapperFacet Contract
 contract TestOFTWrapperFacet is OFTWrapperFacet {
     /// @notice Initialize the contract.
-    /// @param _oftWrapper The contract address of the OFT Wrapper on the source chain.
-    constructor(IOFTWrapper _oftWrapper) OFTWrapperFacet(_oftWrapper) {}
+    constructor() OFTWrapperFacet() {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -247,9 +246,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         // deploy & configure diamond
         diamond = createDiamond();
 
-        oftWrapperFacet = new TestOFTWrapperFacet(
-            IOFTWrapper(MAINNET_OFTWRAPPER)
-        );
+        oftWrapperFacet = new TestOFTWrapperFacet();
 
         functionSelectors = new bytes4[](19);
         functionSelectors[0] = oftWrapperFacet.initOFTWrapper.selector;
@@ -437,7 +434,6 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_SENDER)) << 96),
                 false,
                 oftWrapperData.adapterParams,
-                0,
                 ""
             );
 
@@ -565,11 +561,25 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
     // WORKING TESTS
 
+    function _addContractToWhitelist(address contractAddress) internal {
+        // whitelist token contract in facet
+        OFTWrapperFacet.WhitelistConfig[]
+            memory whitelistConfig = new OFTWrapperFacet.WhitelistConfig[](1);
+        whitelistConfig[0] = OFTWrapperFacet.WhitelistConfig(
+            contractAddress,
+            true
+        );
+        oftWrapperFacet.batchWhitelist(whitelistConfig);
+    }
+
     function test_canBridgeOftV1() public {
         // add labels for better logs
         vm.label(ADDRESS_USH_OFTV1_BSC, "USH_PROXY");
 
         address testToken = ADDRESS_USH_OFTV1_BSC; // USH
+
+        // add contract to whitelist
+        _addContractToWhitelist(testToken);
 
         // deal tokens to user
         deal(testToken, USER_SENDER, 10e18);
@@ -592,7 +602,6 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_SENDER)) << 96),
                 false,
                 oftWrapperData.adapterParams,
-                0,
                 ""
             );
 
@@ -630,6 +639,9 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         deal(testToken, USER_SENDER, 10e18);
         deal(USER_SENDER, 1000e18); // native
 
+        // add contract to whitelist
+        _addContractToWhitelist(testToken);
+
         vm.startPrank(USER_SENDER);
 
         // update bridgeData
@@ -647,7 +659,6 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_SENDER)) << 96),
                 false,
                 oftWrapperData.adapterParams,
-                0,
                 ""
             );
 
@@ -690,6 +701,9 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         deal(testTokenARKEN, USER_SENDER, 10e18);
         deal(USER_SENDER, 1000e18); // native
 
+        // add contract to whitelist
+        _addContractToWhitelist(testTokenProxy);
+
         vm.startPrank(USER_SENDER);
 
         // update bridgeData
@@ -707,7 +721,6 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_SENDER)) << 96),
                 false,
                 oftWrapperData.adapterParams,
-                0,
                 ""
             );
 
@@ -745,6 +758,9 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         deal(testToken, USER_SENDER, 10e18);
         deal(USER_SENDER, 1000e18); // native
 
+        // add contract to whitelist
+        _addContractToWhitelist(testToken);
+
         vm.startPrank(USER_SENDER);
 
         // update bridgeData
@@ -762,7 +778,6 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_SENDER)) << 96),
                 false,
                 oftWrapperData.adapterParams,
-                0,
                 ""
             );
 
@@ -804,6 +819,9 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         deal(testToken, USER_SENDER, 10e18);
         deal(USER_SENDER, 1000e18); // native
 
+        // add contract to whitelist
+        _addContractToWhitelist(testTokenProxy);
+
         vm.startPrank(USER_SENDER);
 
         // update bridgeData
@@ -821,7 +839,6 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_SENDER)) << 96),
                 false,
                 oftWrapperData.adapterParams,
-                0,
                 ""
             );
 
@@ -903,9 +920,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
     function test_revert_InitializeAsNonOwner() public {
         LiFiDiamond diamond2 = createDiamond();
-        oftWrapperFacet = new TestOFTWrapperFacet(
-            IOFTWrapper(MAINNET_OFTWRAPPER)
-        );
+        oftWrapperFacet = new TestOFTWrapperFacet();
 
         addFacet(diamond2, address(oftWrapperFacet), functionSelectors);
 
@@ -931,9 +946,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         string memory json = vm.readFile(path);
 
         LiFiDiamond diamond2 = createDiamond();
-        oftWrapperFacet = new TestOFTWrapperFacet(
-            IOFTWrapper(MAINNET_OFTWRAPPER)
-        );
+        oftWrapperFacet = new TestOFTWrapperFacet();
 
         addFacet(diamond2, address(oftWrapperFacet), functionSelectors);
 
@@ -1307,17 +1320,11 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_RECEIVER)) << 96),
                 false,
                 adapterParamsV1,
-                0,
                 ""
             );
 
-        uint256 expectedWrapperFee = 24691;
-
         assertApproxEqRel(feeEstimate.nativeFee, 4085019515262038, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
-        assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
-        assertEq(feeEstimate.callerFee, 0);
-        assertEq(feeEstimate.amountOut, testAmount - expectedWrapperFee);
     }
 
     function test_estimateOFTFeesAndAmountOut_V1Proxy() public {
@@ -1338,17 +1345,11 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_RECEIVER)) << 96),
                 false,
                 adapterParamsV1,
-                0,
                 ""
             );
 
-        uint256 expectedWrapperFee = 24691;
-
         assertApproxEqRel(feeEstimate.nativeFee, 4085019515262038, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
-        assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
-        assertEq(feeEstimate.callerFee, 0);
-        assertEq(feeEstimate.amountOut, testAmount - expectedWrapperFee);
     }
 
     function test_estimateOFTFeesAndAmountOut_V2() public {
@@ -1369,17 +1370,11 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_RECEIVER)) << 96),
                 false,
                 adapterParamsV1,
-                0,
                 ""
             );
 
-        uint256 expectedWrapperFee = 24691;
-
         assertApproxEqRel(feeEstimate.nativeFee, 4035021132398375, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
-        assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
-        assertEq(feeEstimate.callerFee, 0);
-        assertEq(feeEstimate.amountOut, testAmount - expectedWrapperFee);
     }
 
     function test_estimateOFTFeesAndAmountOut_V2Proxy() public {
@@ -1400,17 +1395,11 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_RECEIVER)) << 96),
                 false,
                 adapterParamsV1,
-                0,
                 ""
             );
 
-        uint256 expectedWrapperFee = 24691;
-
         assertApproxEqRel(feeEstimate.nativeFee, 532625681436064, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
-        assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
-        assertEq(feeEstimate.callerFee, 0);
-        assertEq(feeEstimate.amountOut, testAmount - expectedWrapperFee);
     }
 
     function test_estimateOFTFeesAndAmountOut_V2WithFee() public {
@@ -1428,17 +1417,11 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_RECEIVER)) << 96),
                 false,
                 adapterParamsV1,
-                0,
                 ""
             );
 
-        uint256 expectedWrapperFee = 24691;
-
         assertApproxEqRel(feeEstimate.nativeFee, 6269688761801826, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
-        assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
-        assertEq(feeEstimate.callerFee, 0);
-        assertEq(feeEstimate.amountOut, testAmount - expectedWrapperFee);
     }
 
     function test_estimateOFTFeesAndAmountOut_V2WithFeeProxy() public {
@@ -1459,17 +1442,11 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(USER_RECEIVER)) << 96),
                 false,
                 adapterParamsV1,
-                0,
                 ""
             );
 
-        uint256 expectedWrapperFee = 24691;
-
         assertApproxEqRel(feeEstimate.nativeFee, 136838283700560541, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
-        assertEq(feeEstimate.wrapperFee, expectedWrapperFee);
-        assertEq(feeEstimate.callerFee, 0);
-        assertEq(feeEstimate.amountOut, testAmount - expectedWrapperFee);
     }
 
     function test_estimateOFTFeesAndAmountOut_CustomCode() public {
@@ -1502,14 +1479,10 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
                 bytes32(uint256(uint160(0)) << 96),
                 false,
                 "",
-                0,
                 customCodeOftCallData
             );
 
         assertApproxEqRel(feeEstimate.nativeFee, 888436917822948, 1e17); // value can vary by 10%
         assertEq(feeEstimate.zroFee, 0);
-        assertEq(feeEstimate.wrapperFee, 0);
-        assertEq(feeEstimate.callerFee, 0);
-        assertEq(feeEstimate.amountOut, testAmount);
     }
 }

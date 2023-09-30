@@ -5,12 +5,12 @@ interface IOFT {
     function sendFrom(
         address _from,
         uint16 _dstChainId,
-        bytes _toAddress,
+        bytes memory _toAddress,
         uint256 _amount,
         address _refundAddress,
         address _zroPaymentAddress,
-        bytes _adapterParams
-    ) external;
+        bytes memory _adapterParams
+    ) external payable;
 
     function estimateSendFee(
         uint16 _dstChainId,
@@ -33,9 +33,8 @@ interface IOFTV2 {
         uint16 _dstChainId,
         bytes32 _toAddress,
         uint256 _amount,
-        bytes _adapterParams,
-        LzCallParams _callParams
-    ) external;
+        LzCallParams memory _callParams
+    ) external payable;
 
     function estimateSendFee(
         uint16 _dstChainId,
@@ -53,9 +52,8 @@ interface IOFTV2WithFee {
         bytes32 _toAddress,
         uint256 _amount,
         uint256 _minAmount,
-        bytes _adapterParams,
-        IOFTV2.LzCallParams _callParams
-    ) external;
+        IOFTV2.LzCallParams memory _callParams
+    ) external payable;
 }
 
 interface IProxyOFT {
