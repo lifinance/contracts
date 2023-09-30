@@ -15,7 +15,7 @@ import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol
 /// @title OFTWrapper Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging various types of Omnichain Fungible Tokens (OFTs)
-/// @custom:version 0.0.4
+/// @custom:version 1.1.0
 contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
