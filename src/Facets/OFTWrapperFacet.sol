@@ -604,13 +604,13 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
     }
 
-    /// @notice Get fee estimation.
+    /// @notice Get fee estimation for bridging an OFT
     /// @param _sendingAssetId The address of the asset to be sent
-    /// @param _destinationChainId The id of destination chain.
-    /// @param _amount The amount of sending asset.
-    /// @param _receiver Receiver address evm chain.
-    /// @param _useZro Whether fee should be paid in ZRO token or not.
-    /// @param _adapterParams Parameters for custom functionality.
+    /// @param _destinationChainId The id of destination chain
+    /// @param _amount The amount of sending asset
+    /// @param _receiver Receiver address evm chain
+    /// @param _useZro Whether fee should be paid in ZRO token or not
+    /// @param _adapterParams Parameters for custom functionality
     /// @param _customCodeCallData The calldata to obtain a fee estimate for a customCodeOFT, otherwise empty
     function estimateOFTFees(
         address _sendingAssetId,
