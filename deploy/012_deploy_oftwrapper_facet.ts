@@ -97,9 +97,4 @@ export default func
 
 func.id = 'deploy_oftwrapper_facet'
 func.tags = ['DeployOFTWrapperFacet']
-func.dependencies = [
-  // 'InitialFacets',
-  // diamondContractName,
-  // 'InitFacets',
-  // 'DeployDexManagerFacet',
-]
+func.dependencies = ['InitialFacets', diamondContractName]
