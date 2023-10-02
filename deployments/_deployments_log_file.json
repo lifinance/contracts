@@ -12291,6 +12291,18 @@
             "VERIFIED": "false"
           }
         ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9558CacEAC173Bdf32fb4cd7067e9e3c3b4c155e",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-02 13:53:57",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "arbitrum": {
@@ -12401,6 +12413,18 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "0210202301",
             "VERIFIED": "false"
+          }
+        ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9558CacEAC173Bdf32fb4cd7067e9e3c3b4c155e",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-02 13:51:04",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
