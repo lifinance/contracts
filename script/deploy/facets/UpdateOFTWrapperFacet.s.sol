@@ -41,31 +41,14 @@ contract DeployScript is UpdateScriptBase {
             (ChainIdConfig[])
         );
 
-        console.log("rawChains.length: ", rawChains.length);
-        console.log("cidCfg[0].chainId: ", cidCfg[0].chainId);
-        console.log(
-            "cidCfg[0].layerZeroChainId: ",
-            cidCfg[0].layerZeroChainId
-        );
-        console.log("cidCfg[1].chainId: ", cidCfg[1].chainId);
-        console.log(
-            "cidCfg[1].layerZeroChainId: ",
-            cidCfg[1].layerZeroChainId
-        );
-
         bytes memory rawContracts = json.parseRaw(
             string.concat(".whitelistedOftBridgeContracts", ".", network)
         );
-        console.log("rawContracts.length: ", rawContracts.length);
         address[] memory whitelistedContracts = abi.decode(
             rawContracts,
             (address[])
         );
 
-        console.log(
-            "whitelistedContracts.length: ",
-            whitelistedContracts.length
-        );
         WhitelistConfig[] memory whitelistCfg = new WhitelistConfig[](
             whitelistedContracts.length
         );
@@ -73,29 +56,11 @@ contract DeployScript is UpdateScriptBase {
             whitelistCfg[i] = WhitelistConfig(whitelistedContracts[i], true);
         }
 
-        console.log(
-            "whitelistCfg[0].contractAddress: ",
-            whitelistCfg[0].contractAddress
-        );
-        console.log(
-            "whitelistCfg[0].whitelisted: ",
-            whitelistCfg[0].whitelisted
-        );
-        console.log(
-            "whitelistCfg[1].contractAddress: ",
-            whitelistCfg[1].contractAddress
-        );
-        console.log(
-            "whitelistCfg[1].whitelisted: ",
-            whitelistCfg[1].whitelisted
-        );
-
         bytes memory callData = abi.encodeWithSelector(
             OFTWrapperFacet.initOFTWrapper.selector,
             cidCfg,
             whitelistCfg
         );
-        console.log("callData.length: ", callData.length);
 
         return callData;
     }
