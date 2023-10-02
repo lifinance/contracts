@@ -12,14 +12,34 @@ graph LR;
 
 ## Public Methods
 
-- `function initOFTWrapper(ChainIdConfig[] calldata chainIdConfigs)`
-  - Initializer method. Sets layerzero chain ids for chains.
-- `function startBridgeTokensViaOFTWrapper(BridgeData calldata _bridgeData, OFTWrapperData calldata _oftWrapperData)`
-  - Simply bridges tokens using OFTWrapper
-- `function swapAndStartBridgeTokensViaOFTWrapper(BridgeData memory _bridgeData, SwapData[] calldata _swapData, OFTWrapperData calldata _oftWrapperData)`
-  - Performs swap(s) before bridging tokens using OFTWrapper
-- `function estimateOFTFeesAndAmountOut(address _sendingAssetId, uint256 _destinationChainId, uint256 _amount, bytes32 _receiver, TokenType _tokenType, bool _useZro, bytes memory _adapterParams, uint256 _callerBps)`
-  - Returns a required amount for native fee, zro fee, wrapper fee, caller fee and amount out
+- `function initOFTWrapper(ChainIdConfig[] calldata chainIdConfigs, WhitelistConfig[] calldata whitelistConfigs)`
+  - Initializer method. Adds a mapping of layerzero chain ids to EVM chainID and adds whitelisted oft addresses.
+- `function startBridgeTokensViaOFTWrapperV1(BridgeData calldata _bridgeData, OFTWrapperData calldata _oftWrapperData)`
+  - Simply bridges OFT V1 tokens
+- `function swapAndStartBridgeTokensViaOFTWrapperV1(BridgeData memory _bridgeData, SwapData[] calldata _swapData, OFTWrapperData calldata _oftWrapperData)`
+  - Performs swap(s) before bridging OFT V1 tokens
+- `function startBridgeTokensViaOFTWrapperV2(BridgeData calldata _bridgeData, OFTWrapperData calldata _oftWrapperData)`
+  - Simply bridges OFT V2 tokens
+- `function swapAndStartBridgeTokensViaOFTWrapperV2(BridgeData memory _bridgeData, SwapData[] calldata _swapData, OFTWrapperData calldata _oftWrapperData)`
+  - Performs swap(s) before bridging OFT V2 tokens
+- `function startBridgeTokensViaOFTWrapperV2WithFee(BridgeData calldata _bridgeData, OFTWrapperData calldata _oftWrapperData)`
+  - Simply bridges OFT V2WithFee tokens
+- `function swapAndStartBridgeTokensViaOFTWrapperV2WithFee(BridgeData memory _bridgeData, SwapData[] calldata _swapData, OFTWrapperData calldata _oftWrapperData)`
+  - Performs swap(s) before bridging OFT V2WithFee tokens
+- `function startBridgeTokensViaCustomCodeOFT(BridgeData calldata _bridgeData, OFTWrapperData calldata _oftWrapperData)`
+  - Simply bridges custom code OFT tokens
+- `function swapAndStartBridgeTokensViaCustomCodeOFT(BridgeData memory _bridgeData, SwapData[] calldata _swapData, OFTWrapperData calldata _oftWrapperData)`
+  - Performs swap(s) before bridging custom code OFT tokens
+- `function determineOFTBridgeSendFunction(address _sendingAssetId, bool _withSrcSwap)`
+  - Determines the function that should be used for bridging a given OFT (V1, V2, V2WithFee or custom code OFT)
+- `function isOftV1(address _sendingAssetId)`
+  - checks if the given address contains a OFT V1 contract
+- `function isOftV2(address _sendingAssetId)`
+  - checks if the given address contains a OFT V2 contract
+- `function isOftV2WithFee(address _sendingAssetId)`
+  - checks if the given address contains a OFT V2WithFee contract
+- `function estimateOFTFees(address _sendingAssetId, uint256 _destinationChainId, uint256 _amount, bytes32 _receiver, bool _useZro, bytes memory _adapterParams, uint256 _callerBps)`
+  - Returns required amounts for native fee and zro fee
 
 ## OFTWrapper Specific Parameters
 
@@ -30,23 +50,25 @@ To populate `_oftWrapperData` you will need to get the chain ID you are bridging
 This data is specific to OFTWrapper and is represented as the following struct type:
 
 ```solidity
-/// @param tokenType Type of OFT token(OFT, OFTV2, OFTFeeV2, ProxyOFT, ProxyOFTV2, ProxyOFTFeeV2).
-/// @param proxyOFT Address of proxy OFT.
-/// @param receiver Receiver address for non-EVM chain.
-/// @param minAmount The min qty you would accept on the destination.
-/// @param lzFee Estimated fee.
-/// @param zroPaymentAddress The address to pay fee in ZRO token.
-/// @param adapterParams Parameters for custom functionality.
-/// @param feeObj Struct data for caller bps and partner id.
+/// @param proxyOftAddress contains address of proxy OFT contract or address(0), if token does not have proxy
+/// @param receiver exclusively used for non-EVM receiver addresses (usually we use _bridgeData.receiver)
+/// @param minAmount minAmount to be received on dst chain
+/// @param lzFee amount of native fee to be sent to Layer Zero endpoint for relaying message
+/// @param zroPaymentAddress should be set to address(0) if not paying with ZRO token
+/// @param adapterParams parameters for the adapter service, e.g. send some dust native token to dstChain
+/// @param feeObj contains information about optional callerFee (= fee taken by dApp)
+/// @param customCode_sendTokensCallData contains function identifier and parameters for sending tokens
+/// @param customCode_approveTo in case approval to a custom contract is required
 struct OFTWrapperData {
-  TokenType tokenType;
-  address proxyOFT;
+  address proxyOftAddress;
   bytes32 receiver;
   uint256 minAmount;
   uint256 lzFee;
   address zroPaymentAddress;
   bytes adapterParams;
-  IOFTWrapper.FeeObj feeObj;
+  IOFT.FeeObj feeObj;
+  bytes customCode_sendTokensCallData;
+  address customCode_approveTo;
 }
 ```
 

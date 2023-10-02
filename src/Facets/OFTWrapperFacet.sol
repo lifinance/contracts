@@ -190,7 +190,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             oftContract,
             _bridgeData.minAmount
         );
-        // TODO: should we set allowance back to 0 after this?
 
         // make sure oft contract is whitelisted
         if (!_isWhitelisted(oftContract)) revert ContractCallNotAllowed();
@@ -296,7 +295,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             oftContract,
             _bridgeData.minAmount
         );
-        // TODO: should we set allowance back to 0 after this?
 
         // make sure oft contract is whitelisted
         if (!_isWhitelisted(oftContract)) revert ContractCallNotAllowed();
@@ -401,7 +399,6 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             oftContract,
             _bridgeData.minAmount
         );
-        // TODO: should we set allowance back to 0 after this?
 
         // make sure oft contract is whitelisted
         if (!_isWhitelisted(oftContract)) revert ContractCallNotAllowed();
