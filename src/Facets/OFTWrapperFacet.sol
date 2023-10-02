@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IOFTWrapper, IOFT, IOFTV2, IOFTV2WithFee, IProxyOFT } from "../Interfaces/IOFTWrapper.sol";
+import { IOFT, IOFTV2, IOFTV2WithFee, IProxyOFT } from "../Interfaces/IOFT.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibAccess } from "lifi/Libraries/LibAccess.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
@@ -58,7 +58,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 lzFee; // amount of native fee to be sent to Layer Zero endpoint for relaying message
         address zroPaymentAddress; // should be set to address(0) if not paying with ZRO token
         bytes adapterParams; // parameters for the adapter service, e.g. send some dust native token to dstChain
-        IOFTWrapper.FeeObj feeObj; // contains information about optional callerFee (= fee taken by dApp)
+        IOFT.FeeObj feeObj; // contains information about optional callerFee (= fee taken by dApp)
         bytes customCode_sendTokensCallData; // contains function identifier and parameters for sending tokens
         address customCode_approveTo; // in case approval to a custom contract is required
     }

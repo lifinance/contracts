@@ -5,7 +5,7 @@ import { LibAllowList, TestBase, LiFiDiamond, console, console2 } from "../utils
 import { OnlyContractOwner, AlreadyInitialized, UnAuthorized } from "src/Errors/GenericErrors.sol";
 import { OFTWrapperFacet } from "lifi/Facets/OFTWrapperFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
-import { IOFTWrapper } from "lifi/Interfaces/IOFTWrapper.sol";
+import { IOFT } from "lifi/Interfaces/IOFT.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
@@ -275,9 +275,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
             .swapAndStartBridgeTokensViaCustomCodeOFT
             .selector;
         functionSelectors[9] = oftWrapperFacet.setOFTLayerZeroChainId.selector;
-        functionSelectors[10] = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut
-            .selector;
+        functionSelectors[10] = oftWrapperFacet.estimateOFTFees.selector;
         functionSelectors[11] = oftWrapperFacet.addDex.selector;
         functionSelectors[12] = oftWrapperFacet
             .setFunctionApprovalBySignature
@@ -355,7 +353,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
             lzFee: 0,
             zroPaymentAddress: address(0),
             adapterParams: abi.encodePacked(uint16(1), uint256(2000000)),
-            feeObj: IOFTWrapper.FeeObj({
+            feeObj: IOFT.FeeObj({
                 callerBps: 0,
                 caller: address(0),
                 partnerId: bytes2("")
@@ -427,7 +425,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // estimate fee
         OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut(
+            .estimateOFTFees(
                 testTokenProxy,
                 bridgeData.destinationChainId,
                 bridgeData.minAmount,
@@ -595,7 +593,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // estimate fee
         OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut(
+            .estimateOFTFees(
                 testToken,
                 bridgeData.destinationChainId,
                 bridgeData.minAmount,
@@ -652,7 +650,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // estimate fee
         OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut(
+            .estimateOFTFees(
                 testToken,
                 bridgeData.destinationChainId,
                 bridgeData.minAmount,
@@ -714,7 +712,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // estimate fee
         OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut(
+            .estimateOFTFees(
                 testTokenProxy,
                 bridgeData.destinationChainId,
                 bridgeData.minAmount,
@@ -771,7 +769,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // estimate fee
         OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut(
+            .estimateOFTFees(
                 testToken,
                 bridgeData.destinationChainId,
                 bridgeData.minAmount,
@@ -832,7 +830,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // estimate fee
         OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut(
+            .estimateOFTFees(
                 testTokenProxy,
                 bridgeData.destinationChainId,
                 bridgeData.minAmount,
@@ -1302,7 +1300,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         );
     }
 
-    function test_estimateOFTFeesAndAmountOut_V1() public {
+    function test_estimateOFTFeesAnd_V1() public {
         // activate BSC fork
         vm.selectFork(forkId_BSC);
 
@@ -1313,7 +1311,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // get fee estimate from our facet
         OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut(
+            .estimateOFTFees(
                 ADDRESS_USH_OFTV1_BSC,
                 bridgeData.destinationChainId,
                 testAmount,
@@ -1327,7 +1325,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         assertEq(feeEstimate.zroFee, 0);
     }
 
-    function test_estimateOFTFeesAndAmountOut_V1Proxy() public {
+    function test_estimateOFTFeesAnd_V1Proxy() public {
         // activate BSC fork
         vm.selectFork(forkId_BSC);
 
@@ -1338,7 +1336,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // get fee estimate from our facet
         OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut(
+            .estimateOFTFees(
                 ADDRESS_USH_OFTV1_BSC,
                 bridgeData.destinationChainId,
                 testAmount,
@@ -1352,7 +1350,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         assertEq(feeEstimate.zroFee, 0);
     }
 
-    function test_estimateOFTFeesAndAmountOut_V2() public {
+    function test_estimateOFTFeesAnd_V2() public {
         // activate BSC fork
         vm.selectFork(forkId_BSC);
 
@@ -1363,7 +1361,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // get fee estimate from our facet
         OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut(
+            .estimateOFTFees(
                 ADDRESS_RDNT_OFTV2_BSC,
                 bridgeData.destinationChainId,
                 testAmount,
@@ -1377,7 +1375,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         assertEq(feeEstimate.zroFee, 0);
     }
 
-    function test_estimateOFTFeesAndAmountOut_V2Proxy() public {
+    function test_estimateOFTFeesAnd_V2Proxy() public {
         // activate Avalanche fork
         vm.selectFork(forkId_ARB);
 
@@ -1388,7 +1386,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // get fee estimate from our facet
         OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut(
+            .estimateOFTFees(
                 ADDRESS_ARKEN_PROXYOFTV2_ARB,
                 bridgeData.destinationChainId,
                 testAmount,
@@ -1402,7 +1400,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         assertEq(feeEstimate.zroFee, 0);
     }
 
-    function test_estimateOFTFeesAndAmountOut_V2WithFee() public {
+    function test_estimateOFTFeesAnd_V2WithFee() public {
         // set active fork to given block (to ensure predictable results
         vm.rollFork(31470148);
 
@@ -1410,7 +1408,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // get fee estimate from our facet
         OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut(
+            .estimateOFTFees(
                 ADDRESS_JOE_OFTV2WITHFEE_BSC,
                 bridgeData.destinationChainId,
                 testAmount,
@@ -1424,7 +1422,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         assertEq(feeEstimate.zroFee, 0);
     }
 
-    function test_estimateOFTFeesAndAmountOut_V2WithFeeProxy() public {
+    function test_estimateOFTFeesAnd_V2WithFeeProxy() public {
         // activate Avalanche fork
         vm.selectFork(forkId_AVA);
 
@@ -1435,7 +1433,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // get fee estimate from our facet
         OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut(
+            .estimateOFTFees(
                 ADDRESS_JOE_PROXYOFTV2WITHFEE_AVA,
                 bridgeData.destinationChainId,
                 testAmount,
@@ -1449,7 +1447,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
         assertEq(feeEstimate.zroFee, 0);
     }
 
-    function test_estimateOFTFeesAndAmountOut_CustomCode() public {
+    function test_estimateOFTFeesAnd_CustomCode() public {
         // activate ETH fork
         vm.selectFork(forkId_ETH);
 
@@ -1472,7 +1470,7 @@ contract OFTWrapperFacetTest is Test, ILiFi, DiamondTest {
 
         // get fee estimate with pre-computed calldata (no other parameters required)
         OFTWrapperFacet.OftFeeEstimate memory feeEstimate = oftWrapperFacet
-            .estimateOFTFeesAndAmountOut(
+            .estimateOFTFees(
                 ADDRESS_STG_CustomCode_ETH,
                 0,
                 testAmount,
