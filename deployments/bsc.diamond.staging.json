@@ -33,17 +33,25 @@
         "Name": "AllBridgeFacet",
         "Version": "2.0.0"
       },
-      "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0xd6aba485e836d1C717734fFD00A25d16Cf738b49": {
+        "Name": "",
+        "Version": ""
       },
       "0x9a077b9dD746237d8854848BDB01521B47edC8DF": {
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0x4E32c544a3498AE561c89E71Bcc7582C79D7eA84": {
+      "0x04BD4b6430483cFdD0450D0aFb08633d33C93275": {
         "Name": "OFTWrapperFacet",
-        "Version": "0.0.4"
+        "Version": "1.1.0"
+      },
+      "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0xAfcC5c55d5Ec3082675D51331E7Ed9AdE195db48": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {

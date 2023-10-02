@@ -93,9 +93,9 @@
         "Name": "SynapseBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x4E32c544a3498AE561c89E71Bcc7582C79D7eA84": {
+      "0xDadC1DA73CeaBE53038A467aa8aD6b5Dd92041d9": {
         "Name": "OFTWrapperFacet",
-        "Version": "0.0.4"
+        "Version": "1.1.0"
       }
     },
     "Periphery": {

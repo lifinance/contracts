@@ -10,23 +10,7 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("OFTWrapperFacet") {}
 
-    function run()
-        public
-        returns (OFTWrapperFacet deployed, bytes memory constructorArgs)
-    {
-        constructorArgs = getConstructorArgs();
-
+    function run() public returns (OFTWrapperFacet deployed) {
         deployed = OFTWrapperFacet(deploy(type(OFTWrapperFacet).creationCode));
-    }
-
-    function getConstructorArgs() internal override returns (bytes memory) {
-        string memory path = string.concat(root, "/config/oftwrapper.json");
-        string memory json = vm.readFile(path);
-
-        address oftWrapper = json.readAddress(
-            string.concat(".wrappers.", network)
-        );
-
-        return abi.encode(oftWrapper);
     }
 }
