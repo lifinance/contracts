@@ -230,15 +230,6 @@
       }
     }
   },
-  "OFTWrapperFacet": {
-    "configData": {
-      "_oftWrapper": {
-        "configFileName": "oftwrapper.json",
-        "keyInConfigFile": ".wrappers.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "OmniBridgeFacet": {
     "configData": {
       "_foreignOmniBridge": {

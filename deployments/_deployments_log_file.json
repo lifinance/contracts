@@ -12372,6 +12372,16 @@
             "SALT": "",
             "VERIFIED": "false"
           }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0xa5B7a77a896AbB43eB1a10fFBCAa9EB1302Ce17C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-02 07:53:18",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002ef002aa0ab6761b6aea8d639dcdaa20d79b768c",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
         ]
       }
     }
