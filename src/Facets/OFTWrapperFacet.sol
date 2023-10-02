@@ -612,7 +612,7 @@ contract OFTWrapperFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _useZro Whether fee should be paid in ZRO token or not.
     /// @param _adapterParams Parameters for custom functionality.
     /// @param _customCodeCallData The calldata to obtain a fee estimate for a customCodeOFT, otherwise empty
-    function estimateOFTFeesAndAmountOut(
+    function estimateOFTFees(
         address _sendingAssetId,
         uint256 _destinationChainId,
         uint256 _amount,
