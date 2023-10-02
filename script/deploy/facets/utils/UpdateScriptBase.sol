@@ -54,16 +54,13 @@ contract UpdateScriptBase is ScriptBase {
         virtual
         returns (address[] memory facets, bytes memory cutData)
     {
-        console.log("update #1");
         address facet = json.readAddress(string.concat(".", name));
 
         bytes4[] memory excludes = getExcludes();
         bytes memory callData = getCallData();
-        console.log("update #2");
 
         buildDiamondCut(getSelectors(name, excludes), facet);
 
-        console.log("update #3");
         if (noBroadcast) {
             if (cut.length > 0) {
                 cutData = abi.encodeWithSelector(
@@ -76,19 +73,6 @@ contract UpdateScriptBase is ScriptBase {
             return (facets, cutData);
         }
 
-        console.log("update #4");
-        console.log("callData.length: ", callData.length);
-        console.log("facet: ", facet);
-        console.log("cut.length: ", cut.length);
-        console.log("cut[0].facetAddress: ", cut[0].facetAddress);
-        console.log("cut[0].action: ", uint256(cut[0].action));
-        console.log(
-            "cut[0].functionSelectors.length: ",
-            cut[0].functionSelectors.length
-        );
-        console.log("calldata:");
-        console2.logBytes(callData);
-
         vm.startBroadcast(deployerPrivateKey);
 
         if (cut.length > 0) {
@@ -99,10 +83,8 @@ contract UpdateScriptBase is ScriptBase {
             );
         }
 
-        console.log("update #5");
         facets = loupe.facetAddresses();
 
-        console.log("update #6");
         vm.stopBroadcast();
     }
 
