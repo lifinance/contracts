@@ -27,7 +27,8 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @dev Optional bridge specific struct
-    /// @param exampleParam Example paramter
+    /// @param callData The calldata for the destination calldata
+    /// @param extraArgs The extra arguments for the destination call
     struct CCIPData {
         bytes callData;
         bytes extraArgs;
@@ -38,6 +39,9 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         mapping(uint256 => uint64) chainSelectors;
     }
 
+    /// @dev Chain selector for CCIP
+    /// @param chainId Standard chain ID
+    /// @param selector CCIP specific chain selector
     struct ChainSelector {
         uint256 chainId;
         uint64 selector;

@@ -2,7 +2,7 @@
 
 ## How it works
 
-The CCIP Facet works by ...
+The CCIP Facet works by forwarding CCIP specific calls to the CCIP router contract.
 
 ```mermaid
 graph LR;
@@ -16,15 +16,21 @@ graph LR;
   - Simply bridges tokens using ccip
 - `swapAndStartBridgeTokensViaccip(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, ccipData memory _ccipData)`
   - Performs swap(s) before bridging tokens using ccip
+- `quoteCCIPFee(BridgeData memory _bridgeData, CCIPData memory _ccipData) returns (uint256)`
+  - Returns the amount of fee in native tokens needed to bridge the tokens using ccip
+- `encodeDestinationArgs(uint256 gasLimit, bool strictSequencing) returns (bytes memory)`
+  - Encodes the destination args for ccip. Only needed if doing calls on the destination chain.
 
 ## ccip Specific Parameters
 
 The methods listed above take a variable labeled `_ccipData`. This data is specific to ccip and is represented as the following struct type:
 
 ```solidity
-/// @param example Example parameter.
-struct ccipData {
-  string example;
+/// @param callData destination calldata (optional).
+/// @param extraArgs extra arguments for destination call (only needed for destination calls)
+struct CCIPData {
+  bytes callData;
+  bytes extraArgs;
 }
 ```
 
