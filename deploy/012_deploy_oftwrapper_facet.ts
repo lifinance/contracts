@@ -11,12 +11,12 @@ import config from '../config/oftwrapper.json'
 import { addOrReplaceFacets } from '../utils/diamond'
 
 interface WhitelistConfig {
-  address: string
+  contractAddress: string
   whitelisted: boolean
 }
 interface Chain {
   chainId: number
-  lzChainId: number
+  layerZeroChainId: number
 }
 
 interface OFTWrapperConfig {
@@ -27,12 +27,10 @@ interface OFTWrapperConfig {
 }
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
-  if (network.name !== 'zksync' && network.name !== 'zksyncGoerli') {
-    return
-  }
-
   // extract initialization data from config file
   const chains = (config as OFTWrapperConfig)['chains']
+
+  // extract network-specific array of whitelisted addresses
   const whitelist = (config as OFTWrapperConfig)[
     'whitelistedOftBridgeContracts'
   ][network.name]
@@ -40,23 +38,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // prepare whitelist config (=> add 'true' to every address)
   const whitelistConfig: WhitelistConfig[] = []
   for (let i = 0; i < whitelist.length; i++) {
-    whitelistConfig.push({ address: whitelist[i], whitelisted: true })
+    whitelistConfig.push({ contractAddress: whitelist[i], whitelisted: true })
   }
-
-  // // deploy facet
-  // const { deployments, getNamedAccounts } = hre
-  // const { deploy } = deployments
-  // const { deployer } = await getNamedAccounts()
-  //
-  // const deployedFacet = await deploy('OFTWrapperFacet', {
-  //   from: deployer,
-  //   log: true,
-  //   args: [],
-  //   skipIfAlreadyDeployed: true,
-  // })
-  //
-  // const facet = await ethers.getContract('OftWrapperFacet')
-  // const diamond = await ethers.getContract(diamondContractName)
 
   // get facet ABI
   const contractArtifact = await hre.artifacts.readArtifact('OFTWrapperFacet')
@@ -67,30 +50,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   // create encoded calldata including function identifier
   const initCalldata = contractInterface.encodeFunctionData('initOFTWrapper', [
-    chains.map((chain) => [chain.chainId, chain.lzChainId]),
+    chains,
     whitelistConfig,
   ])
 
   await deployFacet(hre, 'OFTWrapperFacet', { args: [] }, initCalldata)
-
-  // // create encoded calldata
-  // const initCalldata = ethers.utils.defaultAbiCoder.encode(
-  //   // TODO: need to add the function identifier in the calldata
-  //   ['ChainIdConfig[]', 'WhitelistConfig[]'],
-  //   [
-  //     chains.map(chain => [chain.chainId, chain.lzChainId]),
-  //     whitelistConfig
-  //   ]
-  // )
-  //
-  // await addOrReplaceFacets([facet], diamond.address, deployedFacet.address, initCalldata )
-  //
-  // const isVerified = await verifyContract(hre, 'OftWrapperFacet', {
-  //   address: facet.address,
-  //   args: [],
-  // })
-  //
-  // await updateDeploymentLogs('DiamondCutFacet', deployedFacet, isVerified)
 }
 
 export default func

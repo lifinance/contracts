@@ -2,71 +2,71 @@
   "chains": [
     {
       "chainId": 1,
-      "lzChainId": 101
+      "layerZeroChainId": 101
     },
     {
       "chainId": 56,
-      "lzChainId": 102
+      "layerZeroChainId": 102
     },
     {
       "chainId": 43114,
-      "lzChainId": 106
+      "layerZeroChainId": 106
     },
     {
       "chainId": 137,
-      "lzChainId": 109
+      "layerZeroChainId": 109
     },
     {
       "chainId": 42161,
-      "lzChainId": 110
+      "layerZeroChainId": 110
     },
     {
       "chainId": 10,
-      "lzChainId": 111
+      "layerZeroChainId": 111
     },
     {
       "chainId": 250,
-      "lzChainId": 112
+      "layerZeroChainId": 112
     },
     {
       "chainId": 42220,
-      "lzChainId": 125
+      "layerZeroChainId": 125
     },
     {
       "chainId": 1284,
-      "lzChainId": 126
+      "layerZeroChainId": 126
     },
     {
       "chainId": 122,
-      "lzChainId": 138
+      "layerZeroChainId": 138
     },
     {
       "chainId": 100,
-      "lzChainId": 145
+      "layerZeroChainId": 145
     },
     {
       "chainId": 66,
-      "lzChainId": 155
+      "layerZeroChainId": 155
     },
     {
       "chainId": 1101,
-      "lzChainId": 158
+      "layerZeroChainId": 158
     },
     {
       "chainId": 324,
-      "lzChainId": 165
+      "layerZeroChainId": 165
     },
     {
       "chainId": 1285,
-      "lzChainId": 167
+      "layerZeroChainId": 167
     },
     {
       "chainId": 59144,
-      "lzChainId": 183
+      "layerZeroChainId": 183
     },
     {
       "chainId": 8453,
-      "lzChainId": 184
+      "layerZeroChainId": 184
     }
   ],
   "whitelistedOftBridgeContracts": {
