@@ -12437,6 +12437,18 @@
             "VERIFIED": "false"
           }
         ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF965f52046D7095d5080bD31459601F4Eb24f72D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-02 15:15:27",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "mainnet": {
@@ -12448,6 +12460,18 @@
             "TIMESTAMP": "2023-06-27 21:28:04",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002ef002aa0ab6761b6aea8d639dcdaa20d79b768c",
             "SALT": "27062023",
+            "VERIFIED": "true"
+          }
+        ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF965f52046D7095d5080bD31459601F4Eb24f72D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-02 15:26:49",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -12519,6 +12543,116 @@
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002ef002aa0ab6761b6aea8d639dcdaa20d79b768c",
             "SALT": "02102023",
             "VERIFIED": "false"
+          }
+        ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF965f52046D7095d5080bD31459601F4Eb24f72D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-02 15:15:12",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "moonriver": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF965f52046D7095d5080bD31459601F4Eb24f72D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-02 14:31:20",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fantom": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF965f52046D7095d5080bD31459601F4Eb24f72D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-02 14:31:58",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "polygonzkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF965f52046D7095d5080bD31459601F4Eb24f72D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-02 15:10:58",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "gnosis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF965f52046D7095d5080bD31459601F4Eb24f72D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-02 15:15:04",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "avalanche": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF965f52046D7095d5080bD31459601F4Eb24f72D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-02 15:14:49",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "base": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF965f52046D7095d5080bD31459601F4Eb24f72D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-02 15:26:41",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xFa3f966fDf2eC20ef92d399A0012131915ccb9Fc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-02 15:38:05",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
