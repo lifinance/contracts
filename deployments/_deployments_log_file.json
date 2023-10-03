@@ -12656,6 +12656,20 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x94c0e7eF91fF60B216D9334A56201ec0b06eeDd6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-03 13:36:05",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "RelayerCelerIM": {
