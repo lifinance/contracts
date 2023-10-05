@@ -19,7 +19,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  const WITHDRAW_WALLET_ADDR = globalConfig.withdrawWallet
+  const LIFUEL_REBALANCE_WALLET_ADDR = globalConfig.lifuelRebalanceWallet
 
   const diamond = await ethers.getContract(diamondContractName)
 
@@ -29,7 +29,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const deployedLiFuelFeeCollector = await deploy('LiFuelFeeCollector', {
     from: deployer,
-    args: [WITHDRAW_WALLET_ADDR],
+    args: [LIFUEL_REBALANCE_WALLET_ADDR],
     log: true,
     skipIfAlreadyDeployed: true,
   })
@@ -50,7 +50,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const isVerified = await verifyContract(hre, 'LiFuelFeeCollector', {
     address: lifuelFeeCollector.address,
-    args: [WITHDRAW_WALLET_ADDR],
+    args: [LIFUEL_REBALANCE_WALLET_ADDR],
   })
 
   await updateDeploymentLogs(

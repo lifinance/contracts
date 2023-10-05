@@ -371,7 +371,7 @@
     "configData": {
       "_owner": {
         "configFileName": "global.json",
-        "keyInConfigFile": ".withdrawWallet",
+        "keyInConfigFile": ".lifuelRebalanceWallet",
         "allowToDeployWithZeroAddress": "false"
       }
     }
