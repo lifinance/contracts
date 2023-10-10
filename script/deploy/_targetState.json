@@ -428,7 +428,6 @@
       }
     }
   },
-  "gnosis": {},
   "fantom": {
     "staging": {
       "LiFiDiamond": {
@@ -1816,6 +1815,56 @@
         "ServiceFeeCollector": "1.0.0",
         "LiFuelFeeCollector": "1.0.0"
       }
+    },
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.1",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.1",
+        "ServiceFeeCollector": "1.0.0",
+        "LiFuelFeeCollector": "1.0.0",
+        "CBridgeFacet": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetMutable": "2.0.0",
+        "MultichainFacet": "1.0.1"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.1",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.1",
+        "ServiceFeeCollector": "1.0.0",
+        "LiFuelFeeCollector": "1.0.0",
+        "CBridgeFacet": "1.0.0",
+        "RelayerCelerIM": "2.0.0",
+        "CelerIMFacetImmutable": "2.0.0",
+        "MultichainFacet": "1.0.1"
+      }
     }
   },
   "goerli": {
@@ -2038,7 +2087,6 @@
       }
     }
   },
-  "mumbai": {},
   "lineatest": {
     "production": {
       "LiFiDiamond": {
@@ -2281,7 +2329,7 @@
       }
     }
   },
-  "xdai": {
+  "gnosis": {
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -2426,7 +2474,7 @@
       }
     }
   },
-  "polygon-mumbai": {
+  "mumbai": {
     "staging": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",
@@ -2740,58 +2788,6 @@
         "AcrossFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "MultichainFacet": "1.0.1"
-      }
-    }
-  },
-  "polygon-zkevm": {
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.1.1",
-        "StandardizedCallFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
-        "ServiceFeeCollector": "1.0.0",
-        "LiFuelFeeCollector": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0",
-        "MultichainFacet": "1.0.1"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.1.1",
-        "StandardizedCallFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
-        "ServiceFeeCollector": "1.0.0",
-        "LiFuelFeeCollector": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0",
         "MultichainFacet": "1.0.1"
       }
     }

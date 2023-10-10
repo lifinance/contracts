@@ -70,9 +70,10 @@
       "ERC20Proxy": "0x74a55CaDb12501A3707E9F3C5dfd8b563C6A5940",
       "Executor": "0x4DaC9d1769b9b304cb04741DCDEb2FC14aBdF110",
       "FeeCollector": "0x0A6d96E7f4D7b96CFE42185DF61E64d255c12DFf",
-      "Receiver": "0xE86E49C05dBBC72427678B3cd1F5fd14b6c90D12",
+      "Receiver": "0x050e198E36A73a1e32F15C3afC58C4506d82f657",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
+      "LiFuelFeeCollector": "0xdFC2983401614118E1F2D5A5FD93C17Fecf8BdC6"
     }
   }
 }
