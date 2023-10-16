@@ -19,5 +19,6 @@
   "CBridgeFacetPacked": "0x21972996244aa8E469F5b4c8658e9546af259683",
   "StandardizedCallFacet": "0xC543CEdA9362748Be1EEC5c82B4d91845F725a7b",
   "StargateFacet": "0x5CDdf4C75E9Cf1157263Ff3c6A2CC1067555beBa",
-  "CalldataVerificationFacet": "0x6F1330cC587a2be7eC61e04ba64267ff90cC0315"
+  "CalldataVerificationFacet": "0x6F1330cC587a2be7eC61e04ba64267ff90cC0315",
+  "LiFuelFeeCollector": "0x74EAb1C1304375C4ed56e283C03B74AAd3ac45bb"
 }

@@ -9,5 +9,6 @@
   "Receiver": "0xdeDB2DAe4a9BC63910a722a3b7DC930C7E6f6421",
   "FeeCollector": "0x8dBf6f59187b2EB36B980F3D8F4cFC6DC4E4642e",
   "ServiceFeeCollector": "0x682dBe3f437f040535e728454D7F7f19Ead738b3",
-  "AcrossFacet": "0x25350de1ba213e17dd9fc7a88261db615268e15f"
+  "AcrossFacet": "0x25350de1ba213e17dd9fc7a88261db615268e15f",
+  "LiFuelFeeCollector": "0xbE07Edbb7d0fc7eb941078486F6b59061bF0336C"
 }
