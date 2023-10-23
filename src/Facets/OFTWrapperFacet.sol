@@ -2,7 +2,10 @@
 pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IOFT, IOFTV2, IOFTV2WithFee, IProxyOFT } from "../Interfaces/IOFT.sol";
+import { IOFT } from "../Interfaces/IOFT.sol";
+import { IOFTV2 } from "../Interfaces/IOFTV2.sol";
+import { IOFTV2WithFee } from "../Interfaces/IOFTV2WithFee.sol";
+import { IProxyOFT } from "../Interfaces/IProxyOFT.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibAccess } from "lifi/Libraries/LibAccess.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
