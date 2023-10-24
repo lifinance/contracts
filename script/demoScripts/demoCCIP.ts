@@ -9,14 +9,14 @@ const msg = (msg: string) => {
   console.log(chalk.green(msg))
 }
 
-const LIFI_ADDRESS = '0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F' // LiFiDiamond address on AVAX stating
-const BETS_TOKEN_ADDRESS = '0x94025780a1aB58868D9B2dBBB775f44b32e8E6e5'
+const LIFI_ADDRESS = '0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F' // LiFiDiamond address on MAINNET stating
+const R_TOKEN_ADDRESS = '0x183015a9ba6ff60230fdeadc3f43b3d788b13e21'
 const L2_GAS = 20000 // L2 Gas, Don't need to change it.
-const destinationChainId = 1 // Mainnet
+const destinationChainId = 8453 // Base Chain
 
 async function main() {
   const jsonProvider = new providers.JsonRpcProvider(
-    process.env.ETH_NODE_URI_AVALANCHE
+    process.env.ETH_NODE_URI_MAINNET
   )
   const provider = new providers.FallbackProvider([jsonProvider])
 
@@ -27,7 +27,7 @@ async function main() {
   const lifi = CCIPFacet__factory.connect(LIFI_ADDRESS, wallet)
 
   // Bridge amount
-  const amount = utils.parseEther('10')
+  const amount = utils.parseEther('1')
 
   // LIFI Data
   const lifiData = {
@@ -44,7 +44,7 @@ async function main() {
   }
 
   // Bridge ERC20
-  lifiData.sendingAssetId = BETS_TOKEN_ADDRESS
+  lifiData.sendingAssetId = R_TOKEN_ADDRESS
 
   const extraArgs = await lifi.encodeDestinationArgs(L2_GAS, false)
 
@@ -55,12 +55,14 @@ async function main() {
 
   const fee = await lifi.quoteCCIPFee(lifiData, bridgeData)
 
-  msg('Approving BETS...')
-  const BETS = ERC20__factory.connect(BETS_TOKEN_ADDRESS, wallet)
+  msg('Wallet Address: ' + walletAddress)
+
+  msg('Approving R...')
+  const BETS = ERC20__factory.connect(R_TOKEN_ADDRESS, wallet)
   let tx = await BETS.approve(LIFI_ADDRESS, amount)
   await tx.wait()
 
-  msg('Sending BETS to Mainnet via CCIP...')
+  msg('Sending R to Base via CCIP...')
   tx = await lifi.startBridgeTokensViaCCIP(lifiData, bridgeData, {
     gasLimit: '500000',
     value: fee,
