@@ -41,9 +41,9 @@
         "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x9aD9aC39749B7b76294bF65E11a040fb57643b3A": {
+      "0x6E30A793AD7679e3754311db960eE4ED0DcE57fA": {
         "Name": "StargateFacet",
-        "Version": "2.0.1"
+        "Version": "2.1.0"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
@@ -69,18 +69,19 @@
         "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       },
-      "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
+      "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.0"
+        "Version": "1.1.1"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
-      "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
+      "Receiver": "0x050e198E36A73a1e32F15C3afC58C4506d82f657",
       "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
-      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
+      "LiFuelFeeCollector": "0xdFC2983401614118E1F2D5A5FD93C17Fecf8BdC6"
     }
   }
 }

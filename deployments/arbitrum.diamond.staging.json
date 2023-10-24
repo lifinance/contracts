@@ -77,25 +77,25 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
-      "0x5B65c0363D3523f5451b681f1197d229c33b8437": {
-        "Name": "OFTWrapperFacet",
-        "Version": "2.0.0"
+      "0x7260Fd3F8D0bEb06fF5935C6eadE9f406107c270": {
+        "Name": "WormholeFacet",
+        "Version": "1.0.0"
       },
       "0x933A3AfE2087FB8F5c9EE9A033477C42CC14c18E": {
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0xB0Ff925009c070DC007feC65A2C84c766781a787": {
+      "0x226A1F4157F97deb56E19cC05201c0f9436e3DeF": {
         "Name": "StargateFacet",
-        "Version": "1.0.0"
+        "Version": "2.1.0"
       },
       "0x57F98A94AC66e197AF6776D5c094FF0da2C0B198": {
         "Name": "SynapseBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x7260Fd3F8D0bEb06fF5935C6eadE9f406107c270": {
-        "Name": "WormholeFacet",
-        "Version": "1.0.0"
+      "0x4E32c544a3498AE561c89E71Bcc7582C79D7eA84": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {

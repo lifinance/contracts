@@ -13,7 +13,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Stargate Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate
-/// @custom:version 2.0.1
+/// @custom:version 2.1.0
 contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// CONSTANTS ///
 
@@ -21,6 +21,8 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     IStargateRouter private immutable router;
     /// @notice The contract address of the native stargate router on the source chain.
     IStargateRouter private immutable nativeRouter;
+    /// @notice The contract address of the stargate composer on the source chain.
+    IStargateRouter private immutable composer;
 
     /// Storage ///
 
@@ -80,9 +82,14 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Initialize the contract.
     /// @param _router The contract address of the stargate router on the source chain.
     /// @param _nativeRouter The contract address of the native token stargate router on the source chain.
-    constructor(IStargateRouter _router, IStargateRouter _nativeRouter) {
+    constructor(
+        IStargateRouter _router,
+        IStargateRouter _nativeRouter,
+        IStargateRouter _composer
+    ) {
         router = _router;
         nativeRouter = _nativeRouter;
+        composer = _composer;
     }
 
     /// Init ///
@@ -93,10 +100,6 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage sm = getStorage();
-
-        if (sm.initialized) {
-            revert AlreadyInitialized();
-        }
 
         for (uint256 i = 0; i < chainIdConfigs.length; i++) {
             sm.layerZeroChainId[chainIdConfigs[i].chainId] = chainIdConfigs[i]
@@ -166,8 +169,13 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 _destinationChainId,
         StargateData calldata _stargateData
     ) external view returns (uint256, uint256) {
+        // Transfers with callData have to be routed via the composer which adds additional overhead in fees.
+        // The composer exposes the same function as the router to calculate those fees.
+        IStargateRouter stargate = _stargateData.callData.length > 0
+            ? composer
+            : router;
         return
-            router.quoteLayerZeroFee(
+            stargate.quoteLayerZeroFee(
                 getLayerZeroChainId(_destinationChainId),
                 1, // TYPE_SWAP_REMOTE on Bridge
                 _stargateData.callTo,
@@ -190,7 +198,12 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         StargateData calldata _stargateData
     ) private {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            nativeRouter.swapETHAndCall{ value: _bridgeData.minAmount }(
+            // All transfers with destination calls need to be routed via the composer contract
+            IStargateRouter stargate = _bridgeData.hasDestinationCall
+                ? composer
+                : nativeRouter;
+
+            stargate.swapETHAndCall{ value: _bridgeData.minAmount }(
                 getLayerZeroChainId(_bridgeData.destinationChainId),
                 _stargateData.refundAddress,
                 _stargateData.callTo,
@@ -206,13 +219,18 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _stargateData.callData
             );
         } else {
+            // All transfers with destination calls need to be routed via the composer contract
+            IStargateRouter stargate = _bridgeData.hasDestinationCall
+                ? composer
+                : router;
+
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                address(router),
+                address(stargate),
                 _bridgeData.minAmount
             );
 
-            router.swap{ value: _stargateData.lzFee }(
+            stargate.swap{ value: _stargateData.lzFee }(
                 getLayerZeroChainId(_bridgeData.destinationChainId),
                 _stargateData.srcPoolId,
                 _stargateData.dstPoolId,

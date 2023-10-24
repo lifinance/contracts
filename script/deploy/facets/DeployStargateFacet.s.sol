@@ -29,7 +29,11 @@ contract DeployScript is DeployScriptBase {
         address stargateNativeRouter = json.readAddress(
             string.concat(".nativeRouters.", network)
         );
+        address stargateComposer = json.readAddress(
+            string.concat(".composers.", network)
+        );
 
-        return abi.encode(stargateRouter, stargateNativeRouter);
+        return
+            abi.encode(stargateRouter, stargateNativeRouter, stargateComposer);
     }
 }
