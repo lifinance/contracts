@@ -37,9 +37,9 @@
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
+      "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.0"
+        "Version": "1.1.1"
       }
     },
     "Periphery": {
@@ -48,7 +48,8 @@
       "FeeCollector": "0xB49EaD76FE09967D7CA0dbCeF3C3A06eb3Aa0cB4",
       "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
+      "LiFuelFeeCollector": "0xdFC2983401614118E1F2D5A5FD93C17Fecf8BdC6"
     }
   }
 }

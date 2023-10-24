@@ -69,7 +69,7 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -88,7 +88,7 @@
         "OmniBridgeFacet": "1.0.0",
         "OptimismBridgeFacet": "1.0.0",
         "PolygonBridgeFacet": "1.0.0",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0"
       },
@@ -108,7 +108,7 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -127,7 +127,7 @@
         "OmniBridgeFacet": "1.0.0",
         "OptimismBridgeFacet": "1.0.0",
         "PolygonBridgeFacet": "1.0.0",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0"
       }
@@ -207,7 +207,7 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -220,7 +220,7 @@
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0"
       },
@@ -240,7 +240,7 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -253,7 +253,7 @@
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0"
       }
@@ -277,12 +277,12 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "HopFacetOptimized": "2.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -301,12 +301,12 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "HopFacetOptimized": "2.0.0"
       }
     }
@@ -413,14 +413,14 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -439,14 +439,14 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0"
       }
     }
@@ -554,7 +554,7 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
@@ -563,7 +563,7 @@
         "CelerIMFacetMutable": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -582,7 +582,7 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
@@ -591,7 +591,7 @@
         "CelerIMFacetImmutable": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0"
       }
     }
@@ -670,7 +670,7 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -684,7 +684,7 @@
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0"
       },
@@ -704,7 +704,7 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -718,7 +718,7 @@
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0"
       }
@@ -781,7 +781,7 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AmarokFacet": "2.0.0",
@@ -794,7 +794,7 @@
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0"
       },
@@ -814,7 +814,7 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AmarokFacet": "2.0.0",
@@ -827,7 +827,7 @@
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0"
       }
@@ -1831,11 +1831,11 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "StargateFacet": "2.0.1"
+        "StargateFacet": "2.1.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1853,11 +1853,11 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "StargateFacet": "2.0.1"
+        "StargateFacet": "2.1.0"
       }
     }
   },
@@ -1975,7 +1975,7 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "AllBridgeFacet": "2.0.0",
         "AmarokFacet": "2.0.0",
@@ -1986,7 +1986,7 @@
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
         "OmniBridgeFacet": "1.0.0",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -2005,7 +2005,7 @@
         "ERC20Proxy": "1.0.0",
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
-        "Receiver": "2.0.1",
+        "Receiver": "2.0.2",
         "ServiceFeeCollector": "1.0.0",
         "AllBridgeFacet": "2.0.0",
         "AmarokFacet": "2.0.0",
@@ -2016,7 +2016,7 @@
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
         "OmniBridgeFacet": "1.0.0",
-        "StargateFacet": "2.0.1",
+        "StargateFacet": "2.1.0",
         "WormholeFacet": "1.0.0"
       }
     }
