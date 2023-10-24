@@ -96,10 +96,6 @@
       "0x57F98A94AC66e197AF6776D5c094FF0da2C0B198": {
         "Name": "SynapseBridgeFacet",
         "Version": "1.0.0"
-      },
-      "0x4E32c544a3498AE561c89E71Bcc7582C79D7eA84": {
-        "Name": "",
-        "Version": ""
       }
     },
     "Periphery": {
@@ -108,7 +104,8 @@
       "FeeCollector": "0x0222D030e8DFAEDE2a4e7B5F181Ac1A4206A75f0",
       "Receiver": "0x6aDF98E613703d628361B340eC22Bf35ec3ee122",
       "RelayerCelerIM": "0x9d3573b1d85112446593f617f1f3eb5ec1778D27",
-      "ServiceFeeCollector": "0x9cc3164f01ED3796Fdf7Da538484D634608D2203"
+      "ServiceFeeCollector": "0x9cc3164f01ED3796Fdf7Da538484D634608D2203",
+      "LiFuelFeeCollector": "0x86130169737b68fAF1b619A75c92205784601Da6"
     }
   }
 }

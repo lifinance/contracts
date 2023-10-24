@@ -1,6 +1,14 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0xaD50118509eB4c8e3E39a370151B0fD5D5957013": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0xc21a00a346d5b29955449Ca912343a3bB4c5552f": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
@@ -17,18 +25,6 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
-        "Name": "CBridgeFacet",
-        "Version": "1.0.0"
-      },
-      "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
-      "0x02063A0d7a222c16D5b63213262596B83b07150c": {
-        "Name": "MultichainFacet",
-        "Version": "1.0.1"
-      },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
@@ -37,19 +33,26 @@
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
+      "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+        "Name": "StandardizedCallFacet",
+        "Version": "1.0.0"
+      },
+      "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
-      "FeeCollector": "0xB49EaD76FE09967D7CA0dbCeF3C3A06eb3Aa0cB4",
-      "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
+      "FeeCollector": "0x44Ff747185C9Df233D07536E08341ff624896164",
+      "Receiver": "0xddc22EAaa960e052946D842cEC61eb91bbE06eeD",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
-      "LiFuelFeeCollector": "0xdFC2983401614118E1F2D5A5FD93C17Fecf8BdC6"
+      "ServiceFeeCollector": "0xC85c2B19958D116d79C654ecE73b359c08802A76"
     }
   }
 }
