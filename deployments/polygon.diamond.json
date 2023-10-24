@@ -1,7 +1,7 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0x6faA6906b9e4A59020e673910105567e809789E0": {
+         "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
@@ -81,9 +81,9 @@
         "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       },
-      "0x6E30A793AD7679e3754311db960eE4ED0DcE57fA": {
+      "0x31e3b5611FBb1a90d35039fCC9656649e7Fd482b": {
         "Name": "StargateFacet",
-        "Version": "2.1.0"
+        "Version": "2.2.0"
       }
     },
     "Periphery": {
