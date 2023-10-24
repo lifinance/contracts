@@ -8,14 +8,16 @@ import SafeApiKit, {
 import { SafeTransactionDataPartial } from '@safe-global/safe-core-sdk-types'
 import { safeApiUrls } from './config'
 import { argv, exit } from 'process'
-import enquirer from 'enquirer'
 
 // Parse incoming arguments
 const [, , diamondAddress, rawCuts, network, rpcUrl, privateKey] = argv
 
+const ownerABI = ['function owner() external view returns (address)']
+
 // Create ethers provider and signer from private key
 let safeOwner = new ethers.Wallet(privateKey as string)
 const provider = new ethers.providers.JsonRpcProvider(rpcUrl)
+const contract = new ethers.Contract(diamondAddress, ownerABI, provider)
 safeOwner = safeOwner.connect(provider)
 
 // Initialize the Safe API
@@ -37,15 +39,14 @@ const main = async () => {
     await safeOwner.getAddress()
   )
 
-  // Prompt the user to choose a SAFE address
-  const choice = await enquirer.prompt({
-    type: 'select',
-    name: 'safeAddress',
-    message: 'Choose the SAFE address you would like to use.',
-    choices: res.safes,
-  })
+  const safeAddress = await contract.owner()
+  if (!res.safes.length || !res.safes.includes(safeAddress)) {
+    console.error(
+      'You do not have acccess to any SAFE addresses that can upgrade this diamond.'
+    )
+    exit(1)
+  }
 
-  const safeAddress = (<{ safeAddress: string }>choice).safeAddress
   console.info('SAFE Address: ', safeAddress)
   console.info('Diamond Address: ', diamondAddress)
 
