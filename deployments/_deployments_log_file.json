@@ -480,6 +480,20 @@
           }
         ]
       }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xaD50118509eB4c8e3E39a370151B0fD5D5957013",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:28:56",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -972,6 +986,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xc21a00a346d5b29955449Ca912343a3bB4c5552f",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:29:11",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -1471,6 +1499,20 @@
           }
         ]
       }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6faA6906b9e4A59020e673910105567e809789E0",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:29:34",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "DexManagerFacet": {
@@ -1926,6 +1968,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4bEAa5D26300e81cd17e0981fc15494Bb4B10959",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:29:49",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -2386,6 +2442,20 @@
           }
         ]
       }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:30:02",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -2841,6 +2911,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:30:53",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -3329,6 +3413,20 @@
           }
         ]
       }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:31:23",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -3786,6 +3884,20 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce4400000000000000000000000093bb2f207b9e3d8baa3523fa2ce3d8411fc419b8",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:37:16",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000ad50118509eb4c8e3e39a370151b0fd5d5957013",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -5093,6 +5205,20 @@
           }
         ]
       }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xE0c5e721b40D54f2aA09418B1237db9d88220C73",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:32:20",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "HopFacetOptimized": {
@@ -5968,6 +6094,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:31:52",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -7452,6 +7592,20 @@
           }
         ]
       }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:38:38",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "Executor": {
@@ -8096,6 +8250,20 @@
           }
         ]
       }
+    },
+    "opbnb": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:39:03",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000005741a7ffe7c39ca175546a54985fa79211290b51",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -8551,6 +8719,20 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x44Ff747185C9Df233D07536E08341ff624896164",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:39:17",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -9408,6 +9590,20 @@
           }
         ]
       }
+    },
+    "opbnb": {
+      "production": {
+        "2.0.1": [
+          {
+            "ADDRESS": "0xddc22EAaa960e052946D842cEC61eb91bbE06eeD",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:40:54",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002dfadab8266483bed9fd9a292ce56596a2d1378d00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "ServiceFeeCollector": {
@@ -9851,6 +10047,20 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC85c2B19958D116d79C654ecE73b359c08802A76",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:41:17",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -13014,6 +13224,20 @@
           }
         ]
       }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2E61751366B7e006f8D53becB4b697890B30144F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:36:34",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "CalldataVerificationFacet": {
@@ -13794,6 +14018,20 @@
             "TIMESTAMP": "2023-10-11 14:04:54",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "opbnb": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-09-18 11:36:54",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }

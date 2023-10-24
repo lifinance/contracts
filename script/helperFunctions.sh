@@ -872,8 +872,7 @@ function checkRequiredVariablesInDotEnv() {
   fi
 
   local PRIVATE_KEY="$PRIVATE_KEY"
-  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
-  local RPC_URL="${!RPC}"
+  local RPC_URL=$(getRPCUrl "$NETWORK")
 
   # special handling for BSC testnet
   # uses same block explorer key as bsc mainnet
@@ -1139,7 +1138,7 @@ function parseTargetStateGoogleSpreadsheet() {
     # Increment the line number
     ((LINE_NUMBER++))
 
-#    echoDebug "LINE $LINE_NUMBER: $LINE"
+    #    echoDebug "LINE $LINE_NUMBER: $LINE"
 
     # find and store the row that contains all the contract names (determined by recognizing hardcoded value in cell A1)
     if [[ "$LINE" == *"Blue = Periphery"* ]]; then
@@ -2811,6 +2810,10 @@ function getChainId() {
     ;;
   "linea")
     echo "59144"
+    return 0
+    ;;
+  "opbnb")
+    echo "204"
     return 0
     ;;
   "localanvil")

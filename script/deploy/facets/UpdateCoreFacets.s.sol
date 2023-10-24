@@ -44,6 +44,11 @@ contract DeployScript is UpdateScriptBase {
 
         if (!loupeExists) {
             buildInitialCut(selectors, diamondLoupe);
+            vm.startBroadcast(deployerPrivateKey);
+            if (cut.length > 0) {
+                cutter.diamondCut(cut, address(0), "");
+            }
+            vm.stopBroadcast();
         }
 
         // Ownership Facet
@@ -92,17 +97,6 @@ contract DeployScript is UpdateScriptBase {
             buildDiamondCut(selectors, liFuelAddress);
         } else {
             buildInitialCut(selectors, liFuelAddress);
-        }
-        if (noBroadcast) {
-            if (cut.length > 0) {
-                cutData = abi.encodeWithSelector(
-                    DiamondCutFacet.diamondCut.selector,
-                    cut,
-                    address(0),
-                    ""
-                );
-            }
-            return (facets, cutData);
         }
 
         // GenericSwapFacet

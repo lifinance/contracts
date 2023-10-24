@@ -79,6 +79,10 @@
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
   },
+  "opbnb": {
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "0"
+  },
   "optimism": {
     "connextHandler": "0x8f7492DE823025b4CfaAB1D34c58963F2af5DEDA",
     "domain": "1869640809"
