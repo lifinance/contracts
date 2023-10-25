@@ -24,5 +24,6 @@
   "CelerIMFacetMutable": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
   "RelayerCelerIM": "0x1C97BE47f6Da4d2e09B3A11B0A17C513dfD0e896",
   "StandardizedCallFacet": "0x2E61751366B7e006f8D53becB4b697890B30144F",
-  "CalldataVerificationFacet": "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0"
+  "CalldataVerificationFacet": "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0",
+  "LiFuelFeeCollector": "0xdFC2983401614118E1F2D5A5FD93C17Fecf8BdC6"
 }

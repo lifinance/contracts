@@ -53,9 +53,9 @@
         "Name": "PolygonBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x6E30A793AD7679e3754311db960eE4ED0DcE57fA": {
+      "0x31e3b5611FBb1a90d35039fCC9656649e7Fd482b": {
         "Name": "StargateFacet",
-        "Version": "2.1.0"
+        "Version": "2.2.0"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
@@ -110,9 +110,10 @@
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
-      "Receiver": "0xE86E49C05dBBC72427678B3cd1F5fd14b6c90D12",
+      "Receiver": "0x050e198E36A73a1e32F15C3afC58C4506d82f657",
       "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
-      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D"
+      "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
+      "LiFuelFeeCollector": "0xdFC2983401614118E1F2D5A5FD93C17Fecf8BdC6"
     }
   }
 }
