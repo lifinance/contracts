@@ -33,9 +33,9 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
-      "0x6E30A793AD7679e3754311db960eE4ED0DcE57fA": {
+      "0x31e3b5611FBb1a90d35039fCC9656649e7Fd482b": {
         "Name": "StargateFacet",
-        "Version": "2.1.0"
+        "Version": "2.2.0"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
