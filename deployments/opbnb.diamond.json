@@ -52,7 +52,8 @@
       "FeeCollector": "0x44Ff747185C9Df233D07536E08341ff624896164",
       "Receiver": "0xddc22EAaa960e052946D842cEC61eb91bbE06eeD",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0xC85c2B19958D116d79C654ecE73b359c08802A76"
+      "ServiceFeeCollector": "0xC85c2B19958D116d79C654ecE73b359c08802A76",
+      "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE"
     }
   }
 }
