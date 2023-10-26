@@ -64,4 +64,4 @@ export default func
 
 func.id = 'deploy_lifuel_fee_collector'
 func.tags = ['DeployLiFuelFeeCollector']
-// func.dependencies = ['DeployPeripheryRegistryFacet']
+func.dependencies = ['DeployPeripheryRegistryFacet']
