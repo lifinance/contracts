@@ -13979,12 +13979,12 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0xdFC2983401614118E1F2D5A5FD93C17Fecf8BdC6",
+            "ADDRESS": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-10-10 15:37:19",
+            "TIMESTAMP": "2023-10-26 11:28:49",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
