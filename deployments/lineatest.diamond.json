@@ -54,7 +54,8 @@
       "FusePoolZap": "",
       "Receiver": "0x4d394812874749f3cD36753F1b688926c849A814",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0x0874Be3949ABF784C11E5f822F1a54c8655904C1"
+      "ServiceFeeCollector": "0x0874Be3949ABF784C11E5f822F1a54c8655904C1",
+      "LiFuelFeeCollector": "0xdFC2983401614118E1F2D5A5FD93C17Fecf8BdC6"
     }
   },
   "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
