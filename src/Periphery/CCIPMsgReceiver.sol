@@ -16,8 +16,8 @@ import { CCIPReceiver as CCIPRcvr } from "@chainlink/contracts-ccip/src/v0.8/cci
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps
 //  and message passing via Chainlink CCIP
-/// @custom:version 2.0.2
-contract CCIPReceiver is
+/// @custom:version 0.0.1
+contract CCIPMsgReceiver is
     CCIPRcvr,
     ILiFi,
     ReentrancyGuard,
@@ -76,12 +76,8 @@ contract CCIPReceiver is
         (
             bytes32 transactionId,
             LibSwap.SwapData[] memory swapData,
-            ,
             address receiver
-        ) = abi.decode(
-                message.data,
-                (bytes32, LibSwap.SwapData[], address, address)
-            );
+        ) = abi.decode(message.data, (bytes32, LibSwap.SwapData[], address));
         _swapAndCompleteBridgeTokens(
             transactionId,
             swapData,

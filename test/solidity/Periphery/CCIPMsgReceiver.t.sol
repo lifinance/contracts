@@ -3,16 +3,16 @@ pragma solidity 0.8.17;
 
 import { Test, TestBase, LiFiDiamond, DSTest, ILiFi, LibSwap, LibAllowList, console, InvalidAmount, ERC20, UniswapV2Router02 } from "../utils/TestBase.sol";
 import { OnlyContractOwner } from "src/Errors/GenericErrors.sol";
-import { CCIPReceiver } from "lifi/Periphery/CCIPReceiver.sol";
+import { CCIPMsgReceiver } from "lifi/Periphery/CCIPMsgReceiver.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 import { Client } from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 
-contract CCIPReceiverTest is TestBase {
+contract CCIPMsgReceiverTest is TestBase {
     using stdJson for string;
 
-    CCIPReceiver internal receiver;
+    CCIPMsgReceiver internal receiver;
 
     error UnAuthorized();
 
@@ -38,7 +38,7 @@ contract CCIPReceiverTest is TestBase {
 
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(erc20Proxy));
-        receiver = new CCIPReceiver(
+        receiver = new CCIPMsgReceiver(
             address(this),
             ccipRouter,
             address(executor),
@@ -103,14 +103,9 @@ contract CCIPReceiverTest is TestBase {
             })
         );
 
-        // create callData that will be sent to our CCIPReceiver
+        // create callData that will be sent to our CCIPMsgReceiver
         bytes32 txId = keccak256("txId");
-        bytes memory payload = abi.encode(
-            txId,
-            swapData,
-            USER_RECEIVER,
-            USER_RECEIVER
-        );
+        bytes memory payload = abi.encode(txId, swapData, USER_RECEIVER);
 
         // fund receiver with sufficient DAI to execute swap
         vm.startPrank(USER_DAI_WHALE);
@@ -161,18 +156,13 @@ contract CCIPReceiverTest is TestBase {
     }
 
     function test_CCIP_EmitsCorrectEventOnRecovery() public {
-        // (mock) transfer "bridged funds" to CCIPReceiver.sol
+        // (mock) transfer "bridged funds" to CCIPMsgReceiver.sol
         bytes32 txId = keccak256("txId");
         vm.startPrank(USER_SENDER);
         usdc.transfer(address(receiver), defaultUSDCAmount);
         vm.stopPrank();
 
-        bytes memory payload = abi.encode(
-            txId,
-            swapData,
-            address(1),
-            address(1)
-        );
+        bytes memory payload = abi.encode(txId, swapData, address(1));
 
         vm.startPrank(ccipRouter);
         vm.expectEmit(true, true, true, true, address(receiver));

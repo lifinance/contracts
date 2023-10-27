@@ -315,6 +315,13 @@
         "StargateFacet": "2.2.0",
         "HopFacetOptimized": "2.0.0"
       }
+    },
+    "staging": {
+      "LiFiDiamond": {
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "CCIPMsgReceiver": "1.0.0"
+      }
     }
   },
   "bsc": {

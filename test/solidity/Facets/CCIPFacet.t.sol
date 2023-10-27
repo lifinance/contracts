@@ -116,7 +116,7 @@ contract CCIPFacetTest is Test, DiamondTest {
             hasSourceSwaps: false,
             hasDestinationCall: false
         });
-        validCCIPData = CCIPFacet.CCIPData("", "");
+        validCCIPData = CCIPFacet.CCIPData("", "", address(this));
     }
 
     function testRevertToBridgeTokensWhenSendingAmountIsZero() public {

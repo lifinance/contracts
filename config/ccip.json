@@ -12,6 +12,9 @@
     "avalanche": {
       "router": "0x27F39D0af3303703750D4001fCc1844c6491563c"
     },
+    "base": {
+      "router": "0x673aa85efd75080031d44fca061575d1da427a28"
+    },
     "mumbai": {
       "router": "0x70499c328e1E2a3c41108bd3730F6670a44595D1"
     },
@@ -38,6 +41,10 @@
     {
       "chainId": 137,
       "selector": 4051577828743386545
+    },
+    {
+      "chainId": 8453,
+      "selector": 15971525489660198786
     }
   ],
   "testChainSelectors": [

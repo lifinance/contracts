@@ -32,6 +32,7 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct CCIPData {
         bytes callData;
         bytes extraArgs;
+        address receiver;
     }
 
     /// @dev Local storage layout for CCIP
@@ -148,7 +149,7 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         });
 
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
-            receiver: abi.encode(_bridgeData.receiver),
+            receiver: abi.encode(_ccipData.receiver),
             data: _ccipData.callData,
             tokenAmounts: amounts,
             feeToken: address(0),
@@ -194,7 +195,7 @@ contract CCIPFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         });
 
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
-            receiver: abi.encode(_bridgeData.receiver),
+            receiver: abi.encode(_ccipData.receiver),
             data: _ccipData.callData,
             tokenAmounts: amounts,
             feeToken: address(0),

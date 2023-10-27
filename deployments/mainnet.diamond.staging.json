@@ -63,7 +63,7 @@
       },
       "0xe7072402217EfF9b73cf457731cEE2A3824360dc": {
         "Name": "AllBridgeFacet",
-        "Version": "2.0.0"
+        "Version": ""
       },
       "0x987f67811Ef841da0466746E10B4139Daff95053": {
         "Name": "ArbitrumBridgeFacet",
@@ -93,15 +93,17 @@
         "Name": "OptimismBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x6982237928de8e4a1a3622226D3a9C2bd89515Fc": {
+      "0x9BE903AB2ad61dfC71f7E2171A3dBf0884a4cdBF": {
         "Name": "CCIPFacet",
         "Version": "0.0.1"
       }
     },
     "Periphery": {
+      "CCIPMsgReceiver": "",
       "ERC20Proxy": "0x0654EbA982ec082036A3D0f59964D302f1ba5cdA",
       "Executor": "0xBe27F03C8e6a61E2a4B1EE7940dbcb9204744d1c",
       "FeeCollector": "0x9ca271A532392230EAe919Fb5460aEa9D9718424",
+      "LiFuelFeeCollector": "",
       "Receiver": "0xC850013FC01A264018D58D112000E32835D15fBC",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0xf068cc770f32042Ff4a8fD196045641234dFaa47"
