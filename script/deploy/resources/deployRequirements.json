@@ -296,6 +296,16 @@
         "configFileName": "stargate.json",
         "keyInConfigFile": ".routers.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
+      },
+      "_nativeRouters": {
+        "configFileName": "stargate.json",
+        "keyInConfigFile": ".nativeRouters.<NETWORK>",
+        "allowToDeployWithZeroAddress": "true"
+      },
+      "_composer": {
+        "configFileName": "stargate.json",
+        "keyInConfigFile": ".composers.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   },
@@ -371,6 +381,15 @@
       "_owner": {
         "configFileName": "global.json",
         "keyInConfigFile": ".withdrawWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "LiFuelFeeCollector": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".lifuelRebalanceWallet",
         "allowToDeployWithZeroAddress": "false"
       }
     }
