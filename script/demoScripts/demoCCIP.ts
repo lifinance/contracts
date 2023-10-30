@@ -14,8 +14,8 @@ const R_TOKEN_ADDRESS = '0x183015a9ba6ff60230fdeadc3f43b3d788b13e21'
 const R_TOKEN_ADDRESS_BASE = '0xaFB2820316e7Bc5Ef78d295AB9b8Bb2257534576'
 const USDC_TOKEN_ADDRESS_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
 const UNISWAP_ADDRESS = '0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43'
-const CCIP_MSG_RECEIVER_ADDR = '0x867C971a7411eE369EA18d282Df06393236bAb77'
-const L2_GAS = 20000 // L2 Gas, Don't need to change it.
+const CCIP_MSG_RECEIVER_ADDR = '0x76ad5bC7B89E951915010b5d5d24d045dC15D976'
+const EXECUTOR_ADDR = '0xECeD7eB0FF5c63DE883F7DEe66af24f58faC417b'
 const destinationChainId = 8453 // Base Chain
 
 async function main() {
@@ -63,14 +63,14 @@ async function main() {
   const path = [R_TOKEN_ADDRESS_BASE, USDC_TOKEN_ADDRESS_BASE]
   const deadline = Math.floor(Date.now() / 1000) + 60 * 45 // 45 minutes from the current Unix time
 
-  const amountOutMin = utils.parseEther('0.99')
+  const amountOutMin = utils.parseEther('1')
   const usdcAmountOutMin = utils.parseUnits('0.95', 6)
 
   const swapData = await uniswap.populateTransaction.swapExactTokensForTokens(
     amountOutMin,
     usdcAmountOutMin,
     path,
-    CCIP_MSG_RECEIVER_ADDR,
+    EXECUTOR_ADDR,
     deadline
   )
 
@@ -78,6 +78,7 @@ async function main() {
     [
       'bytes32',
       'tuple(address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[]',
+      'address',
     ],
     [
       lifiData.transactionId,
@@ -92,6 +93,7 @@ async function main() {
           requiresDeposit: true,
         },
       ],
+      walletAddress,
     ]
   )
 
