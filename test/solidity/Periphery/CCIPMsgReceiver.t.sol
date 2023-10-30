@@ -105,7 +105,7 @@ contract CCIPMsgReceiverTest is TestBase {
 
         // create callData that will be sent to our CCIPMsgReceiver
         bytes32 txId = keccak256("txId");
-        bytes memory payload = abi.encode(txId, swapData, USER_RECEIVER);
+        bytes memory payload = abi.encode(txId, swapData);
 
         // fund receiver with sufficient DAI to execute swap
         vm.startPrank(USER_DAI_WHALE);
@@ -162,14 +162,14 @@ contract CCIPMsgReceiverTest is TestBase {
         usdc.transfer(address(receiver), defaultUSDCAmount);
         vm.stopPrank();
 
-        bytes memory payload = abi.encode(txId, swapData, address(1));
+        bytes memory payload = abi.encode(txId, swapData);
 
         vm.startPrank(ccipRouter);
         vm.expectEmit(true, true, true, true, address(receiver));
         emit LiFiTransferRecovered(
             txId,
             ADDRESS_USDC,
-            address(1),
+            address(receiver),
             defaultUSDCAmount,
             block.timestamp
         );

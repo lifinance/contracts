@@ -73,16 +73,13 @@ contract CCIPMsgReceiver is
         Client.Any2EVMMessage memory message
     ) internal override {
         // Extract swap data from message
-        (
-            bytes32 transactionId,
-            LibSwap.SwapData[] memory swapData,
-            address receiver
-        ) = abi.decode(message.data, (bytes32, LibSwap.SwapData[], address));
+        (bytes32 transactionId, LibSwap.SwapData[] memory swapData) = abi
+            .decode(message.data, (bytes32, LibSwap.SwapData[]));
         _swapAndCompleteBridgeTokens(
             transactionId,
             swapData,
             message.destTokenAmounts[0].token,
-            payable(receiver),
+            payable(msg.sender),
             message.destTokenAmounts[0].amount
         );
     }

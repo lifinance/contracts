@@ -43,7 +43,7 @@ async function main() {
     bridge: 'CCIP',
     integrator: 'ACME Devs',
     referrer: constants.AddressZero,
-    sendingAssetId: constants.AddressZero,
+    sendingAssetId: R_TOKEN_ADDRESS,
     receiver: walletAddress,
     minAmount: amount,
     destinationChainId: destinationChainId,
@@ -54,17 +54,17 @@ async function main() {
   // Bridge ERC20
   lifiData.sendingAssetId = R_TOKEN_ADDRESS
 
-  const extraArgs = await lifi.encodeDestinationArgs(0, false)
+  const extraArgs = await lifi.encodeDestinationArgs(1000000, false)
 
   // Swap Data
   const uniswap = new Contract(UNISWAP_ADDRESS, [
     'function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
   ])
   const path = [R_TOKEN_ADDRESS_BASE, USDC_TOKEN_ADDRESS_BASE]
-  const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes from the current Unix time
+  const deadline = Math.floor(Date.now() / 1000) + 60 * 45 // 45 minutes from the current Unix time
 
   const amountOutMin = utils.parseEther('0.99')
-  const usdcAmountOutMin = utils.parseUnits('0.98', 6)
+  const usdcAmountOutMin = utils.parseUnits('0.95', 6)
 
   const swapData = await uniswap.populateTransaction.swapExactTokensForTokens(
     amountOutMin,
@@ -119,6 +119,7 @@ async function main() {
   })
   msg('TX Sent. Waiting for receipt...')
   await tx.wait()
+  msg('TX Hash: ' + tx.hash)
   msg('Done!')
 }
 
