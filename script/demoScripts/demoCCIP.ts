@@ -78,7 +78,6 @@ async function main() {
     [
       'bytes32',
       'tuple(address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[]',
-      'address',
     ],
     [
       lifiData.transactionId,
@@ -93,7 +92,6 @@ async function main() {
           requiresDeposit: true,
         },
       ],
-      walletAddress,
     ]
   )
 
