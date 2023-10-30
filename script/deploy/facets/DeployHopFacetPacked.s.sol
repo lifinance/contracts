@@ -26,7 +26,12 @@ contract DeployScript is DeployScriptBase {
         deployed = HopFacetPacked(deploy(type(HopFacetPacked).creationCode));
     }
 
-    function getConstructorArgs() internal override returns (bytes memory) {
+    function getConstructorArgs()
+        internal
+        view
+        override
+        returns (bytes memory)
+    {
         string memory path = string.concat(root, "/config/hop.json");
         string memory json = vm.readFile(path);
 

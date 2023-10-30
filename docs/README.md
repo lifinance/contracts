@@ -21,6 +21,7 @@
 - [LIFuel Facet](./LIFuelFacet.md)
 - [MakerTeleport Facet](./MakerTeleportFacet.md)
 - [Multichain Facet](./MultichainFacet.md)
+- [OFTWrapper Facet](./OFTWrapperFacet.md)
 - [OmniBridge Facet](./OmniBridgeFacet.md)
 - [Optimism Bridge Facet](./OptimismBridgeFacet.md)
 - [Periphery Registry Facet](./PeripheryRegistryFacet.md)

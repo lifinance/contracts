@@ -1,0 +1,184 @@
+{
+  "chains": [
+    {
+      "chainId": 1,
+      "layerZeroChainId": 101
+    },
+    {
+      "chainId": 56,
+      "layerZeroChainId": 102
+    },
+    {
+      "chainId": 43114,
+      "layerZeroChainId": 106
+    },
+    {
+      "chainId": 137,
+      "layerZeroChainId": 109
+    },
+    {
+      "chainId": 42161,
+      "layerZeroChainId": 110
+    },
+    {
+      "chainId": 10,
+      "layerZeroChainId": 111
+    },
+    {
+      "chainId": 250,
+      "layerZeroChainId": 112
+    },
+    {
+      "chainId": 42220,
+      "layerZeroChainId": 125
+    },
+    {
+      "chainId": 1284,
+      "layerZeroChainId": 126
+    },
+    {
+      "chainId": 122,
+      "layerZeroChainId": 138
+    },
+    {
+      "chainId": 100,
+      "layerZeroChainId": 145
+    },
+    {
+      "chainId": 66,
+      "layerZeroChainId": 155
+    },
+    {
+      "chainId": 1101,
+      "layerZeroChainId": 158
+    },
+    {
+      "chainId": 324,
+      "layerZeroChainId": 165
+    },
+    {
+      "chainId": 1285,
+      "layerZeroChainId": 167
+    },
+    {
+      "chainId": 59144,
+      "layerZeroChainId": 183
+    },
+    {
+      "chainId": 8453,
+      "layerZeroChainId": 184
+    }
+  ],
+  "whitelistedOftBridgeContracts": {
+    "mainnet": [
+      "0x45e563c39cDdbA8699A90078F42353A57509543a",
+      "0xAf5191B0De278C7286d6C7CC6ab6BB8A73bA2Cd6",
+      "0x4Fa745FCCC04555F2AFA8874cd23961636CdF982",
+      "0x1056178977457A5F4BE33929520455A7d2E28670",
+      "0x2297aEbD383787A160DD0d9F71508148769342E3",
+      "0x152649eA73beAb28c5b49B26eb48f7EAD6d4c898",
+      "0xa8b326ca02650ac968c554d6c534412e49c92bc4",
+      "0xa10bf0aBa0C7953F279c4Cb8192d3B5dE5eA56E8",
+      "0x7DEdBce5a2E31E4c75f87FeA60bF796C17718715",
+      "0x83e817E1574e2201a005EC0f7e700ED5606F555E",
+      "0x439a5f0f5E8d149DDA9a0Ca367D4a8e4D6f83C10",
+      "0xc31C504d7Ef537CEE23a95B95045Ec28Aa632b32",
+      "0x4Fa745FCCC04555F2AFA8874cd23961636CdF982",
+      "0x1056178977457A5F4BE33929520455A7d2E28670"
+    ],
+    "bsc": [
+      "0xe9f183FC656656f1F17af1F2b0dF79b8fF9ad8eD",
+      "0x16cd38b1B54E7abf307Cb2697E2D9321e843d5AA",
+      "0xB0D502E938ed5f4df2E681fE6E419ff29631d62b",
+      "0x2297aEbD383787A160DD0d9F71508148769342E3",
+      "0xb274202daBA6AE180c665B4fbE59857b7c3a8091",
+      "0xf7de7e8a6bd59ed41a4b5fe50278b3b7f31384df",
+      "0x371c7ec6D8039ff7933a2AA28EB827Ffe1F52f07",
+      "0x91d6d6af7635b7b23a8ced9508117965180e2362",
+      "0x982E609643794a31A07F5C5b142DD3a9cF0690be",
+      "0xCAB0838EAF7C34ba8C6713b7f395c36df33A1c54",
+      "0x6e5b15894106a5e2ea9d26ae45354ad004291ef5",
+      "0x5012c90F14d190607662CA8344120812Aaa2639D",
+      "0x0465aad9da170798433F4aB7fa7Ec8b9b9bf0Bb1",
+      "0xe9f183FC656656f1F17af1F2b0dF79b8fF9ad8eD",
+      "0x16cd38b1B54E7abf307Cb2697E2D9321e843d5AA"
+    ],
+    "arbitrum": [
+      "0x20B3834091f038Ce04D8686FAC99CA44A0FB285c",
+      "0x16cd38b1B54E7abf307Cb2697E2D9321e843d5AA",
+      "0x366CEE609A64037a4910868c5b3cd62b9D019695",
+      "0x6694340fc020c5E6B96567843da2df01b2CE1eb6",
+      "0x2297aEbD383787A160DD0d9F71508148769342E3",
+      "0x3082CC23568eA640225c2467653dB90e9250AaA0",
+      "0x371c7ec6D8039ff7933a2AA28EB827Ffe1F52f07",
+      "0x13278cD824D33A7aDB9f0a9A84ACA7C0D2DEEBf7",
+      "0x84E0a246DD437d911989E89667816A9Ed97a1284",
+      "0xEB79217B2802dfD54b6135c19a6AA2164bBD3a51",
+      "0x2Ac2B254Bc18cD4999f64773a966E4f4869c34Ee",
+      "0xB688BA096b7Bb75d7841e47163Cd12D18B36A5bF",
+      "0x957A8Af7894E76e16DB17c2A913496a4E60B7090",
+      "0x0bb04ab98fcf145f43eb3d8e7c6d73919c0e0689",
+      "0x16cd38b1B54E7abf307Cb2697E2D9321e843d5AA",
+      "0x366CEE609A64037a4910868c5b3cd62b9D019695"
+    ],
+    "polygon": [
+      "0x2F6F07CDcf3588944Bf4C42aC74ff24bF56e7590",
+      "0x0c1EBBb61374dA1a8C57cB6681bF27178360d36F",
+      "0x2297aEbD383787A160DD0d9F71508148769342E3",
+      "0xb092e1BF50f518b3Ebf7eD26A40015183aE36AC2",
+      "0x84E0a246DD437d911989E89667816A9Ed97a1284",
+      "0x967F4B82D8B7eD38f655CCf084150180c8165AC5",
+      "0xca0d86afc25c57a6d2aCdf331CaBd4C9CEE05533",
+      "0x0c1EBBb61374dA1a8C57cB6681bF27178360d36F"
+
+    ],
+    "optimism": [
+      "0x22AE99D07584A2AE1af748De573c83f1B9Cdb4c0",
+      "0x840b25c87B626a259CA5AC32124fA752F0230a72",
+      "0x9201cC18965792808549566e6B06B016d915313A",
+      "0x296F55F8Fb28E498B858d0BcDA06D955B2Cb3f97",
+      "0x1F514A61bcde34F94Bc39731235690ab9da737F7",
+      "0x48686c24697fe9042531B64D792304e514E74339",
+      "0x4ccd13f62aaef1757d6830a477a2374a3cca091d",
+      "0x840b25c87B626a259CA5AC32124fA752F0230a72",
+      "0x9201cC18965792808549566e6B06B016d915313A"
+    ],
+    "avalanche": [
+      "0x14C00080F97B9069ae3B4Eb506ee8a633f8F5434",
+      "0xC011882d0f7672D8942e7fE2248C174eeD640c8f",
+      "0x371c7ec6d8039ff7933a2aa28eb827ffe1f52f07",
+      "0x5ECfeC22AA950CB5A3b4fd7249DC30B2BD160f18",
+      "0xB3a66127cCB143bFB01D3AECd3cE9D17381B130d",
+      "0x14C00080F97B9069ae3B4Eb506ee8a633f8F5434",
+      "0xC011882d0f7672D8942e7fE2248C174eeD640c8f"
+    ],
+    "celo": [
+      "0xf1dDcACA7D17f8030Ab2eb54f2D9811365EFe123"
+    ],
+    "gnosis": [
+      "0xFA5Ed56A203466CbBC2430a43c66b9D8723528E7"
+    ],
+    "polygonzkevm": [
+      "0x2859a4eBcB58c8Dd5cAC1419C4F63A071b642B20"
+    ],
+    "fantom": [
+      "0x2F6F07CDcf3588944Bf4C42aC74ff24bF56e7590",
+      "0xb7C2ddB1EBAc1056231ef22c1b0A13988537a274",
+      "0xc5c01568a3B5d8c203964049615401Aaf0783191"
+    ],
+    "base": [
+      "0xE3B53AF74a4BF62Ae5511055290838050bf764Df",
+      "0xF544251D25f3d243A36B07e7E7962a678f952691"
+
+    ],
+    "linea": [
+      "0x808d7c71ad2ba3FA531b068a2417C63106BC0949"
+    ],
+    "zksync": [
+      "0x7F2FD959013eEC5144269ac6edD0015Cb10968Fc"
+    ],
+    "moonriver": [
+      "0xeF2dBDfeC54c466F7Ff92C9c5c75aBB6794f0195"
+    ]
+  }
+}

@@ -64,6 +64,10 @@
       "0x98e3E949E8310D836A625495eA70eEAa92073862": {
         "Name": "AcrossFacet",
         "Version": "2.0.0"
+      },
+      "0xF965f52046D7095d5080bD31459601F4Eb24f72D": {
+        "Name": "OFTWrapperFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

@@ -92,6 +92,10 @@
       "0x16d7Cff1992F17E46fa98284CCaAC1A19788B6B9": {
         "Name": "CelerCircleBridgeFacet",
         "Version": "1.0.1"
+      },
+      "0xF965f52046D7095d5080bD31459601F4Eb24f72D": {
+        "Name": "OFTWrapperFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

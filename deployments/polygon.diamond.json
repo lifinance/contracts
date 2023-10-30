@@ -81,9 +81,13 @@
         "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       },
-      "0x31e3b5611FBb1a90d35039fCC9656649e7Fd482b": {
+      "0x6E30A793AD7679e3754311db960eE4ED0DcE57fA": {
         "Name": "StargateFacet",
-        "Version": "2.2.0"
+        "Version": "2.1.0"
+      },
+      "0x9558CacEAC173Bdf32fb4cd7067e9e3c3b4c155e": {
+        "Name": "OFTWrapperFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

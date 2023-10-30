@@ -1,0 +1,23 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "0x8C6CB49063F377a8fAbDbFeC31505FC6b4b8a56c": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0x8279cf63e766B915a236FF14A5DC38CD1a5938E3": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0x2fBE5f28614036aB8B7ed712575C0b6ea733Cb05": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x953B1b6f8AC25718bCbd1DcE4614e40745496EA8": {
+        "Name": "LiFiDiamond",
+        "Version": "1.0.0"
+      }
+    },
+    "Periphery": {}
+  }
+}

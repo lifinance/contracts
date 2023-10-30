@@ -174,7 +174,8 @@ export const getContractVersion = function (path: string): string {
 export const deployFacet = async function (
   hre: HardhatRuntimeEnvironment,
   name: string,
-  options?: { address?: string; args?: any[] }
+  options?: { address?: string; args?: any[] },
+  initData = ''
 ) {
   if (network.name !== 'zksync' && network.name !== 'zksyncGoerli') {
     return
@@ -194,7 +195,7 @@ export const deployFacet = async function (
   const facet = await ethers.getContract(name)
   const diamond = await ethers.getContract(diamondContractName)
 
-  await addOrReplaceFacets([facet], diamond.address)
+  await addOrReplaceFacets([facet], diamond.address, facet.address, initData)
 
   const isVerified = await verifyContract(hre, name, {
     address: facet.address,

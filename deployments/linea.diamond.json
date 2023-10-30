@@ -56,6 +56,10 @@
       "0x6F1330cC587a2be7eC61e04ba64267ff90cC0315": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
+      },
+      "0xFa3f966fDf2eC20ef92d399A0012131915ccb9Fc": {
+        "Name": "OFTWrapperFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
