@@ -64,7 +64,7 @@ async function main() {
   const deadline = Math.floor(Date.now() / 1000) + 60 * 45 // 45 minutes from the current Unix time
 
   const amountOutMin = utils.parseEther('1')
-  const usdcAmountOutMin = utils.parseUnits('0.95', 6)
+  const usdcAmountOutMin = utils.parseUnits('0.80', 6)
 
   const swapData = await uniswap.populateTransaction.swapExactTokensForTokens(
     amountOutMin,
