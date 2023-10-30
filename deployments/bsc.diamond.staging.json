@@ -41,18 +41,22 @@
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0x04BD4b6430483cFdD0450D0aFb08633d33C93275": {
-        "Name": "OFTWrapperFacet",
-        "Version": "1.1.0"
+      "0x4E32c544a3498AE561c89E71Bcc7582C79D7eA84": {
+        "Name": "",
+        "Version": ""
       },
       "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
       "0xAfcC5c55d5Ec3082675D51331E7Ed9AdE195db48": {
-        "Name": "",
-        "Version": ""
-      }
+        "Name": "StargateFacet",
+        "Version": "2.2.0"
+      },
+      "0x04BD4b6430483cFdD0450D0aFb08633d33C93275": {
+        "Name": "OFTWrapperFacet",
+        "Version": "1.1.0"
+      },
     },
     "Periphery": {
       "ERC20Proxy": "0xf90a432dD1D0541470BC9C440d9dEc3659755238",

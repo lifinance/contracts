@@ -18,5 +18,6 @@
   "LIFuelFacet": "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF",
   "LiFiDiamondImmutable": "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF",
   "StandardizedCallFacet": "0x2E61751366B7e006f8D53becB4b697890B30144F",
-  "CalldataVerificationFacet": "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0"
+  "CalldataVerificationFacet": "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0",
+  "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE"
 }
