@@ -47,7 +47,7 @@
       }
     },
     "Periphery": {
-      "CCIPMsgReceiver": "0x76ad5bC7B89E951915010b5d5d24d045dC15D976",
+      "CCIPMsgReceiver": "0x409b24418bBF1F293B5EaF33b8aC99147A01626b",
       "ERC20Proxy": "0x133E6EA10e1c70C17D957A3c36078bEc443ef7D5",
       "Executor": "0xECeD7eB0FF5c63DE883F7DEe66af24f58faC417b",
       "FeeCollector": "",
