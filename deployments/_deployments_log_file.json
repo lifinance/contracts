@@ -11215,6 +11215,20 @@
           }
         ]
       }
+    },
+    "avalanche": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x813389EF03b9B74dDFf991636EeEaE6Ce1606277",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-10-31 12:35:35",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000bbbd1bbb4f9b936c3604906d7592a644071de884",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "ArbitrumBridgeFacet": {
