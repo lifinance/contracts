@@ -11220,11 +11220,11 @@
       "production": {
         "2.0.0": [
           {
-            "ADDRESS": "0x813389EF03b9B74dDFf991636EeEaE6Ce1606277",
+            "ADDRESS": "0x85f9c55B22bd2c389b560130F878CeB8b289C4c4",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-10-31 12:35:35",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000bbbd1bbb4f9b936c3604906d7592a644071de884",
-            "SALT": "",
+            "TIMESTAMP": "2023-11-01 11:34:36",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009068e1c28941d0a680197cc03be8afe27ccaeea9",
+            "SALT": "01112023",
             "VERIFIED": "true"
           }
         ]
