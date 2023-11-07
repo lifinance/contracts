@@ -1043,6 +1043,12 @@
         "bridge": "0xCbb852A6274e03fA00fb4895dE0463f66dF27a11",
         "token": "0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f",
         "ammWrapper": "0xC8A4FB931e8D77df8497790381CA7d228E68a41b"
+      },
+      {
+        "name": "ETH",
+        "bridge": "0xCbb852A6274e03fA00fb4895dE0463f66dF27a11",
+        "token": "0x0000000000000000000000000000000000000000",
+        "ammWrapper": "0xC8A4FB931e8D77df8497790381CA7d228E68a41b"
       }
     ],
     "approvals": [
