@@ -4,15 +4,15 @@
     "tokens": [
       {
         "assetId": "0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f",
-        "bridge": "0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4"
+        "bridge": "0x39Ea01a0298C315d149a490E34B59Dbf2EC7e48F"
       },
       {
         "assetId": "0x6b175474e89094c44da98b954eedeac495271d0f",
-        "bridge": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1"
+        "bridge": "0x10E6593CDda8c58a1d0f14C5164B376352a55f2F"
       },
       {
         "assetId": "0xdac17f958d2ee523a2206206994597c13d831ec7",
-        "bridge": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1"
+        "bridge": "0xaBA2c5F108F7E820C049D5Af70B16ac266c8f128"
       },
       {
         "assetId": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
@@ -68,7 +68,7 @@
       },
       {
         "assetId": "0x3c513db8bdc3806e4489d62c3d549a5aaf6a4e97",
-        "bridge": "0xc98B98d17435AA00830c87eA02474C5007E1f272"
+        "bridge": "0xaBA2c5F108F7E820C049D5Af70B16ac266c8f128"
       },
       {
         "assetId": "0x01ba67aac7f75f647d94220cc98fb30fcc5105bf",
@@ -88,7 +88,7 @@
       },
       {
         "assetId": "0x0a5e677a6a24b2f1a2bf4f3bffc443231d2fdec8",
-        "bridge": "0xbfD291DA8A403DAAF7e5E9DC1ec0aCEaCd4848B9"
+        "bridge": "0xC5b1EC605738eF73a4EFc562274c1c0b6609cF59"
       },
       {
         "assetId": "0x0391d2021f89dc339f60fff84546ea23e337750f",
@@ -173,6 +173,14 @@
       {
         "assetId": "0xbb9bc244d798123fde783fcc1c72d3bb8c189413",
         "bridge": "0xd8f365c2c85648f9b89d9f1bf72c0ae4b1c36cfd"
+      },
+      {
+        "assetId": "0x8dbf9a4c99580fc7fd4024ee08f3994420035727",
+        "bridge": "0xAa029BbdC947F5205fBa0F3C11b592420B58f824"
+      },
+      {
+        "assetId": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+        "bridge": "0x76943C0D61395d8F2edF9060e1533529cAe05dE6"
       }
     ]
   },
@@ -185,7 +193,7 @@
       },
       {
         "assetId": "0x6b175474e89094c44da98b954eedeac495271d0f",
-        "bridge": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1"
+        "bridge": "0x10E6593CDda8c58a1d0f14C5164B376352a55f2F"
       },
       {
         "assetId": "0xdac17f958d2ee523a2206206994597c13d831ec7",
