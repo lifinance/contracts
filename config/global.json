@@ -1,6 +1,7 @@
 {
   "refundWallet": "0x156CeBba59DEB2cB23742F70dCb0a11cC775591F",
   "withdrawWallet": "0x08647cc950813966142A416D40C382e2c5DB73bB",
+  "lifuelRebalanceWallet": "0xC71284231A726A18ac85c94D75f9fe17A185BeAF",
   "approvedSigsForRefundWallet": [
     {
       "sig": "0x0d19e519",
