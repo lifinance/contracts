@@ -5336,6 +5336,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xf812bA858d9Fa57788dF0F792eF35752d54863F1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-11-07 10:29:58",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "HopFacet": {
@@ -5498,6 +5512,20 @@
             "ADDRESS": "0xf7D902116142c74b064864F170B8e7d4D8eCCa84",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-08-15 16:36:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "linea": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xf4E632a8be2164F93427603F6c9A73e182923b02",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-11-07 10:20:36",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -10637,6 +10665,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "1.0.6": [
+          {
+            "ADDRESS": "0x71327AF4f53E8831BD7E1adDbeD9D2b6dacE64a2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-11-07 12:35:12",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000c8a4fb931e8d77df8497790381ca7d228e68a41b",
+            "SALT": "07112023",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "AmarokFacet": {
@@ -11211,6 +11253,20 @@
             "TIMESTAMP": "2023-07-20 12:27:25",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009ce3447b58d58e8602b7306316a5ff011b92d189",
             "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "avalanche": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x85f9c55B22bd2c389b560130F878CeB8b289C4c4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-11-01 11:34:36",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009068e1c28941d0a680197cc03be8afe27ccaeea9",
+            "SALT": "01112023",
             "VERIFIED": "true"
           }
         ]
