@@ -345,4 +345,27 @@ contract ReceiverTest is TestBase {
             payload
         );
     }
+
+    // this test only works if the to-be-tested function is made public (which it shouldnt be for deployment)
+    // function test_updateSwapDataWithAmountReceived() public {
+    //     // set default swapData
+    //     setDefaultSwapDataSingleDAItoUSDC();
+
+    //     // save current amount and define new amount
+    //     uint256 amountOld = swapData[0].fromAmount;
+    //     uint256 amountNew = 12345;
+    //     assertTrue(amountNew != amountOld);
+
+    //     uint256 swapDataOldLength = swapData.length;
+
+    //     // update amount
+    //     LibSwap.SwapData[] memory swapDataNew = receiver
+    //         .updateSwapDataWithAmountReceived(swapData, amountNew);
+
+    //     // make sure amount was updated
+    //     assertEq(swapDataNew[0].fromAmount, amountNew);
+
+    //     // make sure arrays have the same size
+    //     assertTrue(swapDataOldLength == swapDataNew.length);
+    // }
 }
