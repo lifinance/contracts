@@ -63,8 +63,8 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
     /// External Methods ///
 
-    /// @notice Completes a cross-chain transaction with calldata via Amarok facet on the receiving chain.
-    /// @dev This function is called from Amarok Router.
+    /// @notice Completes an Amarok cross-chain transaction that includes a destination call
+    /// @dev This function is only callable by Amarok Router.
     /// @param _transferId The unique ID of this transaction (assigned by Amarok)
     /// @param _amount the amount of bridged tokens
     /// @param _asset the address of the bridged token
@@ -79,14 +79,19 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint32,
         bytes memory _callData
     ) external nonReentrant onlyAmarokRouter {
+        // decode custom payload received from bridge
         (LibSwap.SwapData[] memory swapData, address receiver) = abi.decode(
             _callData,
             (LibSwap.SwapData[], address)
         );
 
+        // update fromAmount in first swapData element with bridged amount
+        LibSwap.SwapData[] memory swapDataNew = LibSwap
+            .updateSwapDataWithAmountReceived(swapData, _amount);
+
         _swapAndCompleteBridgeTokens(
             _transferId,
-            swapData,
+            swapDataNew,
             _asset,
             payable(receiver),
             _amount,
@@ -94,8 +99,8 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         );
     }
 
-    /// @notice Completes a cross-chain transaction on the receiving chain.
-    /// @dev This function is called from Stargate Router.
+    /// @notice Completes a Stargate cross-chain transaction that includes a destination call
+    /// @dev This function is only callable by Stargate Router.
     /// @param * (unused) The remote chainId sending the tokens
     /// @param * (unused) The remote Bridge address
     /// @param * (unused) Nonce
@@ -110,20 +115,21 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
         uint256 _amountLD,
         bytes memory _payload
     ) external nonReentrant onlySGRouter {
+        // decode custom payload received from bridge
         (
             bytes32 transactionId,
             LibSwap.SwapData[] memory swapData,
-            ,
             address receiver
-        ) = abi.decode(
-                _payload,
-                (bytes32, LibSwap.SwapData[], address, address)
-            );
+        ) = abi.decode(_payload, (bytes32, LibSwap.SwapData[], address));
+
+        // update fromAmount in first swapData element with bridged amount
+        LibSwap.SwapData[] memory swapDataNew = LibSwap
+            .updateSwapDataWithAmountReceived(swapData, _amountLD);
 
         _swapAndCompleteBridgeTokens(
             transactionId,
-            swapData,
-            swapData.length > 0 ? swapData[0].sendingAssetId : _token, // If swapping assume sent token is the first token in swapData
+            swapDataNew,
+            swapDataNew.length > 0 ? swapDataNew[0].sendingAssetId : _token, // If swapping assume sent token is the first token in swapData
             payable(receiver),
             _amountLD,
             true
