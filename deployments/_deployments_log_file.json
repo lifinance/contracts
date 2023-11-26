@@ -13212,12 +13212,12 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xa696287F37d21D566B9A80AC29b2640FF910C176",
+            "ADDRESS": "0x67D2f3744f5bd9C81E5B80b4863428bE51cEc63E",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-27 18:04:38",
+            "TIMESTAMP": "2023-11-22 16:40:42",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000008f66c4ae756bebc49ec8b81966dd8bba9f127549",
-            "SALT": "27062023",
-            "VERIFIED": "true"
+            "SALT": "0210202301",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -13231,6 +13231,20 @@
             "TIMESTAMP": "2023-07-03 11:18:15",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d37bbe5744d730a1d98d8dc97c42f0ca46ad7146",
             "SALT": "27062023",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "bsc": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x67D2f3744f5bd9C81E5B80b4863428bE51cEc63E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-11-22 15:24:08",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b30ec53f98ff5947ede720d32ac2da7e52a5f56b",
+            "SALT": "0210202301",
             "VERIFIED": "true"
           }
         ]
