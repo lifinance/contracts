@@ -319,12 +319,7 @@ contract ReceiverTest is TestBase {
         usdc.transfer(address(receiver), defaultUSDCAmount);
         vm.stopPrank();
 
-        bytes memory payload = abi.encode(
-            transferId,
-            swapData,
-            address(1),
-            address(1)
-        );
+        bytes memory payload = abi.encode(transferId, swapData, address(1));
 
         vm.startPrank(stargateRouter);
         vm.expectEmit(true, true, true, true, address(receiver));
