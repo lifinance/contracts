@@ -314,10 +314,7 @@ contract ReceiverTest is TestBase {
     }
 
     function test_stargate_EmitsCorrectEventOnRecovery() public {
-        // (mock) transfer "bridged funds" to Receiver.sol
-        vm.startPrank(USER_SENDER);
-        usdc.transfer(address(receiver), defaultUSDCAmount);
-        vm.stopPrank();
+        setDefaultSwapDataSingleETHtoUSDC();
 
         bytes memory payload = abi.encode(transferId, swapData, address(1));
 
@@ -325,11 +322,14 @@ contract ReceiverTest is TestBase {
         vm.expectEmit(true, true, true, true, address(receiver));
         emit LiFiTransferRecovered(
             keccak256("123"),
-            ADDRESS_USDC,
+            address(0),
             address(1),
             defaultUSDCAmount,
             block.timestamp
         );
+
+        // deal some ETH to receiver so refund call will not fail
+        vm.deal(address(receiver), 100 ether);
 
         receiver.sgReceive{ gas: 100000 }(
             0,

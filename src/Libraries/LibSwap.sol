@@ -84,6 +84,9 @@ library LibSwap {
         SwapData[] memory swapData,
         uint256 newAmount
     ) internal pure returns (SwapData[] memory) {
+        // if Swapdata is empty, return empty array
+        if (swapData.length == 0) return swapData;
+
         // Directly modify the first element of the swapData
         swapData[0].fromAmount = newAmount;
         return swapData; // Return the modified original array
