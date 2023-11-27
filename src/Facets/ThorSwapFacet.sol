@@ -12,7 +12,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 /// @title ThorSwap Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through ThorSwap
-/// @custom:version 1.0.0
+/// @custom:version 0.0.2
 contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     address private immutable thorchainRouter;
 
@@ -77,10 +77,6 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        // Check that expiration is at least 60 minutes from now
-        if (_thorSwapData.expiration < block.timestamp + 60 minutes) {
-            revert InvalidExpiration();
-        }
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
