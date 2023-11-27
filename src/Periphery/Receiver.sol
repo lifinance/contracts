@@ -87,7 +87,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
         // update fromAmount in first swapData element with bridged amount
         LibSwap.SwapData[] memory swapDataNew = LibSwap
-            .updateSwapDataWithAmountReceived(swapData, _amount);
+            .updateFromAmountInSwapData(swapData, _amount);
 
         _swapAndCompleteBridgeTokens(
             _transferId,
@@ -124,7 +124,7 @@ contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
         // update fromAmount in first swapData element with bridged amount
         LibSwap.SwapData[] memory swapDataNew = LibSwap
-            .updateSwapDataWithAmountReceived(swapData, _amountLD);
+            .updateFromAmountInSwapData(swapData, _amountLD);
 
         _swapAndCompleteBridgeTokens(
             transactionId,

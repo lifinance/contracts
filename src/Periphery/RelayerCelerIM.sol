@@ -96,7 +96,7 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
 
         // update fromAmount in first swapData element with bridged amount
         LibSwap.SwapData[] memory swapDataNew = LibSwap
-            .updateSwapDataWithAmountReceived(swapData, _amount);
+            .updateFromAmountInSwapData(swapData, _amount);
 
         _swapAndCompleteBridgeTokens(
             transactionId,

@@ -80,27 +80,12 @@ library LibSwap {
         );
     }
 
-    function updateSwapDataWithAmountReceived(
+    function updateFromAmountInSwapData(
         SwapData[] memory swapData,
         uint256 newAmount
-    ) internal pure returns (SwapData[] memory swapDataNew) {
-        // create a copy of the swapData array
-        swapDataNew = new SwapData[](swapData.length);
-
-        // update the amount in the first element of the swapData
-        swapDataNew[0] = SwapData(
-            swapData[0].callTo,
-            swapData[0].approveTo,
-            swapData[0].sendingAssetId,
-            swapData[0].receivingAssetId,
-            newAmount,
-            swapData[0].callData,
-            swapData[0].requiresDeposit
-        );
-
-        // copy the remaining elements of the swapData
-        for (uint256 i = 1; i < swapData.length; ) {
-            swapDataNew[i] = swapData[i];
-        }
+    ) internal pure returns (SwapData[] memory) {
+        // Directly modify the first element of the swapData
+        swapData[0].fromAmount = newAmount;
+        return swapData; // Return the modified original array
     }
 }
