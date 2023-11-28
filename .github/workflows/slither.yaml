@@ -4,8 +4,8 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: crytic/slither-action@v0.1.1
+      - uses: actions/checkout@v4.1.1
+      - uses: crytic/slither-action@v0.3.0
         with:
-          node-version: 16
+          node-version: 18
         continue-on-error: true
