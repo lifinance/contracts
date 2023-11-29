@@ -23,7 +23,7 @@ jobs:
           submodules: recursive
       - uses: actions/setup-node@v4.0.0
         with:
-          node-version: '18'
+          node-version: 20
       - name: Install dev dependencies
         run: yarn install
 
