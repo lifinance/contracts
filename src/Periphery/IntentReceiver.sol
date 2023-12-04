@@ -12,10 +12,7 @@ import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Contains logic for receiving and storing swap intents
 /// @custom:version 0.0.1
-abstract contract IntentReceiver is
-    ReentrancyGuard, //TODO: challenge
-    TransferrableOwnership
-{
+abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
     /// Storage ///
@@ -67,7 +64,9 @@ abstract contract IntentReceiver is
         uint256 deadline;
     }
 
-    // Questions:
+    // Discussion Points:
+    // - for deadlines/expiration, to we work with block.timestamp (current approach) or with block.number?
+    // - FeeCollection: collect fee in FeeCollector contract (my preferred) or keep in contract and do accounting?
     // - should we only limit this to swaps or also allow some more advanced stuff (e.g. stake tokens somewhere)?
     // - should we add an additional emergency withdraw function (I would say no since it's a backdoor but it might be better to)
     // - can every DEX directly pay out to specified address or do we need logic that forwards swapped funds to user afterwards?
@@ -76,71 +75,78 @@ abstract contract IntentReceiver is
     // - is it better to split up the parameters in the events (e.g. to have receiver address indexed)?
     // - do we need to consider any gas limitations (e.g. add the option to provide gas limits, etc.)?
     // - should we bundle all intents in one contract (vs. have them split up between Receiver / RelayerCelerIM / potential future custom receivers)?
+    //   >> I would say we keep them in each contract where they belong to
+    // - the maxFee still needs to be added - but do we really need that?? I feel it adds unnecessary complexity. We are also the ones that suggest its value on srcChain
+    //   so it doesnt really protect the user any more. I think they should just trust us here (also they can see if we charge (much) more than the actual gas cost and can complain)
 
     /// @notice Allows the receiver of an intent to cancel it and send (unswapped) funds to any arbitrary refund address
-    /// @param intent details of the intent to be refunded
+    /// @param intentId the id of the intent to be cancelled
     /// @param refundTo the address that should receive the token refund
     function cancelIntent(
-        SwapIntent calldata intent,
+        bytes32 intentId,
         address payable refundTo
     ) external nonReentrant {
+        // get intent details from storage
+        SwapIntent memory intent = swapIntents[intentId];
+
         // make sure this function can only be executed by intent-receivers and
         // only for their own intents
         if (intent.receiver != msg.sender) revert UnAuthorized();
 
-        // remove intent from storage and store in tmp variable
-        SwapIntent memory intent = swapIntents[intent.id];
+        // remove intent from storage
         delete swapIntents[intent.id];
-
-        // send funds to specified receiver address
-        _sendTokens(intent.fromAsset, intent.receiver, intent.fromAmount);
 
         // emit event
         emit IntentCancelled(intent, refundTo);
+
+        // send funds to specified receiver address
+        _sendTokens(intent.fromAsset, intent.receiver, intent.fromAmount);
     }
 
     /// Restricted Methods - only callable by LI.FI (Backend) ///
 
+    /// @notice Allows the LI.FI backend to execute an (unexpired) intent
+    /// @param intentId the id of the intent to be refunded
     function executeIntent(
-        SwapIntent calldata intent,
+        bytes32 intentId,
         IntentExecution calldata exec
     ) external onlyLiFiBackend {
+        // get intent details from storage
+        SwapIntent memory intent = swapIntents[intentId];
+
         // make sure intent is not expired
         if (intent.deadline > block.timestamp) revert Expired();
+
+        // remove intent from storage
+        delete swapIntents[intent.id];
+
+        // emit event
+        emit IntentExecuted(intent);
 
         // execute the calldata provided by LI.FI backend
         (bool success, ) = exec.callTo.call{ value: exec.value }(
             exec.callData
         );
         if (!success) revert ExternalCallFailed();
-
-        // remove intent from storage
-        // (According to checks-effects-actions pattern this should be done prior to the call but since this function
-        // can only be called by our backend, we opted for saving gas without compromising security)
-        delete swapIntents[intent.id];
-
-        // emit event
-        emit IntentExecuted(intent);
     }
 
     /// @notice Allows the LI.FI backend to send (unswapped) tokens to receiver address if an intent's deadline expired
-    /// @param intent details of the expired intent to be refunded
-    function refundExpiredIntent(
-        SwapIntent calldata intent
-    ) external onlyLiFiBackend {
+    /// @param intentId the id of the intent to be refunded
+    function refundExpiredIntent(bytes32 intentId) external onlyLiFiBackend {
+        // get intent details from storage
+        SwapIntent memory intent = swapIntents[intentId];
+
         // make sure deadline is actually expired
         if (block.timestamp < intent.deadline) revert UnAuthorized();
 
-        // send funds to specified receiver address
-        _sendTokens(intent.fromAsset, intent.receiver, intent.fromAmount);
-
         // remove intent from storage
-        // (According to checks-effects-actions pattern this should be done prior to the call but since this function
-        // can only be called by our backend, we opted for saving gas without compromising security)
         delete swapIntents[intent.id];
 
         // emit event
         emit ExpiredIntentRefunded(intent);
+
+        // send funds to specified receiver address
+        _sendTokens(intent.fromAsset, intent.receiver, intent.fromAmount);
     }
 
     /// Private Methods ///
