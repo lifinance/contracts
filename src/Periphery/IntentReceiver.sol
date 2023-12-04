@@ -28,6 +28,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
 
     /// Errors ///
     error Expired();
+    error BelowMinAmount();
 
     modifier onlyLiFiBackend() {
         //TODO: make sure only wallet controlled by LiFi backend can execute this function
@@ -50,7 +51,8 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
         bytes32 id;
         address fromAsset;
         address toAsset;
-        uint256 fromAmount;
+        uint256 fromAmount; // this is the actual amount received from the bridge
+        uint256 minAmountOut; // minimum of tokens to be received by user
         uint256 deadline;
         address payable receiver;
     }
@@ -70,6 +72,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
     }
 
     // Discussion Points:
+    // - should we add a minAmountOut to the SwapIntent struct to make sure the user gets what he expects?
     // - for deadlines/expiration, to we work with block.timestamp (current approach) or with block.number?
     // - should we only limit this to swaps or also allow some more advanced stuff (e.g. stake tokens somewhere)?
     // - should we add an additional emergency withdraw function (I would say no since it's a backdoor but it might be better to)
@@ -120,6 +123,9 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
         // get intent details from storage
         SwapIntent memory intent = swapIntents[intentId];
 
+        // get initial token balance
+        uint256 initialBalance = _getBalance(intent.toAsset, intent.receiver);
+
         // make sure intent is not expired
         if (intent.deadline > block.timestamp) revert Expired();
 
@@ -137,6 +143,12 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
             exec.callData
         );
         if (!success) revert ExternalCallFailed();
+
+        // ensure toToken balance increased by minAmountOut
+        if (
+            _getBalance(intent.toAsset, intent.receiver) - initialBalance <
+            intent.minAmountOut
+        ) revert BelowMinAmount();
 
         // TODO: do we need to add functionality here to send tokens or can every DEX forward swap outcome to specified address?
     }
@@ -179,8 +191,9 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
             address fromAsset,
             address toAsset,
             address receiver,
+            uint256 minAmountOut,
             uint256 deadline
-        ) = abi.decode(payload, (address, address, address, uint256));
+        ) = abi.decode(payload, (address, address, address, uint256, uint256));
 
         // make sure received asset matches with fromAsset extracted from payload
         // if not, send received tokens straight to receiver address
@@ -192,6 +205,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
             fromAsset,
             toAsset,
             receivedAmount,
+            minAmountOut,
             payable(receiver),
             deadline
         );
@@ -206,6 +220,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
         address fromAsset,
         address toAsset,
         uint256 fromAmount,
+        uint256 minAmountOut,
         address receiver,
         uint256 deadline
     ) internal pure returns (bytes32) {
@@ -215,6 +230,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
                     fromAsset,
                     toAsset,
                     fromAmount,
+                    minAmountOut,
                     receiver,
                     deadline
                 )
@@ -226,6 +242,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
         address fromAsset,
         address toAsset,
         uint256 fromAmount,
+        uint256 minAmountOut,
         address payable receiver,
         uint256 deadline
     ) internal returns (SwapIntent memory intent) {
@@ -234,6 +251,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
             fromAsset,
             toAsset,
             fromAmount,
+            minAmountOut,
             receiver,
             deadline
         );
@@ -244,6 +262,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
             fromAsset,
             toAsset,
             fromAmount,
+            minAmountOut,
             deadline,
             payable(receiver)
         );
@@ -267,6 +286,16 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
         } else {
             IERC20(tokenAddress).safeTransfer(receiver, amount);
         }
+    }
+
+    function _getBalance(
+        address tokenAddress,
+        address account
+    ) internal view returns (uint256 balance) {
+        return
+            LibAsset.isNativeAsset(tokenAddress)
+                ? address(account).balance
+                : IERC20(tokenAddress).balanceOf(address(account));
     }
 
     /// @notice Receive native asset directly.

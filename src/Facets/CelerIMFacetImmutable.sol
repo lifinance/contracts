@@ -16,10 +16,20 @@ contract CelerIMFacetImmutable is CelerIMFacetBase {
     /// @param _relayerOwner The address that will become the owner of the RelayerCelerIM contract
     /// @param _diamondAddress The address of the diamond contract that will be connected with the RelayerCelerIM
     /// @param _cfUSDC The contract address of the Celer Flow USDC
+    /// @param _feeCollector The contract address of the FeeCollector (for dstSwaps)
     constructor(
         IMessageBus _messageBus,
         address _relayerOwner,
         address _diamondAddress,
-        address _cfUSDC
-    ) CelerIMFacetBase(_messageBus, _relayerOwner, _diamondAddress, _cfUSDC) {}
+        address _cfUSDC,
+        address _feeCollector
+    )
+        CelerIMFacetBase(
+            _messageBus,
+            _relayerOwner,
+            _diamondAddress,
+            _cfUSDC,
+            _feeCollector
+        )
+    {}
 }

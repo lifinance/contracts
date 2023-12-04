@@ -10,6 +10,7 @@ import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
+import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 
 interface Ownable {
     function owner() external returns (address);
@@ -36,6 +37,7 @@ contract RelayerCelerIMTest is TestBase {
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
     RelayerCelerIM internal relayer;
+    FeeCollector internal feeCollector;
 
     function setUp() public {
         initTestBase();
@@ -45,11 +47,13 @@ contract RelayerCelerIMTest is TestBase {
         // deploy CelerIM Receiver
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(erc20Proxy));
+        feeCollector = new FeeCollector(address(this));
         celerIMFacet = new CelerIMFacetMutable(
             IMessageBus(CBRIDGE_MESSAGEBUS_ETH),
             REFUND_WALLET,
             address(diamond),
-            CFUSDC
+            CFUSDC,
+            address(feeCollector)
         );
 
         relayer = celerIMFacet.relayer();

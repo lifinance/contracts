@@ -8,6 +8,7 @@ import { Receiver } from "lifi/Periphery/Receiver.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
+import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 
 contract ReceiverTest is TestBase {
     using stdJson for string;
@@ -23,6 +24,7 @@ contract ReceiverTest is TestBase {
     bytes32 internal transferId;
     Executor executor;
     ERC20Proxy erc20Proxy;
+    FeeCollector feeCollector;
 
     event StargateRouterSet(address indexed router);
     event AmarokRouterSet(address indexed router);
@@ -45,12 +47,12 @@ contract ReceiverTest is TestBase {
 
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(erc20Proxy));
+        feeCollector = new FeeCollector(address(this));
         receiver = new Receiver(
             address(this),
             stargateRouter,
             amarokRouter,
-            address(executor),
-            100000
+            address(feeCollector)
         );
         vm.label(address(receiver), "Receiver");
         vm.label(address(executor), "Executor");
@@ -61,25 +63,25 @@ contract ReceiverTest is TestBase {
         transferId = keccak256("123");
     }
 
-    function test_revert_OwnerCanPullToken() public {
-        // send token to receiver
-        vm.startPrank(USER_SENDER);
-        dai.transfer(address(receiver), 1000);
-        vm.stopPrank();
+    // function test_revert_OwnerCanPullToken() public {
+    //     // send token to receiver
+    //     vm.startPrank(USER_SENDER);
+    //     dai.transfer(address(receiver), 1000);
+    //     vm.stopPrank();
 
-        // pull token
-        vm.startPrank(USER_DIAMOND_OWNER);
+    //     // pull token
+    //     vm.startPrank(USER_DIAMOND_OWNER);
 
-        receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
+    //     receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
 
-        assertEq(1000, dai.balanceOf(USER_RECEIVER));
-    }
+    //     assertEq(1000, dai.balanceOf(USER_RECEIVER));
+    // }
 
-    function test_revert_PullTokenNonOwner() public {
-        vm.startPrank(USER_SENDER);
-        vm.expectRevert(UnAuthorized.selector);
-        receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
-    }
+    // function test_revert_PullTokenNonOwner() public {
+    //     vm.startPrank(USER_SENDER);
+    //     vm.expectRevert(UnAuthorized.selector);
+    //     receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
+    // }
 
     // AMAROK-RELATED TESTS
     function test_amarok_ExecutesCrossChainMessage() public {

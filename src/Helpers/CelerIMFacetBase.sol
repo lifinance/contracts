@@ -66,17 +66,20 @@ abstract contract CelerIMFacetBase is
     /// @param _relayerOwner The address that will become the owner of the RelayerCelerIM contract
     /// @param _diamondAddress The address of the diamond contract that will be connected with the RelayerCelerIM
     /// @param _cfUSDC The contract address of the Celer Flow USDC
+    /// @param _feeCollector The contract address of the FeeCollector (for dstSwaps)
     constructor(
         IMessageBus _messageBus,
         address _relayerOwner,
         address _diamondAddress,
-        address _cfUSDC
+        address _cfUSDC,
+        address _feeCollector
     ) {
         // deploy RelayerCelerIM
         relayer = new RelayerCelerIM(
             address(_messageBus),
             _relayerOwner,
-            _diamondAddress
+            _diamondAddress,
+            _feeCollector
         );
 
         // store arguments in variables
