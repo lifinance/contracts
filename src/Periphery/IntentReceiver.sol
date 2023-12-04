@@ -84,6 +84,8 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
     // - the maxFee still needs to be added - but do we really need that?? I feel it adds unnecessary complexity. We are also the ones that suggest its value on srcChain
     //   so it doesnt really protect the user any more. I think they should just trust us here (also they can see if we charge (much) more than the actual gas cost and can complain)
 
+    /// Public Methods ///
+
     /// @notice Allows the receiver of an intent to cancel it and send (unswapped) funds to any arbitrary refund address (no fee charged)
     /// @param intentId the id of the intent to be cancelled
     /// @param refundTo the address that should receive the token refund
@@ -136,6 +138,8 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
             exec.callData
         );
         if (!success) revert ExternalCallFailed();
+
+        // TODO: do we need to add functionality here to send tokens or can every DEX forward swap outcome to specified address?
     }
 
     /// @notice Allows the LI.FI backend to send (unswapped) tokens to receiver address if an intent's deadline expired
