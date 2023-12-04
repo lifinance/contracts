@@ -71,7 +71,6 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
 
     // Discussion Points:
     // - for deadlines/expiration, to we work with block.timestamp (current approach) or with block.number?
-    // - FeeCollection: collect fee in FeeCollector contract (my preferred) or keep in contract and do accounting?
     // - should we only limit this to swaps or also allow some more advanced stuff (e.g. stake tokens somewhere)?
     // - should we add an additional emergency withdraw function (I would say no since it's a backdoor but it might be better to)
     // - can every DEX directly pay out to specified address or do we need logic that forwards swapped funds to user afterwards?
