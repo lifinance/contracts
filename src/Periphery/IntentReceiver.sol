@@ -72,7 +72,6 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
     }
 
     // Discussion Points:
-    // - should we add a minAmountOut to the SwapIntent struct to make sure the user gets what he expects?
     // - for deadlines/expiration, to we work with block.timestamp (current approach) or with block.number?
     // - should we only limit this to swaps or also allow some more advanced stuff (e.g. stake tokens somewhere)?
     // - should we add an additional emergency withdraw function (I would say no since it's a backdoor but it might be better to)
