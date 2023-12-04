@@ -52,8 +52,9 @@ contract RelayerCelerIM is ILiFi, IntentReceiver {
     constructor(
         address _cBridgeMessageBusAddress,
         address _owner,
-        address _diamondAddress
-    ) IntentReceiver(_owner) {
+        address _diamondAddress,
+        address _feeCollector
+    ) IntentReceiver(_owner, _feeCollector) {
         owner = _owner;
         cBridgeMessageBus = IMessageBus(_cBridgeMessageBusAddress);
         diamondAddress = _diamondAddress;

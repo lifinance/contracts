@@ -37,8 +37,9 @@ contract Receiver is IntentReceiver {
     constructor(
         address _owner,
         address _sgRouter,
-        address _amarokRouter
-    ) IntentReceiver(_owner) {
+        address _amarokRouter,
+        address _feeCollector
+    ) IntentReceiver(_owner, _feeCollector) {
         sgRouter = _sgRouter;
         amarokRouter = _amarokRouter;
     }

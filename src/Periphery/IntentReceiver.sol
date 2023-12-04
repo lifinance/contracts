@@ -16,6 +16,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
     /// Storage ///
+    address public immutable feeCollector;
 
     /// Events ///
     event IntentAdded(SwapIntent details);
@@ -34,9 +35,12 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
     }
 
     /// Constructor
-    constructor(address _owner) TransferrableOwnership(_owner) {}
-
-    // NEW CODE
+    constructor(
+        address _owner,
+        address _feeCollector
+    ) TransferrableOwnership(_owner) {
+        feeCollector = _feeCollector;
+    }
 
     // intentId => swapIntent details
     // swaps that are executed will be deleted from this mapping
@@ -55,6 +59,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
         address callTo;
         bytes callData;
         uint256 value;
+        uint256 feeAmount;
     }
 
     struct IntentPayload {
@@ -79,7 +84,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
     // - the maxFee still needs to be added - but do we really need that?? I feel it adds unnecessary complexity. We are also the ones that suggest its value on srcChain
     //   so it doesnt really protect the user any more. I think they should just trust us here (also they can see if we charge (much) more than the actual gas cost and can complain)
 
-    /// @notice Allows the receiver of an intent to cancel it and send (unswapped) funds to any arbitrary refund address
+    /// @notice Allows the receiver of an intent to cancel it and send (unswapped) funds to any arbitrary refund address (no fee charged)
     /// @param intentId the id of the intent to be cancelled
     /// @param refundTo the address that should receive the token refund
     function cancelIntent(
@@ -105,7 +110,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
 
     /// Restricted Methods - only callable by LI.FI (Backend) ///
 
-    /// @notice Allows the LI.FI backend to execute an (unexpired) intent
+    /// @notice Allows the LI.FI backend to execute an (unexpired) intent. A fee is charged for this service to cover gas costs
     /// @param intentId the id of the intent to be refunded
     function executeIntent(
         bytes32 intentId,
@@ -123,6 +128,9 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
         // emit event
         emit IntentExecuted(intent);
 
+        // send fee to feeCollector
+        _sendTokens(intent.fromAsset, payable(feeCollector), exec.feeAmount);
+
         // execute the calldata provided by LI.FI backend
         (bool success, ) = exec.callTo.call{ value: exec.value }(
             exec.callData
@@ -132,7 +140,10 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
 
     /// @notice Allows the LI.FI backend to send (unswapped) tokens to receiver address if an intent's deadline expired
     /// @param intentId the id of the intent to be refunded
-    function refundExpiredIntent(bytes32 intentId) external onlyLiFiBackend {
+    function refundExpiredIntent(
+        bytes32 intentId,
+        uint256 feeAmount
+    ) external onlyLiFiBackend {
         // get intent details from storage
         SwapIntent memory intent = swapIntents[intentId];
 
@@ -144,6 +155,9 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
 
         // emit event
         emit ExpiredIntentRefunded(intent);
+
+        // send fee to feeCollector
+        _sendTokens(intent.fromAsset, payable(feeCollector), feeAmount);
 
         // send funds to specified receiver address
         _sendTokens(intent.fromAsset, intent.receiver, intent.fromAmount);
