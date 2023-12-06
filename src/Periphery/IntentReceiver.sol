@@ -6,7 +6,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
-import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
+import { ExternalCallFailed, UnAuthorized, InvalidCallData } from "../Errors/GenericErrors.sol";
 
 /// @title IntentReceiver
 /// @author LI.FI (https://li.fi)
@@ -28,6 +28,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
 
     /// Errors ///
     error Expired();
+    error NotYetExpired();
     error BelowMinAmount();
 
     modifier onlyLiFiBackend() {
@@ -43,12 +44,11 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
         feeCollector = _feeCollector;
     }
 
-    // intentId => swapIntent details
+    // intentId => exists (yes/no)
     // swaps that are executed will be deleted from this mapping
-    mapping(bytes32 => SwapIntent) public swapIntents;
+    mapping(bytes32 => bool) public swapIntents;
 
     struct SwapIntent {
-        bytes32 id;
         address fromAsset;
         address toAsset;
         uint256 fromAmount; // this is the actual amount received from the bridge
@@ -68,6 +68,7 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
         address fromAsset;
         address toAsset;
         address receiver;
+        uint256 minAmountOut;
         uint256 deadline;
     }
 
@@ -88,21 +89,23 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
     /// Public Methods ///
 
     /// @notice Allows the receiver of an intent to cancel it and send (unswapped) funds to any arbitrary refund address (no fee charged)
-    /// @param intentId the id of the intent to be cancelled
+    /// @param intent the intent to be cancelled
     /// @param refundTo the address that should receive the token refund
     function cancelIntent(
-        bytes32 intentId,
+        SwapIntent calldata intent,
         address payable refundTo
     ) external nonReentrant {
-        // get intent details from storage
-        SwapIntent memory intent = swapIntents[intentId];
-
-        // make sure this function can only be executed by intent-receivers and
-        // only for their own intents
+        // make sure this function can only be executed by intent-receivers and only for their own intents
         if (intent.receiver != msg.sender) revert UnAuthorized();
 
+        // get intentId based on given parameters
+        bytes32 intentId = getIntentId(intent);
+
+        // make sure that an intent with the given ID exists
+        if (!swapIntents[intentId]) revert InvalidCallData();
+
         // remove intent from storage
-        delete swapIntents[intent.id];
+        delete swapIntents[intentId];
 
         // emit event
         emit IntentCancelled(intent, refundTo);
@@ -111,30 +114,51 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
         _sendTokens(intent.fromAsset, intent.receiver, intent.fromAmount);
     }
 
+    /// returns a unique (intent) ID based on the given parameters
+    /// by including the deadline we should achieve sufficient uniqueness for our purpose
+    function getIntentId(
+        SwapIntent memory intent
+    ) public pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(
+                    intent.fromAsset,
+                    intent.toAsset,
+                    intent.fromAmount,
+                    intent.minAmountOut,
+                    intent.receiver,
+                    intent.deadline
+                )
+            );
+    }
+
     /// Restricted Methods - only callable by LI.FI (Backend) ///
 
     /// @notice Allows the LI.FI backend to execute an (unexpired) intent. A fee is charged for this service to cover gas costs
-    /// @param intentId the id of the intent to be refunded
+    /// @param intent the intent to be executed
     function executeIntent(
-        bytes32 intentId,
+        SwapIntent calldata intent,
         IntentExecution calldata exec
     ) external onlyLiFiBackend {
-        // get intent details from storage
-        SwapIntent memory intent = swapIntents[intentId];
+        // make sure intent is not expired
+        if (intent.deadline > block.timestamp) revert Expired();
+
+        // get intentId based on given parameters
+        bytes32 intentId = getIntentId(intent);
+
+        // make sure that an intent with the given ID exists
+        if (!swapIntents[intentId]) revert InvalidCallData();
+
+        // remove intent from storage
+        delete swapIntents[intentId];
 
         // get initial token balance
         uint256 initialBalance = _getBalance(intent.toAsset, intent.receiver);
 
-        // make sure intent is not expired
-        if (intent.deadline > block.timestamp) revert Expired();
-
-        // remove intent from storage
-        delete swapIntents[intent.id];
-
         // emit event
         emit IntentExecuted(intent);
 
-        // send fee to feeCollector
+        // send fee to cover the execution gas cost to LI.FI FeeCollector
         _sendTokens(intent.fromAsset, payable(feeCollector), exec.feeAmount);
 
         // execute the calldata provided by LI.FI backend
@@ -153,27 +177,30 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
     }
 
     /// @notice Allows the LI.FI backend to send (unswapped) tokens to receiver address if an intent's deadline expired
-    /// @param intentId the id of the intent to be refunded
+    /// @param intent the id of the intent to be refunded
     function refundExpiredIntent(
-        bytes32 intentId,
+        SwapIntent calldata intent,
         uint256 feeAmount
     ) external onlyLiFiBackend {
-        // get intent details from storage
-        SwapIntent memory intent = swapIntents[intentId];
+        // make sure intent is actually expired
+        if (intent.deadline < block.timestamp) revert NotYetExpired();
 
-        // make sure deadline is actually expired
-        if (block.timestamp < intent.deadline) revert UnAuthorized();
+        // get intentId based on given parameters
+        bytes32 intentId = getIntentId(intent);
+
+        // make sure that an intent with the given ID exists
+        if (!swapIntents[intentId]) revert InvalidCallData();
 
         // remove intent from storage
-        delete swapIntents[intent.id];
+        delete swapIntents[intentId];
 
         // emit event
         emit ExpiredIntentRefunded(intent);
 
-        // send fee to feeCollector
+        // send fee to cover the refund gas cost to LI.FI FeeCollector
         _sendTokens(intent.fromAsset, payable(feeCollector), feeAmount);
 
-        // send funds to specified receiver address
+        // send funds to intent receiver address
         _sendTokens(intent.fromAsset, intent.receiver, intent.fromAmount);
     }
 
@@ -186,87 +213,42 @@ abstract contract IntentReceiver is ReentrancyGuard, TransferrableOwnership {
         uint256 receivedAmount
     ) internal {
         // decode payload received from srcChain
-        (
-            address fromAsset,
-            address toAsset,
-            address receiver,
-            uint256 minAmountOut,
-            uint256 deadline
-        ) = abi.decode(payload, (address, address, address, uint256, uint256));
+        IntentPayload memory decodPayload = abi.decode(
+            payload,
+            (IntentPayload)
+        );
 
         // make sure received asset matches with fromAsset extracted from payload
         // if not, send received tokens straight to receiver address
-        if (receivedAsset != fromAsset)
-            _sendTokens(receivedAsset, payable(receiver), receivedAmount);
+        if (receivedAsset != decodPayload.fromAsset)
+            _sendTokens(
+                receivedAsset,
+                payable(decodPayload.receiver),
+                receivedAmount
+            );
 
-        // save new intent
-        SwapIntent memory intent = _saveIntent(
-            fromAsset,
-            toAsset,
+        // create and save new intent
+        SwapIntent memory intent = SwapIntent(
+            decodPayload.fromAsset,
+            decodPayload.toAsset,
             receivedAmount,
-            minAmountOut,
-            payable(receiver),
-            deadline
+            decodPayload.minAmountOut,
+            decodPayload.deadline,
+            payable(decodPayload.receiver)
         );
+        _saveIntent(intent);
 
         // emit event
         emit IntentAdded(intent);
     }
 
-    /// returns a unique (intent) ID based on the given parameters
-    /// by including the deadline we should achieve sufficient uniqueness for our purpose
-    function _getUniqueId(
-        address fromAsset,
-        address toAsset,
-        uint256 fromAmount,
-        uint256 minAmountOut,
-        address receiver,
-        uint256 deadline
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked(
-                    fromAsset,
-                    toAsset,
-                    fromAmount,
-                    minAmountOut,
-                    receiver,
-                    deadline
-                )
-            );
-    }
-
     /// stores a new intent in our local mapping
-    function _saveIntent(
-        address fromAsset,
-        address toAsset,
-        uint256 fromAmount,
-        uint256 minAmountOut,
-        address payable receiver,
-        uint256 deadline
-    ) internal returns (SwapIntent memory intent) {
+    function _saveIntent(SwapIntent memory intent) internal {
         // generate ID
-        bytes32 id = _getUniqueId(
-            fromAsset,
-            toAsset,
-            fromAmount,
-            minAmountOut,
-            receiver,
-            deadline
-        );
+        bytes32 intentId = getIntentId(intent);
 
-        // save intent
-        intent = SwapIntent(
-            id,
-            fromAsset,
-            toAsset,
-            fromAmount,
-            minAmountOut,
-            deadline,
-            payable(receiver)
-        );
-
-        swapIntents[intent.id] = intent;
+        // update mapping to store that intent exists
+        swapIntents[intentId] = true;
 
         // emit event
         emit IntentAdded(intent);
