@@ -41,9 +41,9 @@
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0x67D2f3744f5bd9C81E5B80b4863428bE51cEc63E": {
+      "0x0174a332c00b62EdD7E4667646BD9e1aC2A50075": {
         "Name": "ThorSwapFacet",
-        "Version": "1.0.0"
+        "Version": "0.0.3"
       },
       "0xe1FaF1759cAB242c5A790Da72c8f0cC7F5e09f59": {
         "Name": "CircleBridgeFacet",

@@ -53,9 +53,9 @@
         "Name": "StargateFacet",
         "Version": "2.2.0"
       },
-      "0x67D2f3744f5bd9C81E5B80b4863428bE51cEc63E": {
+      "0xa6aAe470E7B8E8916e692882A5db25bB40C398A7": {
         "Name": "ThorSwapFacet",
-        "Version": "1.0.0"
+        "Version": "0.0.3"
       }
     },
     "Periphery": {
