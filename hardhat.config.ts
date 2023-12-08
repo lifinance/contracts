@@ -14,7 +14,17 @@ import { HardhatUserConfig } from 'hardhat/types'
 
 require('./tasks/generateDiamondABI.ts')
 
-const PKEY = process.env.PRIVATE_KEY_PRODUCTION || null
+const keyStoreFile = process.env.PRIVATE_KEY_PRODUCTION || null
+const keyStorePassword = process.env.PASSWORD || null
+const keyStoreData = fs.readFileSync(
+  `~/.foundry/keystores/${keyStoreFile}`,
+  'utf8'
+)
+const wallet = ethers.Wallet.fromEncryptedJsonSync(
+  keyStoreData,
+  keyStorePassword
+)
+const PKEY = wallet.privateKey
 
 function getRemappings() {
   return fs

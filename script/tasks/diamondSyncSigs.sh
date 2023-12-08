@@ -4,9 +4,9 @@ function diamondSyncSigs {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script syncSIGs now...."
   # load env variables
-	source .env
+  source .env
 
-	# load config & helper functions
+  # load config & helper functions
   source script/helperFunctions.sh
 
   # read function arguments into variables
@@ -58,7 +58,7 @@ function diamondSyncSigs {
   echo ""
 
   # get function selectors (sigs) from config files
-  CFG_SIGS=($(jq -r '.[] | @sh' "./config/sigs.json" | tr -d \' | tr '[:upper:]' '[:lower:]' ))
+  CFG_SIGS=($(jq -r '.[] | @sh' "./config/sigs.json" | tr -d \' | tr '[:upper:]' '[:lower:]'))
 
   # prepare parameter for batchSetFunctionApprovalBySignature call (=add all sigs to an array)
   for d in "${CFG_SIGS[@]}"; do
@@ -74,7 +74,7 @@ function diamondSyncSigs {
     echo "[info] now syncing function signatures for $DIAMOND_CONTRACT_NAME on network $NETWORK with address $DIAMOND_ADDRESS"
 
     # if no diamond address was found, throw an error and exit the script
-      if [[ "$DIAMOND_ADDRESS" == "null" || -z "$DIAMOND_ADDRESS" ]]; then
+    if [[ "$DIAMOND_ADDRESS" == "null" || -z "$DIAMOND_ADDRESS" ]]; then
       error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json'"
       local RETURN=1
       continue
@@ -94,10 +94,10 @@ function diamondSyncSigs {
       # call diamond
       if [[ "$DEBUG" == *"true"* ]]; then
         # print output to console
-        cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy
+        cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --account $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy
       else
         # do not print output to console
-        cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null 2>&1
+        cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --account $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null 2>&1
       fi
 
       # check the return code of the last call

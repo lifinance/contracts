@@ -120,10 +120,10 @@ function diamondSyncDEXs {
         # call diamond
         if [[ "$DEBUG" == *"true"* ]]; then
           # print output to console
-          cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy
+          cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --account $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy
         else
           # do not print output to console
-          cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null
+          cast send "$DIAMOND_ADDRESS" "batchAddDex(address[])" "${PARAMS[@]}" --rpc-url "$RPC_URL" --account $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null
         fi
 
         # check the return code the last call

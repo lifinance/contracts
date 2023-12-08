@@ -215,6 +215,24 @@ We try to keep up with all the latest bridges and DEXes but can't always add the
 
 [Read More](./docs/AddingANewBridge.md)
 
+### Managing Private Keys
+
+All private keys should be managed by `foundry` and stored in an encrypted keystore file. To add a new private key, run the following command:
+
+```bash
+cast wallet import <key-name> --interactive
+```
+
+Then paste the private key into the prompt and give it a password. The password will be used to encrypt the keystore file. The keystore file will be stored in the `~/.foundry/keystores` directory. All keys should use the same password. This is fine since even if the password is uploaded to github, the keystore files are on your local machine.
+
+Make sure to update the `.env` file with the new key name.
+
+```bash
+PRIVATE_KEY=<staging-key-name>
+PRIVATE_KEY_PRODUCTION=<production-key-name>
+PASSWORD=<password>
+```
+
 ### DEPLOY<a name="deploy"></a>
 
 Follow the deployment checklist [here](./docs/Deploy.md)
@@ -226,3 +244,11 @@ Follow the deployment checklist [here](./docs/Deploy.md)
 - [API Documentation](https://apidocs.li.fi/)
 - [SDK Documentation](https://docs.li.fi/products/integrate-li.fi-js-sdk/install-li.fi-sdk)
 - [Transfer UI](https://transferto.xyz/)
+
+```
+
+```
+
+```
+
+```

@@ -722,7 +722,7 @@ function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
   while [ $attempts -lt 11 ]; do
     echo "Trying to execute multicall now - attempt ${attempts}"
     # try to execute call
-    MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "https://polygon-rpc.com" --legacy)
+    MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --account $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "https://polygon-rpc.com" --legacy)
 
     # check the return code the last call
     if [ $? -eq 0 ]; then
@@ -738,7 +738,7 @@ function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
     exit 1
   fi
 
-  #MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --private-key "$PRIV_KEY" --rpc-url  "https://opt-mainnet.g.alchemy.com/v2/4y-BIUvj_mTGWHrsHZncoJyNolNjJrsT" --legacy)
+  #MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --account "$PRIV_KEY" --rpc-url  "https://opt-mainnet.g.alchemy.com/v2/4y-BIUvj_mTGWHrsHZncoJyNolNjJrsT" --legacy)
   echo "after call"
 
   echo ""
@@ -1541,10 +1541,10 @@ function removeFacetFromDiamond() {
     # call diamond
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --account "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy
     else
       # do not print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --account "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
     fi
 
     # check the return code the last call
@@ -1583,7 +1583,7 @@ function confirmOwnershipTransfer() {
   while [ $attempts -lt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "Trying to confirm ownership transfer on contract with address ($address) - attempt ${attempts}"
     # try to execute call
-    cast send "$address" "confirmOwnershipTransfer()" --rpc-url "$rpc_url" --private-key "$private_key" 2>/dev/null
+    cast send "$address" "confirmOwnershipTransfer()" --rpc-url "$rpc_url" --account "$private_key" 2>/dev/null
 
     # check the return code the last call
     if [ $? -eq 0 ]; then
