@@ -2,7 +2,7 @@
 
 diamondMakeImmutable() {
   # load env variables
-	source .env
+  source .env
 
   # load config & helper functions
   source script/helperFunctions.sh
@@ -17,22 +17,21 @@ diamondMakeImmutable() {
   checkRequiredVariablesInDotEnv $NETWORK
 
   # define path of JSON file to get diamond address from
-	ADDRS="deployments/$NETWORK.${FILE_SUFFIX}json"
+  ADDRS="deployments/$NETWORK.${FILE_SUFFIX}json"
 
   # get diamond address from path (finds any key that contains "LiFiDiamondImmutable"
-	DIAMOND_ADDRESS=$(jq -r '.LiFiDiamondImmutable' "$ADDRS")
+  DIAMOND_ADDRESS=$(jq -r '.LiFiDiamondImmutable' "$ADDRS")
 
-	# check if all required env variables have values
-	if [[ -z "$PRIVATE_KEY_REFUND_WALLET" || -z "$PRIVATE_KEY_WITHDRAW_WALLET" ]]; then
-	  error "your .env file is missing either PRIVATE_KEY_REFUND_WALLET or PRIVATE_KEY_WITHDRAW_WALLET values. Script cannot continue."
-	  exit 1
+  # check if all required env variables have values
+  if [[ -z "$PRIVATE_KEY_REFUND_WALLET" || -z "$PRIVATE_KEY_WITHDRAW_WALLET" ]]; then
+    error "your .env file is missing either PRIVATE_KEY_REFUND_WALLET or PRIVATE_KEY_WITHDRAW_WALLET values. Script cannot continue."
+    exit 1
   fi
 
-
   gum style \
-  --foreground 212 --border-foreground 213 --border double \
-  --align center --width 50 --margin "1 2" --padding "2 4" \
-  '!!! ATTENTION !!!'
+    --foreground 212 --border-foreground 213 --border double \
+    --align center --width 50 --margin "1 2" --padding "2 4" \
+    '!!! ATTENTION !!!'
 
   echo "Please check that this is the correct diamond address: $DIAMOND_ADDRESS"
   echo "If you confirm the next prompt, this diamond will be made immutable"
@@ -42,17 +41,14 @@ diamondMakeImmutable() {
   echo "Last chance: Do you want to abort?"
   gum confirm && exit 1 || echo "OK, let's do it"
 
-
-
   #---------------------------------------------------------------------------------------------------------------------
   echo "PART 1 - TRANSFER OWNERSHIP OF PERIPHERY CONTRACTS"
-	attempts=1
+  attempts=1
 
-  while [ $attempts -lt 11 ]
-  do
+  while [ $attempts -lt 11 ]; do
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>> Trying to transfer ownership of periphery contracts now - attempt ${attempts}"
     # try to execute call
-    RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script script/tasks/solidity/TransferOwnershipOfPeripheryContractsForImmutable.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy --tc DeployScript)
+    RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=$(getAccount "$NETWORK" "$ENVIRONMENT") forge script script/tasks/solidity/TransferOwnershipOfPeripheryContractsForImmutable.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy --tc DeployScript)
     RETURN_CODE=$?
 
     # print return data only if debug mode is activated
@@ -70,17 +66,16 @@ diamondMakeImmutable() {
 
     # check the return code the last call
     elif [[ $RETURN_CODE -eq 0 && $RAW_RETURN_DATA != *"\"returns\":{}"* ]]; then
-      break  # exit the loop if the operation was successful
+      break # exit the loop if the operation was successful
     fi
 
-    attempts=$((attempts+1))  # increment attempts
-    sleep 1  # wait for 1 second before trying the operation again
+    attempts=$((attempts + 1)) # increment attempts
+    sleep 1                    # wait for 1 second before trying the operation again
   done
 
-  if [ $attempts -eq 11 ]
-  then
-      echo "Failed to transfer ownership of periphery contracts"
-      exit 1
+  if [ $attempts -eq 11 ]; then
+    echo "Failed to transfer ownership of periphery contracts"
+    exit 1
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<< periphery ownership transferred/initiated"
@@ -91,11 +86,10 @@ diamondMakeImmutable() {
   echo "PART 2 - SETTER FUNCTION REMOVAL IN FACETS"
   # remove all function selectors that will be unusable in the immutable diamond
   attempts=1
-  while [ $attempts -lt 11 ]
-  do
+  while [ $attempts -lt 11 ]; do
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>> Trying to remove unusable function selectors from (pre-)immutable diamond ($DIAMOND_ADDRESS) now - attempt ${attempts}"
     # try to execute call
-    RAW_RETURN_DATA=$(NETWORK=$NETWORK SALT="" FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") NO_BROADCAST=false forge script script/tasks/solidity/RemoveUnusableSelectorsFromImmutableDiamond.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy --tc DeployScript)
+    RAW_RETURN_DATA=$(NETWORK=$NETWORK SALT="" FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=false PRIVATE_KEY=$(getAccount "$NETWORK" "$ENVIRONMENT") NO_BROADCAST=false forge script script/tasks/solidity/RemoveUnusableSelectorsFromImmutableDiamond.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy --tc DeployScript)
     RETURN_CODE=$?
 
     # print return data only if debug mode is activated
@@ -113,24 +107,23 @@ diamondMakeImmutable() {
 
     # check the return code the last call
     elif [ $RETURN_CODE -eq 0 ]; then
-      break  # exit the loop if the operation was successful
+      break # exit the loop if the operation was successful
     fi
 
-    attempts=$((attempts+1))  # increment attempts
-    sleep 1  # wait for 1 second before trying the operation again
+    attempts=$((attempts + 1)) # increment attempts
+    sleep 1                    # wait for 1 second before trying the operation again
   done
 
-  if [ $attempts -eq 11 ]
-  then
-      echo "Failed to remove selectors from (pre-)immutable diamond $DIAMOND_ADDRESS"
-      exit 1
+  if [ $attempts -eq 11 ]; then
+    echo "Failed to remove selectors from (pre-)immutable diamond $DIAMOND_ADDRESS"
+    exit 1
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<< function selectors removed"
   echo ""
   echo ""
 
-#  #---------------------------------------------------------------------------------------------------------------------
+  #  #---------------------------------------------------------------------------------------------------------------------
   echo "PART 3 - ACCEPT PERIPHERY OWNERSHIP TRANSFERS TO REFUND_WALLET / WITHDRAW_WALLET, IF NEEDED"
   # get refund_wallet and withdraw_wallet addresses
   REFUND_WALLET_ADDRESS=$(getValueFromJSONFile "config/global.json" "refundWallet")
@@ -138,9 +131,9 @@ diamondMakeImmutable() {
 
   # check ownership status and confirm ownership transfer, if necessary
   echo "[info] now checking ownership of FeeCollector"
-  ADDRESS_OWNER=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "FeeCollector");
+  ADDRESS_OWNER=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "FeeCollector")
   if ! compareAddresses "$ADDRESS_OWNER" "$WITHDRAW_WALLET_ADDRESS" >/dev/null; then
-    ADDRESS_PENDING_OWNER=$(getPendingContractOwner "$NETWORK" "$ENVIRONMENT" "FeeCollector");
+    ADDRESS_PENDING_OWNER=$(getPendingContractOwner "$NETWORK" "$ENVIRONMENT" "FeeCollector")
     if ! compareAddresses "$ADDRESS_PENDING_OWNER" "$WITHDRAW_WALLET_ADDRESS" >/dev/null; then
       error "FeeCollector ownership transfer to withdrawWallet was not correctly registered"
       exit 1
@@ -153,11 +146,10 @@ diamondMakeImmutable() {
   fi
   echo "[info] ownership of FeeCollector is correct (withdrawWallet: $WITHDRAW_WALLET_ADDRESS)"
 
-
   echo "[info] now checking ownership of Receiver"
-  ADDRESS_OWNER=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "Receiver");
+  ADDRESS_OWNER=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "Receiver")
   if ! compareAddresses "$ADDRESS_OWNER" "$REFUND_WALLET_ADDRESS" >/dev/null; then
-    ADDRESS_PENDING_OWNER=$(getPendingContractOwner "$NETWORK" "$ENVIRONMENT" "Receiver");
+    ADDRESS_PENDING_OWNER=$(getPendingContractOwner "$NETWORK" "$ENVIRONMENT" "Receiver")
     if ! compareAddresses "$ADDRESS_PENDING_OWNER" "$REFUND_WALLET_ADDRESS" >/dev/null; then
       error "Receiver ownership transfer to refundWallet was not correctly initiated"
       exit 1
@@ -170,7 +162,6 @@ diamondMakeImmutable() {
   fi
   echo "[info] ownership of Receiver is correct (refundWallet: $REFUND_WALLET_ADDRESS)"
 
-
   # RelayerCelerIM
   # check first if RelayerCelerIM is registered in this diamond
   getContractInfoFromDiamondDeploymentLogByName "$NETWORK" "$ENVIRONMENT" "LiFiDiamondImmutable" "RelayerCelerIM"
@@ -178,11 +169,11 @@ diamondMakeImmutable() {
     echo "[info] now checking ownership of RelayerCelerIM"
     # RelayerCelerIM is registered
     # get current owner and check if it matches with refundWallet address
-    ADDRESS_OWNER=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "RelayerCelerIM");
+    ADDRESS_OWNER=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "RelayerCelerIM")
     if ! compareAddresses "$ADDRESS_OWNER" "$REFUND_WALLET_ADDRESS" >/dev/null; then
       # owner is not refundWallet
       # get current pending owner and check if it matches with refundWallet address
-      ADDRESS_PENDING_OWNER=$(getPendingContractOwner "$NETWORK" "$ENVIRONMENT" "RelayerCelerIM");
+      ADDRESS_PENDING_OWNER=$(getPendingContractOwner "$NETWORK" "$ENVIRONMENT" "RelayerCelerIM")
       if ! compareAddresses "ADDRESS_PENDING_OWNER" "$REFUND_WALLET_ADDRESS" >/dev/null; then
         error "RelayerCelerIM ownership transfer to refundWallet was not correctly initiated"
         exit 1
@@ -199,9 +190,9 @@ diamondMakeImmutable() {
 
   # ServiceFeeCollector
   echo "[info] now checking ownership of ServiceFeeCollector"
-  ADDRESS_OWNER=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ServiceFeeCollector");
+  ADDRESS_OWNER=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ServiceFeeCollector")
   if ! compareAddresses "$ADDRESS_OWNER" "$WITHDRAW_WALLET_ADDRESS" >/dev/null; then
-    ADDRESS_PENDING_OWNER=$(getPendingContractOwner "$NETWORK" "$ENVIRONMENT" "ServiceFeeCollector");
+    ADDRESS_PENDING_OWNER=$(getPendingContractOwner "$NETWORK" "$ENVIRONMENT" "ServiceFeeCollector")
     if ! compareAddresses "$ADDRESS_PENDING_OWNER" "$WITHDRAW_WALLET_ADDRESS" >/dev/null; then
       error "ServiceFeeCollector ownership transfer to withdrawWallet was not correctly initiated"
       exit 1
@@ -216,11 +207,10 @@ diamondMakeImmutable() {
   echo ""
   echo ""
 
-
   #---------------------------------------------------------------------------------------------------------------------
   echo "PART 4 - CONDUCT SOME CHECKS FURTHER CHECKS BEFORE REMOVING DIAMONDCUT AND CHANGING DIAMOND OWNERSHIP"
   # check ownership of periphery contracts
-  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
+  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy")
   if ! compareAddresses "$ADDRESS" "$ZERO_ADDRESS" >/dev/null; then
     error "ERC20Proxy ownership was not transferred to address(0). Script cannot continue."
     exit 1
@@ -228,19 +218,19 @@ diamondMakeImmutable() {
     echo "[info] ERC20Proxy ownership correct (ZERO_ADDRESS)"
   fi
 
-  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "FeeCollector");
+  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "FeeCollector")
   if ! compareAddresses "$ADDRESS" "$WITHDRAW_WALLET_ADDRESS" >/dev/null; then
     error "FeeCollector ownership was not transferred to withdrawWallet. Script cannot continue."
     exit 1
   fi
 
-  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "Receiver");
+  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "Receiver")
   if ! compareAddresses "$ADDRESS" "$REFUND_WALLET_ADDRESS" >/dev/null; then
     error "Receiver ownership was not transferred to refundWallet. Script cannot continue."
     exit 1
   fi
 
-  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ServiceFeeCollector");
+  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ServiceFeeCollector")
   if ! compareAddresses "$ADDRESS" "$WITHDRAW_WALLET_ADDRESS" >/dev/null; then
     error "ServiceFeeCollector ownership was not transferred to withdrawWallet. Script cannot continue."
     exit 1
@@ -280,7 +270,7 @@ diamondMakeImmutable() {
   # check if refundWallet was authorized to execute CBridgeFacet.triggerRefund() and WithdrawFacet.withdraw()
   SELECTOR="0x0d19e519"
   RESULT=$(cast call "$DIAMOND_ADDRESS" "addressCanExecuteMethod(bytes4,address)" "$SELECTOR" "$REFUND_WALLET_ADDRESS")
-  if [[ "$RESULT"  != "true" ]]; then
+  if [[ "$RESULT" != "true" ]]; then
     error "refundWallet address is not authorized to execute function CBridgeFacet.triggerRefund(). Script cannot continue."
     exit 1
   else
@@ -288,7 +278,7 @@ diamondMakeImmutable() {
   fi
   SELECTOR="0xd9caed12"
   RESULT=$(cast call "$DIAMOND_ADDRESS" "addressCanExecuteMethod(bytes4,address)" "$SELECTOR" "$REFUND_WALLET_ADDRESS")
-  if [[ "$RESULT"  != "true" ]]; then
+  if [[ "$RESULT" != "true" ]]; then
     error "refundWallet address is not authorized to execute function WithdrawFacet.withdraw(). Script cannot continue."
     exit 1
   else
@@ -300,11 +290,10 @@ diamondMakeImmutable() {
   # execute selected script
   attempts=1
 
-  while [ $attempts -lt 11 ]
-  do
+  while [ $attempts -lt 11 ]; do
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>> Trying to remove DiamondCutFacet from diamond $DIAMOND_ADDRESS and transfer ownership to address(0) now - attempt ${attempts}"
     # try to execute call
-    RAW_RETURN_DATA=$(NETWORK=$NETWORK SALT="" FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") NO_BROADCAST=false forge script script/tasks/solidity/MakeLiFiDiamondImmutable.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy --tc DeployScript)
+    RAW_RETURN_DATA=$(NETWORK=$NETWORK SALT="" FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=false ETH_KEYSTORE_ACCOUNT=$(getAccount "$NETWORK" "$ENVIRONMENT") NO_BROADCAST=false forge script script/tasks/solidity/MakeLiFiDiamondImmutable.s.sol -f $NETWORK -vvvv --json --silent --broadcast --verify --skip-simulation --legacy --tc DeployScript)
     RETURN_CODE=$?
 
     # print return data only if debug mode is activated
@@ -322,24 +311,21 @@ diamondMakeImmutable() {
 
     # check the return code the last call
     elif [[ $RETURN_CODE -eq 0 && $RAW_RETURN_DATA != *"\"returns\":{}"* ]]; then
-      break  # exit the loop if the operation was successful
+      break # exit the loop if the operation was successful
     fi
 
-    attempts=$((attempts+1))  # increment attempts
-    sleep 1  # wait for 1 second before trying the operation again
+    attempts=$((attempts + 1)) # increment attempts
+    sleep 1                    # wait for 1 second before trying the operation again
   done
 
-  if [ $attempts -eq 11 ]
-  then
-      echo "Failed to make $DIAMOND_ADDRESS immutable"
-      exit 1
+  if [ $attempts -eq 11 ]; then
+    echo "Failed to make $DIAMOND_ADDRESS immutable"
+    exit 1
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondCutFacet removed and ownership transferred to address(0)"
   echo ""
   echo ""
-
-
 
   # check if diamondCut facet was removed
   SELECTOR_DIAMOND_CUT=$(getFunctionSelectorFromContractABI "DiamondCutFacet" "diamondCut")
@@ -352,7 +338,7 @@ diamondMakeImmutable() {
   fi
 
   # check owner of diamond
-  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "LiFiDiamondImmutable");
+  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "LiFiDiamondImmutable")
   if ! compareAddresses "$ADDRESS" "$ZERO_ADDRESS" >/dev/null; then
     error "LiFiDiamondImmutable ownership was not transferred to address(0). Script cannot continue."
     exit 1
@@ -368,6 +354,3 @@ diamondMakeImmutable() {
   echo ""
   echo "The diamond contract on network $NETWORK with address $DIAMOND_ADDRESS is now immutable"
 }
-
-
-

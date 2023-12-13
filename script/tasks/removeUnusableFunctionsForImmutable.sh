@@ -9,10 +9,6 @@ removeUnusableFunctionsForImmutable() {
   # read values from parameters or ask user
   # NETWORK, ENVIRONMENT, DIAMOND_ADDRESS,
 
-
-
-
-
   # read function arguments into variables
   ENVIRONMENT="$2"
 
@@ -40,13 +36,13 @@ removeUnusableFunctionsForImmutable() {
   # determine full (relative) path of deploy script
   SCRIPT_PATH=$CONFIG_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
 
-
   # ask user to select a diamond type for which to update the facet configuration
   echo "[info] Please select the diamond type to be updated:"
-  DIAMOND_CONTRACT_NAME=$(gum choose \
-    "LiFiDiamond"\
-    "LiFiDiamondImmutable"\
-    )
+  DIAMOND_CONTRACT_NAME=$(
+    gum choose \
+      "LiFiDiamond" \
+      "LiFiDiamondImmutable"
+  )
 
   if [[ -z "$DIAMOND_CONTRACT_NAME" ]]; then
     error "invalid selection - exiting script"
@@ -56,7 +52,7 @@ removeUnusableFunctionsForImmutable() {
   echo ""
 
   # set flag for mutable/immutable diamond
-  USE_MUTABLE_DIAMOND=$( [[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]] && echo true || echo false )
+  USE_MUTABLE_DIAMOND=$([[ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]] && echo true || echo false)
 
   # get file suffix based on value in variable ENVIRONMENT
   FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -68,11 +64,11 @@ removeUnusableFunctionsForImmutable() {
 
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
-      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ETH_KEYSTORE_ACCOUNT=$(getAccount "$ENVIRONMENT") PASSWORD=$PASSWORD forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
       echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
     else
       # do not print output to console
-      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy) 2>/dev/null
+      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND ETH_KEYSTORE_ACCOUNT=$(getAccount "$ENVIRONMENT") PASSWORD=$PASSWORD forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy) 2>/dev/null
     fi
 
     # exit the loop if the operation was successful
@@ -81,7 +77,7 @@ removeUnusableFunctionsForImmutable() {
     fi
 
     ATTEMPTS=$(($ATTEMPTS + 1)) # increment attempts
-    sleep 1                    # wait for 1 second before trying the operation again
+    sleep 1                     # wait for 1 second before trying the operation again
   done
 
   # check if call was executed successfully or used all attempts
@@ -96,16 +92,15 @@ removeUnusableFunctionsForImmutable() {
 }
 
 function get_function_identifiers() {
-     local json_file="config/global.json"
-     local identifiers=()
+  local json_file="config/global.json"
+  local identifiers=()
 
-    # Extract the functionIdentifiers using jq and populate the array
-    while IFS= read -r identifier; do
-        identifiers+=("$identifier")
-    done < <(jq -r '.unusableFunctionsToBeRemovedForImmutable[].functionIdentifiers[]' "$json_file")
+  # Extract the functionIdentifiers using jq and populate the array
+  while IFS= read -r identifier; do
+    identifiers+=("$identifier")
+  done < <(jq -r '.unusableFunctionsToBeRemovedForImmutable[].functionIdentifiers[]' "$json_file")
 
-    # Return the array of identifiers
-    #echo "${identifiers[@]}"
-    printf "%s," "${identifiers[@]}" | sed 's/,$//'
- }
-
+  # Return the array of identifiers
+  #echo "${identifiers[@]}"
+  printf "%s," "${identifiers[@]}" | sed 's/,$//'
+}

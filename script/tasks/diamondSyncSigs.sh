@@ -94,10 +94,10 @@ function diamondSyncSigs {
       # call diamond
       if [[ "$DEBUG" == *"true"* ]]; then
         # print output to console
-        cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --account $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy
+        cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --account $(getAccount "$NETWORK" "$ENVIRONMENT") --legacy
       else
         # do not print output to console
-        cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --account $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null 2>&1
+        cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --account $(getAccount "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null 2>&1
       fi
 
       # check the return code of the last call

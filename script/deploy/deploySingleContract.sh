@@ -167,7 +167,6 @@ deploySingleContract() {
   # check if address already contains code (=> are we deploying or re-running the script again?)
   NEW_DEPLOYMENT=$(doesAddressContainBytecode "$NETWORK" "$ADDRESS")
 
-
   # check if all required data (e.g. config data / contract addresses) is available
   checkDeployRequirements "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
 
@@ -190,7 +189,7 @@ deploySingleContract() {
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
     # try to execute call
-    RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+    RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS ETH_KEYSTORE_ACCOUNT=$(getAccount "$NETWORK" "$ENVIRONMENT") PASSWORD=$PASSWORD DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
     RETURN_CODE=$?
 
     # print return data only if debug mode is activated
@@ -445,7 +444,6 @@ deploySingleContract() {
     # write to logfile
     logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
   fi
-
 
   # save contract in network-specific deployment files
   saveContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$FILE_SUFFIX"

@@ -722,7 +722,7 @@ function saveDiamondPeriphery_MULTICALL_NOT_IN_USE() {
   while [ $attempts -lt 11 ]; do
     echo "Trying to execute multicall now - attempt ${attempts}"
     # try to execute call
-    MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --account $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "https://polygon-rpc.com" --legacy)
+    MULTICALL_RESULTS=$(cast send "$MULTICALL_ADDRESS" "aggregate((address,bytes)[]) returns (uint256,bytes[])" "$MULTICALL_DATA" --account $(getAccount "$NETWORK" "$ENVIRONMENT") --rpc-url "https://polygon-rpc.com" --legacy)
 
     # check the return code the last call
     if [ $? -eq 0 ]; then
@@ -1541,10 +1541,10 @@ function removeFacetFromDiamond() {
     # call diamond
     if [[ "$DEBUG" == *"true"* ]]; then
       # print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --account "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --account "$(getAccount "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy
     else
       # do not print output to console
-      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --account "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
+      cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --account "$(getAccount "$NETWORK" "$ENVIRONMENT")" --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
     fi
 
     # check the return code the last call
@@ -2244,17 +2244,8 @@ function getDeployerAddress() {
   local NETWORK=$1
   local ENVIRONMENT=$2
 
-  PRIV_KEY="$(getPrivateKey "$NETWORK" "$ENVIRONMENT")"
-
-  # prepare web3 code to be executed
-  jsCode="const Web3 = require('web3');
-    const web3 = new Web3();
-    const deployerAddress = (web3.eth.accounts.privateKeyToAccount('$PRIV_KEY')).address
-    const checksumAddress = web3.utils.toChecksumAddress(deployerAddress);
-    console.log(checksumAddress);"
-
-  # execute code using web3
-  DEPLOYER_ADDRESS=$(node -e "$jsCode")
+  ACCOUNT="$(getAccount "$NETWORK" "$ENVIRONMENT")"
+  DEPLOYER_ADDRESS=$(cast w a --account $ACCOUNT --password $PASSWORD)
 
   # return deployer address
   echo "$DEPLOYER_ADDRESS"
@@ -2670,7 +2661,7 @@ function deployAndAddContractToDiamond() {
   # there was an error if we reach this code
   return 1
 }
-function getPrivateKey() {
+function getAccount() {
   # read function arguments into variables
   NETWORK="$1"
   ENVIRONMENT="$2"
