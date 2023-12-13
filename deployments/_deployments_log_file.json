@@ -11045,6 +11045,20 @@
           }
         ]
       }
+    },
+    "base": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6731C946747bA54c78e7a65d416Cde39E478ECeb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-12-13 14:55:31",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000243b40e96c6bf21511e53d85c86f6ec982f9a879000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "WormholeFacet": {
