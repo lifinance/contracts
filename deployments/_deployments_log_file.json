@@ -2456,6 +2456,19 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x0C449F799010287c8ee51d7E89324dA8a1EBCB47",
+            "OPTIMIZER_RUNS": "10000",
+            "TIMESTAMP": "2023-11-22 13:35:05",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -5336,6 +5349,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xf812bA858d9Fa57788dF0F792eF35752d54863F1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-11-07 10:29:58",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "HopFacet": {
@@ -5498,6 +5525,20 @@
             "ADDRESS": "0xf7D902116142c74b064864F170B8e7d4D8eCCa84",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-08-15 16:36:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "linea": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xf4E632a8be2164F93427603F6c9A73e182923b02",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-11-07 10:20:36",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -10637,6 +10678,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "1.0.6": [
+          {
+            "ADDRESS": "0x71327AF4f53E8831BD7E1adDbeD9D2b6dacE64a2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-11-07 12:35:12",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000c8a4fb931e8d77df8497790381ca7d228e68a41b",
+            "SALT": "07112023",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "AmarokFacet": {
@@ -10854,6 +10909,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x967D0f9181521a407613495e68e5F8D22b49e513",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-12-06 17:04:53",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000a05ef29e9ac8c75c530c2795fa6a800e188de0a9",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "CelerCircleBridgeFacet": {
@@ -10958,6 +11027,20 @@
             "TIMESTAMP": "2023-08-31 12:35:19",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000697ac93c9263346c5ad0412f9356d5789a3aa6870000000000000000000000000b2c639c533813f4aa9d7837caf62653d097ff85",
             "SALT": "31082023",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6731C946747bA54c78e7a65d416Cde39E478ECeb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-12-13 13:20:20",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b876cc05c3c3c8ecba65dac4cf69caf871f2e0dd0000000000000000000000003c499c542cef5e3811e1192ce70d8cc03d5c3359",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -11211,6 +11294,20 @@
             "TIMESTAMP": "2023-07-20 12:27:25",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009ce3447b58d58e8602b7306316a5ff011b92d189",
             "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "avalanche": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x85f9c55B22bd2c389b560130F878CeB8b289C4c4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-11-01 11:34:36",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009068e1c28941d0a680197cc03be8afe27ccaeea9",
+            "SALT": "01112023",
             "VERIFIED": "true"
           }
         ]
