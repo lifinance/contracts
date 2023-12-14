@@ -11031,6 +11031,20 @@
           }
         ]
       }
+    },
+    "polygon": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6731C946747bA54c78e7a65d416Cde39E478ECeb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-12-13 13:20:20",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b876cc05c3c3c8ecba65dac4cf69caf871f2e0dd0000000000000000000000003c499c542cef5e3811e1192ce70d8cc03d5c3359",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "WormholeFacet": {

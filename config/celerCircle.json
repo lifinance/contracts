@@ -18,5 +18,10 @@
     "circleBridgeProxy": "0x697aC93c9263346c5Ad0412F9356D5789a3AA687",
     "usdc": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
     "domain": 2
+  },
+  "polygon": {
+    "circleBridgeProxy": "0xB876cc05c3C3C8ECBA65dAc4CF69CaF871F2e0DD",
+    "usdc": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+    "domain": 7
   }
 }
