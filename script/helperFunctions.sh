@@ -3578,18 +3578,21 @@ function test_getContractNameFromDeploymentLogs() {
 
 function test_tmp() {
 
-  CONTRACT="CelerIMFacetMutable"
-  NETWORK="polygonzkevm"
-  ADDRESS="0x4D476e7D7dbBAF55c04987523f9307Ede62b4689"
+  CONTRACT="SquidFacet"
+  NETWORK="avalanche"
+  ADDRESS="0x9951B2384a36a439C2afAfFf12c43F88Babde7c1"
   ENVIRONMENT="production"
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
-  ARGS="0x0000000000000000000000003ad9d0648cdaa2426331e894e980d0a5ed16257f000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000bebcdb5093b47cd7add8211e4c77b6826af7bc5f0000000000000000000000000000000000000000000000000000000000000000"
+  ARGS="0x000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666"
 
   #  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
   #  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
   #    error "ERC20Proxy ownership was not transferred to address(0)"
   #    exit 1
   #  fi
-  getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
+  #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
+  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 }
+
+test_tmp

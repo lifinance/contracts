@@ -13105,6 +13105,20 @@
           }
         ]
       }
+    },
+    "avalanche": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9951B2384a36a439C2afAfFf12c43F88Babde7c1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-12-14 12:47:14",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "SynapseBridgeFacet": {

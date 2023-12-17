@@ -41,12 +41,20 @@
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0xa696287F37d21D566B9A80AC29b2640FF910C176": {
-        "Name": "ThorSwapFacet",
-        "Version": "1.0.0"
+      "0x0174a332c00b62EdD7E4667646BD9e1aC2A50075": {
+        "Name": "",
+        "Version": ""
       },
       "0xe1FaF1759cAB242c5A790Da72c8f0cC7F5e09f59": {
         "Name": "CircleBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x6982237928de8e4a1a3622226D3a9C2bd89515Fc": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x9951B2384a36a439C2afAfFf12c43F88Babde7c1": {
+        "Name": "SquidFacet",
         "Version": "1.0.0"
       }
     },
@@ -54,6 +62,7 @@
       "ERC20Proxy": "0x6c93D0F446356725E3a51906285044f8788c72f2",
       "Executor": "0x4f3B1b1075cC19daA15b7cc681b28e2fB82145eD",
       "FeeCollector": "0x0222D030e8DFAEDE2a4e7B5F181Ac1A4206A75f0",
+      "LiFuelFeeCollector": "",
       "Receiver": "0x59B341fF54543D66C7393FfD2A050E256c97669E",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x9cc3164f01ED3796Fdf7Da538484D634608D2203"
