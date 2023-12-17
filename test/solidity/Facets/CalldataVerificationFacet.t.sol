@@ -7,6 +7,7 @@ import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { CelerIM, CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
+import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
@@ -75,6 +76,8 @@ contract CallVerificationFacetTest is TestBase {
             HyphenFacet.startBridgeTokensViaHyphen.selector,
             bridgeData
         );
+
+        console.logBytes(callData);
 
         ILiFi.BridgeData memory returnedData = calldataVerificationFacet
             .extractBridgeData(callData);
@@ -613,6 +616,55 @@ contract CallVerificationFacetTest is TestBase {
         assertTrue(validCall);
         assertTrue(validCallWithSwap);
         assertFalse(badCall);
+    }
+
+    function test_RevertOnEncodeCollision() public {
+        // Disguise a transactionId as an offset for the bridgeData
+        bytes32 transactionId = bytes32(uint(0x100));
+
+        // Build malicious calldata
+        address wrongReceiver = address(1337);
+        uint64 destinationChainId = 1;
+        address sendingAssetId = address(3);
+        uint256 amount = 1000;
+        uint64 nonce = 1001;
+        uint32 maxSlippage = 1002;
+
+        bytes memory _calldata = abi.encodeWithSelector(
+            HopFacetPacked.startBridgeTokensViaHopL2NativeMin.selector,
+            transactionId,
+            wrongReceiver,
+            destinationChainId,
+            sendingAssetId,
+            amount,
+            nonce,
+            maxSlippage
+        );
+
+        // Build valid bridgeData
+        BridgeData memory bridgeData = BridgeData(
+            bytes32(uint(1)),
+            "stargate",
+            "jumper.exchange",
+            address(1),
+            address(2),
+            address(3),
+            4,
+            1,
+            false,
+            false
+        );
+
+        bytes memory bridgeDataEncoded = abi.encode(bridgeData);
+
+        // Concatenate the two
+        _calldata = abi.encodePacked(_calldata, bridgeDataEncoded);
+
+        // Should revert on decode
+        vm.expectRevert();
+        calldataVerificationFacet.extractMainParameters(_calldata);
+        vm.expectRevert();
+        calldataVerificationFacet.extractBridgeData(_calldata);
     }
 
     function checkBridgeData(ILiFi.BridgeData memory data) internal {

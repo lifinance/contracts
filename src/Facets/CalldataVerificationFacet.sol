@@ -16,6 +16,13 @@ import { LibBytes } from "../Libraries/LibBytes.sol";
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
+    /// Storage ///
+    bytes constant VALID_OFFSET_32 = abi.encode(32);
+    bytes constant VALID_OFFSET_64 = abi.encode(64);
+
+    /// Errors ///
+    error IllegalOffset();
+
     /// @notice Extracts the bridge data from the calldata
     /// @param data The calldata to extract the bridge data from
     /// @return bridgeData The bridge data extracted from the calldata
@@ -314,14 +321,37 @@ contract CalldataVerificationFacet {
         ) {
             // StandardizedCall
             bytes memory unwrappedData = abi.decode(data[4:], (bytes));
-            bridgeData = abi.decode(
-                unwrappedData.slice(4, unwrappedData.length - 4),
-                (ILiFi.BridgeData)
-            );
+            unwrappedData = unwrappedData.slice(4, unwrappedData.length - 4);
+            if (!_validateBridgeDataOffset(unwrappedData)) {
+                revert IllegalOffset();
+            }
+            bridgeData = abi.decode(unwrappedData, (ILiFi.BridgeData));
             return bridgeData;
         }
         // normal call
-        bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
+        data = data[4:];
+        if (!_validateBridgeDataOffset(data)) {
+            revert IllegalOffset();
+        }
+        bridgeData = abi.decode(data, (ILiFi.BridgeData));
+    }
+
+    /// @notice Validates the bridge data offset
+    /// @param data The calldata to validate the bridge data offset
+    /// @return isValid Whether the bridge data offset is valid
+    function _validateBridgeDataOffset(
+        bytes memory data
+    ) internal pure returns (bool) {
+        // @dev BridgeData and SwapData are dymamic types so they
+        // are stored as offsets to the start of their data
+        bytes memory offset = data.slice(0, 32);
+        if (
+            keccak256(offset) != keccak256(VALID_OFFSET_32) && // Offset if just BridgeData
+            keccak256(offset) != keccak256(VALID_OFFSET_64) // Offset if BridgeData + SwapData
+        ) {
+            return false;
+        }
+        return true;
     }
 
     /// @notice Extracts the swap data from the calldata
