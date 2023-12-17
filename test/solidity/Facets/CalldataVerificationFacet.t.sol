@@ -18,6 +18,8 @@ import "forge-std/console.sol";
 contract CallVerificationFacetTest is TestBase {
     CalldataVerificationFacet internal calldataVerificationFacet;
 
+    error IllegalOffset();
+
     function setUp() public {
         calldataVerificationFacet = new CalldataVerificationFacet();
         bridgeData = ILiFi.BridgeData({
@@ -661,9 +663,9 @@ contract CallVerificationFacetTest is TestBase {
         _calldata = abi.encodePacked(_calldata, bridgeDataEncoded);
 
         // Should revert on decode
-        vm.expectRevert();
+        vm.expectRevert(IllegalOffset.selector);
         calldataVerificationFacet.extractMainParameters(_calldata);
-        vm.expectRevert();
+        vm.expectRevert(IllegalOffset.selector);
         calldataVerificationFacet.extractBridgeData(_calldata);
     }
 
