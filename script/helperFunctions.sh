@@ -3595,4 +3595,3 @@ function test_tmp() {
   verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 }
 
-test_tmp
