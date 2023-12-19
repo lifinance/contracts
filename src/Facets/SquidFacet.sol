@@ -13,10 +13,12 @@ import { LibBytes } from "../Libraries/LibBytes.sol";
 import { InformationMismatch } from "../Errors/GenericErrors.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+// import { console } from "forge-std/console.sol"; //TODO: REMOVE
+
 /// @title Squid Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Squid Router
-/// @custom:version 1.0.0
+/// @custom:version 0.0.2
 contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
@@ -29,19 +31,30 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the data needed for bridging via Squid squidRouter
     /// @param RouteType The type of route to use
     /// @param destinationChain The chain to bridge tokens to
-    /// @param bridgedTokenSymbol The symbol of the bridged token
-    /// @param sourceCalls The calls to make on the source chain
-    /// @param destinationCalls The calls to make on the destination chain
-    /// @param fee The fee to pay
-    /// @param forecallEnabled Whether or not to forecall (Squid Router's instant execution service)
+    /// @param destinationAddress The receiver address in dst chain format
+    /// @param bridgedTokenSymbol The symbol of the to-be-bridged token
+    /// @param depositAssetId The asset to be deposited on src network (input for optional Squid-internal src swaps)
+    /// @param sourceCalls The calls to be made by Squid on the source chain before bridging the bridgeData.sendingAsssetId token
+    /// @param payload The payload for the calls to be made at dest chain
+    /// @param fee The fee to be payed in native token on src chain
+    /// @param enableExpress enable Squid Router's instant execution service
     struct SquidData {
         RouteType routeType;
         string destinationChain;
+        string destinationAddress; // required to allow future bridging to non-EVM networks
         string bridgedTokenSymbol;
+        address depositAssetId;
         ISquidMulticall.Call[] sourceCalls;
-        ISquidMulticall.Call[] destinationCalls;
+        bytes payload;
         uint256 fee;
-        bool forecallEnabled;
+        bool enableExpress;
+    }
+
+    // introduced to tacke a stack-too-deep error
+    struct BridgeContext {
+        ILiFi.BridgeData bridgeData;
+        SquidData squidData;
+        uint256 msgValue;
     }
 
     /// Errors ///
@@ -74,7 +87,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
     {
         if (
-            !LibAsset.isNativeAsset(address(_bridgeData.sendingAssetId)) &&
+            !LibAsset.isNativeAsset(_bridgeData.sendingAssetId) &&
             keccak256(abi.encodePacked(_squidData.bridgedTokenSymbol)) !=
             keccak256(
                 abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())
@@ -83,10 +96,10 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InformationMismatch();
         }
 
-        validateDestinationCallFlag(_bridgeData, _squidData);
+        // validateDestinationCallFlag(_bridgeData, _squidData); //TODO: REMOVE OR REACTIVATE
 
         LibAsset.depositAsset(
-            _bridgeData.sendingAssetId,
+            _squidData.depositAssetId,
             _bridgeData.minAmount
         );
 
@@ -110,7 +123,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
     {
         if (
-            !LibAsset.isNativeAsset(address(_bridgeData.sendingAssetId)) &&
+            !LibAsset.isNativeAsset(_bridgeData.sendingAssetId) &&
             keccak256(abi.encodePacked(_squidData.bridgedTokenSymbol)) !=
             keccak256(
                 abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())
@@ -119,7 +132,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InformationMismatch();
         }
 
-        validateDestinationCallFlag(_bridgeData, _squidData);
+        // validateDestinationCallFlag(_bridgeData, _squidData); //TODO: REMOVE OR REACTIVATE
 
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -140,47 +153,27 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         SquidData calldata _squidData
     ) internal {
-        uint256 msgValue = _squidData.fee;
+        BridgeContext memory context = BridgeContext({
+            bridgeData: _bridgeData,
+            squidData: _squidData,
+            msgValue: _calculateMsgValue(_bridgeData, _squidData)
+        });
 
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            msgValue += _bridgeData.minAmount;
-        } else {
+        if (!LibAsset.isNativeAsset(context.squidData.depositAssetId)) {
             LibAsset.maxApproveERC20(
-                IERC20(_bridgeData.sendingAssetId),
+                IERC20(context.squidData.depositAssetId),
                 address(squidRouter),
-                _bridgeData.minAmount
+                context.bridgeData.minAmount
             );
         }
 
+        // call the correct execution function based on routeType
         if (_squidData.routeType == RouteType.BridgeCall) {
-            squidRouter.bridgeCall{ value: msgValue }(
-                _squidData.destinationChain,
-                _squidData.bridgedTokenSymbol,
-                _bridgeData.minAmount,
-                _squidData.destinationCalls,
-                _bridgeData.receiver,
-                _squidData.forecallEnabled
-            );
+            _bridgeCall(context);
         } else if (_squidData.routeType == RouteType.CallBridge) {
-            squidRouter.callBridge{ value: msgValue }(
-                _bridgeData.sendingAssetId,
-                _bridgeData.minAmount,
-                _squidData.destinationChain,
-                LibBytes.toHexString(uint160(_bridgeData.receiver), 20),
-                _squidData.bridgedTokenSymbol,
-                _squidData.sourceCalls
-            );
+            _callBridge(context);
         } else if (_squidData.routeType == RouteType.CallBridgeCall) {
-            squidRouter.callBridgeCall{ value: msgValue }(
-                _bridgeData.sendingAssetId,
-                _bridgeData.minAmount,
-                _squidData.destinationChain,
-                _squidData.bridgedTokenSymbol,
-                _squidData.sourceCalls,
-                _squidData.destinationCalls,
-                _bridgeData.receiver,
-                _squidData.forecallEnabled
-            );
+            _callBridgeCall(context);
         } else {
             revert InvalidRouteType();
         }
@@ -188,13 +181,65 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit LiFiTransferStarted(_bridgeData);
     }
 
+    function _bridgeCall(BridgeContext memory _context) internal {
+        squidRouter.bridgeCall{ value: _context.msgValue }(
+            _context.squidData.bridgedTokenSymbol,
+            _context.bridgeData.minAmount,
+            _context.squidData.destinationChain,
+            _context.squidData.destinationAddress,
+            _context.squidData.payload,
+            _context.bridgeData.receiver,
+            _context.squidData.enableExpress
+        );
+    }
+
+    function _callBridge(BridgeContext memory _context) private {
+        squidRouter.callBridge{ value: _context.msgValue }(
+            LibAsset.isNativeAsset(_context.bridgeData.sendingAssetId)
+                ? 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE
+                : _context.bridgeData.sendingAssetId,
+            _context.bridgeData.minAmount,
+            _context.squidData.sourceCalls,
+            _context.squidData.bridgedTokenSymbol,
+            _context.squidData.destinationChain,
+            LibBytes.toHexString(uint160(_context.bridgeData.receiver), 20)
+        );
+    }
+
+    function _callBridgeCall(BridgeContext memory _context) private {
+        squidRouter.callBridgeCall{ value: _context.msgValue }(
+            LibAsset.isNativeAsset(_context.squidData.depositAssetId)
+                ? 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE
+                : _context.squidData.depositAssetId,
+            _context.bridgeData.minAmount,
+            _context.squidData.sourceCalls,
+            _context.squidData.bridgedTokenSymbol,
+            _context.squidData.destinationChain,
+            LibBytes.toHexString(uint160(_context.bridgeData.receiver), 20),
+            _context.squidData.payload,
+            _context.bridgeData.receiver,
+            _context.squidData.enableExpress
+        );
+    }
+
+    function _calculateMsgValue(
+        ILiFi.BridgeData memory _bridgeData,
+        SquidData calldata _squidData
+    ) private pure returns (uint256) {
+        uint256 msgValue = _squidData.fee;
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            msgValue += _bridgeData.minAmount;
+        }
+        return msgValue;
+    }
+
+    //TODO: REMOVE???
     function validateDestinationCallFlag(
         ILiFi.BridgeData memory _bridgeData,
         SquidData calldata _squidData
     ) private pure {
         if (
-            (_squidData.destinationCalls.length > 0) !=
-            _bridgeData.hasDestinationCall
+            (_squidData.payload.length > 0) != _bridgeData.hasDestinationCall
         ) {
             revert InformationMismatch();
         }

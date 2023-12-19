@@ -5,31 +5,33 @@ import { ISquidMulticall } from "./ISquidMulticall.sol";
 
 interface ISquidRouter {
     function bridgeCall(
-        string calldata destinationChain,
         string calldata bridgedTokenSymbol,
         uint256 amount,
-        ISquidMulticall.Call[] calldata calls,
-        address refundRecipient,
-        bool forecallEnabled
+        string calldata destinationChain,
+        string calldata destinationAddress,
+        bytes calldata payload,
+        address gasRefundRecipient,
+        bool enableExpress
     ) external payable;
 
     function callBridge(
         address token,
         uint256 amount,
-        string calldata destinationChain,
-        string calldata destinationAddress,
+        ISquidMulticall.Call[] calldata calls,
         string calldata bridgedTokenSymbol,
-        ISquidMulticall.Call[] calldata calls
+        string calldata destinationChain,
+        string calldata destinationAddress
     ) external payable;
 
     function callBridgeCall(
         address token,
         uint256 amount,
-        string calldata destinationChain,
+        ISquidMulticall.Call[] calldata calls,
         string calldata bridgedTokenSymbol,
-        ISquidMulticall.Call[] calldata sourceCalls,
-        ISquidMulticall.Call[] calldata destinationCalls,
-        address refundRecipient,
-        bool forecallEnabled
+        string calldata destinationChain,
+        string calldata destinationAddress,
+        bytes calldata payload,
+        address gasRefundRecipient,
+        bool enableExpress
     ) external payable;
 }
