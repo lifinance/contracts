@@ -57,9 +57,9 @@
         "Name": "",
         "Version": ""
       },
-      "0x2e8B3C5732c4440264d6fCF14843F5F793926DD8": {
+      "0xa1Be6Aaa705545f79735d42852e77720B168392e": {
         "Name": "SquidFacet",
-        "Version": "0.0.2"
+        "Version": "0.0.3"
       }
     },
     "Periphery": {
