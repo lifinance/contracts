@@ -18,7 +18,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 /// @title Squid Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Squid Router
-/// @custom:version 0.0.2
+/// @custom:version 0.0.3
 contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
@@ -86,15 +86,15 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        if (
-            !LibAsset.isNativeAsset(_bridgeData.sendingAssetId) &&
-            keccak256(abi.encodePacked(_squidData.bridgedTokenSymbol)) !=
-            keccak256(
-                abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())
-            )
-        ) {
-            revert InformationMismatch();
-        }
+        // if (
+        //     !LibAsset.isNativeAsset(_bridgeData.sendingAssetId) &&
+        //     keccak256(abi.encodePacked(_squidData.bridgedTokenSymbol)) !=
+        //     keccak256(
+        //         abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())
+        //     )
+        // ) {
+        //     revert InformationMismatch();
+        // }
 
         // validateDestinationCallFlag(_bridgeData, _squidData); //TODO: REMOVE OR REACTIVATE
 
@@ -122,15 +122,15 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        if (
-            !LibAsset.isNativeAsset(_bridgeData.sendingAssetId) &&
-            keccak256(abi.encodePacked(_squidData.bridgedTokenSymbol)) !=
-            keccak256(
-                abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())
-            )
-        ) {
-            revert InformationMismatch();
-        }
+        // if (
+        //     !LibAsset.isNativeAsset(_bridgeData.sendingAssetId) &&
+        //     keccak256(abi.encodePacked(_squidData.bridgedTokenSymbol)) !=
+        //     keccak256(
+        //         abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())
+        //     )
+        // ) {
+        //     revert InformationMismatch();
+        // }
 
         // validateDestinationCallFlag(_bridgeData, _squidData); //TODO: REMOVE OR REACTIVATE
 

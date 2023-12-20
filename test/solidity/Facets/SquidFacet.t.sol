@@ -155,56 +155,6 @@ contract SquidFacetTest is TestBaseFacet {
         // which the implementation currently does not support
     }
 
-    function test_Revert_BridgeCallFailsIfSendingAssetIdAndSymbolsDoNotMatch()
-        public
-    {
-        bridgeData.sendingAssetId = ADDRESS_USDC;
-        bridgeData.minAmount = defaultUSDCAmount;
-
-        vm.startPrank(USER_SENDER);
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        SquidFacet.SquidData
-            memory squidData = _getSquidDataForCallBridgeCallNative();
-
-        squidData.routeType = SquidFacet.RouteType.BridgeCall;
-        delete squidData.sourceCalls;
-        squidData.bridgedTokenSymbol = "USDT"; // Does not match (should be USDC)
-        squidData.depositAssetId = ADDRESS_USDC;
-        squidData.fee = 0;
-
-        vm.expectRevert(InformationMismatch.selector);
-        squidFacet.startBridgeTokensViaSquid{
-            value: bridgeData.minAmount + squidData.fee
-        }(bridgeData, squidData);
-    }
-
-    function test_Revert_CallBridgeCallFailsIfSendingAssetIdAndSymbolsDoNotMatch()
-        public
-    {
-        // this test case will use Squid to do a pre-bridge swap from USDC to USDC and then bridge the USDC
-        address ADDRESS_USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
-        bridgeData.minAmount = 100000000;
-        bridgeData.sendingAssetId = ADDRESS_USDT;
-
-        vm.startPrank(USER_SENDER);
-
-        // give USDT balance to user
-        deal(ADDRESS_USDT, USER_SENDER, 100000000);
-
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        SquidFacet.SquidData
-            memory squidData = _getSquidDataForCallBridgeCallERC20();
-        squidData.bridgedTokenSymbol = "USDC";
-
-        vm.expectRevert(InformationMismatch.selector);
-        squidFacet.startBridgeTokensViaSquid{ value: squidData.fee }(
-            bridgeData,
-            squidData
-        );
-    }
-
     function _getSquidDataForCallBridgeCallNative()
         internal
         pure
