@@ -8,20 +8,28 @@ import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { CelerIM, CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
+import { HopFacet } from "lifi/Facets/HopFacet.sol";
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { TestBase } from "../utils/TestBase.sol";
 import { MsgDataTypes } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
+import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 import "forge-std/console.sol";
 
 contract CallVerificationFacetTest is TestBase {
-    CalldataVerificationFacet internal calldataVerificationFacet;
+    using LibBytes for bytes;
 
-    error IllegalOffset();
+    CalldataVerificationFacet internal calldataVerificationFacet;
+    HopFacet.HopData internal validHopData;
+
+    error CalldataCollision();
+    error IllegalCalldataSize();
+    error IllegalSelector();
 
     function setUp() public {
         calldataVerificationFacet = new CalldataVerificationFacet();
+        vm.warp(1703185326);
         bridgeData = ILiFi.BridgeData({
             transactionId: keccak256("id"),
             bridge: "acme",
@@ -46,31 +54,18 @@ contract CallVerificationFacetTest is TestBase {
                 requiresDeposit: true
             })
         );
-    }
 
-    function test_IgnoresExtraBytes() public view {
-        bytes memory callData = abi.encodeWithSelector(
-            HyphenFacet.swapAndStartBridgeTokensViaHyphen.selector,
-            bridgeData,
-            swapData
-        );
-
-        bytes memory standardizedCallData = abi.encodeWithSelector(
-            StandardizedCallFacet.standardizedCall.selector,
-            callData
-        );
-
-        bytes memory fullCalldata = bytes.concat(callData, "extra stuff");
-        calldataVerificationFacet.extractBridgeData(fullCalldata);
-        calldataVerificationFacet.extractSwapData(fullCalldata);
-        calldataVerificationFacet.extractData(fullCalldata);
-        calldataVerificationFacet.extractMainParameters(fullCalldata);
-
-        fullCalldata = bytes.concat(standardizedCallData, "extra stuff");
-        calldataVerificationFacet.extractBridgeData(fullCalldata);
-        calldataVerificationFacet.extractSwapData(fullCalldata);
-        calldataVerificationFacet.extractData(fullCalldata);
-        calldataVerificationFacet.extractMainParameters(fullCalldata);
+        // produce valid HopData
+        validHopData = HopFacet.HopData({
+            bonderFee: 0.001 ether,
+            amountOutMin: 0.1 ether,
+            deadline: block.timestamp + 60 * 20,
+            destinationAmountOutMin: 0.099 ether,
+            destinationDeadline: block.timestamp + 60 * 20,
+            relayer: address(12374528),
+            relayerFee: 0.0001 ether,
+            nativeFee: 0.0001 ether
+        });
     }
 
     function test_CanExtractBridgeData() public {
@@ -270,12 +265,70 @@ contract CallVerificationFacetTest is TestBase {
         assertEq(receivingAmount, 1 ether);
     }
 
+    function test_RevertOnInvalidGenericSwapParameters() public {
+        // Build malicious calldata
+        bytes32 transactionId = bytes32(uint(0xc0));
+        address wrongReceiver = address(1337);
+        uint64 destinationChainId = 1;
+        address sndAssetId = address(3);
+        uint256 amt = 1000;
+        uint64 nonce = 1001;
+        uint32 maxSlippage = 1002;
+
+        bytes memory maliciousData = abi.encodeWithSelector(
+            HopFacetPacked.startBridgeTokensViaHopL2NativeMin.selector,
+            transactionId,
+            wrongReceiver,
+            destinationChainId,
+            sndAssetId,
+            amt,
+            nonce,
+            maxSlippage
+        );
+
+        bytes memory callData = abi.encodeWithSelector(
+            GenericSwapFacet.swapTokensGeneric.selector,
+            transactionId,
+            "acme",
+            "acme",
+            payable(address(1234)),
+            1 ether,
+            swapData
+        );
+
+        callData = bytes.concat(callData, maliciousData);
+
+        vm.expectRevert(IllegalCalldataSize.selector);
+        calldataVerificationFacet.extractGenericSwapParameters(callData);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        vm.expectRevert(IllegalCalldataSize.selector);
+        calldataVerificationFacet.extractGenericSwapParameters(
+            standardizedCallData
+        );
+
+        // Change the selector to something else
+        callData = abi.encode(
+            bytes4(0xffffffff),
+            callData.slice(4, callData.length - 4)
+        );
+
+        vm.expectRevert(IllegalSelector.selector);
+        calldataVerificationFacet.extractGenericSwapParameters(callData);
+    }
+
     function test_CanExtractMainParametersWithSwap() public {
         bridgeData.hasSourceSwaps = true;
         bytes memory callData = abi.encodeWithSelector(
-            HyphenFacet.swapAndStartBridgeTokensViaHyphen.selector,
+            HopFacet.swapAndStartBridgeTokensViaHop.selector,
             bridgeData,
-            swapData
+            swapData,
+            validHopData
         );
 
         (
@@ -287,6 +340,8 @@ contract CallVerificationFacetTest is TestBase {
             bool hasSourceSwaps,
             bool hasDestinationCall
         ) = calldataVerificationFacet.extractMainParameters(callData);
+
+        console.logBytes(callData);
 
         assertEq(bridge, bridgeData.bridge);
         assertEq(receiver, bridgeData.receiver);
@@ -643,29 +698,15 @@ contract CallVerificationFacetTest is TestBase {
             maxSlippage
         );
 
-        // Build valid bridgeData
-        BridgeData memory bridgeData = BridgeData(
-            bytes32(uint(1)),
-            "stargate",
-            "jumper.exchange",
-            address(1),
-            address(2),
-            address(3),
-            4,
-            1,
-            false,
-            false
-        );
-
         bytes memory bridgeDataEncoded = abi.encode(bridgeData);
 
         // Concatenate the two
         _calldata = abi.encodePacked(_calldata, bridgeDataEncoded);
 
         // Should revert on decode
-        vm.expectRevert(IllegalOffset.selector);
+        vm.expectRevert(CalldataCollision.selector);
         calldataVerificationFacet.extractMainParameters(_calldata);
-        vm.expectRevert(IllegalOffset.selector);
+        vm.expectRevert(CalldataCollision.selector);
         calldataVerificationFacet.extractBridgeData(_calldata);
     }
 

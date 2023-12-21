@@ -5,9 +5,11 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { AmarokFacet } from "./AmarokFacet.sol";
 import { StargateFacet } from "./StargateFacet.sol";
-import { CelerIMFacetBase, CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
-import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
+import { CelerIMFacetBase, CelerIM } from "../Helpers/CelerIMFacetBase.sol";
+import { GenericSwapFacet } from "./GenericSwapFacet.sol";
+import { StandardizedCallFacet } from "./StandardizedCallFacet.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
+import "forge-std/console.sol";
 
 /// @title Calldata Verification Facet
 /// @author LI.FI (https://li.fi)
@@ -16,19 +18,17 @@ import { LibBytes } from "../Libraries/LibBytes.sol";
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
-    /// Storage ///
-    bytes constant VALID_OFFSET_32 = abi.encode(32);
-    bytes constant VALID_OFFSET_64 = abi.encode(64);
-
     /// Errors ///
-    error IllegalOffset();
+    error CalldataCollision();
+    error IllegalCalldataSize();
+    error IllegalSelector();
 
     /// @notice Extracts the bridge data from the calldata
     /// @param data The calldata to extract the bridge data from
     /// @return bridgeData The bridge data extracted from the calldata
     function extractBridgeData(
         bytes calldata data
-    ) external pure returns (ILiFi.BridgeData memory bridgeData) {
+    ) external returns (ILiFi.BridgeData memory bridgeData) {
         bridgeData = _extractBridgeData(data);
     }
 
@@ -37,7 +37,7 @@ contract CalldataVerificationFacet {
     /// @return swapData The swap data extracted from the calldata
     function extractSwapData(
         bytes calldata data
-    ) external pure returns (LibSwap.SwapData[] memory swapData) {
+    ) external returns (LibSwap.SwapData[] memory swapData) {
         swapData = _extractSwapData(data);
     }
 
@@ -49,7 +49,6 @@ contract CalldataVerificationFacet {
         bytes calldata data
     )
         external
-        pure
         returns (
             ILiFi.BridgeData memory bridgeData,
             LibSwap.SwapData[] memory swapData
@@ -74,7 +73,6 @@ contract CalldataVerificationFacet {
         bytes calldata data
     )
         public
-        pure
         returns (
             string memory bridge,
             address sendingAssetId,
@@ -118,7 +116,6 @@ contract CalldataVerificationFacet {
         bytes calldata data
     )
         public
-        pure
         returns (
             address sendingAssetId,
             uint256 amount,
@@ -129,17 +126,42 @@ contract CalldataVerificationFacet {
     {
         LibSwap.SwapData[] memory swapData;
         bytes memory callData = data;
+        bytes4 selector = bytes4(data[:4]);
 
-        if (
-            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
-        ) {
+        if (selector == StandardizedCallFacet.standardizedCall.selector) {
             // standardizedCall
             callData = abi.decode(data[4:], (bytes));
+            selector = bytes4(callData.slice(0, 4));
         }
-        (, , , receiver, receivingAmount, swapData) = abi.decode(
+
+        // Make sure it is a generic swap
+        if (selector != GenericSwapFacet.swapTokensGeneric.selector) {
+            revert IllegalSelector();
+        }
+
+        // @dev temporary vars for checking calldata size
+        bytes32 a;
+        string memory b;
+        string memory c;
+        (a, b, c, receiver, receivingAmount, swapData) = abi.decode(
             callData.slice(4, callData.length - 4),
             (bytes32, string, string, address, uint256, LibSwap.SwapData[])
         );
+
+        // @dev check calldata size when decoded
+        bytes memory actualData = abi.encode(
+            a,
+            b,
+            c,
+            receiver,
+            receivingAmount,
+            swapData
+        );
+
+        // @dev make sure there is not extra malicious data
+        if (actualData.length != callData.length - 4) {
+            revert IllegalCalldataSize();
+        }
 
         sendingAssetId = swapData[0].sendingAssetId;
         amount = swapData[0].fromAmount;
@@ -175,7 +197,7 @@ contract CalldataVerificationFacet {
         uint256 destinationChainId,
         bool hasSourceSwaps,
         bool hasDestinationCall
-    ) external pure returns (bool isValid) {
+    ) external returns (bool isValid) {
         ILiFi.BridgeData memory bridgeData;
         (
             bridgeData.bridge,
@@ -218,7 +240,7 @@ contract CalldataVerificationFacet {
         bytes calldata data,
         bytes calldata callTo,
         bytes calldata dstCalldata
-    ) external pure returns (bool isValid) {
+    ) external returns (bool isValid) {
         bytes memory callData = data;
 
         // Handle standardizedCall
@@ -315,43 +337,28 @@ contract CalldataVerificationFacet {
     /// @return bridgeData The bridge data extracted from the calldata
     function _extractBridgeData(
         bytes calldata data
-    ) internal pure returns (ILiFi.BridgeData memory bridgeData) {
+    ) internal returns (ILiFi.BridgeData memory bridgeData) {
         if (
             bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
         ) {
             // StandardizedCall
             bytes memory unwrappedData = abi.decode(data[4:], (bytes));
             unwrappedData = unwrappedData.slice(4, unwrappedData.length - 4);
-            if (!_validateBridgeDataOffset(unwrappedData)) {
-                revert IllegalOffset();
-            }
+            _checkForCallDataCollision(unwrappedData);
             bridgeData = abi.decode(unwrappedData, (ILiFi.BridgeData));
             return bridgeData;
         }
         // normal call
         data = data[4:];
-        if (!_validateBridgeDataOffset(data)) {
-            revert IllegalOffset();
-        }
+        _checkForCallDataCollision(data);
         bridgeData = abi.decode(data, (ILiFi.BridgeData));
     }
 
-    /// @notice Validates the bridge data offset
-    /// @param data The calldata to validate the bridge data offset
-    /// @return isValid Whether the bridge data offset is valid
-    function _validateBridgeDataOffset(
-        bytes memory data
-    ) internal pure returns (bool) {
-        // @dev BridgeData and SwapData are dymamic types so they
-        // are stored as offsets to the start of their data
-        bytes memory offset = data.slice(0, 32);
-        if (
-            keccak256(offset) != keccak256(VALID_OFFSET_32) && // Offset if just BridgeData
-            keccak256(offset) != keccak256(VALID_OFFSET_64) // Offset if BridgeData + SwapData
-        ) {
-            return false;
-        }
-        return true;
+    function _isPackedCall(bytes memory data) internal returns (bool) {
+        (bytes32 txId, address receiver) = abi.decode(
+            data,
+            (bytes32, address)
+        );
     }
 
     /// @notice Extracts the swap data from the calldata
@@ -359,7 +366,7 @@ contract CalldataVerificationFacet {
     /// @return swapData The swap data extracted from the calldata
     function _extractSwapData(
         bytes calldata data
-    ) internal pure returns (LibSwap.SwapData[] memory swapData) {
+    ) internal returns (LibSwap.SwapData[] memory swapData) {
         if (
             bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
         ) {
@@ -375,6 +382,77 @@ contract CalldataVerificationFacet {
         (, swapData) = abi.decode(
             data[4:],
             (ILiFi.BridgeData, LibSwap.SwapData[])
+        );
+    }
+
+    function _checkForCallDataCollision(bytes memory data) internal {
+        bool res1 = _attemptDecodePackedHop(data);
+        bool res2 = _attemptDecodePackedCBridge(data);
+        bool res3 = _attemptDecodeGenericSwapData(data);
+
+        if (res1 || res2 || res3) {
+            revert CalldataCollision();
+        }
+    }
+
+    function _attemptDecodePackedHop(
+        bytes memory data
+    ) internal returns (bool) {
+        try this.__attemptDecodePackedHop(data) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    function __attemptDecodePackedHop(bytes memory data) public {
+        (, , , , , uint256 da, uint256 t, ) = abi.decode(
+            data,
+            (
+                bytes32,
+                address,
+                uint256,
+                uint256,
+                uint256,
+                uint256,
+                uint256,
+                address
+            )
+        );
+        console.log("t: %s", t);
+        console.log("block.timestamp: %s", block.timestamp);
+        require(da > 0);
+        require(t > block.timestamp);
+    }
+
+    function _attemptDecodePackedCBridge(
+        bytes memory data
+    ) internal returns (bool) {
+        try this.__attemptDecodePackedCBridge(data) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    function __attemptDecodePackedCBridge(bytes memory data) public {
+        abi.decode(data, (bytes32, address, uint64, uint64, uint32));
+    }
+
+    function _attemptDecodeGenericSwapData(
+        bytes memory data
+    ) internal returns (bool) {
+        try this.__attemptDecodeGenericSwapData(data) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    function __attemptDecodeGenericSwapData(bytes memory data) public {
+        abi.decode(
+            data,
+            (bytes32, string, string, address, uint256, LibSwap.SwapData[])
         );
     }
 }
