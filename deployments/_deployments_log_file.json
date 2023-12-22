@@ -11326,6 +11326,20 @@
           }
         ]
       }
+    },
+    "optimism": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xC0c42d148241c5b5BB38e974d40Fc9087f7F9ecD",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-12-22 11:16:08",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000a314330482f325d38a83b492ef6b006224a3bea9",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "ArbitrumBridgeFacet": {
