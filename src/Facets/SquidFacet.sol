@@ -18,7 +18,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 /// @title Squid Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Squid Router
-/// @custom:version 0.0.3
+/// @custom:version 0.0.4
 contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
@@ -195,9 +195,9 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     function _callBridge(BridgeContext memory _context) private {
         squidRouter.callBridge{ value: _context.msgValue }(
-            LibAsset.isNativeAsset(_context.bridgeData.sendingAssetId)
+            LibAsset.isNativeAsset(_context.squidData.depositAssetId)
                 ? 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE
-                : _context.bridgeData.sendingAssetId,
+                : _context.squidData.depositAssetId,
             _context.bridgeData.minAmount,
             _context.squidData.sourceCalls,
             _context.squidData.bridgedTokenSymbol,
@@ -215,7 +215,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _context.squidData.sourceCalls,
             _context.squidData.bridgedTokenSymbol,
             _context.squidData.destinationChain,
-            LibBytes.toHexString(uint160(_context.bridgeData.receiver), 20),
+            _context.squidData.destinationAddress,
             _context.squidData.payload,
             _context.bridgeData.receiver,
             _context.squidData.enableExpress
