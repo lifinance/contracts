@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-// import { Permit2 } from "@uniswap/permit2/src/Permit2.sol";
-import { Permit2 } from "permit2/src/Permit2.sol";
+import { ISignatureTransfer } from "../interfaces/ISignatureTransfer.sol";
 
 /// @title Permit2Proxy
 /// @author LI.FI (https://li.fi)
 /// @notice Proxy contract allowing gasless (Permit2-enabled) calls to our diamond contract
 /// @custom:version 1.0.0
-contract ERC20Proxy is Ownable {
+contract ERC20Proxy {
     string private constant WITNESS_TYPE_STRING =
         "Witness witness)TokenPermissions(address token,uint256 amount)Witness(address tokenReceiver,address diamondAddress,bytes diamondCalldata)";
     bytes32 private constant WITNESS_TYPEHASH =
@@ -23,97 +22,119 @@ contract ERC20Proxy is Ownable {
     }
 
     /// Storage ///
-    Permit2 public permit2;
+    ISignatureTransfer public permit2;
     mapping(address => bool) public diamondWhitelist;
 
     /// Errors ///
     error DiamondAddressNotWhitelisted();
     error CallToDiamondFailed(bytes data);
 
-    /// Events ///
-
     /// Constructor
     constructor(address permit2Address) {
-        permit2 = Permit2(permit2Address);
+        permit2 = ISignatureTransfer(permit2Address);
     }
 
     // TODO:
-    // - how do we prevent anyone from getting a user signature, then using entirely different calldata to execute after pulling the user's tokens?
-    //   >>> understand the Witness stuff
+    // - how do collect fee for laying out gas?
+    //   >> option a) take input token and just collect it (have an additional worker that swaps it when it reaches a threshold)
+    //   >> option b) take input token and swap it immediately
+    //      + safer for the user since actual calldata is signed and only that calldata can be executed with the signature
+    //      - costs more gas due to immediate swap
+    //   >> option c) use IAllowanceTransfer instead which allows us to make two transactions with the signature (one sending the feeAmount to the executor wallet and the other one to execute the transaction)
+    //      + saves one transaction
+    //      - less protection for the user (we could send the tokens anywhere and do whatever with them, it's a generic approval)
 
-    /// @notice Sets whether or not a specified caller is authorized to call this contract
-    /// @param permit contains information about the token permit (see Uniswap's ISignatureTransfer for more details)
-    /// @param transferDetails contains information about recipient and amount of the transfer
-    /// @param authorized specifies whether the caller is authorized (true/false)
-    function gaslessDiamondCallSingle(
-        PermitTransferFrom memory permit,
-        SignatureTransferDetails calldata transferDetails,
-        address owner,
+    function gaslessWitnessDiamondCallSingleToken(
+        ISignatureTransfer.PermitTransferFrom memory permit,
+        ISignatureTransfer.SignatureTransferDetails calldata transferDetails,
+        address user,
         bytes calldata signature,
         address diamondAddress,
         bytes calldata diamondCalldata
-    ) external onlyOwner {
-        // transfer tokens from user to calling wallet using Permit2 signature
-        permit2.permitTransferFrom(permit, transferDetails, owner, signature);
-
-        // make sure diamondAddress is whitelisted
-        if (!diamondWhitelist[diamondAddress])
-            revert DiamondAddressNotWhitelisted();
-
-        // call diamond with provided calldata
-        // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes data) = diamondAddress.call(diamondCalldata);
-        // forward funds to _to address and emit event, if cBridge refund successful
-        if (!success) {
-            revert CallToDiamondFailed(data);
-        }
-    }
-
-    function gaslessWitnessDiamondCallSingle(
-        PermitTransferFrom memory permit,
-        SignatureTransferDetails calldata transferDetails,
-        address owner,
-        bytes calldata signature,
-        address diamondAddress,
-        bytes calldata diamondCalldata
-    ) external onlyOwner {
-        // transfer tokens from user to calling wallet using Permit2 signature
-        permit2.permitWitnessTransferFrom(
-            permit,
-            transferDetails,
-            owner,
-            signature
-        );
-
+    ) external {
+        // transfer inputToken from user to calling wallet using Permit2 signature
         // we send tokenReceiver, diamondAddress and diamondCalldata as Witness to the permit contract to ensure:
         // a) that tokens can only be transferred to the wallet calling this function (as signed by the user)
         // b) that only the diamondAddress can be called which was signed by the user
         // c) that only the diamondCalldata can be executed which was signed by the user
-        PERMIT2.permitWitnessTransferFrom(
-            _permit,
-            ISignatureTransfer.SignatureTransferDetails({
-                to: msg.sender,
-                requestedAmount: _amount
-            }),
-            _owner,
+        permit2.permitWitnessTransferFrom(
+            permit,
+            transferDetails,
+            user,
             keccak256(
                 abi.encode(
                     WITNESS_TYPEHASH,
-                    Witness(msg.sender, diamondAddres, diamondCalldata)
+                    Witness(msg.sender, diamondAddress, diamondCalldata)
                 )
             ), // witness
             WITNESS_TYPE_STRING,
-            _signature
+            signature
         );
 
+        _executeCalldata((diamondAddress), diamondCalldata);
+    }
+
+    function gaslessWitnessDiamondCallMultipleTokens(
+        ISignatureTransfer.PermitBatchTransferFrom memory permit,
+        ISignatureTransfer.SignatureTransferDetails calldata transferDetails,
+        address user,
+        bytes calldata signature,
+        address diamondAddress,
+        bytes calldata diamondCalldata
+    ) external {
+        // transfer multiple inputTokens from user to calling wallet using Permit2 signature
+        // we send tokenReceiver, diamondAddress and diamondCalldata as Witness to the permit contract to ensure:
+        // a) that tokens can only be transferred to the wallet calling this function (as signed by the user)
+        // b) that only the diamondAddress can be called which was signed by the user
+        // c) that only the diamondCalldata can be executed which was signed by the user
+        for (uint i = 0; i < permit.permitted.length; ) {
+            permit2.permitWitnessTransferFrom(
+                ISignatureTransfer.PermitTransferFrom(
+                    permit.permitted[i],
+                    permit.nonce,
+                    permit.deadline
+                ),
+                transferDetails,
+                user,
+                keccak256(
+                    abi.encode(
+                        WITNESS_TYPEHASH,
+                        Witness(msg.sender, diamondAddress, diamondCalldata)
+                    )
+                ), // witness
+                WITNESS_TYPE_STRING,
+                signature
+            );
+
+            ++i;
+        }
+
+        _executeCalldata((diamondAddress), diamondCalldata);
+    }
+
+    function _executeCalldata(
+        address diamondAddress,
+        bytes calldata diamondCalldata
+    ) private {
+        // a small portion of the tokens will be kept in the wallet (covering the gas cost for this transaction)
+        // the rest will be spent to execute the action/calldata signed by the user
+
+        // OPTIONAL STEP
+        // swap tokens immediately to nativeToken (to avoid losses due to negative price developments - can be skipped for stablecoins) - User pays gas fee for (potential) swap
+        // uniswap.swapExactTokensForETH(...)
+        // Alternatively we can also just monitor the ExecutorWallet and swap when tokens reach a certain threshold (but then we pay the gas fee for that)
+
         // make sure diamondAddress is whitelisted
+        // this limits the usage of this Permit2Proxy contracts to only work with our diamond contracts
         if (!diamondWhitelist[diamondAddress])
             revert DiamondAddressNotWhitelisted();
 
         // call diamond with provided calldata
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes data) = diamondAddress.call(diamondCalldata);
-        // forward funds to _to address and emit event, if cBridge refund successful
+        (bool success, bytes memory data) = diamondAddress.call(
+            diamondCalldata
+        );
+        // throw error to make sure tx reverts if low-level call was unsuccessful
         if (!success) {
             revert CallToDiamondFailed(data);
         }
