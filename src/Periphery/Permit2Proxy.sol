@@ -34,19 +34,9 @@ contract ERC20Proxy {
         permit2 = ISignatureTransfer(permit2Address);
     }
 
-    // TODO:
-    // - how do collect fee for laying out gas?
-    //   >> option a) take input token and just collect it (have an additional worker that swaps it when it reaches a threshold)
-    //   >> option b) take input token and swap it immediately
-    //      + safer for the user since actual calldata is signed and only that calldata can be executed with the signature
-    //      - costs more gas due to immediate swap
-    //   >> option c) use IAllowanceTransfer instead which allows us to make two transactions with the signature (one sending the feeAmount to the executor wallet and the other one to execute the transaction)
-    //      + saves one transaction
-    //      - less protection for the user (we could send the tokens anywhere and do whatever with them, it's a generic approval)
-
     function gaslessWitnessDiamondCallSingleToken(
         ISignatureTransfer.PermitTransferFrom memory permit,
-        ISignatureTransfer.SignatureTransferDetails calldata transferDetails,
+        uint256 amount,
         address user,
         bytes calldata signature,
         address diamondAddress,
@@ -59,12 +49,12 @@ contract ERC20Proxy {
         // c) that only the diamondCalldata can be executed which was signed by the user
         permit2.permitWitnessTransferFrom(
             permit,
-            transferDetails,
+            ISignatureTransfer.SignatureTransferDetails(address(this), amount),
             user,
             keccak256(
                 abi.encode(
                     WITNESS_TYPEHASH,
-                    Witness(msg.sender, diamondAddress, diamondCalldata)
+                    Witness(address(this), diamondAddress, diamondCalldata)
                 )
             ), // witness
             WITNESS_TYPE_STRING,
@@ -76,7 +66,7 @@ contract ERC20Proxy {
 
     function gaslessWitnessDiamondCallMultipleTokens(
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        ISignatureTransfer.SignatureTransferDetails calldata transferDetails,
+        uint256 amount,
         address user,
         bytes calldata signature,
         address diamondAddress,
@@ -94,12 +84,15 @@ contract ERC20Proxy {
                     permit.nonce,
                     permit.deadline
                 ),
-                transferDetails,
+                ISignatureTransfer.SignatureTransferDetails(
+                    address(this),
+                    amount
+                ),
                 user,
                 keccak256(
                     abi.encode(
                         WITNESS_TYPEHASH,
-                        Witness(msg.sender, diamondAddress, diamondCalldata)
+                        Witness(address(this), diamondAddress, diamondCalldata)
                     )
                 ), // witness
                 WITNESS_TYPE_STRING,
