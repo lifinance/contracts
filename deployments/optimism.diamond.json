@@ -92,6 +92,10 @@
       "0x16d7Cff1992F17E46fa98284CCaAC1A19788B6B9": {
         "Name": "CelerCircleBridgeFacet",
         "Version": "1.0.1"
+      },
+      "0x71205D77043848B57243A3F7eA133E11A3dd346b": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

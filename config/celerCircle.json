@@ -14,6 +14,11 @@
     "usdc": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
     "domain": 1
   },
+  "base": {
+    "circleBridgeProxy": "0x243b40e96c6bF21511E53d85c86F6Ec982f9a879",
+    "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "domain": 6
+  },
   "optimism": {
     "circleBridgeProxy": "0x697aC93c9263346c5Ad0412F9356D5789a3AA687",
     "usdc": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
