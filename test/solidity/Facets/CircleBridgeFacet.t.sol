@@ -25,27 +25,18 @@ contract TestCircleBridgeFacet is CircleBridgeFacet {
 }
 
 contract CircleBridgeFacetTest is TestBaseFacet {
-    // These values are for Goerli
     address internal constant TOKEN_MESSENGER =
-        0xD0C3da58f55358142b8d3e06C1C30c5C6114EFE8;
-    uint32 internal constant DST_DOMAIN = 1;
+        0xBd3fa81B58Ba92a82136038B25aDec7066af3155;
+    uint32 internal constant DST_DOMAIN = 3; //ARB
 
     TestCircleBridgeFacet internal circleBridgeFacet;
     CircleBridgeFacet.CircleBridgeData internal circleBridgeData;
 
     function setUp() public {
         // Custom Config
-        customRpcUrlForForking = "ETH_NODE_URI_GOERLI";
-        customBlockNumberForForking = 8584590;
-        ADDRESS_USDC = 0x07865c6E87B9F70255377e024ace6630C1Eaa37F;
-        ADDRESS_DAI = 0x65a5ba240CBd7fD75700836b683ba95EBb2F32bd;
-        ADDRESS_WETH = 0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6;
-        ADDRESS_UNISWAP = 0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506;
+        customBlockNumberForForking = 17484106;
 
         initTestBase();
-
-        defaultDAIAmount = 5 * 10 ** dai.decimals();
-        defaultUSDCAmount = 5 * 10 ** usdc.decimals();
 
         circleBridgeFacet = new TestCircleBridgeFacet(
             ITokenMessenger(TOKEN_MESSENGER),
@@ -90,6 +81,8 @@ contract CircleBridgeFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 43113;
 
         circleBridgeData = CircleBridgeFacet.CircleBridgeData(DST_DOMAIN);
+
+        vm.label(TOKEN_MESSENGER, "TokenMessenger");
     }
 
     function initiateBridgeTxWithFacet(bool) internal override {

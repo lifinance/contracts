@@ -180,4 +180,97 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
     {
         console.log("Not applicable for HopFacetOptimized");
     }
+
+    function testBase_Revert_BridgeWithInvalidAmount()
+        public
+        virtual
+        override
+    {
+        vm.startPrank(USER_SENDER);
+        // prepare bridgeData
+        bridgeData.minAmount = 0;
+
+        // OptimizedFacet does have less checks, therefore tx fails at different point in code
+        vm.expectRevert("L1_BRG: Must transfer a non-zero amount");
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_SwapAndBridgeWithInvalidAmount()
+        public
+        virtual
+        override
+    {
+        // OptimizedFacet does have less checks, therefore it is possible to send a tx with minAmount == 0
+    }
+
+    function testBase_Revert_BridgeToSameChainId() public virtual override {
+        vm.startPrank(USER_SENDER);
+        // prepare bridgeData
+        bridgeData.destinationChainId = block.chainid;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        // OptimizedFacet does have less checks, therefore tx fails at different point in code
+        vm.expectRevert("L1_BRG: chainId not supported");
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_SwapAndBridgeToSameChainId()
+        public
+        virtual
+        override
+    {
+        vm.startPrank(USER_SENDER);
+        // prepare bridgeData
+        bridgeData.destinationChainId = block.chainid;
+        bridgeData.hasSourceSwaps = true;
+
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        // OptimizedFacet does have less checks, therefore tx fails at different point in code
+        vm.expectRevert("L1_BRG: chainId not supported");
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_BridgeAndSwapWithInvalidReceiverAddress()
+        public
+        virtual
+        override
+    {
+        // OptimizedFacet does have less checks, therefore it is possible to send a tx with invalid receiver address
+    }
+
+    function testBase_Revert_BridgeWithInvalidReceiverAddress()
+        public
+        virtual
+        override
+    {
+        // OptimizedFacet does have less checks, therefore it is possible to send a tx with invalid receiver address
+    }
+
+    function testBase_Revert_CallerHasInsufficientFunds()
+        public
+        virtual
+        override
+    {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(_facetTestContractAddress), defaultUSDCAmount);
+
+        // send all available USDC balance to different account to ensure sending wallet has no USDC funds
+        usdc.transfer(USER_RECEIVER, usdc.balanceOf(USER_SENDER));
+
+        // OptimizedFacet does have less checks, therefore tx fails at different point in code
+        vm.expectRevert("ERC20: transfer amount exceeds balance");
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
 }
