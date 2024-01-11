@@ -64,6 +64,10 @@
       "0x98e3E949E8310D836A625495eA70eEAa92073862": {
         "Name": "AcrossFacet",
         "Version": "2.0.0"
+      },
+      "0x6731C946747bA54c78e7a65d416Cde39E478ECeb": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {

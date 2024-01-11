@@ -13,5 +13,8 @@
   },
   "polygon": {
     "allBridge": "0x7775d63836987f444E2F14AA0fA2602204D7D3E0"
+  },
+  "optimism": {
+    "allBridge": "0x97E5BF5068eA6a9604Ee25851e6c9780Ff50d5ab"
   }
 }
