@@ -52,6 +52,10 @@
       "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
+      },
+      "0x7B4E409470d13E5A85F43c433A805ff8d44b8fF7": {
+        "Name": "HopFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
