@@ -7,4 +7,5 @@ export const safeApiUrls: Record<string, string> = {
   bsc: 'https://safe-transaction-bsc.safe.global',
   optimism: 'https://safe-transaction-optimism.safe.global',
   polygon: 'https://safe-transaction-polygon.safe.global',
+  polygonzkevm: 'https://safe-transaction-zkevm.safe.global',
 }
