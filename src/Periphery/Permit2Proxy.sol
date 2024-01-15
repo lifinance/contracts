@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import { ISignatureTransfer } from "lifi/interfaces/ISignatureTransfer.sol";
+import { ISignatureTransfer } from "lifi/Interfaces/ISignatureTransfer.sol";
 import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 
