@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
+import { IntentReceiver } from "./IntentReceiver.sol";
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ContractCallNotAllowed, ExternalCallFailed, InvalidConfig, UnAuthorized, WithdrawFailed } from "../Errors/GenericErrors.sol";
@@ -18,8 +19,8 @@ import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.
 /// @title RelayerCelerIM
 /// @author LI.FI (https://li.fi)
 /// @notice Relayer contract for CelerIM that forwards calls and handles refunds on src side and acts receiver on dest
-/// @custom:version 2.0.0
-contract RelayerCelerIM is ILiFi, TransferrableOwnership {
+/// @custom:version 3.0.0
+contract RelayerCelerIM is ILiFi, IntentReceiver {
     using SafeERC20 for IERC20;
 
     /// Storage ///
@@ -51,8 +52,9 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
     constructor(
         address _cBridgeMessageBusAddress,
         address _owner,
-        address _diamondAddress
-    ) TransferrableOwnership(_owner) {
+        address _diamondAddress,
+        address _feeCollector
+    ) IntentReceiver(_owner, _feeCollector) {
         owner = _owner;
         cBridgeMessageBus = IMessageBus(_cBridgeMessageBusAddress);
         diamondAddress = _diamondAddress;
@@ -83,25 +85,8 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
         onlyCBridgeMessageBus
         returns (IMessageReceiverApp.ExecutionStatus)
     {
-        // decode message
-        (
-            bytes32 transactionId,
-            LibSwap.SwapData[] memory swapData,
-            address receiver,
-            address refundAddress
-        ) = abi.decode(
-                _message,
-                (bytes32, LibSwap.SwapData[], address, address)
-            );
-
-        _swapAndCompleteBridgeTokens(
-            transactionId,
-            swapData,
-            _token,
-            payable(receiver),
-            _amount,
-            refundAddress
-        );
+        // decode the payload and store the intent derived from it
+        _processPayloadAndSaveIntent(_message, _token, _amount);
 
         return IMessageReceiverApp.ExecutionStatus.Success;
     }
@@ -465,8 +450,4 @@ contract RelayerCelerIM is ILiFi, TransferrableOwnership {
             revert WithdrawFailed();
         }
     }
-
-    // required in order to receive native tokens from cBridge facet
-    // solhint-disable-next-line no-empty-blocks
-    receive() external payable {}
 }

@@ -7,6 +7,7 @@ import { IBridge as ICBridge } from "celer-network/contracts/interfaces/IBridge.
 import { RelayerCelerIM } from "lifi/Periphery/RelayerCelerIM.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
+import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 
 // Stub CelerIMFacet Contract
 contract TestCelerIMFacet is CelerIMFacetMutable {
@@ -14,13 +15,15 @@ contract TestCelerIMFacet is CelerIMFacetMutable {
         IMessageBus _messageBus,
         address _relayerOwner,
         address _diamondAddress,
-        address _cfUSDC
+        address _cfUSDC,
+        address _feeCollector
     )
         CelerIMFacetMutable(
             _messageBus,
             _relayerOwner,
             _diamondAddress,
-            _cfUSDC
+            _cfUSDC,
+            _feeCollector
         )
     {}
 
@@ -94,6 +97,7 @@ contract CelerIMFacetTest is TestBaseFacet {
     Executor internal executor;
     ERC20Proxy internal erc20Proxy;
     RelayerCelerIM internal relayer;
+    FeeCollector internal feeCollector;
 
     function setUp() public {
         customBlockNumberForForking = 16227237;
@@ -102,12 +106,14 @@ contract CelerIMFacetTest is TestBaseFacet {
         // deploy periphery
         erc20Proxy = new ERC20Proxy(address(this));
         executor = new Executor(address(erc20Proxy));
+        feeCollector = new FeeCollector(address(this));
 
         celerIMFacet = new TestCelerIMFacet(
             IMessageBus(CBRIDGE_MESSAGEBUS_ETH),
             REFUND_WALLET,
             address(diamond),
-            CFUSDC
+            CFUSDC,
+            address(feeCollector)
         );
 
         relayer = celerIMFacet.relayer();
