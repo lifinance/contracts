@@ -22,6 +22,7 @@ contract Permit2Proxy is TransferrableOwnership {
             "Witness(address tokenReceiver,address diamondAddress,bytes diamondCalldata)"
         );
 
+    /// additional data signed by the user to make sure that their signature can only be used for a specific call
     struct Witness {
         address tokenReceiver;
         address diamondAddress;
@@ -53,7 +54,7 @@ contract Permit2Proxy is TransferrableOwnership {
         bytes memory witnessData,
         address senderAddress,
         bytes calldata signature
-    ) external {
+    ) external payable {
         // decode witnessData to obtain calldata and diamondAddress
         Witness memory wittness = abi.decode(witnessData, (Witness));
 
@@ -74,78 +75,75 @@ contract Permit2Proxy is TransferrableOwnership {
             signature
         );
 
-        // maxApprove token to diamond if allowance is insufficient already
+        // maxApprove token to diamond if current allowance is insufficient
         LibAsset.maxApproveERC20(
             IERC20(permit.permitted.token),
             wittness.diamondAddress,
             amount
         );
 
+        // call our diamond to execute calldata
         _executeCalldata(wittness.diamondAddress, wittness.diamondCalldata);
     }
 
     function gaslessWitnessDiamondCallMultipleTokens(
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        uint256 amount,
+        uint256[] calldata amounts,
+        bytes memory witnessData,
         address senderAddress,
-        bytes calldata signature,
-        address diamondAddress,
-        bytes calldata diamondCalldata
-    ) external {
+        bytes calldata signature
+    ) external payable {
+        // TODO: add refunding of positive slippage / remaining tokens
+
+        // decode witnessData to obtain calldata and diamondAddress
+        Witness memory wittness = abi.decode(witnessData, (Witness));
+
         // transfer multiple inputTokens from user to calling wallet using Permit2 signature
         // we send tokenReceiver, diamondAddress and diamondCalldata as Witness to the permit contract to ensure:
         // a) that tokens can only be transferred to the wallet calling this function (as signed by the user)
         // b) that only the diamondAddress can be called which was signed by the user
         // c) that only the diamondCalldata can be executed which was signed by the user
-        for (uint i = 0; i < permit.permitted.length; ) {
-            permit2.permitWitnessTransferFrom(
-                ISignatureTransfer.PermitTransferFrom(
-                    permit.permitted[i],
-                    permit.nonce,
-                    permit.deadline
-                ),
-                ISignatureTransfer.SignatureTransferDetails(
-                    address(this),
-                    amount
-                ),
-                senderAddress,
-                keccak256(
-                    abi.encode(
-                        _WITNESS_TYPEHASH,
-                        Witness(address(this), diamondAddress, diamondCalldata)
-                    )
-                ), // witness
-                _WITNESS_TYPE_STRING,
-                signature
+        ISignatureTransfer.SignatureTransferDetails[]
+            memory transferDetails = new ISignatureTransfer.SignatureTransferDetails[](
+                amounts.length
+            );
+        for (uint i; i < amounts.length; ) {
+            transferDetails[i] = ISignatureTransfer.SignatureTransferDetails(
+                address(this),
+                amounts[i]
             );
 
             // ensure maxApproval to diamond
             LibAsset.maxApproveERC20(
                 IERC20(permit.permitted[i].token),
-                diamondAddress,
-                amount
+                wittness.diamondAddress,
+                amounts[i]
             );
 
+            // gas-efficient way to increase the loop counter
             unchecked {
                 ++i;
             }
         }
 
-        _executeCalldata(diamondAddress, diamondCalldata);
+        // call Permit2 contract and transfer all tokens
+        permit2.permitWitnessTransferFrom(
+            permit,
+            transferDetails,
+            senderAddress,
+            keccak256(witnessData),
+            _WITNESS_TYPE_STRING,
+            signature
+        );
+
+        // call our diamond to execute calldata
+        _executeCalldata(wittness.diamondAddress, wittness.diamondCalldata);
     }
 
     function _executeCalldata(
         address diamondAddress,
         bytes memory diamondCalldata
     ) private {
-        // a small portion of the tokens will be kept in the wallet (covering the gas cost for this transaction)
-        // the rest will be spent to execute the action/calldata signed by the user
-
-        // OPTIONAL STEP
-        // swap tokens immediately to nativeToken (to avoid losses due to negative price developments - can be skipped for stablecoins) - User pays gas fee for (potential) swap
-        // uniswap.swapExactTokensForETH(...)
-        // Alternatively we can also just monitor the ExecutorWallet and swap when tokens reach a certain threshold (but then we pay the gas fee for that)
-
         // make sure diamondAddress is whitelisted
         // this limits the usage of this Permit2Proxy contracts to only work with our diamond contracts
         if (!diamondWhitelist[diamondAddress])
@@ -153,9 +151,9 @@ contract Permit2Proxy is TransferrableOwnership {
 
         // call diamond with provided calldata
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory data) = diamondAddress.call(
-            diamondCalldata
-        );
+        (bool success, bytes memory data) = diamondAddress.call{
+            value: msg.value
+        }(diamondCalldata);
         // throw error to make sure tx reverts if low-level call was unsuccessful
         if (!success) {
             revert CallToDiamondFailed(data);
@@ -170,7 +168,7 @@ contract Permit2Proxy is TransferrableOwnership {
             // update whitelist address value
             diamondWhitelist[addresses[i]] = values[i];
 
-            //increase loop counter (gas-efficiently)
+            // gas-efficient way to increase the loop counter
             unchecked {
                 ++i;
             }
