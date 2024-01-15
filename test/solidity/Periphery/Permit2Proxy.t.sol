@@ -8,7 +8,7 @@ import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
-import { LibSwap } from "lifi/libraries/LibSwap.sol";
+import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 
 interface IPermit2 {
     function DOMAIN_SEPARATOR() external view returns (bytes32);
