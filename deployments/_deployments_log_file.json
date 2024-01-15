@@ -5545,6 +5545,20 @@
           }
         ]
       }
+    },
+    "polygonzkevm": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x7B4E409470d13E5A85F43c433A805ff8d44b8fF7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-01-11 13:29:23",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "HyphenFacet": {
