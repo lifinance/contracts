@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import { Test, TestBase, DSTest, ILiFi, console, ERC20 } from "../utils/TestBase.sol";
 import { Permit2Proxy } from "lifi/Periphery/Permit2Proxy.sol";
-import { ISignatureTransfer } from "lifi/interfaces/ISignatureTransfer.sol";
+import { ISignatureTransfer } from "lifi/Interfaces/ISignatureTransfer.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
