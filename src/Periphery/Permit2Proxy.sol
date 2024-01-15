@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import { ISignatureTransfer } from "../interfaces/ISignatureTransfer.sol";
-import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { ISignatureTransfer } from "lifi/interfaces/ISignatureTransfer.sol";
+import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
-import { console2 } from "forge-std/console2.sol";
 
 interface IPermit2 {
     function DOMAIN_SEPARATOR() external view returns (bytes32);
