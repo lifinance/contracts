@@ -36,6 +36,9 @@
       "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab"
     ]
   },
+  "base": {
+    "cBridge": "0x7d43AABC515C356145049227CeE54B608342c0ad"
+  },
   "boba": {
     "cBridge": "0x841ce48F9446C8E281D3F1444cB859b4A6D0738C"
   },
