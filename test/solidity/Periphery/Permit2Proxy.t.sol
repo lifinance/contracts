@@ -3,16 +3,12 @@ pragma solidity 0.8.17;
 
 import { Test, TestBase, DSTest, ILiFi, console, ERC20 } from "../utils/TestBase.sol";
 import { Permit2Proxy } from "lifi/Periphery/Permit2Proxy.sol";
-import { ISignatureTransfer } from "lifi/Interfaces/ISignatureTransfer.sol";
+import { IPermit2 } from "lifi/Interfaces/IPermit2.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-
-interface IPermit2 {
-    function DOMAIN_SEPARATOR() external view returns (bytes32);
-}
 
 contract Permit2ProxyTest is TestBase {
     address public constant PERMIT2ADDRESS =
@@ -75,14 +71,14 @@ contract Permit2ProxyTest is TestBase {
     }
 
     struct PermitWitnessCalldata {
-        ISignatureTransfer.PermitTransferFrom permit;
+        IPermit2.PermitTransferFrom permit;
         uint256 amount;
         bytes witnessData;
         address senderAddress;
         bytes signature;
     }
     struct PermitWitnessMultipleCalldata {
-        ISignatureTransfer.PermitBatchTransferFrom permit;
+        IPermit2.PermitBatchTransferFrom permit;
         uint256[] amounts;
         bytes witnessData;
         address senderAddress;
@@ -520,10 +516,10 @@ contract Permit2ProxyTest is TestBase {
         address token0,
         uint256 amount,
         uint256 nonce
-    ) internal view returns (ISignatureTransfer.PermitTransferFrom memory) {
+    ) internal view returns (IPermit2.PermitTransferFrom memory) {
         return
-            ISignatureTransfer.PermitTransferFrom({
-                permitted: ISignatureTransfer.TokenPermissions({
+            IPermit2.PermitTransferFrom({
+                permitted: IPermit2.TokenPermissions({
                     token: token0,
                     amount: amount
                 }),
@@ -536,17 +532,13 @@ contract Permit2ProxyTest is TestBase {
         address[] memory tokens,
         uint256[] memory amounts,
         uint256 nonce
-    )
-        internal
-        view
-        returns (ISignatureTransfer.PermitBatchTransferFrom memory permit)
-    {
-        ISignatureTransfer.TokenPermissions[]
-            memory permissions = new ISignatureTransfer.TokenPermissions[](
+    ) internal view returns (IPermit2.PermitBatchTransferFrom memory permit) {
+        IPermit2.TokenPermissions[]
+            memory permissions = new IPermit2.TokenPermissions[](
                 tokens.length
             );
         for (uint i; i < tokens.length; i++) {
-            permissions[i] = ISignatureTransfer.TokenPermissions({
+            permissions[i] = IPermit2.TokenPermissions({
                 token: tokens[i],
                 amount: amounts[i]
             });
@@ -558,7 +550,7 @@ contract Permit2ProxyTest is TestBase {
     }
 
     function _getPermitWitnessTransferSignatureSingle(
-        ISignatureTransfer.PermitTransferFrom memory permit,
+        IPermit2.PermitTransferFrom memory permit,
         uint256 privateKey,
         bytes32 typeHash,
         bytes32 witness,
@@ -580,7 +572,7 @@ contract Permit2ProxyTest is TestBase {
     }
 
     function _getPermitWitnessTransferSignatureBatch(
-        ISignatureTransfer.PermitBatchTransferFrom memory permit,
+        IPermit2.PermitBatchTransferFrom memory permit,
         uint256 privateKey,
         bytes32 typeHash,
         bytes32 witness,
