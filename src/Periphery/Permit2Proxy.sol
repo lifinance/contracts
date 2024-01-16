@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import { ISignatureTransfer } from "lifi/Interfaces/ISignatureTransfer.sol";
+import { IPermit2 } from "lifi/Interfaces/IPermit2.sol";
 import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
-
-interface IPermit2 {
-    function DOMAIN_SEPARATOR() external view returns (bytes32);
-}
 
 /// @title Permit2Proxy
 /// @author LI.FI (https://li.fi)
@@ -29,7 +25,7 @@ contract Permit2Proxy is TransferrableOwnership {
     }
 
     /// Storage ///
-    ISignatureTransfer public permit2;
+    IPermit2 public permit2;
     mapping(address => bool) public diamondWhitelist;
 
     /// Errors ///
@@ -44,30 +40,27 @@ contract Permit2Proxy is TransferrableOwnership {
         address permit2Address,
         address owner
     ) TransferrableOwnership(owner) {
-        permit2 = ISignatureTransfer(permit2Address);
+        permit2 = IPermit2(permit2Address);
     }
 
     function gaslessWitnessDiamondCallSingleToken(
-        ISignatureTransfer.PermitTransferFrom memory permit,
+        IPermit2.PermitTransferFrom memory permit,
         uint256 amount,
         bytes memory witnessData,
         address senderAddress,
         bytes calldata signature
     ) external payable {
         // decode witnessData to obtain calldata and diamondAddress
-        Witness memory wittness = abi.decode(witnessData, (Witness));
+        Witness memory witness = abi.decode(witnessData, (Witness));
 
-        // transfer inputToken from user to calling wallet using Permit2 signature
+        // transfer inputToken from user to this contract (aka the tokenReceiver) using Permit2 signature
         // we send tokenReceiver, diamondAddress and diamondCalldata as Witness to the permit contract to ensure:
-        // a) that tokens can only be transferred to the wallet calling this function (as signed by the user)
+        // a) that tokens can only be transferred to the tokenReceiver address which was signed by the user
         // b) that only the diamondAddress can be called which was signed by the user
         // c) that only the diamondCalldata can be executed which was signed by the user
         permit2.permitWitnessTransferFrom(
             permit,
-            ISignatureTransfer.SignatureTransferDetails(
-                wittness.tokenReceiver,
-                amount
-            ),
+            IPermit2.SignatureTransferDetails(witness.tokenReceiver, amount),
             senderAddress,
             keccak256(witnessData),
             _WITNESS_TYPE_STRING,
@@ -77,16 +70,16 @@ contract Permit2Proxy is TransferrableOwnership {
         // maxApprove token to diamond if current allowance is insufficient
         LibAsset.maxApproveERC20(
             IERC20(permit.permitted.token),
-            wittness.diamondAddress,
+            witness.diamondAddress,
             amount
         );
 
         // call our diamond to execute calldata
-        _executeCalldata(wittness.diamondAddress, wittness.diamondCalldata);
+        _executeCalldata(witness.diamondAddress, witness.diamondCalldata);
     }
 
     function gaslessWitnessDiamondCallMultipleTokens(
-        ISignatureTransfer.PermitBatchTransferFrom memory permit,
+        IPermit2.PermitBatchTransferFrom memory permit,
         uint256[] calldata amounts,
         bytes memory witnessData,
         address senderAddress,
@@ -95,19 +88,19 @@ contract Permit2Proxy is TransferrableOwnership {
         // TODO: add refunding of positive slippage / remaining tokens
 
         // decode witnessData to obtain calldata and diamondAddress
-        Witness memory wittness = abi.decode(witnessData, (Witness));
+        Witness memory witness = abi.decode(witnessData, (Witness));
 
         // transfer multiple inputTokens from user to calling wallet using Permit2 signature
         // we send tokenReceiver, diamondAddress and diamondCalldata as Witness to the permit contract to ensure:
         // a) that tokens can only be transferred to the wallet calling this function (as signed by the user)
         // b) that only the diamondAddress can be called which was signed by the user
         // c) that only the diamondCalldata can be executed which was signed by the user
-        ISignatureTransfer.SignatureTransferDetails[]
-            memory transferDetails = new ISignatureTransfer.SignatureTransferDetails[](
+        IPermit2.SignatureTransferDetails[]
+            memory transferDetails = new IPermit2.SignatureTransferDetails[](
                 amounts.length
             );
         for (uint i; i < amounts.length; ) {
-            transferDetails[i] = ISignatureTransfer.SignatureTransferDetails(
+            transferDetails[i] = IPermit2.SignatureTransferDetails(
                 address(this),
                 amounts[i]
             );
@@ -115,7 +108,7 @@ contract Permit2Proxy is TransferrableOwnership {
             // ensure maxApproval to diamond
             LibAsset.maxApproveERC20(
                 IERC20(permit.permitted[i].token),
-                wittness.diamondAddress,
+                witness.diamondAddress,
                 amounts[i]
             );
 
@@ -136,7 +129,7 @@ contract Permit2Proxy is TransferrableOwnership {
         );
 
         // call our diamond to execute calldata
-        _executeCalldata(wittness.diamondAddress, wittness.diamondCalldata);
+        _executeCalldata(witness.diamondAddress, witness.diamondCalldata);
     }
 
     function _executeCalldata(
