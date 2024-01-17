@@ -28,6 +28,10 @@
       "0x0C449F799010287c8ee51d7E89324dA8a1EBCB47": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
+      },
+      "0xBfCd6B87c596A39BD481C6cdEc949825Bc6ebFA2": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
