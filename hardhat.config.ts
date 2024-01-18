@@ -14,7 +14,7 @@ import { HardhatUserConfig } from 'hardhat/types'
 
 require('./tasks/generateDiamondABI.ts')
 
-const PKEY = process.env.PRIVATE_KEY || null
+const PKEY = process.env.PRIVATE_KEY_PRODUCTION || null
 
 function getRemappings() {
   return fs
