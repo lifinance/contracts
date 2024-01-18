@@ -30,6 +30,11 @@
 - [Periphery Registry Facet](./PeripheryRegistryFacet.md)
 - [Polygon Bridge Facet](./PolygonBridgeFacet.md)
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+- [Ronin Bridge Facet](./RoninBridgeFacet.md)
+- [Squid Facet](./SquidFacet.md)
+>>>>>>> LF-2320
 - [Standardized Call Facet](./StandardizedCallFacet.md)
 =======
 - [Ronin Bridge Facet](./RoninBridgeFacet.md)
