@@ -12,12 +12,8 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 // Stub StargateFacet Contract
 contract TestStargateFacet is StargateFacet {
     /// @notice Initialize the contract.
-    /// @param _router The contract address of the stargatefacet router on the source chain.
-    /// @param _nativeRouter The contract address of the native stargatefacet router on the source chain.
-    constructor(
-        IStargateRouter _router,
-        IStargateRouter _nativeRouter
-    ) StargateFacet(_router, _nativeRouter) {}
+    /// @param _composer The contract address of the stargatefacet composer router on the source chain.
+    constructor(IStargateRouter _composer) StargateFacet(_composer) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -40,10 +36,8 @@ contract StargateFacetTest is TestBaseFacet {
     // These values are for Mainnet
     address internal constant WETH_ADDRESS =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address internal constant MAINNET_ROUTER =
-        0x8731d54E9D02c286767d56ac03e8037C07e01e98;
-    address internal constant MAINNET_NATIVE_ROUTER =
-        0xb1b2eeF380f21747944f46d28f683cD1FBB4d03c;
+    address internal constant MAINNET_COMPOSER =
+        0xeCc19E177d24551aA7ed6Bc6FE566eCa726CC8a9;
     uint256 internal constant DST_CHAIN_ID = 137;
     // -----
 
@@ -54,13 +48,12 @@ contract StargateFacetTest is TestBaseFacet {
 
     function setUp() public {
         // set custom block number for forking
-        customBlockNumberForForking = 17661386;
+        customBlockNumberForForking = 18218201;
 
         initTestBase();
 
         stargateFacet = new TestStargateFacet(
-            IStargateRouter(MAINNET_ROUTER),
-            IStargateRouter(MAINNET_NATIVE_ROUTER)
+            IStargateRouter(MAINNET_COMPOSER)
         );
         feeCollector = new FeeCollector(address(this));
 
@@ -156,6 +149,92 @@ contract StargateFacetTest is TestBaseFacet {
         stargateFacet.swapAndStartBridgeTokensViaStargate{
             value: addToMessageValue
         }(bridgeData, swapData, stargateData);
+    }
+
+    /// Additional Tests ///
+
+    function test_CanBridgeNativeTokensWithDestinationCall()
+        public
+        assertBalanceChange(
+            address(0),
+            USER_SENDER,
+            -int256((defaultNativeAmount))
+        )
+        assertBalanceChange(address(0), USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+        // customize bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+        bridgeData.destinationChainId = 10;
+
+        stargateData.minAmountLD = (defaultNativeAmount * 90) / 100;
+        addToMessageValue = 0;
+
+        // destination call overwrites
+        bridgeData.hasDestinationCall = true;
+        stargateData.callTo = abi.encodePacked(
+            address(0xddc22EAaa960e052946D842cEC61eb91bbE06eeD)
+        );
+        stargateData.callData = "0x123";
+        stargateData.dstGasForCall = 1000;
+        (uint256 nativeFees, ) = stargateFacet.quoteLayerZeroFee(
+            10, // Optimism chainId
+            stargateData
+        );
+        stargateData.lzFee = nativeFees;
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit PartnerSwap(0x0006);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeTokensWithDestinationCall()
+        public
+        virtual
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+
+        // destination call overwrites
+        bridgeData.hasDestinationCall = true;
+        stargateData.callTo = abi.encodePacked(
+            address(0xddc22EAaa960e052946D842cEC61eb91bbE06eeD)
+        );
+        stargateData.callData = "0x123";
+        stargateData.dstGasForCall = 1000;
+        (uint256 nativeFees, ) = stargateFacet.quoteLayerZeroFee(
+            DST_CHAIN_ID,
+            stargateData
+        );
+        stargateData.lzFee = addToMessageValue = nativeFees;
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 
     /// Overrides ///
@@ -294,22 +373,10 @@ contract StargateFacetTest is TestBaseFacet {
         stargateFacet.setLayerZeroChainId(123, 456);
     }
 
-    function test_revert_InitializeAgain() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-        StargateFacet.ChainIdConfig[]
-            memory chainIdConfig = new StargateFacet.ChainIdConfig[](2);
-        chainIdConfig[0] = StargateFacet.ChainIdConfig(1, 101);
-        chainIdConfig[1] = StargateFacet.ChainIdConfig(137, 109);
-
-        vm.expectRevert(AlreadyInitialized.selector);
-        stargateFacet.initStargate(chainIdConfig);
-    }
-
     function test_revert_InitializeAsNonOwner() public {
         LiFiDiamond diamond2 = createDiamond();
         stargateFacet = new TestStargateFacet(
-            IStargateRouter(MAINNET_ROUTER),
-            IStargateRouter(MAINNET_NATIVE_ROUTER)
+            IStargateRouter(MAINNET_COMPOSER)
         );
         feeCollector = new FeeCollector(address(this));
 

@@ -212,10 +212,10 @@ contract CallVerificationFacetTest is TestBase {
         assertEq(hasDestinationCall, bridgeData.hasDestinationCall);
     }
 
-    function test_CatExtractGenericSwapParameters() public {
+    function test_CanExtractGenericSwapParameters() public {
         bytes memory callData = abi.encodeWithSelector(
             GenericSwapFacet.swapTokensGeneric.selector,
-            "txid",
+            keccak256("id"),
             "acme",
             "acme",
             payable(address(1234)),
@@ -245,7 +245,6 @@ contract CallVerificationFacetTest is TestBase {
             StandardizedCallFacet.standardizedCall.selector,
             callData
         );
-
         (
             sendingAssetId,
             amount,

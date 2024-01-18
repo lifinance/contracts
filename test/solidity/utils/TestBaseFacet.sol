@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity >=0.8.0;
+pragma solidity 0.8.17;
 
 import { TestBase, LiFiDiamond, DSTest, LibSwap, ILiFi, LibAllowList, console, InvalidAmount, ERC20, UniswapV2Router02 } from "./TestBase.sol";
 import { NoSwapDataProvided, InformationMismatch, NativeAssetTransferFailed, ReentrancyError, InsufficientBalance, CannotBridgeToSameNetwork, InvalidReceiver, InvalidAmount, InvalidConfig, InvalidSendingToken, AlreadyInitialized, NotInitialized } from "src/Errors/GenericErrors.sol";
@@ -106,7 +106,6 @@ abstract contract TestBaseFacet is TestBase {
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-
         emit LiFiTransferStarted(bridgeData);
 
         initiateBridgeTxWithFacet(false);
@@ -280,8 +279,7 @@ abstract contract TestBaseFacet is TestBase {
         // prepare bridgeData
         bridgeData.receiver = address(0);
 
-        // vm.expectRevert(InvalidReceiver.selector);
-        vm.expectRevert();
+        vm.expectRevert(InvalidReceiver.selector);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -298,8 +296,7 @@ abstract contract TestBaseFacet is TestBase {
 
         setDefaultSwapDataSingleDAItoUSDC();
 
-        // vm.expectRevert(InvalidReceiver.selector);
-        vm.expectRevert();
+        vm.expectRevert(InvalidReceiver.selector);
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -310,8 +307,7 @@ abstract contract TestBaseFacet is TestBase {
         // prepare bridgeData
         bridgeData.minAmount = 0;
 
-        // vm.expectRevert(InvalidAmount.selector);
-        vm.expectRevert();
+        vm.expectRevert(InvalidAmount.selector);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -325,8 +321,7 @@ abstract contract TestBaseFacet is TestBase {
 
         setDefaultSwapDataSingleDAItoUSDC();
 
-        // vm.expectRevert(InvalidAmount.selector);
-        vm.expectRevert();
+        vm.expectRevert(InvalidAmount.selector);
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -339,8 +334,7 @@ abstract contract TestBaseFacet is TestBase {
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        // vm.expectRevert(CannotBridgeToSameNetwork.selector);
-        vm.expectRevert();
+        vm.expectRevert(CannotBridgeToSameNetwork.selector);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -355,8 +349,7 @@ abstract contract TestBaseFacet is TestBase {
         setDefaultSwapDataSingleDAItoUSDC();
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
-        // vm.expectRevert(CannotBridgeToSameNetwork.selector);
-        vm.expectRevert();
+        vm.expectRevert(CannotBridgeToSameNetwork.selector);
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -400,10 +393,17 @@ abstract contract TestBaseFacet is TestBase {
 
         usdc.approve(address(_facetTestContractAddress), defaultUSDCAmount);
 
+        // send all available USDC balance to different account to ensure sending wallet has no USDC funds
         usdc.transfer(USER_RECEIVER, usdc.balanceOf(USER_SENDER));
 
-        // vm.expectRevert(abi.encodeWithSelector(InsufficientBalance.selector, bridgeData.minAmount, 0));
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InsufficientBalance.selector,
+                bridgeData.minAmount,
+                0
+            )
+        );
+
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }

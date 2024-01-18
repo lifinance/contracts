@@ -22,5 +22,9 @@
   "RelayerCelerIMMutable": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
   "CelerIMFacetMutable": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
   "StandardizedCallFacet": "0x2E61751366B7e006f8D53becB4b697890B30144F",
-  "CalldataVerificationFacet": "0xaE77c9aD4af61fAec96f04bD6723F6F6A804a567"
+  "CalldataVerificationFacet": "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0",
+  "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
+  "HopFacet": "0x7B4E409470d13E5A85F43c433A805ff8d44b8fF7",
+  "HopFacetOptimized": "0x3008430adEdeE3aFa16360A01FC7db071F6857b0",
+  "HopFacetPacked": "0xF5271b13a73a2443DA2fE50F0a8c13850072Cf0C"
 }
