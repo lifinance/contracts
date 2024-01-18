@@ -42,7 +42,7 @@ velas = "${ETH_NODE_URI_VELAS}"
 
 # testnets
 goerli = "${ETH_NODE_URI_GOERLI}"
-bsc-testnet = "${ETH_NODE_URI_BSCTEST}"
+bsc-testnet = "${ETH_NODE_URI_BSC_TESTNET}"
 lineatest = "${ETH_NODE_URI_LINEATEST}"
 localanvil = "${ETH_NODE_URI_LOCALANVIL}"
 mumbai = "${ETH_NODE_URI_MUMBAI}"

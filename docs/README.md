@@ -24,6 +24,7 @@
 - [Multichain Facet](./MultichainFacet.md)
 - [OmniBridge Facet](./OmniBridgeFacet.md)
 - [Optimism Bridge Facet](./OptimismBridgeFacet.md)
+- [OpBNB Bridge Facet](./OpBNBBridgeFacet.md)
 - [Periphery Registry Facet](./PeripheryRegistryFacet.md)
 - [Polygon Bridge Facet](./PolygonBridgeFacet.md)
 - [Standardized Call Facet](./StandardizedCallFacet.md)

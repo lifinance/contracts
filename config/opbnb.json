@@ -1,0 +1,10 @@
+{
+  "bsc": {
+    "standardBridge": "0xF05F0e4362859c3331Cb9395CBC201E3Fa6757Ea",
+    "tokens": []
+  },
+  "bsc-testnet": {
+    "standardBridge": "0x677311Fd2cCc511Bbc0f581E8d9a07B033D5E840",
+    "tokens": []
+  }
+}
