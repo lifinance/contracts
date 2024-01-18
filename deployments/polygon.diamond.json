@@ -84,6 +84,10 @@
       "0x31e3b5611FBb1a90d35039fCC9656649e7Fd482b": {
         "Name": "StargateFacet",
         "Version": "2.2.0"
+      },
+      "0x6731C946747bA54c78e7a65d416Cde39E478ECeb": {
+        "Name": "CelerCircleBridgeFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {

@@ -2456,6 +2456,19 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x0C449F799010287c8ee51d7E89324dA8a1EBCB47",
+            "OPTIMIZER_RUNS": "10000",
+            "TIMESTAMP": "2023-11-22 13:35:05",
+            "CONSTRUCTOR_ARGS": "0x",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -4749,6 +4762,20 @@
           }
         ]
       }
+    },
+    "base": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xc31F4392EE89d81E7303e2c1CDE210414F39E2ea",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-01-12 18:02:51",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000007d43aabc515c356145049227cee54b608342c0ad",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GenericSwapFacet": {
@@ -5350,6 +5377,20 @@
           }
         ]
       }
+    },
+    "polygonzkevm": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x3008430adEdeE3aFa16360A01FC7db071F6857b0",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-01-12 17:47:56",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "HopFacet": {
@@ -5529,6 +5570,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "polygonzkevm": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x7B4E409470d13E5A85F43c433A805ff8d44b8fF7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-01-11 13:29:23",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -10679,6 +10734,20 @@
           }
         ]
       }
+    },
+    "polygonzkevm": {
+      "production": {
+        "1.0.6": [
+          {
+            "ADDRESS": "0xF5271b13a73a2443DA2fE50F0a8c13850072Cf0C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-01-12 17:49:14",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "AmarokFacet": {
@@ -10896,6 +10965,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x967D0f9181521a407613495e68e5F8D22b49e513",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-12-06 17:04:53",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000a05ef29e9ac8c75c530c2795fa6a800e188de0a9",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "CelerCircleBridgeFacet": {
@@ -11000,6 +11083,34 @@
             "TIMESTAMP": "2023-08-31 12:35:19",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000697ac93c9263346c5ad0412f9356d5789a3aa6870000000000000000000000000b2c639c533813f4aa9d7837caf62653d097ff85",
             "SALT": "31082023",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6731C946747bA54c78e7a65d416Cde39E478ECeb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-12-13 13:20:20",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b876cc05c3c3c8ecba65dac4cf69caf871f2e0dd0000000000000000000000003c499c542cef5e3811e1192ce70d8cc03d5c3359",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "base": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6731C946747bA54c78e7a65d416Cde39E478ECeb",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-12-13 14:55:31",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000243b40e96c6bf21511e53d85c86f6ec982f9a879000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -11271,6 +11382,20 @@
           }
         ]
       }
+    },
+    "optimism": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x71205D77043848B57243A3F7eA133E11A3dd346b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2023-12-22 13:30:02",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000097e5bf5068ea6a9604ee25851e6c9780ff50d5ab",
+            "SALT": "22122023",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "ArbitrumBridgeFacet": {
@@ -11524,6 +11649,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-08-25 12:33:23",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009b36f165bab9ebe611d491180418d8de4b8f3a1f00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "base": {
+      "production": {
+        "1.0.3": [
+          {
+            "ADDRESS": "0x4f62E7a939C62316F76E2afC644A9A907Dc30D2d",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-01-12 18:04:33",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000007d43aabc515c356145049227cee54b608342c0ad00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
             "VERIFIED": "true"
           }
