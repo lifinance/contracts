@@ -785,6 +785,43 @@
       }
     ]
   },
+  "polygonzkevm": {
+    "chainId": 1101,
+    "tokens": [
+      {
+        "name": "ETH",
+        "bridge": "0x0ce6c85cF43553DE10FC56cecA0aef6Ff0DD444d",
+        "token": "0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9",
+        "ammWrapper": "0xbd72882120508518FCba2AE58E134EceaD18d979"
+      },
+      {
+        "name": "HOP",
+        "bridge": "0x9ec9551d4A1a1593b0ee8124D98590CC71b3B09D",
+        "token": "0xc5102fE9359FD9a28f877a67E36B0F050d81a3CC",
+        "ammWrapper": "0x0000000000000000000000000000000000000000"
+      }
+    ],
+    "approvals": [
+      {
+        "a_tokenAddress": "0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9",
+        "b_contractAddress": "0xbd72882120508518FCba2AE58E134EceaD18d979",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2AmmWrapper"
+      },
+      {
+        "a_tokenAddress": "0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9",
+        "b_contractAddress": "0x0a6b1904369fE59E002ad0713ae89d4E3dF5A7Cf",
+        "c_tokenName": "ETH",
+        "d_contractName": "l2SaddleSwap"
+      },
+      {
+        "a_tokenAddress": "0xc5102fE9359FD9a28f877a67E36B0F050d81a3CC",
+        "b_contractAddress": "0x9ec9551d4A1a1593b0ee8124D98590CC71b3B09D",
+        "c_tokenName": "HOP",
+        "d_contractName": "l2Bridge"
+      }
+    ]
+  },
   "goerli": {
     "chainId": 5,
     "tokens": [
