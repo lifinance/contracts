@@ -25,9 +25,9 @@ jobs:
         run: forge install
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4.0.0
         with:
-          node-version: 16
+          node-version: 20
 
       - name: Install Node deps
         run: yarn install
@@ -89,7 +89,7 @@ jobs:
         id: bump_version
         uses: christian-draeger/increment-semantic-version@1.1.0
         with:
-          current-version: "${{ env.LATEST_TAG }}"
+          current-version: '${{ env.LATEST_TAG }}'
           version-fragment: "${{ env.BRANCH_NAME == 'main' && (contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || 'bug') || 'beta' }}"
 
       - name: Push tag

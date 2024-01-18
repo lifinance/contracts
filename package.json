@@ -37,7 +37,7 @@
     "eslint-plugin-import": "^2.27.5",
     "ethers": "5.7.2",
     "fs-extra": "^10.0.1",
-    "hardhat": "2.12.7",
+    "hardhat": "^2.19.1",
     "hardhat-deploy": "^0.11.34",
     "hardhat-preprocessor": "^0.1.5",
     "husky": "^8.0.1",

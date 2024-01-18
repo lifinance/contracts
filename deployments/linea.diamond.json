@@ -68,6 +68,10 @@
       "0xf812bA858d9Fa57788dF0F792eF35752d54863F1": {
         "Name": "HopFacetOptimized",
         "Version": "2.0.0"
+      },
+      "0x967D0f9181521a407613495e68e5F8D22b49e513": {
+        "Name": "AmarokFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
