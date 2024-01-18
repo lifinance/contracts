@@ -8,8 +8,8 @@ interface CBridgeConfig {
   [network: string]: {
     cBridge?: string
     cfUSDC?: string
-    messageBuss?: string
-    tokenstoApprove?: string[]
+    messageBus?: string
+    tokensToApprove?: string[]
   }
 }
 
