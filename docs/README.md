@@ -29,7 +29,11 @@
 - [OpBNB Bridge Facet](./OpBNBBridgeFacet.md)
 - [Periphery Registry Facet](./PeripheryRegistryFacet.md)
 - [Polygon Bridge Facet](./PolygonBridgeFacet.md)
+<<<<<<< HEAD
 - [Standardized Call Facet](./StandardizedCallFacet.md)
+=======
+- [Ronin Bridge Facet](./RoninBridgeFacet.md)
+>>>>>>> LF-2292
 - [Stargate Facet](./StargateFacet.md)
 - [Synapse Bridge Facet](./SynapseBridgeFacet.md)
 - [Withdraw Facet](./WithdrawFacet.md)
