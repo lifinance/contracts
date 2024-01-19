@@ -30,8 +30,8 @@
         "Version": "1.0.0"
       },
       "0xBfCd6B87c596A39BD481C6cdEc949825Bc6ebFA2": {
-        "Name": "DiamondCutFacet",
-        "Version": "1.0.0"
+        "Name": "CelerIMFacetMutable",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
