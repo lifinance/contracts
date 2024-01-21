@@ -86,13 +86,15 @@
     "@uma/sdk": "^0.22.1",
     "@uniswap/sdk": "^3.0.3",
     "chalk": "4.1.2",
+    "consola": "^3.2.3",
     "defender-relay-client": "^1.26.0",
     "enquirer": "^2.4.1",
     "hardhat-ethers": "^1.0.1",
     "light-spinner": "^1.0.4",
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
-    "yarn": "^1.22.19"
+    "yarn": "^1.22.19",
+    "zx": "^7.2.3"
   },
   "lint-staged": {
     "*.{ts,js}": [
