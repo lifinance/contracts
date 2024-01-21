@@ -6,7 +6,6 @@ import { consola } from 'consola'
 import 'dotenv/config'
 import process from 'process'
 
-$.verbose = false
 consola.box('LIFI Deployment Manager 1.0.0')
 
 // Warn if production mode is on
