@@ -41,28 +41,22 @@ export default async () => {
   // Get the contract item from the object array
   const deployScript = deployScripts.find((c) => c.name === choice)
 
-  // Using fetch get the LIFI supprted chains from https://li.quest/v1/chains
-  // then map the result to an object by extracting chains[i].name and chains[i].metamask.rpcUrls[0]
-  let result = await spinner('Fetching LIFI supported chains', async () =>
-    (
-      await retry(process.env.MAX_RETRIES, '1s', () =>
-        fetch('https://li.quest/v1/chains')
-      )
-    ).json()
-  )
-  const chains = result.chains.map((c) => {
-    return { name: c.name, rpcUrl: c.metamask.rpcUrls[0] }
-  })
+  // Read the ./networks file and add each line to an array of chains and remove any empty lines
+  const chains = (await fs.readFile('./networks', 'utf8'))
+    .split('\n')
+    .filter((c) => c)
 
   // Present a list of chains to choose from
   const chainChoice = await consola.prompt('Choose a chain to deploy to', {
     type: 'select',
-    options: chains.map((c) => c.name),
+    options: chains,
     initial: 0,
   })
 
   // Get the chain item from the object array
-  const chain = chains.find((c) => c.name === chainChoice)
+  const chain = (await import('viem/chains'))[chainChoice]
+
+  const rpcUrl = chain.rpcUrls.default.http[0]
 
   // Run the deploy script with forge e.g await $`forge script script/deploy/facets/DeploySomeScript.sol`
   try {
@@ -75,14 +69,14 @@ export default async () => {
     const runCallData =
       await $`cast calldata "run(address,address,string,string,bool)" ${DEPLOYER_WALLET_ADDRESS} ${
         process.env.CREATE3_FACTORY_ADDRESS
-      } ${chain.name.toLowerCase()} "${process.env.SALT || ''}" ${
+      } ${chainChoice} "${process.env.SALT || ''}" ${
         process.env.PRODUCTION ? true : false
       }`
 
     // Setup the forge arguments
     const forgeArgs = [
       `-f`,
-      `${chain.rpcUrl}`,
+      `${rpcUrl}`,
       `--tc`,
       `${deployScript.name}`,
       '--sig',
