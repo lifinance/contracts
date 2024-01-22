@@ -7,7 +7,7 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 /// @title LiFuelFeeCollector
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for collecting fees for LiFuel
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract LiFuelFeeCollector is TransferrableOwnership {
     /// Errors ///
     error TransferFailure();
