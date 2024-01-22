@@ -50,7 +50,11 @@ contract ServiceFeeCollectorTest is DSTest {
         uint256 fee = 0.015 ether;
 
         // Act
-        feeCollector.collectNativeGasFees{ value: fee }(137, address(0xb33f));
+        feeCollector.collectNativeGasFees{ value: fee }(
+            fee,
+            137,
+            address(0xb33f)
+        );
 
         // Assert
         assert(address(feeCollector).balance == fee);
@@ -115,7 +119,11 @@ contract ServiceFeeCollectorTest is DSTest {
             137,
             address(0xb33f)
         );
-        feeCollector.collectNativeGasFees{ value: fee }(137, address(0xb33f));
+        feeCollector.collectNativeGasFees{ value: fee }(
+            fee,
+            137,
+            address(0xb33f)
+        );
         uint256 startingTokenBalance = feeToken.balanceOf(address(this));
         uint256 startingETHBalance = address(this).balance;
 

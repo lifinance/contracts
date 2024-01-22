@@ -84,7 +84,11 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             serviceFeeCollector.collectNativeGasFees{
                 value: _bridgeData.minAmount
-            }(_bridgeData.destinationChainId, _bridgeData.receiver);
+            }(
+                _bridgeData.minAmount,
+                _bridgeData.destinationChainId,
+                _bridgeData.receiver
+            );
         } else {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),

@@ -53,6 +53,7 @@ contract LiFuelFeeCollector is TransferrableOwnership {
     /// @param chainId The chain id of the destination chain
     /// @param receiver The address to send gas to on destination chain
     function collectNativeGasFees(
+        uint256 feeAmount,
         uint256 chainId,
         address receiver
     ) external payable {
@@ -60,7 +61,7 @@ contract LiFuelFeeCollector is TransferrableOwnership {
             LibAsset.NULL_ADDRESS,
             chainId,
             receiver,
-            msg.value
+            feeAmount
         );
     }
 
