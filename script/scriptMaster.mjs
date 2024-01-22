@@ -1,10 +1,22 @@
 #!/usr/bin/env zx
 
-import { $ } from 'zx'
-import chalk from 'chalk'
+import { $, chalk } from 'zx'
 import { consola } from 'consola'
 import 'dotenv/config'
 import process from 'process'
+
+// Set the number of retries for an execution
+process.env.MAX_RETRIES = 10
+
+// Handle SIGINT and SIGTERM
+process.on('SIGINT', () => {
+  consola.info('Exiting...')
+  process.exit(0)
+})
+process.on('SIGTERM', () => {
+  consola.info('Exiting...')
+  process.exit(0)
+})
 
 consola.box('LIFI Deployment Manager 1.0.0')
 
