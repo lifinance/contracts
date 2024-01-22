@@ -51,6 +51,19 @@ contract NonStandardSelectorRegistryFacetTest is TestBase {
         vm.startPrank(address(1337));
         vm.expectRevert(OnlyContractOwner.selector);
         registry.setNonStandardSelector(0x12345678, true);
+
+        // Batch check
+        bytes4[] memory selectors = new bytes4[](2);
+        selectors[0] = 0x12345678;
+        selectors[1] = 0x87654321;
+        bool[] memory isNonStandardSelectors = new bool[](2);
+        isNonStandardSelectors[0] = true;
+        isNonStandardSelectors[1] = false;
+        vm.expectRevert(OnlyContractOwner.selector);
+        registry.batchSetNonStandardSelectors(
+            selectors,
+            isNonStandardSelectors
+        );
         vm.stopPrank();
     }
 }
