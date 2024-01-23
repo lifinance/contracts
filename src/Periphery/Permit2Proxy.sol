@@ -85,8 +85,6 @@ contract Permit2Proxy is TransferrableOwnership {
         address senderAddress,
         bytes calldata signature
     ) external payable {
-        // TODO: add refunding of positive slippage / remaining tokens
-
         // decode witnessData to obtain calldata and diamondAddress
         Witness memory witness = abi.decode(witnessData, (Witness));
 
