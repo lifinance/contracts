@@ -1,4 +1,4 @@
-import { $, spinner, fetch, sleep, glob, os, fs, retry } from 'zx'
+import { $, spinner, glob, os, fs, retry, chalk } from 'zx'
 import { consola } from 'consola'
 import process from 'process'
 import ethers from 'ethers'
@@ -40,6 +40,8 @@ export default async () => {
 
   // Get the contract item from the object array
   const deployScript = deployScripts.find((c) => c.name === choice)
+  // Strip 'Deploy' and '2' from the name to get the contract name
+  const contractName = deployScript.name.replace('Deploy', '').slice(0, -1)
 
   // Read the ./networks file and add each line to an array of chains and remove any empty lines
   const chains = (await fs.readFile('./networks', 'utf8'))
@@ -107,19 +109,107 @@ export default async () => {
     // Strip the json from the first line of result.stdout
     const jsonResult = JSON.parse(result.stdout.split('\n')[0])
 
+    const contractAddress = jsonResult.returns.deployed.value
+    const constructorArgs = jsonResult.returns.constructorArgs.value
+
     consola.success(
       `Success! Contract Deployed at: ${jsonResult.returns.deployed.value}`
     )
-    await updateLogs()
+
+    const version = await getContractVersion(contractName)
+
+    await updateLogs(
+      chainChoice,
+      contractName,
+      contractAddress,
+      constructorArgs,
+      version,
+      1000000
+    )
   } catch (e) {
     consola.error(e)
     process.exit(1)
   }
 }
 
-const updateLogs = async () => {
+const getContractVersion = async (contractName) => {
+  // If name contains 'Facet' path is './src/Facets/<contractName>.sol'
+  // else path is './src/Periphery/<contractName>.sol'
+  const path = contractName.includes('Facet')
+    ? './src/Facets/'
+    : './src/Periphery/'
+  const contract = await fs.readFile(`${path}${contractName}.sol`, 'utf8')
+
+  // extract the version from the contract where the version is declared as follows: '@custom:version <version>'
+  const version = contract.match(/@custom:version (.*)/)[1]
+  return version
+}
+const updateLogs = async (
+  network,
+  contractName,
+  address,
+  constructorArgs,
+  version,
+  optimizerRuns
+) => {
   await spinner('Updating logs', async () => {
-    await sleep(2000)
+    // Add or update the key"<contractName>": "<address>" the json in ./deployments/<network>.json
+    const deployments = JSON.parse(
+      await fs.readFile(`./deployments/${network}.json`, 'utf8')
+    )
+    deployments[contractName] = address
+    await fs.writeFile(
+      `./deployments/${network}.json`,
+      JSON.stringify(deployments, null, 2)
+    )
   })
+
+  const env = process.env.PRODUCTION ? 'production' : 'staging'
+
+  // Setup log record
+  const log = {
+    ADDRESS: address,
+    OPTIMIZER_RUNS: optimizerRuns,
+    // Time format YYYY-MM-DD HH:MM:SS
+    TIMESTAMP: new Date().toISOString().replace('T', ' ').split('.')[0],
+    CONSTRUCTOR_ARGS: constructorArgs,
+    SALT: process.env.SALT || '',
+    VERIFIED: false,
+  }
+
+  // Add the log record to ./deployments/_deployments_log_file.json at the key <contractName>.<network>.<env>.<version>
+  const logFile = JSON.parse(
+    await fs.readFile(`./deployments/_deployments_log_file.json`, 'utf8')
+  )
+  if (!logFile[contractName]) {
+    logFile[contractName] = {}
+  }
+  if (!logFile[contractName][network]) {
+    logFile[contractName][network] = {}
+  }
+  if (!logFile[contractName][network][env]) {
+    logFile[contractName][network][env] = {}
+  }
+  if (!logFile[contractName][network][env][version]) {
+    logFile[contractName][network][env][version] = {}
+  }
+  // Search the items in <contractName>.<network>.<env>.<version>[] and if there is an entry with the same ADRESS as log.ADDRESS then skip
+  const logFileItem = logFile[contractName][network][env][version].find(
+    (c) => c.ADDRESS === log.ADDRESS
+  )
+  if (logFileItem) {
+    consola.warn(
+      `Log for ${chalk.blue(contractName)} already exists at ${chalk.blue(
+        log.ADDRESS
+      )} > ${chalk.blue(network)} > ${chalk.blue(env)} > ${chalk.blue(version)}`
+    )
+    return
+  }
+  logFile[contractName][network][env][version].push(log)
+  await fs.writeFile(
+    `./deployments/_deployments_log_file.json`,
+    JSON.stringify(logFile, null, 2)
+  )
+
   consola.success('Logs updated')
 }
