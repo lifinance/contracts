@@ -68,12 +68,15 @@ export default async () => {
     // - chain name
     // - salt
     // - production?
-    const runCallData =
-      await $`cast calldata "run(address,address,string,string,bool)" ${DEPLOYER_WALLET_ADDRESS} ${
-        process.env.CREATE3_FACTORY_ADDRESS
-      } ${chainChoice} "${process.env.SALT || ''}" ${
-        process.env.PRODUCTION ? true : false
-      }`
+    const runCallData = await spinner(
+      'Setting up deploy parameters...',
+      () =>
+        $`cast calldata "run(address,address,string,string,bool)" ${DEPLOYER_WALLET_ADDRESS} ${
+          process.env.CREATE3_FACTORY_ADDRESS
+        } ${chainChoice} "${process.env.SALT || ''}" ${
+          process.env.PRODUCTION ? true : false
+        }`
+    )
 
     // Setup the forge arguments
     const forgeArgs = [
@@ -116,15 +119,25 @@ export default async () => {
       `Success! Contract Deployed at: ${jsonResult.returns.deployed.value}`
     )
 
+    // Get the version from the contract
     const version = await getContractVersion(contractName)
 
+    // Get the optimizer runs from the compiled contract
+    const meta = await spinner(
+      'Fetching contract metadata...',
+      () => $`forge inspect ${contractName} metadata`
+    )
+    const metaJson = JSON.parse(meta.stdout)
+    const optimizerRuns = metaJson.settings.optimizer.runs.toString()
+
+    // Update logs
     await updateLogs(
       chainChoice,
       contractName,
       contractAddress,
       constructorArgs,
       version,
-      1000000
+      optimizerRuns
     )
   } catch (e) {
     consola.error(e)
