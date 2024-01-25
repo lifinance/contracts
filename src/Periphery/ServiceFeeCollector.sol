@@ -69,6 +69,7 @@ contract ServiceFeeCollector is TransferrableOwnership {
             receiver,
             msg.value
         );
+        msg.sender.call{ value: msg.value - feeAmount }("");
     }
 
     /// @notice Collects insurance fees
