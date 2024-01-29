@@ -1,7 +1,8 @@
 import { $, spinner, glob, os, fs, retry, chalk } from 'zx'
 import { consola } from 'consola'
 import process from 'process'
-import ethers from 'ethers'
+import { ethers } from 'ethers'
+import { Chain } from 'viem'
 
 const DEPLOYER_WALLET_ACCOUNT = process.env.DEPLOYER_WALLET_ACCOUNT
 const DEPLOYER_WALLET_PASSWORD = process.env.DEPLOYER_WALLET_PASSWORD
@@ -11,31 +12,36 @@ const keyStoreJson = fs.readFileSync(
   `${os.homedir()}/.foundry/keystores/${DEPLOYER_WALLET_ACCOUNT}`
 )
 const DEPLOYER_WALLET = ethers.Wallet.fromEncryptedJsonSync(
-  keyStoreJson,
-  DEPLOYER_WALLET_PASSWORD
+  keyStoreJson.toString(),
+  DEPLOYER_WALLET_PASSWORD as string
 )
 const DEPLOYER_WALLET_ADDRESS = DEPLOYER_WALLET.address
+
+type ScriptsOption = {
+  name: string
+  path: string
+}
 
 export default async () => {
   consola.box('Deploy Contract')
 
   let deployScripts = await glob('script/deploy/facets/*.sol')
   // Filter all deployScripts without Facets or Periphery in the path
+
   deployScripts = deployScripts.filter(
     (c) => c.includes('Deploy') && c.includes('2')
   )
   // Extract the filename without path or extension, create an object array that loks like this:
   // [ { name: 'LifiDeploy', path: 'script/deploy/facets/LifiDeploy.sol' } ]
-  deployScripts = deployScripts.map((c) => {
-    const name = c.split('/').pop().split('.')[0]
+  const options = deployScripts.map((c) => {
+    const name = c.split('/').pop()?.split('.')[0]
     return { name, path: c }
   })
   // Present a list of deployScripts to choose from
   const choice = await consola.prompt('Choose a contract to deploy', {
     type: 'select',
     // Map the object array to a string array of names
-    options: deployScripts.map((c) => c.name),
-    initial: 0,
+    options: options.map((c) => c.name),
   })
 
   // Get the contract item from the object array
@@ -52,11 +58,10 @@ export default async () => {
   const chainChoice = await consola.prompt('Choose a chain to deploy to', {
     type: 'select',
     options: chains,
-    initial: 0,
   })
 
   // Get the chain item from the object array
-  const chain = (await import('viem/chains'))[chainChoice]
+  const chain: Chain = (await import('viem/chains'))[chainChoice] as Chain
 
   const rpcUrl = chain.rpcUrls.default.http[0]
 
@@ -83,7 +88,7 @@ export default async () => {
       `-f`,
       `${rpcUrl}`,
       `--tc`,
-      `${deployScript.name}`,
+      `${deployScript?.name}`,
       '--sig',
       `${runCallData.stdout.trim()}`,
       '--account',
@@ -98,12 +103,16 @@ export default async () => {
       '--legacy',
     ]
 
+    if (!deployScript || !chain) {
+      return
+    }
+
     // Run the forge script
     const result = await spinner(
       `Running deploy script ${deployScript.path} on ${chain.name} from ${DEPLOYER_WALLET_ADDRESS}`,
       async () =>
         await retry(
-          process.env.MAX_RETRIES,
+          parseInt(process.env.MAX_RETRIES as string),
           '1s',
           () => $`forge script ${deployScript.path} ${forgeArgs}`
         )
@@ -145,7 +154,7 @@ export default async () => {
   }
 }
 
-const getContractVersion = async (contractName) => {
+const getContractVersion = async (contractName: string) => {
   // If name contains 'Facet' path is './src/Facets/<contractName>.sol'
   // else path is './src/Periphery/<contractName>.sol'
   const path = contractName.includes('Facet')
@@ -158,12 +167,12 @@ const getContractVersion = async (contractName) => {
   return version
 }
 const updateLogs = async (
-  network,
-  contractName,
-  address,
-  constructorArgs,
-  version,
-  optimizerRuns
+  network: string,
+  contractName: string,
+  address: string,
+  constructorArgs: string,
+  version: string,
+  optimizerRuns: string
 ) => {
   await spinner('Updating logs', async () => {
     // Add or update the key"<contractName>": "<address>" the json in ./deployments/<network>.json

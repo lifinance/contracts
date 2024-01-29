@@ -52,6 +52,7 @@
     "solidity-coverage": "^0.7.20",
     "ts-generator": "^0.1.1",
     "ts-node": "^10.7.0",
+    "tsx": "^4.7.0",
     "typechain": "^8.0.0",
     "typescript": "4.8.4",
     "zksync-web3": "^0.14.3"
@@ -75,7 +76,8 @@
     "execute": "node ./_scripts.js run",
     "abi:generate": "make clean && forge build --skip script --skip test --skip Base --skip Test && hardhat diamondABI",
     "typechain": "make clean && forge build --skip script --skip test --skip Base --skip Test && typechain --target ethers-v5 'out/**/*.json' --out-dir typechain",
-    "codegen": "plop"
+    "codegen": "plop",
+    "script:master": "tsx script/scriptMaster.ts"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
