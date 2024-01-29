@@ -1,34 +1,21 @@
-import { $, spinner, glob, os, fs, retry, chalk } from 'zx'
+import { $, spinner, glob, fs, retry, chalk } from 'zx'
 import { consola } from 'consola'
 import process from 'process'
-import { ethers } from 'ethers'
 import { Chain } from 'viem'
 
-const DEPLOYER_WALLET_ACCOUNT = process.env.DEPLOYER_WALLET_ACCOUNT
-const DEPLOYER_WALLET_PASSWORD = process.env.DEPLOYER_WALLET_PASSWORD
-
-// Get JSON from os.homedir()/.foundry/keystores/${DEPLOYER_WALLET_ACCOUNT}.json using fs
-const keyStoreJson = fs.readFileSync(
-  `${os.homedir()}/.foundry/keystores/${DEPLOYER_WALLET_ACCOUNT}`
-)
-const DEPLOYER_WALLET = ethers.Wallet.fromEncryptedJsonSync(
-  keyStoreJson.toString(),
-  DEPLOYER_WALLET_PASSWORD as string
-)
-const DEPLOYER_WALLET_ADDRESS = DEPLOYER_WALLET.address
-
-type ScriptsOption = {
-  name: string
-  path: string
-}
-
 export default async () => {
+  const DEPLOYER_WALLET_ACCOUNT = process.env.DEPLOYER_WALLET_ACCOUNT
+  const DEPLOYER_WALLET_PASSWORD = process.env.DEPLOYER_WALLET_PASSWORD
+  const DEPLOYER_WALLET_ADDRESS = (
+    await $`cast w a --account ${DEPLOYER_WALLET_ACCOUNT} --password ${DEPLOYER_WALLET_PASSWORD}`
+  ).stdout.trim()
+
   consola.box('Deploy Contract')
 
-  let deployScripts = await glob('script/deploy/facets/*.sol')
+  const files = await glob('script/deploy/facets/*.sol')
   // Filter all deployScripts without Facets or Periphery in the path
 
-  deployScripts = deployScripts.filter(
+  const deployScripts = files.filter(
     (c) => c.includes('Deploy') && c.includes('2')
   )
   // Extract the filename without path or extension, create an object array that loks like this:
@@ -45,7 +32,7 @@ export default async () => {
   })
 
   // Get the contract item from the object array
-  const deployScript = deployScripts.find((c) => c.name === choice)
+  const deployScript = options.find((c) => c.name === choice)
   // Strip 'Deploy' and '2' from the name to get the contract name
   const contractName = deployScript.name.replace('Deploy', '').slice(0, -1)
 
@@ -95,11 +82,13 @@ export default async () => {
       `${DEPLOYER_WALLET_ACCOUNT}`,
       '--password',
       `${DEPLOYER_WALLET_PASSWORD}`,
+      '--sender',
+      `${DEPLOYER_WALLET_ADDRESS}`,
       '--silent',
       '--json',
       '--skip-simulation',
       '-vvvv',
-      // '--broadcast',
+      '--broadcast',
       '--legacy',
     ]
 
@@ -117,7 +106,6 @@ export default async () => {
           () => $`forge script ${deployScript.path} ${forgeArgs}`
         )
     )
-
     // Strip the json from the first line of result.stdout
     const jsonResult = JSON.parse(result.stdout.split('\n')[0])
 
@@ -125,7 +113,7 @@ export default async () => {
     const constructorArgs = jsonResult.returns.constructorArgs.value
 
     consola.success(
-      `Success! Contract Deployed at: ${jsonResult.returns.deployed.value}`
+      `Success! Contract Deployed at: ${chalk.blue(contractAddress)}`
     )
 
     // Get the version from the contract
@@ -139,6 +127,14 @@ export default async () => {
     const metaJson = JSON.parse(meta.stdout)
     const optimizerRuns = metaJson.settings.optimizer.runs.toString()
 
+    // Verify the contract
+    const verified = await verifyContract(
+      chainChoice,
+      contractAddress,
+      contractName,
+      constructorArgs
+    )
+
     // Update logs
     await updateLogs(
       chainChoice,
@@ -146,7 +142,8 @@ export default async () => {
       contractAddress,
       constructorArgs,
       version,
-      optimizerRuns
+      optimizerRuns,
+      verified
     )
   } catch (e) {
     consola.error(e)
@@ -154,7 +151,7 @@ export default async () => {
   }
 }
 
-const getContractVersion = async (contractName: string) => {
+const getContractVersion = async (contractName: string): Promise<string> => {
   // If name contains 'Facet' path is './src/Facets/<contractName>.sol'
   // else path is './src/Periphery/<contractName>.sol'
   const path = contractName.includes('Facet')
@@ -166,13 +163,15 @@ const getContractVersion = async (contractName: string) => {
   const version = contract.match(/@custom:version (.*)/)[1]
   return version
 }
+
 const updateLogs = async (
   network: string,
   contractName: string,
   address: string,
   constructorArgs: string,
   version: string,
-  optimizerRuns: string
+  optimizerRuns: string,
+  verified: boolean
 ) => {
   await spinner('Updating logs', async () => {
     // Add or update the key"<contractName>": "<address>" the json in ./deployments/<network>.json
@@ -196,7 +195,7 @@ const updateLogs = async (
     TIMESTAMP: new Date().toISOString().replace('T', ' ').split('.')[0],
     CONSTRUCTOR_ARGS: constructorArgs,
     SALT: process.env.SALT || '',
-    VERIFIED: false,
+    VERIFIED: verified,
   }
 
   // Add the log record to ./deployments/_deployments_log_file.json at the key <contractName>.<network>.<env>.<version>
@@ -223,7 +222,9 @@ const updateLogs = async (
     consola.warn(
       `Log for ${chalk.blue(contractName)} already exists at ${chalk.blue(
         log.ADDRESS
-      )} > ${chalk.blue(network)} > ${chalk.blue(env)} > ${chalk.blue(version)}`
+      )} > ${chalk.blue(network)} > ${chalk.blue(env)} > ${chalk.blue(
+        version
+      )}.`
     )
     return
   }
@@ -234,4 +235,24 @@ const updateLogs = async (
   )
 
   consola.success('Logs updated')
+}
+
+const verifyContract = async (
+  chain: string,
+  address: string,
+  name: string,
+  constructorArgs: string
+): Promise<boolean> => {
+  const ETHERSCAN_API_KEY =
+    process.env[`${chain.toUpperCase()}_ETHERSCAN_API_KEY`]
+  try {
+    await spinner('Verifying contract', async () => {
+      await $`forge verify-contract --watch --chain ${chain} --constructor-args ${constructorArgs} ${address} ${name} -e ${ETHERSCAN_API_KEY}`.quiet()
+    })
+    consola.success('Contract verified')
+    return true
+  } catch (e) {
+    consola.error(e)
+    return false
+  }
 }
