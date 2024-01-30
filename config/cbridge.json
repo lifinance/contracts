@@ -36,6 +36,9 @@
       "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab"
     ]
   },
+  "base": {
+    "cBridge": "0x7d43AABC515C356145049227CeE54B608342c0ad"
+  },
   "boba": {
     "cBridge": "0x841ce48F9446C8E281D3F1444cB859b4A6D0738C"
   },
@@ -114,7 +117,7 @@
   },
   "zksync": {
     "cBridge": "0x54069e96C4247b37C2fbd9559CA99f08CD1CD66c",
-    "messageBus": "0xd8EB4AF624ff9172992F632d48566faBd7fd71e8",
+    "messageBus": "0x9a98a376D30f2c9A0A7332715c15D940dE3da0e2",
     "tokensToApprove": [
       "0x7400793aAd94C8CA801aa036357d10F5Fd0ce08f",
       "0x2039bb4116B4EFc145Ec4f0e2eA75012D6C0f181",
