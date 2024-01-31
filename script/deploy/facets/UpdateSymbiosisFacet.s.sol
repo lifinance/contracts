@@ -13,33 +13,6 @@ contract DeployScript is UpdateScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        path = string.concat(root, "/config/symbiosis.json");
-
-        json = vm.readFile(path);
-
-        address facet = json.readAddress(".SymbiosisFacet");
-
-        bytes4[] memory exclude;
-        buildDiamondCut(getSelectors("SymbiosisFacet", exclude), facet);
-
-        if (noBroadcast) {
-            if (cut.length > 0) {
-                cutData = abi.encodeWithSelector(
-                    DiamondCutFacet.diamondCut.selector,
-                    cut,
-                    address(0),
-                    ""
-                );
-            }
-            return (facets, cutData);
-        }
-
-        vm.startBroadcast(deployerPrivateKey);
-        if (cut.length > 0) {
-            cutter.diamondCut(cut, address(0), "");
-        }
-        facets = loupe.facetAddresses();
-
-        vm.stopBroadcast();
+        return update("SymbiosisFacet");
     }
 }

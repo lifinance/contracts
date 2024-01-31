@@ -1,36 +1,34 @@
 {
-  "config": {
-    "mainnet": {
-      "metaRouter": "0xE75C7E85FE6ADd07077467064aD15847E6ba9877",
-      "gateway": "0x25bEE8C21D1d0ec2852302fd7E674196EA298eC6"
-    },
-    "arbitrum": {
-      "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
-      "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
-    },
-    "avalanche": {
-      "metaRouter": "0xf1C374D065719Ce1Fdc63E2c5C13146813c0A83b",
-      "gateway": "0x384157027B1CDEAc4e26e3709667BB28735379Bb"
-    },
-    "bsc": {
-      "metaRouter": "0x81aB74A9f9d7457fF47dfD102e78A340cF72EC39",
-      "gateway": "0x79d930aBe53dd56B66Ed43f8f6a7C6a1b84655cA"
-    },
-    "optimism": {
-      "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
-      "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
-    },
-    "polygon": {
-      "metaRouter": "0xE75C7E85FE6ADd07077467064aD15847E6ba9877",
-      "gateway": "0x25bEE8C21D1d0ec2852302fd7E674196EA298eC6"
-    },
-    "telos": {
-      "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
-      "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
-    },
-    "zkSync": {
-      "metaRouter": "0x4f30036b5858f77F98d8D35c3b21BEb18916Ba9a",
-      "gateway": "0x2F7c5901DeBFb7faD804Db800F226de3dd0cffd5"
-    }
+  "mainnet": {
+    "metaRouter": "0xE75C7E85FE6ADd07077467064aD15847E6ba9877",
+    "gateway": "0x25bEE8C21D1d0ec2852302fd7E674196EA298eC6"
+  },
+  "arbitrum": {
+    "metaRouter": "0xca506793A420E901BbCa8066be5661E3C52c84c2",
+    "gateway": "0xd92Ca299F1C2518E78E48C207b64591BA6E9b9a8"
+  },
+  "avalanche": {
+    "metaRouter": "0xf1C374D065719Ce1Fdc63E2c5C13146813c0A83b",
+    "gateway": "0x384157027B1CDEAc4e26e3709667BB28735379Bb"
+  },
+  "bsc": {
+    "metaRouter": "0x81aB74A9f9d7457fF47dfD102e78A340cF72EC39",
+    "gateway": "0x79d930aBe53dd56B66Ed43f8f6a7C6a1b84655cA"
+  },
+  "optimism": {
+    "metaRouter": "0x0f91052dc5B4baE53d0FeA5DAe561A117268f5d2",
+    "gateway": "0x200a0fe876421DC49A26508e3Efd0a1008fD12B5"
+  },
+  "polygon": {
+    "metaRouter": "0xE75C7E85FE6ADd07077467064aD15847E6ba9877",
+    "gateway": "0x25bEE8C21D1d0ec2852302fd7E674196EA298eC6"
+  },
+  "telos": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
+  },
+  "zkSync": {
+    "metaRouter": "0x4f30036b5858f77F98d8D35c3b21BEb18916Ba9a",
+    "gateway": "0x2F7c5901DeBFb7faD804Db800F226de3dd0cffd5"
   }
 }
