@@ -12303,7 +12303,7 @@
         ]
       },
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12329,7 +12329,7 @@
         ]
       },
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12355,7 +12355,7 @@
         ]
       },
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12369,7 +12369,7 @@
     },
     "aurora": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12383,7 +12383,7 @@
     },
     "avalanche": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12397,7 +12397,7 @@
     },
     "polygonzkevm": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12411,7 +12411,7 @@
     },
     "moonriver": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12425,7 +12425,7 @@
     },
     "fantom": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12439,7 +12439,7 @@
     },
     "optimism": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12453,12 +12453,26 @@
     },
     "mainnet": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-07-27 16:19:03",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000004066d196a423b2b3b8b054f4f40efb47a74e200c000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000317f8d18fb16e49a958becd0ea72f8e153d25654",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xa7aC6d44cC52B134b92Dd20015641138ba6A3C16",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-01-26 10:07:03",
+            "CONSTRUCTOR_ARGS":"0x0000000000000000000000009a98a376d30f2c9a0a7332715c15d940de3da0e2000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000341e94069f53234fe6dabef707ad4248305257150000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -12651,6 +12665,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-07-27 16:19:03",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000004066d196a423b2b3b8b054f4f40efb47a74e200c000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000317f8d18fb16e49a958becd0ea72f8e153d25654",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xFf9565e1C4f01C368444D2bE4B9ef36ce7E95541",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-01-26 10:07:03",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009a98a376d30f2c9a0a7332715c15d940de3da0e2000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000341e94069f53234fe6dabef707ad424830525715",
             "SALT": "",
             "VERIFIED": "true"
           }
