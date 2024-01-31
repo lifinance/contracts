@@ -7,6 +7,7 @@
 - [Arbitrum Bridge Facet](./ArbitrumBridgeFacet.md)
 - [CalldataVerification Facet](./CalldataVerificationFacet.md)
 - [CBridge Facet](./CBridgeFacet.md)
+- [CCIP Facet](./CCIPFacet.md)
 - [Celer Circle Bridge Facet](./CelerCircleBridgeFacet.md)
 - [Circle Bridge Facet](./CircleBridgeFacet.md)
 - [DeBridge Facet](./DeBridgeFacet.md)

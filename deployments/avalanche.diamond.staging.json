@@ -48,6 +48,10 @@
       "0xe1FaF1759cAB242c5A790Da72c8f0cC7F5e09f59": {
         "Name": "CircleBridgeFacet",
         "Version": "1.0.0"
+      },
+      "0x6982237928de8e4a1a3622226D3a9C2bd89515Fc": {
+        "Name": "CCIPFacet",
+        "Version": "0.0.1"
       }
     },
     "Periphery": {
