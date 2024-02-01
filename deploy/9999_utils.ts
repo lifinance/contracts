@@ -201,7 +201,7 @@ export const deployFacet = async function (
     args: options?.args,
   })
 
-  await updateDeploymentLogs('DiamondCutFacet', deployedFacet, isVerified)
+  await updateDeploymentLogs(name, deployedFacet, isVerified)
 }
 
 export const verifyContract = async function (
