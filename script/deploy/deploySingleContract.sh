@@ -167,7 +167,6 @@ deploySingleContract() {
   # check if address already contains code (=> are we deploying or re-running the script again?)
   NEW_DEPLOYMENT=$(doesAddressContainBytecode "$NETWORK" "$ADDRESS")
 
-
   # check if all required data (e.g. config data / contract addresses) is available
   checkDeployRequirements "$NETWORK" "$ENVIRONMENT" "$CONTRACT"
 
@@ -392,7 +391,7 @@ deploySingleContract() {
   # ------------------------------------------------
 
   # check if contract verification is enabled in config and contract not yet verified according to log file
-  if [[ $VERIFY_CONTRACTS == "true" && "$VERIFIED_LOG" == "false" ]]; then
+  if [[ $VERIFY_CONTRACTS == "true" && ("$VERIFIED_LOG" == "false" || -z "$VERIFIED_LOG") ]]; then
     echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS"
     if [[ $DEBUG == "true" ]]; then
       verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"
@@ -445,7 +444,6 @@ deploySingleContract() {
     # write to logfile
     logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER" "$CONSTRUCTOR_ARGS" "$ENVIRONMENT" "$ADDRESS" $VERIFIED "$SALT"
   fi
-
 
   # save contract in network-specific deployment files
   saveContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$FILE_SUFFIX"
