@@ -59,6 +59,10 @@
     "connextHandler": "0xa05eF29e9aC8C75c530c2795Fa6A800e188dE0a9",
     "domain": "1818848877"
   },
+  "metis": {
+    "connextHandler": "0x6B142227A277CE62808E0Df93202483547Ec0188",
+    "domain": "1835365481"
+  },
   "localanvil": {
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "0"
