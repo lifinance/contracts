@@ -11,7 +11,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title LIFuel Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging gas through LIFuel
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
