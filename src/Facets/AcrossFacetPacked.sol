@@ -7,10 +7,7 @@ import { AcrossFacet } from "./AcrossFacet.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-// solhint-disable-next-line no-console
-import { console2 } from "forge-std/console2.sol";
 
 /// @title AcrossFacetPacked
 /// @author LI.FI (https://li.fi)
@@ -18,7 +15,6 @@ import { console2 } from "forge-std/console2.sol";
 /// @custom:version 1.0.0
 contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
     using SafeTransferLib for ERC20;
-    using SafeERC20 for IERC20;
 
     /// Storage ///
 
@@ -65,7 +61,7 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
         }
     }
 
-    /// @notice Bridges Native tokens via Across (packed implementation)
+    /// @notice Bridges native tokens via Across (packed implementation)
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaAcrossNativePacked() external payable {
         // call Across spoke pool to bridge assets
@@ -299,7 +295,4 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
 
         return (bridgeData, acrossData);
     }
-
-    // TODO: do we have refund cases? otherwise could remove this
-    receive() external payable {}
 }
