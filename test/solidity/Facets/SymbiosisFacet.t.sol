@@ -39,9 +39,9 @@ contract MockMetaRouter {
 contract SymbiosisFacetTest is TestBaseFacet {
     // These values are for Mainnet
     address internal constant SYMBIOSIS_METAROUTER =
-        0xE75C7E85FE6ADd07077467064aD15847E6ba9877;
+        0xca506793A420E901BbCa8066be5661E3C52c84c2;
     address internal constant SYMBIOSIS_GATEWAY =
-        0x25bEE8C21D1d0ec2852302fd7E674196EA298eC6;
+        0xd92Ca299F1C2518E78E48C207b64591BA6E9b9a8;
     address internal constant RELAY_RECIPIENT =
         0xb8f275fBf7A959F4BCE59999A2EF122A099e81A8;
 
@@ -107,12 +107,16 @@ contract SymbiosisFacetTest is TestBaseFacet {
             "" //    clientID
         );
 
+        address[] memory _approvedTokens = new address[](1);
+        _approvedTokens[0] = ADDRESS_USDC;
+
         symbiosisData = SymbiosisFacet.SymbiosisData(
             "", // first swap calldata
             "", // second swap calldata
             address(0), //intermediateToken
             address(0), // firstDexRouter
             address(0), // secondDexRouter
+            _approvedTokens, // approvedTokens
             RELAY_RECIPIENT, // bridging entrypoint
             _otherSideCalldata // core bridging calldata
         );

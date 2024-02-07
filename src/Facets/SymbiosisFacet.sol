@@ -24,6 +24,7 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address intermediateToken;
         address firstDexRouter;
         address secondDexRouter;
+        address[] approvedTokens;
         address callTo; // bridging entrypoint
         bytes callData; // bridging calldata
     }
@@ -61,14 +62,11 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         }
 
-        address[] memory approvedTokens = new address[](1);
-        approvedTokens[0] = _bridgeData.sendingAssetId;
-
         symbiosisMetaRouter.metaRoute{ value: nativeAssetAmount }(
             ISymbiosisMetaRouter.MetaRouteTransaction(
                 _symbiosisData.firstSwapCalldata,
                 _symbiosisData.secondSwapCalldata,
-                approvedTokens,
+                _symbiosisData.approvedTokens,
                 _symbiosisData.firstDexRouter,
                 _symbiosisData.secondDexRouter,
                 _bridgeData.minAmount,
