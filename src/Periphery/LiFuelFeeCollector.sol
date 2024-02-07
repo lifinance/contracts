@@ -7,7 +7,7 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 /// @title LiFuelFeeCollector
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for collecting fees for LiFuel
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract LiFuelFeeCollector is TransferrableOwnership {
     /// Errors ///
     error TransferFailure();
@@ -53,6 +53,7 @@ contract LiFuelFeeCollector is TransferrableOwnership {
     /// @param chainId The chain id of the destination chain
     /// @param receiver The address to send gas to on destination chain
     function collectNativeGasFees(
+        uint256 feeAmount,
         uint256 chainId,
         address receiver
     ) external payable {
@@ -60,8 +61,12 @@ contract LiFuelFeeCollector is TransferrableOwnership {
             LibAsset.NULL_ADDRESS,
             chainId,
             receiver,
-            msg.value
+            feeAmount
         );
+        uint256 amountMinusFees = msg.value - feeAmount;
+        if (amountMinusFees > 0) {
+            msg.sender.call{ value: amountMinusFees }("");
+        }
     }
 
     /// @notice Withdraws fees
