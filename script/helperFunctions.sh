@@ -872,8 +872,7 @@ function checkRequiredVariablesInDotEnv() {
   fi
 
   local PRIVATE_KEY="$PRIVATE_KEY"
-  local RPC="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
-  local RPC_URL="${!RPC}"
+  local RPC_URL=$(getRPCUrl "$NETWORK")
 
   # special handling for BSC testnet
   # uses same block explorer key as bsc mainnet
@@ -1130,9 +1129,8 @@ function parseTargetStateGoogleSpreadsheet() {
     exit 1
   fi
 
-  NETWORKS_START_AT_LINE=115
-  PERIPHERY_STARTS_AT_COLUMN=3
-  ROW_WITH_CONTRACT_NAMES=5
+  NETWORKS_START_AT_LINE=0
+  FACETS_STARTS_AT_COLUMN=3 # this value is hardcoded and not expected to change
 
   # process the CSV file line by line
   LINE_NUMBER=0
@@ -1142,8 +1140,8 @@ function parseTargetStateGoogleSpreadsheet() {
 
     #    echoDebug "LINE $LINE_NUMBER: $LINE"
 
-    # Catch the line that contains the contract names
-    if [[ LINE_NUMBER -eq "$ROW_WITH_CONTRACT_NAMES" ]]; then
+    # find and store the row that contains all the contract names (determined by recognizing hardcoded value in cell A1)
+    if [[ "$LINE" == *"Blue = Periphery"* ]]; then
       # Remove the unneeded values from the line
       STRING_TO_REMOVE='  Blue = Periphery",EXAMPLE,,'
       CONTRACTS_LINE=$(echo "$LINE" | sed "s/^${STRING_TO_REMOVE}//")
@@ -1163,8 +1161,13 @@ function parseTargetStateGoogleSpreadsheet() {
       #        break
     fi
 
+    # find row with the first network ('mainnet'), do not execute again once it has been found
+    if [[ "$NETWORKS_START_AT_LINE" == 0 && $LINE == "mainnet"* ]]; then
+      NETWORKS_START_AT_LINE=$LINE_NUMBER
+    fi
+
     # lines containing network-specific data will start earliest in line 130
-    if [[ $((LINE_NUMBER)) -gt "$NETWORKS_START_AT_LINE" ]]; then
+    if [[ $NETWORKS_START_AT_LINE != 0 && $((LINE_NUMBER)) -ge "$NETWORKS_START_AT_LINE" ]]; then
 
       # extract network name
       NETWORK=$(echo "$LINE" | cut -d',' -f1)
@@ -1172,6 +1175,11 @@ function parseTargetStateGoogleSpreadsheet() {
       if [[ "$NETWORK" == "<placeholder>" ]]; then
         echoDebug "skipping network (placeholder)"
         continue
+      fi
+
+      if [[ "$NETWORK" == "DEACTIVATED" ]]; then
+        echoDebug "reached deactivated network2 - ending script parsing now"
+        break
       fi
 
       # check if this line contains data (=starts with a network name), otherwise skip to next line
@@ -1183,8 +1191,8 @@ function parseTargetStateGoogleSpreadsheet() {
         IFS=',' read -ra LINE_ARRAY <<<"$LINE"
 
         CONTRACT_INDEX=0
-        # iterate through the array (start with index 5 to skip network name, EXAMPLE and PERIPHERY columns)
-        for ((INDEX = "$PERIPHERY_STARTS_AT_COLUMN"; INDEX < ${#LINE_ARRAY[@]}; INDEX += 1)); do
+        # iterate through the array (start with index 5 to skip network name and EXAMPLE columns)
+        for ((INDEX = "$FACETS_STARTS_AT_COLUMN"; INDEX < ${#LINE_ARRAY[@]}; INDEX += 1)); do
           # read cell value and current contract into variables
           CELL_VALUE=${LINE_ARRAY[$INDEX]}
           CONTRACT=${CONTRACTS_ARRAY[$CONTRACT_INDEX]}
@@ -2802,6 +2810,14 @@ function getChainId() {
     ;;
   "linea")
     echo "59144"
+    return 0
+    ;;
+  "opbnb")
+    echo "204"
+    return 0
+    ;;
+  "metis")
+    echo "1088"
     return 0
     ;;
   "localanvil")

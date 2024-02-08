@@ -14,7 +14,7 @@ import { HardhatUserConfig } from 'hardhat/types'
 
 require('./tasks/generateDiamondABI.ts')
 
-const PKEY = process.env.PRIVATE_KEY || null
+const PKEY = process.env.PRIVATE_KEY_PRODUCTION || null
 
 function getRemappings() {
   return fs
@@ -61,9 +61,6 @@ const config: HardhatUserConfig = {
       url: node_url('zksync'),
       accounts: PKEY ? [PKEY] : accounts(),
       chainId: 324,
-      companionNetworks: {
-        hub: 'mainnet',
-      },
       zksync: true,
       ethNetwork: 'mainnet',
       verifyURL:

@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import { LibAllowList, LibSwap, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { MakerTeleportFacet } from "lifi/Facets/MakerTeleportFacet.sol";
 import { ITeleportGateway } from "lifi/Interfaces/ITeleportGateway.sol";
+import { InsufficientBalance } from "lifi/Errors/GenericErrors.sol";
 
 // Stub MakerTeleportFacet Contract
 contract TestMakerTeleportFacet is MakerTeleportFacet {
@@ -221,5 +222,25 @@ contract MakerTeleportFacetTest is TestBaseFacet {
 
     function testBase_CanSwapAndBridgeNativeTokens() public override {
         // facet does not support native bridging
+    }
+
+    function testBase_Revert_CallerHasInsufficientFunds() public override {
+        vm.startPrank(USER_SENDER);
+
+        dai.approve(address(_facetTestContractAddress), defaultUSDCAmount);
+
+        // send all available DAI balance to different account to ensure sending wallet has no DAI funds
+        dai.transfer(USER_RECEIVER, dai.balanceOf(USER_SENDER));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InsufficientBalance.selector,
+                bridgeData.minAmount,
+                0
+            )
+        );
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 }

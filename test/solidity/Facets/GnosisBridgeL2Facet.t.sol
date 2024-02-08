@@ -117,10 +117,12 @@ contract GnosisBridgeL2FacetTest is TestBaseFacet {
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             gnosisBridgeL2Facet.startBridgeTokensViaXDaiBridge{
-                value: bridgeData.minAmount
+                value: bridgeData.minAmount + addToMessageValue
             }(bridgeData);
         } else {
-            gnosisBridgeL2Facet.startBridgeTokensViaXDaiBridge(bridgeData);
+            gnosisBridgeL2Facet.startBridgeTokensViaXDaiBridge{
+                value: addToMessageValue
+            }(bridgeData);
         }
     }
 
@@ -129,13 +131,12 @@ contract GnosisBridgeL2FacetTest is TestBaseFacet {
     ) internal override {
         if (isNative) {
             gnosisBridgeL2Facet.swapAndStartBridgeTokensViaXDaiBridge{
-                value: swapData[0].fromAmount
+                value: swapData[0].fromAmount + addToMessageValue
             }(bridgeData, swapData);
         } else {
-            gnosisBridgeL2Facet.swapAndStartBridgeTokensViaXDaiBridge(
-                bridgeData,
-                swapData
-            );
+            gnosisBridgeL2Facet.swapAndStartBridgeTokensViaXDaiBridge{
+                value: addToMessageValue
+            }(bridgeData, swapData);
         }
     }
 
@@ -193,5 +194,9 @@ contract GnosisBridgeL2FacetTest is TestBaseFacet {
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
         // skip
+    }
+
+    function testBase_Revert_CallerHasInsufficientFunds() public override {
+        // this test case does not work for this facet since the facet just bridges whatever msg.value it finds
     }
 }

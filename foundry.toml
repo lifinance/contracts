@@ -34,10 +34,12 @@ moonbeam = "${ETH_NODE_URI_MOONBEAM}"
 moonriver = "${ETH_NODE_URI_MOONRIVER}"
 nova = "${ETH_NODE_URI_NOVA}"
 okx = "${ETH_NODE_URI_OKX}"
+opbnb = "${ETH_NODE_URI_OPBNB}"
 optimism = "${ETH_NODE_URI_OPTIMISM}"
 polygon = "${ETH_NODE_URI_POLYGON}"
 polygonzkevm = "${ETH_NODE_URI_POLYGONZKEVM}"
 velas = "${ETH_NODE_URI_VELAS}"
+metis = "${ETH_NODE_URI_METIS}"
 
 # testnets
 goerli = "${ETH_NODE_URI_GOERLI}"
@@ -65,11 +67,11 @@ nova = { key = "${NOVA_ETHERSCAN_API_KEY}", url = "https://nova.arbiscan.io/api"
 optimism = { key = "${OPTIMISM_ETHERSCAN_API_KEY}", url = "https://api-optimistic.etherscan.io/api" }
 polygon = { key = "${POLYGON_ETHERSCAN_API_KEY}", url = "https://api.polygonscan.com/api" }
 polygonzkevm = { key = "${POLYGONZKEVM_ETHERSCAN_API_KEY}", url = "https://api-zkevm.polygonscan.com/api" }
-base = { key = "${BASE_ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api"}
-linea = { key = "${LINEA_ETHERSCAN_API_KEY}", url = "https://api.lineascan.build/api"}
+base = { key = "${BASE_ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api" }
+linea = { key = "${LINEA_ETHERSCAN_API_KEY}", url = "https://api.lineascan.build/api" }
+metis = { key = "${METIS_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan" }
 
 #testnets
 goerli = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
 bsc-testnet = { key = "${BSC_ETHERSCAN_API_KEY}", url = "https://api-testnet.bscscan.com/" }
 mumbai = { key = "${MUMBAI_ETHERSCAN_API_KEY}", url = "https://api-testnet.polygonscan.com/api" }
-

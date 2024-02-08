@@ -5,7 +5,8 @@ deployUpgradesToSAFE() {
   source script/config.sh
   source script/helperFunctions.sh
 
-  ENVIRONMENT="production"
+  ENVIRONMENT=$1
+  FILE_SUFFIX=$(getFileSuffix $ENVIRONMENT)
   NETWORK=$(getUserSelectedNetwork)
   DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
   if [ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]; then
@@ -24,8 +25,9 @@ deployUpgradesToSAFE() {
   declare -a CUTS
   for script in $SCRIPTS; do
     UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$script".s.sol)
+    PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
     echo "Calculating facet cuts for $script..."
-    RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey "$ENVIRONMENT") forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
+    RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
     CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
     FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
     if [ "$FACET_CUT" != "0x" ]; then
@@ -45,7 +47,7 @@ deployUpgradesToSAFE() {
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
 
   # Call the proposeTx script ts-node proposeTx.ts diamondAddress cuts network rpcUrl
-  ts-node script/deploy/gnosisSAFE/proposeTx.ts "$DIAMOND_ADDRESS" "$CUTS_JSON" "$NETWORK" $(getRPCUrl $NETWORK)
+  ts-node script/deploy/gnosisSAFE/proposeTx.ts "$DIAMOND_ADDRESS" "$CUTS_JSON" "$NETWORK" $(getRPCUrl $NETWORK) "$PRIVATE_KEY"
   exit 0
 }
 

@@ -54,6 +54,6 @@ task(
 
   // Write the final ABI to a file
   const finalAbi = JSON.stringify(cleanAbi)
-  fs.writeFileSync('./diamondABI/diamond.json', finalAbi)
-  console.log('ABI written to diamondABI/diamond.json')
+  fs.writeFileSync('./diamond.json', finalAbi)
+  console.log('ABI written to diamond.json')
 })

@@ -21,8 +21,16 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x7dEfADC99d3E3f5f8d0C7dCFA7D2495B898ef5D8": {
+      "0xa95309dF9256D52f9B61379963701fF1BA5939E4": {
         "Name": "AcrossFacet",
+        "Version": "2.0.0"
+      },
+      "0x0C449F799010287c8ee51d7E89324dA8a1EBCB47": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xa7aC6d44cC52B134b92Dd20015641138ba6A3C16": {
+        "Name": "CelerIMFacetMutable",
         "Version": "2.0.0"
       }
     },
@@ -31,7 +39,8 @@
       "Executor": "0xa9bfa49F26733271f4FD34A4b57bB7C563Ae056A",
       "Receiver": "0xdeDB2DAe4a9BC63910a722a3b7DC930C7E6f6421",
       "FeeCollector": "0x8dBf6f59187b2EB36B980F3D8F4cFC6DC4E4642e",
-      "ServiceFeeCollector": "0x682dBe3f437f040535e728454D7F7f19Ead738b3"
+      "ServiceFeeCollector": "0x3F0bD05C9A09FE07DB88aA2DD97f9d9fAf82994d",
+      "LiFuelFeeCollector": "0x4A751A91647CA1749d7ec505026427FF601C6966"
     }
   }
 }
