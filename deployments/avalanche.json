@@ -35,5 +35,6 @@
   "StandardizedCallFacet": "0x2E61751366B7e006f8D53becB4b697890B30144F",
   "CalldataVerificationFacet": "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0",
   "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
-  "AllBridgeFacet": "0x85f9c55B22bd2c389b560130F878CeB8b289C4c4"
+  "AllBridgeFacet": "0x85f9c55B22bd2c389b560130F878CeB8b289C4c4",
+  "ThorSwapFacet": "0xC3cD90545f30F4F9E71e582510Cc64ab5a743E85"
 }
