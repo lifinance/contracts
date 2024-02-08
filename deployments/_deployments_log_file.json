@@ -494,6 +494,20 @@
           }
         ]
       }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xA46d76EDDe76d6E30498Ca0dbddEa781bb394897",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 13:50:26",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -1000,6 +1014,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xAb59c19C138eF83c03D79DD93b2f863aDf9CDF81",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 14:03:28",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1513,6 +1541,20 @@
           }
         ]
       }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x46C12B4E709e617c211E2C5C9Fb677890e2A3f0C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 13:58:12",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "DexManagerFacet": {
@@ -1982,6 +2024,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1Fb75B487991660df1c38D984E5c17D9415c652E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 14:04:55",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2469,6 +2525,20 @@
           }
         ]
       }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6BC529A247af67735A7c0a2459d7df0b6A49AA0C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 14:08:00",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -2938,6 +3008,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x11074fa5A3Fa17CF2Fb589B25978e281923a7e14",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 14:04:05",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -3440,6 +3524,20 @@
           }
         ]
       }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x21c5cA96Bc1164bbf3b782b0cC31B1b63711976F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 14:09:52",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -3911,6 +4009,20 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000ad50118509eb4c8e3e39a370151b0fd5d5957013",
             "SALT": "",
             "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x24ca98fB6972F5eE05f0dB00595c7f68D9FaFd68",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 14:54:19",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c000000000000000000000000a46d76edde76d6e30498ca0dbddea781bb394897",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5246,6 +5358,20 @@
           }
         ]
       }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x49ce061dDb5DC3e6191E2CE6d3AD4105DDb6cA68",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 14:13:44",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "HopFacetOptimized": {
@@ -6191,6 +6317,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2897baFC26618a0D3Ba8B57CC0f25bF7Ead29215",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 14:10:51",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7342,6 +7482,20 @@
           }
         ]
       }
+    },
+    "metis": {
+      "production": {
+        "2.2.0": [
+          {
+            "ADDRESS": "0x36C5c79dBa87e22B85F9aE72604Daf2843704470",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-05 13:32:11",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ecc19e177d24551aa7ed6bc6fe566eca726cc8a9",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "ERC20Proxy": {
@@ -7798,6 +7952,20 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
             "SALT": "",
             "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x88BFF60dFB4382dfb8da7dD5caC23397350D2078",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 16:03:07",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -8459,6 +8627,20 @@
           }
         ]
       }
+    },
+    "metis": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x6696F031C099dE6089427ceBFb38258feA6fdaFE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 16:04:20",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000088bff60dfb4382dfb8da7dd5cac23397350d2078",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -8925,6 +9107,20 @@
             "ADDRESS": "0x44Ff747185C9Df233D07536E08341ff624896164",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-09-18 11:39:17",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x821Dfa5537Ab91b02271d92049B2fF7edE2Be86C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 16:40:34",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
             "VERIFIED": "false"
@@ -9916,6 +10112,20 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002dfadab8266483bed9fd9a292ce56596a2d1378d00000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
             "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "2.0.2": [
+          {
+            "ADDRESS": "0x0a4D7f27e8d24625eCb8d29d6445934a440A05E0",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-05 13:34:27",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000ecc19e177d24551aa7ed6bc6fe566eca726cc8a90000000000000000000000006b142227a277ce62808e0df93202483547ec01880000000000000000000000006696f031c099de6089427cebfb38258fea6fdafe00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "05022024",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10974,6 +11184,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-12-06 17:04:53",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000a05ef29e9ac8c75c530c2795fa6a800e188de0a9",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xAFCF3EA3d42c4146fF4eE1Ee72652B9cddfAC002",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 16:56:19",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006b142227a277ce62808e0df93202483547ec0188",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -12303,7 +12527,7 @@
         ]
       },
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12329,7 +12553,7 @@
         ]
       },
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12355,7 +12579,7 @@
         ]
       },
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12369,7 +12593,7 @@
     },
     "aurora": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12383,7 +12607,7 @@
     },
     "avalanche": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12397,7 +12621,7 @@
     },
     "polygonzkevm": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12411,7 +12635,7 @@
     },
     "moonriver": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12425,7 +12649,7 @@
     },
     "fantom": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12439,7 +12663,7 @@
     },
     "optimism": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
@@ -12453,12 +12677,26 @@
     },
     "mainnet": {
       "production": {
-        "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract CelerIMFacet\u001b[0m\u001b[0m": [
+        "2.0.0": [
           {
             "ADDRESS": "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-07-27 16:19:03",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000004066d196a423b2b3b8b054f4f40efb47a74e200c000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000317f8d18fb16e49a958becd0ea72f8e153d25654",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xa7aC6d44cC52B134b92Dd20015641138ba6A3C16",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-01-26 10:07:03",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009a98a376d30f2c9a0a7332715c15d940de3da0e2000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000341e94069f53234fe6dabef707ad4248305257150000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -12651,6 +12889,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-07-27 16:19:03",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000004066d196a423b2b3b8b054f4f40efb47a74e200c000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000317f8d18fb16e49a958becd0ea72f8e153d25654",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xFf9565e1C4f01C368444D2bE4B9ef36ce7E95541",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-01-26 10:07:03",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009a98a376d30f2c9a0a7332715c15d940de3da0e2000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000341e94069f53234fe6dabef707ad424830525715",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -13703,6 +13955,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xaF11A4c4e07df3286b896047cfeE7f2439432b7E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-02 14:36:34",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }

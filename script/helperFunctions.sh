@@ -2817,6 +2817,10 @@ function getChainId() {
     echo "204"
     return 0
     ;;
+  "metis")
+    echo "1088"
+    return 0
+    ;;
   "localanvil")
     echo "31337"
     return 0
