@@ -17,6 +17,8 @@ import { IDlnSource } from "../Interfaces/IDlnSource.sol";
 contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
+    address internal constant NON_EVM_ADDRESS =
+        0x11f111f111f111F111f111f111F111f111f111F1;
     IDlnSource public immutable dlnSource;
 
     /// Types ///
@@ -37,14 +39,18 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Optional bridge specific struct
     /// @param exampleParam Example paramter
     struct DeBridgeDlnData {
-        string exampleParam;
         address receivingAssetId;
+        bytes receiver;
         uint256 minAmountOut;
     }
 
     /// Events ///
 
-    event DeBridgeDLNInitialized();
+    event BridgeToNonEVMChain(
+        bytes32 indexed transactionId,
+        uint256 indexed destinationChainId,
+        bytes receiver
+    );
 
     /// Constructor ///
 
@@ -122,11 +128,9 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 ),
                 takeAmount: _deBridgeDlnData.minAmountOut,
                 takeChainId: _bridgeData.destinationChainId,
-                receiverDst: abi.encodePacked(_bridgeData.receiver),
+                receiverDst: _deBridgeDlnData.receiver,
                 givePatchAuthoritySrc: _bridgeData.receiver,
-                orderAuthorityAddressDst: abi.encodePacked(
-                    _bridgeData.receiver
-                ),
+                orderAuthorityAddressDst: _deBridgeDlnData.receiver,
                 allowedTakerDst: "",
                 externalCall: "",
                 allowedCancelBeneficiarySrc: ""
@@ -147,6 +151,14 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 "",
                 0,
                 ""
+            );
+        }
+
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            emit BridgeToNonEVMChain(
+                _bridgeData.transactionId,
+                _bridgeData.destinationChainId,
+                _deBridgeDlnData.receiver
             );
         }
 
