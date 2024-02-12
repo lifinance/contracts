@@ -208,7 +208,7 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
         address receiver,
         address sendingAssetId,
         uint256 minAmount,
-        uint64 destinationChainId,
+        uint256 destinationChainId,
         int64 relayerFeePct,
         uint32 quoteTimestamp,
         bytes calldata message,
