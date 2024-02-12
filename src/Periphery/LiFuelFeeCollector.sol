@@ -65,7 +65,10 @@ contract LiFuelFeeCollector is TransferrableOwnership {
         );
         uint256 amountMinusFees = msg.value - feeAmount;
         if (amountMinusFees > 0) {
-            msg.sender.call{ value: amountMinusFees }("");
+            (bool success, ) = msg.sender.call{ value: amountMinusFees }("");
+            if (!success) {
+                revert TransferFailure();
+            }
         }
     }
 
