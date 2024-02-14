@@ -253,32 +253,6 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
             );
     }
 
-    function decode_startBridgeTokensViaAcrossNativePackedNoReferrer(
-        bytes calldata data
-    )
-        external
-        pure
-        returns (
-            BridgeData memory bridgeData,
-            AcrossFacet.AcrossData memory acrossData
-        )
-    {
-        require(data.length >= 80, "invalid calldata (must have length > 80)");
-
-        // extract bridgeData
-        bridgeData.transactionId = bytes32(bytes8(data[4:12]));
-        bridgeData.receiver = address(bytes20(data[12:32]));
-        bridgeData.destinationChainId = uint64(uint32(bytes4(data[32:36])));
-
-        // extract acrossData
-        acrossData.relayerFeePct = int64(uint64(bytes8(data[36:44])));
-        acrossData.quoteTimestamp = uint32(bytes4(data[44:48]));
-        acrossData.maxCount = uint256(bytes32(data[48:80]));
-        acrossData.message = data[80:];
-
-        return (bridgeData, acrossData);
-    }
-
     function decode_startBridgeTokensViaAcrossNativePacked(
         bytes calldata data
     )

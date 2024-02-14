@@ -103,7 +103,7 @@ contract AcrossFacetPackedTest is TestBase {
         validAcrossData = AcrossFacet.AcrossData({
             relayerFeePct: 0,
             quoteTimestamp: uint32(block.timestamp),
-            message: "",
+            message: "bla",
             maxCount: type(uint256).max
         });
 
