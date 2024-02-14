@@ -317,27 +317,4 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
 
         return (bridgeData, acrossData);
     }
-
-    // checks if a given calldata contains a referrerID at the end
-    // for more info see: https://docs.across.to/how-to-use-across/rewards/referral-rewards
-    function containsReferrerId(
-        bytes calldata callData
-    ) public pure returns (bool) {
-        // Check if data length is at least as long as the delimiter + potential referrer address
-        if (callData.length < REFERRER_OFFSET) {
-            return false;
-        }
-
-        // Start searching from the fixed position
-        uint256 start = callData.length - REFERRER_OFFSET;
-
-        // Compare bytes from the fixed position
-        for (uint256 i = 0; i < ACROSS_REFERRER_DELIMITER.length; i++) {
-            if (callData[start + i] != ACROSS_REFERRER_DELIMITER[i]) {
-                return false;
-            }
-        }
-
-        return true;
-    }
 }

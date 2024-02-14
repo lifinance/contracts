@@ -63,7 +63,7 @@ contract AcrossFacetPackedTest is TestBase {
             address(this)
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](10);
+        bytes4[] memory functionSelectors = new bytes4[](9);
         functionSelectors[0] = acrossFacetPacked.setApprovalForBridge.selector;
         functionSelectors[1] = acrossFacetPacked
             .startBridgeTokensViaAcrossNativePacked
@@ -89,7 +89,6 @@ contract AcrossFacetPackedTest is TestBase {
         functionSelectors[8] = acrossFacetPacked
             .decode_startBridgeTokensViaAcrossERC20Packed
             .selector;
-        functionSelectors[9] = acrossFacetPacked.containsReferrerId.selector;
 
         // add facet to diamond
         addFacet(diamond, address(acrossFacetPacked), functionSelectors);
@@ -565,43 +564,5 @@ contract AcrossFacetPackedTest is TestBase {
             validAcrossData.message,
             validAcrossData.maxCount
         );
-    }
-
-    function test_canIdentifyReferrerIdInCalldataWithArbitraryAddresses()
-        public
-    {
-        // test with arbitrary address as referrer address after delimiter
-        bytes
-            memory callData = hex"5a39b10a6e8101a9437d9f3329dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000102165db2957ebf7c65cc292cffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd00dfeeddeadbeefdAC17F958D2ee523a2206206994597C13D831ec7";
-
-        bool result = acrossFacetPacked.containsReferrerId(callData);
-
-        assertTrue(result);
-
-        // test with address(0) as referrer address after delimiter
-        bytes
-            memory callData2 = hex"5a39b10a6e8101a9437d9f3329dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000102165db2957ebf7c65cc292cffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd00dfeeddeadbeef0000000000000000000000000000000000000000";
-
-        bool result2 = acrossFacetPacked.containsReferrerId(callData2);
-
-        assertTrue(result2);
-    }
-
-    function test_doesNotRecognizeIncorrectReferrerDelimiter() public {
-        // use a wrong delimiter (d00dfeaddeadbeef instead of the correct value d00dfeeddeadbeef)
-        bytes
-            memory callData = hex"5a39b10a6e8101a9437d9f3329dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000102165db2957ebf7c65cc292cffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd00dfeaddeadbeefdAC17F958D2ee523a2206206994597C13D831ec7";
-
-        bool result = acrossFacetPacked.containsReferrerId(callData);
-
-        assertFalse(result);
-
-        // use delimiter in wrong position (d00dfeaddeadbeef instead of the correct value d00dfeeddeadbeef)
-        bytes
-            memory callData2 = hex"5a39b10a6e8101a9437d9f3329dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000102165db2957ebf7c65cc292cffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd00dfeeddeadbeef32eb23bad9bddb5cf81426f78279a53c6c3b71";
-
-        bool result2 = acrossFacetPacked.containsReferrerId(callData2);
-
-        assertFalse(result2);
     }
 }
