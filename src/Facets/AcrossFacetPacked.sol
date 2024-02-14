@@ -16,6 +16,10 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
     using SafeTransferLib for ERC20;
 
+    bytes public constant ACROSS_REFERRER_DELIMITER = hex"d00dfeeddeadbeef";
+    uint8 private constant ACROSS_REFERRER_ADDRESS_LENGTH = 20;
+    uint256 private constant REFERRER_OFFSET = 28;
+
     /// Storage ///
 
     /// @notice The contract address of the cbridge on the source chain.
@@ -64,6 +68,9 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
     /// @notice Bridges native tokens via Across (packed implementation)
     /// No params, all data will be extracted from manually encoded callData
     function startBridgeTokensViaAcrossNativePacked() external payable {
+        // calculate end of calldata (and start of delimiter + referrer address)
+        uint256 calldataEndsAt = msg.data.length - REFERRER_OFFSET;
+
         // call Across spoke pool to bridge assets
         spokePool.deposit{ value: msg.value }(
             address(bytes20(msg.data[12:32])), // receiver
@@ -72,7 +79,7 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
             uint64(uint32(bytes4(msg.data[32:36]))), // destinationChainId
             int64(uint64(bytes8(msg.data[36:44]))), // int64 relayerFeePct
             uint32(bytes4(msg.data[44:48])), // uint32 quoteTimestamp
-            msg.data[80:], // bytes message (due to variable length positioned at the end of the calldata)
+            msg.data[80:calldataEndsAt], // bytes message (due to variable length positioned at the end of the calldata)
             uint256(bytes32(msg.data[48:80])) // uint256 maxCount
         );
 
@@ -124,6 +131,9 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
             minAmount
         );
 
+        // calculate end of calldata (and start of delimiter + referrer address)
+        uint256 calldataEndsAt = msg.data.length - REFERRER_OFFSET;
+
         // call Across spoke pool to bridge assets
         spokePool.deposit(
             address(bytes20(msg.data[12:32])), // receiver
@@ -132,7 +142,7 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
             uint64(uint32(bytes4(msg.data[68:72]))), // destinationChainId
             int64(uint64(bytes8(msg.data[72:80]))), // int64 relayerFeePct
             uint32(bytes4(msg.data[80:84])), // uint32 quoteTimestamp
-            msg.data[116:], // bytes message (due to variable length positioned at the end of the calldata)
+            msg.data[116:calldataEndsAt], // bytes message (due to variable length positioned at the end of the calldata)
             uint256(bytes32(msg.data[84:116])) // uint256 maxCount
         );
 
@@ -243,7 +253,7 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
             );
     }
 
-    function decode_startBridgeTokensViaAcrossNativePacked(
+    function decode_startBridgeTokensViaAcrossNativePackedNoReferrer(
         bytes calldata data
     )
         external
@@ -269,6 +279,38 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
         return (bridgeData, acrossData);
     }
 
+    function decode_startBridgeTokensViaAcrossNativePacked(
+        bytes calldata data
+    )
+        external
+        pure
+        returns (
+            BridgeData memory bridgeData,
+            AcrossFacet.AcrossData memory acrossData
+        )
+    {
+        require(
+            data.length >= 108,
+            "invalid calldata (must have length > 108)"
+        );
+
+        // calculate end of calldata (and start of delimiter + referrer address)
+        uint256 calldataEndsAt = data.length - REFERRER_OFFSET;
+
+        // extract bridgeData
+        bridgeData.transactionId = bytes32(bytes8(data[4:12]));
+        bridgeData.receiver = address(bytes20(data[12:32]));
+        bridgeData.destinationChainId = uint64(uint32(bytes4(data[32:36])));
+
+        // extract acrossData
+        acrossData.relayerFeePct = int64(uint64(bytes8(data[36:44])));
+        acrossData.quoteTimestamp = uint32(bytes4(data[44:48]));
+        acrossData.maxCount = uint256(bytes32(data[48:80]));
+        acrossData.message = data[80:calldataEndsAt];
+
+        return (bridgeData, acrossData);
+    }
+
     function decode_startBridgeTokensViaAcrossERC20Packed(
         bytes calldata data
     )
@@ -279,7 +321,13 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
             AcrossFacet.AcrossData memory acrossData
         )
     {
-        require(data.length >= 116, "data passed is not the correct length");
+        require(
+            data.length >= 144,
+            "invalid calldata (must have length > 144)"
+        );
+
+        // calculate end of calldata (and start of delimiter + referrer address)
+        uint256 calldataEndsAt = data.length - REFERRER_OFFSET;
 
         bridgeData.transactionId = bytes32(bytes8(data[4:12]));
         bridgeData.receiver = address(bytes20(data[12:32]));
@@ -291,8 +339,31 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
         acrossData.relayerFeePct = int64(uint64(bytes8(data[72:80])));
         acrossData.quoteTimestamp = uint32(bytes4(data[80:84]));
         acrossData.maxCount = uint256(bytes32(data[84:116]));
-        acrossData.message = data[116:];
+        acrossData.message = data[116:calldataEndsAt];
 
         return (bridgeData, acrossData);
+    }
+
+    // checks if a given calldata contains a referrerID at the end
+    // for more info see: https://docs.across.to/how-to-use-across/rewards/referral-rewards
+    function containsReferrerId(
+        bytes calldata callData
+    ) public pure returns (bool) {
+        // Check if data length is at least as long as the delimiter + potential referrer address
+        if (callData.length < REFERRER_OFFSET) {
+            return false;
+        }
+
+        // Start searching from the fixed position
+        uint256 start = callData.length - REFERRER_OFFSET;
+
+        // Compare bytes from the fixed position
+        for (uint256 i = 0; i < ACROSS_REFERRER_DELIMITER.length; i++) {
+            if (callData[start + i] != ACROSS_REFERRER_DELIMITER[i]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

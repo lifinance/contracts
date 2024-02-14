@@ -10,10 +10,14 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { TestBase } from "../utils/TestBase.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LiFiDiamond } from "../utils/DiamondTest.sol";
+import { console2 } from "forge-std/console2.sol";
 
 contract AcrossFacetPackedTest is TestBase {
     using SafeERC20 for IERC20;
 
+    bytes public constant ACROSS_REFERRER_DELIMITER = hex"d00dfeeddeadbeef";
+    address public constant ACROSS_REFERRER_ADDRESS =
+        0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
     address internal constant ACROSS_SPOKE_POOL =
         0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
     address internal ADDRESS_USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
@@ -59,7 +63,7 @@ contract AcrossFacetPackedTest is TestBase {
             address(this)
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](9);
+        bytes4[] memory functionSelectors = new bytes4[](10);
         functionSelectors[0] = acrossFacetPacked.setApprovalForBridge.selector;
         functionSelectors[1] = acrossFacetPacked
             .startBridgeTokensViaAcrossNativePacked
@@ -85,6 +89,7 @@ contract AcrossFacetPackedTest is TestBase {
         functionSelectors[8] = acrossFacetPacked
             .decode_startBridgeTokensViaAcrossERC20Packed
             .selector;
+        functionSelectors[9] = acrossFacetPacked.containsReferrerId.selector;
 
         // add facet to diamond
         addFacet(diamond, address(acrossFacetPacked), functionSelectors);
@@ -117,6 +122,7 @@ contract AcrossFacetPackedTest is TestBase {
                 validAcrossData.maxCount,
                 validAcrossData.message
             );
+        packedNativeCalldata = addReferrerIdToCalldata(packedNativeCalldata);
 
         // usdt params
         amountUSDT = 100 * 10 ** usdt.decimals();
@@ -132,6 +138,8 @@ contract AcrossFacetPackedTest is TestBase {
                 validAcrossData.message,
                 validAcrossData.maxCount
             );
+        packedUSDTCalldata = addReferrerIdToCalldata(packedUSDTCalldata);
+
         deal(ADDRESS_USDT, USER_SENDER, amountUSDT);
 
         // usdc params
@@ -148,6 +156,7 @@ contract AcrossFacetPackedTest is TestBase {
                 validAcrossData.message,
                 validAcrossData.maxCount
             );
+        packedUSDCCalldata = addReferrerIdToCalldata(packedUSDCCalldata);
 
         // Prepare approvals
         address[] memory tokens = new address[](2);
@@ -166,6 +175,17 @@ contract AcrossFacetPackedTest is TestBase {
         );
         usdc.approve(ACROSS_SPOKE_POOL, type(uint256).max);
         vm.stopPrank();
+    }
+
+    function addReferrerIdToCalldata(
+        bytes memory callData
+    ) internal pure returns (bytes memory) {
+        return
+            bytes.concat(
+                callData,
+                ACROSS_REFERRER_DELIMITER,
+                bytes20(ACROSS_REFERRER_ADDRESS)
+            );
     }
 
     function test_canBridgeNativeTokensViaPackedFunction_Facet() public {
@@ -545,5 +565,43 @@ contract AcrossFacetPackedTest is TestBase {
             validAcrossData.message,
             validAcrossData.maxCount
         );
+    }
+
+    function test_canIdentifyReferrerIdInCalldataWithArbitraryAddresses()
+        public
+    {
+        // test with arbitrary address as referrer address after delimiter
+        bytes
+            memory callData = hex"5a39b10a6e8101a9437d9f3329dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000102165db2957ebf7c65cc292cffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd00dfeeddeadbeefdAC17F958D2ee523a2206206994597C13D831ec7";
+
+        bool result = acrossFacetPacked.containsReferrerId(callData);
+
+        assertTrue(result);
+
+        // test with address(0) as referrer address after delimiter
+        bytes
+            memory callData2 = hex"5a39b10a6e8101a9437d9f3329dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000102165db2957ebf7c65cc292cffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd00dfeeddeadbeef0000000000000000000000000000000000000000";
+
+        bool result2 = acrossFacetPacked.containsReferrerId(callData2);
+
+        assertTrue(result2);
+    }
+
+    function test_doesNotRecognizeIncorrectReferrerDelimiter() public {
+        // use a wrong delimiter (d00dfeaddeadbeef instead of the correct value d00dfeeddeadbeef)
+        bytes
+            memory callData = hex"5a39b10a6e8101a9437d9f3329dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000102165db2957ebf7c65cc292cffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd00dfeaddeadbeefdAC17F958D2ee523a2206206994597C13D831ec7";
+
+        bool result = acrossFacetPacked.containsReferrerId(callData);
+
+        assertFalse(result);
+
+        // use delimiter in wrong position (d00dfeaddeadbeef instead of the correct value d00dfeeddeadbeef)
+        bytes
+            memory callData2 = hex"5a39b10a6e8101a9437d9f3329dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000102165db2957ebf7c65cc292cffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd00dfeeddeadbeef32eb23bad9bddb5cf81426f78279a53c6c3b71";
+
+        bool result2 = acrossFacetPacked.containsReferrerId(callData2);
+
+        assertFalse(result2);
     }
 }
