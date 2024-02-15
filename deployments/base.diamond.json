@@ -76,14 +76,17 @@
       "0x4f62E7a939C62316F76E2afC644A9A907Dc30D2d": {
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
+      },
+      "0x8782a38Afb46B291E4b7409C90De10B95b96a78D": {
+        "Name": "AmarokFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x74a55CaDb12501A3707E9F3C5dfd8b563C6A5940",
       "Executor": "0x4DaC9d1769b9b304cb04741DCDEb2FC14aBdF110",
       "FeeCollector": "0x0A6d96E7f4D7b96CFE42185DF61E64d255c12DFf",
-      "Receiver": "0x050e198E36A73a1e32F15C3afC58C4506d82f657",
-      "RelayerCelerIM": "",
+      "Receiver": "0xeC03B65CbDc5f8858b02F44EBa54C90664249fb1",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
       "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE"
     }
