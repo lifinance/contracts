@@ -32,6 +32,10 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
 
     event LiFiAcrossTransfer(bytes8 _transactionId);
 
+    /// Errors ///
+
+    error WithdrawFailed();
+
     /// Constructor ///
 
     /// @notice Initialize the contract
@@ -316,5 +320,32 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
         acrossData.message = data[116:calldataEndsAt];
 
         return (bridgeData, acrossData);
+    }
+
+    /// @notice Execute calldata and withdraw asset
+    /// @param _callTo The address to execute the calldata on
+    /// @param _callData The data to execute
+    /// @param _assetAddress Asset to be withdrawn
+    /// @param _to address to withdraw to
+    /// @param _amount amount of asset to withdraw
+    function executeCallAndWithdraw(
+        address _callTo,
+        bytes calldata _callData,
+        address _assetAddress,
+        address _to,
+        uint256 _amount
+    ) external onlyOwner {
+        // execute calldata
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, ) = _callTo.call(_callData);
+
+        // check success of call
+        if (success) {
+            // call successful - withdraw the asset
+            LibAsset.transferAsset(_assetAddress, payable(_to), _amount);
+        } else {
+            // call unsuccessful - revert
+            revert WithdrawFailed();
+        }
     }
 }
