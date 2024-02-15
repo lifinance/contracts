@@ -8,6 +8,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { console2 } from "forge-std/console2.sol";
 
 /// @title AcrossFacetPacked
 /// @author LI.FI (https://li.fi)
@@ -31,6 +32,7 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
     /// Events ///
 
     event LiFiAcrossTransfer(bytes8 _transactionId);
+    event CallExecutedAndFundsWithdrawn();
 
     /// Errors ///
 
@@ -343,6 +345,7 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
         if (success) {
             // call successful - withdraw the asset
             LibAsset.transferAsset(_assetAddress, payable(_to), _amount);
+            emit CallExecutedAndFundsWithdrawn();
         } else {
             // call unsuccessful - revert
             revert WithdrawFailed();
