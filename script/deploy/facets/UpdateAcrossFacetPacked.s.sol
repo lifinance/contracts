@@ -17,13 +17,14 @@ contract DeployScript is UpdateScriptBase {
 
     function getExcludes() internal view override returns (bytes4[] memory) {
         AcrossFacetPacked across;
-        bytes4[] memory excludes = new bytes4[](6);
+        bytes4[] memory excludes = new bytes4[](7);
         excludes[0] = across.cancelOwnershipTransfer.selector;
         excludes[1] = across.transferOwnership.selector;
         excludes[2] = across.confirmOwnershipTransfer.selector;
         excludes[3] = across.owner.selector;
         excludes[4] = across.pendingOwner.selector;
         excludes[5] = across.setApprovalForBridge.selector;
+        excludes[6] = across.executeCallAndWithdraw.selector;
 
         return excludes;
     }

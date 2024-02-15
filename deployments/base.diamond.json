@@ -76,6 +76,10 @@
       "0x4f62E7a939C62316F76E2afC644A9A907Dc30D2d": {
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
+      },
+      "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9": {
+        "Name": "AcrossFacetPacked",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
