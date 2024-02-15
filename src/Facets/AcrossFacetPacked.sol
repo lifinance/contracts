@@ -155,6 +155,16 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
         emit LiFiAcrossTransfer(bytes8(msg.data[4:12]));
     }
 
+    /// @notice Bridges ERC20 tokens via Across (minimal implementation)
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param sendingAssetId The address of the asset/token to be bridged
+    /// @param minAmount The amount to be bridged
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param relayerFeePct The relayer fee in token percentage with 18 decimals
+    /// @param quoteTimestamp The timestamp associated with the suggested fee
+    /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens
+    /// @param maxCount Used to protect the depositor from frontrunning to guarantee their quote remains valid
     function startBridgeTokensViaAcrossERC20Min(
         bytes32 transactionId,
         address sendingAssetId,
@@ -188,6 +198,14 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
         emit LiFiAcrossTransfer(bytes8(transactionId));
     }
 
+    /// @notice Encodes calldata that can be used to call the native 'packed' function
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param receiver Receiving wallet address
+    /// @param destinationChainId Receiving chain
+    /// @param relayerFeePct The relayer fee in token percentage with 18 decimals
+    /// @param quoteTimestamp The timestamp associated with the suggested fee
+    /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens
+    /// @param maxCount Used to protect the depositor from frontrunning to guarantee their quote remains valid
     function encode_startBridgeTokensViaAcrossNativePacked(
         bytes32 transactionId,
         address receiver,
@@ -219,6 +237,16 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
             );
     }
 
+    /// @notice Encodes calldata that can be used to call the ERC20 'packed' function
+    /// @param transactionId Custom transaction ID for tracking
+    /// @param receiver Receiving wallet address
+    /// @param sendingAssetId The address of the asset/token to be bridged
+    /// @param minAmount The amount to be bridged
+    /// @param destinationChainId Receiving chain
+    /// @param relayerFeePct The relayer fee in token percentage with 18 decimals
+    /// @param quoteTimestamp The timestamp associated with the suggested fee
+    /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens
+    /// @param maxCount Used to protect the depositor from frontrunning to guarantee their quote remains valid
     function encode_startBridgeTokensViaAcrossERC20Packed(
         bytes32 transactionId,
         address receiver,
@@ -259,6 +287,8 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
             );
     }
 
+    /// @notice Decodes calldata that is meant to be used for calling the native 'packed' function
+    /// @param data the calldata to be decoded
     function decode_startBridgeTokensViaAcrossNativePacked(
         bytes calldata data
     )
@@ -291,6 +321,8 @@ contract AcrossFacetPacked is ILiFi, TransferrableOwnership {
         return (bridgeData, acrossData);
     }
 
+    /// @notice Decodes calldata that is meant to be used for calling the ERC20 'packed' function
+    /// @param data the calldata to be decoded
     function decode_startBridgeTokensViaAcrossERC20Packed(
         bytes calldata data
     )
