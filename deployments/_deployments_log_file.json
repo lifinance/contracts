@@ -11634,6 +11634,20 @@
           }
         ]
       }
+    },
+    "base": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x9b3C5C83b0E1415BA91bBc9486102e80362F0629",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-15 13:10:12",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000001e3f136c2f804854581da55ad7660a2b35def7",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "ArbitrumBridgeFacet": {
