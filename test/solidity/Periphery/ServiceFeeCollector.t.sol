@@ -28,6 +28,34 @@ contract ServiceFeeCollectorTest is DSTest {
     // Needed to receive ETH
     receive() external payable {}
 
+    function testCanCollectTokenGasFees() public {
+        // Arrange
+        uint256 fee = 0.015 ether;
+
+        // Act
+        feeToken.approve(address(feeCollector), fee);
+        feeCollector.collectTokenGasFees(
+            address(feeToken),
+            fee,
+            137,
+            address(0xb33f)
+        );
+
+        // Assert
+        assert(feeToken.balanceOf(address(feeCollector)) == fee);
+    }
+
+    function testCanCollectNativeGasFees() public {
+        // Arrange
+        uint256 fee = 0.015 ether;
+
+        // Act
+        feeCollector.collectNativeGasFees{ value: fee }(137, address(0xb33f));
+
+        // Assert
+        assert(address(feeCollector).balance == fee);
+    }
+
     function testCanCollectTokenInsuranceFees() public {
         // Arrange
         uint256 fee = 0.015 ether;
@@ -59,9 +87,10 @@ contract ServiceFeeCollectorTest is DSTest {
         // Arrange
         uint256 fee = 0.015 ether;
         feeToken.approve(address(feeCollector), fee);
-        feeCollector.collectTokenInsuranceFees(
+        feeCollector.collectTokenGasFees(
             address(feeToken),
             fee,
+            137,
             address(0xb33f)
         );
         uint256 startingBalance = feeToken.balanceOf(address(this));
@@ -80,12 +109,13 @@ contract ServiceFeeCollectorTest is DSTest {
         // Arrange
         uint256 fee = 0.015 ether;
         feeToken.approve(address(feeCollector), fee);
-        feeCollector.collectTokenInsuranceFees(
+        feeCollector.collectTokenGasFees(
             address(feeToken),
             fee,
+            137,
             address(0xb33f)
         );
-        feeCollector.collectNativeInsuranceFees{ value: fee }(address(0xb33f));
+        feeCollector.collectNativeGasFees{ value: fee }(137, address(0xb33f));
         uint256 startingTokenBalance = feeToken.balanceOf(address(this));
         uint256 startingETHBalance = address(this).balance;
 
@@ -108,9 +138,10 @@ contract ServiceFeeCollectorTest is DSTest {
         // Arrange
         uint256 fee = 0.015 ether;
         feeToken.approve(address(feeCollector), fee);
-        feeCollector.collectTokenInsuranceFees(
+        feeCollector.collectTokenGasFees(
             address(feeToken),
             fee,
+            137,
             address(0xb33f)
         );
 
