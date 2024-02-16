@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { ServiceFeeCollector } from "../Periphery/ServiceFeeCollector.sol";
+import { LiFuelFeeCollector } from "../Periphery/LiFuelFeeCollector.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
@@ -11,13 +11,13 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title LIFuel Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging gas through LIFuel
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.periphery_registry");
-    string internal constant FEE_COLLECTOR_NAME = "ServiceFeeCollector";
+    string internal constant FEE_COLLECTOR_NAME = "LiFuelFeeCollector";
 
     /// Types ///
 
@@ -77,22 +77,26 @@ contract LIFuelFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Contains the business logic for the bridge via LIFuel Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
     function _startBridge(ILiFi.BridgeData memory _bridgeData) private {
-        ServiceFeeCollector serviceFeeCollector = ServiceFeeCollector(
+        LiFuelFeeCollector liFuelFeeCollector = LiFuelFeeCollector(
             getStorage().contracts[FEE_COLLECTOR_NAME]
         );
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            serviceFeeCollector.collectNativeGasFees{
+            liFuelFeeCollector.collectNativeGasFees{
                 value: _bridgeData.minAmount
-            }(_bridgeData.destinationChainId, _bridgeData.receiver);
+            }(
+                _bridgeData.minAmount,
+                _bridgeData.destinationChainId,
+                _bridgeData.receiver
+            );
         } else {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                address(serviceFeeCollector),
+                address(liFuelFeeCollector),
                 _bridgeData.minAmount
             );
 
-            serviceFeeCollector.collectTokenGasFees(
+            liFuelFeeCollector.collectTokenGasFees(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 _bridgeData.destinationChainId,

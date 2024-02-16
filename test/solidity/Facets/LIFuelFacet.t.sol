@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
-import { ServiceFeeCollector } from "lifi/Periphery/ServiceFeeCollector.sol";
+import { LiFuelFeeCollector } from "lifi/Periphery/LiFuelFeeCollector.sol";
 import { LIFuelFacet } from "lifi/Facets/LIFuelFacet.sol";
 import { OnlyContractOwner, InvalidConfig, NotInitialized, AlreadyInitialized, InvalidAmount } from "src/Errors/GenericErrors.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
@@ -27,7 +27,7 @@ contract LIFuelFacetTest is TestBaseFacet {
         initTestBase();
         lifuelFacet = new TestLIFuelFacet();
 
-        ServiceFeeCollector feeCollector = new ServiceFeeCollector(
+        LiFuelFeeCollector feeCollector = new LiFuelFeeCollector(
             address(this)
         );
         PeripheryRegistryFacet peripheryRegistry = new PeripheryRegistryFacet();
@@ -56,7 +56,7 @@ contract LIFuelFacetTest is TestBaseFacet {
         );
 
         peripheryRegistry.registerPeripheryContract(
-            "ServiceFeeCollector",
+            "LiFuelFeeCollector",
             address(feeCollector)
         );
         setFacetAddressInTestBase(address(lifuelFacet), "LIFuelFacet");
