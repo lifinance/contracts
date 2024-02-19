@@ -50,14 +50,16 @@ const main = async () => {
   console.info('SAFE Address: ', safeAddress)
   console.info('Diamond Address: ', diamondAddress)
 
+  // Parse the raw diamond cuts
+  const cuts = JSON.parse(rawCuts)
+
+  console.info('Cuts: ', cuts)
+
   // Instantiate a SAFE instance
   const safeSdk: Safe = await Safe.create({
     ethAdapter,
     safeAddress,
   })
-
-  // Parse the raw diamond cuts
-  const cuts = JSON.parse(rawCuts)
 
   // Get the latest nonce from the SAFE
   let nonce = await safeSdk.getNonce()

@@ -1,4 +1,5 @@
 #!/bin/bash
+#
 
 # load env variables
 source .env
@@ -2814,6 +2815,10 @@ function getChainId() {
     ;;
   "opbnb")
     echo "204"
+    return 0
+    ;;
+  "metis")
+    echo "1088"
     return 0
     ;;
   "localanvil")

@@ -104,6 +104,10 @@
       "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
+      },
+      "0xC3cD90545f30F4F9E71e582510Cc64ab5a743E85": {
+        "Name": "ThorSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

@@ -4,11 +4,11 @@ import { DeployResult } from 'hardhat-deploy/types'
 import { artifacts, ethers, network } from 'hardhat'
 import { addOrReplaceFacets } from '../utils/diamond'
 
-interface AddressesFile {
+export interface AddressesFile {
   [contract: string]: string
 }
 
-interface DiamondFile {
+export interface DiamondFile {
   [diamond: string]: {
     Facets: {
       [contract: string]: {
@@ -201,7 +201,7 @@ export const deployFacet = async function (
     args: options?.args,
   })
 
-  await updateDeploymentLogs('DiamondCutFacet', deployedFacet, isVerified)
+  await updateDeploymentLogs(name, deployedFacet, isVerified)
 }
 
 export const verifyContract = async function (

@@ -61,9 +61,6 @@ const config: HardhatUserConfig = {
       url: node_url('zksync'),
       accounts: PKEY ? [PKEY] : accounts(),
       chainId: 324,
-      companionNetworks: {
-        hub: 'mainnet',
-      },
       zksync: true,
       ethNetwork: 'mainnet',
       verifyURL:
