@@ -170,7 +170,7 @@ register() {
   echo ""
 
   # check that the contract is actually deployed
-  CODE_SIZE = $(cast codesize "$ADDR" --rpc-url "${!RPC}")
+  local CODE_SIZE = $(cast codesize "$ADDR" --rpc-url "${!RPC}")
   if [ $CODE_SIZE -eq 0 ]; then
     error "contract $CONTRACT_NAME is not deployed on network $NETWORK - exiting script now"
     return 1
