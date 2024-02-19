@@ -9,6 +9,10 @@ import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { ERC20Permit, EIP712 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+
+//TODO: remove
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract Permit2ProxyTest is TestBase {
     address public constant PERMIT2ADDRESS =
@@ -85,6 +89,17 @@ contract Permit2ProxyTest is TestBase {
         bytes signature;
     }
 
+    struct TestDataEIP2612 {
+        address tokenAddress;
+        address userWallet;
+        uint256 nonce;
+        uint256 deadline;
+        bytes diamondCalldata;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
     function setUp() public {
         customBlockNumberForForking = 18931144;
         initTestBase();
@@ -131,13 +146,204 @@ contract Permit2ProxyTest is TestBase {
 
     /// Test Cases ///
 
-    function testRevert_CannotUseSignatureMoreThanOnce() public {
+    // EIP2612 (native permit) related test cases //
+
+    function testCanExecuteCalldataUsingEIP2612SignatureUSDC() public {
+        vm.startPrank(addressUserWallet);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
+            ADDRESS_USDC,
+            domainSeparator,
+            block.timestamp + 1000
+        );
+
+        // expect LifiTransferStarted event to be emitted by our diamond contract
+        vm.expectEmit(true, true, true, true, LIFIDIAMOND);
+        emit LiFiTransferStarted(bridgeData);
+
+        // call Permit2Proxy with signature
+        p2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            addressUserWallet,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            LIFIDIAMOND,
+            testdata.diamondCalldata
+        );
+
+        vm.stopPrank();
+    }
+
+    function testCanExecuteCalldataUsingEIP2612SignatureUNI() public {
+        address ADDRESS_UNI = 0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984;
+
+        vm.startPrank(addressUserWallet);
+
+        // make sure user has UNI balance
+        deal(ADDRESS_UNI, addressUserWallet, defaultUSDCAmount);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = _getUNIDomainSeparator(
+            ADDRESS_UNI,
+            block.chainid
+        );
+
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
+            ADDRESS_UNI,
+            domainSeparator,
+            block.timestamp + 1000
+        );
+
+        // create adjusted calldata (with correct sendingAssetId)
+        bridgeData.sendingAssetId = ADDRESS_UNI;
+        testdata.diamondCalldata = abi.encodeWithSelector(
+            PolygonBridgeFacet.startBridgeTokensViaPolygonBridge.selector,
+            bridgeData
+        );
+
+        // expect LifiTransferStarted event to be emitted by our diamond contract
+        vm.expectEmit(true, true, true, true, LIFIDIAMOND);
+        emit LiFiTransferStarted(bridgeData);
+
+        // call Permit2Proxy with signature
+        p2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_UNI,
+            addressUserWallet,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            LIFIDIAMOND,
+            testdata.diamondCalldata
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevertcannotUseEIP2612SignatureTwice() public {
+        vm.startPrank(addressUserWallet);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
+            ADDRESS_USDC,
+            domainSeparator,
+            block.timestamp + 1000
+        );
+
+        // call Permit2Proxy with signature
+        p2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            addressUserWallet,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            LIFIDIAMOND,
+            testdata.diamondCalldata
+        );
+
+        // expect call to revert if same signature is used twice
+        vm.expectRevert("EIP2612: invalid signature");
+        p2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            addressUserWallet,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            LIFIDIAMOND,
+            testdata.diamondCalldata
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevertCannotUseExpiredEIP2612Signature() public {
+        vm.startPrank(addressUserWallet);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
+            ADDRESS_USDC,
+            domainSeparator,
+            block.timestamp - 1 //  deadline in the past
+        );
+
+        // expect call to revert since signature deadline is in the past
+        vm.expectRevert("FiatTokenV2: permit is expired");
+
+        // call Permit2Proxy with signature
+        p2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            addressUserWallet,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            LIFIDIAMOND,
+            testdata.diamondCalldata
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevertCannotUseInvalidEIP2612Signature() public {
+        vm.startPrank(addressUserWallet);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
+            ADDRESS_USDC,
+            domainSeparator,
+            block.timestamp
+        );
+
+        // expect call to revert since signature deadline is in the past
+        vm.expectRevert("ECRecover: invalid signature 'v' value");
+
+        // call Permit2Proxy with signature
+        p2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            addressUserWallet,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v + 1, // invalid v value
+            testdata.r,
+            testdata.s,
+            LIFIDIAMOND,
+            testdata.diamondCalldata
+        );
+
+        vm.stopPrank();
+    }
+
+    // Permit 2 related test cases //
+    function testRevertCannotUseSignatureMoreThanOnce() public {
         // prepare calldata, sign it,
         PermitWitnessCalldata
             memory callData = _getPermitWitnessSingleCalldata();
 
         // call Permit2Proxy and use the signature
-        p2Proxy.gaslessWitnessDiamondCallSingleToken(
+        p2Proxy.callDiamondWithPermit2SignatureSingle(
             callData.permit,
             callData.amount,
             callData.witnessData,
@@ -152,7 +358,7 @@ contract Permit2ProxyTest is TestBase {
         vm.expectRevert(InvalidNonce.selector);
 
         // call Permit2Proxy
-        p2Proxy.gaslessWitnessDiamondCallSingleToken(
+        p2Proxy.callDiamondWithPermit2SignatureSingle(
             callData.permit,
             callData.amount,
             callData.witnessData,
@@ -161,7 +367,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function testRevert_DoesNotAllowToTransferTokensToDifferentAddress()
+    function testRevertDoesNotAllowToTransferTokensToDifferentAddress()
         public
     {
         // prepare calldata & sign it
@@ -184,7 +390,7 @@ contract Permit2ProxyTest is TestBase {
         vm.expectRevert(InvalidSigner.selector);
 
         // call Permit2Proxy
-        p2Proxy.gaslessWitnessDiamondCallSingleToken(
+        p2Proxy.callDiamondWithPermit2SignatureSingle(
             callData.permit,
             callData.amount,
             callData.witnessData,
@@ -193,7 +399,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function testRevert_DoesNotAllowToExecuteCalldataOnDifferentDiamondAddress()
+    function testRevertDoesNotAllowToExecuteCalldataOnDifferentDiamondAddress()
         public
     {
         // prepare calldata & sign it
@@ -216,7 +422,7 @@ contract Permit2ProxyTest is TestBase {
         vm.expectRevert(InvalidSigner.selector);
 
         // call Permit2Proxy
-        p2Proxy.gaslessWitnessDiamondCallSingleToken(
+        p2Proxy.callDiamondWithPermit2SignatureSingle(
             callData.permit,
             callData.amount,
             callData.witnessData,
@@ -225,7 +431,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function testRevert_DoesNotAllowToExecuteDifferentCalldata() public {
+    function testRevertDoesNotAllowToExecuteDifferentCalldata() public {
         // prepare calldata & sign it
         PermitWitnessCalldata
             memory callData = _getPermitWitnessSingleCalldata();
@@ -246,7 +452,7 @@ contract Permit2ProxyTest is TestBase {
         vm.expectRevert(InvalidSigner.selector);
 
         // call Permit2Proxy
-        p2Proxy.gaslessWitnessDiamondCallSingleToken(
+        p2Proxy.callDiamondWithPermit2SignatureSingle(
             callData.permit,
             callData.amount,
             callData.witnessData,
@@ -255,7 +461,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function testRevert_WillNotAcceptSignatureFromOtherWallet() public {
+    function testRevertWillNotAcceptSignatureFromOtherWallet() public {
         // prepare calldata & sign it
         PermitWitnessCalldata
             memory callData = _getPermitWitnessSingleCalldata();
@@ -273,7 +479,7 @@ contract Permit2ProxyTest is TestBase {
         vm.expectRevert(InvalidSigner.selector);
 
         // call Permit2Proxy
-        p2Proxy.gaslessWitnessDiamondCallSingleToken(
+        p2Proxy.callDiamondWithPermit2SignatureSingle(
             callData.permit,
             callData.amount,
             callData.witnessData,
@@ -282,7 +488,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function testRevert_CannotTransferMoreThanAllowed() public {
+    function testRevertCannotTransferMoreThanAllowed() public {
         // prepare calldata & sign it
         PermitWitnessCalldata
             memory callData = _getPermitWitnessSingleCalldata();
@@ -293,7 +499,7 @@ contract Permit2ProxyTest is TestBase {
         );
 
         // call Permit2Proxy
-        p2Proxy.gaslessWitnessDiamondCallSingleToken(
+        p2Proxy.callDiamondWithPermit2SignatureSingle(
             callData.permit,
             callData.amount + 1,
             callData.witnessData,
@@ -302,7 +508,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function test_CanExecuteCalldataOnDiamondSingleToken() public {
+    function testCanExecuteCalldataOnDiamondSingleToken() public {
         // prepare calldata, sign it,
         PermitWitnessCalldata
             memory callData = _getPermitWitnessSingleCalldata();
@@ -312,7 +518,7 @@ contract Permit2ProxyTest is TestBase {
         emit LiFiTransferStarted(bridgeData);
 
         // call Permit2Proxy
-        p2Proxy.gaslessWitnessDiamondCallSingleToken(
+        p2Proxy.callDiamondWithPermit2SignatureSingle(
             callData.permit,
             callData.amount,
             callData.witnessData,
@@ -326,7 +532,7 @@ contract Permit2ProxyTest is TestBase {
     // 1) swapping 30 USDC worth of DAI to USDC @uniswap
     // 2) swapping 40 USDC worth of ETH to USDC @uniswap
     // 3) transfering 30 USDC to our diamond using a (whitelisted) ERC20Proxy
-    function test_CanExecuteCalldataOnDiamondMultipleTokens() public {
+    function testCanExecuteCalldataOnDiamondMultipleTokens() public {
         // approve USDC from Permit2Proxy to diamond
         vm.startPrank(address(p2Proxy));
         usdc.approve(address(erc20Proxy), type(uint256).max);
@@ -363,7 +569,7 @@ contract Permit2ProxyTest is TestBase {
         emit LiFiTransferStarted(bridgeData);
 
         // // call Permit2Proxy
-        p2Proxy.gaslessWitnessDiamondCallMultipleTokens{ value: msgValue }(
+        p2Proxy.callDiamondWithPermit2SignatureBatch{ value: msgValue }(
             callData.permit,
             callData.amounts,
             callData.witnessData,
@@ -372,7 +578,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function testRevert_NonOwnerCannotUpdateWhitelist() public {
+    function testRevertNonOwnerCannotUpdateWhitelist() public {
         vm.startPrank(USER_SENDER);
         address[] memory addresses = new address[](2);
         addresses[0] = LIFIDIAMOND; // LiFiDiamond
@@ -385,7 +591,7 @@ contract Permit2ProxyTest is TestBase {
         p2Proxy.updateWhitelist(addresses, values);
     }
 
-    function testRevert_OwnerCanUpdateWhitelist() public {
+    function testRevertOwnerCanUpdateWhitelist() public {
         // make sure whitelist is set correctly
         assertEq(p2Proxy.diamondWhitelist(LIFIDIAMOND), true);
         assertEq(p2Proxy.diamondWhitelist(LIFIDIAMONDIMMUTABLE), true);
@@ -621,15 +827,19 @@ contract Permit2ProxyTest is TestBase {
         );
 
         // sign data and return signature
-        return _signHash(privateKey, msgHash);
+        (, , , signature) = _signHash(privateKey, msgHash);
     }
 
     function _signHash(
         uint256 privateKey,
         bytes32 msgHash
-    ) internal pure returns (bytes memory signature) {
+    )
+        internal
+        pure
+        returns (uint8 v, bytes32 r, bytes32 s, bytes memory signature)
+    {
         // create signature in ECDSA format
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
+        (v, r, s) = vm.sign(privateKey, msgHash);
 
         // create bytes representation of signature to match target format
         signature = bytes.concat(r, s, bytes1(v));
@@ -770,5 +980,87 @@ contract Permit2ProxyTest is TestBase {
         addresses = new address[](2);
         addresses[0] = firstAddress;
         addresses[1] = secondAddress;
+    }
+
+    function _generateEIP2612MsgHash(
+        address owner,
+        address spender,
+        uint256 amount,
+        uint256 nonce,
+        uint256 deadline,
+        bytes32 domainSeparator
+    ) internal pure returns (bytes32 digest) {
+        digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                // Domain separator
+                domainSeparator,
+                // Permit struct
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                        ),
+                        owner,
+                        spender,
+                        amount,
+                        nonce,
+                        deadline
+                    )
+                )
+            )
+        );
+    }
+
+    function _getTestDataEIP2612(
+        address tokenAddress,
+        bytes32 domainSeparator,
+        uint256 deadline
+    ) internal view returns (TestDataEIP2612 memory testdata) {
+        testdata.tokenAddress = tokenAddress;
+        testdata.userWallet = addressUserWallet;
+        testdata.nonce = ERC20Permit(tokenAddress).nonces(testdata.userWallet);
+        testdata.deadline = deadline;
+
+        // generate approval data to be signed by user
+        bytes32 digest = _generateEIP2612MsgHash(
+            testdata.userWallet,
+            address(p2Proxy),
+            defaultUSDCAmount,
+            testdata.nonce,
+            testdata.deadline,
+            domainSeparator
+        );
+
+        // sign digest and return signature
+        (testdata.v, testdata.r, testdata.s, ) = _signHash(
+            _privKeyUserWallet,
+            digest
+        );
+
+        // get calldata for bridging (simple USDC bridging via PolygonBridge)
+        testdata.diamondCalldata = _getCalldataForBridging();
+    }
+
+    function _getUNIDomainSeparator(
+        address tokenAddress,
+        uint256 chainId
+    ) internal view returns (bytes32 domainSeparator) {
+        bytes32 UNI_DOMAIN_TYPEHASH = keccak256(
+            "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
+        );
+
+        // get token name from contract
+        string memory name = ERC20(tokenAddress).name();
+
+        // generate domainSeparator
+        domainSeparator = keccak256(
+            abi.encode(
+                UNI_DOMAIN_TYPEHASH,
+                keccak256(bytes(name)),
+                chainId,
+                tokenAddress
+            )
+        );
     }
 }
