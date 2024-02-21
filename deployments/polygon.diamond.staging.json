@@ -108,6 +108,10 @@
       "0x85DDB7E0e0E01F3aa21E373C35e847Ec80B58Fa4": {
         "Name": "AcrossFacetPacked",
         "Version": "1.0.0"
+      },
+      "0x7ac3EB2D191EBAb9E925CAbFD4F8155be066b3aa": {
+        "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
