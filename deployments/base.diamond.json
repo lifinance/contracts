@@ -41,7 +41,7 @@
         "Name": "HopFacet",
         "Version": "2.0.0"
       },
-      "0x6039935fc13e548517C2c3cEeb81A952C69c8A3b": {
+      "0xB7237563c604EE305FeAB6F275AFDe628354198A": {
         "Name": "HopFacetPacked",
         "Version": "1.0.6"
       },
@@ -76,6 +76,10 @@
       "0x4f62E7a939C62316F76E2afC644A9A907Dc30D2d": {
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
+      },
+      "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9": {
+        "Name": "AcrossFacetPacked",
+        "Version": "1.0.0"
       },
       "0x8782a38Afb46B291E4b7409C90De10B95b96a78D": {
         "Name": "AmarokFacet",
