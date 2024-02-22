@@ -101,11 +101,14 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        uint256 fee = dlnSource.globalFixedNativeFee();
+        address assetId = _bridgeData.sendingAssetId;
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(msg.sender),
+            LibAsset.isNativeAsset(assetId) ? 0 : fee
         );
         _startBridge(_bridgeData, _deBridgeDlnData);
     }
@@ -119,6 +122,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         DeBridgeDlnData calldata _deBridgeDlnData
     ) internal {
+        uint256 fee = dlnSource.globalFixedNativeFee();
         IDlnSource.OrderCreation memory orderCreation = IDlnSource
             .OrderCreation({
                 giveTokenAddress: _bridgeData.sendingAssetId,
@@ -137,15 +141,16 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             });
 
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            // Give the Hyphen router approval to bridge tokens
+            // Give the DLN Source approval to bridge tokens
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(dlnSource),
                 _bridgeData.minAmount
             );
 
-            dlnSource.createOrder(orderCreation, "", 0, "");
+            dlnSource.createOrder{ value: fee }(orderCreation, "", 0, "");
         } else {
+            orderCreation.giveAmount = orderCreation.giveAmount - fee;
             dlnSource.createOrder{ value: _bridgeData.minAmount }(
                 orderCreation,
                 "",

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap } from "../utils/TestBaseFacet.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
 
 // Stub DeBridgeDlnFacet Contract
 contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
-    constructor(IDlnSource _example) DeBridgeDlnFacet(_example) {}
+    constructor(IDlnSource _dlnSource) DeBridgeDlnFacet(_dlnSource) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -21,17 +21,15 @@ contract TestDeBridgeDlnFacet is DeBridgeDlnFacet {
 contract DeBridgeDlnFacetTest is TestBaseFacet {
     DeBridgeDlnFacet.DeBridgeDlnData internal validDeBridgeDlnData;
     TestDeBridgeDlnFacet internal deBridgeDlnFacet;
-    IDlnSource internal EXAMPLE_PARAM = IDlnSource(address(0xb33f));
+    IDlnSource internal DLN_SOURCE =
+        IDlnSource(0xeF4fB24aD0916217251F553c0596F8Edc630EB66);
+    uint256 internal FIXED_FEE;
 
     function setUp() public {
-        customBlockNumberForForking = 17130542;
+        customBlockNumberForForking = 19279222;
         initTestBase();
 
-        address[] memory EXAMPLE_ALLOWED_TOKENS = new address[](2);
-        EXAMPLE_ALLOWED_TOKENS[0] = address(1);
-        EXAMPLE_ALLOWED_TOKENS[1] = address(2);
-
-        deBridgeDlnFacet = new TestDeBridgeDlnFacet(EXAMPLE_PARAM);
+        deBridgeDlnFacet = new TestDeBridgeDlnFacet(DLN_SOURCE);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = deBridgeDlnFacet
             .startBridgeTokensViaDeBridgeDln
@@ -67,53 +65,28 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 137;
 
         // produce valid DeBridgeDlnData
-        // validDeBridgeDlnData = DeBridgeDlnFacet.DeBridgeDlnData({
-        //     exampleParam: "foo bar baz"
-        // });
-    }
+        validDeBridgeDlnData = DeBridgeDlnFacet.DeBridgeDlnData({
+            receivingAssetId: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174, // Polygon USDC
+            receiver: abi.encodePacked(USER_RECEIVER),
+            minAmountOut: (defaultUSDCAmount * 95) / 100
+        });
 
-    // All facet test files inherit from `utils/TestBaseFacet.sol` and require the following method overrides:
-    // - function initiateBridgeTxWithFacet(bool isNative)
-    // - function initiateSwapAndBridgeTxWithFacet(bool isNative)
-    //
-    // These methods are used to run the following tests which must pass:
-    // - testBase_CanBridgeNativeTokens()
-    // - testBase_CanBridgeTokens()
-    // - testBase_CanBridgeTokens_fuzzed(uint256)
-    // - testBase_CanSwapAndBridgeNativeTokens()
-    // - testBase_CanSwapAndBridgeTokens()
-    // - testBase_Revert_BridgeAndSwapWithInvalidReceiverAddress()
-    // - testBase_Revert_BridgeToSameChainId()
-    // - testBase_Revert_BridgeWithInvalidAmount()
-    // - testBase_Revert_BridgeWithInvalidDestinationCallFlag()
-    // - testBase_Revert_BridgeWithInvalidReceiverAddress()
-    // - testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
-    // - testBase_Revert_CallerHasInsufficientFunds()
-    // - testBase_Revert_SwapAndBridgeToSameChainId()
-    // - testBase_Revert_SwapAndBridgeWithInvalidAmount()
-    // - testBase_Revert_SwapAndBridgeWithInvalidSwapData()
-    //
-    // In some cases it doesn't make sense to have all tests. For example the bridge may not support native tokens.
-    // In that case you can override the test method and leave it empty. For example:
-    //
-    // function testBase_CanBridgeNativeTokens() public override {
-    //     // facet does not support bridging of native assets
-    // }
-    //
-    // function testBase_CanSwapAndBridgeNativeTokens() public override {
-    //     // facet does not support bridging of native assets
-    // }
+        vm.label(address(DLN_SOURCE), "DLN_SOURCE");
+        FIXED_FEE = DLN_SOURCE.globalFixedNativeFee();
+    }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
+            validDeBridgeDlnData.minAmountOut =
+                (defaultNativeAmount * 95) /
+                100;
             deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{
-                value: bridgeData.minAmount
+                value: bridgeData.minAmount + FIXED_FEE
             }(bridgeData, validDeBridgeDlnData);
         } else {
-            deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln(
-                bridgeData,
-                validDeBridgeDlnData
-            );
+            deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{
+                value: FIXED_FEE
+            }(bridgeData, validDeBridgeDlnData);
         }
     }
 
@@ -122,14 +95,88 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
     ) internal override {
         if (isNative) {
             deBridgeDlnFacet.swapAndStartBridgeTokensViaDeBridgeDln{
-                value: swapData[0].fromAmount
+                value: defaultNativeAmount + FIXED_FEE
             }(bridgeData, swapData, validDeBridgeDlnData);
         } else {
-            deBridgeDlnFacet.swapAndStartBridgeTokensViaDeBridgeDln(
-                bridgeData,
-                swapData,
-                validDeBridgeDlnData
-            );
+            deBridgeDlnFacet.swapAndStartBridgeTokensViaDeBridgeDln{
+                value: FIXED_FEE
+            }(bridgeData, swapData, validDeBridgeDlnData);
         }
+    }
+
+    function testBase_CanSwapAndBridgeTokensFromNative()
+        public
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+        // store initial balances
+        uint256 initialETHBalance = USER_SENDER.balance;
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+
+        path[0] = ADDRESS_WETH;
+        path[1] = ADDRESS_USDC;
+
+        uint256 amountOut = defaultUSDCAmount;
+
+        validDeBridgeDlnData.minAmountOut = (amountOut * 95) / 100;
+
+        // Calculate USDC input amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapETHForExactTokens.selector,
+                    amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            address(0),
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
+        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
+        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(true);
+
+        // check balances after call
+        assertEq(
+            USER_SENDER.balance,
+            initialETHBalance - swapData[0].fromAmount - FIXED_FEE
+        );
     }
 }

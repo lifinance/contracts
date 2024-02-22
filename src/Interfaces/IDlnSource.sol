@@ -38,6 +38,8 @@ interface IDlnSource {
         bytes allowedCancelBeneficiarySrc; // *optional
     }
 
+    function globalFixedNativeFee() external returns (uint256);
+
     function createOrder(
         OrderCreation calldata _orderCreation,
         bytes calldata _affiliateFee,
