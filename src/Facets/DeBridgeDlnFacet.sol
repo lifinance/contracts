@@ -46,6 +46,8 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Events ///
 
+    event DlnOrderCreated(bytes32 indexed orderId);
+
     event BridgeToNonEVMChain(
         bytes32 indexed transactionId,
         uint256 indexed destinationChainId,
@@ -140,6 +142,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 allowedCancelBeneficiarySrc: ""
             });
 
+        bytes32 orderId;
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // Give the DLN Source approval to bridge tokens
             LibAsset.maxApproveERC20(
@@ -148,16 +151,23 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount
             );
 
-            dlnSource.createOrder{ value: fee }(orderCreation, "", 0, "");
+            orderId = dlnSource.createOrder{ value: fee }(
+                orderCreation,
+                "",
+                0,
+                ""
+            );
         } else {
             orderCreation.giveAmount = orderCreation.giveAmount - fee;
-            dlnSource.createOrder{ value: _bridgeData.minAmount }(
+            orderId = dlnSource.createOrder{ value: _bridgeData.minAmount }(
                 orderCreation,
                 "",
                 0,
                 ""
             );
         }
+
+        emit DlnOrderCreated(orderId);
 
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             emit BridgeToNonEVMChain(
