@@ -97,16 +97,12 @@
         "Name": "SynapseBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x761785Cd4aC49C00c47dd698B7dBA34a8082eC4e": {
-        "Name": "",
-        "Version": ""
-      },
-      "0x1a881c0de5Fd8C1b838f64B34d57Fc9189048634": {
-        "Name": "",
-        "Version": ""
-      },
       "0x85DDB7E0e0E01F3aa21E373C35e847Ec80B58Fa4": {
         "Name": "AcrossFacetPacked",
+        "Version": "1.0.0"
+      },
+      "0xE500dED7b9C9f1020870B7a6Db076Dbd892C0fea": {
+        "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       }
     },
