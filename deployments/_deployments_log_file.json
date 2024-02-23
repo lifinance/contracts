@@ -15136,5 +15136,35 @@
         ]
       }
     }
+  },
+  "SymbiosisFacet": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb590b3B312f3C73621aa1E363841c8baecc2E712",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-23 12:19:14",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f7e96217347667064dee8f20db747b1c7df45dde00000000000000000000000080dddda846e779ccee463bdc0bcc2ae296fedaf9",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "optimism": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb590b3B312f3C73621aa1E363841c8baecc2E712",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-23 12:23:14",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000f91052dc5b4bae53d0fea5dae561a117268f5d2000000000000000000000000200a0fe876421dc49a26508e3efd0a1008fd12b5",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
   }
 }
