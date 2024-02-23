@@ -36,5 +36,6 @@
   "StandardizedCallFacet": "0x2E61751366B7e006f8D53becB4b697890B30144F",
   "CalldataVerificationFacet": "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0",
   "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
-  "ThorSwapFacet": "0xC3cD90545f30F4F9E71e582510Cc64ab5a743E85"
+  "ThorSwapFacet": "0xC3cD90545f30F4F9E71e582510Cc64ab5a743E85",
+  "AmarokFacetPacked": "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB"
 }
