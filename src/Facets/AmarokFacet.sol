@@ -22,7 +22,7 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param callData The data to execute on the receiving chain. If no crosschain call is needed, then leave empty.
     /// @param callTo The address of the contract on dest chain that will receive bridged funds and execute data
     /// @param relayerFee The amount of relayer fee the tx called xcall with
-    /// @param slippageTol Max bps of original due to slippage (i.e. would be 9995 to tolerate .05% slippage)
+    /// @param slippageTol Maximum acceptable slippage in BPS. For example, a value of 30 means 0.3% slippage
     /// @param delegate Destination delegate address
     /// @param destChainDomainId The Amarok-specific domainId of the destination chain
     /// @param payFeeWithSendingAsset Whether to pay the relayer fee with the sending asset or not
