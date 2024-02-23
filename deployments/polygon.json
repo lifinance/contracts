@@ -40,5 +40,7 @@
   "StandardizedCallFacet": "0x2E61751366B7e006f8D53becB4b697890B30144F",
   "CalldataVerificationFacet": "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0",
   "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
-  "CelerCircleBridgeFacet": "0x6731C946747bA54c78e7a65d416Cde39E478ECeb"
+  "CelerCircleBridgeFacet": "0x6731C946747bA54c78e7a65d416Cde39E478ECeb",
+  "AcrossFacetPacked": "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9",
+  "AmarokFacetPacked": "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB"
 }

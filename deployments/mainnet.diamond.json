@@ -108,6 +108,14 @@
       "0xC3cD90545f30F4F9E71e582510Cc64ab5a743E85": {
         "Name": "ThorSwapFacet",
         "Version": "1.0.0"
+      },
+      "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9": {
+        "Name": "AcrossFacetPacked",
+        "Version": "1.0.0"
+      },
+      "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB": {
+        "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
