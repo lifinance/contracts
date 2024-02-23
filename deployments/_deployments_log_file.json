@@ -14908,11 +14908,25 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xAbe7B4A218BC4697C19a6dd503Fd868b26F6C8Af",
+            "ADDRESS": "0xb590b3B312f3C73621aa1E363841c8baecc2E712",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-02-07 13:05:16",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ca506793a420e901bbca8066be5661e3c52c84c2000000000000000000000000d92ca299f1c2518e78e48c207b64591ba6e9b9a8",
-            "SALT": "05022024",
+            "TIMESTAMP": "2024-02-22 17:24:08",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f7e96217347667064dee8f20db747b1c7df45dde00000000000000000000000080dddda846e779ccee463bdc0bcc2ae296fedaf9",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "optimism": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb590b3B312f3C73621aa1E363841c8baecc2E712",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-22 17:22:19",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000f91052dc5b4bae53d0fea5dae561a117268f5d2000000000000000000000000200a0fe876421dc49a26508e3efd0a1008fd12b5",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
