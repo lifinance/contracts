@@ -2,7 +2,14 @@
 
 ## How it works
 
-The DeBridgeDLN Facet works by ...
+DLN is a high-performance cross-chain trading infrastructure that consists of two layers:
+
+- Protocol layer: on-chain smart contracts
+- Infrastructure layer: Takers that perform off-chain matching and on-chain settlement of trades
+
+The DLN protocol layer is represented by a set of smart contracts that can be called by any on-chain address (named a Maker) to create limit orders for cross-chain trades. When an order is created, the Maker provides a specific amount of an input token on the source chain and specifies the parameters of the order, such as the token address and the amount he accepts to receive in the destination chain. The given amount is then temporarily locked by the DLN smart contract on the source chain, and any on-chain address (named a Taker) with sufficient liquidity in the destination chain can attempt to fulfill the order by calling the corresponding method of DLN smart contract and supplying the liquidity as requested by the maker in the DLN order parameters. After the order is fulfilled, Taker initiates a cross-chain message to be sent by the DLN smart contract to the source chain via the deBridge messaging infrastructure. When the message is delivered, it unlocks the funds on the source chain to the taker’s address, effectively completing the order.
+
+The DeBridgeDLN Facet works by calling the DeBridgeDLN smart contract to bridge tokens using the DLN protocol layer. The DeBridgeDLN smart contract is a wrapper around the DLN protocol.
 
 ```mermaid
 graph LR;
@@ -23,8 +30,10 @@ The methods listed above take a variable labeled `_deBridgeDlnData`. This data i
 
 ```solidity
 /// @param example Example parameter.
-struct deBridgeDlnData {
-  string example;
+struct DeBridgeDlnData {
+  address receivingAssetId;
+  bytes receiver;
+  uint256 minAmountOut;
 }
 ```
 
