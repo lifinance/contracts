@@ -72,6 +72,10 @@
       "0x967D0f9181521a407613495e68e5F8D22b49e513": {
         "Name": "AmarokFacet",
         "Version": "2.0.0"
+      },
+      "0x6569c96727C85d8497CDfDC32bEE6686eD474e89": {
+        "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
