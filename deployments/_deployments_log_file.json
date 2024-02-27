@@ -15013,11 +15013,42 @@
       }
     }
   },
+  "DeBridgeDlnFacet": {
+    "polygon": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xE500dED7b9C9f1020870B7a6Db076Dbd892C0fea",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-22 14:29:31",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xE500dED7b9C9f1020870B7a6Db076Dbd892C0fea",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-02-22 15:43:42",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ef4fb24ad0916217251f553c0596f8edc630eb66",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
   "AmarokFacetPacked": {
     "polygon": {
       "staging": {
         "1.0.0": [
           {
+
             "ADDRESS": "0x7ac3EB2D191EBAb9E925CAbFD4F8155be066b3aa",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-02-21 16:27:57",

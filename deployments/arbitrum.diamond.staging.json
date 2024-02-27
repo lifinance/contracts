@@ -95,6 +95,10 @@
       },
       "0xb590b3B312f3C73621aa1E363841c8baecc2E712": {
         "Name": "SymbiosisFacet",
+        "Version: "1.0.0"
+      },
+      "0xE500dED7b9C9f1020870B7a6Db076Dbd892C0fea": {
+        "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       }
     },
