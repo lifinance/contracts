@@ -101,6 +101,15 @@
     "domain": "",
     "tokensToApprove": []
   },
+  "1088": {
+    "chainId": 1088,
+    "domain": "1835365481",
+    "tokensToApprove": [
+      "0x420000000000000000000000000000000000000a",
+      "0xea32a96608495e54156ae48931a7c20f0dcc1a21",
+      "0xbb06dca3ae6887fabf931640f67cab3e3a16f4dc"
+    ]
+  },
   "1287": {
     "chainId": 1287,
     "connextHandler": "0x0000000000000000000000000000000000000000",
@@ -143,13 +152,13 @@
     "domain": "",
     "tokensToApprove": []
   },
-  "metis": {
-    "chainId": 1088,
-    "domain": "1835365481",
+  "linea": {
+    "chainId": 59144,
+    "connextHandler": "0xa05eF29e9aC8C75c530c2795Fa6A800e188dE0a9",
+    "domain": "1818848877",
     "tokensToApprove": [
-      "0xea32a96608495e54156ae48931a7c20f0dcc1a21",
-      "0x420000000000000000000000000000000000000a",
-      "0xbb06dca3ae6887fabf931640f67cab3e3a16f4dc"
+      "0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f",
+      "0x176211869ca2b568f2a7d4ee941e073a821ee1ff"
     ]
   },
   "polygon": {
@@ -157,40 +166,25 @@
     "connextHandler": "0x11984dc4465481512eb5b777E44061C158CF2259",
     "domain": "1886350457",
     "tokensToApprove": [
-      "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
-      "0x8f3cf7ad23cd3cadbd9735aff958023239c6a063",
       "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619",
-      "0xc2132d05d31c914a87c6611c10748aeb04b58e8f"
-    ]
-  },
-  "base": {
-    "chainId": 8453,
-    "domain": "1650553709",
-    "tokensToApprove": [
-      "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
-      "0x4200000000000000000000000000000000000006"
-    ]
-  },
-  "arbitrum": {
-    "chainId": 42161,
-    "connextHandler": "0xEE9deC2712cCE65174B561151701Bf54b99C24C8",
-    "domain": "1634886255",
-    "tokensToApprove": [
-      "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8",
-      "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
-      "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
-      "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1"
-    ]
-  },
-  "bsc": {
-    "chainId": 56,
-    "connextHandler": "0xCd401c10afa37d641d2F594852DA94C700e4F2CE",
-    "domain": "6450786",
-    "tokensToApprove": [
-      "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-      "0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3",
-      "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-      "0x55d398326f99059ff775485246999027b3197955"
+      "0x58b9cb810a68a7f3e1e4f8cb45d1b9b3c79705e8",
+      "0x8b04bf3358b88e3630aa64c1c76ff3b6c699c6a7",
+      "0xa411c9aa00e020e4f88bc19996d29c5b7adb4acf",
+      "0xa6fc0c22ca188970152fcb00ac3646d278fb5188",
+      "0x1d1498166ddceee616a6d99868e1e0677300056f",
+      "0x3b350f202473932411772c8cb76db7975f42397e",
+      "0x4a2be2075588bce6a7e072574698a7dbbac39b08",
+      "0x4a8ecc48a6fa684e8c60604a6016ca35dd18293f",
+      "0x7cf93c434260519537184631a347ee8ad0bc68cb",
+      "0x8f3cf7ad23cd3cadbd9735aff958023239c6a063",
+      "0xb962150760f9a3bb00e3e9cf48297ee20ada4a33",
+      "0xbd80cfa9d93a87d1bb895f810ea348e496611cd4",
+      "0xdcb72ae4d5dc6ae274461d57e65db8d50d0a33ad",
+      "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
+      "0xea581ca64e4a384ae4dea39bb083173ccbd2d817",
+      "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+      "0xb2588731d8f6f854037936d6ffac4c13d0b6bd62",
+      "0x8c92dc2b9d6a8a567c7bd80c5db7a1eda4fa9a91"
     ]
   },
   "optimism": {
@@ -198,21 +192,24 @@
     "connextHandler": "0x8f7492DE823025b4CfaAB1D34c58963F2af5DEDA",
     "domain": "1869640809",
     "tokensToApprove": [
+      "0xe974b9b31dbff4369b94a1bab5e228f35ed44125",
+      "0x1d1498166ddceee616a6d99868e1e0677300056f",
+      "0x303241e2b3b4aed0bb0f8623e7442368fed8faf3",
+      "0x3b350f202473932411772c8cb76db7975f42397e",
+      "0x49000f5e208349d2fa678263418e21365208e498",
+      "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58",
+      "0x58b9cb810a68a7f3e1e4f8cb45d1b9b3c79705e8",
+      "0x60e391dbb9b3a324d8fe1e7d8047a98d0619cd2b",
       "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
-      "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
       "0x4200000000000000000000000000000000000006",
-      "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58"
-    ]
-  },
-  "mainnet": {
-    "chainId": 1,
-    "connextHandler": "0x8898B472C54c31894e3B9bb83cEA802a5d0e63C6",
-    "domain": "6648936",
-    "tokensToApprove": [
-      "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-      "0x6b175474e89094c44da98b954eedeac495271d0f",
-      "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-      "0xdac17f958d2ee523a2206206994597c13d831ec7"
+      "0xbd80cfa9d93a87d1bb895f810ea348e496611cd4",
+      "0xca87472dbfb041c2e5a2672d319ea6184ad9755e",
+      "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
+      "0xe974b9b31dbff4369b94a1bab5e228f35ed44125",
+      "0xea581ca64e4a384ae4dea39bb083173ccbd2d817",
+      "0xf0eb88b8c83347092ef321ae5d1d54c88ee89219",
+      "0xf232d1afbed9df3880143d4fad095f3698c4d1c6",
+      "0xb962150760f9a3bb00e3e9cf48297ee20ada4a33"
     ]
   },
   "gnosis": {
@@ -220,18 +217,114 @@
     "connextHandler": "0x5bB83e95f63217CDa6aE3D181BA580Ef377D2109",
     "domain": "6778479",
     "tokensToApprove": [
+      "0x68deff5c5c132467316522b0a66436573abba80e",
+      "0x1d1498166ddceee616a6d99868e1e0677300056f",
+      "0x386508a233ee1494d31555ab8aa2df6d6dc76e61",
+      "0x398bb7642bd0a5c7cb64f6255159bfaba5512342",
       "0xddafbb505ad214d7b80b1f830fccc89b60fb7a83",
+      "0x4602e7cfe18d8b16ed13538603b00073f5c28bc8",
+      "0x4a8ecc48a6fa684e8c60604a6016ca35dd18293f",
       "0x6a023ccd1ff6f2045c3309768ead9e68f978f6e1",
+      "0x58b9cb810a68a7f3e1e4f8cb45d1b9b3c79705e8",
+      "0x68deff5c5c132467316522b0a66436573abba80e",
+      "0x8b988a5e3c1c7f5230102606eaefe421e2cd9a10",
+      "0xa411c9aa00e020e4f88bc19996d29c5b7adb4acf",
+      "0xea581ca64e4a384ae4dea39bb083173ccbd2d817",
       "0x4ecaba5870353805a9f068101a40e0f32ed605c6"
     ]
   },
-  "linea": {
-    "chainId": 59144,
-    "connextHandler": "0xa05eF29e9aC8C75c530c2795Fa6A800e188dE0a9",
-    "domain": "1818848877",
+  "arbitrum": {
+    "chainId": 42161,
+    "connextHandler": "0xEE9deC2712cCE65174B561151701Bf54b99C24C8",
+    "domain": "1634886255",
     "tokensToApprove": [
-      "0x176211869ca2b568f2a7d4ee941e073a821ee1ff",
-      "0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f"
+      "0x27b58d226fe8f792730a795764945cf146815aa7",
+      "0x008b59ff5364045337994c00efc7ad1c562bb629",
+      "0x16af9fe3f9e48547971af959fd631a8cdbe40484",
+      "0x1d1498166ddceee616a6d99868e1e0677300056f",
+      "0x24f21b1864d4747a5c99045c96da11dbfda378f7",
+      "0x27b58d226fe8f792730a795764945cf146815aa7",
+      "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+      "0x2bf2ba13735160624a0feae98f6ac8f70885ea61",
+      "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+      "0x303241e2b3b4aed0bb0f8623e7442368fed8faf3",
+      "0x386e2699f89ede6005c4913512bc88f05847607b",
+      "0x3b350f202473932411772c8cb76db7975f42397e",
+      "0x49000f5e208349d2fa678263418e21365208e498",
+      "0x58b9cb810a68a7f3e1e4f8cb45d1b9b3c79705e8",
+      "0x8b04bf3358b88e3630aa64c1c76ff3b6c699c6a7",
+      "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8",
+      "0xbb1b173cdfbe464caaaceab2a9c8c44229d62d14",
+      "0xea581ca64e4a384ae4dea39bb083173ccbd2d817",
+      "0xf0eb88b8c83347092ef321ae5d1d54c88ee89219",
+      "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
+      "0xb962150760f9a3bb00e3e9cf48297ee20ada4a33"
+    ]
+  },
+  "base": {
+    "chainId": 8453,
+    "connextHandler": "0xB8448C6f7f7887D36DcA487370778e419e9ebE3F",
+    "domain": "1650553709",
+    "tokensToApprove": [
+      "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "0x50c5725949a6f0c72e6c4a641f24049a917db0cb",
+      "0x4200000000000000000000000000000000000006"
+    ]
+  },
+  "mainnet": {
+    "chainId": 1,
+    "connextHandler": "0x8898B472C54c31894e3B9bb83cEA802a5d0e63C6",
+    "domain": "6648936",
+    "tokensToApprove": [
+      "0x0100546f2cd4c9d97f798ffc9755e47865ff7ee6",
+      "0x0d505c03d30e65f6e9b4ef88855a47a89e4b7676",
+      "0x1ceb5cb57c4d4e2b2433641b95dd330a33185a44",
+      "0x1d1498166ddceee616a6d99868e1e0677300056f",
+      "0x202426c15a18a0e0fe3294415e66421891e2eb7c",
+      "0x21d3a2faa153168c46ac1428a84bdd859490505f",
+      "0x24f21b1864d4747a5c99045c96da11dbfda378f7",
+      "0x3b350f202473932411772c8cb76db7975f42397e",
+      "0x3f6740b5898c5d3650ec6eace9a649ac791e44d7",
+      "0x425f81e2fe53256b9a7aea91949da2210bd049be",
+      "0x53ca5b3d36a06d7432098e9afc22f39c4848516a",
+      "0x58b9cb810a68a7f3e1e4f8cb45d1b9b3c79705e8",
+      "0x63ea258e6938851bb2229561c53bbbe62c637012",
+      "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "0x7a460cda90ee8ed87f17864106e1d31c9c8875b5",
+      "0x8b04bf3358b88e3630aa64c1c76ff3b6c699c6a7",
+      "0x9e32b13ce7f2e80a01932b42553652e053d6ed8e",
+      "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "0xbc6da0fe9ad5f3b0d58160288917aa56653660e9",
+      "0xbd18f9be5675a9658335e6b7e79d9d9b394ac043",
+      "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "0xea581ca64e4a384ae4dea39bb083173ccbd2d817",
+      "0x799ebfabe77a6e34311eeee9825190b9ece32824"
+    ]
+  },
+  "bsc": {
+    "chainId": 56,
+    "connextHandler": "0xCd401c10afa37d641d2F594852DA94C700e4F2CE",
+    "domain": "6450786",
+    "tokensToApprove": [
+      "0x1d1498166ddceee616a6d99868e1e0677300056f",
+      "0x21d3a2faa153168c46ac1428a84bdd859490505f",
+      "0x2aa48b3d6efe651542d22cef0cb7ea853d97a850",
+      "0x3b350f202473932411772c8cb76db7975f42397e",
+      "0x489580eb70a50515296ef31e8179ff3e77e24965",
+      "0x58b9cb810a68a7f3e1e4f8cb45d1b9b3c79705e8",
+      "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+      "0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3",
+      "0x8b04bf3358b88e3630aa64c1c76ff3b6c699c6a7",
+      "0xa411c9aa00e020e4f88bc19996d29c5b7adb4acf",
+      "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
+      "0xbd80cfa9d93a87d1bb895f810ea348e496611cd4",
+      "0xd00d9ee9238687a2041004fe9d55a2299e0af2fa",
+      "0x55d398326f99059ff775485246999027b3197955",
+      "0xdf97cadbccee9cfdb12a3e9bb7663e6753a71a0c",
+      "0xea581ca64e4a384ae4dea39bb083173ccbd2d817",
+      "0xf0eb88b8c83347092ef321ae5d1d54c88ee89219",
+      "0xb962150760f9a3bb00e3e9cf48297ee20ada4a33"
     ]
   },
   "goerli": {
