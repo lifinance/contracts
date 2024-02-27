@@ -9,50 +9,46 @@ import { {{titleCase name}}Facet } from "lifi/Facets/{{titleCase name}}Facet.sol
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
+    struct Config {
+      uint256 a;
+      bool b;
+      address c;
+    }
+
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        address facet = json.readAddress(".{{titleCase name}}Facet");
+        return update("{{titleCase name}}Facet");
+    }
 
+    function getExcludes() internal pure override returns (bytes4[] memory) {
+        // Use this to exclude any selectors that might clash with other facets in the diamond
+        // or selectors you don't want accessible e.g. init() functions.
+        // You can remove this function if it's not needed.
+        bytes4[] memory excludes = new bytes4[](1);
+        excludes[0] = {{titleCase name}}Facet.init{{titleCase name}}.selector;
+
+        return excludes;
+    }
+
+    function getCallData() internal override returns (bytes memory) {
+        // Use this to get initialization calldata that will be executed
+        // when adding the facet to a diamond.
+        // You can remove this function it it's not needed.
         path = string.concat(root, "/config/{{camelCase name}}.json");
         json = vm.readFile(path);
-
-        address[] memory exampleAllowedTokens = json.readAddressArray(
-            string.concat(".", network, ".exampleAllowedTokens")
+        bytes memory rawConfigs = json.parseRaw(".configs");
+        Config[] memory cfg = abi.decode(
+            rawConfigs,
+            (Config[])
         );
 
-        /// You can remove this if you don't need to call init on the facet
         bytes memory callData = abi.encodeWithSelector(
             {{titleCase name}}Facet.init{{titleCase name}}.selector,
-            exampleAllowedTokens
+            cfg
         );
 
-        // {{titleCase name}}
-        bytes4[] memory exclude;
-        buildDiamondCut(getSelectors("{{titleCase name}}Facet", exclude), facet);
-        if (noBroadcast) {
-            if (cut.length > 0) {
-                cutData = abi.encodeWithSelector(
-                    DiamondCutFacet.diamondCut.selector,
-                    cut,
-                    address(facet), // address(0) if not calling init
-                    callData // "" if not calling init
-                );
-            }
-            return (facets, cutData);
-        }
-
-        vm.startBroadcast(deployerPrivateKey);
-        if (cut.length > 0) {
-            cutter.diamondCut(
-              cut, 
-              address(facet), // address(0) if not calling init
-              callData // "" if not calling init
-            );
-        }
-        facets = loupe.facetAddresses();
-
-        vm.stopBroadcast();
+        return callData;
     }
 }
