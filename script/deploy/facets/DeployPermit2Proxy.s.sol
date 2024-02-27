@@ -21,11 +21,11 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         // obtain address of Permit2 contract in current network from config file
-        string memory path = string.concat(root, "/config/permit2proxy.json");
+        string memory path = string.concat(root, "/config/permit2Proxy.json");
         string memory json = vm.readFile(path);
 
         address permit2 = json.readAddress(
-            string.concat(".permit2.", network)
+            string.concat(".", network, ".permit2")
         );
 
         return abi.encode(permit2, deployerAddress);
