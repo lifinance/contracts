@@ -1,0 +1,36 @@
+/// Interface ///
+#define function startBridgeTokensViaCBridgeNativePacked() payable returns()
+
+
+
+/// Storage ///
+#define constant CBRIDGE = 0x0000000000000000000000000000000000000000
+
+/// Implementation ///
+#define macro MAIN() = takes(0) returns(0) {
+    // Identify which function is being called.
+    0x00 calldataload 0xE0 shr          // [func_sig]
+
+    dup1 __FUNC_SIG(startBridgeTokensViaCBridgeNativePacked)  eq bridgeNativeJmp jumpi
+
+    bridgeNativeJmp:
+      BRIDGE_NATIVE()
+}
+
+/// Calldata layout
+/// bytes4    - TX Id
+/// bytes20   - receiver address
+/// bytes4    - destination chain id
+/// bytes4    - nonce
+/// bytes4    - maxSlippage
+
+/// sendNative Calldata
+/// 0x3f2e5fc3 - selector
+/// address   - receiver address
+/// uint256   - amount
+/// uint64    - destination chain id
+/// uint64    - nonce
+/// uint32    - max slippage
+#define macro BRIDGE_NATIVE() = takes(0) returns(0) {
+  // TODO: Do it!
+}
