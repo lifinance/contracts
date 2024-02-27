@@ -80,6 +80,7 @@
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
     "@hop-protocol/sdk": "0.0.1-beta.310",
+    "@lifi/sdk": "^2.5.0",
     "@safe-global/api-kit": "^1.1.0",
     "@safe-global/protocol-kit": "^1.0.1",
     "@safe-global/safe-core-sdk-types": "^2.0.0",
