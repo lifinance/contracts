@@ -1,0 +1,26 @@
+{
+  "mainnet": {
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  },
+  "arbitrum": {
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  },
+  "optimism": {
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  },
+  "polygon": {
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  },
+  "celo": {
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  },
+  "bsc": {
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  },
+  "base": {
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  },
+  "sepolia": {
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  }
+}
