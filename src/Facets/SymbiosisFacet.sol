@@ -37,8 +37,8 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address firstDexRouter;
         address secondDexRouter;
         address[] approvedTokens;
-        address callTo; // bridging entrypoint
-        bytes callData; // bridging calldata
+        address callTo;
+        bytes callData;
     }
 
     /// Constructor ///
