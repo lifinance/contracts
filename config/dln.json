@@ -1,0 +1,26 @@
+{
+  "arbitrum": {
+    "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+  },
+  "avalanche": {
+    "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+  },
+  "bsc": {
+    "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+  },
+  "mainnet": {
+    "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+  },
+  "polygon": {
+    "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+  },
+  "linea": {
+    "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+  },
+  "base": {
+    "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+  },
+  "optimism": {
+    "dlnSource": "0xeF4fB24aD0916217251F553c0596F8Edc630EB66"
+  }
+}
