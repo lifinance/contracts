@@ -8,7 +8,7 @@ export default function (
       {
         type: 'input',
         name: 'name',
-        message: 'Give this facet a name:',
+        message: 'Give this facet a name: e.g Acme will create AcmeFacet',
       },
       {
         type: 'input',
