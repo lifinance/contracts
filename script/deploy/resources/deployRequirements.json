@@ -300,6 +300,20 @@
       }
     }
   },
+  "SymbiosisFacet": {
+    "configData": {
+      "_symbiosisMetaRouter": {
+        "configFileName": "symbiosis.json",
+        "keyInConfigFile": ".<NETWORK>.metaRouter",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_symbiosisGateway": {
+        "configFileName": "symbiosis.json",
+        "keyInConfigFile": ".<NETWORK>.gateway",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "ThorSwapFacet": {
     "configData": {
       "_thorchainRouter": {
