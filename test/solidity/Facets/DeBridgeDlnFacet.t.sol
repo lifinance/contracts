@@ -66,7 +66,9 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         // produce valid DeBridgeDlnData
         validDeBridgeDlnData = DeBridgeDlnFacet.DeBridgeDlnData({
-            receivingAssetId: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174, // Polygon USDC
+            receivingAssetId: abi.encodePacked(
+                0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
+            ), // Polygon USDC
             receiver: abi.encodePacked(USER_RECEIVER),
             minAmountOut: (defaultUSDCAmount * 95) / 100
         });
@@ -77,9 +79,6 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            validDeBridgeDlnData.minAmountOut =
-                (defaultNativeAmount * 95) /
-                100;
             deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{
                 value: bridgeData.minAmount + FIXED_FEE
             }(bridgeData, validDeBridgeDlnData);
@@ -104,7 +103,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         }
     }
 
-    function testBase_CanSwapAndBridgeTokensFromNative()
+    function test_CanSwapAndBridgeTokensFromNative()
         public
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
@@ -124,8 +123,6 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         path[1] = ADDRESS_USDC;
 
         uint256 amountOut = defaultUSDCAmount;
-
-        validDeBridgeDlnData.minAmountOut = (amountOut * 95) / 100;
 
         // Calculate USDC input amount
         uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);

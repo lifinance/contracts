@@ -23,23 +23,11 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
-    // struct BridgeData {
-    //     bytes32 transactionId;
-    //     string bridge;
-    //     string integrator;
-    //     address referrer;
-    //     address sendingAssetId;
-    //     address receiver;
-    //     uint256 minAmount;
-    //     uint256 destinationChainId;
-    //     bool hasSourceSwaps;
-    //     bool hasDestinationCall;
-    // }
-
-    /// @dev Optional bridge specific struct
-    /// @param exampleParam Example paramter
+    /// @param receivingAssetId The address of the asset to receive
+    /// @param receiver The address of the receiver
+    /// @param minAmountOut The minimum amount to receive on the destination chain
     struct DeBridgeDlnData {
-        address receivingAssetId;
+        bytes receivingAssetId;
         bytes receiver;
         uint256 minAmountOut;
     }
@@ -83,7 +71,11 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
-        _startBridge(_bridgeData, _deBridgeDlnData);
+        _startBridge(
+            _bridgeData,
+            _deBridgeDlnData,
+            dlnSource.globalFixedNativeFee()
+        );
     }
 
     /// @notice Performs a swap before bridging via DeBridgeDLN
@@ -112,7 +104,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             payable(msg.sender),
             LibAsset.isNativeAsset(assetId) ? 0 : fee
         );
-        _startBridge(_bridgeData, _deBridgeDlnData);
+        _startBridge(_bridgeData, _deBridgeDlnData, fee);
     }
 
     /// Internal Methods ///
@@ -122,16 +114,14 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _deBridgeDlnData Data specific to DeBridgeDLN
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        DeBridgeDlnData calldata _deBridgeDlnData
+        DeBridgeDlnData calldata _deBridgeDlnData,
+        uint256 _fee
     ) internal {
-        uint256 fee = dlnSource.globalFixedNativeFee();
         IDlnSource.OrderCreation memory orderCreation = IDlnSource
             .OrderCreation({
                 giveTokenAddress: _bridgeData.sendingAssetId,
                 giveAmount: _bridgeData.minAmount,
-                takeTokenAddress: abi.encodePacked(
-                    _deBridgeDlnData.receivingAssetId
-                ),
+                takeTokenAddress: _deBridgeDlnData.receivingAssetId,
                 takeAmount: _deBridgeDlnData.minAmountOut,
                 takeChainId: _bridgeData.destinationChainId,
                 receiverDst: _deBridgeDlnData.receiver,
@@ -151,14 +141,14 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount
             );
 
-            orderId = dlnSource.createOrder{ value: fee }(
+            orderId = dlnSource.createOrder{ value: _fee }(
                 orderCreation,
                 "",
                 0,
                 ""
             );
         } else {
-            orderCreation.giveAmount = orderCreation.giveAmount - fee;
+            orderCreation.giveAmount = orderCreation.giveAmount - _fee;
             orderId = dlnSource.createOrder{ value: _bridgeData.minAmount }(
                 orderCreation,
                 "",
