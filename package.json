@@ -51,7 +51,7 @@
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.7.20",
     "ts-generator": "^0.1.1",
-    "ts-node": "^10.7.0",
+    "ts-node": "^10.9.2",
     "typechain": "^8.0.0",
     "typescript": "4.8.4",
     "zksync-web3": "^0.14.3"
@@ -85,6 +85,7 @@
     "@safe-global/protocol-kit": "^1.0.1",
     "@safe-global/safe-core-sdk-types": "^2.0.0",
     "@uma/sdk": "^0.22.1",
+    "@uniswap/permit2-sdk": "^1.2.0",
     "@uniswap/sdk": "^3.0.3",
     "chalk": "4.1.2",
     "defender-relay-client": "^1.26.0",

@@ -7,6 +7,9 @@ import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+//TODO: remove
+import { console2 } from "forge-std/console2.sol";
+
 /// @title Permit2Proxy
 /// @author LI.FI (https://li.fi)
 /// @notice Proxy contract allowing gasless (Permit2-enabled) calls to our diamond contract
