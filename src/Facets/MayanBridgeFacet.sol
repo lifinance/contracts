@@ -8,6 +8,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { IMayanBridge } from "../Interfaces/IMayanBridge.sol";
 
 /// @title MayanBridge Facet
 /// @author LI.FI (https://li.fi)
@@ -16,15 +17,10 @@ import { Validatable } from "../Helpers/Validatable.sol";
 contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE =
-        keccak256("com.lifi.facets.mayanbridge"); // Optional. Only use if you need to store data in the diamond storage.
+    address internal constant NON_EVM_ADDRESS =
+        0x11f111f111f111F111f111f111F111f111f111F1;
 
-    /// @dev Local storage for the contract (optional)
-    struct Storage {
-        address[] exampleAllowedTokens;
-    }
-
-    address public immutable example;
+    IMayanBridge public immutable mayanBridge;
 
     /// Types ///
 
