@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity >=0.8.0;
+pragma solidity =0.8.17;
 
 import { Test, DSTest } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
@@ -79,12 +79,13 @@ contract ReentrancyChecker {
 }
 
 //common utilities for forge tests
-abstract contract TestBase is Test, DiamondTest, ILiFi {
+abstract contract TestBaseBSC is Test, DiamondTest, ILiFi {
     address internal _facetTestContractAddress;
     uint64 internal currentTxId;
     bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));
     UniswapV2Router02 internal uniswap;
     ERC20 internal usdc;
+    ERC20 internal usdt;
     ERC20 internal dai;
     ERC20 internal weth;
     LiFiDiamond internal diamond;
@@ -125,10 +126,11 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
 
     // Contract addresses (ETH only)
     address internal ADDRESS_UNISWAP =
-        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
-    address internal ADDRESS_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address internal ADDRESS_DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    address internal ADDRESS_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+        0xB971eF87ede563556b2ED4b1C0b0019111Dd85d2;
+    address internal ADDRESS_USDC = 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d;
+    address internal ADDRESS_USDT = 0x55d398326f99059fF775485246999027B3197955;
+    address internal ADDRESS_DAI = 0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3;
+    address internal ADDRESS_WETH = 0x4DB5a66E937A9F4473fA95b1cAF1d1E1D62E29EA;
     // User accounts (Whales: ETH only)
     address internal constant USER_SENDER = address(0xabc123456); // initially funded with 100,000 DAI, USDC & ETHER
     address internal constant USER_RECEIVER = address(0xabc654321);
@@ -136,11 +138,11 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     address internal constant USER_DIAMOND_OWNER =
         0x5042255A3F3FD7727e419CeA387cAFDfad3C3aF8;
     address internal constant USER_USDC_WHALE =
-        0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
+        0x8894E0a0c962CB723c1976a4421c95949bE2D4E3;
     address internal constant USER_DAI_WHALE =
-        0x4aa42145Aa6Ebf72e164C9bBC74fbD3788045016;
+        0xF977814e90dA44bFA03b6295A0616a897441aceC;
     address internal constant USER_WETH_WHALE =
-        0xF04a5cC80B1E94C69B48f5ee68a08CD2F09A7c3E;
+        0xF5C616e7b58226b8081DCc7E4A7123A63734eef6;
 
     // MODIFIERS
 
@@ -183,10 +185,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         vm.label(USER_USDC_WHALE, "USER_USDC_WHALE");
         vm.label(USER_DAI_WHALE, "USER_DAI_WHALE");
         vm.label(ADDRESS_USDC, "ADDRESS_USDC_PROXY");
-        vm.label(
-            0xa2327a938Febf5FEC13baCFb16Ae10EcBc4cbDCF,
-            "ADDRESS_USDC_IMPL"
-        );
+        vm.label(ADDRESS_USDT, "ADDRESS_USDT");
         vm.label(ADDRESS_DAI, "ADDRESS_DAI");
         vm.label(ADDRESS_UNISWAP, "ADDRESS_UNISWAP");
         vm.label(ADDRESS_WETH, "ADDRESS_WETH_PROXY");
@@ -197,14 +196,16 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         // fill user accounts with starting balance
         uniswap = UniswapV2Router02(ADDRESS_UNISWAP);
         usdc = ERC20(ADDRESS_USDC);
+        usdt = ERC20(ADDRESS_USDT);
         dai = ERC20(ADDRESS_DAI);
         weth = ERC20(ADDRESS_WETH);
 
         // deploy & configure diamond
         diamond = createDiamond();
 
-        // transfer initial DAI/USDC/WETH balance to USER_SENDER
+        // transfer initial DAI/USDC/USDT/WETH balance to USER_SENDER
         deal(ADDRESS_USDC, USER_SENDER, 100_000 * 10 ** usdc.decimals());
+        deal(ADDRESS_USDT, USER_SENDER, 100_000 * 10 ** usdt.decimals());
         deal(ADDRESS_DAI, USER_SENDER, 100_000 * 10 ** dai.decimals());
         deal(ADDRESS_WETH, USER_SENDER, 100_000 * 10 ** weth.decimals());
 
@@ -241,10 +242,10 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     function fork() internal virtual {
         string memory rpcUrl = bytes(customRpcUrlForForking).length > 0
             ? vm.envString(customRpcUrlForForking)
-            : vm.envString("ETH_NODE_URI_MAINNET");
+            : vm.envString("ETH_NODE_URI_BSC");
         uint256 blockNumber = customBlockNumberForForking > 0
             ? customBlockNumberForForking
-            : 14847528;
+            : 36579061;
 
         vm.createSelectFork(rpcUrl, blockNumber);
     }

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { Test, TestBase, DSTest, ILiFi, console, ERC20 } from "../utils/TestBase.sol";
+import { Test, TestBaseBSC, DSTest, ILiFi, console, ERC20 } from "../utils/TestBaseBSC.sol";
 import { Permit2Proxy } from "lifi/Periphery/Permit2Proxy.sol";
 import { IPermit2 } from "lifi/Interfaces/IPermit2.sol";
-import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
+import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
 import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
@@ -15,7 +15,7 @@ import { ERC20Permit, EIP712 } from "@openzeppelin/contracts/token/ERC20/extensi
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { console2 } from "forge-std/console2.sol";
 
-contract Permit2ProxyTest is TestBase {
+contract Permit2ProxyTestBSC is TestBaseBSC {
     address public constant PERMIT2ADDRESS =
         0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public constant LIFIDIAMOND =
@@ -58,10 +58,6 @@ contract Permit2ProxyTest is TestBase {
     uint256 private _privKeyInvalidSignerWallet;
     address public addressUserWallet;
 
-    // USDT contract
-    address public ADDRESS_USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
-    ERC20 public usdt;
-
     error UnAuthorized();
     error InvalidAmount(uint256 amount);
     error InvalidSigner();
@@ -102,7 +98,6 @@ contract Permit2ProxyTest is TestBase {
     }
 
     function setUp() public {
-        customBlockNumberForForking = 18931144;
         initTestBase();
 
         // deploy an ERC20 Proxy
@@ -146,196 +141,6 @@ contract Permit2ProxyTest is TestBase {
     }
 
     /// Test Cases ///
-
-    // EIP2612 (native permit) related test cases //
-
-    function testCanExecuteCalldataUsingEIP2612SignatureUSDC() public {
-        vm.startPrank(addressUserWallet);
-
-        // get token-specific domainSeparator
-        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
-
-        // // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_USDC,
-            domainSeparator,
-            block.timestamp + 1000
-        );
-
-        // expect LifiTransferStarted event to be emitted by our diamond contract
-        vm.expectEmit(true, true, true, true, LIFIDIAMOND);
-        emit LiFiTransferStarted(bridgeData);
-
-        // call Permit2Proxy with signature
-        p2Proxy.callDiamondWithEIP2612Signature(
-            ADDRESS_USDC,
-            addressUserWallet,
-            defaultUSDCAmount,
-            testdata.deadline,
-            testdata.v,
-            testdata.r,
-            testdata.s,
-            LIFIDIAMOND,
-            testdata.diamondCalldata
-        );
-
-        vm.stopPrank();
-    }
-
-    function testCanExecuteCalldataUsingEIP2612SignatureUNI() public {
-        address ADDRESS_UNI = 0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984;
-
-        vm.startPrank(addressUserWallet);
-
-        // make sure user has UNI balance
-        deal(ADDRESS_UNI, addressUserWallet, defaultUSDCAmount);
-
-        // get token-specific domainSeparator
-        bytes32 domainSeparator = _getUNIDomainSeparator(
-            ADDRESS_UNI,
-            block.chainid
-        );
-
-        // // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_UNI,
-            domainSeparator,
-            block.timestamp + 1000
-        );
-
-        // create adjusted calldata (with correct sendingAssetId)
-        bridgeData.sendingAssetId = ADDRESS_UNI;
-        testdata.diamondCalldata = abi.encodeWithSelector(
-            PolygonBridgeFacet.startBridgeTokensViaPolygonBridge.selector,
-            bridgeData
-        );
-
-        // expect LifiTransferStarted event to be emitted by our diamond contract
-        vm.expectEmit(true, true, true, true, LIFIDIAMOND);
-        emit LiFiTransferStarted(bridgeData);
-
-        // call Permit2Proxy with signature
-        p2Proxy.callDiamondWithEIP2612Signature(
-            ADDRESS_UNI,
-            addressUserWallet,
-            defaultUSDCAmount,
-            testdata.deadline,
-            testdata.v,
-            testdata.r,
-            testdata.s,
-            LIFIDIAMOND,
-            testdata.diamondCalldata
-        );
-
-        vm.stopPrank();
-    }
-
-    function testRevertcannotUseEIP2612SignatureTwice() public {
-        vm.startPrank(addressUserWallet);
-
-        // get token-specific domainSeparator
-        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
-
-        // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_USDC,
-            domainSeparator,
-            block.timestamp + 1000
-        );
-
-        // call Permit2Proxy with signature
-        p2Proxy.callDiamondWithEIP2612Signature(
-            ADDRESS_USDC,
-            addressUserWallet,
-            defaultUSDCAmount,
-            testdata.deadline,
-            testdata.v,
-            testdata.r,
-            testdata.s,
-            LIFIDIAMOND,
-            testdata.diamondCalldata
-        );
-
-        // expect call to revert if same signature is used twice
-        vm.expectRevert("EIP2612: invalid signature");
-        p2Proxy.callDiamondWithEIP2612Signature(
-            ADDRESS_USDC,
-            addressUserWallet,
-            defaultUSDCAmount,
-            testdata.deadline,
-            testdata.v,
-            testdata.r,
-            testdata.s,
-            LIFIDIAMOND,
-            testdata.diamondCalldata
-        );
-
-        vm.stopPrank();
-    }
-
-    function testRevertCannotUseExpiredEIP2612Signature() public {
-        vm.startPrank(addressUserWallet);
-
-        // get token-specific domainSeparator
-        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
-
-        // // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_USDC,
-            domainSeparator,
-            block.timestamp - 1 //  deadline in the past
-        );
-
-        // expect call to revert since signature deadline is in the past
-        vm.expectRevert("FiatTokenV2: permit is expired");
-
-        // call Permit2Proxy with signature
-        p2Proxy.callDiamondWithEIP2612Signature(
-            ADDRESS_USDC,
-            addressUserWallet,
-            defaultUSDCAmount,
-            testdata.deadline,
-            testdata.v,
-            testdata.r,
-            testdata.s,
-            LIFIDIAMOND,
-            testdata.diamondCalldata
-        );
-
-        vm.stopPrank();
-    }
-
-    function testRevertCannotUseInvalidEIP2612Signature() public {
-        vm.startPrank(addressUserWallet);
-
-        // get token-specific domainSeparator
-        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
-
-        // // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_USDC,
-            domainSeparator,
-            block.timestamp
-        );
-
-        // expect call to revert since signature deadline is in the past
-        vm.expectRevert("ECRecover: invalid signature 'v' value");
-
-        // call Permit2Proxy with signature
-        p2Proxy.callDiamondWithEIP2612Signature(
-            ADDRESS_USDC,
-            addressUserWallet,
-            defaultUSDCAmount,
-            testdata.deadline,
-            testdata.v + 1, // invalid v value
-            testdata.r,
-            testdata.s,
-            LIFIDIAMOND,
-            testdata.diamondCalldata
-        );
-
-        vm.stopPrank();
-    }
 
     // Permit 2 related test cases //
     function testRevertCannotUseSignatureMoreThanOnce() public {
@@ -528,57 +333,6 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    // this test case showcases a multi-to-one token use case
-    // scenario: bridging 100 USDC from three tokens:
-    // 1) swapping 30 USDC worth of DAI to USDC @uniswap
-    // 2) swapping 40 USDC worth of ETH to USDC @uniswap
-    // 3) transfering 30 USDC to our diamond using a (whitelisted) ERC20Proxy
-    function testCanExecuteCalldataOnDiamondMultipleTokens() public {
-        // approve USDC from Permit2Proxy to diamond
-        vm.startPrank(address(p2Proxy));
-        usdc.approve(address(erc20Proxy), type(uint256).max);
-        vm.stopPrank();
-
-        // whitelist our diamond as caller in the ERC20Proxy
-        erc20Proxy.setAuthorizedCaller(LIFIDIAMOND, true);
-
-        // whitelist the just-deployed ERC20Proxy in our diamond
-        vm.startPrank(OwnershipFacet(LIFIDIAMOND).owner());
-        DexManagerFacet(LIFIDIAMOND).addDex(address(erc20Proxy));
-        DexManagerFacet(LIFIDIAMOND).setFunctionApprovalBySignature(
-            erc20Proxy.transferFrom.selector,
-            true
-        );
-        vm.stopPrank();
-
-        // send 100 DAI and 100 ETH to user
-        deal(ADDRESS_DAI, addressUserWallet, 100 * 10 ** dai.decimals());
-        vm.deal(addressUserWallet, 100 ether);
-
-        // approve DAI to Permit2
-        vm.startPrank(addressUserWallet);
-        dai.approve(PERMIT2ADDRESS, type(uint256).max);
-
-        // prepare calldata (including swaps) and sign it
-        (
-            PermitWitnessMultipleCalldata memory callData,
-            uint256 msgValue
-        ) = _getPermitWitnessBatchCalldata();
-
-        // // expect event to be emitted by diamond
-        vm.expectEmit(true, true, true, true, LIFIDIAMOND);
-        emit LiFiTransferStarted(bridgeData);
-
-        // // call Permit2Proxy
-        p2Proxy.callDiamondWithPermit2SignatureBatch{ value: msgValue }(
-            callData.permit,
-            callData.amounts,
-            callData.witnessData,
-            callData.senderAddress,
-            callData.signature
-        );
-    }
-
     function testRevertNonOwnerCannotUpdateWhitelist() public {
         vm.startPrank(USER_SENDER);
         address[] memory addresses = new address[](2);
@@ -590,70 +344,6 @@ contract Permit2ProxyTest is TestBase {
 
         vm.expectRevert(UnAuthorized.selector);
         p2Proxy.updateWhitelist(addresses, values);
-    }
-
-    function test_tstTMP() public {
-        console2.log("yeah");
-        bytes
-            memory expWitnessData = hex"0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000a445b84904612bf2d17f56fbd6759b65f7ba51ea0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000001e48bf6ef99000000000000000000000000000000000000000000000000000000000000002004a6a8899493cc26b4db400c8d9d1bef481c4e199bef656453d9ab70b3d7538f0000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d00000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000008900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000668797068656e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000086c6966692d61706900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
-        bytes
-            memory expDiamondCalldata = hex"8bf6ef99000000000000000000000000000000000000000000000000000000000000002004a6a8899493cc26b4db400c8d9d1bef481c4e199bef656453d9ab70b3d7538f0000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d00000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000008900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000668797068656e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000086c6966692d617069000000000000000000000000000000000000000000000000";
-        // prepare witness
-        Witness memory witnessData = Witness(
-            0xA445b84904612Bf2d17F56FBD6759B65F7ba51eA,
-            0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE,
-            // hex"8bf6ef990000000000000000000000000000000000000000000000000000000000000020b0e325feb1a868db95b7a6d5c125b4ce493118bb27dbe5a6e8d5137ad70a3b470000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d00000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000008900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000668797068656e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000086c6966692d617069000000000000000000000000000000000000000000000000"
-            expDiamondCalldata
-        );
-
-        bytes memory data = abi.encode(witnessData);
-        bytes32 witness = keccak256(data);
-
-        // console2.log("witnessData:");
-        // console2.logBytes(data);
-        // console2.log("witness:");
-        // console2.logBytes32(witness);
-
-        // decode witnessData to obtain calldata and diamondAddress
-        Witness memory decodedWitness = abi.decode(data, (Witness));
-
-        console2.log(
-            "decodedWitness.tokenReceiver: ",
-            decodedWitness.tokenReceiver
-        );
-        console2.log(
-            "decodedWitness.diamondAddress: ",
-            decodedWitness.diamondAddress
-        );
-        console.log("decodedWitness.diamondCalldata: ");
-        console2.logBytes(decodedWitness.diamondCalldata);
-
-        console.log("");
-        console.log("");
-        console.log("expWitnessData: ");
-        console2.logBytes(expWitnessData);
-        console.log("");
-        console.log("actWitnessData: ");
-        console2.logBytes(data);
-        console.log(
-            "expWitnessData === actWitnessData: ",
-            keccak256(expWitnessData) == keccak256(data)
-        );
-        console.log(
-            "expectedDiamondCalldata === decodedDiamondCalldata: ",
-            keccak256(expDiamondCalldata) ==
-                keccak256(decodedWitness.diamondCalldata)
-        );
-    }
-
-    function test_Max() public {
-        bytes
-            memory callData = hex"509bcb750000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d0000000000000000000000000000000000000000000000008ac7230489e800000000000000000000000000000000000000000000000000000000000000000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed700000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000002a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000a445b84904612bf2d17f56fbd6759b65f7ba51ea0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000001e48bf6ef99000000000000000000000000000000000000000000000000000000000000002005012929ebd54c37fce9eaefab29b73b0ef6938b49cc106fd074dfc47968832d0000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d00000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000000000000000000000000000000000000000000008ac7230489e80000000000000000000000000000000000000000000000000000000000000000008900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000668797068656e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000086c6966692d617069000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000041ac5804095b8730ccd9cf61e304831d4fec8475252e0df8acb14fc4ad5ec47bc051d5932545a21f88fae83c4ced3c6e2c7aaf640ab3679f62357ac709e03fbfab1c00000000000000000000000000000000000000000000000000000000000000";
-
-        // call diamond with provided calldata
-        // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory data) = address(p2Proxy).call(callData);
-        // throw error to make sure tx reverts if low-level call was unsuccessful
     }
 
     // this test passes >> witnessData seems to be OK
@@ -714,19 +404,19 @@ contract Permit2ProxyTest is TestBase {
         view
         returns (bytes memory diamondCalldata)
     {
-        bytes4 selector = PolygonBridgeFacet
-            .startBridgeTokensViaPolygonBridge
-            .selector;
+        bytes4 selector = HyphenFacet.startBridgeTokensViaHyphen.selector;
 
         diamondCalldata = abi.encodeWithSelector(selector, bridgeData);
+        console.log("DiamondCalldata: ");
+        console2.logBytes(diamondCalldata);
     }
 
     function _getCalldataForBridgingBatch()
         private
         returns (bytes memory diamondCalldata, uint256[] memory amounts)
     {
-        bytes4 selector = PolygonBridgeFacet
-            .swapAndStartBridgeTokensViaPolygonBridge
+        bytes4 selector = HyphenFacet
+            .swapAndStartBridgeTokensViaHyphen
             .selector;
 
         // create amounts array
@@ -979,6 +669,9 @@ contract Permit2ProxyTest is TestBase {
         );
 
         permitCalldata.witnessData = abi.encode(witnessData);
+        console.log("witnessData: ");
+        console2.logBytes(permitCalldata.witnessData);
+
         bytes32 witness = keccak256(permitCalldata.witnessData);
 
         // prepare permit object
