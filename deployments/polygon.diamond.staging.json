@@ -104,6 +104,18 @@
       "0x1a881c0de5Fd8C1b838f64B34d57Fc9189048634": {
         "Name": "SquidFacet",
         "Version": "0.0.4"
+      },
+      "0x85DDB7E0e0E01F3aa21E373C35e847Ec80B58Fa4": {
+        "Name": "AcrossFacetPacked",
+        "Version": "1.0.0"
+      },
+      "0xE500dED7b9C9f1020870B7a6Db076Dbd892C0fea": {
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.0"
+      },
+      "0x7ac3EB2D191EBAb9E925CAbFD4F8155be066b3aa": {
+        "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

@@ -57,6 +57,10 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
+      "0xFa3f966fDf2eC20ef92d399A0012131915ccb9Fc": {
+        "Name": "",
+        "Version": ""
+      },
       "0xf4E632a8be2164F93427603F6c9A73e182923b02": {
         "Name": "HopFacet",
         "Version": "2.0.0"
@@ -72,6 +76,14 @@
       "0x967D0f9181521a407613495e68e5F8D22b49e513": {
         "Name": "AmarokFacet",
         "Version": "2.0.0"
+      },
+      "0x6569c96727C85d8497CDfDC32bEE6686eD474e89": {
+        "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
+      },
+      "0x57F4d19AeC341F50BaBB55beDF73C4B87EE400ba": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

@@ -54,6 +54,18 @@
         "Version": "2.2.0"
       },
       "0xa6aAe470E7B8E8916e692882A5db25bB40C398A7": {
+        "Name": "ThorSwapFacet",
+        "Version": "0.0.3"
+      },
+      "0xa1Be6Aaa705545f79735d42852e77720B168392e": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x7ac3EB2D191EBAb9E925CAbFD4F8155be066b3aa": {
+        "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
+      },
+      "0xa6aAe470E7B8E8916e692882A5db25bB40C398A7": {
         "Name": "",
         "Version": ""
       },

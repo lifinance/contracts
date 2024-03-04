@@ -21,12 +21,20 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x25350de1ba213e17dd9fc7a88261db615268e15f": {
+      "0xa95309dF9256D52f9B61379963701fF1BA5939E4": {
         "Name": "AcrossFacet",
         "Version": "2.0.0"
       },
       "0x0C449F799010287c8ee51d7E89324dA8a1EBCB47": {
         "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xa7aC6d44cC52B134b92Dd20015641138ba6A3C16": {
+        "Name": "CelerIMFacetMutable",
+        "Version": "2.0.0"
+      },
+      "0xC10CF1C23e20e3FE6f0b224Bc2E16C9ACabfEBB9": {
+        "Name": "AcrossFacetPacked",
         "Version": "1.0.0"
       }
     },

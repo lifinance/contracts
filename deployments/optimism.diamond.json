@@ -96,6 +96,18 @@
       "0x71205D77043848B57243A3F7eA133E11A3dd346b": {
         "Name": "AllBridgeFacet",
         "Version": "2.0.0"
+      },
+      "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9": {
+        "Name": "AcrossFacetPacked",
+        "Version": "1.0.0"
+      },
+      "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB": {
+        "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
+      },
+      "0xe12b2488c71432F9a116E9ac244D3Ef4c2386d3a": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

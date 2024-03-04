@@ -72,6 +72,14 @@
       "0x85f9c55B22bd2c389b560130F878CeB8b289C4c4": {
         "Name": "AllBridgeFacet",
         "Version": "2.0.0"
+      },
+      "0xC3cD90545f30F4F9E71e582510Cc64ab5a743E85": {
+        "Name": "ThorSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0xe12b2488c71432F9a116E9ac244D3Ef4c2386d3a": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
