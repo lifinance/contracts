@@ -145,6 +145,10 @@ contract SquidFacetTest is TestBaseFacet {
         // facet does not support native bridging
     }
 
+    function testBase_Revert_CallerHasInsufficientFunds() public override {
+        // does not work for this facet
+    }
+
     function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
         public
         override
