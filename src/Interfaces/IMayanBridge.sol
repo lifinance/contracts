@@ -35,7 +35,7 @@ interface IMayanBridge {
         Criteria memory criteria,
         address tokenIn,
         uint256 amountIn
-    ) public payable returns (uint64 sequence);
+    ) external payable returns (uint64 sequence);
 
     function wrapAndSwapETH(
         RelayerFees memory relayerFees,
@@ -43,5 +43,5 @@ interface IMayanBridge {
         bytes32 tokenOutAddr,
         uint16 tokenOutChainId,
         Criteria memory criteria
-    ) public payable returns (uint64 sequence);
+    ) external payable returns (uint64 sequence);
 }

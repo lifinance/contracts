@@ -3,10 +3,11 @@ pragma solidity 0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { MayanBridgeFacet } from "lifi/Facets/MayanBridgeFacet.sol";
+import { IMayanBridge } from "lifi/Interfaces/IMayanBridge.sol";
 
 // Stub MayanBridgeFacet Contract
 contract TestMayanBridgeFacet is MayanBridgeFacet {
-    constructor(address _example) MayanBridgeFacet(_example) {}
+    constructor(IMayanBridge _example) MayanBridgeFacet(_example) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -20,7 +21,7 @@ contract TestMayanBridgeFacet is MayanBridgeFacet {
 contract MayanBridgeFacetTest is TestBaseFacet {
     MayanBridgeFacet.MayanBridgeData internal validMayanBridgeData;
     TestMayanBridgeFacet internal mayanBridgeFacet;
-    address internal EXAMPLE_PARAM = address(0xb33f);
+    IMayanBridge internal EXAMPLE_PARAM = IMayanBridge(address(0xb33f));
 
     function setUp() public {
         customBlockNumberForForking = 17130542;
@@ -31,7 +32,6 @@ contract MayanBridgeFacetTest is TestBaseFacet {
         EXAMPLE_ALLOWED_TOKENS[1] = address(2);
 
         mayanBridgeFacet = new TestMayanBridgeFacet(EXAMPLE_PARAM);
-        mayanBridgeFacet.initMayanBridge(EXAMPLE_ALLOWED_TOKENS);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = mayanBridgeFacet
             .startBridgeTokensViaMayanBridge
@@ -67,9 +67,9 @@ contract MayanBridgeFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 137;
 
         // produce valid MayanBridgeData
-        validMayanBridgeData = MayanBridgeFacet.MayanBridgeData({
-            exampleParam: "foo bar baz"
-        });
+        // validMayanBridgeData = MayanBridgeFacet.MayanBridgeData({
+        //     exampleParam: "foo bar baz"
+        // });
     }
 
     // All facet test files inherit from `utils/TestBaseFacet.sol` and require the following method overrides:

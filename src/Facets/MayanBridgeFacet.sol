@@ -27,38 +27,28 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Optional bridge specific struct
     /// @param exampleParam Example paramter
     struct MayanBridgeData {
-        string exampleParam;
+        bytes32 mayanAddr;
+        uint16 mayanChainId;
+        bytes32 auctionAddr;
+        bytes32 referrer;
+        bytes32 tokenOutAddr;
+        uint64 swapFee;
+        uint64 redeemFee;
+        uint64 refundFee;
+        uint256 transferDeadline;
+        uint64 swapDeadline;
+        uint64 amountOutMin;
+        bool unwrap;
+        uint64 gasDrop;
     }
 
     /// Events ///
 
-    event MayanBridgeInitialized();
-
     /// Constructor ///
 
     /// @notice Constructor for the contract.
-    ///         Should only be used to set immutable variables.
-    ///         Anything that cannot be set as immutable should be set
-    ///         in an init() function called during a diamondCut().
-    /// @param _example Example paramter.
-    constructor(address _example) {
-        example = _example;
-    }
-
-    /// Init ///
-
-    /// @notice Init function. Called in the context
-    ///         of the diamond contract when added as part of
-    ///         a diamondCut(). Use for config that can't be
-    ///         set as immutable or needs to change for any reason.
-    /// @param _exampleAllowedTokens Example array of allowed tokens for this chain.
-    function initMayanBridge(address[] memory _exampleAllowedTokens) external {
-        LibDiamond.enforceIsContractOwner();
-
-        Storage storage s = getStorage();
-        s.exampleAllowedTokens = _exampleAllowedTokens;
-
-        emit MayanBridgeInitialized();
+    constructor(IMayanBridge _mayanBridge) {
+        mayanBridge = _mayanBridge;
     }
 
     /// External Methods ///
@@ -120,16 +110,57 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         MayanBridgeData calldata _mayanBridgeData
     ) internal {
-        // TODO: Implement business logic
-        emit LiFiTransferStarted(_bridgeData);
-    }
+        bytes32 receiver = bytes32(uint256(uint160(_bridgeData.receiver)));
+        uint256 totalFees = _mayanBridgeData.swapFee +
+            _mayanBridgeData.redeemFee +
+            _mayanBridgeData.refundFee;
 
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            s.slot := namespace
+        IMayanBridge.RelayerFees memory relayerFees = IMayanBridge
+            .RelayerFees({
+                swapFee: _mayanBridgeData.swapFee,
+                redeemFee: _mayanBridgeData.redeemFee,
+                refundFee: _mayanBridgeData.refundFee
+            });
+
+        IMayanBridge.Recepient memory recipient = IMayanBridge.Recepient({
+            mayanAddr: _mayanBridgeData.mayanAddr,
+            mayanChainId: _mayanBridgeData.mayanChainId,
+            auctionAddr: _mayanBridgeData.auctionAddr,
+            destAddr: receiver,
+            destChainId: uint16(_bridgeData.destinationChainId),
+            referrer: _mayanBridgeData.referrer,
+            refundAddr: receiver
+        });
+
+        IMayanBridge.Criteria memory criteria = IMayanBridge.Criteria({
+            transferDeadline: _mayanBridgeData.transferDeadline,
+            swapDeadline: _mayanBridgeData.swapDeadline,
+            amountOutMin: _mayanBridgeData.amountOutMin,
+            unwrap: _mayanBridgeData.unwrap,
+            gasDrop: _mayanBridgeData.gasDrop,
+            customPayload: ""
+        });
+
+        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            mayanBridge.wrapAndSwapETH{ value: totalFees }(
+                relayerFees,
+                recipient,
+                _mayanBridgeData.tokenOutAddr,
+                uint16(_bridgeData.destinationChainId),
+                criteria
+            );
+        } else {
+            mayanBridge.swap{ value: _bridgeData.minAmount }(
+                relayerFees,
+                recipient,
+                _mayanBridgeData.tokenOutAddr,
+                uint16(_bridgeData.destinationChainId),
+                criteria,
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount
+            );
         }
+
+        emit LiFiTransferStarted(_bridgeData);
     }
 }
