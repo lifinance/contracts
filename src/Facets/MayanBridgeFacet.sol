@@ -19,6 +19,9 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
+    bytes32 internal constant MAYAN_AUCTION_ADDRESS =
+        0x3383cb0c0c60fc12b717160b699a55db62c56baed78a0ff9ebed68e1b003d38c;
+    uint16 internal constant MAYAN_CHAIN_ID = 1;
 
     IMayanBridge public immutable mayanBridge;
 
@@ -28,10 +31,9 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param exampleParam Example paramter
     struct MayanBridgeData {
         bytes32 mayanAddr;
-        uint16 mayanChainId;
-        bytes32 auctionAddr;
         bytes32 referrer;
         bytes32 tokenOutAddr;
+        bytes32 receiver;
         uint64 swapFee;
         uint64 redeemFee;
         uint64 refundFee;
@@ -43,6 +45,12 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// Events ///
+
+    event BridgeToNonEVMChain(
+        bytes32 indexed transactionId,
+        uint256 indexed destinationChainId,
+        bytes32 receiver
+    );
 
     /// Constructor ///
 
@@ -110,7 +118,6 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         MayanBridgeData calldata _mayanBridgeData
     ) internal {
-        bytes32 receiver = bytes32(uint256(uint160(_bridgeData.receiver)));
         uint256 totalFees = _mayanBridgeData.swapFee +
             _mayanBridgeData.redeemFee +
             _mayanBridgeData.refundFee;
@@ -124,12 +131,12 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         IMayanBridge.Recepient memory recipient = IMayanBridge.Recepient({
             mayanAddr: _mayanBridgeData.mayanAddr,
-            mayanChainId: _mayanBridgeData.mayanChainId,
-            auctionAddr: _mayanBridgeData.auctionAddr,
-            destAddr: receiver,
+            mayanChainId: MAYAN_CHAIN_ID,
+            auctionAddr: MAYAN_AUCTION_ADDRESS,
+            destAddr: _mayanBridgeData.receiver,
             destChainId: uint16(_bridgeData.destinationChainId),
             referrer: _mayanBridgeData.referrer,
-            refundAddr: receiver
+            refundAddr: _mayanBridgeData.receiver
         });
 
         IMayanBridge.Criteria memory criteria = IMayanBridge.Criteria({
@@ -158,6 +165,14 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 criteria,
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount
+            );
+        }
+
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            emit BridgeToNonEVMChain(
+                _bridgeData.transactionId,
+                _bridgeData.destinationChainId,
+                _mayanBridgeData.receiver
             );
         }
 
