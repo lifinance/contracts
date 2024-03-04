@@ -51,6 +51,8 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
     bytes32 public constant _TOKEN_PERMISSIONS_TYPEHASH =
         keccak256("TokenPermissions(address token,uint256 amount)");
 
+    uint256 public DEFAULT_DEADLINE = type(uint256).max;
+
     Permit2Proxy public p2Proxy;
     ERC20Proxy public erc20Proxy;
     bytes32 public PERMIT2_DOMAIN_SEPARATOR;
@@ -104,9 +106,16 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
         erc20Proxy = new ERC20Proxy(address(this));
 
         // store privKey and address of test user
-        _privKeyUserWallet = 0x12341234;
+        // _privKeyUserWallet = 0x12341234;
+        _privKeyUserWallet = vm.envUint("PRIVATE_KEY");
         _privKeyInvalidSignerWallet = 0x12341235;
         addressUserWallet = vm.addr(_privKeyUserWallet);
+
+        console.log("_TOKEN_PERMISSIONS_TYPEHASH: ");
+        console2.logBytes32(_TOKEN_PERMISSIONS_TYPEHASH);
+        console.log("signing with wallet: ", addressUserWallet);
+        console.log("TYPE_HASH: ");
+        console2.logBytes32(FULL_WITNESS_BATCH_TYPEHASH);
 
         usdt = ERC20(ADDRESS_USDT);
 
@@ -114,7 +123,8 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
         PERMIT2_DOMAIN_SEPARATOR = IPermit2(PERMIT2ADDRESS).DOMAIN_SEPARATOR();
 
         // deploy Permit2Proxy
-        p2Proxy = new Permit2Proxy(PERMIT2ADDRESS, address(this));
+        // p2Proxy = new Permit2Proxy(PERMIT2ADDRESS, address(this));
+        p2Proxy = Permit2Proxy(0xA445b84904612Bf2d17F56FBD6759B65F7ba51eA);
 
         // configure Permit2Proxy (add diamonds to whitelist)
         address[] memory addresses = new address[](2);
@@ -123,7 +133,9 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
         bool[] memory values = new bool[](2);
         values[0] = true;
         values[1] = true;
+        vm.startPrank(0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7); // owner Permit2Proxy BSC
         p2Proxy.updateWhitelist(addresses, values);
+        vm.stopPrank();
 
         // add labels
         vm.label(address(p2Proxy), "Permit2Proxy");
@@ -143,6 +155,46 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
     /// Test Cases ///
 
     // Permit 2 related test cases //
+
+    function testTMP____ExecuteDemoscriptCalldata() public {
+        // prepare calldata, sign it,
+        bytes
+            memory callData = hex"509bcb750000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d0000000000000000000000000000000000000000000000056bc75e2d631000000000000000000000000000000000000000000000000000000000000000000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000000000000000000000000000000000056bc75e2d63100000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed700000000000000000000000000000000000000000000000000000000000003a000000000000000000000000000000000000000000000000000000000000002800000000000000000000000000000000000000000000000000000000000000020000000000000000000000000a445b84904612bf2d17f56fbd6759b65f7ba51ea0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000001c48bf6ef99000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d0000000000000000000000000000000000000000000000000000000abc6543210000000000000000000000000000000000000000000000056bc75e2d63100000000000000000000000000000000000000000000000000000000000000000008900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001a3c55706461746557697468596f75724272696467654e616d653e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000410c7a9a930bcb9486e955fe65e5894eb21355b87c9d3c7a5f576e1f76514c7cd54583611cad17e9afe1cecd1dcb86c7a70b90857fcbc57c68f9d13a7d66a8ee391c00000000000000000000000000000000000000000000000000000000000000";
+
+        // // expect event to be emitted by diamond
+        // vm.expectEmit(true, true, true, true, LIFIDIAMOND);
+        // emit LiFiTransferStarted(bridgeData);
+
+        // call Permit2Proxy
+        address(p2Proxy).call(callData);
+    }
+
+    function testCanExecuteCalldataOnDiamondSingleToken() public {
+        // prepare calldata, sign it,
+        PermitWitnessCalldata
+            memory callData = _getPermitWitnessSingleCalldata();
+
+        console.log("amount: ", callData.amount);
+        console.log("witnessData: ");
+        console2.logBytes(callData.witnessData);
+        console.log("senderAddress: ", callData.senderAddress);
+        console.log("signature: ");
+        console2.logBytes(callData.signature);
+
+        // expect event to be emitted by diamond
+        vm.expectEmit(true, true, true, true, LIFIDIAMOND);
+        emit LiFiTransferStarted(bridgeData);
+
+        // call Permit2Proxy
+        p2Proxy.callDiamondWithPermit2SignatureSingle(
+            callData.permit,
+            callData.amount,
+            callData.witnessData,
+            callData.senderAddress,
+            callData.signature
+        );
+    }
+
     function testRevertCannotUseSignatureMoreThanOnce() public {
         // prepare calldata, sign it,
         PermitWitnessCalldata
@@ -308,25 +360,6 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
         p2Proxy.callDiamondWithPermit2SignatureSingle(
             callData.permit,
             callData.amount + 1,
-            callData.witnessData,
-            callData.senderAddress,
-            callData.signature
-        );
-    }
-
-    function testCanExecuteCalldataOnDiamondSingleToken() public {
-        // prepare calldata, sign it,
-        PermitWitnessCalldata
-            memory callData = _getPermitWitnessSingleCalldata();
-
-        // expect event to be emitted by diamond
-        vm.expectEmit(true, true, true, true, LIFIDIAMOND);
-        emit LiFiTransferStarted(bridgeData);
-
-        // call Permit2Proxy
-        p2Proxy.callDiamondWithPermit2SignatureSingle(
-            callData.permit,
-            callData.amount,
             callData.witnessData,
             callData.senderAddress,
             callData.signature
@@ -511,7 +544,7 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
                     amount: amount
                 }),
                 nonce: nonce,
-                deadline: block.timestamp + 100
+                deadline: DEFAULT_DEADLINE
             });
     }
 
@@ -533,7 +566,7 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
 
         permit.permitted = permissions;
         permit.nonce = nonce;
-        permit.deadline = block.timestamp + 100;
+        permit.deadline = DEFAULT_DEADLINE;
     }
 
     function _getPermitWitnessTransferSignatureSingle(
@@ -597,6 +630,15 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
         bytes32 witness,
         uint256 privateKey
     ) internal view returns (bytes memory signature) {
+        console.log("domainSeparator: ");
+        console2.logBytes32(domainSeparator);
+        console.log("typeHash: ");
+        console2.logBytes32(typeHash);
+        console.log("tokenPermissions: ");
+        console2.logBytes32(tokenPermissions);
+        console.log("witness: ");
+        console2.logBytes32(witness);
+
         // get a hash from well-structured data that can be signed by user
         bytes32 msgHash = _getMsgHash(
             domainSeparator,
@@ -606,6 +648,9 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
             deadline,
             witness
         );
+
+        console.log("msgHash / digest: ");
+        console2.logBytes32(msgHash);
 
         // sign data and return signature
         (, , , signature) = _signHash(privateKey, msgHash);
@@ -634,22 +679,38 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
         uint256 deadline,
         bytes32 witness
     ) internal view returns (bytes32 msgHash) {
+        bytes32 values = keccak256(
+            abi.encode(
+                typeHash,
+                tokenPermissions,
+                address(p2Proxy),
+                nonce,
+                deadline,
+                witness
+            )
+        );
+        console.log("encoded values:  ");
+        console2.logBytes32(values);
+
         msgHash = keccak256(
             abi.encodePacked(
                 "\x19\x01",
                 domainSeparator,
-                keccak256(
-                    abi.encode(
-                        typeHash,
-                        tokenPermissions,
-                        address(p2Proxy),
-                        nonce,
-                        deadline,
-                        witness
-                    )
-                )
+                // keccak256(
+                //     abi.encode(
+                //         typeHash,
+                //         tokenPermissions,
+                //         address(p2Proxy),
+                //         nonce,
+                //         deadline,
+                //         witness
+                //     )
+                // )
+                values
             )
         );
+        console.log("msgHash:  ");
+        console2.logBytes32(msgHash);
     }
 
     function _getPermitWitnessSingleCalldata()
@@ -659,7 +720,7 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
     {
         // prepare calldata for bridging
         bytes memory diamondCalldata = _getCalldataForBridging();
-        uint256 nonce = 0;
+        uint256 nonce = type(uint256).max;
 
         // prepare witness
         Witness memory witnessData = Witness(

@@ -3,9 +3,9 @@ import {
   Wallet,
   constants,
   TypedDataDomain,
-  utils,
   TypedDataField,
   ethers,
+  utils,
 } from 'ethers'
 import deployments from '../../deployments/bsc.staging.json'
 import {
@@ -23,7 +23,11 @@ import {
   PermitTransferFromData,
   SignatureTransfer,
 } from '@uniswap/permit2-sdk'
-import { defaultAbiCoder } from 'ethers/lib/utils'
+import {
+  _TypedDataEncoder,
+  defaultAbiCoder,
+  joinSignature,
+} from 'ethers/lib/utils'
 import dotenv from 'dotenv'
 dotenv.config()
 
@@ -36,6 +40,10 @@ const logDebug = (msg: string) => {
 }
 
 // const POLYGON_USDT_ADDRESS = '0xc2132d05d31c914a87c6611c10748aeb04b58e8f'
+const TOKEN_PERMISSIONS_TYPESTRING =
+  'TokenPermissions(address token,uint256 amount)'
+const FULL_WITNESS_TYPESTRING =
+  'PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,Witness witness)TokenPermissions(address token,uint256 amount)Witness(address tokenReceiver,address diamondAddress,bytes diamondCalldata)'
 const POLYGON_USDC_ADDRESS = '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'
 const BSC_USDC_ADDRESS = '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d'
 const LIFI_API_BASE_URL = 'https://li.quest/v1'
@@ -43,12 +51,20 @@ const PERMIT_2_PROXY = deployments.Permit2Proxy
 const srcTokenAddress = BSC_USDC_ADDRESS
 const SRC_CHAIN_ID = 56
 const destTokenAddress = POLYGON_USDC_ADDRESS
-const DEBUG = true
+const DEBUG = false
 
-const PERMIT_2_BSC = '0x000000000022D473030F116dDEE9F6B43aC78BA3' // TODO: read from config
+const PERMIT_2_BSC_DOMAIN_SEPARATOR =
+  '0x4142cc3c823f819c467fa4437d637fe20589a31dfcd1da2ff22292c9ed9344e7'
 
 let tx
 const testAmount = '100000000000000000000' // 100 USDC
+
+const getFULL_WITNESS_BATCH_TYPEHASH = () => {
+  return '0x1fff5dc7ad781f5db1f7bb97143d47e79a11dd43bb5c21f88cecfedab9f0da2b'
+}
+
+const nonce = constants.MaxUint256
+const deadline = constants.MaxUint256
 
 const DEFAULT_EXPIRATION = 5000 * 60 // 5 minutes
 
@@ -58,9 +74,16 @@ let executor: Wallet
 // get contracts
 let usdc_contract: ERC20
 let permit2Proxy_contract: Permit2Proxy
+let permit2_contract: ethers.Contract
+
+interface WitnessValues {
+  tokenReceiver: string
+  diamondAddress: string
+  diamondCalldata: string
+}
 
 interface Witness {
-  witness: any
+  witness: WitnessValues
   witnessTypeName: string
   witnessType: Record<string, TypedDataField[]>
 }
@@ -138,13 +161,19 @@ const maxApproveTokenToPermit2 = async (
 
 const getRouteFromLiFiAPI = async (signer: Wallet) => {
   console.log('Getting route from LI.FI API now')
-  const requestURL = `/quote?fromChain=BSC&toChain=POL&fromToken=${srcTokenAddress}&toToken=${destTokenAddress}&fromAddress=${signer.address}&toAddress=${signer.address}&fromAmount=${testAmount}&order=RECOMMENDED&slippage=0.005`
-  const resp = await fetch(`${LIFI_API_BASE_URL}${requestURL}`)
-  const apiResponse = await resp.json()
+  // const requestURL = `/quote?fromChain=BSC&toChain=POL&fromToken=${srcTokenAddress}&toToken=${destTokenAddress}&fromAddress=${signer.address}&toAddress=${signer.address}&fromAmount=${testAmount}&order=RECOMMENDED&slippage=0.005`
+  // const resp = await fetch(`${LIFI_API_BASE_URL}${requestURL}`)
+  // const apiResponse = await resp.json()
 
   // extract diamondAddress and calldata
-  const diamondAddress = apiResponse.transactionRequest.to
-  const diamondCalldata = apiResponse.transactionRequest.data
+  // const diamondAddress = apiResponse.transactionRequest.to
+  // const diamondCalldata = apiResponse.transactionRequest.data
+
+  //TODO: remove
+  const diamondCalldata =
+    '0x8bf6ef99000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d0000000000000000000000000000000000000000000000000000000abc6543210000000000000000000000000000000000000000000000056bc75e2d63100000000000000000000000000000000000000000000000000000000000000000008900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001a3c55706461746557697468596f75724272696467654e616d653e0000000000000000000000000000000000000000000000000000000000000000000000000000'
+
+  const diamondAddress = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
 
   logDebug(`  extracted diamondAddress: ${diamondAddress}`)
   logDebug(`  extracted diamondCalldata: ${diamondCalldata}`)
@@ -160,7 +189,6 @@ type PermitAndData = {
 }
 
 const getValuesAndTypesHardcoded = (
-  executor: Wallet,
   diamondAddress: string,
   diamondCalldata: string,
   nonce: string,
@@ -234,15 +262,6 @@ const getValuesAndTypesHardcoded = (
 }
 
 const getPermitObject = async (signer: Wallet) => {
-  const nonce = await signer.getTransactionCount()
-
-  // define deadline
-  const deadline = msToDeadline(DEFAULT_EXPIRATION)
-  console.log(
-    `deadline defined as now (${Math.floor(
-      Date.now() / 1000
-    )}) + 5 minutes >>>> ${deadline}`
-  )
   // build permit object
   const permit: PermitTransferFrom = {
     permitted: {
@@ -272,13 +291,12 @@ const prepareDataForSigning = async (
   // get witness data
   const witness = getWitness(PERMIT_2_PROXY, diamondAddress, diamondCalldata)
 
-  // const { values, types } = getValuesAndTypesHardcoded(
-  //   executor,
-  //   diamondAddress,
-  //   diamondCalldata,
-  //   permit.nonce.toString(),
-  //   permit.deadline.toString()
-  // )
+  const { values, types } = getValuesAndTypesHardcoded(
+    diamondAddress,
+    diamondCalldata,
+    permit.nonce.toString(),
+    permit.deadline.toString()
+  )
 
   // get typed data that can be sent to user for signing
   // const { domain, types, values } = SignatureTransfer.getPermitData(
@@ -288,6 +306,20 @@ const prepareDataForSigning = async (
   //   witness
   // )
 
+  // the "domain" created by SignatureTransfer.getPermitData() is erroneous (issue is the missing/wrong chainId value)
+  // if we use this manually created domain, signature can be produced
+  // https://github.com/Uniswap/permit2/blob/main/src/EIP712.sol << here is defined how the Permit2 DOMAIN_SEPARATOR is constructed
+  const domain: TypedDataDomain = {
+    name: 'Permit2',
+    chainId: 56,
+    verifyingContract: PERMIT2_ADDRESS,
+  }
+
+  //    /// @notice Builds a domain separator using the current chainId and contract address.
+  //    function _buildDomainSeparator(bytes32 typeHash, bytes32 nameHash) private view returns (bytes32) {
+  //     return keccak256(abi.encode(typeHash, nameHash, block.chainid, address(this)));
+  // }
+
   const unsignedData = {
     domain,
     types,
@@ -295,15 +327,6 @@ const prepareDataForSigning = async (
   }
 
   logDebug(`unsignedData: ${JSON.stringify(unsignedData, null, 2)}`)
-
-  // the "domain" created by SignatureTransfer.getPermitData() is erroneous (issue is the missing/wrong chainId value)
-  // if we use this manually created domain, signature can be produced
-  // const domain: TypedDataDomain = {
-  //   name: 'GaslessTx',
-  //   version: '1',
-  //   chainId: 56,
-  //   verifyingContract: PERMIT2_ADDRESS,
-  // }
 
   const typedValues = values as PermitTransferFrom
 
@@ -366,149 +389,352 @@ const prepareWalletsAndContracts = () => {
     PERMIT_2_PROXY,
     executor
   )
+  permit2_contract = new ethers.Contract(
+    PERMIT2_ADDRESS,
+    ['function DOMAIN_SEPARATOR() public returns (bytes32)'],
+    provider
+  )
 }
 
-// ###########################################################
+const compareSignatures = (signature: string) => {
+  const targetSignatureFromWorkingTestCase =
+    '0x8fee744a8348c4c9b579c35b72b89e13905108e7607773228cc3267ff45a82de4e3e35a1587e1fbf977baf1b6ac692079899a3d6dc678a9b5f2c89fbcc59e3b81b'
 
-const main_usePermit2SDK = async () => {
-  console.log(`Starting main_Permit2SDK`)
-
-  prepareWalletsAndContracts()
-
-  // give infinite approval from wallet to Uniswap Permit2 contract, if not existing already
-  if ((await usdc_contract.allowance(signer.address, PERMIT_2_BSC)).isZero())
-    await maxApproveTokenToPermit2(signer, usdc_contract, PERMIT_2_BSC)
-
-  // fetch route from LI.FI API and extract diamondAddress and diamondCalldata
-  const { diamondAddress, diamondCalldata } = await getRouteFromLiFiAPI(signer)
-
-  // create permit
-  const permitForSignature: PermitTransferFrom = {
-    permitted: {
-      token: BSC_USDC_ADDRESS,
-      amount: testAmount,
-    },
-    spender: PERMIT_2_PROXY,
-    nonce: 1,
-    deadline: constants.MaxUint256.toString(),
-  }
-  // create witness
-  const witness = getWitness(PERMIT_2_PROXY, diamondAddress, diamondCalldata)
-
-  // prepare data for signing
-  const { domain, types, values } = SignatureTransfer.getPermitData(
-    permitForSignature,
-    PERMIT2_ADDRESS,
-    SRC_CHAIN_ID,
-    witness
+  console.log(
+    `\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`
   )
 
-  // sign permit message
-  const signature = await signer._signTypedData(domain, types, values)
-
-  // encode witnessData as bytes value (will be a function argument for the call)
-  const witnessData = encodeWitnessData(diamondAddress, diamondCalldata)
-
-  // verify signature
-  const expectedSignerAddress = signer.address
-  const recoveredAddress = utils.verifyTypedData(
-    domain,
-    types,
-    values,
-    signature
+  console.log(
+    `signatures match: ${signature === targetSignatureFromWorkingTestCase}`
   )
-  logDebug(
-    `Signer address (${signer.address}) successfully recovered: ${
-      recoveredAddress === expectedSignerAddress
+
+  console.log(
+    `<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n\n`
+  )
+}
+
+const compareDigest = (digest: string) => {
+  const targetDigestFromWorkingTestCase =
+    '0xc6a3b551f78b9acd04fb6466e127260300b610fa626a97cd562256f4ec9acad0'
+
+  console.log(
+    `\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`
+  )
+
+  console.log(`digests match: ${digest === targetDigestFromWorkingTestCase}`)
+
+  console.log(
+    `<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n\n`
+  )
+}
+
+// WORKS AS INTENDED (tested)
+const getDomainSeparatorHash = async () => {
+  const domSep = await permit2_contract.callStatic.DOMAIN_SEPARATOR()
+  return domSep
+  // return '0x4142cc3c823f819c467fa4437d637fe20589a31dfcd1da2ff22292c9ed9344e7'
+}
+
+// WORKS AS INTENDED (tested)
+const getEncodedTypeHash = () => {
+  console.log(`before encodedTypeHash`)
+
+  const encodedType = utils.toUtf8Bytes(FULL_WITNESS_TYPESTRING)
+
+  const encodedTypeHash = utils.keccak256(encodedType)
+
+  // return '0x57708b7c1b6d6148e3cf1034715654df16e7e5b45998456cb2f9833a24fe12f8'
+  return encodedTypeHash
+}
+
+// WORKS AS INTENDED (tested)
+const getEncodedWitnessHash = (
+  tokenReceiver: string,
+  diamondAddress: string,
+  diamondCalldata: string
+) => {
+  const witnessDataEncoded = ethers.utils.defaultAbiCoder.encode(
+    [
+      'tuple(address tokenReceiver, address diamondAddress, bytes diamondCalldata)',
+    ],
+    [[tokenReceiver, diamondAddress, diamondCalldata]]
+  )
+
+  const witnessHash = utils.keccak256(witnessDataEncoded)
+
+  return witnessHash
+}
+
+// WORKS AS INTENDED (tested)
+const getTokenPermissionsTypeHash = () => {
+  const typeHash = utils.keccak256(
+    utils.toUtf8Bytes(TOKEN_PERMISSIONS_TYPESTRING)
+  )
+
+  return typeHash
+  // return '0x618358ac3db8dc274f0cd8829da7e234bd48cd73c4a740aede1adec9846d06a1'
+}
+
+const getTokenPermissionsHash = (permit: PermitTransferFrom) => {
+  // keccak256(
+  //   abi.encode(_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted))
+
+  const tokenPermissionsTypeHash = getTokenPermissionsTypeHash()
+  // const hashedTokenPermissions =
+
+  // const tokenPermissionsHash = utils.keccak256(
+  //   utils.defaultAbiCoder.encode([], [tokenPermissionsTypeHash, hashedTokenPermissions])
+  // )
+
+  const encoded = ethers.utils.defaultAbiCoder.encode(
+    ['bytes32', 'tuple(address, address)'],
+    [
+      tokenPermissionsTypeHash,
+      [permit.permitted.token, permit.permitted.amount],
+    ]
+  )
+
+  // DOES NOT WORK:
+  // const permitValues = utils.concat([
+  //   utils.toUtf8Bytes(permit.permitted.token),
+  //   utils.toUtf8Bytes(permit.permitted.amount.toString()),
+  // ])
+
+  // const encoded = ethers.utils.defaultAbiCoder.encode(
+  //   ['bytes32', 'tuple(address, uint256)'],
+  //   [tokenPermissionsTypeHash, permitValues]
+  // )
+
+  console.log(
+    `tokenPermissionsHash is correct: ${
+      encoded ===
+      '0x28f83abb28f33f6e21a93b71ebb9256afa8cab9d867c56aecba9d9e661eb1109'
     }`
   )
-
-  const permitForCall = {
-    permitted: {
-      token: BSC_USDC_ADDRESS,
-      amount: testAmount,
-    },
-    nonce: 1,
-    deadline: constants.MaxUint256.toString(),
-  }
-
-  // logDebug(`signature: ${JSON.stringify(signature)}`)
-  logDebug(`permitForSignature: ${JSON.stringify(permitForSignature, null, 2)}`)
-  logDebug(`permitForCall: ${JSON.stringify(permitForCall, null, 2)}`)
-  // logDebug(`permit2Proxy: ${JSON.stringify(permit2Proxy)}`)
-
-  // trigger transaction using calldata and user signature
-  const tx = await permit2Proxy_contract.callDiamondWithPermit2SignatureSingle(
-    permitForCall,
-    testAmount,
-    witnessData,
-    signer.address,
-    signature
-  )
-
-  await tx.wait()
-
-  logSuccess('\n\n script successfully completed')
+  return '0x28f83abb28f33f6e21a93b71ebb9256afa8cab9d867c56aecba9d9e661eb1109'
 }
 
-const main_useHardcodedValues = async () => {
-  console.log(`Starting main_HardcodedValues`)
+// WORKS AS INTENDED (tested)
+const getMsgHash = async (
+  tokenReceiver: string,
+  diamondAddress: string,
+  diamondCalldata: string,
+  permit: PermitTransferFrom
+) => {
+  console.log(`in getMsgHash`)
 
-  prepareWalletsAndContracts()
-
-  // give infinite approval from wallet to Uniswap Permit2 contract, if not existing already
-  if ((await usdc_contract.allowance(signer.address, PERMIT_2_BSC)).isZero())
-    await maxApproveTokenToPermit2(signer, usdc_contract, PERMIT_2_BSC)
-
-  // fetch route from LI.FI API and extract diamondAddress and diamondCalldata
-  const { diamondAddress, diamondCalldata } = await getRouteFromLiFiAPI(signer)
-
-  // prepare data for signing
-  const { permit, unsignedData } = await prepareDataForSigning(
-    signer,
-    executor,
+  const separator = '\x19\x01'
+  const domainSeparator = await getDomainSeparatorHash()
+  const typeHash = getEncodedTypeHash()
+  const tokenPermissions = getTokenPermissionsHash(permit)
+  const witnessHash = getEncodedWitnessHash(
+    tokenReceiver,
     diamondAddress,
     diamondCalldata
   )
 
-  // sign quote/calldata using wallet
-  const signature = await signTypedData(signer, unsignedData)
-
-  // encode witnessData as bytes value (will be a function argument for the call)
-  const witnessData = encodeWitnessData(diamondAddress, diamondCalldata)
-
-  // verify signature
-  const expectedSignerAddress = signer.address
-  const recoveredAddress = utils.verifyTypedData(
-    unsignedData.domain,
-    unsignedData.types,
-    unsignedData.values,
-    signature
-  )
-  logDebug(
-    `Signer address (${signer.address}) successfully recovered: ${
-      recoveredAddress === expectedSignerAddress
-    }`
+  // encode the values of the permit and the witness
+  const encodedValues = utils.keccak256(
+    utils.defaultAbiCoder.encode(
+      ['bytes32', 'bytes32', 'address', 'uint256', 'uint256', 'bytes32'],
+      [typeHash, tokenPermissions, PERMIT_2_PROXY, nonce, deadline, witnessHash]
+    )
   )
 
-  // logDebug(`signature: ${JSON.stringify(signature)}`)
-  // logDebug(`permit: ${JSON.stringify(permit, null, 2)}`)
-  // logDebug(`permit2Proxy: ${JSON.stringify(permit2Proxy)}`)
+  // console.log(`values received: ${encodedValues}`)
 
-  // trigger transaction using calldata and user signature
-  const tx = await permit2Proxy_contract.callDiamondWithPermit2SignatureSingle(
-    // adjustedPermit,
-    permit,
-    testAmount,
-    witnessData,
-    signer.address,
-    signature
-  )
+  // the next two steps mimic the behavior of abi.encodePacked() in Solidity
+  // 1: Convert separator and domainSeparator to binary/Uint8Array
+  const separatorBytes = utils.toUtf8Bytes(separator)
+  const domainSeparatorBytes = utils.arrayify(domainSeparator)
+  const encodedValuesBytes = utils.arrayify(encodedValues)
 
-  await tx.wait()
+  // 2: Concatenate all Uint8Arrays
+  const concatenatedBytes = utils.concat([
+    separatorBytes,
+    domainSeparatorBytes,
+    encodedValuesBytes,
+  ])
 
-  logSuccess('\n\n script successfully completed')
+  // get hash from encoded domainSeparator and values
+  const msgHash = utils.keccak256(concatenatedBytes)
+
+  // console.log(`msgHash created: ${msgHash}`)
+
+  compareDigest(msgHash)
+
+  return msgHash
 }
+
+// ###########################################################
+
+// const main_usePermit2SDK = async () => {
+//   console.log(`Starting main_Permit2SDK`)
+
+//   prepareWalletsAndContracts()
+
+//   // give infinite approval from wallet to Uniswap Permit2 contract, if not existing already
+//   if ((await usdc_contract.allowance(signer.address, PERMIT_2_BSC)).isZero())
+//     await maxApproveTokenToPermit2(signer, usdc_contract, PERMIT_2_BSC)
+
+//   // fetch route from LI.FI API and extract diamondAddress and diamondCalldata
+//   // eslint-disable-next-line prefer-const
+//   let { diamondAddress, diamondCalldata } = await getRouteFromLiFiAPI(signer)
+
+//   // create permit
+//   const permitForSignature: PermitTransferFrom = {
+//     permitted: {
+//       token: BSC_USDC_ADDRESS,
+//       amount: testAmount,
+//     },
+//     spender: PERMIT_2_PROXY,
+//     nonce: constants.MaxUint256.toString(),
+//     // deadline: constants.MaxUint256.toString(),
+//     deadline: 1709269103, // as used in working test case
+//   }
+//   // create witness
+//   const witness = getWitness(PERMIT_2_PROXY, diamondAddress, diamondCalldata)
+
+//   // prepare data for signing
+//   const { domain, types, values } = SignatureTransfer.getPermitData(
+//     permitForSignature,
+//     PERMIT2_ADDRESS,
+//     SRC_CHAIN_ID,
+//     witness
+//   )
+
+//   // const domain2: TypedDataDomain = {
+//   //   name: '"Permit2"',
+//   //   version: '1',
+//   //   chainId: 56,
+//   //   verifyingContract: PERMIT2_ADDRESS,
+//   // }
+
+//   console.log(`domain: ${JSON.stringify(domain, null, 2)}`)
+//   console.log(`types: ${JSON.stringify(types, null, 2)}`)
+//   console.log(`values: ${JSON.stringify(values, null, 2)}`)
+
+//   // sign permit message
+//   const signature = await signer._signTypedData(domain, types, values)
+
+//   compareSignatures(signature)
+
+//   // encode witnessData as bytes value (will be a function argument for the call)
+//   const witnessData = encodeWitnessData(diamondAddress, diamondCalldata)
+
+//   // verify signature
+//   const expectedSignerAddress = signer.address
+//   const recoveredAddress = utils.verifyTypedData(
+//     domain,
+//     types,
+//     values,
+//     signature
+//   )
+//   logDebug(
+//     `Signer address (${signer.address}) successfully recovered: ${
+//       recoveredAddress === expectedSignerAddress
+//     }`
+//   )
+
+//   const permitForCall = {
+//     permitted: {
+//       token: BSC_USDC_ADDRESS,
+//       amount: testAmount,
+//     },
+//     nonce: constants.MaxUint256.toString(),
+//     // deadline: constants.MaxUint256.toString(),
+//     deadline: 1709269103,
+//   }
+
+//   // logDebug(`signature: ${JSON.stringify(signature)}`)
+//   logDebug(`permitForSignature: ${JSON.stringify(permitForSignature, null, 2)}`)
+//   logDebug(`permitForCall: ${JSON.stringify(permitForCall, null, 2)}`)
+//   // logDebug(`permit2Proxy: ${JSON.stringify(permit2Proxy)}`)
+
+//   // trigger transaction using calldata and user signature
+//   const tx = await permit2Proxy_contract.callDiamondWithPermit2SignatureSingle(
+//     permitForCall,
+//     testAmount,
+//     witnessData,
+//     signer.address,
+//     signature
+//   )
+
+//   await tx.wait()
+
+//   logSuccess('\n\n script successfully completed')
+// }
+
+// const main_useHardcodedValues = async () => {
+//   console.log(`Starting main_HardcodedValues`)
+
+//   prepareWalletsAndContracts()
+
+//   // give infinite approval from wallet to Uniswap Permit2 contract, if not existing already
+//   if ((await usdc_contract.allowance(signer.address, PERMIT_2_BSC)).isZero())
+//     await maxApproveTokenToPermit2(signer, usdc_contract, PERMIT_2_BSC)
+
+//   // fetch route from LI.FI API and extract diamondAddress and diamondCalldata
+//   const { diamondAddress, diamondCalldata } = await getRouteFromLiFiAPI(signer)
+
+//   // prepare data for signing
+//   const { permit, unsignedData } = await prepareDataForSigning(
+//     signer,
+//     executor,
+//     diamondAddress,
+//     diamondCalldata
+//   )
+
+//   // console.log(`unsignedData: ${JSON.stringify(unsignedData, null, 2)}`)
+//   const digest = _TypedDataEncoder.hash(
+//     unsignedData.domain,
+//     unsignedData.types,
+//     unsignedData.values
+//   )
+
+//   // console.log(`digest: ${JSON.stringify(digest)}`)
+//   compareDigest(digest)
+
+//   // sign quote/calldata using wallet
+//   const signature = await signTypedData(signer, unsignedData)
+
+//   compareSignatures(signature)
+
+//   // encode witnessData as bytes value (will be a function argument for the call)
+//   const witnessData = encodeWitnessData(diamondAddress, diamondCalldata)
+
+//   // verify signature
+//   const expectedSignerAddress = signer.address
+//   const recoveredAddress = utils.verifyTypedData(
+//     unsignedData.domain,
+//     unsignedData.types,
+//     unsignedData.values,
+//     signature
+//   )
+//   logDebug(
+//     `Signer address (${signer.address}) successfully recovered: ${
+//       recoveredAddress === expectedSignerAddress
+//     }`
+//   )
+
+//   // logDebug(`signature: ${JSON.stringify(signature)}`)
+//   // logDebug(`permit: ${JSON.stringify(permit, null, 2)}`)
+//   // logDebug(`permit2Proxy: ${JSON.stringify(permit2Proxy)}`)
+
+//   // trigger transaction using calldata and user signature
+//   const tx = await permit2Proxy_contract.callDiamondWithPermit2SignatureSingle(
+//     // adjustedPermit,
+//     permit,
+//     testAmount,
+//     witnessData,
+//     signer.address,
+//     signature
+//   )
+
+//   await tx.wait()
+
+//   logSuccess('\n\n script successfully completed')
+// }
 
 // approach suggested by ChatGPT
 async function main_useAlternativeSignatureApproach() {
@@ -517,27 +743,22 @@ async function main_useAlternativeSignatureApproach() {
   prepareWalletsAndContracts()
 
   // give infinite approval from wallet to Uniswap Permit2 contract, if not existing already
-  if ((await usdc_contract.allowance(signer.address, PERMIT_2_BSC)).isZero())
-    await maxApproveTokenToPermit2(signer, usdc_contract, PERMIT_2_BSC)
+  if ((await usdc_contract.allowance(signer.address, PERMIT2_ADDRESS)).isZero())
+    await maxApproveTokenToPermit2(signer, usdc_contract, PERMIT2_ADDRESS)
 
   // fetch route from LI.FI API and extract diamondAddress and diamondCalldata
   const { diamondAddress, diamondCalldata } = await getRouteFromLiFiAPI(signer)
 
-  // Prepare the Permit2 signature details
-  // const nonce = await permit2.nonces(tokenAddress, owner)
-  const nonce = 284
-  const deadline = Math.floor(Date.now() / 1000) + 3600 // Signature deadline, 1 hour from now
-
   // // Define the permit structure based on your Permit2 contract requirements
-  // const permitForSignature = {
-  //   permitted: {
-  //     token: BSC_USDC_ADDRESS,
-  //     amount: testAmount,
-  //   },
-  //   spender: PERMIT_2_PROXY,
-  //   nonce,
-  //   deadline,
-  // }
+  const permitForSignature: PermitTransferFrom = {
+    permitted: {
+      token: BSC_USDC_ADDRESS,
+      amount: testAmount,
+    },
+    spender: PERMIT_2_PROXY,
+    nonce,
+    deadline,
+  }
 
   // Define witness structure according to your contract requirements
   const witness = {
@@ -561,28 +782,59 @@ async function main_useAlternativeSignatureApproach() {
       'tuple(address tokenReceiver, address diamondAddress, bytes diamondCalldata)',
     ],
     [
-      witness.tokenReceiver,
-      witness.diamondAddress,
-      ethers.utils.arrayify(witness.diamondCalldata),
+      [
+        witness.tokenReceiver,
+        witness.diamondAddress,
+        // ethers.utils.arrayify(witness.diamondCalldata),
+        witness.diamondCalldata,
+      ],
     ]
+  )
+  console.log(`witnessDataToSign: ${utils.keccak256(witnessDataToSign)}`)
+
+  const msgHash = await getMsgHash(
+    witness.tokenReceiver,
+    witness.diamondAddress,
+    witness.diamondCalldata,
+    permitForSignature
   )
 
   // Combine permit and witness data for signing
-  const combinedDataToSign = ethers.utils.keccak256(
-    ethers.utils.solidityPack(
-      ['bytes', 'bytes'],
-      [permitDataToSign, witnessDataToSign]
-    )
+
+  // const combinedDataToSign = ethers.utils.keccak256(
+  // const combinedDataToSign = utils.keccak256(
+  //   ethers.utils.defaultAbiCoder.encode(
+  //     ['bytes', 'bytes', 'bytes'],
+  //     [PERMIT_2_BSC_DOMAIN_SEPARATOR, permitDataToSign, witnessDataToSign]
+  //   )
+  // )
+  const combinedDataToSign = ethers.utils.defaultAbiCoder.encode(
+    ['bytes', 'bytes', 'bytes'],
+    [PERMIT_2_BSC_DOMAIN_SEPARATOR, permitDataToSign, witnessDataToSign]
   )
+
+  // console.log(`combinedDataToSign: ${JSON.stringify(combinedDataToSign)}`)
+  // compareDigest(combinedDataToSign)
 
   // Sign the combined data
-  const signature = await signer.signMessage(
-    ethers.utils.arrayify(combinedDataToSign)
-  )
+
+  // @ DEV: with this code I was able to produce the correct signature based on the correct digest, so the signing seems to work if I pass in the right values
+  // const CORRECT_DIGEST =
+  // '0x110686fdab1594195e92ec4d111f522fc2680ffc81998ad9cc125abbf7556f4d'
+  const sig = await signer._signingKey().signDigest(msgHash)
+  const signature = joinSignature(sig)
+
+  // const signature = await signer.signMessage(
+  //   // ethers.utils.arrayify(combinedDataToSign)
+  //   // combinedDataToSign
+  //   msgHash
+  // )
+
+  compareSignatures(signature)
 
   // logDebug(`permit: ${JSON.stringify(permitForSignature, null, 2)}`)
-  logDebug(`witness: ${JSON.stringify(witness, null, 2)}`)
-  logDebug(`signature: ${signature}`)
+  // logDebug(`witness: ${JSON.stringify(witness, null, 2)}`)
+  // logDebug(`signature: ${signature}`)
 
   // create permit parameter for contract call (has less properties than the one that was signed)
   const permitForCall = {
@@ -598,12 +850,12 @@ async function main_useAlternativeSignatureApproach() {
   const tx = await permit2Proxy_contract.callDiamondWithPermit2SignatureSingle(
     permitForCall,
     testAmount,
+    // getEncodedWitness(),
     ethers.utils.defaultAbiCoder.encode(
-      // ['address', 'address', 'bytes'],
       [
         'tuple(address tokenReceiver, address diamondAddress, bytes diamondCalldata)',
       ],
-      [PERMIT_2_PROXY, diamondAddress, diamondCalldata]
+      [[PERMIT_2_PROXY, diamondAddress, diamondCalldata]]
     ),
     signer.address,
     signature
@@ -614,8 +866,8 @@ async function main_useAlternativeSignatureApproach() {
   console.log(`Transaction hash: ${tx.hash}`)
 }
 
-// main()
 // main_usePermit2SDK()
+// main_useHardcodedValues()
 main_useAlternativeSignatureApproach()
   .then(() => {
     console.log('Success')
