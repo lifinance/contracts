@@ -2825,6 +2825,10 @@ function getChainId() {
     echo "31337"
     return 0
     ;;
+  "zksync")
+    echo "324"
+    return 0
+    ;;
   *)
     return 1
     ;;
