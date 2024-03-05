@@ -15048,7 +15048,6 @@
       "staging": {
         "1.0.0": [
           {
-
             "ADDRESS": "0x7ac3EB2D191EBAb9E925CAbFD4F8155be066b3aa",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-02-21 16:27:57",
@@ -15315,6 +15314,22 @@
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009a31bac4b3b958c835c243800b474818d04393dd00000000000000000000000083f71aabddbb9f0e3b6462cc7635b6ffad0f2f2e",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "TokenWrapper": {
+    "polygon": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC5659e89996BC7B3A7944336A6fEb6969C55D666",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-03-05 13:46:37",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb0000000000000000000000000d500b1d8e8ef31e21c99d1db9a6444d3adf1270",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
