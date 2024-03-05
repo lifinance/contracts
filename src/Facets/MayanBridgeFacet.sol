@@ -149,14 +149,6 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         });
 
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            mayanBridge.wrapAndSwapETH{ value: totalFees }(
-                relayerFees,
-                recipient,
-                _mayanBridgeData.tokenOutAddr,
-                uint16(_bridgeData.destinationChainId),
-                criteria
-            );
-        } else {
             mayanBridge.swap{ value: _bridgeData.minAmount }(
                 relayerFees,
                 recipient,
@@ -165,6 +157,14 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 criteria,
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount
+            );
+        } else {
+            mayanBridge.wrapAndSwapETH{ value: _bridgeData.minAmount }(
+                relayerFees,
+                recipient,
+                _mayanBridgeData.tokenOutAddr,
+                uint16(_bridgeData.destinationChainId),
+                criteria
             );
         }
 

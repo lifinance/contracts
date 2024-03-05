@@ -7,7 +7,7 @@ import { IMayanBridge } from "lifi/Interfaces/IMayanBridge.sol";
 
 // Stub MayanBridgeFacet Contract
 contract TestMayanBridgeFacet is MayanBridgeFacet {
-    constructor(IMayanBridge _example) MayanBridgeFacet(_example) {}
+    constructor(IMayanBridge _bridge) MayanBridgeFacet(_bridge) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -21,17 +21,18 @@ contract TestMayanBridgeFacet is MayanBridgeFacet {
 contract MayanBridgeFacetTest is TestBaseFacet {
     MayanBridgeFacet.MayanBridgeData internal validMayanBridgeData;
     TestMayanBridgeFacet internal mayanBridgeFacet;
-    IMayanBridge internal EXAMPLE_PARAM = IMayanBridge(address(0xb33f));
+    IMayanBridge internal MAYAN_BRIDGE =
+        IMayanBridge(0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d);
 
     function setUp() public {
-        customBlockNumberForForking = 17130542;
+        customBlockNumberForForking = 19367700;
         initTestBase();
 
         address[] memory EXAMPLE_ALLOWED_TOKENS = new address[](2);
         EXAMPLE_ALLOWED_TOKENS[0] = address(1);
         EXAMPLE_ALLOWED_TOKENS[1] = address(2);
 
-        mayanBridgeFacet = new TestMayanBridgeFacet(EXAMPLE_PARAM);
+        mayanBridgeFacet = new TestMayanBridgeFacet(MAYAN_BRIDGE);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = mayanBridgeFacet
             .startBridgeTokensViaMayanBridge
@@ -67,53 +68,37 @@ contract MayanBridgeFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 137;
 
         // produce valid MayanBridgeData
-        // validMayanBridgeData = MayanBridgeFacet.MayanBridgeData({
-        //     exampleParam: "foo bar baz"
-        // });
+        validMayanBridgeData = MayanBridgeFacet.MayanBridgeData({
+            mayanAddr: 0x32f0af4069bde51a996d1250ef3f7c2431245b98e027b34aa5ca5ae435c435c9,
+            referrer: bytes32(0),
+            tokenOutAddr: bytes32(0),
+            receiver: bytes32(uint256(uint160(USER_SENDER))),
+            swapFee: 50000,
+            redeemFee: 0,
+            refundFee: 3000000,
+            transferDeadline: block.timestamp + 1000,
+            swapDeadline: uint64(block.timestamp + 1000),
+            amountOutMin: 0,
+            unwrap: false,
+            gasDrop: 0
+        });
     }
 
-    // All facet test files inherit from `utils/TestBaseFacet.sol` and require the following method overrides:
-    // - function initiateBridgeTxWithFacet(bool isNative)
-    // - function initiateSwapAndBridgeTxWithFacet(bool isNative)
-    //
-    // These methods are used to run the following tests which must pass:
-    // - testBase_CanBridgeNativeTokens()
-    // - testBase_CanBridgeTokens()
-    // - testBase_CanBridgeTokens_fuzzed(uint256)
-    // - testBase_CanSwapAndBridgeNativeTokens()
-    // - testBase_CanSwapAndBridgeTokens()
-    // - testBase_Revert_BridgeAndSwapWithInvalidReceiverAddress()
-    // - testBase_Revert_BridgeToSameChainId()
-    // - testBase_Revert_BridgeWithInvalidAmount()
-    // - testBase_Revert_BridgeWithInvalidDestinationCallFlag()
-    // - testBase_Revert_BridgeWithInvalidReceiverAddress()
-    // - testBase_Revert_CallBridgeOnlyFunctionWithSourceSwapFlag()
-    // - testBase_Revert_CallerHasInsufficientFunds()
-    // - testBase_Revert_SwapAndBridgeToSameChainId()
-    // - testBase_Revert_SwapAndBridgeWithInvalidAmount()
-    // - testBase_Revert_SwapAndBridgeWithInvalidSwapData()
-    //
-    // In some cases it doesn't make sense to have all tests. For example the bridge may not support native tokens.
-    // In that case you can override the test method and leave it empty. For example:
-    //
-    // function testBase_CanBridgeNativeTokens() public override {
-    //     // facet does not support bridging of native assets
-    // }
-    //
-    // function testBase_CanSwapAndBridgeNativeTokens() public override {
-    //     // facet does not support bridging of native assets
-    // }
-
     function initiateBridgeTxWithFacet(bool isNative) internal override {
+        uint256 totalFees = validMayanBridgeData.redeemFee +
+            validMayanBridgeData.refundFee +
+            validMayanBridgeData.swapFee;
+        validMayanBridgeData.amountOutMin = uint64(
+            (bridgeData.minAmount * 99) / 100
+        );
         if (isNative) {
             mayanBridgeFacet.startBridgeTokensViaMayanBridge{
-                value: bridgeData.minAmount
+                value: bridgeData.minAmount + totalFees
             }(bridgeData, validMayanBridgeData);
         } else {
-            mayanBridgeFacet.startBridgeTokensViaMayanBridge(
-                bridgeData,
-                validMayanBridgeData
-            );
+            mayanBridgeFacet.startBridgeTokensViaMayanBridge{
+                value: totalFees
+            }(bridgeData, validMayanBridgeData);
         }
     }
 
