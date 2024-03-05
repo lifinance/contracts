@@ -15,7 +15,7 @@ interface IWrapper {
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for wrapping and unwrapping tokens
 /// @custom:version 1.0.0
-contract TokenWrapper is TransferrableOwnership, IWrapper {
+contract TokenWrapper is TransferrableOwnership {
     uint256 private constant MAX_INT = 2**256 - 1;
     address public wrappedToken;
 
@@ -25,8 +25,6 @@ contract TokenWrapper is TransferrableOwnership, IWrapper {
     /// Events ///
     event Wrapped(uint256 amount);
     event Unwrapped(uint256 amount);
-
-    IWrapper public externalWrapper;
 
     /// Constructor ///
     // solhint-disable-next-line no-empty-blocks
@@ -45,9 +43,14 @@ contract TokenWrapper is TransferrableOwnership, IWrapper {
         emit Wrapped(msg.value);
     }
 
-    /// @notice Unwraps the wrapped token
-    /// @param wad The amount of token to unwrap
-    function withdraw(uint256 wad) external {
+    /// @notice Unwraps all the caller's balance of wrapped token
+    function withdraw() external {
+        // While in a general purpose contract it would make sense
+        // to have `wad` equal to the minimum between the balance and the
+        // given allowance, in our specific usecase allowance is always
+        // nearly MAX_UINT256. Using the balance only is a gas optimisation.
+        uint256 wad = IERC20(wrappedToken).balanceOf(msg.sender);
+        IERC20(wrappedToken).transferFrom(msg.sender, address(this), wad);
         IWrapper(wrappedToken).withdraw(wad);
         (bool success, ) = payable(msg.sender).call{value: wad}("");
         if (!success) {
@@ -56,5 +59,7 @@ contract TokenWrapper is TransferrableOwnership, IWrapper {
         emit Unwrapped(wad);
     }
 
+    // Needs to be able to receive native on `withdraw`
+    receive() external payable {}
 }
 
