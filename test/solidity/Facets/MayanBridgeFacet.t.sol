@@ -23,6 +23,7 @@ contract MayanBridgeFacetTest is TestBaseFacet {
     TestMayanBridgeFacet internal mayanBridgeFacet;
     IMayanBridge internal MAYAN_BRIDGE =
         IMayanBridge(0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d);
+    address internal POLYGON_USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
 
     function setUp() public {
         customBlockNumberForForking = 19367700;
@@ -71,11 +72,11 @@ contract MayanBridgeFacetTest is TestBaseFacet {
         validMayanBridgeData = MayanBridgeFacet.MayanBridgeData({
             mayanAddr: 0x32f0af4069bde51a996d1250ef3f7c2431245b98e027b34aa5ca5ae435c435c9,
             referrer: bytes32(0),
-            tokenOutAddr: bytes32(0),
+            tokenOutAddr: bytes32(uint256(uint160(POLYGON_USDT))),
             receiver: bytes32(uint256(uint160(USER_SENDER))),
-            swapFee: 50000,
-            redeemFee: 0,
-            refundFee: 3000000,
+            swapFee: 2454809, // This is an estimate
+            redeemFee: 120806,
+            refundFee: 118722821, // This is an estimate
             transferDeadline: block.timestamp + 1000,
             swapDeadline: uint64(block.timestamp + 1000),
             amountOutMin: 0,

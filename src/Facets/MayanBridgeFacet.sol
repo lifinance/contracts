@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
@@ -76,11 +76,15 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        uint256 totalFees = _mayanBridgeData.swapFee +
+            _mayanBridgeData.redeemFee +
+            _mayanBridgeData.refundFee;
+
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
-        _startBridge(_bridgeData, _mayanBridgeData);
+        _startBridge(_bridgeData, _mayanBridgeData, totalFees);
     }
 
     /// @notice Performs a swap before bridging via MayanBridge
@@ -100,13 +104,18 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        uint256 totalFees = _mayanBridgeData.swapFee +
+            _mayanBridgeData.redeemFee +
+            _mayanBridgeData.refundFee;
+        address assetId = _bridgeData.sendingAssetId;
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(msg.sender),
+            LibAsset.isNativeAsset(assetId) ? 0 : totalFees
         );
-        _startBridge(_bridgeData, _mayanBridgeData);
+        _startBridge(_bridgeData, _mayanBridgeData, totalFees);
     }
 
     /// Internal Methods ///
@@ -116,12 +125,9 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _mayanBridgeData Data specific to MayanBridge
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        MayanBridgeData calldata _mayanBridgeData
+        MayanBridgeData calldata _mayanBridgeData,
+        uint256 _totalFees
     ) internal {
-        uint256 totalFees = _mayanBridgeData.swapFee +
-            _mayanBridgeData.redeemFee +
-            _mayanBridgeData.refundFee;
-
         IMayanBridge.RelayerFees memory relayerFees = IMayanBridge
             .RelayerFees({
                 swapFee: _mayanBridgeData.swapFee,
@@ -149,7 +155,13 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         });
 
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            mayanBridge.swap{ value: _bridgeData.minAmount }(
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                address(mayanBridge),
+                _bridgeData.minAmount
+            );
+
+            mayanBridge.swap{ value: _totalFees }(
                 relayerFees,
                 recipient,
                 _mayanBridgeData.tokenOutAddr,
