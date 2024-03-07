@@ -15135,6 +15135,20 @@
           }
         ]
       }
+    },
+    "base": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-03-07 11:32:28",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b8448c6f7f7887d36dca487370778e419e9ebe3f00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   }
 }
