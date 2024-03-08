@@ -161,14 +161,14 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount
             );
 
-            mayanBridge.swap{ value: _totalFees }(
+            mayanBridge.swap(
                 relayerFees,
                 recipient,
                 _mayanBridgeData.tokenOutAddr,
                 uint16(_bridgeData.destinationChainId),
                 criteria,
                 _bridgeData.sendingAssetId,
-                _bridgeData.minAmount
+                _bridgeData.minAmount - _totalFees
             );
         } else {
             mayanBridge.wrapAndSwapETH{ value: _bridgeData.minAmount }(

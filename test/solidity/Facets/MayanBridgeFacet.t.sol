@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap } from "../utils/TestBaseFacet.sol";
 import { MayanBridgeFacet } from "lifi/Facets/MayanBridgeFacet.sol";
 import { IMayanBridge } from "lifi/Interfaces/IMayanBridge.sol";
 
@@ -74,9 +74,9 @@ contract MayanBridgeFacetTest is TestBaseFacet {
             referrer: bytes32(0),
             tokenOutAddr: bytes32(uint256(uint160(POLYGON_USDT))),
             receiver: bytes32(uint256(uint160(USER_SENDER))),
-            swapFee: 2454809, // This is an estimate
-            redeemFee: 120806,
-            refundFee: 118722821, // This is an estimate
+            swapFee: 100000, // This is an estimate
+            redeemFee: 0,
+            refundFee: 1000000, // This is an estimate
             transferDeadline: block.timestamp + 1000,
             swapDeadline: uint64(block.timestamp + 1000),
             amountOutMin: 0,
@@ -97,15 +97,19 @@ contract MayanBridgeFacetTest is TestBaseFacet {
                 value: bridgeData.minAmount + totalFees
             }(bridgeData, validMayanBridgeData);
         } else {
-            mayanBridgeFacet.startBridgeTokensViaMayanBridge{
-                value: totalFees
-            }(bridgeData, validMayanBridgeData);
+            mayanBridgeFacet.startBridgeTokensViaMayanBridge(
+                bridgeData,
+                validMayanBridgeData
+            );
         }
     }
 
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
+        validMayanBridgeData.amountOutMin = uint64(
+            (bridgeData.minAmount * 99) / 100
+        );
         if (isNative) {
             mayanBridgeFacet.swapAndStartBridgeTokensViaMayanBridge{
                 value: swapData[0].fromAmount
@@ -117,5 +121,91 @@ contract MayanBridgeFacetTest is TestBaseFacet {
                 validMayanBridgeData
             );
         }
+    }
+
+    function test_CanSwapAndBridgeTokensFromNative()
+        public
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        uint256 totalFees = validMayanBridgeData.redeemFee +
+            validMayanBridgeData.refundFee +
+            validMayanBridgeData.swapFee;
+        validMayanBridgeData.amountOutMin = uint64(
+            (bridgeData.minAmount * 99) / 100
+        );
+
+        vm.startPrank(USER_SENDER);
+        // store initial balances
+        uint256 initialETHBalance = USER_SENDER.balance;
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+
+        path[0] = ADDRESS_WETH;
+        path[1] = ADDRESS_USDC;
+
+        uint256 amountOut = defaultUSDCAmount;
+
+        // Calculate USDC input amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapETHForExactTokens.selector,
+                    amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            address(0),
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
+        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
+        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(true);
+
+        // check balances after call
+        assertEq(
+            USER_SENDER.balance,
+            initialETHBalance - swapData[0].fromAmount
+        );
+    }
+
+    function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
+        amount = bound(amount, 150, 100_000);
+        super.testBase_CanBridgeTokens_fuzzed(amount);
     }
 }
