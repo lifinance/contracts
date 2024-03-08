@@ -37,23 +37,27 @@
         "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       },
-      "0xAFCF3EA3d42c4146fF4eE1Ee72652B9cddfAC002": {
+      "0x863aB521e384Bde4B65E2D884986D4698a81D7d8": {
         "Name": "AmarokFacet",
         "Version": "2.0.0"
       },
       "0x36C5c79dBa87e22B85F9aE72604Daf2843704470": {
         "Name": "StargateFacet",
         "Version": "2.2.0"
+      },
+      "0x20aaBc10646dF4740279cd5C2a035519cac4E328": {
+        "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x88BFF60dFB4382dfb8da7dD5caC23397350D2078",
       "Executor": "0x6696F031C099dE6089427ceBFb38258feA6fdaFE",
       "FeeCollector": "0x821Dfa5537Ab91b02271d92049B2fF7edE2Be86C",
-      "LiFuelFeeCollector": "",
+      "LiFuelFeeCollector": "0x0000000000000000000000000000000000001234",
       "Receiver": "0x0a4D7f27e8d24625eCb8d29d6445934a440A05E0",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": ""
+      "ServiceFeeCollector": "0x0000000000000000000000000000000000001234"
     }
   }
 }

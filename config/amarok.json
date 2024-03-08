@@ -103,6 +103,7 @@
   },
   "metis": {
     "chainId": 1088,
+    "connextHandler": "0x6B142227A277CE62808E0Df93202483547Ec0188",
     "domain": "1835365481",
     "tokensToApprove": [
       "0x420000000000000000000000000000000000000a",
