@@ -2,7 +2,6 @@
 pragma solidity 0.8.17;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
-import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// External wrapper interface
