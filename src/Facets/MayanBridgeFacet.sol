@@ -28,7 +28,18 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @dev Optional bridge specific struct
-    /// @param exampleParam Example paramter
+    /// @param mayanAddr The address of the Mayan Bridge
+    /// @param referrer The referrer address
+    /// @param tokenOutAddr The address of the token to be received
+    /// @param receiver The address of the receiver
+    /// @param swapFee The swap fee
+    /// @param redeemFee The redeem fee
+    /// @param refundFee The refund fee
+    /// @param transferDeadline The transfer deadline
+    /// @param swapDeadline The swap deadline
+    /// @param amountOutMin The minimum amount out
+    /// @param unwrap Whether to unwrap the asset
+    /// @param gasDrop The gas drop
     struct MayanBridgeData {
         bytes32 mayanAddr;
         bytes32 referrer;
