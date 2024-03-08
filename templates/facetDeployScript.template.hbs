@@ -14,35 +14,20 @@ contract DeployScript is DeployScriptBase {
         public
         returns ({{titleCase name}}Facet deployed, bytes memory constructorArgs)
     {
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/{{camelCase name}}.json"
-        );
+        constructorArgs = getConstructorArgs();
+
+        deployed = {{titleCase name}}Facet(deploy(type({{titleCase name}}Facet).creationCode));
+    }
+
+    function getConstructorArgs() internal override returns (bytes memory) {
+        // If you don't have a constructor or it doesn't take any arguments, you can remove this function
+        string memory path = string.concat(root, "/config/{{camelCase name}}.json");
         string memory json = vm.readFile(path);
-        address example = json.readAddress(
+
+        address acrossSpokePool = json.readAddress(
             string.concat(".", network, ".example")
         );
 
-        constructorArgs = abi.encode(example);
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        if (isDeployed()) {
-            return ({{titleCase name}}Facet(payable(predicted)), constructorArgs);
-        }
-
-        deployed = {{titleCase name}}Facet(
-            payable(
-                factory.deploy(
-                    salt,
-                    bytes.concat(
-                        type({{titleCase name}}Facet).creationCode,
-                        constructorArgs
-                    )
-                )
-            )
-        );
-
-        vm.stopBroadcast();
+        return abi.encode(example);
     }
 }

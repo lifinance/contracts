@@ -1,0 +1,46 @@
+{
+  "mainnet": {
+    "metaRouter": "0xf621Fb08BBE51aF70e7E0F4EA63496894166Ff7F",
+    "gateway": "0xfCEF2Fe72413b65d3F393d278A714caD87512bcd"
+  },
+  "arbitrum": {
+    "metaRouter": "0xf7e96217347667064DEE8f20DB747B1C7df45DDe",
+    "gateway": "0x80ddDDa846e779cceE463bDC0BCc2Ae296feDaF9"
+  },
+  "avalanche": {
+    "metaRouter": "0x6F0f6393e45fE0E7215906B6f9cfeFf53EA139cf",
+    "gateway": "0x4cfA66497Fa84D739a0f785FBcEe9196f1C64e4a"
+  },
+  "base": {
+    "metaRouter": "0x691df9C4561d95a4a726313089c8536dd682b946",
+    "gateway": "0x41Ae964d0F61Bb5F5e253141A462aD6F3b625B92"
+  },
+  "boba": {
+    "metaRouter": "0xca506793A420E901BbCa8066be5661E3C52c84c2",
+    "gateway": "0xd92Ca299F1C2518E78E48C207b64591BA6E9b9a8"
+  },
+  "bsc": {
+    "metaRouter": "0x44487a445a7595446309464A82244B4bD4e325D5",
+    "gateway": "0x5c97D726bf5130AE15408cE32bc764e458320D2f"
+  },
+  "linea": {
+    "metaRouter": "0x9A31bAC4b3B958C835C243800B474818D04393dd",
+    "gateway": "0x83f71AabdDBb9F0E3B6462Cc7635b6fFAD0f2f2e"
+  },
+  "optimism": {
+    "metaRouter": "0x0f91052dc5B4baE53d0FeA5DAe561A117268f5d2",
+    "gateway": "0x200a0fe876421DC49A26508e3Efd0a1008fD12B5"
+  },
+  "polygon": {
+    "metaRouter": "0xa260E3732593E4EcF9DdC144fD6C4c5fe7077978",
+    "gateway": "0xAb83653fd41511D638b69229afBf998Eb9B0F30c"
+  },
+  "zkSync": {
+    "metaRouter": "0x38307CB291Af47Af9847c134a34E9477c939Ca28",
+    "gateway": "0x8cA239448AdD34b057D1CB5934F12AC899DB66e1"
+  },
+  "polygonzkevm": {
+    "metaRouter": "0xb91d3060C90aac7c4c706aef2B37997b3b2a1DcF",
+    "gateway": "0x668961F4923A4FB96b22ad1F18aE215bB2694593"
+  }
+}

@@ -40,6 +40,7 @@ polygon = "${ETH_NODE_URI_POLYGON}"
 polygonzkevm = "${ETH_NODE_URI_POLYGONZKEVM}"
 velas = "${ETH_NODE_URI_VELAS}"
 metis = "${ETH_NODE_URI_METIS}"
+zksync = "${ETH_NODE_URI_ZKSYNC}"
 
 # testnets
 goerli = "${ETH_NODE_URI_GOERLI}"
