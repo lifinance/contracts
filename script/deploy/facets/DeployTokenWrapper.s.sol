@@ -26,22 +26,14 @@ contract DeployScript is DeployScriptBase {
             "/config/tokenwrapper.json"
         );
 
-        string memory globalConfig = string.concat(
-            root,
-            "/config/global.json"
-        );
         // read file into json variable
         string memory tokenWrapperConfigJSON = vm.readFile(tokenWrapperConfig);
-        string memory globalConfigJSON = vm.readFile(globalConfig);
 
         // extract wrapped token address for the given network
         address wrappedNativeAddress = tokenWrapperConfigJSON.readAddress(
             string.concat(".", network)
         );
 
-        address owner = globalConfigJSON.readAddress(
-            string.concat(".", 'withdrawWallet')
-        );
-        return abi.encode(owner, wrappedNativeAddress);
+        return abi.encode(wrappedNativeAddress);
     }
 }

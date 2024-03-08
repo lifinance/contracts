@@ -15,20 +15,16 @@ interface IWrapper {
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for wrapping and unwrapping tokens
 /// @custom:version 1.0.0
-contract TokenWrapper is TransferrableOwnership {
+contract TokenWrapper {
     uint256 private constant MAX_INT = 2**256 - 1;
     address public wrappedToken;
 
     /// Errors ///
     error WithdrawFailure();
 
-    /// Events ///
-    event Wrapped(uint256 amount);
-    event Unwrapped(uint256 amount);
-
     /// Constructor ///
     // solhint-disable-next-line no-empty-blocks
-    constructor(address _owner, address _wrappedToken) TransferrableOwnership(_owner) {
+    constructor(address _wrappedToken) {
         wrappedToken = _wrappedToken;
         IERC20(wrappedToken).approve(address(this), MAX_INT);
     }
@@ -40,7 +36,6 @@ contract TokenWrapper is TransferrableOwnership {
     ) external payable {
         IWrapper(wrappedToken).deposit{value: msg.value}();
         IERC20(wrappedToken).transfer(msg.sender, msg.value);
-        emit Wrapped(msg.value);
     }
 
     /// @notice Unwraps all the caller's balance of wrapped token
@@ -56,7 +51,6 @@ contract TokenWrapper is TransferrableOwnership {
         if (!success) {
             revert WithdrawFailure();
         }
-        emit Unwrapped(wad);
     }
 
     // Needs to be able to receive native on `withdraw`
