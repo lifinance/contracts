@@ -24,6 +24,7 @@ contract MayanBridgeFacetTest is TestBaseFacet {
     IMayanBridge internal MAYAN_BRIDGE =
         IMayanBridge(0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d);
     address internal POLYGON_USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
+    uint256 internal totalFees;
 
     function setUp() public {
         customBlockNumberForForking = 19367700;
@@ -74,24 +75,23 @@ contract MayanBridgeFacetTest is TestBaseFacet {
             referrer: bytes32(0),
             tokenOutAddr: bytes32(uint256(uint160(POLYGON_USDT))),
             receiver: bytes32(uint256(uint160(USER_SENDER))),
-            swapFee: 100000, // This is an estimate
-            redeemFee: 0,
-            refundFee: 1000000, // This is an estimate
+            swapFee: 100000,
+            redeemFee: 1000000,
+            refundFee: 1000000,
             transferDeadline: block.timestamp + 1000,
             swapDeadline: uint64(block.timestamp + 1000),
-            amountOutMin: 0,
+            amountOutMin: uint64((bridgeData.minAmount * 99) / 100),
             unwrap: false,
             gasDrop: 0
         });
+
+        totalFees =
+            validMayanBridgeData.redeemFee +
+            validMayanBridgeData.refundFee +
+            validMayanBridgeData.swapFee;
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
-        uint256 totalFees = validMayanBridgeData.redeemFee +
-            validMayanBridgeData.refundFee +
-            validMayanBridgeData.swapFee;
-        validMayanBridgeData.amountOutMin = uint64(
-            (bridgeData.minAmount * 99) / 100
-        );
         if (isNative) {
             mayanBridgeFacet.startBridgeTokensViaMayanBridge{
                 value: bridgeData.minAmount + totalFees
@@ -107,9 +107,6 @@ contract MayanBridgeFacetTest is TestBaseFacet {
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
-        validMayanBridgeData.amountOutMin = uint64(
-            (bridgeData.minAmount * 99) / 100
-        );
         if (isNative) {
             mayanBridgeFacet.swapAndStartBridgeTokensViaMayanBridge{
                 value: swapData[0].fromAmount
@@ -128,13 +125,6 @@ contract MayanBridgeFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
     {
-        uint256 totalFees = validMayanBridgeData.redeemFee +
-            validMayanBridgeData.refundFee +
-            validMayanBridgeData.swapFee;
-        validMayanBridgeData.amountOutMin = uint64(
-            (bridgeData.minAmount * 99) / 100
-        );
-
         vm.startPrank(USER_SENDER);
         // store initial balances
         uint256 initialETHBalance = USER_SENDER.balance;
