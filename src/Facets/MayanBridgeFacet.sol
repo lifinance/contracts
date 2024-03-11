@@ -38,6 +38,7 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param transferDeadline The transfer deadline
     /// @param swapDeadline The swap deadline
     /// @param amountOutMin The minimum amount out
+    /// @param destChainId The (wormhole) destination chain id
     /// @param unwrap Whether to unwrap the asset
     /// @param gasDrop The gas drop
     struct MayanBridgeData {
@@ -51,6 +52,7 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 transferDeadline;
         uint64 swapDeadline;
         uint64 amountOutMin;
+        uint16 destChainId;
         bool unwrap;
         uint64 gasDrop;
     }
@@ -151,7 +153,7 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             mayanChainId: MAYAN_CHAIN_ID,
             auctionAddr: MAYAN_AUCTION_ADDRESS,
             destAddr: _mayanBridgeData.receiver,
-            destChainId: uint16(_bridgeData.destinationChainId),
+            destChainId: _mayanBridgeData.destChainId,
             referrer: _mayanBridgeData.referrer,
             refundAddr: _mayanBridgeData.receiver
         });

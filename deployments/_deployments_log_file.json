@@ -15318,21 +15318,5 @@
         ]
       }
     }
-  },
-  "MayanBridgeFacet": {
-    "bsc": {
-      "staging": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x6CBfD26eFDA0F616B07eB0DA7E3605aBfCf5DB0e",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-03-11 10:55:05",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
-            "SALT": "",
-            "VERIFIED": "true"
-          }
-        ]
-      }
-    }
   }
 }

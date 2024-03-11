@@ -81,6 +81,7 @@ contract MayanBridgeFacetTest is TestBaseFacet {
             transferDeadline: block.timestamp + 1000,
             swapDeadline: uint64(block.timestamp + 1000),
             amountOutMin: uint64((bridgeData.minAmount * 99) / 100),
+            destChainId: 5, // Wormhole chainId for Polygon
             unwrap: false,
             gasDrop: 0
         });
