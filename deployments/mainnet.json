@@ -46,5 +46,8 @@
   "CalldataVerificationFacet": "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0",
   "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
   "ThorSwapFacet": "0xC3cD90545f30F4F9E71e582510Cc64ab5a743E85",
-  "AcrossFacetPacked": "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9"
+  "AcrossFacetPacked": "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9",
+  "AmarokFacetPacked": "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB",
+  "SymbiosisFacet": "0xe12b2488c71432F9a116E9ac244D3Ef4c2386d3a",
+  "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
 }
