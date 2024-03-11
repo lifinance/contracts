@@ -11222,12 +11222,12 @@
       "production": {
         "2.0.0": [
           {
-            "ADDRESS": "0xAFCF3EA3d42c4146fF4eE1Ee72652B9cddfAC002",
+            "ADDRESS": "0x863aB521e384Bde4B65E2D884986D4698a81D7d8",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-02-02 16:56:19",
+            "TIMESTAMP": "2024-03-08 15:55:45",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000006b142227a277ce62808e0df93202483547ec0188",
             "SALT": "",
-            "VERIFIED": "true"
+            "VERIFIED": "false"
           }
         ]
       }
@@ -15188,6 +15188,34 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-02-23 10:58:39",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000008f7492de823025b4cfaab1d34c58963f2af5deda00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "base": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-03-07 11:32:28",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b8448c6f7f7887d36dca487370778e419e9ebe3f00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x20aaBc10646dF4740279cd5C2a035519cac4E328",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-03-08 15:54:38",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006b142227a277ce62808e0df93202483547ec018800000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
             "VERIFIED": "true"
           }
