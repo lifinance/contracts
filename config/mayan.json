@@ -1,0 +1,17 @@
+{
+  "mainnet": {
+    "bridge": "0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d"
+  },
+  "bsc": {
+    "bridge": "0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d"
+  },
+  "polygon": {
+    "bridge": "0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d"
+  },
+  "avalanche": {
+    "bridge": "0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d"
+  },
+  "arbitrum": {
+    "bridge": "0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d"
+  }
+}

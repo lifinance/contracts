@@ -15048,7 +15048,6 @@
       "staging": {
         "1.0.0": [
           {
-
             "ADDRESS": "0x7ac3EB2D191EBAb9E925CAbFD4F8155be066b3aa",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-02-21 16:27:57",
@@ -15313,6 +15312,22 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-02-23 12:49:52",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009a31bac4b3b958c835c243800b474818d04393dd00000000000000000000000083f71aabddbb9f0e3b6462cc7635b6ffad0f2f2e",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "MayanBridgeFacet": {
+    "bsc": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6CBfD26eFDA0F616B07eB0DA7E3605aBfCf5DB0e",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-03-11 10:55:05",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
             "SALT": "",
             "VERIFIED": "true"
           }

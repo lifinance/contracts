@@ -21,15 +21,15 @@ contract DeployScript is DeployScriptBase {
         );
     }
 
-    // function getConstructorArgs() internal override returns (bytes memory) {
-    //     // If you don't have a constructor or it doesn't take any arguments, you can remove this function
-    //     string memory path = string.concat(root, "/config/mayanBridge.json");
-    //     string memory json = vm.readFile(path);
-    //
-    //     address acrossSpokePool = json.readAddress(
-    //         string.concat(".", network, ".example")
-    //     );
-    //
-    //     return abi.encode(example);
-    // }
+    function getConstructorArgs() internal override returns (bytes memory) {
+        // If you don't have a constructor or it doesn't take any arguments, you can remove this function
+        string memory path = string.concat(root, "/config/mayan.json");
+        string memory json = vm.readFile(path);
+
+        address bridge = json.readAddress(
+            string.concat(".", network, ".bridge")
+        );
+
+        return abi.encode(bridge);
+    }
 }
