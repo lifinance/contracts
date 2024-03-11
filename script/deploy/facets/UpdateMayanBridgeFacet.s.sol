@@ -9,12 +9,6 @@ import { MayanBridgeFacet } from "lifi/Facets/MayanBridgeFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
-    struct Config {
-        uint256 a;
-        bool b;
-        address c;
-    }
-
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)

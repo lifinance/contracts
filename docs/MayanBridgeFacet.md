@@ -2,7 +2,7 @@
 
 ## How it works
 
-The MayanBridge Facet works by ...
+The MayanBridge Facet works by forwarding Mayan Bridge specific calls to the Mayan Token Bridge [contract](https://docs.mayan.finance/integration/contracts).
 
 ```mermaid
 graph LR;
@@ -22,9 +22,32 @@ graph LR;
 The methods listed above take a variable labeled `_mayanBridgeData`. This data is specific to mayanBridge and is represented as the following struct type:
 
 ```solidity
-/// @param example Example parameter.
-struct mayanBridgeData {
-  string example;
+/// @dev Optional bridge specific struct
+/// @param mayanAddr The address of the Mayan Bridge
+/// @param referrer The referrer address
+/// @param tokenOutAddr The address of the token to be received
+/// @param receiver The address of the receiver
+/// @param swapFee The swap fee
+/// @param redeemFee The redeem fee
+/// @param refundFee The refund fee
+/// @param transferDeadline The transfer deadline
+/// @param swapDeadline The swap deadline
+/// @param amountOutMin The minimum amount out
+/// @param unwrap Whether to unwrap the asset
+/// @param gasDrop The gas drop
+struct MayanBridgeData {
+  bytes32 mayanAddr;
+  bytes32 referrer;
+  bytes32 tokenOutAddr;
+  bytes32 receiver;
+  uint64 swapFee;
+  uint64 redeemFee;
+  uint64 refundFee;
+  uint256 transferDeadline;
+  uint64 swapDeadline;
+  uint64 amountOutMin;
+  bool unwrap;
+  uint64 gasDrop;
 }
 ```
 
