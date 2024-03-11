@@ -5,7 +5,6 @@ import {
   Quote,
 } from '@mayanfinance/swap-sdk'
 import { BigNumber, constants } from 'ethers'
-import { parseUnits } from 'ethers/lib/utils'
 import {
   MayanBridgeFacet__factory,
   ILiFi,
@@ -76,7 +75,7 @@ const main = async () => {
     referrer: '0x0000000000000000000000000000000000000000',
     sendingAssetId: BSC_USDT_ADDRESS,
     receiver: address,
-    minAmount: parseUnits('11', 6),
+    minAmount: utils.parseEther('10'),
     destinationChainId: 137,
     hasSourceSwaps: false,
     hasDestinationCall: false,
@@ -108,7 +107,7 @@ const main = async () => {
   console.info('Bridging USDT...')
   tx = await mayan
     .connect(signer)
-    .startBridgeTokensViaMayanBridge(bridgeData, mayanData)
+    .startBridgeTokensViaMayanBridge(bridgeData, mayanData, { gasPrice })
   await tx.wait()
   console.info('Bridged USDT')
 }
@@ -129,5 +128,5 @@ function getAmountOfFractionalAmount(
   decimals: string | number
 ): BigNumber {
   const fixedAmount = Number(amount).toFixed(Math.min(8, Number(decimals)))
-  return parseUnits(fixedAmount, Number(decimals))
+  return utils.parseUnits(fixedAmount, Number(decimals))
 }
