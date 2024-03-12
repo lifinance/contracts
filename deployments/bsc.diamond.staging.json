@@ -65,7 +65,7 @@
         "Name": "AmarokFacetPacked",
         "Version": "1.0.0"
       },
-      "0x1ff0e770048741955B9cdebe772A33D51C120528": {
+      "0xfF019319981A9fb21DfC538311a4259F7D1E1a07": {
         "Name": "MayanBridgeFacet",
         "Version": "1.0.0"
       }
@@ -77,7 +77,8 @@
       "LiFuelFeeCollector": "",
       "Receiver": "0x76EE0F8fb09047284B6ea89881595Fc6F5B09E12",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d"
+      "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d",
+      "TokenWrapper": ""
     }
   }
 }
