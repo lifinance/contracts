@@ -178,7 +178,7 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 relayerFees,
                 recipient,
                 _mayanBridgeData.tokenOutAddr,
-                uint16(_bridgeData.destinationChainId),
+                _mayanBridgeData.destChainId,
                 criteria,
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount - _totalFees
