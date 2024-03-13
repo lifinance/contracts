@@ -9,6 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IMayanBridge } from "../Interfaces/IMayanBridge.sol";
+import { UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title MayanBridge Facet
 /// @author LI.FI (https://li.fi)
@@ -17,6 +18,7 @@ import { IMayanBridge } from "../Interfaces/IMayanBridge.sol";
 contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.mayan");
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
     bytes32 internal constant MAYAN_AUCTION_ADDRESS =
@@ -26,6 +28,15 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     IMayanBridge public immutable mayanBridge;
 
     /// Types ///
+
+    struct Storage {
+        mapping(uint256 => uint16) wormholeChainId;
+    }
+
+    struct Config {
+        uint256 chainId;
+        uint16 wormholeChainId;
+    }
 
     /// @dev Optional bridge specific struct
     /// @param mayanAddr The address of the Mayan Bridge
@@ -52,13 +63,17 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 transferDeadline;
         uint64 swapDeadline;
         uint64 amountOutMin;
-        uint16 destChainId;
         bool unwrap;
         uint64 gasDrop;
     }
 
     /// Events ///
 
+    event MayanInitialized(Config[] configs);
+    event MayanChainIdMapped(
+        uint256 indexed lifiChainId,
+        uint256 indexed wormholeChainId
+    );
     event BridgeToNonEVMChain(
         bytes32 indexed transactionId,
         uint256 indexed destinationChainId,
@@ -72,7 +87,38 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         mayanBridge = _mayanBridge;
     }
 
+    /// Init ///
+
+    /// @notice Initialize local variables for the Wormhole Facet
+    /// @param configs Bridge configuration data
+    function initMayanBridge(Config[] calldata configs) external {
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage sm = getStorage();
+
+        uint256 numConfigs = configs.length;
+        for (uint256 i = 0; i < numConfigs; i++) {
+            sm.wormholeChainId[configs[i].chainId] = configs[i]
+                .wormholeChainId;
+        }
+
+        emit MayanInitialized(configs);
+    }
+
     /// External Methods ///
+
+    /// @notice Creates a mapping between a lifi chain id and a wormhole chain id
+    /// @param _lifiChainId lifi chain id
+    /// @param _wormholeChainId wormhole chain id
+    function setMayanChainIdMapping(
+        uint256 _lifiChainId,
+        uint16 _wormholeChainId
+    ) external {
+        LibDiamond.enforceIsContractOwner();
+        Storage storage sm = getStorage();
+        sm.wormholeChainId[_lifiChainId] = _wormholeChainId;
+        emit MayanChainIdMapped(_lifiChainId, _wormholeChainId);
+    }
 
     /// @notice Bridges tokens via MayanBridge
     /// @param _bridgeData The core information needed for bridging
@@ -141,6 +187,10 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         MayanBridgeData calldata _mayanBridgeData,
         uint256 _totalFees
     ) internal {
+        uint16 whDestChainId = getWormholeChainId(
+            _bridgeData.destinationChainId
+        );
+
         IMayanBridge.RelayerFees memory relayerFees = IMayanBridge
             .RelayerFees({
                 swapFee: _mayanBridgeData.swapFee,
@@ -153,7 +203,7 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             mayanChainId: MAYAN_CHAIN_ID,
             auctionAddr: MAYAN_AUCTION_ADDRESS,
             destAddr: _mayanBridgeData.receiver,
-            destChainId: _mayanBridgeData.destChainId,
+            destChainId: whDestChainId,
             referrer: _mayanBridgeData.referrer,
             refundAddr: _mayanBridgeData.receiver
         });
@@ -178,7 +228,7 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 relayerFees,
                 recipient,
                 _mayanBridgeData.tokenOutAddr,
-                _mayanBridgeData.destChainId,
+                whDestChainId,
                 criteria,
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount - _totalFees
@@ -188,7 +238,7 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 relayerFees,
                 recipient,
                 _mayanBridgeData.tokenOutAddr,
-                uint16(_bridgeData.destinationChainId),
+                whDestChainId,
                 criteria
             );
         }
@@ -202,5 +252,26 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @notice Gets the wormhole chain id for a given lifi chain id
+    /// @param _lifiChainId uint256 of the lifi chain ID
+    /// @return uint16 of the wormhole chain id
+    function getWormholeChainId(
+        uint256 _lifiChainId
+    ) private view returns (uint16) {
+        Storage storage sm = getStorage();
+        uint16 wormholeChainId = sm.wormholeChainId[_lifiChainId];
+        if (wormholeChainId == 0) revert UnsupportedChainId(_lifiChainId);
+        return wormholeChainId;
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }

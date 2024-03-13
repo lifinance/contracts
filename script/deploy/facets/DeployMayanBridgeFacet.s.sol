@@ -27,7 +27,7 @@ contract DeployScript is DeployScriptBase {
         string memory json = vm.readFile(path);
 
         address bridge = json.readAddress(
-            string.concat(".", network, ".bridge")
+            string.concat(".bridges.", network, ".bridge")
         );
 
         return abi.encode(bridge);

@@ -35,7 +35,7 @@ contract MayanBridgeFacetTest is TestBaseFacet {
         EXAMPLE_ALLOWED_TOKENS[1] = address(2);
 
         mayanBridgeFacet = new TestMayanBridgeFacet(MAYAN_BRIDGE);
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](5);
         functionSelectors[0] = mayanBridgeFacet
             .startBridgeTokensViaMayanBridge
             .selector;
@@ -45,6 +45,9 @@ contract MayanBridgeFacetTest is TestBaseFacet {
         functionSelectors[2] = mayanBridgeFacet.addDex.selector;
         functionSelectors[3] = mayanBridgeFacet
             .setFunctionApprovalBySignature
+            .selector;
+        functionSelectors[4] = mayanBridgeFacet
+            .setMayanChainIdMapping
             .selector;
 
         addFacet(diamond, address(mayanBridgeFacet), functionSelectors);
@@ -59,6 +62,8 @@ contract MayanBridgeFacetTest is TestBaseFacet {
         mayanBridgeFacet.setFunctionApprovalBySignature(
             uniswap.swapETHForExactTokens.selector
         );
+
+        mayanBridgeFacet.setMayanChainIdMapping(137, 5);
 
         setFacetAddressInTestBase(
             address(mayanBridgeFacet),
@@ -81,7 +86,6 @@ contract MayanBridgeFacetTest is TestBaseFacet {
             transferDeadline: block.timestamp + 1000,
             swapDeadline: uint64(block.timestamp + 1000),
             amountOutMin: uint64((bridgeData.minAmount * 99) / 100),
-            destChainId: 5, // Wormhole chainId for Polygon
             unwrap: false,
             gasDrop: 0
         });
