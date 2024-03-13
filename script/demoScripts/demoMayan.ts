@@ -92,7 +92,6 @@ const main = async () => {
     transferDeadline: parsed.args.criteria.transferDeadline,
     swapDeadline: parsed.args.criteria.swapDeadline,
     amountOutMin: parsed.args.criteria.amountOutMin,
-    destChainId: parsed.args.recipient.destChainId,
     unwrap: parsed.args.criteria.unwrap,
     gasDrop: parsed.args.criteria.gasDrop,
   }
