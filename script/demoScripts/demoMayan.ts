@@ -40,19 +40,6 @@ const main = async () => {
     slippage: 3,
   })
 
-  const swapFee = getAmountOfFractionalAmount(
-    quote.swapRelayerFee,
-    Math.min(8, quote.fromToken.decimals)
-  )
-  const redeemFee = getAmountOfFractionalAmount(
-    quote.redeemRelayerFee,
-    Math.min(8, quote.toToken.decimals)
-  )
-  const refundFee = getAmountOfFractionalAmount(
-    quote.refundRelayerFee,
-    Math.min(8, quote.fromToken.decimals)
-  )
-
   const payload = await getSwapFromEvmTxPayload(
     quote,
     address,
@@ -86,9 +73,9 @@ const main = async () => {
     referrer: utils.hexZeroPad('0x', 32),
     tokenOutAddr: parsed.args.tokenOutAddr,
     receiver: parsed.args.recipient.destAddr,
-    swapFee,
-    redeemFee,
-    refundFee,
+    swapFee: parsed.args.relayerFees.swapFee,
+    redeemFee: parsed.args.relayerFees.redeemFee,
+    refundFee: parsed.args.relayerFees.refundFee,
     transferDeadline: parsed.args.criteria.transferDeadline,
     swapDeadline: parsed.args.criteria.swapDeadline,
     amountOutMin: parsed.args.criteria.amountOutMin,
@@ -122,11 +109,3 @@ main()
     console.error(error)
     process.exit(1)
   })
-
-function getAmountOfFractionalAmount(
-  amount: string | number,
-  decimals: string | number
-): BigNumber {
-  const fixedAmount = Number(amount).toFixed(Math.min(8, Number(decimals)))
-  return utils.parseUnits(fixedAmount, Number(decimals))
-}

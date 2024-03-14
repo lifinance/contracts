@@ -18,8 +18,8 @@
   },
   "chains": [
     {
-      "chainId": 137,
-      "wormholeChainId": 5
+      "chainId": 1151111081099710,
+      "wormholeChainId": 1
     },
     {
       "chainId": 1,
@@ -30,12 +30,8 @@
       "wormholeChainId": 4
     },
     {
-      "chainId": 10,
-      "wormholeChainId": 24
-    },
-    {
-      "chainId": 100,
-      "wormholeChainId": 25
+      "chainId": 137,
+      "wormholeChainId": 5
     },
     {
       "chainId": 43114,
@@ -70,8 +66,20 @@
       "wormholeChainId": 14
     },
     {
+      "chainId": 1284,
+      "wormholeChainId": 16
+    },
+    {
       "chainId": 42161,
       "wormholeChainId": 23
+    },
+    {
+      "chainId": 10,
+      "wormholeChainId": 24
+    },
+    {
+      "chainId": 100,
+      "wormholeChainId": 25
     },
     {
       "chainId": 8453,
@@ -80,14 +88,6 @@
     {
       "chainId": 534352,
       "wormholeChainId": 34
-    },
-    {
-      "chainId": 1284,
-      "wormholeChainId": 16
-    },
-    {
-      "chainId": 1151111081099710,
-      "wormholeChainId": 1
     }
   ]
 }
