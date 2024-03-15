@@ -114,7 +114,7 @@ library LibAsset {
         uint256 prevBalance = asset.balanceOf(to);
         SafeERC20.safeTransferFrom(asset, from, to, amount);
         uint256 delta = asset.balanceOf(to) - prevBalance;
-        if (delta + 1 <= amount) {
+        if (delta + 1 < amount) {
             revert InvalidAmount();
         }
     }
