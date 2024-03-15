@@ -113,7 +113,8 @@ library LibAsset {
         IERC20 asset = IERC20(assetId);
         uint256 prevBalance = asset.balanceOf(to);
         SafeERC20.safeTransferFrom(asset, from, to, amount);
-        if (asset.balanceOf(to) - prevBalance != amount) {
+        uint256 delta = asset.balanceOf(to) - prevBalance;
+        if (delta + 1 <= amount) {
             revert InvalidAmount();
         }
     }
