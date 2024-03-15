@@ -69,7 +69,8 @@
       "LiFuelFeeCollector": "0xA1202671Ae4A6e673Ea8Fa653149162885Db2039",
       "Receiver": "0x0561fFe9855541C02D17951c93405A4407Df74BC",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0x346b1F1896f2772ffee205e34246ac7adc55B43D"
+      "ServiceFeeCollector": "0x346b1F1896f2772ffee205e34246ac7adc55B43D",
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
 }
