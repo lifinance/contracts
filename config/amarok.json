@@ -240,6 +240,12 @@
       "0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f"
     ]
   },
+  "scroll": {
+    "chainId": 534352,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
   "goerli": {
     "chainId": 5,
     "connextHandler": "0x0000000000000000000000000000000000000000",
