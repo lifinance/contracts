@@ -39,8 +39,14 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant DAI_ADDRESS =
         0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address internal constant WETH_ADDRESS =
+        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address internal constant STETH_ADDRESS =
+        0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
     address internal constant USDC_HOLDER =
-        0xee5B5B923fFcE93A870B3104b7CA09c3db80047A;
+        0x78d8C32D5d4Ad8bfBD534ff8bC250BE665c05830;
+    address internal constant STETH_HOLDER =
+        0xd8d041705735cd770408AD31F883448851F2C39d;
     address internal constant SOME_WALLET =
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
     address internal constant UNISWAP_V2_ROUTER =
@@ -53,11 +59,12 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
     TestGenericSwapFacet internal genericSwapFacet;
     ERC20 internal usdc;
     ERC20 internal dai;
+    ERC20 internal stETH;
     UniswapV2Router02 internal uniswap;
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = 15588208;
+        uint256 blockNumber = 19439567;
         vm.createSelectFork(rpcUrl, blockNumber);
     }
 
@@ -68,6 +75,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         genericSwapFacet = new TestGenericSwapFacet();
         usdc = ERC20(USDC_ADDRESS);
         dai = ERC20(DAI_ADDRESS);
+        stETH = ERC20(STETH_ADDRESS);
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
 
         bytes4[] memory functionSelectors = new bytes4[](3);
@@ -130,7 +138,67 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
             USDC_ADDRESS, // fromAssetId,
             DAI_ADDRESS, // toAssetId,
             amountIn, // fromAmount,
-            10000000166486371895 // toAmount (with liquidity in that selected block)
+            10000000448142767871 // toAmount (with liquidity in that selected block)
+        );
+
+        genericSwapFacet.swapTokensGeneric(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET),
+            amountOut,
+            swapData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testCanSwapStETH() public {
+        vm.startPrank(STETH_HOLDER);
+
+        stETH.transfer(address(genericSwapFacet), 5); // Add some dust
+
+        // Swap USDC to DAI
+        address[] memory path = new address[](3);
+        path[0] = STETH_ADDRESS;
+        path[1] = WETH_ADDRESS;
+        path[2] = DAI_ADDRESS;
+
+        uint256 amountOut = 10 * 10 ** dai.decimals();
+
+        // Calculate DAI amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](1);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            STETH_ADDRESS,
+            DAI_ADDRESS,
+            amountIn,
+            abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                amountIn,
+                amountOut,
+                path,
+                address(genericSwapFacet),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        stETH.approve(address(genericSwapFacet), amountIn);
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiGenericSwapCompleted(
+            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
+            "integrator", // integrator,
+            "referrer", // referrer,
+            SOME_WALLET, // receiver,
+            STETH_ADDRESS, // fromAssetId,
+            DAI_ADDRESS, // toAssetId,
+            amountIn, // fromAmount,
+            10000000000000000879 // toAmount (with liquidity in that selected block)
         );
 
         genericSwapFacet.swapTokensGeneric(
