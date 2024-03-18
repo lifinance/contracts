@@ -13,7 +13,7 @@ import { InvalidReceiver } from "../Errors/GenericErrors.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for swapping through ANY APPROVED DEX
 /// @dev Uses calldata to execute APPROVED arbitrary methods on DEXs
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// External Methods ///
 
