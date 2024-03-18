@@ -61,9 +61,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x55AdebDbA68600B2404f7A3De5F2cC8e3c513cd7": {
+      "0x41bDcf7A9695ba3994cCA53d529DE23f54881D7F": {
         "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xd84d9A8Bf830496C4DEc917bC27D22E09E01cB8A": {
         "Name": "HopFacet",
