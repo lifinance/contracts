@@ -9,10 +9,10 @@ import { NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Contract to distribute gas rebates from a LI.FI marketing campaign
 /// @custom:version 1.0.0
-/// Implementation derived from https://github.com/Uniswap/merkle-distributor/blob/master/contracts/MerkleDistributor.sol
 contract GasRebateDistributor is TransferrableOwnership {
     /// Storage ///
 
+    /// stores the root of the merkle tree that contains info about which account can claim which amount
     bytes32 public merkleRoot;
     /// mapping from address to the latest merkle root version that was claimed by this address
     mapping(address => uint8) private _hasClaimed;
@@ -48,18 +48,24 @@ contract GasRebateDistributor is TransferrableOwnership {
         uint256 amount,
         bytes32[] calldata merkleProof
     ) public virtual {
-        // check if account claimed already
-        if (_isClaimed(msg.sender)) revert AlreadyClaimed();
+        // check if account claimed already for the current merkle root version
+        if (_hasClaimed[account] == _currentMerkleRootVersion)
+            revert AlreadyClaimed();
+
         // check if claim deadline is expired
         if (block.timestamp > claimableUntil) revert ClaimDeadlineExpired();
+
         // Verify the merkle proof
         bytes32 node = keccak256(abi.encodePacked(msg.sender, amount));
         if (!MerkleProof.verify(merkleProof, merkleRoot, node))
             revert InvalidProof();
+
         // Mark the account as claimed for the current merkle root version
         _hasClaimed[msg.sender] = _currentMerkleRootVersion;
+
         // send specified and validated amount of native tokens to caller
         _sendNative(msg.sender, amount);
+
         emit Claimed(msg.sender, amount);
     }
 
@@ -69,8 +75,10 @@ contract GasRebateDistributor is TransferrableOwnership {
     /// @param to the address unclaimed funds should be sent to
     function withdrawUnclaimed(address to) public onlyOwner {
         uint256 balance = address(this).balance;
+
         // send all native balance to specified receiver address
         _sendNative(to, balance);
+
         emit Claimed(msg.sender, balance);
     }
 
@@ -83,8 +91,10 @@ contract GasRebateDistributor is TransferrableOwnership {
     ) public onlyOwner {
         // update the merkle root
         merkleRoot = newMerkleRoot;
+
         // update the claimable-until deadline
         claimableUntil = deadline;
+
         // increase the merkle root version
         _currentMerkleRootVersion++;
     }
@@ -94,10 +104,5 @@ contract GasRebateDistributor is TransferrableOwnership {
     function _sendNative(address account, uint256 amount) private {
         (bool success, ) = account.call{ value: amount }("");
         if (!success) revert NativeAssetTransferFailed();
-    }
-
-    function _isClaimed(address account) private view returns (bool) {
-        if (_hasClaimed[account] == _currentMerkleRootVersion) return true;
-        else return false;
     }
 }
