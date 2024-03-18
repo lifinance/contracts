@@ -49,7 +49,7 @@ contract GasRebateDistributor is TransferrableOwnership {
         bytes32[] calldata merkleProof
     ) public virtual {
         // check if account claimed already for the current merkle root version
-        if (_hasClaimed[account] == _currentMerkleRootVersion)
+        if (_hasClaimed[msg.sender] == _currentMerkleRootVersion)
             revert AlreadyClaimed();
 
         // check if claim deadline is expired
