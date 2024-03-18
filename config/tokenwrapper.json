@@ -30,5 +30,6 @@
   "arbitrumTestnet": "0x42da9eE191833756c618778145A86E6709f70C9b",
   "aurora": "0xc9bdeed33cd01541e1eed10f90519d2c06fe3feb",
   "harmony": "0xcf664087a5bb0237a0bad6742852ec6c8d69a27a",
-  "harmonyTestnet": "0x7466d7d0c21fa05f32f5a0fa27e12bdc06348ce2"
+  "harmonyTestnet": "0x7466d7d0c21fa05f32f5a0fa27e12bdc06348ce2",
+  "scroll": "0x5300000000000000000000000000000000000004"
 }
