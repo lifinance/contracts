@@ -9,22 +9,16 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InvalidConfig, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { SSTORE2 } from 'sstore2/SSTORE2.sol';
+import { SSTORE2Map } from 'sstore2/SSTORE2Map.sol';
 
 /// @title Hop Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Hop
 /// @custom:version 2.0.0
 contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    /// Storage ///
-
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.hop");
 
     /// Types ///
-
-    struct Storage {
-        mapping(address => IHopBridge) bridges;
-        bool initialized; // no longer used but kept here to maintain the same storage layout
-    }
 
     struct Config {
         address assetId;
@@ -54,16 +48,17 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function initHop(Config[] calldata configs) external {
         LibDiamond.enforceIsContractOwner();
 
-        Storage storage s = getStorage();
-
         for (uint256 i = 0; i < configs.length; i++) {
             if (configs[i].bridge == address(0)) {
                 revert InvalidConfig();
             }
-            s.bridges[configs[i].assetId] = IHopBridge(configs[i].bridge);
+            string memory key = string(abi.encodePacked(configs[i].assetId));
+            bytes memory data = abi.encode(configs[i].bridge);
+            SSTORE2Map.write(key, data);
         }
 
         emit HopInitialized(configs);
+
     }
 
     /// External Methods ///
@@ -74,13 +69,13 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function registerBridge(address assetId, address bridge) external {
         LibDiamond.enforceIsContractOwner();
 
-        Storage storage s = getStorage();
-
         if (bridge == address(0)) {
             revert InvalidConfig();
         }
 
-        s.bridges[assetId] = IHopBridge(bridge);
+        string memory key = string(abi.encodePacked(assetId));
+        bytes memory data = abi.encode(bridge);
+        SSTORE2Map.write(key, data);
 
         emit HopBridgeRegistered(assetId, bridge);
     }
@@ -144,8 +139,7 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         HopData calldata _hopData
     ) private {
         address sendingAssetId = _bridgeData.sendingAssetId;
-        Storage storage s = getStorage();
-        IHopBridge bridge = s.bridges[sendingAssetId];
+        IHopBridge bridge = abi.decode(SSTORE2Map.read(string(abi.encodePacked(sendingAssetId))), (IHopBridge));
 
         // Give Hop approval to bridge tokens
         LibAsset.maxApproveERC20(
@@ -186,12 +180,4 @@ contract HopFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            s.slot := namespace
-        }
-    }
 }

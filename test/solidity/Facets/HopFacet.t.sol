@@ -209,9 +209,9 @@ contract HopFacetTest is TestBaseFacet {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         vm.expectEmit(true, true, true, true, address(hopFacet));
-        emit HopBridgeRegistered(ADDRESS_USDC, NATIVE_BRIDGE);
+        emit HopBridgeRegistered(ADDRESS_WETH, NATIVE_BRIDGE);
 
-        hopFacet.registerBridge(ADDRESS_USDC, NATIVE_BRIDGE);
+        hopFacet.registerBridge(ADDRESS_WETH, NATIVE_BRIDGE);
     }
 
     function testRevert_RegisterBridgeNonOwner() public {
