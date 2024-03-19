@@ -45,6 +45,15 @@
       }
     }
   },
+  "AmarokFacetPacked": {
+    "configData": {
+      "_connextHandler": {
+        "configFileName": "amarok.json",
+        "keyInConfigFile": ".<NETWORK>.connextHandler",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "ArbitrumBridgeFacet": {
     "configData": {
       "_gatewayRouter": {

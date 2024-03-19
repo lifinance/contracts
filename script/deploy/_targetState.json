@@ -92,7 +92,9 @@
         "PolygonBridgeFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -133,7 +135,9 @@
         "PolygonBridgeFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
@@ -229,7 +233,9 @@
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.2.0",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -265,7 +271,9 @@
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.2.0",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
@@ -296,10 +304,12 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
+        "CircleBridgeFacet": "1.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "StargateFacet": "2.2.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -326,10 +336,12 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
+        "CircleBridgeFacet": "1.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "StargateFacet": "2.2.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
@@ -363,7 +375,9 @@
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.2.0",
-        "WormholeFacet": "1.0.0"
+        "WormholeFacet": "1.0.0",
+        "AmarokFacetPacked": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -393,7 +407,9 @@
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.2.0",
-        "WormholeFacet": "1.0.0"
+        "WormholeFacet": "1.0.0",
+        "AmarokFacetPacked": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
@@ -467,7 +483,8 @@
         "HopFacetPacked": "1.0.6",
         "MultichainFacet": "1.0.1",
         "OmniBridgeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -495,7 +512,8 @@
         "HopFacetPacked": "1.0.6",
         "MultichainFacet": "1.0.1",
         "OmniBridgeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "1.0.0"
       }
     }
   },
@@ -713,7 +731,8 @@
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.2.0",
-        "WormholeFacet": "1.0.0"
+        "WormholeFacet": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -743,7 +762,8 @@
         "HyphenFacet": "1.0.0",
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.2.0",
-        "WormholeFacet": "1.0.0"
+        "WormholeFacet": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
@@ -839,7 +859,9 @@
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.2.0",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -875,7 +897,9 @@
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.2.0",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
@@ -954,7 +978,9 @@
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.2.0",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -990,7 +1016,9 @@
         "MultichainFacet": "1.0.1",
         "StargateFacet": "2.2.0",
         "WormholeFacet": "1.0.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "1.0.0",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
@@ -1673,7 +1701,8 @@
         "ServiceFeeCollector": "1.0.0",
         "LiFuelFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1"
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1695,7 +1724,8 @@
         "ServiceFeeCollector": "1.0.0",
         "LiFuelFeeCollector": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1"
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
@@ -1846,7 +1876,8 @@
         "CelerIMFacetMutable": "2.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
-        "MultichainFacet": "1.0.1"
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1872,7 +1903,8 @@
         "CelerIMFacetImmutable": "2.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
-        "MultichainFacet": "1.0.1"
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
@@ -1913,52 +1945,6 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0"
-      }
-    },
-    "production": {
-      "LiFiDiamond": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.1.1",
-        "StandardizedCallFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "LiFuelFeeCollector": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0"
-      },
-      "LiFiDiamondImmutable": {
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "OwnershipFacet": "1.0.0",
-        "DexManagerFacet": "1.0.0",
-        "AccessManagerFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "GenericSwapFacet": "1.0.0",
-        "LIFuelFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.1.1",
-        "StandardizedCallFacet": "1.0.0",
-        "LiFiDiamondImmutable": "1.0.0",
-        "ERC20Proxy": "1.0.0",
-        "Executor": "2.0.0",
-        "FeeCollector": "1.0.0",
-        "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0",
-        "LiFuelFeeCollector": "1.0.0",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0"
       }
     }
   },
@@ -2216,7 +2202,8 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "StargateFacet": "2.2.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2243,7 +2230,8 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "StargateFacet": "2.2.0",
-        "HopFacetOptimized": "2.0.0"
+        "HopFacetOptimized": "2.0.0",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
@@ -2613,7 +2601,8 @@
         "LiFuelFeeCollector": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "MultichainFacet": "1.0.1"
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2636,7 +2625,8 @@
         "LiFuelFeeCollector": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
-        "MultichainFacet": "1.0.1"
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
@@ -2666,7 +2656,8 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerIMFacetMutable": "2.0.0",
-        "MultichainFacet": "1.0.1"
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2692,7 +2683,8 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerIMFacetImmutable": "2.0.0",
-        "MultichainFacet": "1.0.1"
+        "MultichainFacet": "1.0.1",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   },
@@ -2786,6 +2778,58 @@
         "LiFuelFeeCollector": "1.0.0",
         "AmarokFacet": "2.0.0",
         "StargateFacet": "2.2.0"
+      }
+    }
+  },
+  "scroll": {
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.1",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "LiFuelFeeCollector": "1.0.0",
+        "CBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.3",
+        "StargateFacet": "2.2.0",
+        "SymbiosisFacet": "1.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.0",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "LIFuelFacet": "1.0.0",
+        "CalldataVerificationFacet": "1.1.1",
+        "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.0",
+        "ServiceFeeCollector": "1.0.0",
+        "LiFuelFeeCollector": "1.0.0",
+        "CBridgeFacet": "1.0.0",
+        "CBridgeFacetPacked": "1.0.3",
+        "StargateFacet": "2.2.0",
+        "SymbiosisFacet": "1.0.0"
       }
     }
   }

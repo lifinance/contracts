@@ -85,6 +85,10 @@
         "Name": "AmarokFacet",
         "Version": "2.0.0"
       },
+      "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB": {
+        "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
+      },
       "0x9b3C5C83b0E1415BA91bBc9486102e80362F0629": {
         "Name": "AllBridgeFacet",
         "Version": "2.0.0"
@@ -100,7 +104,8 @@
       "FeeCollector": "0x0A6d96E7f4D7b96CFE42185DF61E64d255c12DFf",
       "Receiver": "0xeC03B65CbDc5f8858b02F44EBa54C90664249fb1",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
-      "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE"
+      "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
 }
