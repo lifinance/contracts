@@ -3,10 +3,8 @@ pragma solidity 0.8.17;
 
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { MerkleProof } from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import { NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { console2 } from "forge-std/console2.sol";
 
 /// @title GasRebateDistributor
 /// @author LI.FI (https://li.fi)
@@ -34,11 +32,7 @@ contract GasRebateDistributor is TransferrableOwnership {
 
     /// Events ///
 
-    event Claimed(
-        address indexed account,
-        address indexed tokenAddress,
-        uint256 amount
-    );
+    event Claimed(address indexed account, uint256 amount);
 
     /// Constructor
     constructor(
@@ -69,14 +63,6 @@ contract GasRebateDistributor is TransferrableOwnership {
         // check if claim deadline is expired
         if (block.timestamp > claimDeadline) revert ClaimDeadlineExpired();
 
-        console2.log("msg.sender: ", msg.sender);
-        console2.log("tokenAddress: ", tokenAddress);
-        console2.log("amount: ", amount);
-        console2.log("merkleRoot: ");
-        console2.logBytes32(merkleRoot);
-        console2.log("merkleProof: ");
-        console2.logBytes32(merkleProof[0]);
-
         // Verify the merkle proof
         bytes32 node = keccak256(abi.encodePacked(msg.sender, amount));
         if (!MerkleProof.verify(merkleProof, merkleRoot, node))
@@ -88,7 +74,7 @@ contract GasRebateDistributor is TransferrableOwnership {
         // send specified and validated amount of tokens to caller
         LibAsset.transferAsset(tokenAddress, payable(msg.sender), amount);
 
-        emit Claimed(msg.sender, tokenAddress, amount);
+        emit Claimed(msg.sender, amount);
     }
 
     /// ADMIN FUNCTIONS ///

@@ -6,24 +6,28 @@ import { console } from "../utils/Console.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { GasRebateDistributor } from "lifi/Periphery/GasRebateDistributor.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
+import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract GasRebateDistributorTest is Test {
     using stdJson for string;
     bytes32 public constant MERKLE_ROOT =
-        // hex"48610c6988ab1e1abe0a8726194432e735609c50ffbc4f35c0a176e95f1c67d7";
         hex"b1a3e69afbb24ad2239e09935fdec19313f8b4b914e9a0cb8d956dab28464f0b";
+    bytes32 public constant MERKLE_ROOT_2 =
+        hex"36fe7f7f4ab9cb7c2a36293cbe1d37aca4d8021b6f87ef8b518d34475c891919";
 
     address public constant ADDRES_USDC_ETH =
         0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address public constant ADDRES_USDT_ETH =
+        0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address public constant VALID_CLAIMER_1 =
         0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7;
     address public constant VALID_CLAIMER_2 =
         0x4577a46A3eCf44E0ed44410B7793977ffbe22CE0;
-    address public constant INVALID_CLAIMER =
-        0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
 
     GasRebateDistributor public distributor;
     ERC20 public usdc;
+    ERC20 public usdt;
+    uint256 public deadline;
 
     struct ClaimWithProof {
         address account;
@@ -36,15 +40,22 @@ contract GasRebateDistributorTest is Test {
         ClaimWithProof[] claims;
     }
 
+    event Claimed(address indexed account, uint256 amount);
+
+    error AlreadyClaimed();
+    error InvalidProof();
+    error ClaimDeadlineExpired();
+
     function setUp() public {
         // activate mainnet fork
         _fork();
 
         usdc = ERC20(ADDRES_USDC_ETH);
+        usdt = ERC20(ADDRES_USDT_ETH);
 
         // deploy contract
         address owner = address(this);
-        uint256 deadline = block.timestamp + 1000;
+        deadline = block.timestamp + 1000;
         distributor = new GasRebateDistributor(
             owner,
             MERKLE_ROOT,
@@ -58,6 +69,12 @@ contract GasRebateDistributorTest is Test {
             address(distributor),
             100000 * 10 ** usdc.decimals()
         );
+        // fund contract with 100000 USDT
+        deal(
+            ADDRES_USDT_ETH,
+            address(distributor),
+            100000 * 10 ** usdt.decimals()
+        );
     }
 
     function _fork() private {
@@ -67,64 +84,195 @@ contract GasRebateDistributorTest is Test {
         vm.createSelectFork(rpcUrl, blockNumber);
     }
 
-    function _getClaims() private view returns (NetworkClaims memory claims) {
-        console.log("AA");
-
-        // parse JSON with merkle roots / proofs
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/script/output/outputMerkleProofsUINT.json"
-        );
-        console.log("BB");
-        string memory json = vm.readFile(path);
-
-        console.log("CC");
-        bytes memory rawConfig = json.parseRaw(string.concat(".mainnet"));
-        console.log("DD");
-        claims = abi.decode(rawConfig, (NetworkClaims));
-        console.log("EE");
-    }
-
-    function _getMerkleProof(
-        address account,
-        uint256 amount
-    ) private view returns (bytes32[] memory merkleProof) {
-        console.log("A");
-        ClaimWithProof[] memory accounts = _getClaims().claims;
-
-        console.log("B");
-        // iterate over all claims and find the matching one
-        for (uint i; i < accounts.length; i++) {
-            console.log(i);
-            if (accounts[i].account == account && accounts[i].amount == amount)
-                merkleProof = accounts[i].merkleProof;
-        }
-    }
-
-    function test_distributesNativeRewardsWithValidProof() public {
-        vm.startPrank(VALID_CLAIMER_1);
-
-        // get initial native balance
-        uint256 initialBalance = usdc.balanceOf(VALID_CLAIMER_1);
-
-        uint256 nativeClaimAmount = 8000000;
-
-        // get merkle proof from input file
-        // bytes32[] memory merkleProof = _getMerkleProof(
-        //     VALID_CLAIMER_1,
-        //     nativeClaimAmount
-        // );
-
-        bytes32[] memory merkleProof = new bytes32[](1);
+    function _getValidMerkleProofClaimer1()
+        private
+        pure
+        returns (bytes32[] memory merkleProof)
+    {
+        merkleProof = new bytes32[](1);
         merkleProof[
             0
         ] = hex"8b795aba0c0dd676e6e109be0785907973939d81e185eebcf81ec130feda059e";
+    }
+
+    /// Tests for function claim() ///
+
+    function test_distributesFundsWithValidProof() public {
+        vm.startPrank(VALID_CLAIMER_1);
+        uint256 claimAmount = 8000000;
+
+        // get initial balance
+        uint256 initialBalance = usdc.balanceOf(VALID_CLAIMER_1);
+
+        // get merkle proof
+        bytes32[] memory merkleProof = _getValidMerkleProofClaimer1();
+
+        vm.expectEmit(true, true, true, true, address(distributor));
+        emit Claimed(VALID_CLAIMER_1, claimAmount);
 
         // call distributor contract
-        distributor.claim(nativeClaimAmount, merkleProof);
+        distributor.claim(claimAmount, merkleProof);
 
         // check final balance
         uint256 finalBalance = usdc.balanceOf(VALID_CLAIMER_1);
-        assertEq(initialBalance + nativeClaimAmount, finalBalance);
+        assertEq(initialBalance + claimAmount, finalBalance);
+    }
+
+    function test_canClaimAgainAfterMerkleRootWasUpdatedWithNewToken() public {
+        // claim
+        test_distributesFundsWithValidProof();
+
+        // update merkle root
+        test_ownerCanUpdateMerkleRoot();
+
+        // claim new rebates based on updated merkle tree
+        vm.startPrank(VALID_CLAIMER_1);
+        uint256 claimAmount = 2500000;
+
+        // get initial balance
+        uint256 initialBalance = usdt.balanceOf(VALID_CLAIMER_1);
+
+        // get merkle proof
+        bytes32[] memory merkleProof = _getValidMerkleProofClaimer1();
+        merkleProof[
+            0
+        ] = hex"fa4a9a72daea98757e27bd57e7ef6bca5177b8adddc97b6c8de1cbd20ad6059f"; // valid proof to claim 2.5 USDT
+
+        // call distributor contract
+        distributor.claim(claimAmount, merkleProof);
+
+        // check final balance
+        uint256 finalBalance = usdt.balanceOf(VALID_CLAIMER_1);
+        assertEq(initialBalance + claimAmount, finalBalance);
+    }
+
+    function test_revert_cannotClaimTwice() public {
+        // claim once
+        test_distributesFundsWithValidProof();
+
+        vm.startPrank(VALID_CLAIMER_1);
+        uint256 claimAmount = 8000000;
+
+        // get merkle proof
+        bytes32[] memory merkleProof = _getValidMerkleProofClaimer1();
+
+        vm.expectRevert(AlreadyClaimed.selector);
+
+        // try to claim for a second timeaq
+        distributor.claim(claimAmount, merkleProof);
+    }
+
+    function test_revert_cannotClaimAfterDeadlineExpired() public {
+        vm.startPrank(VALID_CLAIMER_1);
+        uint256 claimAmount = 8000000;
+
+        vm.warp(deadline + 1);
+
+        // get merkle proof
+        bytes32[] memory merkleProof = _getValidMerkleProofClaimer1();
+
+        vm.expectRevert(ClaimDeadlineExpired.selector);
+
+        // call distributor contract
+        distributor.claim(claimAmount, merkleProof);
+    }
+
+    function test_revert_cannotClaimMoreThanAllowedWithValidProof() public {
+        vm.startPrank(VALID_CLAIMER_1);
+        uint256 claimAmount = 8000000;
+
+        // get merkle proof
+        bytes32[] memory merkleProof = _getValidMerkleProofClaimer1();
+
+        vm.expectRevert(InvalidProof.selector);
+
+        // call distributor contract
+        distributor.claim(claimAmount + 1, merkleProof);
+    }
+
+    function test_revert_cannotClaimWithValidProofForOtherWallet() public {
+        vm.startPrank(VALID_CLAIMER_2);
+        uint256 claimAmount = 8000000;
+
+        // get merkle proof
+        bytes32[] memory merkleProof = _getValidMerkleProofClaimer1();
+
+        vm.expectRevert(InvalidProof.selector);
+
+        // call distributor contract
+        distributor.claim(claimAmount, merkleProof);
+
+        // try the same with the amount that valid claimer 2 is permitted to claim (but using proof of claimer 1)
+        claimAmount = 2500000;
+
+        vm.expectRevert(InvalidProof.selector);
+
+        // call distributor contract
+        distributor.claim(claimAmount, merkleProof);
+    }
+
+    /// Tests for function withdrawUnclaimed() ///
+    function test_ownerCanWithdrawUnclaimed() public {
+        vm.startPrank(address(this));
+
+        uint256 initialBalanceDistributor = usdc.balanceOf(
+            address(distributor)
+        );
+        uint256 initialBalanceTestContract = usdc.balanceOf(address(this));
+
+        address[] memory addresses = new address[](1);
+        addresses[0] = ADDRES_USDC_ETH;
+
+        distributor.withdrawUnclaimed(addresses, address(this));
+
+        assertEq(
+            usdc.balanceOf(address(this)),
+            initialBalanceTestContract + initialBalanceDistributor
+        );
+    }
+
+    function test_revert_nonOwnerCannotWithdrawUnclaimed() public {
+        vm.startPrank(VALID_CLAIMER_1);
+
+        address[] memory addresses = new address[](1);
+        addresses[0] = ADDRES_USDC_ETH;
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        distributor.withdrawUnclaimed(addresses, address(this));
+    }
+
+    /// Tests for function updateMerkleRoot() ///
+
+    function test_ownerCanUpdateMerkleRoot() public {
+        vm.startPrank(address(this));
+
+        uint256 newDeadline = block.timestamp + 5000;
+
+        distributor.updateMerkleRoot(
+            MERKLE_ROOT_2,
+            newDeadline,
+            ADDRES_USDT_ETH
+        );
+
+        assertEq(distributor.merkleRoot(), MERKLE_ROOT_2);
+        assertEq(distributor.claimDeadline(), newDeadline);
+        assertEq(distributor.tokenAddress(), ADDRES_USDT_ETH);
+
+        vm.stopPrank();
+    }
+
+    function test_revert_nonOwnerCannotUpdateMerkleRoot() public {
+        vm.startPrank(VALID_CLAIMER_1);
+
+        uint256 newDeadline = block.timestamp + 5000;
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        distributor.updateMerkleRoot(
+            MERKLE_ROOT_2,
+            newDeadline,
+            ADDRES_USDT_ETH
+        );
     }
 }
