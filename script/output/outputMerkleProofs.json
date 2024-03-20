@@ -1,114 +1,38 @@
 {
   "mainnet": {
-    "merkleRoot": "0x9ed12d4853bf3e30a1ba277134dff1c5151356c49a9915c093900aad65bad525",
+    "merkleRoot": "0xb1a3e69afbb24ad2239e09935fdec19313f8b4b914e9a0cb8d956dab28464f0b",
     "accounts": [
       {
         "account": "0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7",
-        "tokenAddress": "0x0000000000000000000000000000000000000000",
-        "amount": "5000000000000000000",
+        "amount": "0x00000000000000000000000000000000000000000000000000000000007a1200",
         "merkleProof": [
-          "0xdfd7b5505f24c8b9ded73f1653c1e236ad6236b4408d07593bd1bb14424b3856"
-        ]
-      },
-      {
-        "account": "0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7",
-        "tokenAddress": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-        "amount": "2500000000000000000",
-        "merkleProof": [
-          "0xce5089eaa6077ef2665716e96409087d63baaa0ccb10ded3f7eeab2c14efcece",
-          "0xf0286c052ab439c1d2b305a9b37364905f723e6fd757008739bb515ecef322f7"
+          "0x8b795aba0c0dd676e6e109be0785907973939d81e185eebcf81ec130feda059e"
         ]
       },
       {
         "account": "0x4577a46A3eCf44E0ed44410B7793977ffbe22CE0",
-        "tokenAddress": "0x0000000000000000000000000000000000000000",
-        "amount": "5000000000000000000",
+        "amount": "0x00000000000000000000000000000000000000000000000000000000002625a0",
         "merkleProof": [
-          "0x5b45931a3e689dc9f32da9681c406fc50681bfaefaf53497696d5712afb2e619",
-          "0xf0286c052ab439c1d2b305a9b37364905f723e6fd757008739bb515ecef322f7"
-        ]
-      },
-      {
-        "account": "0x4577a46A3eCf44E0ed44410B7793977ffbe22CE0",
-        "tokenAddress": "0x0000000000000000000000000000000000000000",
-        "amount": "5000000000000000000",
-        "merkleProof": [
-          "0x8872bde79ee2e50f7002ed5a9fe582fe21f48df19e285cb84593de4250646f9c",
-          "0xf0286c052ab439c1d2b305a9b37364905f723e6fd757008739bb515ecef322f7"
-        ]
-      },
-      {
-        "account": "0x4577a46A3eCf44E0ed44410B7793977ffbe22CE0",
-        "tokenAddress": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-        "amount": "2500000000000000000",
-        "merkleProof": [
-          "0xce5089eaa6077ef2665716e96409087d63baaa0ccb10ded3f7eeab2c14efcece",
-          "0xf0286c052ab439c1d2b305a9b37364905f723e6fd757008739bb515ecef322f7"
-        ]
-      },
-      {
-        "account": "0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7",
-        "tokenAddress": "0x0000000000000000000000000000000000000000",
-        "amount": "5000000000000000000",
-        "merkleProof": [
-          "0xfcbd9a5d1127700fdfd3cb81a82f8189477e3445e7d8f7e3e7778382d5737e2e"
+          "0x67302220af8157c936a3bb5f48b7c6b7e14c8a2f30f2bc67a11a7b2f826c4a4f"
         ]
       }
     ]
   },
   "bsc": {
-    "merkleRoot": "0x56b4596e55f14cc67a81b27d5d6b513e89f2398597888c015cd5c7e5336657b4",
+    "merkleRoot": "0x36fe7f7f4ab9cb7c2a36293cbe1d37aca4d8021b6f87ef8b518d34475c891919",
     "accounts": [
       {
         "account": "0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7",
-        "tokenAddress": "0x0000000000000000000000000000000000000000",
-        "amount": "5000000000000000000",
+        "amount": "0x00000000000000000000000000000000000000000000000000000000002625a0",
         "merkleProof": [
-          "0xdfd7b5505f24c8b9ded73f1653c1e236ad6236b4408d07593bd1bb14424b3856"
-        ]
-      },
-      {
-        "account": "0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7",
-        "tokenAddress": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-        "amount": "2500000000000000000",
-        "merkleProof": [
-          "0xce5089eaa6077ef2665716e96409087d63baaa0ccb10ded3f7eeab2c14efcece",
-          "0xf0286c052ab439c1d2b305a9b37364905f723e6fd757008739bb515ecef322f7"
+          "0xfa4a9a72daea98757e27bd57e7ef6bca5177b8adddc97b6c8de1cbd20ad6059f"
         ]
       },
       {
         "account": "0x4577a46A3eCf44E0ed44410B7793977ffbe22CE0",
-        "tokenAddress": "0x0000000000000000000000000000000000000000",
-        "amount": "5000000000000000000",
+        "amount": "0x00000000000000000000000000000000000000000000000000000000004c4b40",
         "merkleProof": [
-          "0x5b45931a3e689dc9f32da9681c406fc50681bfaefaf53497696d5712afb2e619",
-          "0xf0286c052ab439c1d2b305a9b37364905f723e6fd757008739bb515ecef322f7"
-        ]
-      },
-      {
-        "account": "0x4577a46A3eCf44E0ed44410B7793977ffbe22CE0",
-        "tokenAddress": "0x0000000000000000000000000000000000000000",
-        "amount": "5000000000000000000",
-        "merkleProof": [
-          "0x8872bde79ee2e50f7002ed5a9fe582fe21f48df19e285cb84593de4250646f9c",
-          "0xf0286c052ab439c1d2b305a9b37364905f723e6fd757008739bb515ecef322f7"
-        ]
-      },
-      {
-        "account": "0x4577a46A3eCf44E0ed44410B7793977ffbe22CE0",
-        "tokenAddress": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-        "amount": "2500000000000000000",
-        "merkleProof": [
-          "0xce5089eaa6077ef2665716e96409087d63baaa0ccb10ded3f7eeab2c14efcece",
-          "0xf0286c052ab439c1d2b305a9b37364905f723e6fd757008739bb515ecef322f7"
-        ]
-      },
-      {
-        "account": "0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7",
-        "tokenAddress": "0x0000000000000000000000000000000000000000",
-        "amount": "5000000000000000000",
-        "merkleProof": [
-          "0xfcbd9a5d1127700fdfd3cb81a82f8189477e3445e7d8f7e3e7778382d5737e2e"
+          "0x63c27f2ec332e551886bf25c0712bea7f3c0a2c135518da2ebef663a90fc1be3"
         ]
       }
     ]

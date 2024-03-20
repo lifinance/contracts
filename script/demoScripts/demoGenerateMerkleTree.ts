@@ -1,18 +1,23 @@
-import { StandardMerkleTree } from '@openzeppelin/merkle-tree'
+import keccak256 from 'keccak256'
+import MerkleTree from 'merkletreejs'
+import Web3 from 'web3'
 import claimsFile from '../resources/gasRebates.json'
 import fs from 'fs'
 
-interface ClaimableAmount {
-  [tokenAddress: string]: string
+const web3 = new Web3()
+const OUTPUT_PATH = './script/output/outputMerkleProofs.json'
+
+// input types
+interface Rebate {
+  [account: string]: string
+}
+interface GasRebates {
+  [network: string]: Rebate
 }
 
-interface Network {
-  [account: string]: ClaimableAmount[]
-}
-
+// output types
 interface Claim {
   account: string
-  tokenAddress: string
   amount: string
 }
 interface ClaimWithProof extends Claim {
@@ -26,112 +31,102 @@ interface ClaimsPerNetwork {
   }
 }
 
-const generateMerkleTree = (accounts: Network) => {
-  const claims: string[][] = []
-
-  // iterate through each account
-  Object.keys(accounts).forEach((account) => {
-    const claimableAmounts = accounts[account]
-
-    claimableAmounts.forEach((claim: any) => {
-      Object.entries(claim).forEach(([tokenAddress, amount]) => {
-        claims.push([account, tokenAddress, String(amount)])
-      })
-    })
-  })
-
-  // create merkle tree and store tree root
-  const tree = StandardMerkleTree.of(claims, ['address', 'address', 'uint256'])
-
-  // make sure tree is valid
-  tree.validate()
-
-  return tree
-}
-
-const generateMerkleProof = (
-  tree: StandardMerkleTree<string[]>,
-  claim: Claim
-) => {
-  // iterate over all leafs in the tree and find the one matching the current claim
-  for (const [i, v] of tree.entries()) {
-    if (
-      v[0] === claim.account &&
-      v[1] === claim.tokenAddress &&
-      v[2] === claim.amount
-    ) {
-      // find and return the merkle proof of the current claim
-      return tree.getProof(i)
-    }
-  }
-  throw Error('someting wong')
-}
-
-const processClaimsFile = (values: any) => {
-  let merkleTree: StandardMerkleTree<string[]> = {} as StandardMerkleTree<
-    string[]
-  >
-  const claimsWithProof: ClaimWithProof[] = []
-  const output: ClaimsPerNetwork = {}
-
-  // iterate through all networks
-  Object.keys(values).forEach((network) => {
-    const accounts: Network = values[network]
-
-    // generate merkle tree for this network
-    merkleTree = generateMerkleTree(accounts)
-    if (!merkleTree) throw Error('Generation of merkle tree failed')
-
-    // iterate over all accounts
-    Object.keys(accounts).forEach((account) => {
-      const claimableAmounts = accounts[account]
-
-      // iterate over all claims (tokenAddress: amount)
-      claimableAmounts.forEach((claim: any) => {
-        Object.entries(claim).forEach(([tokenAddress, amount]) => {
-          const currentClaim = {
-            account: account,
-            tokenAddress: tokenAddress,
-            amount: String(amount),
-          }
-
-          // generate merkle proof for each account/tokenAddress/amount combination
-          const merkleProof = generateMerkleProof(merkleTree, currentClaim)
-          if (!merkleProof)
-            console.error(
-              `could not generate merkle proof for account: ${account}, tokenAddress: ${tokenAddress}, amount: ${amount}`
-            )
-
-          // add claim with proof to result array
-          claimsWithProof.push({
-            account: account,
-            tokenAddress: tokenAddress,
-            amount: String(amount),
-            merkleProof,
-          })
-        })
-      })
-    })
-
-    // add network entry with merkle root and all individual merkle proofs to output
-    output[network] = {
-      merkleRoot: merkleTree.root,
-      accounts: claimsWithProof,
-    }
-  })
-
-  // write formatted output to file
-  fs.writeFileSync(
-    './script/output/outputMerkleProofs.json',
-    JSON.stringify(output, null, 2)
+const createMerkleTree = (claims: Claim[]) => {
+  // For each element : concatenate the two hex buffers
+  // to a single one as this keccak256 implementation only
+  // expects one input
+  const leafNodes = claims.map((claim) =>
+    keccak256(
+      Buffer.concat([
+        Buffer.from(claim.account.replace('0x', ''), 'hex'),
+        Buffer.from(claim.amount.replace('0x', ''), 'hex'),
+      ])
+    )
   )
+
+  // create merkle tree from leafNodes
+  const merkleTree = new MerkleTree(leafNodes, keccak256, { sortPairs: true })
+
+  return { merkleTree, leafNodes }
+}
+
+function getProof(
+  claim: Claim,
+  leafNodes: Buffer[],
+  tree: MerkleTree,
+  allClaims: Claim[]
+) {
+  // find index of the claim
+  const index = allClaims.findIndex(
+    (item) => item.account === claim.account && item.amount === claim.amount
+  )
+
+  // throw error if claim could not be found
+  if (index === -1)
+    throw Error(`could not find merkle proof for account ${claim.account}`)
+
+  // return merkle proof for claim
+  return tree.getHexProof(leafNodes[index])
+}
+
+const parseAccounts = (accounts: Rebate): Claim[] => {
+  return Object.entries(accounts).map(([account, amount]) => {
+    return { account, amount: web3.eth.abi.encodeParameter('uint256', amount) }
+  })
+}
+
+const processClaims = (
+  claims: Claim[],
+  leafNodes: Buffer[],
+  tree: MerkleTree
+): ClaimWithProof[] => {
+  return claims.map((claim) => {
+    const merkleProof = getProof(claim, leafNodes, tree, claims)
+    return {
+      account: claim.account,
+      amount: claim.amount,
+      merkleProof,
+    }
+  })
+}
+
+const processNetwork = (
+  network: string,
+  claims: Rebate,
+  output: ClaimsPerNetwork
+) => {
+  // parse accounts into array
+  const claimsArray = parseAccounts(claims)
+
+  // create merkle tree
+  const { merkleTree, leafNodes } = createMerkleTree(claimsArray)
+
+  // iterate over all claims and get merkle proof for each claim
+  const claimsWithProof = processClaims(claimsArray, leafNodes, merkleTree)
+
+  // create formatted output
+  output[network] = {
+    merkleRoot: merkleTree.getHexRoot().toString(),
+    accounts: claimsWithProof,
+  }
 }
 
 const main = async () => {
-  if (!claimsFile) throw Error('Input file invalid')
+  const output: ClaimsPerNetwork = {}
 
-  // process input file and generate output JSON
-  processClaimsFile(claimsFile)
+  // parse input file
+  const claimsJson: GasRebates = claimsFile
+  if (!claimsJson) throw Error('Input file invalid')
+
+  // iterate over all networks
+  Object.entries(claimsJson).forEach(([network, accounts]) => {
+    console.log(`Now parsing network: ${network}`)
+    processNetwork(network, accounts, output)
+  })
+
+  // write formatted output to file
+  fs.writeFileSync(OUTPUT_PATH, JSON.stringify(output, null, 2))
+  console.log(`Output file written to ${OUTPUT_PATH}`)
 }
 
 main()

@@ -9,6 +9,7 @@ out = 'out'
 fs_permissions = [
   { access = "read", path = "./deployments/" },
   { access = "read", path = "./config/" },
+  { access = "read", path = "./script/" },
   { access = "read-write", path = "./test/logs/" },
 ]
 ffi = true

@@ -6,6 +6,7 @@ import { MerkleProof } from "@openzeppelin/contracts/utils/cryptography/MerklePr
 import { NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { console2 } from "forge-std/console2.sol";
 
 /// @title GasRebateDistributor
 /// @author LI.FI (https://li.fi)
@@ -49,6 +50,7 @@ contract GasRebateDistributor is TransferrableOwnership {
         merkleRoot = merkleRoot_;
         claimDeadline = deadline;
         tokenAddress = tokenAddress_;
+        _currentMerkleRootVersion = 1;
     }
 
     /// EXTERNAL FUNCTIONS ///
@@ -67,10 +69,16 @@ contract GasRebateDistributor is TransferrableOwnership {
         // check if claim deadline is expired
         if (block.timestamp > claimDeadline) revert ClaimDeadlineExpired();
 
+        console2.log("msg.sender: ", msg.sender);
+        console2.log("tokenAddress: ", tokenAddress);
+        console2.log("amount: ", amount);
+        console2.log("merkleRoot: ");
+        console2.logBytes32(merkleRoot);
+        console2.log("merkleProof: ");
+        console2.logBytes32(merkleProof[0]);
+
         // Verify the merkle proof
-        bytes32 node = keccak256(
-            abi.encodePacked(msg.sender, tokenAddress, amount)
-        );
+        bytes32 node = keccak256(abi.encodePacked(msg.sender, amount));
         if (!MerkleProof.verify(merkleProof, merkleRoot, node))
             revert InvalidProof();
 

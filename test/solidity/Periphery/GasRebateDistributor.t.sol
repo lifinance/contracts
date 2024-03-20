@@ -10,7 +10,8 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 contract GasRebateDistributorTest is Test {
     using stdJson for string;
     bytes32 public constant MERKLE_ROOT =
-        hex"9ed12d4853bf3e30a1ba277134dff1c5151356c49a9915c093900aad65bad525";
+        // hex"48610c6988ab1e1abe0a8726194432e735609c50ffbc4f35c0a176e95f1c67d7";
+        hex"b1a3e69afbb24ad2239e09935fdec19313f8b4b914e9a0cb8d956dab28464f0b";
 
     address public constant ADDRES_USDC_ETH =
         0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -22,10 +23,10 @@ contract GasRebateDistributorTest is Test {
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
 
     GasRebateDistributor public distributor;
+    ERC20 public usdc;
 
     struct ClaimWithProof {
         address account;
-        address tokenAddress;
         uint256 amount;
         bytes32[] merkleProof;
     }
@@ -38,6 +39,8 @@ contract GasRebateDistributorTest is Test {
     function setUp() public {
         // activate mainnet fork
         _fork();
+
+        usdc = ERC20(ADDRES_USDC_ETH);
 
         // deploy contract
         address owner = address(this);
@@ -53,7 +56,7 @@ contract GasRebateDistributorTest is Test {
         deal(
             ADDRES_USDC_ETH,
             address(distributor),
-            100000 * 10 ** ERC20(ADDRES_USDC_ETH).decimals()
+            100000 * 10 ** usdc.decimals()
         );
     }
 
@@ -84,7 +87,6 @@ contract GasRebateDistributorTest is Test {
 
     function _getMerkleProof(
         address account,
-        address tokenAddress,
         uint256 amount
     ) private view returns (bytes32[] memory merkleProof) {
         console.log("A");
@@ -94,11 +96,8 @@ contract GasRebateDistributorTest is Test {
         // iterate over all claims and find the matching one
         for (uint i; i < accounts.length; i++) {
             console.log(i);
-            if (
-                accounts[i].account == account &&
-                accounts[i].tokenAddress == tokenAddress &&
-                accounts[i].amount == amount
-            ) merkleProof = accounts[i].merkleProof;
+            if (accounts[i].account == account && accounts[i].amount == amount)
+                merkleProof = accounts[i].merkleProof;
         }
     }
 
@@ -106,30 +105,26 @@ contract GasRebateDistributorTest is Test {
         vm.startPrank(VALID_CLAIMER_1);
 
         // get initial native balance
-        uint256 initialBalance = address(VALID_CLAIMER_1).balance;
+        uint256 initialBalance = usdc.balanceOf(VALID_CLAIMER_1);
 
-        uint256 nativeClaimAmount = 5000000000000000000;
+        uint256 nativeClaimAmount = 8000000;
 
         // get merkle proof from input file
-        console.log("ERE");
         // bytes32[] memory merkleProof = _getMerkleProof(
         //     VALID_CLAIMER_1,
-        //     address(0),
         //     nativeClaimAmount
         // );
 
         bytes32[] memory merkleProof = new bytes32[](1);
         merkleProof[
             0
-        ] = hex"dfd7b5505f24c8b9ded73f1653c1e236ad6236b4408d07593bd1bb14424b3856";
+        ] = hex"8b795aba0c0dd676e6e109be0785907973939d81e185eebcf81ec130feda059e";
 
-        console.log("HERE");
         // call distributor contract
         distributor.claim(nativeClaimAmount, merkleProof);
-        console.log("THERE");
 
-        uint256 finalBalance = address(VALID_CLAIMER_1).balance;
-
+        // check final balance
+        uint256 finalBalance = usdc.balanceOf(VALID_CLAIMER_1);
         assertEq(initialBalance + nativeClaimAmount, finalBalance);
     }
 }

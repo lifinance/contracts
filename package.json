@@ -90,9 +90,12 @@
     "defender-relay-client": "^1.26.0",
     "enquirer": "^2.4.1",
     "hardhat-ethers": "^1.0.1",
+    "keccak256": "^1.0.6",
     "light-spinner": "^1.0.4",
+    "merkletreejs": "^0.3.11",
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
+    "web3": "^4.6.0",
     "yarn": "^1.22.19"
   },
   "lint-staged": {
