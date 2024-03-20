@@ -312,4 +312,17 @@ contract GasRebateDistributorTest is Test {
             ADDRES_USDT_ETH
         );
     }
+
+    function test_revert_ownerCanUnpauseContract() public {
+        // pause contract
+        vm.startPrank(contractOwner);
+        distributor.pauseContract();
+
+        assertEq(distributor.paused(), true);
+
+        // unpause contract
+        distributor.unpauseContract();
+
+        assertEq(distributor.paused(), false);
+    }
 }

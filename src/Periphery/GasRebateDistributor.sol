@@ -5,7 +5,6 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { MerkleProof } from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 import { Pausable } from "@openzeppelin/contracts/security/Pausable.sol";
 
 /// @title GasRebateDistributor
@@ -74,7 +73,7 @@ contract GasRebateDistributor is TransferrableOwnership, Pausable {
         _hasClaimed[msg.sender] = _currentMerkleRootVersion;
 
         // send specified and validated amount of tokens to caller
-        LibAsset.transferAsset(tokenAddress, payable(msg.sender), amount);
+        SafeERC20.safeTransfer(IERC20(tokenAddress), msg.sender, amount);
 
         emit Claimed(msg.sender, amount);
     }
@@ -125,10 +124,12 @@ contract GasRebateDistributor is TransferrableOwnership, Pausable {
         _currentMerkleRootVersion++;
     }
 
+    /// @notice Allows to pause the contract to stop claims and withdrawals for security purposes
     function pauseContract() external onlyOwner {
         _pause();
     }
 
+    /// @notice Allows to unpause the contract to stop claims and withdrawals for security purposes
     function unpauseContract() external onlyOwner {
         _unpause();
     }
