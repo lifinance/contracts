@@ -6,11 +6,13 @@ import { MerkleProof } from "@openzeppelin/contracts/utils/cryptography/MerklePr
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import { Pausable } from "@openzeppelin/contracts/security/Pausable.sol";
+
 /// @title GasRebateDistributor
 /// @author LI.FI (https://li.fi)
 /// @notice Contract to distribute gas rebates from a LI.FI marketing campaign
 /// @custom:version 1.0.0
-contract GasRebateDistributor is TransferrableOwnership {
+contract GasRebateDistributor is TransferrableOwnership, Pausable {
     /// Storage ///
 
     /// stores the root of the merkle tree that contains info about which account can claim which amount in which token
@@ -40,7 +42,7 @@ contract GasRebateDistributor is TransferrableOwnership {
         bytes32 merkleRoot_,
         uint256 deadline,
         address tokenAddress_
-    ) TransferrableOwnership(owner_) {
+    ) TransferrableOwnership(owner_) Pausable() {
         merkleRoot = merkleRoot_;
         claimDeadline = deadline;
         tokenAddress = tokenAddress_;
@@ -55,7 +57,7 @@ contract GasRebateDistributor is TransferrableOwnership {
     function claim(
         uint256 amount,
         bytes32[] calldata merkleProof
-    ) public virtual {
+    ) public virtual whenNotPaused {
         // check if account claimed already for the current merkle root version
         if (_hasClaimed[msg.sender] == _currentMerkleRootVersion)
             revert AlreadyClaimed();
@@ -84,7 +86,7 @@ contract GasRebateDistributor is TransferrableOwnership {
     function withdrawUnclaimed(
         address[] calldata tokenAddresses,
         address to
-    ) public onlyOwner {
+    ) public onlyOwner whenNotPaused {
         for (uint i; i < tokenAddresses.length; ) {
             // get current balance
             uint256 balance = IERC20(tokenAddresses[i]).balanceOf(
@@ -121,5 +123,13 @@ contract GasRebateDistributor is TransferrableOwnership {
 
         // increase the merkle root version
         _currentMerkleRootVersion++;
+    }
+
+    function pauseContract() external onlyOwner {
+        _pause();
+    }
+
+    function unpauseContract() external onlyOwner {
+        _unpause();
     }
 }

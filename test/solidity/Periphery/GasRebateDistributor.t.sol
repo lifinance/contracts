@@ -28,6 +28,7 @@ contract GasRebateDistributorTest is Test {
     ERC20 public usdc;
     ERC20 public usdt;
     uint256 public deadline;
+    address public contractOwner;
 
     struct ClaimWithProof {
         address account;
@@ -50,14 +51,15 @@ contract GasRebateDistributorTest is Test {
         // activate mainnet fork
         _fork();
 
+        contractOwner = address(this);
+
         usdc = ERC20(ADDRES_USDC_ETH);
         usdt = ERC20(ADDRES_USDT_ETH);
 
         // deploy contract
-        address owner = address(this);
         deadline = block.timestamp + 1000;
         distributor = new GasRebateDistributor(
-            owner,
+            contractOwner,
             MERKLE_ROOT,
             deadline,
             ADDRES_USDC_ETH
@@ -211,22 +213,41 @@ contract GasRebateDistributorTest is Test {
         distributor.claim(claimAmount, merkleProof);
     }
 
+    function test_revert_cannotClaimWhenContractIsPaused() public {
+        // pause contract
+        vm.startPrank(contractOwner);
+        distributor.pauseContract();
+
+        assertEq(distributor.paused(), true);
+
+        // try to claim
+        uint256 claimAmount = 8000000;
+
+        // get merkle proof
+        bytes32[] memory merkleProof = _getValidMerkleProofClaimer1();
+
+        vm.expectRevert("Pausable: paused");
+
+        // call distributor contract
+        distributor.claim(claimAmount, merkleProof);
+    }
+
     /// Tests for function withdrawUnclaimed() ///
     function test_ownerCanWithdrawUnclaimed() public {
-        vm.startPrank(address(this));
+        vm.startPrank(contractOwner);
 
         uint256 initialBalanceDistributor = usdc.balanceOf(
             address(distributor)
         );
-        uint256 initialBalanceTestContract = usdc.balanceOf(address(this));
+        uint256 initialBalanceTestContract = usdc.balanceOf(contractOwner);
 
         address[] memory addresses = new address[](1);
         addresses[0] = ADDRES_USDC_ETH;
 
-        distributor.withdrawUnclaimed(addresses, address(this));
+        distributor.withdrawUnclaimed(addresses, contractOwner);
 
         assertEq(
-            usdc.balanceOf(address(this)),
+            usdc.balanceOf(contractOwner),
             initialBalanceTestContract + initialBalanceDistributor
         );
     }
@@ -239,13 +260,29 @@ contract GasRebateDistributorTest is Test {
 
         vm.expectRevert(UnAuthorized.selector);
 
-        distributor.withdrawUnclaimed(addresses, address(this));
+        distributor.withdrawUnclaimed(addresses, contractOwner);
+    }
+
+    function test_revert_cannotWithdrawWhenContractIsPaused() public {
+        // pause contract
+        vm.startPrank(contractOwner);
+        distributor.pauseContract();
+
+        assertEq(distributor.paused(), true);
+
+        // prepare arguments (try to withdraw all USDC balance)
+        address[] memory addresses = new address[](1);
+        addresses[0] = ADDRES_USDC_ETH;
+
+        // try to withdraw
+        vm.expectRevert("Pausable: paused");
+        distributor.withdrawUnclaimed(addresses, contractOwner);
     }
 
     /// Tests for function updateMerkleRoot() ///
 
     function test_ownerCanUpdateMerkleRoot() public {
-        vm.startPrank(address(this));
+        vm.startPrank(contractOwner);
 
         uint256 newDeadline = block.timestamp + 5000;
 
