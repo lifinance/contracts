@@ -17,6 +17,14 @@ interface UniswapV2Router02 {
         uint256 deadline
     ) external;
 
+    function swapTokensForExactTokens(
+        uint256 amountOut,
+        uint256 amountInMax,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external;
+
     function swapExactTokensForETH(
         uint256 amountIn,
         uint256 amountOutMin,
