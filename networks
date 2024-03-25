@@ -9,7 +9,6 @@ fantom
 fuse
 gnosis
 linea
-localanvil
 metis
 moonbeam
 moonriver
@@ -23,3 +22,4 @@ bsc-testnet
 lineatest
 mumbai
 sepolia
+localanvil
