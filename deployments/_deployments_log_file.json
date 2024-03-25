@@ -15695,6 +15695,33 @@
           }
         ]
       }
+    },
+    "boba": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb8C5408ED5f40ca8df929A50DD36b252B6b39f76",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-03-25 11:56:27",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ca506793a420e901bbca8066be5661e3c52c84c2000000000000000000000000d92ca299f1c2518e78e48c207b64591ba6e9b9a8",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9209f20CEab76c53F41348393BC0E8adFC6C6241",
+            "OPTIMIZER_RUNS": "10000",
+            "TIMESTAMP": "2024-03-25 09:14:00",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000038307cb291af47af9847c134a34e9477c939ca280000000000000000000000008ca239448add34b057d1cb5934f12ac899db66e1",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "TokenWrapper": {
