@@ -101,7 +101,7 @@
         "Name": "",
         "Version": ""
       },
-      "0x1a881c0de5Fd8C1b838f64B34d57Fc9189048634": {
+      "0xC34b1387F1b6F6E58a2D708780934DaB84e6aA2e": {
         "Name": "SquidFacet",
         "Version": "0.0.4"
       },
@@ -109,12 +109,12 @@
         "Name": "AcrossFacetPacked",
         "Version": "1.0.0"
       },
-      "0xE500dED7b9C9f1020870B7a6Db076Dbd892C0fea": {
-        "Name": "DeBridgeDlnFacet",
-        "Version": "1.0.0"
-      },
       "0x7ac3EB2D191EBAb9E925CAbFD4F8155be066b3aa": {
         "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
+      },
+      "0xE500dED7b9C9f1020870B7a6Db076Dbd892C0fea": {
+        "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       }
     },
@@ -126,7 +126,7 @@
       "Receiver": "0x6aDF98E613703d628361B340eC22Bf35ec3ee122",
       "RelayerCelerIM": "0x9d3573b1d85112446593f617f1f3eb5ec1778D27",
       "ServiceFeeCollector": "0x9cc3164f01ED3796Fdf7Da538484D634608D2203",
-      "TokenWrapper": ""
+      "TokenWrapper": "0x888C42f345c25e276327504CE2F1Da6a9C60c73E"
     }
   }
 }

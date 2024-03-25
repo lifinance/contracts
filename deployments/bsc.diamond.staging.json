@@ -45,9 +45,9 @@
         "Name": "",
         "Version": ""
       },
-      "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0x5Ba4FeD1DAd2fD057A9f687B399B8e4cF2368214": {
+        "Name": "",
+        "Version": ""
       },
       "0xAfcC5c55d5Ec3082675D51331E7Ed9AdE195db48": {
         "Name": "StargateFacet",
@@ -57,21 +57,17 @@
         "Name": "ThorSwapFacet",
         "Version": "0.0.3"
       },
-      "0xa1Be6Aaa705545f79735d42852e77720B168392e": {
-        "Name": "",
-        "Version": ""
+      "0xC34b1387F1b6F6E58a2D708780934DaB84e6aA2e": {
+        "Name": "SquidFacet",
+        "Version": "0.0.4"
       },
       "0x7ac3EB2D191EBAb9E925CAbFD4F8155be066b3aa": {
         "Name": "AmarokFacetPacked",
         "Version": "1.0.0"
       },
-      "0xa6aAe470E7B8E8916e692882A5db25bB40C398A7": {
-        "Name": "",
-        "Version": ""
-      },
-      "0xa1Be6Aaa705545f79735d42852e77720B168392e": {
-        "Name": "SquidFacet",
-        "Version": "0.0.3"
+      "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -81,7 +77,8 @@
       "LiFuelFeeCollector": "",
       "Receiver": "0x76EE0F8fb09047284B6ea89881595Fc6F5B09E12",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d"
+      "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d",
+      "TokenWrapper": ""
     }
   }
 }
