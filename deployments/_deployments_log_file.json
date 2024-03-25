@@ -15722,6 +15722,20 @@
           }
         ]
       }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xA66abf226CC230eDBDeFf85C1874Ac7A9A637072",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-03-25 12:53:59",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f85fc807d05d3ab2309364226970aac57b4e1ea4000000000000000000000000cd7c056b39ddfb568e451923abedb9b6a7aeb885",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "TokenWrapper": {

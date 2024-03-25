@@ -18,5 +18,6 @@
   "StargateFacet": "0x36C5c79dBa87e22B85F9aE72604Daf2843704470",
   "AmarokFacetPacked": "0x20aaBc10646dF4740279cd5C2a035519cac4E328",
   "TokenWrapper": "0x01bDf46A673FC3c081ddBD21cb51fBA4972d00aC",
-  "LiFuelFeeCollector": "0x0c27cc2a3F78739FFa6b5Fd092aeCadcfEF7c0Be"
+  "LiFuelFeeCollector": "0x0c27cc2a3F78739FFa6b5Fd092aeCadcfEF7c0Be",
+  "SymbiosisFacet": "0xA66abf226CC230eDBDeFf85C1874Ac7A9A637072"
 }

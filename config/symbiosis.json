@@ -46,5 +46,9 @@
   "scroll": {
     "metaRouter": "0x624FFe62eBa13e6057878bCA1D7A9E35651E1D9c",
     "gateway": "0x49952ff32FcBc3408D447E1E91Da2b44BD2D1AFE"
+  },
+  "metis": {
+    "metaRouter": "0xf85FC807D05d3Ab2309364226970aAc57b4e1ea4",
+    "gateway": "0xcd7C056b39DdFB568E451923ABEDb9B6a7Aeb885"
   }
 }
