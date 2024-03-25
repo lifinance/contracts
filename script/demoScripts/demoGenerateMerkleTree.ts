@@ -1,10 +1,8 @@
-import keccak256 from 'keccak256'
 import MerkleTree from 'merkletreejs'
-import Web3 from 'web3'
 import claimsFile from '../resources/gasRebates.json'
 import fs from 'fs'
+import { keccak256, defaultAbiCoder } from 'ethers/lib/utils'
 
-const web3 = new Web3()
 const OUTPUT_PATH = './script/output/outputMerkleProofs.json'
 
 // input types
@@ -52,7 +50,7 @@ const createMerkleTree = (claims: Claim[]) => {
 
 function getProof(
   claim: Claim,
-  leafNodes: Buffer[],
+  leafNodes: string[],
   tree: MerkleTree,
   allClaims: Claim[]
 ) {
@@ -71,13 +69,16 @@ function getProof(
 
 const parseAccounts = (accounts: Rebate): Claim[] => {
   return Object.entries(accounts).map(([account, amount]) => {
-    return { account, amount: web3.eth.abi.encodeParameter('uint256', amount) }
+    return {
+      account,
+      amount: defaultAbiCoder.encode(['uint256'], [amount]),
+    }
   })
 }
 
 const processClaims = (
   claims: Claim[],
-  leafNodes: Buffer[],
+  leafNodes: string[],
   tree: MerkleTree
 ): ClaimWithProof[] => {
   return claims.map((claim) => {
