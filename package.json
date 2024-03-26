@@ -52,6 +52,7 @@
     "solidity-coverage": "^0.7.20",
     "ts-generator": "^0.1.1",
     "ts-node": "^10.7.0",
+    "tsx": "^4.7.0",
     "typechain": "^8.0.0",
     "typescript": "4.8.4",
     "zksync-web3": "^0.14.3"
@@ -75,7 +76,8 @@
     "execute": "node ./_scripts.js run",
     "abi:generate": "make clean && forge build --skip script --skip test --skip Base --skip Test && hardhat diamondABI",
     "typechain": "make clean && forge build --skip script --skip test --skip Base --skip Test && typechain --target ethers-v5 'out/**/*.json' --out-dir typechain",
-    "codegen": "plop"
+    "codegen": "plop",
+    "script:master": "tsx script/scriptMaster.ts"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
@@ -86,6 +88,7 @@
     "@uma/sdk": "^0.22.1",
     "@uniswap/sdk": "^3.0.3",
     "chalk": "4.1.2",
+    "consola": "^3.2.3",
     "defender-relay-client": "^1.26.0",
     "enquirer": "^2.4.1",
     "hardhat-ethers": "^1.0.1",
@@ -93,7 +96,9 @@
     "merkletreejs": "^0.3.11",
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
-    "yarn": "^1.22.19"
+    "viem": "^2.4.1",
+    "yarn": "^1.22.19",
+    "zx": "^7.2.3"
   },
   "lint-staged": {
     "*.{ts,js}": [
