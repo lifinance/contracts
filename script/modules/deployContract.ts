@@ -50,7 +50,25 @@ export default async () => {
   // Get the chain item from the object array
   const chain: Chain = (await import('viem/chains'))[chainChoice] as Chain
 
-  const rpcUrl = chain.rpcUrls.default.http[0]
+  let rpcUrl = process.env[`ETH_NODE_URI_${chainChoice.toUpperCase()}`]
+
+  if (!rpcUrl) {
+    rpcUrl = chain.rpcUrls.default.http[0]
+  }
+
+  // Get correct CREATE3_FACTORY_ADDRESS
+  let CREATE3_FACTORY_ADDRESS: string
+  switch (chainChoice) {
+    case 'metis':
+      CREATE3_FACTORY_ADDRESS = '0x763f212f355433C59d734C71247d16fCE74D8785'
+      break
+    case 'linea':
+      CREATE3_FACTORY_ADDRESS = '0x8437A5fE47A4Df14700c96DF1870824e72FA8499'
+      break
+    default:
+      CREATE3_FACTORY_ADDRESS = '0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1'
+      break
+  }
 
   // Run the deploy script with forge e.g await $`forge script script/deploy/facets/DeploySomeScript.sol`
   try {
@@ -63,11 +81,9 @@ export default async () => {
     const runCallData = await spinner(
       'Setting up deploy parameters...',
       () =>
-        $`cast calldata "run(address,address,string,string,bool)" ${DEPLOYER_WALLET_ADDRESS} ${
-          process.env.CREATE3_FACTORY_ADDRESS
-        } ${chainChoice} "${process.env.SALT || ''}" ${
-          process.env.PRODUCTION ? true : false
-        }`
+        $`cast calldata "run(address,address,string,string,bool)" ${DEPLOYER_WALLET_ADDRESS} ${CREATE3_FACTORY_ADDRESS} ${chainChoice} "${
+          process.env.SALT || ''
+        }" ${process.env.PRODUCTION ? true : false}`
     )
 
     // Setup the forge arguments
@@ -175,6 +191,10 @@ const updateLogs = async (
 ) => {
   await spinner('Updating logs', async () => {
     // Add or update the key"<contractName>": "<address>" the json in ./deployments/<network>.json
+    // If the file does not exist create it
+    if (!fs.existsSync(`./deployments/${network}.json`)) {
+      await fs.writeFile(`./deployments/${network}.json`, '{}')
+    }
     const deployments = JSON.parse(
       await fs.readFile(`./deployments/${network}.json`, 'utf8')
     )
@@ -212,7 +232,7 @@ const updateLogs = async (
     logFile[contractName][network][env] = {}
   }
   if (!logFile[contractName][network][env][version]) {
-    logFile[contractName][network][env][version] = {}
+    logFile[contractName][network][env][version] = []
   }
   // Search the items in <contractName>.<network>.<env>.<version>[] and if there is an entry with the same ADRESS as log.ADDRESS then skip
   const logFileItem = logFile[contractName][network][env][version].find(

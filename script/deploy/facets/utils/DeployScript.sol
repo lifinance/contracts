@@ -33,12 +33,12 @@ abstract contract DeployScript is Script {
         );
         address predicted = factory.getDeployed(_deployerAddress, salt);
 
-        vm.startBroadcast();
-
         if (isDeployed(predicted)) {
             deployed = predicted;
             return (deployed, constructorArgs);
         }
+
+        vm.startBroadcast();
 
         deployed = factory.deploy(
             salt,

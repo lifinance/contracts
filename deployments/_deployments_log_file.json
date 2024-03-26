@@ -3130,6 +3130,20 @@
           }
         ]
       }
+    },
+    "sepolia": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb6A4De0E018AA1E578a3d836C3F7CE7Df9836462",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-03-26 08:29:28",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": true
+          }
+        ]
+      }
     }
   },
   "PeripheryRegistryFacet": {
