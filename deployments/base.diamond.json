@@ -85,6 +85,10 @@
         "Name": "AmarokFacet",
         "Version": "2.0.0"
       },
+      "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB": {
+        "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
+      },
       "0x9b3C5C83b0E1415BA91bBc9486102e80362F0629": {
         "Name": "AllBridgeFacet",
         "Version": "2.0.0"

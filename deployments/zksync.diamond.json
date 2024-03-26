@@ -36,6 +36,10 @@
       "0xC10CF1C23e20e3FE6f0b224Bc2E16C9ACabfEBB9": {
         "Name": "AcrossFacetPacked",
         "Version": "1.0.0"
+      },
+      "0x9209f20CEab76c53F41348393BC0E8adFC6C6241": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
