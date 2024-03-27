@@ -39,7 +39,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         string calldata _referrer,
         address payable _receiver,
         uint256 _minAmountOut,
-        LibSwap.SwapData calldata _swapData // TODO: do we need refundExcessNative here?
+        LibSwap.SwapData calldata _swapData
     ) external payable returns (uint256 amountOut) {
         // deposit funds
         IERC20(_swapData.sendingAssetId).safeTransferFrom(
@@ -50,8 +50,6 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // ensure that contract (callTo) and function selector are whitelisted
         if (
-            // !((LibAsset.isNativeAsset(_swapData.sendingAssetId) || // TODO: confirm that we can safely remove this
-            // LibAllowList.contractIsAllowed(_swapData.approveTo)) && // TODO: confirm that we can safely remove this
             !(LibAllowList.contractIsAllowed(_swapData.callTo) &&
                 LibAllowList.selectorIsAllowed(bytes4(_swapData.callData[:4])))
         ) revert ContractCallNotAllowed();
@@ -115,7 +113,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         string calldata _referrer,
         address payable _receiver,
         uint256 _minAmountOut,
-        LibSwap.SwapData calldata _swapData // TODO: do we need refundExcessNative here?
+        LibSwap.SwapData calldata _swapData
     ) external payable {
         // deposit funds
         IERC20(_swapData.sendingAssetId).safeTransferFrom(
@@ -126,8 +124,6 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // ensure that contract (callTo) and function selector are whitelisted
         if (
-            // !((LibAsset.isNativeAsset(_swapData.sendingAssetId) || // TODO: confirm that we can safely remove this
-            // LibAllowList.contractIsAllowed(_swapData.approveTo)) && // TODO: confirm that we can safely remove this
             !(LibAllowList.contractIsAllowed(_swapData.callTo) &&
                 LibAllowList.selectorIsAllowed(bytes4(_swapData.callData[:4])))
         ) revert ContractCallNotAllowed();
@@ -190,12 +186,9 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
-    ) external payable refundExcessNative(_receiver) {
-        // TODO: do we need refundExcessNative here?
+    ) external payable {
         // ensure that contract (callTo) and function selector are whitelisted
         if (
-            // !((LibAsset.isNativeAsset(_swapData.sendingAssetId) || // TODO: confirm that we can safely remove this
-            // LibAllowList.contractIsAllowed(_swapData.approveTo)) && // TODO: confirm that we can safely remove this
             !(LibAllowList.contractIsAllowed(_swapData.callTo) &&
                 LibAllowList.selectorIsAllowed(bytes4(_swapData.callData[:4])))
         ) revert ContractCallNotAllowed();
@@ -247,7 +240,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     //----------------------------------------------------------------------------------------------------------------
     //----------------------------------------------------------------------------------------------------------------
 
-    /// @notice Performs multiple swaps in one transaction
+    /// @notice Performs multiple swaps (of any kind) in one transaction
     /// @param _transactionId the transaction id associated with the operation
     /// @param _integrator the name of the integrator
     /// @param _referrer the address of the referrer

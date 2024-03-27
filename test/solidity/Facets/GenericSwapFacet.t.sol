@@ -381,7 +381,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         vm.stopPrank();
     }
 
-    function test_CanSwapSingleNativeToERC() public {
+    function test_CanSwapSingleNativeToERC20() public {
         vm.startPrank(USDC_HOLDER);
 
         // Swap native to USDC
