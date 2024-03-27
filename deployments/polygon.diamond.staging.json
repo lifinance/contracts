@@ -103,7 +103,7 @@
       },
       "0xE500dED7b9C9f1020870B7a6Db076Dbd892C0fea": {
         "Name": "DeBridgeDlnFacet",
-        "Version: "1.0.0"
+        "Version": "1.0.0"
       },
       "0x7ac3EB2D191EBAb9E925CAbFD4F8155be066b3aa": {
         "Name": "AmarokFacetPacked",
@@ -117,7 +117,9 @@
       "LiFuelFeeCollector": "0x86130169737b68fAF1b619A75c92205784601Da6",
       "Receiver": "0x6aDF98E613703d628361B340eC22Bf35ec3ee122",
       "RelayerCelerIM": "0x9d3573b1d85112446593f617f1f3eb5ec1778D27",
-      "ServiceFeeCollector": "0x9cc3164f01ED3796Fdf7Da538484D634608D2203"
+      "ServiceFeeCollector": "0x9cc3164f01ED3796Fdf7Da538484D634608D2203",
+      "TokenWrapper": "0x888C42f345c25e276327504CE2F1Da6a9C60c73E",
+      "GasRebateDistributor": ""
     }
   }
 }

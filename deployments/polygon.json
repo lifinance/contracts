@@ -43,5 +43,6 @@
   "CelerCircleBridgeFacet": "0x6731C946747bA54c78e7a65d416Cde39E478ECeb",
   "AcrossFacetPacked": "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9",
   "AmarokFacetPacked": "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB",
-  "SymbiosisFacet": "0xe12b2488c71432F9a116E9ac244D3Ef4c2386d3a"
+  "SymbiosisFacet": "0xe12b2488c71432F9a116E9ac244D3Ef4c2386d3a",
+  "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
 }
