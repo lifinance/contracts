@@ -1,0 +1,40 @@
+{
+  "mainnet": {
+    "merkleRoot": "0xb1a3e69afbb24ad2239e09935fdec19313f8b4b914e9a0cb8d956dab28464f0b",
+    "accounts": [
+      {
+        "account": "0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7",
+        "amount": "0x00000000000000000000000000000000000000000000000000000000007a1200",
+        "merkleProof": [
+          "0x8b795aba0c0dd676e6e109be0785907973939d81e185eebcf81ec130feda059e"
+        ]
+      },
+      {
+        "account": "0x4577a46A3eCf44E0ed44410B7793977ffbe22CE0",
+        "amount": "0x00000000000000000000000000000000000000000000000000000000002625a0",
+        "merkleProof": [
+          "0x67302220af8157c936a3bb5f48b7c6b7e14c8a2f30f2bc67a11a7b2f826c4a4f"
+        ]
+      }
+    ]
+  },
+  "bsc": {
+    "merkleRoot": "0x36fe7f7f4ab9cb7c2a36293cbe1d37aca4d8021b6f87ef8b518d34475c891919",
+    "accounts": [
+      {
+        "account": "0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7",
+        "amount": "0x00000000000000000000000000000000000000000000000000000000002625a0",
+        "merkleProof": [
+          "0xfa4a9a72daea98757e27bd57e7ef6bca5177b8adddc97b6c8de1cbd20ad6059f"
+        ]
+      },
+      {
+        "account": "0x4577a46A3eCf44E0ed44410B7793977ffbe22CE0",
+        "amount": "0x00000000000000000000000000000000000000000000000000000000004c4b40",
+        "merkleProof": [
+          "0x63c27f2ec332e551886bf25c0712bea7f3c0a2c135518da2ebef663a90fc1be3"
+        ]
+      }
+    ]
+  }
+}
