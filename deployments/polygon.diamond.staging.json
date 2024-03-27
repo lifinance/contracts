@@ -57,9 +57,9 @@
         "Name": "DeBridgeFacet",
         "Version": "1.0.0"
       },
-      "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
+      "0xe7d990babD377327cEA6398118F9F2b8c21eD62A": {
         "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0xd4A311B310Ef2B1e534F7dBdB9a0B58140fAB9E1": {
         "Name": "HopFacet",
@@ -96,6 +96,14 @@
       "0x57F98A94AC66e197AF6776D5c094FF0da2C0B198": {
         "Name": "SynapseBridgeFacet",
         "Version": "1.0.0"
+      },
+      "0x761785Cd4aC49C00c47dd698B7dBA34a8082eC4e": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xC34b1387F1b6F6E58a2D708780934DaB84e6aA2e": {
+        "Name": "",
+        "Version": ""
       },
       "0x85DDB7E0e0E01F3aa21E373C35e847Ec80B58Fa4": {
         "Name": "AcrossFacetPacked",
