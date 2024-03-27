@@ -40,6 +40,8 @@ polygon = "${ETH_NODE_URI_POLYGON}"
 polygonzkevm = "${ETH_NODE_URI_POLYGONZKEVM}"
 velas = "${ETH_NODE_URI_VELAS}"
 metis = "${ETH_NODE_URI_METIS}"
+zksync = "${ETH_NODE_URI_ZKSYNC}"
+scroll = "${ETH_NODE_URI_SCROLL}"
 
 # testnets
 goerli = "${ETH_NODE_URI_GOERLI}"
@@ -70,6 +72,7 @@ polygonzkevm = { key = "${POLYGONZKEVM_ETHERSCAN_API_KEY}", url = "https://api-z
 base = { key = "${BASE_ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api" }
 linea = { key = "${LINEA_ETHERSCAN_API_KEY}", url = "https://api.lineascan.build/api" }
 metis = { key = "${METIS_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan" }
+scroll = { key = "${SCROLL_ETHERSCAN_API_KEY}", url = "https://api.scrollscan.com/api" }
 
 #testnets
 goerli = { key = "${MAINNET_ETHERSCAN_API_KEY}" }

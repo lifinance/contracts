@@ -32,6 +32,14 @@
       "0xa7aC6d44cC52B134b92Dd20015641138ba6A3C16": {
         "Name": "CelerIMFacetMutable",
         "Version": "2.0.0"
+      },
+      "0xC10CF1C23e20e3FE6f0b224Bc2E16C9ACabfEBB9": {
+        "Name": "AcrossFacetPacked",
+        "Version": "1.0.0"
+      },
+      "0x9209f20CEab76c53F41348393BC0E8adFC6C6241": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -40,7 +48,8 @@
       "Receiver": "0xdeDB2DAe4a9BC63910a722a3b7DC930C7E6f6421",
       "FeeCollector": "0x8dBf6f59187b2EB36B980F3D8F4cFC6DC4E4642e",
       "ServiceFeeCollector": "0x3F0bD05C9A09FE07DB88aA2DD97f9d9fAf82994d",
-      "LiFuelFeeCollector": "0x4A751A91647CA1749d7ec505026427FF601C6966"
+      "LiFuelFeeCollector": "0x4A751A91647CA1749d7ec505026427FF601C6966",
+      "TokenWrapper": "0xf15485ada1a1826fA46225032b13F6A972eC73C1"
     }
   }
 }

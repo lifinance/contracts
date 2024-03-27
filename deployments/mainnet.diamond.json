@@ -61,9 +61,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
+      "0x41bDcf7A9695ba3994cCA53d529DE23f54881D7F": {
         "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xd84d9A8Bf830496C4DEc917bC27D22E09E01cB8A": {
         "Name": "HopFacet",
@@ -129,7 +129,8 @@
       "Receiver": "0x050e198E36A73a1e32F15C3afC58C4506d82f657",
       "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
-      "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE"
+      "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
 }
