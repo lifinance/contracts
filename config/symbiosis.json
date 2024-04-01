@@ -35,7 +35,7 @@
     "metaRouter": "0xa260E3732593E4EcF9DdC144fD6C4c5fe7077978",
     "gateway": "0xAb83653fd41511D638b69229afBf998Eb9B0F30c"
   },
-  "zkSync": {
+  "zksync": {
     "metaRouter": "0x38307CB291Af47Af9847c134a34E9477c939Ca28",
     "gateway": "0x8cA239448AdD34b057D1CB5934F12AC899DB66e1"
   },
@@ -46,5 +46,9 @@
   "scroll": {
     "metaRouter": "0x624FFe62eBa13e6057878bCA1D7A9E35651E1D9c",
     "gateway": "0x49952ff32FcBc3408D447E1E91Da2b44BD2D1AFE"
+  },
+  "metis": {
+    "metaRouter": "0xf85FC807D05d3Ab2309364226970aAc57b4e1ea4",
+    "gateway": "0xcd7C056b39DdFB568E451923ABEDb9B6a7Aeb885"
   }
 }

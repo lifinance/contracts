@@ -48,13 +48,18 @@
       "0x20aaBc10646dF4740279cd5C2a035519cac4E328": {
         "Name": "AmarokFacetPacked",
         "Version": "1.0.0"
+      },
+      "0xA66abf226CC230eDBDeFf85C1874Ac7A9A637072": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x88BFF60dFB4382dfb8da7dD5caC23397350D2078",
       "Executor": "0x6696F031C099dE6089427ceBFb38258feA6fdaFE",
       "FeeCollector": "0x821Dfa5537Ab91b02271d92049B2fF7edE2Be86C",
-      "LiFuelFeeCollector": "0x0000000000000000000000000000000000001234",
+      "GasRebateDistributor": "",
+      "LiFuelFeeCollector": "0x0c27cc2a3F78739FFa6b5Fd092aeCadcfEF7c0Be",
       "Receiver": "0x0a4D7f27e8d24625eCb8d29d6445934a440A05E0",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "",
