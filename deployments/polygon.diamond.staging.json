@@ -57,9 +57,9 @@
         "Name": "DeBridgeFacet",
         "Version": "1.0.0"
       },
-      "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0xc8B076993038Beeab5F99748265c1A95fdFd5Dc2": {
+        "Name": "",
+        "Version": ""
       },
       "0xd4A311B310Ef2B1e534F7dBdB9a0B58140fAB9E1": {
         "Name": "HopFacet",
