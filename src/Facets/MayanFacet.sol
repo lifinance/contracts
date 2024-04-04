@@ -25,7 +25,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         0x3383cb0c0c60fc12b717160b699a55db62c56baed78a0ff9ebed68e1b003d38c;
     uint16 internal constant MAYAN_CHAIN_ID = 1;
 
-    IMayan public immutable mayanBridge;
+    IMayan public immutable mayan;
 
     /// Types ///
 
@@ -83,8 +83,8 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Constructor ///
 
     /// @notice Constructor for the contract.
-    constructor(IMayan _mayanBridge) {
-        mayanBridge = _mayanBridge;
+    constructor(IMayan _mayan) {
+        mayan = _mayan;
     }
 
     /// Init ///
@@ -122,10 +122,10 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via Mayan
     /// @param _bridgeData The core information needed for bridging
-    /// @param _mayanBridgeData Data specific to Mayan
+    /// @param _mayanData Data specific to Mayan
     function startBridgeTokensViaMayan(
         ILiFi.BridgeData memory _bridgeData,
-        MayanData calldata _mayanBridgeData
+        MayanData calldata _mayanData
     )
         external
         payable
@@ -135,25 +135,25 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
-        uint256 totalFees = _mayanBridgeData.swapFee +
-            _mayanBridgeData.redeemFee +
-            _mayanBridgeData.refundFee;
+        uint256 totalFees = _mayanData.swapFee +
+            _mayanData.redeemFee +
+            _mayanData.refundFee;
 
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
-        _startBridge(_bridgeData, _mayanBridgeData, totalFees);
+        _startBridge(_bridgeData, _mayanData, totalFees);
     }
 
     /// @notice Performs a swap before bridging via Mayan
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _mayanBridgeData Data specific to Mayan
+    /// @param _mayanData Data specific to Mayan
     function swapAndStartBridgeTokensViaMayan(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        MayanData calldata _mayanBridgeData
+        MayanData calldata _mayanData
     )
         external
         payable
@@ -163,9 +163,9 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        uint256 totalFees = _mayanBridgeData.swapFee +
-            _mayanBridgeData.redeemFee +
-            _mayanBridgeData.refundFee;
+        uint256 totalFees = _mayanData.swapFee +
+            _mayanData.redeemFee +
+            _mayanData.refundFee;
         address assetId = _bridgeData.sendingAssetId;
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -174,17 +174,17 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             payable(msg.sender),
             LibAsset.isNativeAsset(assetId) ? 0 : totalFees
         );
-        _startBridge(_bridgeData, _mayanBridgeData, totalFees);
+        _startBridge(_bridgeData, _mayanData, totalFees);
     }
 
     /// Internal Methods ///
 
     /// @dev Contains the business logic for the bridge via Mayan
     /// @param _bridgeData The core information needed for bridging
-    /// @param _mayanBridgeData Data specific to Mayan
+    /// @param _mayanData Data specific to Mayan
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        MayanData calldata _mayanBridgeData,
+        MayanData calldata _mayanData,
         uint256 _totalFees
     ) internal {
         uint16 whDestChainId = getWormholeChainId(
@@ -192,51 +192,51 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         IMayan.RelayerFees memory relayerFees = IMayan.RelayerFees({
-            swapFee: _mayanBridgeData.swapFee,
-            redeemFee: _mayanBridgeData.redeemFee,
-            refundFee: _mayanBridgeData.refundFee
+            swapFee: _mayanData.swapFee,
+            redeemFee: _mayanData.redeemFee,
+            refundFee: _mayanData.refundFee
         });
 
         IMayan.Recepient memory recipient = IMayan.Recepient({
-            mayanAddr: _mayanBridgeData.mayanAddr,
+            mayanAddr: _mayanData.mayanAddr,
             mayanChainId: MAYAN_CHAIN_ID,
             auctionAddr: MAYAN_AUCTION_ADDRESS,
-            destAddr: _mayanBridgeData.receiver,
+            destAddr: _mayanData.receiver,
             destChainId: whDestChainId,
-            referrer: _mayanBridgeData.referrer,
-            refundAddr: _mayanBridgeData.receiver
+            referrer: _mayanData.referrer,
+            refundAddr: _mayanData.receiver
         });
 
         IMayan.Criteria memory criteria = IMayan.Criteria({
-            transferDeadline: _mayanBridgeData.transferDeadline,
-            swapDeadline: _mayanBridgeData.swapDeadline,
-            amountOutMin: _mayanBridgeData.amountOutMin,
-            unwrap: _mayanBridgeData.unwrap,
-            gasDrop: _mayanBridgeData.gasDrop,
+            transferDeadline: _mayanData.transferDeadline,
+            swapDeadline: _mayanData.swapDeadline,
+            amountOutMin: _mayanData.amountOutMin,
+            unwrap: _mayanData.unwrap,
+            gasDrop: _mayanData.gasDrop,
             customPayload: ""
         });
 
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
-                address(mayanBridge),
+                address(mayan),
                 _bridgeData.minAmount
             );
 
-            mayanBridge.swap(
+            mayan.swap(
                 relayerFees,
                 recipient,
-                _mayanBridgeData.tokenOutAddr,
+                _mayanData.tokenOutAddr,
                 whDestChainId,
                 criteria,
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount - _totalFees
             );
         } else {
-            mayanBridge.wrapAndSwapETH{ value: _bridgeData.minAmount }(
+            mayan.wrapAndSwapETH{ value: _bridgeData.minAmount }(
                 relayerFees,
                 recipient,
-                _mayanBridgeData.tokenOutAddr,
+                _mayanData.tokenOutAddr,
                 whDestChainId,
                 criteria
             );
@@ -246,7 +246,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             emit BridgeToNonEVMChain(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
-                _mayanBridgeData.receiver
+                _mayanData.receiver
             );
         }
 
