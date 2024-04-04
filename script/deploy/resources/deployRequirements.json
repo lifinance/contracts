@@ -332,15 +332,6 @@
       }
     }
   },
-  "WormholeFacet": {
-    "configData": {
-      "_router": {
-        "configFileName": "wormhole.json",
-        "keyInConfigFile": ".routers.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "AxelarExecutor": {
     "configData": {
       "_gateway": {
