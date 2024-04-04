@@ -3,22 +3,20 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { MayanBridgeFacet } from "lifi/Facets/MayanBridgeFacet.sol";
+import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("MayanBridgeFacet") {}
+    constructor() DeployScriptBase("MayanFacet") {}
 
     function run()
         public
-        returns (MayanBridgeFacet deployed, bytes memory constructorArgs)
+        returns (MayanFacet deployed, bytes memory constructorArgs)
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = MayanBridgeFacet(
-            deploy(type(MayanBridgeFacet).creationCode)
-        );
+        deployed = MayanFacet(deploy(type(MayanFacet).creationCode));
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {

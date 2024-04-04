@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-interface IMayanBridge {
+interface IMayan {
     struct RelayerFees {
         uint64 swapFee;
         uint64 redeemFee;

@@ -8,14 +8,14 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { IMayanBridge } from "../Interfaces/IMayanBridge.sol";
+import { IMayan } from "../Interfaces/IMayan.sol";
 import { UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
-/// @title MayanBridge Facet
+/// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Mayan Bridge
 /// @custom:version 1.0.0
-contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.mayan");
@@ -25,7 +25,7 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         0x3383cb0c0c60fc12b717160b699a55db62c56baed78a0ff9ebed68e1b003d38c;
     uint16 internal constant MAYAN_CHAIN_ID = 1;
 
-    IMayanBridge public immutable mayanBridge;
+    IMayan public immutable mayanBridge;
 
     /// Types ///
 
@@ -52,7 +52,7 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param destChainId The (wormhole) destination chain id
     /// @param unwrap Whether to unwrap the asset
     /// @param gasDrop The gas drop
-    struct MayanBridgeData {
+    struct MayanData {
         bytes32 mayanAddr;
         bytes32 referrer;
         bytes32 tokenOutAddr;
@@ -83,7 +83,7 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Constructor ///
 
     /// @notice Constructor for the contract.
-    constructor(IMayanBridge _mayanBridge) {
+    constructor(IMayan _mayanBridge) {
         mayanBridge = _mayanBridge;
     }
 
@@ -91,7 +91,7 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Initialize local variables for the Wormhole Facet
     /// @param configs Bridge configuration data
-    function initMayanBridge(Config[] calldata configs) external {
+    function initMayan(Config[] calldata configs) external {
         LibDiamond.enforceIsContractOwner();
 
         Storage storage sm = getStorage();
@@ -120,12 +120,12 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit MayanChainIdMapped(_lifiChainId, _wormholeChainId);
     }
 
-    /// @notice Bridges tokens via MayanBridge
+    /// @notice Bridges tokens via Mayan
     /// @param _bridgeData The core information needed for bridging
-    /// @param _mayanBridgeData Data specific to MayanBridge
-    function startBridgeTokensViaMayanBridge(
+    /// @param _mayanBridgeData Data specific to Mayan
+    function startBridgeTokensViaMayan(
         ILiFi.BridgeData memory _bridgeData,
-        MayanBridgeData calldata _mayanBridgeData
+        MayanData calldata _mayanBridgeData
     )
         external
         payable
@@ -146,14 +146,14 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData, _mayanBridgeData, totalFees);
     }
 
-    /// @notice Performs a swap before bridging via MayanBridge
+    /// @notice Performs a swap before bridging via Mayan
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _mayanBridgeData Data specific to MayanBridge
-    function swapAndStartBridgeTokensViaMayanBridge(
+    /// @param _mayanBridgeData Data specific to Mayan
+    function swapAndStartBridgeTokensViaMayan(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        MayanBridgeData calldata _mayanBridgeData
+        MayanData calldata _mayanBridgeData
     )
         external
         payable
@@ -179,26 +179,25 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Internal Methods ///
 
-    /// @dev Contains the business logic for the bridge via MayanBridge
+    /// @dev Contains the business logic for the bridge via Mayan
     /// @param _bridgeData The core information needed for bridging
-    /// @param _mayanBridgeData Data specific to MayanBridge
+    /// @param _mayanBridgeData Data specific to Mayan
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        MayanBridgeData calldata _mayanBridgeData,
+        MayanData calldata _mayanBridgeData,
         uint256 _totalFees
     ) internal {
         uint16 whDestChainId = getWormholeChainId(
             _bridgeData.destinationChainId
         );
 
-        IMayanBridge.RelayerFees memory relayerFees = IMayanBridge
-            .RelayerFees({
-                swapFee: _mayanBridgeData.swapFee,
-                redeemFee: _mayanBridgeData.redeemFee,
-                refundFee: _mayanBridgeData.refundFee
-            });
+        IMayan.RelayerFees memory relayerFees = IMayan.RelayerFees({
+            swapFee: _mayanBridgeData.swapFee,
+            redeemFee: _mayanBridgeData.redeemFee,
+            refundFee: _mayanBridgeData.refundFee
+        });
 
-        IMayanBridge.Recepient memory recipient = IMayanBridge.Recepient({
+        IMayan.Recepient memory recipient = IMayan.Recepient({
             mayanAddr: _mayanBridgeData.mayanAddr,
             mayanChainId: MAYAN_CHAIN_ID,
             auctionAddr: MAYAN_AUCTION_ADDRESS,
@@ -208,7 +207,7 @@ contract MayanBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             refundAddr: _mayanBridgeData.receiver
         });
 
-        IMayanBridge.Criteria memory criteria = IMayanBridge.Criteria({
+        IMayan.Criteria memory criteria = IMayan.Criteria({
             transferDeadline: _mayanBridgeData.transferDeadline,
             swapDeadline: _mayanBridgeData.swapDeadline,
             amountOutMin: _mayanBridgeData.amountOutMin,

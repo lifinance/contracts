@@ -2,12 +2,12 @@
 pragma solidity 0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap } from "../utils/TestBaseFacet.sol";
-import { MayanBridgeFacet } from "lifi/Facets/MayanBridgeFacet.sol";
-import { IMayanBridge } from "lifi/Interfaces/IMayanBridge.sol";
+import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
+import { IMayan } from "lifi/Interfaces/IMayan.sol";
 
-// Stub MayanBridgeFacet Contract
-contract TestMayanBridgeFacet is MayanBridgeFacet {
-    constructor(IMayanBridge _bridge) MayanBridgeFacet(_bridge) {}
+// Stub MayanFacet Contract
+contract TestMayanFacet is MayanFacet {
+    constructor(IMayan _bridge) MayanFacet(_bridge) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -18,11 +18,11 @@ contract TestMayanBridgeFacet is MayanBridgeFacet {
     }
 }
 
-contract MayanBridgeFacetTest is TestBaseFacet {
-    MayanBridgeFacet.MayanBridgeData internal validMayanBridgeData;
-    TestMayanBridgeFacet internal mayanBridgeFacet;
-    IMayanBridge internal MAYAN_BRIDGE =
-        IMayanBridge(0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d);
+contract MayanFacetTest is TestBaseFacet {
+    MayanFacet.MayanData internal validMayanData;
+    TestMayanFacet internal mayanBridgeFacet;
+    IMayan internal MAYAN_BRIDGE =
+        IMayan(0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d);
     address internal POLYGON_USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
     uint256 internal totalFees;
 
@@ -34,13 +34,13 @@ contract MayanBridgeFacetTest is TestBaseFacet {
         EXAMPLE_ALLOWED_TOKENS[0] = address(1);
         EXAMPLE_ALLOWED_TOKENS[1] = address(2);
 
-        mayanBridgeFacet = new TestMayanBridgeFacet(MAYAN_BRIDGE);
+        mayanBridgeFacet = new TestMayanFacet(MAYAN_BRIDGE);
         bytes4[] memory functionSelectors = new bytes4[](5);
         functionSelectors[0] = mayanBridgeFacet
-            .startBridgeTokensViaMayanBridge
+            .startBridgeTokensViaMayan
             .selector;
         functionSelectors[1] = mayanBridgeFacet
-            .swapAndStartBridgeTokensViaMayanBridge
+            .swapAndStartBridgeTokensViaMayan
             .selector;
         functionSelectors[2] = mayanBridgeFacet.addDex.selector;
         functionSelectors[3] = mayanBridgeFacet
@@ -51,7 +51,7 @@ contract MayanBridgeFacetTest is TestBaseFacet {
             .selector;
 
         addFacet(diamond, address(mayanBridgeFacet), functionSelectors);
-        mayanBridgeFacet = TestMayanBridgeFacet(address(diamond));
+        mayanBridgeFacet = TestMayanFacet(address(diamond));
         mayanBridgeFacet.addDex(ADDRESS_UNISWAP);
         mayanBridgeFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
@@ -65,17 +65,14 @@ contract MayanBridgeFacetTest is TestBaseFacet {
 
         mayanBridgeFacet.setMayanChainIdMapping(137, 5);
 
-        setFacetAddressInTestBase(
-            address(mayanBridgeFacet),
-            "MayanBridgeFacet"
-        );
+        setFacetAddressInTestBase(address(mayanBridgeFacet), "MayanFacet");
 
         // adjust bridgeData
         bridgeData.bridge = "mayanBridge";
         bridgeData.destinationChainId = 137;
 
-        // produce valid MayanBridgeData
-        validMayanBridgeData = MayanBridgeFacet.MayanBridgeData({
+        // produce valid MayanData
+        validMayanData = MayanFacet.MayanData({
             mayanAddr: 0x32f0af4069bde51a996d1250ef3f7c2431245b98e027b34aa5ca5ae435c435c9,
             referrer: bytes32(0),
             tokenOutAddr: bytes32(uint256(uint160(POLYGON_USDT))),
@@ -91,20 +88,20 @@ contract MayanBridgeFacetTest is TestBaseFacet {
         });
 
         totalFees =
-            validMayanBridgeData.redeemFee +
-            validMayanBridgeData.refundFee +
-            validMayanBridgeData.swapFee;
+            validMayanData.redeemFee +
+            validMayanData.refundFee +
+            validMayanData.swapFee;
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            mayanBridgeFacet.startBridgeTokensViaMayanBridge{
+            mayanBridgeFacet.startBridgeTokensViaMayan{
                 value: bridgeData.minAmount + totalFees
-            }(bridgeData, validMayanBridgeData);
+            }(bridgeData, validMayanData);
         } else {
-            mayanBridgeFacet.startBridgeTokensViaMayanBridge(
+            mayanBridgeFacet.startBridgeTokensViaMayan(
                 bridgeData,
-                validMayanBridgeData
+                validMayanData
             );
         }
     }
@@ -113,14 +110,14 @@ contract MayanBridgeFacetTest is TestBaseFacet {
         bool isNative
     ) internal override {
         if (isNative) {
-            mayanBridgeFacet.swapAndStartBridgeTokensViaMayanBridge{
+            mayanBridgeFacet.swapAndStartBridgeTokensViaMayan{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, validMayanBridgeData);
+            }(bridgeData, swapData, validMayanData);
         } else {
-            mayanBridgeFacet.swapAndStartBridgeTokensViaMayanBridge(
+            mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
                 bridgeData,
                 swapData,
-                validMayanBridgeData
+                validMayanData
             );
         }
     }

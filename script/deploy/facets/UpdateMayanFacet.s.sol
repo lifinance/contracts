@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
-import { MayanBridgeFacet } from "lifi/Facets/MayanBridgeFacet.sol";
+import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
@@ -18,12 +18,12 @@ contract DeployScript is UpdateScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        return update("MayanBridgeFacet");
+        return update("MayanFacet");
     }
 
     function getExcludes() internal pure override returns (bytes4[] memory) {
         bytes4[] memory excludes = new bytes4[](1);
-        excludes[0] = MayanBridgeFacet.initMayanBridge.selector;
+        excludes[0] = MayanFacet.initMayan.selector;
 
         return excludes;
     }
@@ -35,7 +35,7 @@ contract DeployScript is UpdateScriptBase {
         Config[] memory configs = abi.decode(rawConfig, (Config[]));
 
         bytes memory callData = abi.encodeWithSelector(
-            MayanBridgeFacet.initMayanBridge.selector,
+            MayanFacet.initMayan.selector,
             configs
         );
 

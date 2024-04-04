@@ -1,29 +1,29 @@
-# MayanBridge Facet
+# Mayan Facet
 
 ## How it works
 
-The MayanBridge Facet works by forwarding Mayan Bridge specific calls to the Mayan Token Bridge [contract](https://docs.mayan.finance/integration/contracts).
+The Mayan Facet works by forwarding Mayan specific calls to the Mayan Token Bridge [contract](https://docs.mayan.finance/integration/contracts).
 
 ```mermaid
 graph LR;
-    D{LiFiDiamond}-- DELEGATECALL -->MayanBridgeFacet;
-    MayanBridgeFacet -- CALL --> C(MayanBridge)
+    D{LiFiDiamond}-- DELEGATECALL -->MayanFacet;
+    MayanFacet -- CALL --> C(Mayan)
 ```
 
 ## Public Methods
 
-- `function startBridgeTokensViaMayanBridge(BridgeData calldata _bridgeData, MayanBridgeData calldata _mayanBridgeData)`
-  - Simply bridges tokens using mayanBridge
-- `swapAndStartBridgeTokensViamayanBridge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, mayanBridgeData memory _mayanBridgeData)`
-  - Performs swap(s) before bridging tokens using mayanBridge
+- `function startBridgeTokensViaMayan(BridgeData calldata _bridgeData, MayanData calldata _mayanData)`
+  - Simply bridges tokens using mayan
+- `swapAndStartBridgeTokensViamayan(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, mayanData memory _mayanData)`
+  - Performs swap(s) before bridging tokens using mayan
 
-## mayanBridge Specific Parameters
+## mayan Specific Parameters
 
-The methods listed above take a variable labeled `_mayanBridgeData`. This data is specific to mayanBridge and is represented as the following struct type:
+The methods listed above take a variable labeled `_mayanData`. This data is specific to mayan and is represented as the following struct type:
 
 ```solidity
 /// @dev Optional bridge specific struct
-/// @param mayanAddr The address of the Mayan Bridge
+/// @param mayanAddr The address of the Mayan
 /// @param referrer The referrer address
 /// @param tokenOutAddr The address of the token to be received
 /// @param receiver The address of the receiver
@@ -35,7 +35,7 @@ The methods listed above take a variable labeled `_mayanBridgeData`. This data i
 /// @param amountOutMin The minimum amount out
 /// @param unwrap Whether to unwrap the asset
 /// @param gasDrop The gas drop
-struct MayanBridgeData {
+struct MayanData {
   bytes32 mayanAddr;
   bytes32 referrer;
   bytes32 tokenOutAddr;
@@ -77,7 +77,7 @@ The quote result looks like the following:
 const quoteResult = {
   id: '0x...', // quote id
   type: 'lifi', // the type of the quote (all lifi contract calls have the type "lifi")
-  tool: 'mayanBridge', // the bridge tool used for the transaction
+  tool: 'mayan', // the bridge tool used for the transaction
   action: {}, // information about what is going to happen
   estimate: {}, // information about the estimated outcome of the call
   includedSteps: [], // steps that are executed by the contract as part of this transaction, e.g. a swap step and a cross step
@@ -111,5 +111,5 @@ curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDC
 To get a transaction for a transfer from 30 USDT on Avalanche to USDC on Binance you can execute the following request:
 
 ```shell
-curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=mayanBridge&fromAddress={YOUR_WALLET_ADDRESS}'
+curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=mayan&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
