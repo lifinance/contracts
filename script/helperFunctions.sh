@@ -538,7 +538,7 @@ function getContractInfoFromDiamondDeploymentLogByName() {
     # Loop through the array of top-level keys
     for PERIPHERY_CONTRACT in "${PERIPHERY_CONTRACTS[@]}"; do
 
-      # skip if contract name doesnt match with the one we are looking for
+      # skip if contract name doesn't match with the one we are looking for
       if [[ "$PERIPHERY_CONTRACT" != "$CONTRACT" ]]; then
         continue
       fi
