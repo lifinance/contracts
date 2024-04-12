@@ -2721,6 +2721,10 @@ function getChainId() {
     echo "137"
     return 0
     ;;
+  "polygonzkevm")
+    echo "1101"
+    return 0
+    ;;
   "gnosis")
     echo "100"
     return 0

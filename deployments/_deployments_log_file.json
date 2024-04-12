@@ -2626,7 +2626,7 @@
             "TIMESTAMP": "2024-03-07 12:14:40",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -11465,7 +11465,7 @@
             "TIMESTAMP": "2024-03-08 15:55:45",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000006b142227a277ce62808e0df93202483547ec0188",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -12908,7 +12908,7 @@
             "TIMESTAMP": "2023-07-20 16:46:01",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c1a2d967dfaa6a10f3461bc21864c23c1dd51eea000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -15644,12 +15644,12 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0xe12b2488c71432F9a116E9ac244D3Ef4c2386d3a",
+            "ADDRESS": "0x0107859E4Ee0Fc2b8f3c2A602264D95184cd297F",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-02-23 12:40:24",
+            "TIMESTAMP": "2024-04-11 17:19:38",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b91d3060c90aac7c4c706aef2b37997b3b2a1dcf000000000000000000000000668961f4923a4fb96b22ad1f18ae215bb2694593",
-            "SALT": "",
-            "VERIFIED": "false"
+            "SALT": "11042024",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -15886,7 +15886,7 @@
             "TIMESTAMP": "2024-03-10 17:34:13",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000e91d153e0b41518a2ce8dd3d7944fa863463a97d",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -15984,7 +15984,7 @@
             "TIMESTAMP": "2024-03-10 18:08:46",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c9bdeed33cd01541e1eed10f90519d2c06fe3feb",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
