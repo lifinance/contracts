@@ -63,7 +63,7 @@ celo = { key = "${CELO_ETHERSCAN_API_KEY}", url = "https://explorer.celo.org/api
 cronos = { key = "${CRONOS_ETHERSCAN_API_KEY}", url = "https://api.cronoscan.com/api" }
 fantom = { key = "${FANTOM_ETHERSCAN_API_KEY}", url = "https://api.ftmscan.com/api" }
 fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api" }
-gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://blockscout.com/poa/xdai/api" }
+gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://api.gnosisscan.io/api" }
 moonbeam = { key = "${MOONBEAM_ETHERSCAN_API_KEY}", url = "https://api-moonbeam.moonscan.io/api" }
 moonriver = { key = "${MOONRIVER_ETHERSCAN_API_KEY}", url = "https://api-moonriver.moonscan.io/api" }
 nova = { key = "${NOVA_ETHERSCAN_API_KEY}", url = "https://nova.arbiscan.io/api" }
