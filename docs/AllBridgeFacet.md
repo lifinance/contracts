@@ -4,7 +4,7 @@
 
 The AllBridge bridge facet works by forwarding calls to the AllBridge core contract on the source chain. It is possible to find the core contract addresses and token pools by curling [token-info endpoint](https://core.api.allbridgecoreapi.net/token-info).
 
-One feature that makes AllBridge different from other bridges is that it uses pools on either side of the bridge. This allows them to no having to have canonical representation on the destination chain. Thus for EVM based chain this means that the pool needs to be approved to spend the bridged tokens.
+One feature that makes AllBridge different from other bridges is that it uses pools on either side of the bridge. This allows them to avoid the need for a canonical representation on the destination chain. Thus for EVM based chain this means that the pool needs to be approved to spend the bridged tokens.
 
 Underneath, AllBridge can use different message protocols to transfer tokens. These are represented in an enum like
 
@@ -66,7 +66,7 @@ The `fees` field is the sum of two fees charged by AllBridge, namely
 
 Some methods accept a `SwapData _swapData` parameter.
 
-Swapping is performed by a swap specific library that expects an array of calldata to can be run on variaous DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
+Swapping is performed by a swap specific library that expects an array of calldata to can be run on various DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
 
 The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
