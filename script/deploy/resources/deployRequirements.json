@@ -45,6 +45,15 @@
       }
     }
   },
+  "AmarokFacetPacked": {
+    "configData": {
+      "_connextHandler": {
+        "configFileName": "amarok.json",
+        "keyInConfigFile": ".<NETWORK>.connextHandler",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "ArbitrumBridgeFacet": {
     "configData": {
       "_gatewayRouter": {
@@ -300,20 +309,25 @@
       }
     }
   },
+  "SymbiosisFacet": {
+    "configData": {
+      "_symbiosisMetaRouter": {
+        "configFileName": "symbiosis.json",
+        "keyInConfigFile": ".<NETWORK>.metaRouter",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_symbiosisGateway": {
+        "configFileName": "symbiosis.json",
+        "keyInConfigFile": ".<NETWORK>.gateway",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "ThorSwapFacet": {
     "configData": {
       "_thorchainRouter": {
         "configFileName": "thorswap.json",
         "keyInConfigFile": ".<NETWORK>.thorchainRouter",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "WormholeFacet": {
-    "configData": {
-      "_router": {
-        "configFileName": "wormhole.json",
-        "keyInConfigFile": ".routers.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
       }
     }

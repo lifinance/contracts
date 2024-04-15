@@ -96,16 +96,30 @@
       "0x57F98A94AC66e197AF6776D5c094FF0da2C0B198": {
         "Name": "SynapseBridgeFacet",
         "Version": "1.0.0"
+      },
+      "0x85DDB7E0e0E01F3aa21E373C35e847Ec80B58Fa4": {
+        "Name": "AcrossFacetPacked",
+        "Version": "1.0.0"
+      },
+      "0xE500dED7b9C9f1020870B7a6Db076Dbd892C0fea": {
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.0"
+      },
+      "0x7ac3EB2D191EBAb9E925CAbFD4F8155be066b3aa": {
+        "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x6c93D0F446356725E3a51906285044f8788c72f2",
       "Executor": "0x4f3B1b1075cC19daA15b7cc681b28e2fB82145eD",
       "FeeCollector": "0x0222D030e8DFAEDE2a4e7B5F181Ac1A4206A75f0",
+      "LiFuelFeeCollector": "0x86130169737b68fAF1b619A75c92205784601Da6",
       "Receiver": "0x6aDF98E613703d628361B340eC22Bf35ec3ee122",
       "RelayerCelerIM": "0x9d3573b1d85112446593f617f1f3eb5ec1778D27",
       "ServiceFeeCollector": "0x9cc3164f01ED3796Fdf7Da538484D634608D2203",
-      "LiFuelFeeCollector": "0x86130169737b68fAF1b619A75c92205784601Da6"
+      "TokenWrapper": "0x888C42f345c25e276327504CE2F1Da6a9C60c73E",
+      "GasRebateDistributor": ""
     }
   }
 }

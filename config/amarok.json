@@ -1,130 +1,440 @@
 {
+  "2": {
+    "chainId": 2,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "7": {
+    "chainId": 7,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "8": {
+    "chainId": 8,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "11": {
+    "chainId": 11,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "12": {
+    "chainId": 12,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "13": {
+    "chainId": 13,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "15": {
+    "chainId": 15,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "27": {
+    "chainId": 27,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "29": {
+    "chainId": 29,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "30": {
+    "chainId": 30,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "31": {
+    "chainId": 31,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "35": {
+    "chainId": 35,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "40": {
+    "chainId": 40,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "41": {
+    "chainId": 41,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "123": {
+    "chainId": 123,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "128": {
+    "chainId": 128,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "256": {
+    "chainId": 256,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "1287": {
+    "chainId": 1287,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "4002": {
+    "chainId": 4002,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "9000": {
+    "chainId": 9000,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "32659": {
+    "chainId": 32659,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "43113": {
+    "chainId": 43113,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "1313161554": {
+    "chainId": 1313161554,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "1666700000": {
+    "chainId": 1666700000,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
   "mainnet": {
+    "chainId": 1,
     "connextHandler": "0x8898B472C54c31894e3B9bb83cEA802a5d0e63C6",
-    "domain": "6648936"
-  },
-  "arbitrum": {
-    "connextHandler": "0xEE9deC2712cCE65174B561151701Bf54b99C24C8",
-    "domain": "1634886255"
-  },
-  "aurora": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "avalanche": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "base": {
-    "connextHandler": "0xB8448C6f7f7887D36DcA487370778e419e9ebE3F",
-    "domain": "1650553709"
-  },
-  "boba": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "bsc": {
-    "connextHandler": "0xCd401c10afa37d641d2F594852DA94C700e4F2CE",
-    "domain": "6450786"
-  },
-  "celo": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "cronos": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "evmos": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "fantom": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "fuse": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "gnosis": {
-    "connextHandler": "0x5bB83e95f63217CDa6aE3D181BA580Ef377D2109",
-    "domain": "6778479"
-  },
-  "harmony": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "linea": {
-    "connextHandler": "0xa05eF29e9aC8C75c530c2795Fa6A800e188dE0a9",
-    "domain": "1818848877"
-  },
-  "metis": {
-    "connextHandler": "0x6B142227A277CE62808E0Df93202483547Ec0188",
-    "domain": "1835365481"
-  },
-  "localanvil": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "moonbeam": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "1650811245"
-  },
-  "moonriver": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "nova": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "okx": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
-  },
-  "opbnb": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
+    "domain": "6648936",
+    "tokensToApprove": [
+      "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "0x9e32b13ce7f2e80a01932b42553652e053d6ed8e",
+      "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "0xdac17f958d2ee523a2206206994597c13d831ec7"
+    ]
   },
   "optimism": {
+    "chainId": 10,
     "connextHandler": "0x8f7492DE823025b4CfaAB1D34c58963F2af5DEDA",
-    "domain": "1869640809"
+    "domain": "1869640809",
+    "tokensToApprove": [
+      "0x4200000000000000000000000000000000000006",
+      "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
+      "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58",
+      "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1"
+    ]
+  },
+  "bsc": {
+    "chainId": 56,
+    "connextHandler": "0xCd401c10afa37d641d2F594852DA94C700e4F2CE",
+    "domain": "6450786",
+    "tokensToApprove": [
+      "0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3",
+      "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
+      "0x55d398326f99059ff775485246999027b3197955",
+      "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
+    ]
+  },
+  "gnosis": {
+    "chainId": 100,
+    "connextHandler": "0x5bB83e95f63217CDa6aE3D181BA580Ef377D2109",
+    "domain": "6778479",
+    "tokensToApprove": [
+      "0x4ecaba5870353805a9f068101a40e0f32ed605c6",
+      "0x6a023ccd1ff6f2045c3309768ead9e68f978f6e1",
+      "0xddafbb505ad214d7b80b1f830fccc89b60fb7a83",
+      "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d"
+    ]
   },
   "polygon": {
+    "chainId": 137,
     "connextHandler": "0x11984dc4465481512eb5b777E44061C158CF2259",
-    "domain": "1886350457"
+    "domain": "1886350457",
+    "tokensToApprove": [
+      "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+      "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619",
+      "0x8f3cf7ad23cd3cadbd9735aff958023239c6a063",
+      "0xc2132d05d31c914a87c6611c10748aeb04b58e8f"
+    ]
   },
-  "polygonzkevm": {
-    "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
+  "metis": {
+    "chainId": 1088,
+    "connextHandler": "0x6B142227A277CE62808E0Df93202483547Ec0188",
+    "domain": "1835365481",
+    "tokensToApprove": [
+      "0x420000000000000000000000000000000000000a",
+      "0xbb06dca3ae6887fabf931640f67cab3e3a16f4dc",
+      "0xea32a96608495e54156ae48931a7c20f0dcc1a21"
+    ]
   },
-  "velas": {
+  "mode": {
+    "chainId": 34443,
+    "connextHandler": "0x7380511493DD4c2f1dD75E9CCe5bD52C787D4B51",
+    "domain": 1836016741
+  },
+  "base": {
+    "chainId": 8453,
+    "connextHandler": "0xB8448C6f7f7887D36DcA487370778e419e9ebE3F",
+    "domain": "1650553709",
+    "tokensToApprove": [
+      "0x4200000000000000000000000000000000000006",
+      "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+    ]
+  },
+  "arbitrum": {
+    "chainId": 42161,
+    "connextHandler": "0xEE9deC2712cCE65174B561151701Bf54b99C24C8",
+    "domain": "1634886255",
+    "tokensToApprove": [
+      "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+      "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
+      "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+      "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8"
+    ]
+  },
+  "linea": {
+    "chainId": 59144,
+    "connextHandler": "0xa05eF29e9aC8C75c530c2795Fa6A800e188dE0a9",
+    "domain": "1818848877",
+    "tokensToApprove": [
+      "0x176211869ca2b568f2a7d4ee941e073a821ee1ff",
+      "0x4af15ec2a0bd43db75dd04e62faa3b8ef36b00d5",
+      "0xa219439258ca9da29e9cc4ce5596924745e12b93",
+      "0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f"
+    ]
+  },
+  "scroll": {
+    "chainId": 534352,
     "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
+    "domain": "",
+    "tokensToApprove": []
   },
   "goerli": {
-    "connextHandler": "0xFCa08024A6D4bCc87275b1E4A1E22B71fAD7f649",
-    "domain": "1735353714"
+    "chainId": 5,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "cronos": {
+    "chainId": 25,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "okx": {
+    "chainId": 66,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
   },
   "bsc-testnet": {
+    "chainId": 97,
     "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "velas": {
+    "chainId": 106,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "fuse": {
+    "chainId": 122,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "fantom": {
+    "chainId": 250,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "boba": {
+    "chainId": 288,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "zksync": {
+    "chainId": 324,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "optimismTestnet": {
+    "chainId": 420,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "polygon-zkevm": {
+    "chainId": 1101,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "moonbeam": {
+    "chainId": 1284,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "moonriver": {
+    "chainId": 1285,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "evmos": {
+    "chainId": 9001,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "arbitrumnova": {
+    "chainId": 42170,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "celo": {
+    "chainId": 42220,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "avalanche": {
+    "chainId": 43114,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
   },
   "lineatest": {
+    "chainId": 59140,
     "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
+    "domain": "",
+    "tokensToApprove": []
   },
   "mumbai": {
+    "chainId": 80001,
     "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
+    "domain": "",
+    "tokensToApprove": []
   },
-  "sepolia": {
+  "arbitrumTestnet": {
+    "chainId": 421613,
     "connextHandler": "0x0000000000000000000000000000000000000000",
-    "domain": "0"
+    "domain": "",
+    "tokensToApprove": []
   },
-  "zksyncGoerli": {
-    "connextHandler": "0xB0694fEcEdd88e5590A563aDb5f194d2dE30F0b6",
-    "domain": "2053862260"
+  "harmony": {
+    "chainId": 1666600000,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "20000000000001": {
+    "chainId": 20000000000001,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "20000000000002": {
+    "chainId": 20000000000002,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "20000000000003": {
+    "chainId": 20000000000003,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "20000000000004": {
+    "chainId": 20000000000004,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "111971151099710": {
+    "chainId": 111971151099710,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "1119711511610111": {
+    "chainId": 1119711511610111,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "1151111081099710": {
+    "chainId": 1151111081099710,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "1151111081161011": {
+    "chainId": 1151111081161011,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "1161011141099710": {
+    "chainId": 1161011141099710,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "1161011141161011": {
+    "chainId": 1161011141161011,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
   }
 }
