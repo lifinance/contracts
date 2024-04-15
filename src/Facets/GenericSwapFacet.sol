@@ -1,11 +1,9 @@
-// Questions:
-// -  do we neeed refundExcessNative on ERC20 swaps (e.g. when native is the toToken)?
-
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
+import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -13,6 +11,7 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 import { InvalidReceiver, ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
+import { console2 } from "forge-std/console2.sol";
 
 /// @title GenericSwapFacet
 /// @author LI.FI (https://li.fi)
@@ -23,6 +22,16 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeERC20 for IERC20;
 
     error InsufficientSwapOutput();
+
+    event AssetSwapped(
+        bytes32 transactionId,
+        address dex,
+        address fromAssetId,
+        address toAssetId,
+        uint256 fromAmount,
+        uint256 toAmount,
+        uint256 timestamp
+    );
 
     /// External Methods ///
 
@@ -40,7 +49,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
-    ) external payable returns (uint256 amountOut) {
+    ) external payable nonReentrant returns (uint256 amountOut) {
         // deposit funds
         IERC20(_swapData.sendingAssetId).safeTransferFrom(
             msg.sender,
@@ -59,11 +68,25 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             address(this)
         );
 
-        // approve DEX to spend tokens
-        IERC20(_swapData.sendingAssetId).approve(
-            _swapData.approveTo,
-            _swapData.fromAmount
-        );
+        // check if the current allowance is sufficient
+        if (
+            IERC20(_swapData.sendingAssetId).allowance(
+                address(this),
+                _swapData.approveTo
+            ) < _swapData.fromAmount
+        ) {
+            // allowance insufficient - register max approval
+            SafeERC20.safeApprove(
+                IERC20(_swapData.sendingAssetId),
+                _swapData.approveTo,
+                0
+            );
+            SafeERC20.safeApprove(
+                IERC20(_swapData.sendingAssetId),
+                _swapData.approveTo,
+                type(uint256).max
+            );
+        }
 
         // execute swap
         // solhint-disable-next-line avoid-low-level-calls
@@ -87,7 +110,17 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // transfer funds to receiver
         IERC20(_swapData.receivingAssetId).safeTransfer(_receiver, amountOut);
 
-        // emit event
+        // emit events (both required for tracking)
+        emit AssetSwapped(
+            _transactionId,
+            _swapData.callTo,
+            _swapData.sendingAssetId,
+            _swapData.receivingAssetId,
+            _swapData.fromAmount,
+            _minAmountOut,
+            block.timestamp
+        );
+
         emit LiFiGenericSwapCompleted(
             _transactionId,
             _integrator,
@@ -114,7 +147,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
-    ) external payable {
+    ) external payable nonReentrant {
         // deposit funds
         IERC20(_swapData.sendingAssetId).safeTransferFrom(
             msg.sender,
@@ -131,11 +164,25 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // get initial token balance
         uint256 initialBalance = address(this).balance;
 
-        // approve DEX to spend tokens
-        IERC20(_swapData.sendingAssetId).approve(
-            _swapData.approveTo,
-            _swapData.fromAmount
-        );
+        // check if the current allowance is sufficient
+        if (
+            IERC20(_swapData.sendingAssetId).allowance(
+                address(this),
+                _swapData.approveTo
+            ) < _swapData.fromAmount
+        ) {
+            // allowance insufficient - register max approval
+            SafeERC20.safeApprove(
+                IERC20(_swapData.sendingAssetId),
+                _swapData.approveTo,
+                0
+            );
+            SafeERC20.safeApprove(
+                IERC20(_swapData.sendingAssetId),
+                _swapData.approveTo,
+                type(uint256).max
+            );
+        }
 
         // execute swap
         // solhint-disable-next-line avoid-low-level-calls
@@ -186,7 +233,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
-    ) external payable {
+    ) external payable nonReentrant {
         // ensure that contract (callTo) and function selector are whitelisted
         if (
             !(LibAllowList.contractIsAllowed(_swapData.callTo) &&
