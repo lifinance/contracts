@@ -1,0 +1,73 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+        "Name": "DiamondCutFacet",
+        "Version": ""
+      },
+      "0x6faA6906b9e4A59020e673910105567e809789E0": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
+        "Name": "DiamondLoupeFacet",
+        "Version": ""
+      },
+      "0xf600Caa1468FFaa0B8Eef877A84152e2bDdDe2Fb": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0x897c234B5e96dD3142BE4D1F6d547DB542ee7e43": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xdbffD7A135b332748Df2784D214c5f48eC706C3a": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x36eacDF8e9CF209d84B427316839800a81a2c45A": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0x9B3c16637EcDC410489760ceEEF7b3E32d0EA93e": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.0"
+      },
+      "0x3912De64539B960166940F2BCD55723f56A7358D": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x9D4B9784fC46496926ee4784e490F14d106D83a8": {
+        "Name": "StandardizedCallFacet",
+        "Version": "1.0.0"
+      },
+      "0x9157b6550D1C3209C20aCAd12A2dC57Df34Ca48b": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.1.1"
+      },
+      "0xb8C5408ED5f40ca8df929A50DD36b252B6b39f76": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
+      },
+      "0x659AE0B6f289e0A141e447fe0Df8325904934b09": {
+        "Name": "AmarokFacet",
+        "Version": "2.0.0"
+      },
+      "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB": {
+        "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
+      }
+    },
+    "Periphery": {
+      "ERC20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
+      "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
+      "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
+      "GasRebateDistributor": "",
+      "LiFuelFeeCollector": "0xA1202671Ae4A6e673Ea8Fa653149162885Db2039",
+      "Receiver": "0x0561fFe9855541C02D17951c93405A4407Df74BC",
+      "RelayerCelerIM": "",
+      "ServiceFeeCollector": "0x346b1F1896f2772ffee205e34246ac7adc55B43D",
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
+    }
+  }
+}
