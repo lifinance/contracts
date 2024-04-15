@@ -25,7 +25,7 @@ To populate `_arbitrumData` you will need to get the `gatewayRouter` and `tokenR
 
 - `maxSubmissionCost`
   Maximum amount of ETH allocated to pay for the base submission fee. The base submission fee is a parameter unique to retryable transactions; the user is charged the base submission fee to cover the storage costs of keeping their ticket’s calldata in the retry buffer.
-  Base submission fee is querable via `ArbRetryableTx.getSubmissionPrice`.
+  Base submission fee is queryable via `ArbRetryableTx.getSubmissionPrice`.
   Base submission fee should be increased by specific percentage to get max submission cost. Currently, the increment percentage is 340%.
   `ArbRetryableTx` contract address and function abi can be found in configuration.
 - `maxGas`
