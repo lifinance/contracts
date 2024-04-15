@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { SquidFacet } from "lifi/Facets/SquidFacet.sol";
+import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 import { ISquidRouter } from "lifi/Interfaces/ISquidRouter.sol";
 import { ISquidMulticall } from "lifi/Interfaces/ISquidMulticall.sol";
@@ -141,9 +142,9 @@ contract SquidFacetTest is TestBaseFacet {
         // facet does not support native bridging
     }
 
-    function testBase_CanSwapAndBridgeNativeTokens() public override {
-        // facet does not support native bridging
-    }
+    // function testBase_CanSwapAndBridgeNativeTokens() public override {
+    //     // facet does not support native bridging
+    // }
 
     function testBase_Revert_CallerHasInsufficientFunds() public override {
         // does not work for this facet
@@ -308,6 +309,77 @@ contract SquidFacetTest is TestBaseFacet {
 
         squidFacet.startBridgeTokensViaSquid{ value: squidData.fee }(
             bridgeData,
+            squidData
+        );
+    }
+
+    function test_CanSwapERC20ToNativeAndBridge() public {
+        vm.startPrank(USER_SENDER);
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WETH;
+
+        uint256 amountOut = 1e17; // 0.1 eth
+
+        // Calculate USDC input amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        usdc.approve(address(squidFacet), amountIn);
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        SquidFacet.SquidData
+            memory squidData = _getSquidDataForCallBridgeCallNative();
+
+        squidData.routeType = SquidFacet.RouteType.CallBridgeCall;
+        squidData.destinationChain = "binance";
+        squidData
+            .destinationAddress = "0xce16F69375520ab01377ce7B88f5BA8C48F8D666";
+        squidData.bridgedTokenSymbol = "USDC";
+        squidData.depositAssetId = address(0);
+
+        ISquidMulticall.Call[] memory calls = new ISquidMulticall.Call[](1);
+
+        // swap ETH to USDC on Uniswap
+        calls[0].callType = ISquidMulticall.CallType.FullNativeBalance;
+        calls[0].target = 0x1b81D678ffb9C0263b24A97847620C99d213eB14;
+        calls[0].value = 0;
+        calls[0]
+            .callData = hex"414bf389000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000000000064000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d6660000000000000000000000000000000000000000000000000000018ec7af6d13000000000000000000000000000000000000000000000000016345785d8a00000000000000000000000000000000000000000000000000000000000014c933480000000000000000000000000000000000000000000000000000000000000000";
+        calls[0].payload = hex"";
+
+        delete squidData.sourceCalls;
+        squidData.fee = 766268816751818;
+
+        squidFacet.swapAndStartBridgeTokensViaSquid{ value: squidData.fee }(
+            bridgeData,
+            swapData,
             squidData
         );
     }

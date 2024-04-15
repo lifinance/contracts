@@ -13,12 +13,10 @@ import { LibBytes } from "../Libraries/LibBytes.sol";
 import { InformationMismatch } from "../Errors/GenericErrors.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-// import { console } from "forge-std/console.sol"; //TODO: REMOVE
-
 /// @title Squid Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Squid Router
-/// @custom:version 0.0.4
+/// @custom:version 1.0.0
 contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
@@ -86,18 +84,6 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        // if (
-        //     !LibAsset.isNativeAsset(_bridgeData.sendingAssetId) &&
-        //     keccak256(abi.encodePacked(_squidData.bridgedTokenSymbol)) !=
-        //     keccak256(
-        //         abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())
-        //     )
-        // ) {
-        //     revert InformationMismatch();
-        // }
-
-        // validateDestinationCallFlag(_bridgeData, _squidData); //TODO: REMOVE OR REACTIVATE
-
         LibAsset.depositAsset(
             _squidData.depositAssetId,
             _bridgeData.minAmount
@@ -122,23 +108,13 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        // if (
-        //     !LibAsset.isNativeAsset(_bridgeData.sendingAssetId) &&
-        //     keccak256(abi.encodePacked(_squidData.bridgedTokenSymbol)) !=
-        //     keccak256(
-        //         abi.encodePacked(ERC20(_bridgeData.sendingAssetId).symbol())
-        //     )
-        // ) {
-        //     revert InformationMismatch();
-        // }
-
-        // validateDestinationCallFlag(_bridgeData, _squidData); //TODO: REMOVE OR REACTIVATE
-
+        // in case of native we need to keep the fee as reserve from the swap
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(msg.sender),
+            _squidData.fee
         );
 
         _startBridge(_bridgeData, _squidData);
@@ -159,6 +135,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             msgValue: _calculateMsgValue(_bridgeData, _squidData)
         });
 
+        // ensure max approval if non-native asset
         if (!LibAsset.isNativeAsset(context.squidData.depositAssetId)) {
             LibAsset.maxApproveERC20(
                 IERC20(context.squidData.depositAssetId),
@@ -167,7 +144,7 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         }
 
-        // call the correct execution function based on routeType
+        // make the call to Squid router based on RouteType
         if (_squidData.routeType == RouteType.BridgeCall) {
             _bridgeCall(context);
         } else if (_squidData.routeType == RouteType.CallBridge) {
@@ -231,17 +208,5 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             msgValue += _bridgeData.minAmount;
         }
         return msgValue;
-    }
-
-    //TODO: REMOVE???
-    function validateDestinationCallFlag(
-        ILiFi.BridgeData memory _bridgeData,
-        SquidData calldata _squidData
-    ) private pure {
-        if (
-            (_squidData.payload.length > 0) != _bridgeData.hasDestinationCall
-        ) {
-            revert InformationMismatch();
-        }
     }
 }
