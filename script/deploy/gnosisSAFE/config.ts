@@ -9,4 +9,8 @@ export const safeApiUrls: Record<string, string> = {
   polygon: 'https://safe-transaction-polygon.safe.global',
   polygonzkevm: 'https://safe-transaction-zkevm.safe.global',
   base: 'https://safe-transaction-base.safe.global',
+  boba: 'https://safe-transaction.mainnet.boba.network',
+  fantom: 'https://safe-txservice.fantom.network',
+  moonbeam: 'https://transaction.multisig.moonbeam.network',
+  moonriver: 'https://transaction.moonriver.multisig.moonbeam.network',
 }
