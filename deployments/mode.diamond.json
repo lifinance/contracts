@@ -3,7 +3,7 @@
     "Facets": {
       "0xf7993A8df974AD022647E63402d6315137c58ABf": {
         "Name": "DiamondCutFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
@@ -11,7 +11,7 @@
       },
       "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
         "Name": "DiamondLoupeFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xf600Caa1468FFaa0B8Eef877A84152e2bDdDe2Fb": {
         "Name": "WithdrawFacet",
@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x9B3c16637EcDC410489760ceEEF7b3E32d0EA93e": {
+      "0x66861f292099cAF644F4A8b6091De49BEC5E8a15": {
         "Name": "LIFuelFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0x3912De64539B960166940F2BCD55723f56A7358D": {
         "Name": "GenericSwapFacet",
@@ -63,7 +63,7 @@
       "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
       "GasRebateDistributor": "",
-      "LiFuelFeeCollector": "0xA1202671Ae4A6e673Ea8Fa653149162885Db2039",
+      "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
       "Receiver": "0x0561fFe9855541C02D17951c93405A4407Df74BC",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x346b1F1896f2772ffee205e34246ac7adc55B43D",

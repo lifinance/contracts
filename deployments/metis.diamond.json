@@ -52,6 +52,10 @@
       "0xA66abf226CC230eDBDeFf85C1874Ac7A9A637072": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x93f6D08Cd61605897eD6105b96777E720Fff5d38": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
@@ -59,10 +63,10 @@
       "Executor": "0x6696F031C099dE6089427ceBFb38258feA6fdaFE",
       "FeeCollector": "0x821Dfa5537Ab91b02271d92049B2fF7edE2Be86C",
       "GasRebateDistributor": "",
-      "LiFuelFeeCollector": "0x0c27cc2a3F78739FFa6b5Fd092aeCadcfEF7c0Be",
+      "LiFuelFeeCollector": "0x851450e3b624ea4b068c3E8cFBcf79cD03D31C54",
       "Receiver": "0x0a4D7f27e8d24625eCb8d29d6445934a440A05E0",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "",
+      "ServiceFeeCollector": "0x0000000000000000000000000000000000001234",
       "TokenWrapper": "0x01bDf46A673FC3c081ddBD21cb51fBA4972d00aC"
     }
   }
