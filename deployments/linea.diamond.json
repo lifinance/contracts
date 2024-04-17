@@ -86,12 +86,12 @@
         "Version": "1.0.0"
       },
       "0xf7B252c92e34589a062659417d3a851cc3dF043F": {
-        "Name": "",
-        "Version": ""
+        "Name": "AcrossFacet",
+        "Version": "2.0.0"
       },
       "0x29f9a4741EC691AE54068De461Ca291794aa1D05": {
-        "Name": "",
-        "Version": ""
+        "Name": "AcrossFacetPacked",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

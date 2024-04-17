@@ -4823,6 +4823,20 @@
           }
         ]
       }
+    },
+    "linea": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xf7B252c92e34589a062659417d3a851cc3dF043F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-16 10:56:36",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000007e63a5f1a8f0b4d0934b2f2327daed3f6bb2ee75000000000000000000000000e5d7c2a44ffddf6b295a15c148167daaaf5cf34f",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "CBridgeFacet": {
@@ -16212,6 +16226,20 @@
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000005c7bcd6e7de5423a257d81b442095a1a6ced35c5000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc200000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x29f9a4741EC691AE54068De461Ca291794aa1D05",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-16 11:01:10",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000007e63a5f1a8f0b4d0934b2f2327daed3f6bb2ee75000000000000000000000000e5d7c2a44ffddf6b295a15c148167daaaf5cf34f00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
