@@ -147,7 +147,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
-    ) external payable nonReentrant {
+    ) external payable {
         // deposit funds
         IERC20(_swapData.sendingAssetId).safeTransferFrom(
             msg.sender,
@@ -206,7 +206,17 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         (success, ) = _receiver.call{ value: amountReceived }("");
         if (!success) revert NativeAssetTransferFailed();
 
-        // emit event
+        // emit events (both required for tracking)
+        emit AssetSwapped(
+            _transactionId,
+            _swapData.callTo,
+            _swapData.sendingAssetId,
+            _swapData.receivingAssetId,
+            _swapData.fromAmount,
+            _minAmountOut,
+            block.timestamp
+        );
+
         emit LiFiGenericSwapCompleted(
             _transactionId,
             _integrator,
@@ -233,7 +243,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
-    ) external payable nonReentrant {
+    ) external payable {
         // ensure that contract (callTo) and function selector are whitelisted
         if (
             !(LibAllowList.contractIsAllowed(_swapData.callTo) &&
@@ -270,7 +280,17 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             amountReceived
         );
 
-        // emit event
+        // emit events (both required for tracking)
+        emit AssetSwapped(
+            _transactionId,
+            _swapData.callTo,
+            _swapData.sendingAssetId,
+            _swapData.receivingAssetId,
+            _swapData.fromAmount,
+            _minAmountOut,
+            block.timestamp
+        );
+
         emit LiFiGenericSwapCompleted(
             _transactionId,
             _integrator,

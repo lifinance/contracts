@@ -209,16 +209,22 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
     }
 
     function test_CanSwapSingleERC20ToERC20_V2() public {
+        // get swapData for USDC > DAI swap
+        (
+            LibSwap.SwapData[] memory swapData,
+            uint256 minAmountOut
+        ) = _produceSwapDataERC20ToERC20();
+
+        // // pre-register max approval between diamond and dex to get realistic gas usage
+        // vm.startPrank(address(genericSwapFacet));
+        // usdc.approve(swapData[0].approveTo, type(uint256).max);
+        // vm.stopPrank();
+
         vm.startPrank(USDC_HOLDER);
         usdc.approve(
             address(genericSwapFacet),
             10_000 * 10 ** usdc.decimals()
         );
-
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToERC20();
 
         // expected exact amountOut based on the liquidity available in the specified block for this test case
         uint256 expAmountOut = 99940753324315752385;
@@ -343,16 +349,22 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
     }
 
     function test_CanSwapSingleERC20ToNative_V2() public {
+        // get swapData USDC > ETH (native)
+        (
+            LibSwap.SwapData[] memory swapData,
+            uint256 minAmountOut
+        ) = _produceSwapDataERC20ToNative();
+
+        // pre-register max approval between diamond and dex to get realistic gas usage
+        vm.startPrank(address(genericSwapFacet));
+        usdc.approve(swapData[0].approveTo, type(uint256).max);
+        vm.stopPrank();
+
         vm.startPrank(USDC_HOLDER);
         usdc.approve(
             address(genericSwapFacet),
             10_000 * 10 ** usdc.decimals()
         );
-
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToNative();
 
         uint256 gasLeftBef = gasleft();
 
