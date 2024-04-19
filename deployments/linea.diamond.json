@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x45A208ab68A7A18533bbbb2649a6Acd5f9B12d24": {
+      "0x9b686e79F7CBDe1C440dEe1766F05c99B60b8076": {
         "Name": "LIFuelFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0x340E2d16cb0DE6F4a8bF2B8905cBA287cEE718A3": {
         "Name": "GenericSwapFacet",
@@ -84,13 +84,22 @@
       "0x57F4d19AeC341F50BaBB55beDF73C4B87EE400ba": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0xf7B252c92e34589a062659417d3a851cc3dF043F": {
+        "Name": "AcrossFacet",
+        "Version": "2.0.0"
+      },
+      "0x29f9a4741EC691AE54068De461Ca291794aa1D05": {
+        "Name": "AcrossFacetPacked",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x57ec2C57fA654aABAeCc63c8dad47cb6efaCCC24",
       "Executor": "0x2a202Ed587F0BC7dfa80ea1DD943d8470492Dd0F",
       "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
-      "LiFuelFeeCollector": "0x6CC48E94C1148A0787D7F137745af58e3Eb47780",
+      "GasRebateDistributor": "",
+      "LiFuelFeeCollector": "0x68B21d21509446Bf5449B6F5F8aBD4b3cfcbc3f8",
       "Receiver": "0xdcBEcDE898c067cA58ABD01a7de51660bBD5A897",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0xA8Fe73F7b3a825fF51f2200af12c16B3BA95394d",

@@ -1,23 +1,23 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0xb09e20930242327f9aC4DA95dd0c421fbE15D4db": {
+      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
       },
-      "0x519483eEC772BA34098af187Aee7b56C77927B1a": {
-        "Name": "DiamondLoupeFacet",
+      "0x6faA6906b9e4A59020e673910105567e809789E0": {
+        "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0x9f8AC9248395b93220C6ABbA41d0989Aa08257Ab": {
-        "Name": "OwnershipFacet",
+      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
+        "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
       },
       "0xf600Caa1468FFaa0B8Eef877A84152e2bDdDe2Fb": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xbd0B19349A4D0DF5Abb67D31659d4C5C17b78901": {
+      "0x897c234B5e96dD3142BE4D1F6d547DB542ee7e43": {
         "Name": "DexManagerFacet",
         "Version": "1.0.0"
       },
@@ -28,6 +28,10 @@
       "0x36eacDF8e9CF209d84B427316839800a81a2c45A": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
+      },
+      "0x66861f292099cAF644F4A8b6091De49BEC5E8a15": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.1"
       },
       "0x3912De64539B960166940F2BCD55723f56A7358D": {
         "Name": "GenericSwapFacet",
@@ -45,21 +49,13 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0xc31F4392EE89d81E7303e2c1CDE210414F39E2ea": {
-        "Name": "CBridgeFacet",
+      "0x659AE0B6f289e0A141e447fe0Df8325904934b09": {
+        "Name": "AmarokFacet",
+        "Version": "2.0.0"
+      },
+      "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB": {
+        "Name": "AmarokFacetPacked",
         "Version": "1.0.0"
-      },
-      "0x4f62E7a939C62316F76E2afC644A9A907Dc30D2d": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.3"
-      },
-      "0xA4A8818D8d4e2EE27e960535D0a15299C5504605": {
-        "Name": "StargateFacet",
-        "Version": "2.2.0"
-      },
-      "0x66861f292099cAF644F4A8b6091De49BEC5E8a15": {
-        "Name": "LIFuelFacet",
-        "Version": "1.0.1"
       }
     },
     "Periphery": {
