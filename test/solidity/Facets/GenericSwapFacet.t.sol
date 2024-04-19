@@ -216,9 +216,9 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         ) = _produceSwapDataERC20ToERC20();
 
         // // pre-register max approval between diamond and dex to get realistic gas usage
-        // vm.startPrank(address(genericSwapFacet));
-        // usdc.approve(swapData[0].approveTo, type(uint256).max);
-        // vm.stopPrank();
+        vm.startPrank(address(genericSwapFacet));
+        usdc.approve(swapData[0].approveTo, type(uint256).max);
+        vm.stopPrank();
 
         vm.startPrank(USDC_HOLDER);
         usdc.approve(

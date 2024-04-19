@@ -49,7 +49,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
-    ) external payable nonReentrant {
+    ) external payable {
         _depositAndSwapERC20(_swapData);
 
         // get contract's balance (which will be sent in full to user)
