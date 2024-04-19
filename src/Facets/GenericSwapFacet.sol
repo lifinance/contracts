@@ -21,18 +21,6 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     // using SafeERC20 for ERC20;
     using SafeTransferLib for ERC20;
 
-    error InsufficientSwapOutput();
-
-    event AssetSwapped(
-        bytes32 transactionId,
-        address dex,
-        address fromAssetId,
-        address toAssetId,
-        uint256 fromAmount,
-        uint256 toAmount,
-        uint256 timestamp
-    );
-
     /// External Methods ///
 
     /// @notice Performs a single swap from an ERC20 token to another ERC20 token
