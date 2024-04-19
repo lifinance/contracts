@@ -9,7 +9,7 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { InvalidReceiver, ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
-import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { console2 } from "forge-std/console2.sol";
 
@@ -19,7 +19,8 @@ import { console2 } from "forge-std/console2.sol";
 /// @dev Can only execute calldata for APPROVED function selectors
 /// @custom:version 2.0.0
 contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    using SafeERC20 for IERC20;
+    // using SafeERC20 for ERC20;
+    using SafeTransferLib for ERC20;
 
     error InsufficientSwapOutput();
 
@@ -49,9 +50,9 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
-    ) external payable nonReentrant returns (uint256 amountOut) {
+    ) external payable nonReentrant {
         // deposit funds
-        IERC20(_swapData.sendingAssetId).safeTransferFrom(
+        ERC20(_swapData.sendingAssetId).safeTransferFrom(
             msg.sender,
             address(this),
             _swapData.fromAmount
@@ -63,26 +64,27 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 LibAllowList.selectorIsAllowed(bytes4(_swapData.callData[:4])))
         ) revert ContractCallNotAllowed();
 
-        // get initial token balance
-        uint256 initialBalance = IERC20(_swapData.receivingAssetId).balanceOf(
-            address(this)
+        // check if the current allowance is sufficient
+        uint256 currentAllowance = ERC20(_swapData.sendingAssetId).allowance(
+            address(this),
+            _swapData.approveTo
         );
 
-        // check if the current allowance is sufficient
-        if (
-            IERC20(_swapData.sendingAssetId).allowance(
-                address(this),
-                _swapData.approveTo
-            ) < _swapData.fromAmount
-        ) {
-            // allowance insufficient - register max approval
-            SafeERC20.safeApprove(
-                IERC20(_swapData.sendingAssetId),
+        if (currentAllowance == 0) {
+            // just set allowance
+            ERC20(_swapData.sendingAssetId).safeApprove(
+                _swapData.approveTo,
+                type(uint256).max
+            );
+        } else if (currentAllowance < _swapData.fromAmount) {
+            // allowance exists but is insufficient
+            // reset to 0 first
+            ERC20(_swapData.sendingAssetId).safeApprove(
                 _swapData.approveTo,
                 0
             );
-            SafeERC20.safeApprove(
-                IERC20(_swapData.sendingAssetId),
+            // then set allowance
+            ERC20(_swapData.sendingAssetId).safeApprove(
                 _swapData.approveTo,
                 type(uint256).max
             );
@@ -98,26 +100,29 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert(reason);
         }
 
-        // get final balance
-        amountOut =
-            IERC20(_swapData.receivingAssetId).balanceOf(address(this)) -
-            initialBalance;
+        // get contract's balance (which will be sent in full to user)
+        uint256 amountReceived = ERC20(_swapData.receivingAssetId).balanceOf(
+            address(this)
+        );
 
         // ensure that minAmountOut was received
-        if (amountOut < _minAmountOut)
-            revert CumulativeSlippageTooHigh(_minAmountOut, amountOut);
+        if (amountReceived < _minAmountOut)
+            revert CumulativeSlippageTooHigh(_minAmountOut, amountReceived);
 
         // transfer funds to receiver
-        IERC20(_swapData.receivingAssetId).safeTransfer(_receiver, amountOut);
+        ERC20(_swapData.receivingAssetId).safeTransfer(
+            _receiver,
+            amountReceived
+        );
 
         // emit events (both required for tracking)
-        emit AssetSwapped(
+        emit LibSwap.AssetSwapped(
             _transactionId,
             _swapData.callTo,
             _swapData.sendingAssetId,
             _swapData.receivingAssetId,
             _swapData.fromAmount,
-            _minAmountOut,
+            amountReceived,
             block.timestamp
         );
 
@@ -129,7 +134,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData.sendingAssetId,
             _swapData.receivingAssetId,
             _swapData.fromAmount,
-            amountOut
+            amountReceived
         );
     }
 
@@ -149,7 +154,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibSwap.SwapData calldata _swapData
     ) external payable {
         // deposit funds
-        IERC20(_swapData.sendingAssetId).safeTransferFrom(
+        ERC20(_swapData.sendingAssetId).safeTransferFrom(
             msg.sender,
             address(this),
             _swapData.fromAmount
@@ -161,24 +166,19 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 LibAllowList.selectorIsAllowed(bytes4(_swapData.callData[:4])))
         ) revert ContractCallNotAllowed();
 
-        // get initial token balance
-        uint256 initialBalance = address(this).balance;
-
         // check if the current allowance is sufficient
         if (
-            IERC20(_swapData.sendingAssetId).allowance(
+            ERC20(_swapData.sendingAssetId).allowance(
                 address(this),
                 _swapData.approveTo
             ) < _swapData.fromAmount
         ) {
             // allowance insufficient - register max approval
-            SafeERC20.safeApprove(
-                IERC20(_swapData.sendingAssetId),
+            ERC20(_swapData.sendingAssetId).safeApprove(
                 _swapData.approveTo,
                 0
             );
-            SafeERC20.safeApprove(
-                IERC20(_swapData.sendingAssetId),
+            ERC20(_swapData.sendingAssetId).safeApprove(
                 _swapData.approveTo,
                 type(uint256).max
             );
@@ -194,8 +194,8 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert(reason);
         }
 
-        // get final balance
-        uint256 amountReceived = address(this).balance - initialBalance;
+        // get contract's balance (which will be sent in full to user)
+        uint256 amountReceived = address(this).balance;
 
         // ensure that minAmountOut was received
         if (amountReceived < _minAmountOut)
@@ -207,13 +207,13 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (!success) revert NativeAssetTransferFailed();
 
         // emit events (both required for tracking)
-        emit AssetSwapped(
+        emit LibSwap.AssetSwapped(
             _transactionId,
             _swapData.callTo,
             _swapData.sendingAssetId,
             _swapData.receivingAssetId,
             _swapData.fromAmount,
-            _minAmountOut,
+            amountReceived,
             block.timestamp
         );
 
@@ -250,11 +250,6 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 LibAllowList.selectorIsAllowed(bytes4(_swapData.callData[:4])))
         ) revert ContractCallNotAllowed();
 
-        // get initial token balance
-        uint256 initialBalance = IERC20(_swapData.receivingAssetId).balanceOf(
-            address(this)
-        );
-
         // execute swap
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory res) = _swapData.callTo.call{
@@ -265,29 +260,29 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert(reason);
         }
 
-        // get final balance
-        uint256 amountReceived = IERC20(_swapData.receivingAssetId).balanceOf(
+        // get contract's balance (which will be sent in full to user)
+        uint256 amountReceived = ERC20(_swapData.receivingAssetId).balanceOf(
             address(this)
-        ) - initialBalance;
+        );
 
         // ensure that minAmountOut was received
         if (amountReceived < _minAmountOut)
             revert CumulativeSlippageTooHigh(_minAmountOut, amountReceived);
 
         // transfer funds to receiver
-        IERC20(_swapData.receivingAssetId).safeTransfer(
+        ERC20(_swapData.receivingAssetId).safeTransfer(
             _receiver,
             amountReceived
         );
 
         // emit events (both required for tracking)
-        emit AssetSwapped(
+        emit LibSwap.AssetSwapped(
             _transactionId,
             _swapData.callTo,
             _swapData.sendingAssetId,
             _swapData.receivingAssetId,
             _swapData.fromAmount,
-            _minAmountOut,
+            amountReceived,
             block.timestamp
         );
 
