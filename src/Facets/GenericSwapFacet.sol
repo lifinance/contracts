@@ -40,8 +40,11 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ) external payable {
         _depositAndSwapERC20(_swapData);
 
+        address receivingAssetId = _swapData.receivingAssetId;
+        address sendingAssetId = _swapData.sendingAssetId;
+
         // get contract's balance (which will be sent in full to user)
-        uint256 amountReceived = ERC20(_swapData.receivingAssetId).balanceOf(
+        uint256 amountReceived = ERC20(receivingAssetId).balanceOf(
             address(this)
         );
 
@@ -50,18 +53,16 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert CumulativeSlippageTooHigh(_minAmountOut, amountReceived);
 
         // transfer funds to receiver
-        ERC20(_swapData.receivingAssetId).safeTransfer(
-            _receiver,
-            amountReceived
-        );
+        ERC20(receivingAssetId).safeTransfer(_receiver, amountReceived);
 
         // emit events (both required for tracking)
+        uint256 fromAmount = _swapData.fromAmount;
         emit LibSwap.AssetSwapped(
             _transactionId,
             _swapData.callTo,
-            _swapData.sendingAssetId,
-            _swapData.receivingAssetId,
-            _swapData.fromAmount,
+            sendingAssetId,
+            receivingAssetId,
+            fromAmount,
             amountReceived,
             block.timestamp
         );
@@ -71,9 +72,9 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _integrator,
             _referrer,
             _receiver,
-            _swapData.sendingAssetId,
-            _swapData.receivingAssetId,
-            _swapData.fromAmount,
+            sendingAssetId,
+            receivingAssetId,
+            fromAmount,
             amountReceived
         );
     }
@@ -108,12 +109,15 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (!success) revert NativeAssetTransferFailed();
 
         // emit events (both required for tracking)
+        address receivingAssetId = _swapData.receivingAssetId;
+        address sendingAssetId = _swapData.sendingAssetId;
+        uint256 fromAmount = _swapData.fromAmount;
         emit LibSwap.AssetSwapped(
             _transactionId,
             _swapData.callTo,
-            _swapData.sendingAssetId,
-            _swapData.receivingAssetId,
-            _swapData.fromAmount,
+            sendingAssetId,
+            receivingAssetId,
+            fromAmount,
             amountReceived,
             block.timestamp
         );
@@ -123,9 +127,9 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _integrator,
             _referrer,
             _receiver,
-            _swapData.sendingAssetId,
-            _swapData.receivingAssetId,
-            _swapData.fromAmount,
+            sendingAssetId,
+            receivingAssetId,
+            fromAmount,
             amountReceived
         );
     }
@@ -145,24 +149,26 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
     ) external payable {
+        address callTo = _swapData.callTo;
         // ensure that contract (callTo) and function selector are whitelisted
         if (
-            !(LibAllowList.contractIsAllowed(_swapData.callTo) &&
+            !(LibAllowList.contractIsAllowed(callTo) &&
                 LibAllowList.selectorIsAllowed(bytes4(_swapData.callData[:4])))
         ) revert ContractCallNotAllowed();
 
         // execute swap
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory res) = _swapData.callTo.call{
-            value: msg.value
-        }(_swapData.callData);
+        (bool success, bytes memory res) = callTo.call{ value: msg.value }(
+            _swapData.callData
+        );
         if (!success) {
             string memory reason = LibUtil.getRevertMsg(res);
             revert(reason);
         }
 
         // get contract's balance (which will be sent in full to user)
-        uint256 amountReceived = ERC20(_swapData.receivingAssetId).balanceOf(
+        address receivingAssetId = _swapData.receivingAssetId;
+        uint256 amountReceived = ERC20(receivingAssetId).balanceOf(
             address(this)
         );
 
@@ -171,18 +177,17 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert CumulativeSlippageTooHigh(_minAmountOut, amountReceived);
 
         // transfer funds to receiver
-        ERC20(_swapData.receivingAssetId).safeTransfer(
-            _receiver,
-            amountReceived
-        );
+        ERC20(receivingAssetId).safeTransfer(_receiver, amountReceived);
 
         // emit events (both required for tracking)
+        address sendingAssetId = _swapData.sendingAssetId;
+        uint256 fromAmount = _swapData.fromAmount;
         emit LibSwap.AssetSwapped(
             _transactionId,
-            _swapData.callTo,
-            _swapData.sendingAssetId,
-            _swapData.receivingAssetId,
-            _swapData.fromAmount,
+            callTo,
+            sendingAssetId,
+            receivingAssetId,
+            fromAmount,
             amountReceived,
             block.timestamp
         );
@@ -192,9 +197,9 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _integrator,
             _referrer,
             _receiver,
-            _swapData.sendingAssetId,
-            _swapData.receivingAssetId,
-            _swapData.fromAmount,
+            sendingAssetId,
+            receivingAssetId,
+            fromAmount,
             amountReceived
         );
     }
@@ -242,12 +247,9 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibSwap.SwapData calldata _swapData
     ) private {
         ERC20 sendingAsset = ERC20(_swapData.sendingAssetId);
+        uint256 fromAmount = _swapData.fromAmount;
         // deposit funds
-        sendingAsset.safeTransferFrom(
-            msg.sender,
-            address(this),
-            _swapData.fromAmount
-        );
+        sendingAsset.safeTransferFrom(msg.sender, address(this), fromAmount);
 
         // ensure that contract (callTo) and function selector are whitelisted
         address callTo = _swapData.callTo;
@@ -270,7 +272,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (currentAllowance == 0) {
             // just set allowance
             sendingAsset.safeApprove(approveTo, type(uint256).max);
-        } else if (currentAllowance < _swapData.fromAmount) {
+        } else if (currentAllowance < fromAmount) {
             // allowance exists but is insufficient
             // reset to 0 first
             sendingAsset.safeApprove(approveTo, 0);
