@@ -241,50 +241,46 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function _depositAndSwapERC20(
         LibSwap.SwapData calldata _swapData
     ) private {
+        ERC20 sendingAsset = ERC20(_swapData.sendingAssetId);
         // deposit funds
-        ERC20(_swapData.sendingAssetId).safeTransferFrom(
+        sendingAsset.safeTransferFrom(
             msg.sender,
             address(this),
             _swapData.fromAmount
         );
 
         // ensure that contract (callTo) and function selector are whitelisted
+        address callTo = _swapData.callTo;
+        address approveTo = _swapData.approveTo;
         if (
-            !(LibAllowList.contractIsAllowed(_swapData.callTo) &&
+            !(LibAllowList.contractIsAllowed(callTo) &&
                 LibAllowList.selectorIsAllowed(bytes4(_swapData.callData[:4])))
         ) revert ContractCallNotAllowed();
 
+        // ensure that approveTo address is also whitelisted if it differs from callTo
+        if (approveTo != callTo && !LibAllowList.contractIsAllowed(approveTo))
+            revert ContractCallNotAllowed();
+
         // check if the current allowance is sufficient
-        uint256 currentAllowance = ERC20(_swapData.sendingAssetId).allowance(
+        uint256 currentAllowance = sendingAsset.allowance(
             address(this),
-            _swapData.approveTo
+            approveTo
         );
 
         if (currentAllowance == 0) {
             // just set allowance
-            ERC20(_swapData.sendingAssetId).safeApprove(
-                _swapData.approveTo,
-                type(uint256).max
-            );
+            sendingAsset.safeApprove(approveTo, type(uint256).max);
         } else if (currentAllowance < _swapData.fromAmount) {
             // allowance exists but is insufficient
             // reset to 0 first
-            ERC20(_swapData.sendingAssetId).safeApprove(
-                _swapData.approveTo,
-                0
-            );
+            sendingAsset.safeApprove(approveTo, 0);
             // then set allowance
-            ERC20(_swapData.sendingAssetId).safeApprove(
-                _swapData.approveTo,
-                type(uint256).max
-            );
+            sendingAsset.safeApprove(approveTo, type(uint256).max);
         }
 
         // execute swap
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory res) = _swapData.callTo.call(
-            _swapData.callData
-        );
+        (bool success, bytes memory res) = callTo.call(_swapData.callData);
         if (!success) {
             string memory reason = LibUtil.getRevertMsg(res);
             revert(reason);
