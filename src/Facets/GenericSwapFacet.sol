@@ -14,7 +14,7 @@ import { LibAllowList } from "../Libraries/LibAllowList.sol";
 
 /// @title GenericSwapFacet
 /// @author LI.FI (https://li.fi)
-/// @notice Provides functionality for swapping through ANY APPROVED DEX
+/// @notice Provides functionality for swapping through any APPROVED DEX
 /// @dev Can only execute calldata for APPROVED function selectors
 /// @custom:version 2.0.0
 contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
@@ -269,14 +269,11 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             approveTo
         );
 
-        if (currentAllowance == 0) {
-            // just set allowance
-            sendingAsset.safeApprove(approveTo, type(uint256).max);
-        } else if (currentAllowance < fromAmount) {
-            // allowance exists but is insufficient
-            // reset to 0 first
-            sendingAsset.safeApprove(approveTo, 0);
-            // then set allowance
+        // check if existing allowance is sufficient
+        if (currentAllowance < fromAmount) {
+            // check if is non-zero, set to 0 if not
+            if (currentAllowance != 0) sendingAsset.safeApprove(approveTo, 0);
+            // set allowance to uint max to avoid future approvals
             sendingAsset.safeApprove(approveTo, type(uint256).max);
         }
 
