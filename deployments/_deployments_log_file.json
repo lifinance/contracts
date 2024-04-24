@@ -5313,6 +5313,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "2.0.0": [
+          {
+            "ADDRESS": "0x2b7D2C78bd801Cc06DDCF91DeE2e8fAE22814f7e",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-24 10:54:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       },
       "staging": {
