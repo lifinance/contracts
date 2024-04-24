@@ -106,7 +106,7 @@ jobs:
           git add package.json
           git commit -m 'actions: new contracts version ${{ steps.bump_version.outputs.next-version }}'
           git tag -a v${{ steps.bump_version.outputs.next-version }} -m '${{ github.event.head_commit.message }}'
-          git push origin tag v${{ steps.bump_version.outputs.next-version }}
+          git push origin v${{ steps.bump_version.outputs.next-version }}
           if [[ "$BRANCH_NAME" == "main" ]]; then
             git push -u origin $BRANCH_NAME
           fi
