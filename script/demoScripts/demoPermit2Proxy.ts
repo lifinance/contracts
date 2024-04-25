@@ -159,7 +159,7 @@ const maxApproveTokenToPermit2 = async (
 //   // log('>>> Route received')
 // }
 
-const getRouteFromLiFiAPI = async (signer: Wallet) => {
+const getCalldataFromLiFiAPI = async (signer: Wallet) => {
   console.log('Getting route from LI.FI API now')
   // const requestURL = `/quote?fromChain=BSC&toChain=POL&fromToken=${srcTokenAddress}&toToken=${destTokenAddress}&fromAddress=${signer.address}&toAddress=${signer.address}&fromAmount=${testAmount}&order=RECOMMENDED&slippage=0.005`
   // const resp = await fetch(`${LIFI_API_BASE_URL}${requestURL}`)
@@ -747,9 +747,11 @@ async function main_useAlternativeSignatureApproach() {
     await maxApproveTokenToPermit2(signer, usdc_contract, PERMIT2_ADDRESS)
 
   // fetch route from LI.FI API and extract diamondAddress and diamondCalldata
-  const { diamondAddress, diamondCalldata } = await getRouteFromLiFiAPI(signer)
+  const { diamondAddress, diamondCalldata } = await getCalldataFromLiFiAPI(
+    signer
+  )
 
-  // // Define the permit structure based on your Permit2 contract requirements
+  // // Define the permit structure based on our Permit2 contract requirements
   const permitForSignature: PermitTransferFrom = {
     permitted: {
       token: BSC_USDC_ADDRESS,

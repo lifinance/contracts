@@ -84,10 +84,11 @@ contract Permit2Proxy is TransferrableOwnership {
         );
 
         // deposit assets
-        IERC20(tokenAddress).safeTransferFrom(owner, address(this), amount);
+        IERC20 token = IERC20(tokenAddress);
+        token.safeTransferFrom(owner, address(this), amount);
 
         // maxApprove token to diamond if current allowance is insufficient
-        LibAsset.maxApproveERC20(IERC20(tokenAddress), diamondAddress, amount);
+        LibAsset.maxApproveERC20(token, diamondAddress, amount);
 
         // call our diamond to execute calldata
         _executeCalldata(diamondAddress, diamondCalldata);
@@ -161,7 +162,7 @@ contract Permit2Proxy is TransferrableOwnership {
             memory transferDetails = new IPermit2.SignatureTransferDetails[](
                 amounts.length
             );
-        for (uint i; i < amounts.length; ) {
+        for (uint256 i; i < amounts.length; ) {
             transferDetails[i] = IPermit2.SignatureTransferDetails(
                 address(this),
                 amounts[i]
