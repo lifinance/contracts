@@ -92,6 +92,7 @@
     "enquirer": "^2.4.1",
     "hardhat-ethers": "^1.0.1",
     "light-spinner": "^1.0.4",
+    "merkletreejs": "^0.3.11",
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
     "yarn": "^1.22.19"

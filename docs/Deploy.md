@@ -83,7 +83,7 @@ When releasing a new version of the immutable diamond, some scripts and files ne
 ## <a name="upgrade-using-safe"></a>Upgrade using SAFE wallet
 
 - [ ] Make sure you have deployed a new diamond contract (see above)
-- [ ] Make sure the diamond contract is owned by the SAFE wallet your will use for the upgrade
+- [ ] Make sure the diamond contract is owned by the SAFE wallet you will use for the upgrade
 - [ ] Ensure that you have granted access to a secondary wallet to add dexs/sigs
 - [ ] Make sure the facet you wish to upgrade is deployed but not added to the diamond yet
 - [ ] Run this script `./scripts/scriptMaster.sh`, select `11) Propose upgrade TX to Gnosis SAFE`

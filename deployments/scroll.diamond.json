@@ -1,0 +1,77 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "0xb09e20930242327f9aC4DA95dd0c421fbE15D4db": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0x519483eEC772BA34098af187Aee7b56C77927B1a": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0x9f8AC9248395b93220C6ABbA41d0989Aa08257Ab": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0xf600Caa1468FFaa0B8Eef877A84152e2bDdDe2Fb": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0xbd0B19349A4D0DF5Abb67D31659d4C5C17b78901": {
+        "Name": "DexManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xdbffD7A135b332748Df2784D214c5f48eC706C3a": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x36eacDF8e9CF209d84B427316839800a81a2c45A": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0x3912De64539B960166940F2BCD55723f56A7358D": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x9D4B9784fC46496926ee4784e490F14d106D83a8": {
+        "Name": "StandardizedCallFacet",
+        "Version": "1.0.0"
+      },
+      "0x9157b6550D1C3209C20aCAd12A2dC57Df34Ca48b": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.1.1"
+      },
+      "0xb8C5408ED5f40ca8df929A50DD36b252B6b39f76": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
+      },
+      "0xc31F4392EE89d81E7303e2c1CDE210414F39E2ea": {
+        "Name": "CBridgeFacet",
+        "Version": "1.0.0"
+      },
+      "0x4f62E7a939C62316F76E2afC644A9A907Dc30D2d": {
+        "Name": "CBridgeFacetPacked",
+        "Version": "1.0.3"
+      },
+      "0xA4A8818D8d4e2EE27e960535D0a15299C5504605": {
+        "Name": "StargateFacet",
+        "Version": "2.2.0"
+      },
+      "0x66861f292099cAF644F4A8b6091De49BEC5E8a15": {
+        "Name": "LIFuelFacet",
+        "Version": "1.0.1"
+      }
+    },
+    "Periphery": {
+      "ERC20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
+      "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
+      "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
+      "GasRebateDistributor": "",
+      "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
+      "Receiver": "0x0561fFe9855541C02D17951c93405A4407Df74BC",
+      "RelayerCelerIM": "",
+      "ServiceFeeCollector": "0x346b1F1896f2772ffee205e34246ac7adc55B43D",
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
+    }
+  }
+}

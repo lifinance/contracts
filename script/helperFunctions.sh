@@ -538,7 +538,7 @@ function getContractInfoFromDiamondDeploymentLogByName() {
     # Loop through the array of top-level keys
     for PERIPHERY_CONTRACT in "${PERIPHERY_CONTRACTS[@]}"; do
 
-      # skip if contract name doesnt match with the one we are looking for
+      # skip if contract name doesn't match with the one we are looking for
       if [[ "$PERIPHERY_CONTRACT" != "$CONTRACT" ]]; then
         continue
       fi
@@ -2721,6 +2721,10 @@ function getChainId() {
     echo "137"
     return 0
     ;;
+  "polygonzkevm")
+    echo "1101"
+    return 0
+    ;;
   "gnosis")
     echo "100"
     return 0
@@ -2823,6 +2827,10 @@ function getChainId() {
     ;;
   "localanvil")
     echo "31337"
+    return 0
+    ;;
+  "zksync")
+    echo "324"
     return 0
     ;;
   *)

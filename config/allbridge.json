@@ -8,6 +8,9 @@
   "avalanche": {
     "allBridge": "0x9068E1C28941D0A680197Cc03be8aFe27ccaeea9"
   },
+  "base": {
+    "allBridge": "0x001E3f136c2f804854581Da55Ad7660a2b35DEf7"
+  },
   "bsc": {
     "allBridge": "0x3C4FA639c8D7E65c603145adaD8bD12F2358312f"
   },
