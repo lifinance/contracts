@@ -663,15 +663,6 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
         uint256 expectedAmountOut = amountOutWETH;
 
-        GenericSwapFacet.SwapDataV2 memory input = GenericSwapFacet.SwapDataV2(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET),
-            expectedAmountOut,
-            swapData
-        );
-
         uint256 gasLeftBef = gasleft();
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -686,7 +677,15 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
             expectedAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacet.swapTokensGenericV2(input);
+        // genericSwapFacet.swapTokensGenericV2(input);
+        genericSwapFacet.swapTokensGenericV2(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET),
+            expectedAmountOut,
+            swapData
+        );
 
         uint256 gasUsed = gasLeftBef - gasleft();
         console.log("gas used V2: ", gasUsed);
