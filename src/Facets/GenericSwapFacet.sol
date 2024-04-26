@@ -12,11 +12,14 @@ import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferF
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 
+//TODO: remove
+import { console2 } from "forge-std/console2.sol";
+
 /// @title GenericSwapFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for swapping through any APPROVED DEX
 /// @dev Can only execute calldata for APPROVED function selectors
-/// @custom:version 2.0.0
+/// @custom:version 3.0.0
 contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     // using SafeERC20 for ERC20;
     using SafeTransferLib for ERC20;
@@ -204,6 +207,260 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
     }
 
+    function _depositAndSwapV2(
+        LibSwap.SwapData[] calldata _swapData
+    ) internal {
+        // TODO: consider/test adding a dedicated parameter (array with deposit tokens/amounts) so that we dont have to go through all swapData items
+        LibSwap.SwapData[] calldata swapData = _swapData; // TODO: does this actually save gas?
+        for (uint256 i = 0; i < swapData.length; ) {
+            LibSwap.SwapData calldata currentSwap = swapData[i];
+            if (currentSwap.requiresDeposit) {
+                // we will not check msg.value as tx will fail anyway if not enough value available
+                // thus we only deposit ERC20 tokens here
+                ERC20(currentSwap.sendingAssetId).safeTransferFrom(
+                    msg.sender,
+                    address(this),
+                    currentSwap.fromAmount
+                );
+            }
+            unchecked {
+                i++;
+            }
+        }
+    }
+
+    //-------------
+    struct SwapDataV2 {
+        bytes32 transactionId;
+        string integrator;
+        string referrer;
+        address payable receiver;
+        uint256 minAmountOut;
+        LibSwap.SwapData[] swapData;
+    }
+
+    function swapTokensGenericV2(SwapDataV2 calldata _input) external payable {
+        _depositAndSwapV2(_input.swapData);
+        _processSwaps(_input);
+        _finalizeSwap(_input);
+    }
+
+    function _depositAndPrepareSwaps(
+        LibSwap.SwapData[] calldata swapData
+    ) internal {
+        for (uint256 i = 0; i < swapData.length; i++) {
+            LibSwap.SwapData calldata currentSwap = swapData[i];
+            if (!LibAsset.isNativeAsset(currentSwap.sendingAssetId)) {
+                ERC20 sendingAsset = ERC20(currentSwap.sendingAssetId);
+                uint256 balanceBefore = sendingAsset.balanceOf(address(this));
+                sendingAsset.safeTransferFrom(
+                    msg.sender,
+                    address(this),
+                    currentSwap.fromAmount
+                );
+                require(
+                    sendingAsset.balanceOf(address(this)) ==
+                        balanceBefore + currentSwap.fromAmount,
+                    "Deposit failed"
+                );
+            }
+        }
+    }
+
+    function _processSwaps(SwapDataV2 calldata _input) internal {
+        for (uint256 i = 0; i < _input.swapData.length; i++) {
+            _executeSwap(_input.swapData[i], _input.transactionId);
+        }
+    }
+
+    function _executeSwap(
+        LibSwap.SwapData calldata currentSwap,
+        bytes32 transactionId
+    ) internal {
+        if (
+            !LibAllowList.contractIsAllowed(currentSwap.callTo) ||
+            !LibAllowList.selectorIsAllowed(bytes4(currentSwap.callData[:4]))
+        ) {
+            revert ContractCallNotAllowed();
+        }
+        if (
+            currentSwap.approveTo != currentSwap.callTo &&
+            !LibAllowList.contractIsAllowed(currentSwap.approveTo)
+        ) {
+            revert ContractCallNotAllowed();
+        }
+
+        bool isNative = LibAsset.isNativeAsset(currentSwap.sendingAssetId);
+        if (!isNative) {
+            ERC20 sendingAsset = ERC20(currentSwap.sendingAssetId);
+            uint256 currentAllowance = sendingAsset.allowance(
+                address(this),
+                currentSwap.approveTo
+            );
+            if (currentAllowance < currentSwap.fromAmount) {
+                sendingAsset.safeApprove(currentSwap.approveTo, 0);
+                sendingAsset.safeApprove(
+                    currentSwap.approveTo,
+                    type(uint256).max
+                );
+            }
+        }
+
+        (bool success, bytes memory returnData) = currentSwap.callTo.call{
+            value: isNative ? currentSwap.fromAmount : 0
+        }(currentSwap.callData);
+        if (!success) {
+            revert(LibUtil.getRevertMsg(returnData));
+        }
+
+        emit LibSwap.AssetSwapped(
+            transactionId,
+            currentSwap.callTo,
+            currentSwap.sendingAssetId,
+            currentSwap.receivingAssetId,
+            currentSwap.fromAmount,
+            ERC20(currentSwap.receivingAssetId).balanceOf(address(this)),
+            block.timestamp
+        );
+    }
+
+    function _finalizeSwap(SwapDataV2 calldata _input) internal {
+        uint256 finalIndex = _input.swapData.length - 1;
+        address finalAssetId = _input.swapData[finalIndex].receivingAssetId;
+        uint256 amountReceived = ERC20(finalAssetId).balanceOf(address(this));
+
+        ERC20(finalAssetId).safeTransfer(_input.receiver, amountReceived);
+
+        emit LiFiGenericSwapCompleted(
+            _input.transactionId,
+            _input.integrator,
+            _input.referrer,
+            _input.receiver,
+            _input.swapData[0].sendingAssetId,
+            finalAssetId,
+            _input.swapData[0].fromAmount,
+            amountReceived
+        );
+    }
+
+    //-------------
+
+    // struct SwapDataV2 {
+    //     bytes32 transactionId;
+    //     string integrator;
+    //     string referrer;
+    //     address payable receiver;
+    //     uint256 minAmountOut;
+    //     LibSwap.SwapData[] swapData;
+    // }
+
+    // function swapTokensGenericV2(
+    //     //         bytes32 _transactionId,
+    //     // string calldata _integrator,
+    //     // string calldata _referrer,
+    //     // address payable _receiver,
+    //     // uint256 _minAmountOut,
+    //     // LibSwap.SwapData[] calldata _swapData
+    //     SwapDataV2 calldata _input
+    // )
+    //     external
+    //     payable
+    //     refundExcessNative(_input.receiver) //TODO: remove refundExcessNative?
+    // {
+    //     LibSwap.SwapData[] calldata swapData = _input.swapData; // TODO: does this actually save gas?
+    //     bytes32 transactionId = _input.transactionId;
+    //     // deposit all assets that need to be manually deposited to this contract
+    //     _depositAndSwapV2(swapData);
+
+    //     // execute swaps
+    //     uint256 numOfSwaps = swapData.length;
+    //     for (uint256 i = 0; i < numOfSwaps; ) {
+    //         LibSwap.SwapData calldata currentSwap = swapData[i];
+
+    //         // make sure that callTo, approveTo and function selector are whitelisted
+    //         // consider moving this into a helper function (reuse code between v1 and v2)
+    //         address callTo = currentSwap.callTo;
+    //         address approveTo = currentSwap.approveTo;
+    //         address sendingAssetId = currentSwap.sendingAssetId;
+    //         address receivingAssetId = currentSwap.receivingAssetId;
+    //         ERC20 sendingAsset = ERC20(sendingAssetId);
+    //         uint256 fromAmount = currentSwap.fromAmount;
+    //         bytes calldata callData = currentSwap.callData;
+
+    //         // TODO: for native we dont need to conduct this check (dedicated function?)
+    //         if (
+    //             !(LibAllowList.contractIsAllowed(callTo) &&
+    //                 LibAllowList.selectorIsAllowed(bytes4(callData[:4])))
+    //         ) revert ContractCallNotAllowed();
+
+    //         // ensure that approveTo address is also whitelisted if it differs from callTo
+    //         if (
+    //             approveTo != callTo &&
+    //             !LibAllowList.contractIsAllowed(approveTo)
+    //         ) revert ContractCallNotAllowed();
+
+    //         // set msg.value for swap (in case of native swap)
+    //         bool isNativeAsset = LibAsset.isNativeAsset(address(sendingAsset));
+    //         uint256 nativeValue = isNativeAsset ? fromAmount : 0;
+
+    //         unchecked {
+    //             ++i;
+    //         }
+
+    //         // get current allowance
+    //         uint256 currentAllowance = sendingAsset.allowance(
+    //             address(this),
+    //             approveTo
+    //         );
+
+    //         // set max approval (only ERC20) if allowance is insufficient
+    //         if (!isNativeAsset && currentAllowance < fromAmount) {
+    //             // check if is non-zero, set to 0 if not
+    //             if (currentAllowance != 0)
+    //                 sendingAsset.safeApprove(approveTo, 0);
+    //             // set allowance to uint max to avoid future approvals
+    //             sendingAsset.safeApprove(approveTo, type(uint256).max);
+    //         }
+
+    //         // execute swap
+    //         // solhint-disable-next-line avoid-low-level-calls
+    //         (bool success, bytes memory res) = callTo.call{
+    //             value: nativeValue
+    //         }(callData);
+    //         if (!success) {
+    //             string memory reason = LibUtil.getRevertMsg(res);
+    //             revert(reason);
+    //         }
+
+    //         // emit AssetSwapped event
+    //         emit LibSwap.AssetSwapped(
+    //             transactionId,
+    //             callTo,
+    //             sendingAssetId,
+    //             receivingAssetId,
+    //             fromAmount,
+    //             ERC20(receivingAssetId).balanceOf(address(this)),
+    //             block.timestamp
+    //         );
+    //     }
+
+    //     // send finalAsset to receiver
+    //     address finalAssetId = swapData[numOfSwaps - 1].receivingAssetId;
+    //     uint256 amountReceived = ERC20(finalAssetId).balanceOf(address(this));
+
+    //     // emit event
+    //     emit LiFiGenericSwapCompleted(
+    //         transactionId,
+    //         _input.integrator,
+    //         _input.referrer,
+    //         _input.receiver,
+    //         swapData[0].sendingAssetId,
+    //         finalAssetId,
+    //         swapData[0].fromAmount,
+    //         amountReceived
+    //     );
+    // }
+
     /// @notice Performs multiple swaps (of any kind) in one transaction
     /// @param _transactionId the transaction id associated with the operation
     /// @param _integrator the name of the integrator
@@ -254,9 +511,10 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // ensure that contract (callTo) and function selector are whitelisted
         address callTo = _swapData.callTo;
         address approveTo = _swapData.approveTo;
+        bytes calldata callData = _swapData.callData;
         if (
             !(LibAllowList.contractIsAllowed(callTo) &&
-                LibAllowList.selectorIsAllowed(bytes4(_swapData.callData[:4])))
+                LibAllowList.selectorIsAllowed(bytes4(callData[:4])))
         ) revert ContractCallNotAllowed();
 
         // ensure that approveTo address is also whitelisted if it differs from callTo
@@ -279,7 +537,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // execute swap
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory res) = callTo.call(_swapData.callData);
+        (bool success, bytes memory res) = callTo.call(callData);
         if (!success) {
             string memory reason = LibUtil.getRevertMsg(res);
             revert(reason);
