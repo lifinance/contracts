@@ -4,7 +4,6 @@ pragma solidity 0.8.17;
 import "solmate/tokens/ERC20.sol";
 
 contract TestWrappedToken is ERC20 {
-
     error WithdrawError();
 
     constructor(
@@ -24,10 +23,13 @@ contract TestWrappedToken is ERC20 {
     function deposit() public payable {
         balanceOf[msg.sender] += msg.value;
     }
+
     function withdraw(uint256 wad) public {
         require(balanceOf[msg.sender] >= wad);
         balanceOf[msg.sender] -= wad;
-        (bool success,) = payable(msg.sender).call{value: wad}("");
-        if (!success) { revert WithdrawError(); }
+        (bool success, ) = payable(msg.sender).call{ value: wad }("");
+        if (!success) {
+            revert WithdrawError();
+        }
     }
 }

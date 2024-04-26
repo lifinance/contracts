@@ -28,7 +28,7 @@ contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatab
     /// Types ///
 
     /// @dev Optional bridge specific struct
-    /// @param exampleParam Example paramter
+    /// @param exampleParam Example parameter
     struct {{titleCase name}}Data {
       string exampleParam;
     }
@@ -43,7 +43,7 @@ contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatab
     ///         Should only be used to set immutable variables.
     ///         Anything that cannot be set as immutable should be set
     ///         in an init() function called during a diamondCut().
-    /// @param _example Example paramter.
+    /// @param _example Example parameter.
     constructor(address _example) {
         example = _example;
     }
