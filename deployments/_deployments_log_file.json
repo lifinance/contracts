@@ -14545,6 +14545,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-26 16:22:18",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "arbitrum": {
@@ -14556,6 +14568,18 @@
             "TIMESTAMP": "2023-06-27 19:24:00",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666",
             "SALT": "27062023",
+            "VERIFIED": "true"
+          }
+        ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-26 16:21:42",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -14656,6 +14680,46 @@
             "ADDRESS": "0x8BFC9f022ACb65dfa0Eb6CCbA45c04C2a6cb9A34",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-04-10 17:24:17",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-26 16:21:28",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fantom": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-26 17:33:38",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "moonbeam": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-26 17:34:22",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666",
             "SALT": "",
             "VERIFIED": "true"
