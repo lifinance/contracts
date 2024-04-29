@@ -92,6 +92,10 @@
       "0x29f9a4741EC691AE54068De461Ca291794aa1D05": {
         "Name": "AcrossFacetPacked",
         "Version": "1.0.0"
+      },
+      "0xEa8EF3E532db49915FDbDdB29244a83E76768111": {
+        "Name": "SquidFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
