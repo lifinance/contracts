@@ -100,12 +100,12 @@ jobs:
           jq '.version="${{ steps.bump_version.outputs.next-version }}"' package.json > "$tmp" && mv "$tmp" package.json
           git config user.name github-actions
           git config user.email github-actions@github.com
-          echo "Updating version from ${{ env.LATEST_TAG }} to ${{ steps.bump_version.outputs.next-version }}"
+          echo 'Updating version from ${{ env.LATEST_TAG }} to ${{ steps.bump_version.outputs.next-version }}'
           git add src/*
           git add dist/*
           git add package.json
-          git commit -m "actions: new contracts version ${{ steps.bump_version.outputs.next-version }}"
-          git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ github.event.head_commit.message }}"
+          git commit -m 'actions: new contracts version ${{ steps.bump_version.outputs.next-version }}'
+          git tag -a v${{ steps.bump_version.outputs.next-version }} -m '${{ github.event.head_commit.message }}'
           git push origin tag v${{ steps.bump_version.outputs.next-version }}
           if [[ "$BRANCH_NAME" == "main" ]]; then
             git push -u origin $BRANCH_NAME
