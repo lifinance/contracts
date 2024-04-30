@@ -37,4 +37,3 @@ contract TokenWrapperTest is DSTest {
         assert(address(this).balance - initialBalance == 1 ether);
     }
 }
-

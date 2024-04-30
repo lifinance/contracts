@@ -7,6 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// External wrapper interface
 interface IWrapper {
     function deposit() external payable;
+
     function withdraw(uint wad) external;
 }
 
@@ -15,7 +16,7 @@ interface IWrapper {
 /// @notice Provides functionality for wrapping and unwrapping tokens
 /// @custom:version 1.0.0
 contract TokenWrapper {
-    uint256 private constant MAX_INT = 2**256 - 1;
+    uint256 private constant MAX_INT = 2 ** 256 - 1;
     address public wrappedToken;
 
     /// Errors ///
@@ -31,9 +32,8 @@ contract TokenWrapper {
     /// External Methods ///
 
     /// @notice Wraps the native token
-    function deposit(
-    ) external payable {
-        IWrapper(wrappedToken).deposit{value: msg.value}();
+    function deposit() external payable {
+        IWrapper(wrappedToken).deposit{ value: msg.value }();
         IERC20(wrappedToken).transfer(msg.sender, msg.value);
     }
 
@@ -46,7 +46,7 @@ contract TokenWrapper {
         uint256 wad = IERC20(wrappedToken).balanceOf(msg.sender);
         IERC20(wrappedToken).transferFrom(msg.sender, address(this), wad);
         IWrapper(wrappedToken).withdraw(wad);
-        (bool success, ) = payable(msg.sender).call{value: wad}("");
+        (bool success, ) = payable(msg.sender).call{ value: wad }("");
         if (!success) {
             revert WithdrawFailure();
         }
@@ -55,4 +55,3 @@ contract TokenWrapper {
     // Needs to be able to receive native on `withdraw`
     receive() external payable {}
 }
-

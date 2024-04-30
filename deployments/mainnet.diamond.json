@@ -63,7 +63,7 @@
       },
       "0x41bDcf7A9695ba3994cCA53d529DE23f54881D7F": {
         "Name": "GenericSwapFacet",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
       "0xd84d9A8Bf830496C4DEc917bC27D22E09E01cB8A": {
         "Name": "HopFacet",
@@ -119,6 +119,10 @@
       },
       "0xe12b2488c71432F9a116E9ac244D3Ef4c2386d3a": {
         "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
+      },
+      "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c": {
+        "Name": "SquidFacet",
         "Version": "1.0.0"
       }
     },
