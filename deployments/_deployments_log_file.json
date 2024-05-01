@@ -17350,6 +17350,74 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x14B4e2e2e3422DeC6F8bF3DcDc0BF3566F37197D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-30 12:19:20",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "arbitrum": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x14B4e2e2e3422DeC6F8bF3DcDc0BF3566F37197D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-30 12:26:04",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "avalanche": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x14B4e2e2e3422DeC6F8bF3DcDc0BF3566F37197D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-30 12:28:19",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x14B4e2e2e3422DeC6F8bF3DcDc0BF3566F37197D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-30 12:54:29",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x14B4e2e2e3422DeC6F8bF3DcDc0BF3566F37197D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-05-01 11:49:46",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     }
   }
