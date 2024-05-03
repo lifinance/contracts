@@ -6,6 +6,7 @@ hardhat-deploy/=node_modules/hardhat-deploy/
 
 @openzeppelin/=lib/openzeppelin-contracts/
 celer-network/=lib/sgn-v2-contracts/
+permit2=lib/permit2-sdk/src
 create3-factory/=lib/create3-factory/src/
 solmate/=lib/solmate/src/
 

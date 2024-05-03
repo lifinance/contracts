@@ -26,6 +26,7 @@ import dotenv from 'dotenv'
 import {
   PermitTransferFrom,
   PermitTransferFromData,
+  SignatureTransfer,
 } from '../../lib/permit2-sdk/src/signatureTransfer'
 import { PERMIT2_ADDRESS } from '../../lib/permit2-sdk/src/constants'
 dotenv.config()
@@ -468,10 +469,10 @@ const getEncodedWitnessHash = (
 
 // WORKS AS INTENDED (tested)
 const getTokenPermissionsTypeHash = () => {
-  const typeHash = utils.keccak256(
-    utils.toUtf8Bytes(TOKEN_PERMISSIONS_TYPESTRING)
-  )
-  return typeHash
+  // const typeHash = utils.keccak256(
+  //   utils.toUtf8Bytes(TOKEN_PERMISSIONS_TYPESTRING)
+  // )
+  // return typeHash
   // return '0x618358ac3db8dc274f0cd8829da7e234bd48cd73c4a740aede1adec9846d06a1'
 }
 
@@ -570,8 +571,10 @@ const getMsgHash = async (
   return msgHash
 }
 
-async function main_useAlternativeSignatureApproach() {
-  console.log(`Starting main_alternativeSignatureApproach`)
+// ###########################################################
+
+const main_usePermit2SDK = async () => {
+  console.log(`Starting main_Permit2SDK`)
 
   prepareWalletsAndContracts()
 
@@ -580,130 +583,94 @@ async function main_useAlternativeSignatureApproach() {
     await maxApproveTokenToPermit2(signer, usdc_contract, PERMIT2_ADDRESS)
 
   // fetch route from LI.FI API and extract diamondAddress and diamondCalldata
-  const { diamondAddress, diamondCalldata } = await getCalldataFromLiFiAPI(
-    signer
-  )
+  // eslint-disable-next-line prefer-const
+  let { diamondAddress, diamondCalldata } = await getCalldataFromLiFiAPI(signer)
 
-  // // Define the permit structure based on our Permit2 contract requirements
+  // create permit
   const permitForSignature: PermitTransferFrom = {
     permitted: {
       token: BSC_USDC_ADDRESS,
       amount: testAmount,
     },
     spender: PERMIT_2_PROXY,
-    nonce,
-    deadline,
+    nonce: constants.MaxUint256.toString(),
+    // deadline: constants.MaxUint256.toString(),
+    deadline: 1709269103, // as used in working test case
   }
+  // create witness
+  const witness = getWitness(PERMIT_2_PROXY, diamondAddress, diamondCalldata)
 
-  // Define witness structure according to your contract requirements
-  const witness = {
-    tokenReceiver: PERMIT_2_PROXY,
-    diamondAddress: diamondAddress,
-    diamondCalldata: diamondCalldata,
-  }
-
-  // Encode the permit and witness data for signing
-  const permitDataToSign = ethers.utils.defaultAbiCoder.encode(
-    ['tuple(address token, uint256 amount)', 'address', 'uint256', 'uint256'],
-    [[BSC_USDC_ADDRESS, testAmount], PERMIT_2_PROXY, nonce, deadline]
-  )
-  // const permitDataToSign = ethers.utils.defaultAbiCoder.encode(
-  //   ['tuple(address token, uint256 amount)', 'uint256', 'uint256'],
-  //   [[BSC_USDC_ADDRESS, testAmount], nonce, deadline]
-  // )
-  const witnessDataToSign = ethers.utils.defaultAbiCoder.encode(
-    // ['address', 'address', 'bytes'],
-    [
-      'tuple(address tokenReceiver, address diamondAddress, bytes diamondCalldata)',
-    ],
-    [
-      [
-        witness.tokenReceiver,
-        witness.diamondAddress,
-        // ethers.utils.arrayify(witness.diamondCalldata),
-        witness.diamondCalldata,
-      ],
-    ]
-  )
-  console.log(`witnessDataToSign: ${utils.keccak256(witnessDataToSign)}`)
-
-  const msgHash = await getMsgHash(
-    witness.tokenReceiver,
-    witness.diamondAddress,
-    witness.diamondCalldata,
-    permitForSignature
+  // prepare data for signing
+  const { domain, types, values } = SignatureTransfer.getPermitData(
+    permitForSignature,
+    PERMIT2_ADDRESS,
+    SRC_CHAIN_ID,
+    witness
   )
 
-  // Combine permit and witness data for signing
+  // const domain2: TypedDataDomain = {
+  //   name: '"Permit2"',
+  //   version: '1',
+  //   chainId: 56,
+  //   verifyingContract: PERMIT2_ADDRESS,
+  // }
 
-  // const combinedDataToSign = ethers.utils.keccak256(
-  // const combinedDataToSign = utils.keccak256(
-  //   ethers.utils.defaultAbiCoder.encode(
-  //     ['bytes', 'bytes', 'bytes'],
-  //     [PERMIT_2_BSC_DOMAIN_SEPARATOR, permitDataToSign, witnessDataToSign]
-  //   )
-  // )
-  const combinedDataToSign = ethers.utils.defaultAbiCoder.encode(
-    ['bytes', 'bytes', 'bytes'],
-    [PERMIT_2_BSC_DOMAIN_SEPARATOR, permitDataToSign, witnessDataToSign]
-  )
+  console.log(`domain: ${JSON.stringify(domain, null, 2)}`)
+  console.log(`types: ${JSON.stringify(types, null, 2)}`)
+  console.log(`values: ${JSON.stringify(values, null, 2)}`)
 
-  // console.log(`combinedDataToSign: ${JSON.stringify(combinedDataToSign)}`)
-  // compareDigest(combinedDataToSign)
-
-  // Sign the combined data
-
-  // @ DEV: with this code I was able to produce the correct signature based on the correct digest, so the signing seems to work if I pass in the right values
-  // const CORRECT_DIGEST =
-  // '0x110686fdab1594195e92ec4d111f522fc2680ffc81998ad9cc125abbf7556f4d'
-  const sig = await signer._signingKey().signDigest(msgHash)
-  const signature = joinSignature(sig)
-
-  // const signature = await signer.signMessage(
-  //   // ethers.utils.arrayify(combinedDataToSign)
-  //   // combinedDataToSign
-  //   msgHash
-  // )
+  // sign permit message
+  const signature = await signer._signTypedData(domain, types, values)
 
   compareSignatures(signature)
 
-  // logDebug(`permit: ${JSON.stringify(permitForSignature, null, 2)}`)
-  // logDebug(`witness: ${JSON.stringify(witness, null, 2)}`)
-  // logDebug(`signature: ${signature}`)
+  // encode witnessData as bytes value (will be a function argument for the call)
+  const witnessData = encodeWitnessData(diamondAddress, diamondCalldata)
 
-  // create permit parameter for contract call (has less properties than the one that was signed)
+  // verify signature
+  const expectedSignerAddress = signer.address
+  const recoveredAddress = utils.verifyTypedData(
+    domain,
+    types,
+    values,
+    signature
+  )
+  logDebug(
+    `Signer address (${signer.address}) successfully recovered: ${
+      recoveredAddress === expectedSignerAddress
+    }`
+  )
+
   const permitForCall = {
     permitted: {
       token: BSC_USDC_ADDRESS,
       amount: testAmount,
     },
-    nonce,
-    deadline,
+    nonce: constants.MaxUint256.toString(),
+    // deadline: constants.MaxUint256.toString(),
+    deadline: 1709269103,
   }
 
-  // Call Permit2Proxy to execute a gasless transaction
+  // logDebug(`signature: ${JSON.stringify(signature)}`)
+  logDebug(`permitForSignature: ${JSON.stringify(permitForSignature, null, 2)}`)
+  logDebug(`permitForCall: ${JSON.stringify(permitForCall, null, 2)}`)
+  // logDebug(`permit2Proxy: ${JSON.stringify(permit2Proxy)}`)
+
+  // trigger transaction using calldata and user signature
   const tx = await permit2Proxy_contract.callDiamondWithPermit2SignatureSingle(
     permitForCall,
     testAmount,
-    // getEncodedWitness(),
-    ethers.utils.defaultAbiCoder.encode(
-      [
-        'tuple(address tokenReceiver, address diamondAddress, bytes diamondCalldata)',
-      ],
-      [[PERMIT_2_PROXY, diamondAddress, diamondCalldata]]
-    ),
+    witnessData,
     signer.address,
     signature
   )
 
   await tx.wait()
 
-  console.log(`Transaction hash: ${tx.hash}`)
+  logSuccess('\n\n script successfully completed')
 }
 
-// main_usePermit2SDK()
-// main_useHardcodedValues()
-main_useAlternativeSignatureApproach()
+main_usePermit2SDK()
   .then(() => {
     console.log('Success')
     process.exit(0)

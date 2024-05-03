@@ -22,6 +22,8 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
         0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE;
     address public constant LIFIDIAMONDIMMUTABLE =
         0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF;
+    address public constant PERMIT2PROXY_OWNER =
+        0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7;
 
     string public constant _PERMIT_TRANSFER_TYPEHASH_STUB =
         "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,";
@@ -405,7 +407,7 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
         );
     }
 
-    function testRevertOwnerCanUpdateWhitelist() public {
+    function testOwnerCanUpdateWhitelist() public {
         // make sure whitelist is set correctly
         assertEq(p2Proxy.diamondWhitelist(LIFIDIAMOND), true);
         assertEq(p2Proxy.diamondWhitelist(LIFIDIAMONDIMMUTABLE), true);
@@ -417,6 +419,8 @@ contract Permit2ProxyTestBSC is TestBaseBSC {
         bool[] memory values = new bool[](2);
         values[0] = false;
         values[1] = false;
+
+        vm.startPrank(PERMIT2PROXY_OWNER);
 
         // expect event to be emitted by Permit2Proxy with correct parameters
         vm.expectEmit(true, true, true, true, address(p2Proxy));
