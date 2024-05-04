@@ -8,6 +8,7 @@ import {
   utils,
 } from 'ethers'
 import deployments from '../../deployments/bsc.staging.json'
+
 import {
   ERC20,
   ERC20__factory,
@@ -117,6 +118,8 @@ const getWitness = (
       ],
     },
   }
+
+  // logDebug(`Witness prepared: ${JSON.stringify(witness, null, 2)}`)
 
   // logDebug(`Witness prepared: ${JSON.stringify(witness, null, 2)}`)
 
@@ -331,6 +334,7 @@ const prepareDataForSigning = async (
 
   logSuccess('Data prepared for signing')
   // logDebug(`permit: ${JSON.stringify(permit, null, 2)}`)
+  // logDebug(`permit: ${JSON.stringify(permit, null, 2)}`)
 
   return {
     permit: permit,
@@ -363,6 +367,7 @@ const encodeWitnessData = (diamondAddress: string, diamondCalldata: string) => {
   )
 
   logDebug(``)
+  logDebug(``)
   logDebug(`witnessData: ${JSON.stringify(witnessData)}`)
   logSuccess(`Witness data encoded`)
 
@@ -376,6 +381,8 @@ const prepareWalletsAndContracts = () => {
 
   // get wallet
   const provider = new providers.JsonRpcProvider(RPC_URL)
+  signer = new Wallet(PRIVATE_KEY_OWNER as string, provider)
+  executor = new Wallet(PRIVATE_KEY_EXECUTOR as string, provider)
   signer = new Wallet(PRIVATE_KEY_OWNER as string, provider)
   executor = new Wallet(PRIVATE_KEY_EXECUTOR as string, provider)
 
