@@ -354,6 +354,11 @@
     }
   },
   "bsc": {
+    "staging": {
+      "LiFiDiamond": {
+        "GasZip": "1.0.0"
+      }
+    },
     "production": {
       "LiFiDiamond": {
         "DiamondCutFacet": "1.0.0",

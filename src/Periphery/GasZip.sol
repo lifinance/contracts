@@ -2,6 +2,7 @@
 pragma solidity 0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
+import { LibSwap } from "../Libraries/LibSwap.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 
 struct ExactInputSingleParams {
@@ -38,25 +39,27 @@ contract GasZip is TransferrableOwnership {
     /// State ///
 
     mapping(address => bool) public allowedInboundTokens;
-    ISwapRouter public immutable uniswapRouter;
     IGasZip public immutable gasZipRouter;
 
     /// Errors ///
     error SwapFailed(address, address);
     error GasZipFailed(uint256);
     error TransferFailed();
+    error InboundTokenDisallowed();
 
     /// Events ///
 
     /// Constructor ///
 
-    // solhint-disable-next-line no-empty-blocks
+    modifier inboundTokenIsAllowed(address token) {
+        if(!allowedInboundTokens[token]) revert InboundTokenDisallowed();
+        _;
+    }
+
     constructor(
         address _owner,
-        address _uniswapRouter,
         address _gasZipRouter
     ) TransferrableOwnership(_owner) {
-        uniswapRouter = ISwapRouter(_uniswapRouter);
         gasZipRouter = IGasZip(_gasZipRouter);
     }
 
@@ -65,12 +68,12 @@ contract GasZip is TransferrableOwnership {
     }
 
     function zipERC20(
-        address fromToken,
-        uint256 minAmount,
+        LibSwap.SwapData calldata _swap,
         uint256 destinationChain,
         address recipient
-    ) public {
-        uint256 availableNative = swapERC20(fromToken, minAmount);
+    ) inboundTokenIsAllowed(_swap.sendingAssetId) public {
+        LibSwap.swap(0, _swap);
+        uint256 availableNative = LibAsset.getOwnBalance(ZERO);
         gasZipRouter.deposit{ value: availableNative }(
             destinationChain,
             recipient
@@ -88,24 +91,5 @@ contract GasZip is TransferrableOwnership {
         );
         (bool success, ) = msg.sender.call{ value: address(this).balance }("");
         if (!success) revert TransferFailed();
-    }
-
-    function swapERC20(
-        address fromERC20,
-        uint256 minAmount
-    ) internal returns (uint256) {
-        return
-            uniswapRouter.exactInputSingle(
-                ExactInputSingleParams({
-                    tokenIn: fromERC20,
-                    tokenOut: ZERO,
-                    fee: 3000,
-                    recipient: address(this),
-                    deadline: block.timestamp,
-                    amountIn: LibAsset.getOwnBalance(fromERC20),
-                    amountOutMinimum: minAmount,
-                    sqrtPriceLimitX96: 0
-                })
-            );
     }
 }

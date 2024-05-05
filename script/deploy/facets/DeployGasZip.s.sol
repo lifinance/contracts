@@ -27,16 +27,13 @@ contract DeployScript is DeployScriptBase {
 
         string memory gasZipConfigJson = vm.readFile(gasZipConfig);
 
-        address uniswapRouter = gasZipConfigJson.readAddress(
-            string.concat(".uniswapRouters.", network)
-        );
-        address gasZipRouters = gasZipConfigJson.readAddress(
+        address gasZipRouter = gasZipConfigJson.readAddress(
             string.concat(".gasZipRouters.", network)
         );
         address owner = gasZipConfigJson.readAddress(
             string.concat(".withdrawWallet")
         );
 
-        return abi.encode(owner, uniswapRouter, gasZipRouters);
+        return abi.encode(owner, gasZipRouter);
     }
 }
