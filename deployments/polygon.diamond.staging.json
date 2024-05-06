@@ -101,6 +101,10 @@
         "Name": "",
         "Version": ""
       },
+      "0x8BFC9f022ACb65dfa0Eb6CCbA45c04C2a6cb9A34": {
+        "Name": "SquidFacet",
+        "Version": "0.0.8"
+      },
       "0xC34b1387F1b6F6E58a2D708780934DaB84e6aA2e": {
         "Name": "",
         "Version": ""

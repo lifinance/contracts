@@ -56,6 +56,10 @@
       "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
+      },
+      "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c": {
+        "Name": "SquidFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
