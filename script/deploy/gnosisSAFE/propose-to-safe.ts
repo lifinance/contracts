@@ -53,16 +53,12 @@ const main = defineCommand({
 
     const config: SafeApiKitConfig = {
       chainId: BigInt(chain.id),
-      txServiceUrl: safeApiUrls[args.network.toLowerCase()],
+      txServiceUrl: safeApiUrls[args.network],
     }
-
-    console.log('Account', account.address)
 
     const safeService = new SafeApiKit(config)
 
     const resp = await safeService.getSafesByOwner(account.address)
-
-    console.log('Safes', resp)
 
     const safeAddress = resp.safes[0]
 
