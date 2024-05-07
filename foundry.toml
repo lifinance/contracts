@@ -59,7 +59,7 @@ aurora = { key = "${AURORA_ETHERSCAN_API_KEY}", url = "https://api.aurorascan.de
 avalanche = { key = "${AVALANCHE_ETHERSCAN_API_KEY}", url = "https://api.snowtrace.io/api" }
 boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.bobascan.com/api" }
 bsc = { key = "${BSC_ETHERSCAN_API_KEY}", url = "https://api.bscscan.com/api" }
-celo = { key = "${CELO_ETHERSCAN_API_KEY}", url = "https://explorer.celo.org/api" }
+celo = { key = "${CELO_ETHERSCAN_API_KEY}", url = "https://api.celoscan.io/api" }
 cronos = { key = "${CRONOS_ETHERSCAN_API_KEY}", url = "https://api.cronoscan.com/api" }
 fantom = { key = "${FANTOM_ETHERSCAN_API_KEY}", url = "https://api.ftmscan.com/api" }
 fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api" }

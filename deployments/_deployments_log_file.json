@@ -309,9 +309,9 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0xFcBDe557918061c46674fb3CAe38a3576913297d",
+            "ADDRESS": "0x1215791Ad4E823F36A71329c56e5999f8F320082",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-07-19 14:48:13",
+            "TIMESTAMP": "2024-05-06 13:42:57",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -856,9 +856,9 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0xB87d648bd9aE07E59c80ACAbe21b9065DFE96b0F",
+            "ADDRESS": "0x519483eEC772BA34098af187Aee7b56C77927B1a",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-07-19 14:48:33",
+            "TIMESTAMP": "2024-05-06 13:26:29",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -5061,9 +5061,9 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0x0708c608e53B25d4B323E21a07d7a183a90C1D1E",
+            "ADDRESS": "0xc31F4392EE89d81E7303e2c1CDE210414F39E2ea",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-07-19 14:52:50",
+            "TIMESTAMP": "2024-05-06 13:30:47",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000bb7684cc5408f4dd0921e5c2cadd547b8f1ad573",
             "SALT": "",
             "VERIFIED": "true"
@@ -6642,6 +6642,16 @@
             "ADDRESS": "0x8269DCa8A7Ed9EE72ea19F27A950Cc10FDafFD8D",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-07-19 14:50:30",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x66861f292099cAF644F4A8b6091De49BEC5E8a15",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-05-06 13:42:06",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -8412,10 +8422,10 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+            "ADDRESS": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-07-19 14:56:51",
-            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "TIMESTAMP": "2024-05-06 12:30:23",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -9094,10 +9104,10 @@
         ],
         "2.0.0": [
           {
-            "ADDRESS": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
+            "ADDRESS": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-07-19 14:57:11",
-            "CONSTRUCTOR_ARGS": "0x0000000000000000000000005741a7ffe7c39ca175546a54985fa79211290b51",
+            "TIMESTAMP": "2024-05-06 12:31:07",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000a950ac46b0b844c0564d18a54a9685e614b9086c",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -9626,9 +9636,9 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0x44Ff747185C9Df233D07536E08341ff624896164",
+            "ADDRESS": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-07-19 14:57:34",
+            "TIMESTAMP": "2024-05-06 13:44:18",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
             "VERIFIED": "true"
@@ -10401,6 +10411,16 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-07-19 14:57:53",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002dfadab8266483bed9fd9a292ce56596a2d1378d00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ],
+        "2.0.2": [
+          {
+            "ADDRESS": "0x0561fFe9855541C02D17951c93405A4407Df74BC",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-05-06 12:36:46",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007078d1de45c7d3e87f71d5da663db2a8ee1dfebe00000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -11315,6 +11335,16 @@
             "ADDRESS": "0xC85c2B19958D116d79C654ecE73b359c08802A76",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-07-19 14:58:14",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0xf3552b98BB4234B47674700A99a0308D74B40F51",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-05-06 12:38:47",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
             "VERIFIED": "true"
@@ -15320,6 +15350,20 @@
           }
         ]
       }
+    },
+    "celo": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x9D4B9784fC46496926ee4784e490F14d106D83a8",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-05-06 13:38:11",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "CalldataVerificationFacet": {
@@ -15790,6 +15834,20 @@
             "ADDRESS": "0x9157b6550D1C3209C20aCAd12A2dC57Df34Ca48b",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-04-15 10:12:00",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "celo": {
+      "production": {
+        "1.1.1": [
+          {
+            "ADDRESS": "0x9157b6550D1C3209C20aCAd12A2dC57Df34Ca48b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-05-06 13:34:50",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -16452,6 +16510,20 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
             "SALT": "",
             "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "celo": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-05-06 12:44:17",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -17298,6 +17370,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-04-15 11:34:39",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000004200000000000000000000000000000000000006",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "celo": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-05-06 12:47:38",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000471ece3750da237f93b8e339c536989b8978a438",
             "SALT": "",
             "VERIFIED": "true"
           }

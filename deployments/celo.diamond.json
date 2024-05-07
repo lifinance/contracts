@@ -1,6 +1,14 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0x1215791Ad4E823F36A71329c56e5999f8F320082": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0x519483eEC772BA34098af187Aee7b56C77927B1a": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
       "0x43BCA3B49947fb553BB8CD5ff6de5753931672bB": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
@@ -17,7 +25,7 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x0708c608e53B25d4B323E21a07d7a183a90C1D1E": {
+      "0xc31F4392EE89d81E7303e2c1CDE210414F39E2ea": {
         "Name": "CBridgeFacet",
         "Version": "1.0.0"
       },
@@ -25,26 +33,33 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0x02063A0d7a222c16D5b63213262596B83b07150c": {
-        "Name": "MultichainFacet",
+      "0x66861f292099cAF644F4A8b6091De49BEC5E8a15": {
+        "Name": "LIFuelFacet",
         "Version": "1.0.1"
       },
       "0x6066f5B7566081DD1F0b216c9283A9888ba5688d": {
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x8269DCa8A7Ed9EE72ea19F27A950Cc10FDafFD8D": {
-        "Name": "LIFuelFacet",
+      "0x9157b6550D1C3209C20aCAd12A2dC57Df34Ca48b": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.1.1"
+      },
+      "0x9D4B9784fC46496926ee4784e490F14d106D83a8": {
+        "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
-      "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
-      "FeeCollector": "0x44Ff747185C9Df233D07536E08341ff624896164",
-      "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
+      "ERC20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
+      "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
+      "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
+      "GasRebateDistributor": "",
+      "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
+      "Receiver": "0x0561fFe9855541C02D17951c93405A4407Df74BC",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0xC85c2B19958D116d79C654ecE73b359c08802A76"
+      "ServiceFeeCollector": "0xf3552b98BB4234B47674700A99a0308D74B40F51",
+      "TokenWrapper": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD"
     }
   }
 }

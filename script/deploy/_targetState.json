@@ -1246,6 +1246,14 @@
         "LIFuelFacet": "1.0.0",
         "CalldataVerificationFacet": "1.1.1",
         "StandardizedCallFacet": "1.0.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.2",
+        "ServiceFeeCollector": "1.0.1",
+        "LiFuelFeeCollector": "1.0.1",
+        "TokenWrapper": "1.0.0",
         "MultichainFacet": "1.0.1",
         "SquidFacet": "1.0.0"
       },
@@ -1267,6 +1275,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "ServiceFeeCollector": "1.0.0",
+        "LiFuelFeeCollector": "1.0.1",
+        "TokenWrapper": "1.0.0",
         "MultichainFacet": "1.0.1",
         "SquidFacet": "1.0.0"
       }
