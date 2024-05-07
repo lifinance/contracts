@@ -1,10 +1,7 @@
 import { ethers } from 'ethers'
 import { EthersAdapter } from '@safe-global/protocol-kit'
 import Safe from '@safe-global/protocol-kit'
-import SafeApiKit, {
-  OwnerResponse,
-  ProposeTransactionProps,
-} from '@safe-global/api-kit'
+import SafeApiKit, { OwnerResponse } from '@safe-global/api-kit'
 import { SafeTransactionDataPartial } from '@safe-global/safe-core-sdk-types'
 import { safeApiUrls } from './config'
 import { argv, exit } from 'process'
@@ -16,7 +13,7 @@ const ownerABI = ['function owner() external view returns (address)']
 
 // Create ethers provider and signer from private key
 let safeOwner = new ethers.Wallet(privateKey as string)
-const provider = new ethers.providers.JsonRpcProvider(rpcUrl)
+const provider = new ethers.JsonRpcProvider(rpcUrl)
 const contract = new ethers.Contract(diamondAddress, ownerABI, provider)
 safeOwner = safeOwner.connect(provider)
 
@@ -27,8 +24,8 @@ const ethAdapter = new EthersAdapter({
 })
 
 const safeService = new SafeApiKit({
+  chainId: BigInt(provider._network.chainId),
   txServiceUrl: safeApiUrls[network],
-  ethAdapter,
 })
 
 const main = async () => {
@@ -66,7 +63,6 @@ const main = async () => {
 
   // Broadcast each cut as a SAFE transaction proposal
   console.info(`Proposing ${cuts.length} transactions...`)
-  let i = 1
   for (const cut of cuts) {
     const safeTransactionData: SafeTransactionDataPartial = {
       to: diamondAddress,
@@ -74,20 +70,31 @@ const main = async () => {
       data: cut,
       nonce,
     }
-    const tx = await safeSdk.createTransaction({ safeTransactionData })
-    const txHash = await safeSdk.getTransactionHash(tx)
-    const txHashSignature = await safeSdk.signTransactionHash(txHash)
-    const proposal: ProposeTransactionProps = {
-      safeAddress: safeAddress,
-      safeTransactionData: tx.data,
-      safeTxHash: txHash,
-      senderAddress: await safeOwner.getAddress(),
-      senderSignature: txHashSignature.data,
-    }
-    console.info(`Sending proposal [${i}]...`)
-    await safeService.proposeTransaction(proposal)
+    const safeTransaction = await safeSdk.createTransaction({
+      transactions: [safeTransactionData],
+    })
+
+    const senderAddress = await safeOwner.getAddress()
+    const safeTxHash = await safeSdk.getTransactionHash(safeTransaction)
+    const signature = await safeSdk.signHash(safeTxHash)
+
+    console.info('Signer Address', senderAddress)
+    console.info('Safe Address', safeAddress)
+    console.info('Network', network)
+    console.info('Proposing transaction to', diamondAddress)
+
+    // Propose transaction to the service
+    await safeService.proposeTransaction({
+      safeAddress: await safeSdk.getAddress(),
+      safeTransactionData: safeTransaction.data,
+      safeTxHash,
+      senderAddress,
+      senderSignature: signature.data,
+    })
+
+    console.info('Transaction proposed')
+
     nonce++
-    i++
   }
 }
 
