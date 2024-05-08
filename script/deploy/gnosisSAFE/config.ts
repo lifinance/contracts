@@ -8,7 +8,7 @@ export const safeApiUrls: Record<string, string> = {
   bsc: 'https://safe-transaction-bsc.safe.global/api',
   celo: 'https://safe-transaction-celo.safe.global/api',
   fantom: 'https://safe-txservice.fantom.network/api',
-  fuse: 'https://transaction-fuse.safe.fuse.io//api',
+  fuse: 'https://transaction-fuse.safe.fuse.io/api',
   gnosis: 'https://safe-transaction-gnosis-chain.safe.global/api',
   linea: 'https://transaction.safe.linea.build/api',
   // metis
@@ -32,7 +32,7 @@ export const safeAddresses: Record<string, string> = {
   bsc: '0x20B6b31D76E054C3e4de6154fEca385Ca58c7C15',
   celo: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
   fantom: '0x9B325B1c43BB3c018FcDB24A64E05EF4B8B8057b',
-  fuse: '0x94Ace4d5311170B209BB5e95713F5F5Afc648355',
+  fuse: '0x5336e97bA7332FAC20281Bda8B790c8892245Ded',
   gnosis: '0x2bC523875b59A1Ddd03CEB1F1b28c5B0e8e6654A',
   linea: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   // metis

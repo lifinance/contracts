@@ -28,6 +28,10 @@ const main = defineCommand({
       description: 'Network name',
       required: true,
     },
+    rpcUrl: {
+      type: 'string',
+      description: 'RPC URL',
+    },
     privateKey: {
       type: 'string',
       description: 'Private key of the signer',
@@ -56,7 +60,8 @@ const main = defineCommand({
 
     const safeAddress = safeAddresses[args.network.toLowerCase()]
 
-    const provider = new ethers.JsonRpcProvider(chain.rpcUrls.default.http[0])
+    const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
+    const provider = new ethers.JsonRpcProvider(rpcUrl)
     const signer = new ethers.Wallet(args.privateKey, provider)
 
     const ethAdapter = new EthersAdapter({
