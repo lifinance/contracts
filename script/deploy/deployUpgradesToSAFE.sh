@@ -32,7 +32,7 @@ deployUpgradesToSAFE() {
     FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
     if [ "$FACET_CUT" != "0x" ]; then
       echo "Proposing facet cut for $script..."
-      ts-node script/deploy/gnosisSAFE/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl $(getRPCUrl $NETWORK) --privateKey "$PRIVATE_KEY"
+      ts-node script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl $(getRPCUrl $NETWORK) --privateKey "$PRIVATE_KEY"
     fi
   done
   exit 0
