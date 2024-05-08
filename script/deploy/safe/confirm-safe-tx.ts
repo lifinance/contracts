@@ -103,19 +103,19 @@ const main = defineCommand({
 
       const action = await consola.prompt('Action', {
         type: 'select',
-        options: ['Sign & Execute Later', 'Execute'],
+        options: ['Sign & Execute Later', 'Execute Now'],
       })
+
+      const txToConfirm = await safeService.getTransaction(tx.safeTxHash)
 
       if (action === 'Sign & Execute Later') {
         consola.info('Signing transaction', tx.safeTxHash)
-        const txToConfirm = await safeService.getTransaction(tx.safeTxHash)
         await protocolKit.signTransaction(txToConfirm)
         consola.success('Transaction signed', tx.safeTxHash)
       }
 
-      if (action === 'Execute') {
+      if (action === 'Execute Now') {
         consola.info('Executing transaction', tx.safeTxHash)
-        const txToConfirm = await safeService.getTransaction(tx.safeTxHash)
         await protocolKit.executeTransaction(txToConfirm)
         consola.success('Transaction executed', tx.safeTxHash)
       }
