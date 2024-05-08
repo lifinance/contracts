@@ -1,7 +1,6 @@
 import { defineCommand, runMain } from 'citty'
 import { type SafeApiKitConfig } from '@safe-global/api-kit'
 import type { Chain } from 'viem'
-import { privateKeyToAccount } from 'viem/accounts'
 import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
 import SafeApiKit from '@safe-global/api-kit'
 import { ethers } from 'ethers'
@@ -10,10 +9,11 @@ import {
   type SafeTransactionDataPartial,
 } from '@safe-global/safe-core-sdk-types'
 import * as chains from 'viem/chains'
-import { safeApiUrls } from './config'
+import { safeAddresses, safeApiUrls } from './config'
 
 const chainMap: Record<string, Chain> = {}
 for (const [k, v] of Object.entries(chains)) {
+  // @ts-ignore
   chainMap[k] = v
 }
 
@@ -47,20 +47,14 @@ const main = defineCommand({
   async run({ args }) {
     const chain: Chain = chainMap[args.network]
 
-    const account = privateKeyToAccount(
-      ('0x' + args.privateKey) as `0x${string}`
-    )
-
     const config: SafeApiKitConfig = {
       chainId: BigInt(chain.id),
-      txServiceUrl: safeApiUrls[args.network],
+      txServiceUrl: safeApiUrls[args.network.toLowerCase()],
     }
 
     const safeService = new SafeApiKit(config)
 
-    const resp = await safeService.getSafesByOwner(account.address)
-
-    const safeAddress = resp.safes[0]
+    const safeAddress = safeAddresses[args.network.toLowerCase()]
 
     const provider = new ethers.JsonRpcProvider(chain.rpcUrls.default.http[0])
     const signer = new ethers.Wallet(args.privateKey, provider)

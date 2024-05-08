@@ -21,3 +21,27 @@ export const safeApiUrls: Record<string, string> = {
   scroll: 'https://transaction.safe.scroll.xyz/api',
   zksync: 'https://safe-transaction-zksync.safe.global/api',
 }
+
+export const safeAddresses: Record<string, string> = {
+  mainnet: '0x37347dD595C49212C5FC2D95EA10d1085896f51E',
+  arbitrum: '0x9e606d0d2BbA344b911e2F4Eab95d9235A83fe15',
+  aurora: '0xC7291F249424A35b17976F057D2C97B30c92b88C',
+  avalanche: '0x27d4eb2854d93a1A7Df8e2aeD1a535b080a6f6e4',
+  base: '0x1F6974C11B833Eb52ea07E0B442510165D87d82e',
+  boba: '0x05d34Bd70E0CBf8b82423d0C2ee8b2a8f02E4128',
+  bsc: '0x20B6b31D76E054C3e4de6154fEca385Ca58c7C15',
+  celo: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
+  fantom: '0x9B325B1c43BB3c018FcDB24A64E05EF4B8B8057b',
+  fuse: '0x94Ace4d5311170B209BB5e95713F5F5Afc648355',
+  gnosis: '0x2bC523875b59A1Ddd03CEB1F1b28c5B0e8e6654A',
+  linea: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
+  // metis
+  mode: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
+  moonbeam: '0xB51E43CeCAB8A42cD6225e16C9C3a3ba1A76871A',
+  moonriver: '0xfC78B018B4daD77351095f00D92934A9A851DA34',
+  optimism: '0xa8892eA3fdDeF2aa8AfB1E3643a3284f978A5114',
+  polygon: '0x8BCC385948C73736423D38cc567cFEdE0F1826A3',
+  polygonzkevm: '0x9575B9fC42dec56D3772B3df5DA047a1f1D55582',
+  scroll: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
+  zksync: '0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744',
+}
