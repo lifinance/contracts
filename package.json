@@ -88,6 +88,7 @@
     "@uniswap/sdk": "^3.0.3",
     "chalk": "4.1.2",
     "citty": "^0.1.6",
+    "consola": "^3.2.3",
     "defender-relay-client": "^1.26.0",
     "enquirer": "^2.4.1",
     "hardhat-ethers": "^1.0.1",
