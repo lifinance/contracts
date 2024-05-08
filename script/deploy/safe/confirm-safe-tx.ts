@@ -69,7 +69,11 @@ const main = defineCommand({
       return
     }
 
-    for (const tx of txs.results) {
+    for (const tx of txs.results.sort((a, b) => {
+      if (a.nonce < b.nonce) return -1
+      if (a.nonce > b.nonce) return 1
+      return 0
+    })) {
       let abi
       if (tx.data) {
         const selector = tx.data.substring(0, 10)
@@ -87,6 +91,7 @@ const main = defineCommand({
       }
 
       consola.info('Method:', abi)
+      console.info('Nonce:', tx.nonce)
       consola.info('To:', tx.to)
       consola.info('Value:', tx.value)
       consola.info('Data:', tx.data)
@@ -116,7 +121,8 @@ const main = defineCommand({
 
       if (action === 'Execute Now') {
         consola.info('Executing transaction', tx.safeTxHash)
-        await protocolKit.executeTransaction(txToConfirm)
+        const exec = await protocolKit.executeTransaction(txToConfirm)
+        await exec.transactionResponse?.wait()
         consola.success('Transaction executed', tx.safeTxHash)
       }
     }
