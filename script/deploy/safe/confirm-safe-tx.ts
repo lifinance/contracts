@@ -91,7 +91,7 @@ const main = defineCommand({
       }
 
       consola.info('Method:', abi)
-      console.info('Nonce:', tx.nonce)
+      consola.info('Nonce:', tx.nonce)
       consola.info('To:', tx.to)
       consola.info('Value:', tx.value)
       consola.info('Data:', tx.data)
