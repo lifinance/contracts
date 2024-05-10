@@ -553,7 +553,7 @@
             "TIMESTAMP": "2024-05-10 12:30:19",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1125,7 +1125,7 @@
             "TIMESTAMP": "2024-05-10 12:30:55",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1698,7 +1698,7 @@
             "TIMESTAMP": "2024-05-10 12:31:34",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5822,7 +5822,7 @@
             "TIMESTAMP": "2024-05-10 12:36:25",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7029,7 +7029,7 @@
             "TIMESTAMP": "2024-05-10 12:35:47",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -16102,7 +16102,7 @@
             "TIMESTAMP": "2024-05-10 12:35:15",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -16761,7 +16761,7 @@
             "TIMESTAMP": "2024-04-17 13:55:58",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
