@@ -43,6 +43,7 @@ metis = "${ETH_NODE_URI_METIS}"
 mode = "${ETH_NODE_URI_MODE}"
 zksync = "${ETH_NODE_URI_ZKSYNC}"
 scroll = "${ETH_NODE_URI_SCROLL}"
+mantle = "${ETH_NODE_URI_MANTLE}"
 
 # testnets
 goerli = "${ETH_NODE_URI_GOERLI}"
@@ -75,6 +76,7 @@ linea = { key = "${LINEA_ETHERSCAN_API_KEY}", url = "https://api.lineascan.build
 metis = { key = "${METIS_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan" }
 mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan" }
 scroll = { key = "${SCROLL_ETHERSCAN_API_KEY}", url = "https://api.scrollscan.com/api" }
+mantle = { key = "${MANTLE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/5000/etherscan" }
 
 #testnets
 goerli = { key = "${MAINNET_ETHERSCAN_API_KEY}" }

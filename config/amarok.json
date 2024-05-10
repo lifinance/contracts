@@ -99,6 +99,12 @@
       "0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f"
     ]
   },
+  "mantle": {
+    "chainId": 5000,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
   "cronos": {
     "chainId": 25,
     "connextHandler": "0x0000000000000000000000000000000000000000",
