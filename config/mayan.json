@@ -1,0 +1,93 @@
+{
+  "bridges": {
+    "mainnet": {
+      "bridge": "0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d"
+    },
+    "bsc": {
+      "bridge": "0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d"
+    },
+    "polygon": {
+      "bridge": "0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d"
+    },
+    "avalanche": {
+      "bridge": "0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d"
+    },
+    "arbitrum": {
+      "bridge": "0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d"
+    }
+  },
+  "chains": [
+    {
+      "chainId": 1151111081099710,
+      "wormholeChainId": 1
+    },
+    {
+      "chainId": 1,
+      "wormholeChainId": 2
+    },
+    {
+      "chainId": 56,
+      "wormholeChainId": 4
+    },
+    {
+      "chainId": 137,
+      "wormholeChainId": 5
+    },
+    {
+      "chainId": 43114,
+      "wormholeChainId": 6
+    },
+    {
+      "chainId": 4262,
+      "wormholeChainId": 7
+    },
+    {
+      "chainId": 1313161554,
+      "wormholeChainId": 9
+    },
+    {
+      "chainId": 250,
+      "wormholeChainId": 10
+    },
+    {
+      "chainId": 686,
+      "wormholeChainId": 11
+    },
+    {
+      "chainId": 787,
+      "wormholeChainId": 12
+    },
+    {
+      "chainId": 8217,
+      "wormholeChainId": 13
+    },
+    {
+      "chainId": 42220,
+      "wormholeChainId": 14
+    },
+    {
+      "chainId": 1284,
+      "wormholeChainId": 16
+    },
+    {
+      "chainId": 42161,
+      "wormholeChainId": 23
+    },
+    {
+      "chainId": 10,
+      "wormholeChainId": 24
+    },
+    {
+      "chainId": 100,
+      "wormholeChainId": 25
+    },
+    {
+      "chainId": 8453,
+      "wormholeChainId": 30
+    },
+    {
+      "chainId": 534352,
+      "wormholeChainId": 34
+    }
+  ]
+}

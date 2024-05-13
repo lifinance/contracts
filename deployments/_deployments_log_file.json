@@ -17336,6 +17336,22 @@
       }
     }
   },
+  "MayanBridgeFacet": {
+    "bsc": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5Ba4FeD1DAd2fD057A9f687B399B8e4cF2368214",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-03-13 16:20:44",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
   "TokenWrapper": {
     "polygon": {
       "staging": {
@@ -17694,6 +17710,90 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-03-25 09:50:38",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7b1a3e69afbb24ad2239e09935fdec19313f8b4b914e9a0cb8d956dab28464f0b000000000000000000000000000000000000000000000000000000006600e5b70000000000000000000000003c499c542cef5e3811e1192ce70d8cc03d5c3359",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "MayanFacet": {
+    "bsc": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xcED4B608A468ce334c75c6652e18E2Ba7f3F44dA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-04 11:52:23",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x14B4e2e2e3422DeC6F8bF3DcDc0BF3566F37197D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-30 12:19:20",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "arbitrum": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x14B4e2e2e3422DeC6F8bF3DcDc0BF3566F37197D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-30 12:26:04",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "avalanche": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x14B4e2e2e3422DeC6F8bF3DcDc0BF3566F37197D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-30 12:28:19",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "polygon": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x14B4e2e2e3422DeC6F8bF3DcDc0BF3566F37197D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-04-30 12:54:29",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x14B4e2e2e3422DeC6F8bF3DcDc0BF3566F37197D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-05-01 11:49:46",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
             "SALT": "",
             "VERIFIED": "true"
           }
