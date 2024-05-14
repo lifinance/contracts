@@ -9,48 +9,44 @@
         "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
       },
-      "0x43BCA3B49947fb553BB8CD5ff6de5753931672bB": {
+      "0x9f8AC9248395b93220C6ABbA41d0989Aa08257Ab": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0xA633Df0Da77C863756428E900EC76Ba009E1Ea1C": {
+      "0xf600Caa1468FFaa0B8Eef877A84152e2bDdDe2Fb": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xE6007dA020680eC279Ac4F25F153689B75192fb4": {
+      "0xbd0B19349A4D0DF5Abb67D31659d4C5C17b78901": {
         "Name": "DexManagerFacet",
         "Version": "1.0.0"
       },
-      "0x354C19F0656AeC67e013De4fAEA10b7F9286b26b": {
+      "0xdbffD7A135b332748Df2784D214c5f48eC706C3a": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0xc31F4392EE89d81E7303e2c1CDE210414F39E2ea": {
-        "Name": "CBridgeFacet",
-        "Version": "1.0.0"
-      },
-      "0x63fE6c5B4338116E4cC9BC536A8b61AA16003C50": {
-        "Name": "GenericSwapFacet",
+      "0x36eacDF8e9CF209d84B427316839800a81a2c45A": {
+        "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
       "0x66861f292099cAF644F4A8b6091De49BEC5E8a15": {
         "Name": "LIFuelFacet",
         "Version": "1.0.1"
       },
-      "0x6066f5B7566081DD1F0b216c9283A9888ba5688d": {
-        "Name": "PeripheryRegistryFacet",
+      "0x2b7D2C78bd801Cc06DDCF91DeE2e8fAE22814f7e": {
+        "Name": "GenericSwapFacet",
+        "Version": "2.0.0"
+      },
+      "0x9D4B9784fC46496926ee4784e490F14d106D83a8": {
+        "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       },
       "0x9157b6550D1C3209C20aCAd12A2dC57Df34Ca48b": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0x9D4B9784fC46496926ee4784e490F14d106D83a8": {
-        "Name": "StandardizedCallFacet",
-        "Version": "1.0.0"
-      },
-      "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c": {
-        "Name": "SquidFacet",
+      "0xb8C5408ED5f40ca8df929A50DD36b252B6b39f76": {
+        "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       }
     },

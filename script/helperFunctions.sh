@@ -2833,6 +2833,10 @@ function getChainId() {
     echo "324"
     return 0
     ;;
+  "mantle")
+    echo "5000"
+    return 0
+    ;;
   *)
     return 1
     ;;
@@ -3607,4 +3611,3 @@ function test_tmp() {
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
   verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 }
-
