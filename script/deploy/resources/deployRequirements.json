@@ -281,6 +281,24 @@
       }
     }
   },
+  "RoninBridgeFacet": {
+    "configData": {
+      "_gateway": {
+        "configFileName": "ronin.json",
+        "keyInConfigFile": ".<NETWORK>.gateway",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "SquidFacet": {
+    "configData": {
+      "_squidRouter": {
+        "configFileName": "squid.json",
+        "keyInConfigFile": ".<NETWORK>.router",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "StargateFacet": {
     "configData": {
       "_router": {
