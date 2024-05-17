@@ -3,11 +3,7 @@ import { type SafeApiKitConfig } from '@safe-global/api-kit'
 import type { Chain } from 'viem'
 import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
 import SafeApiKit from '@safe-global/api-kit'
-import { ethers } from 'ethers'
-import {
-  OperationType,
-  type SafeTransactionDataPartial,
-} from '@safe-global/safe-core-sdk-types'
+import { ethers } from 'ethers6'
 import * as chains from 'viem/chains'
 import { safeAddresses, safeApiUrls } from './config'
 

@@ -3,7 +3,7 @@ import { type SafeApiKitConfig } from '@safe-global/api-kit'
 import type { Chain } from 'viem'
 import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
 import SafeApiKit from '@safe-global/api-kit'
-import { ethers } from 'ethers'
+import { ethers } from 'ethers6'
 import {
   OperationType,
   type SafeTransactionDataPartial,
