@@ -2713,6 +2713,10 @@ function getChainId() {
     echo "1"
     return 0
     ;;
+  "blast")
+    echo "81457"
+    return 0
+    ;;
   "bsc")
     echo "56"
     return 0
