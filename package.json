@@ -77,8 +77,8 @@
     "abi:generate": "make clean && forge build --skip script --skip test --skip Base --skip Test && hardhat diamondABI",
     "typechain": "make clean && forge build --skip script --skip test --skip Base --skip Test && typechain --target ethers-v5 'out/**/*.json' --out-dir typechain",
     "codegen": "plop",
-    "propose-tx": "ts-node ./script/deploy/safe/propose-to-safe.ts",
-    "confirm-tx": "ts-node ./script/deploy/safe/confirm-safe-tx.ts",
+    "propose-safe-tx": "ts-node ./script/deploy/safe/propose-to-safe.ts",
+    "confirm-safe-tx": "ts-node ./script/deploy/safe/confirm-safe-tx.ts",
     "add-safe-owners": "ts-node ./script/deploy/safe/add-owners-to-safe.ts"
   },
   "dependencies": {
