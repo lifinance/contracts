@@ -20,6 +20,7 @@ mainnet = "${ETH_NODE_URI_MAINNET}"
 arbitrum = "${ETH_NODE_URI_ARBITRUM}"
 aurora = "${ETH_NODE_URI_AURORA}"
 avalanche = "${ETH_NODE_URI_AVALANCHE}"
+blast = "${ETH_NODE_URI_BLAST}"
 boba = "${ETH_NODE_URI_BOBA}"
 bsc = "${ETH_NODE_URI_BSC}"
 celo = "${ETH_NODE_URI_CELO}"
@@ -77,6 +78,7 @@ metis = { key = "${METIS_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2
 mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan" }
 scroll = { key = "${SCROLL_ETHERSCAN_API_KEY}", url = "https://api.scrollscan.com/api" }
 mantle = { key = "${MANTLE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/5000/etherscan" }
+blast = { key = "${BLAST_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/81457/etherscan" }
 
 #testnets
 goerli = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
