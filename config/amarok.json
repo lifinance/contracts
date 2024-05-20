@@ -73,6 +73,12 @@
       "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
     ]
   },
+  "blast": {
+    "chainId": 81457,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
   "mode": {
     "chainId": 34443,
     "connextHandler": "0x7380511493DD4c2f1dD75E9CCe5bD52C787D4B51",
@@ -98,6 +104,12 @@
       "0x176211869ca2b568f2a7d4ee941e073a821ee1ff",
       "0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f"
     ]
+  },
+  "mantle": {
+    "chainId": 5000,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
   },
   "cronos": {
     "chainId": 25,

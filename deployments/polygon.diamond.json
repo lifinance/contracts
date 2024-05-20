@@ -100,6 +100,14 @@
       "0xe12b2488c71432F9a116E9ac244D3Ef4c2386d3a": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c": {
+        "Name": "SquidFacet",
+        "Version": "1.0.0"
+      },
+      "0x14B4e2e2e3422DeC6F8bF3DcDc0BF3566F37197D": {
+        "Name": "MayanFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

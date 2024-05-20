@@ -20,6 +20,7 @@ mainnet = "${ETH_NODE_URI_MAINNET}"
 arbitrum = "${ETH_NODE_URI_ARBITRUM}"
 aurora = "${ETH_NODE_URI_AURORA}"
 avalanche = "${ETH_NODE_URI_AVALANCHE}"
+blast = "${ETH_NODE_URI_BLAST}"
 boba = "${ETH_NODE_URI_BOBA}"
 bsc = "${ETH_NODE_URI_BSC}"
 celo = "${ETH_NODE_URI_CELO}"
@@ -43,6 +44,7 @@ metis = "${ETH_NODE_URI_METIS}"
 mode = "${ETH_NODE_URI_MODE}"
 zksync = "${ETH_NODE_URI_ZKSYNC}"
 scroll = "${ETH_NODE_URI_SCROLL}"
+mantle = "${ETH_NODE_URI_MANTLE}"
 
 # testnets
 goerli = "${ETH_NODE_URI_GOERLI}"
@@ -59,7 +61,7 @@ aurora = { key = "${AURORA_ETHERSCAN_API_KEY}", url = "https://api.aurorascan.de
 avalanche = { key = "${AVALANCHE_ETHERSCAN_API_KEY}", url = "https://api.snowtrace.io/api" }
 boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.bobascan.com/api" }
 bsc = { key = "${BSC_ETHERSCAN_API_KEY}", url = "https://api.bscscan.com/api" }
-celo = { key = "${CELO_ETHERSCAN_API_KEY}", url = "https://explorer.celo.org/api" }
+celo = { key = "${CELO_ETHERSCAN_API_KEY}", url = "https://api.celoscan.io/api" }
 cronos = { key = "${CRONOS_ETHERSCAN_API_KEY}", url = "https://api.cronoscan.com/api" }
 fantom = { key = "${FANTOM_ETHERSCAN_API_KEY}", url = "https://api.ftmscan.com/api" }
 fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api" }
@@ -75,6 +77,8 @@ linea = { key = "${LINEA_ETHERSCAN_API_KEY}", url = "https://api.lineascan.build
 metis = { key = "${METIS_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan" }
 mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan" }
 scroll = { key = "${SCROLL_ETHERSCAN_API_KEY}", url = "https://api.scrollscan.com/api" }
+mantle = { key = "${MANTLE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/5000/etherscan" }
+blast = { key = "${BLAST_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/81457/etherscan" }
 
 #testnets
 goerli = { key = "${MAINNET_ETHERSCAN_API_KEY}" }

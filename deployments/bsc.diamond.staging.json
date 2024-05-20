@@ -45,8 +45,8 @@
         "Name": "",
         "Version": ""
       },
-      "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
-        "Name": "GenericSwapFacet",
+      "0xcED4B608A468ce334c75c6652e18E2Ba7f3F44dA": {
+        "Name": "MayanFacet",
         "Version": "1.0.0"
       },
       "0xAfcC5c55d5Ec3082675D51331E7Ed9AdE195db48": {
@@ -57,12 +57,16 @@
         "Name": "ThorSwapFacet",
         "Version": "0.0.3"
       },
-      "0xa1Be6Aaa705545f79735d42852e77720B168392e": {
-        "Name": "",
-        "Version": ""
+      "0x8BFC9f022ACb65dfa0Eb6CCbA45c04C2a6cb9A34": {
+        "Name": "SquidFacet",
+        "Version": "0.0.8"
       },
       "0x7ac3EB2D191EBAb9E925CAbFD4F8155be066b3aa": {
         "Name": "AmarokFacetPacked",
+        "Version": "1.0.0"
+      },
+      "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
+        "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       }
     },
@@ -70,10 +74,12 @@
       "ERC20Proxy": "0xf90a432dD1D0541470BC9C440d9dEc3659755238",
       "Executor": "0x4f3B1b1075cC19daA15b7cc681b28e2fB82145eD",
       "FeeCollector": "0x7f98D45c7902f079fDb65811B633522e2d227BB6",
-      "LiFuelFeeCollector": "",
+      "GasRebateDistributor": "",
+      "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
       "Receiver": "0x76EE0F8fb09047284B6ea89881595Fc6F5B09E12",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d"
+      "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d",
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
 }
