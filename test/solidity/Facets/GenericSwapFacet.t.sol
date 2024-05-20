@@ -526,7 +526,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         );
 
         uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
+        console.log("gas used V2: ", gasUsed);
 
         vm.stopPrank();
     }
@@ -619,7 +619,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         );
 
         uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
+        console.log("gas used V1: ", gasUsed);
 
         vm.stopPrank();
     }
@@ -727,12 +727,16 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         );
 
         uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
+        console.log("gas used V1: ", gasUsed);
 
         vm.stopPrank();
     }
 
     function test_CanSwapMultipleFromERC20_V2() public {
+        // ACTIVATE THIS CODE TO TEST GAS USAGE EXCL. MAX APPROVAL
+        vm.startPrank(address(genericSwapFacet));
+        dai.approve(address(uniswap), type(uint256).max);
+        vm.stopPrank();
         vm.startPrank(USDC_HOLDER);
         usdc.approve(address(genericSwapFacet), 10 * 10 ** usdc.decimals());
 
@@ -873,7 +877,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         );
 
         uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
+        console.log("gas used V1: ", gasUsed);
 
         vm.stopPrank();
     }
@@ -1028,12 +1032,17 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         );
 
         uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
+        console.log("gas used V1: ", gasUsed);
 
         vm.stopPrank();
     }
 
     function test_CanCollectERC20FeesAndSwap_V2() public {
+        // ACTIVATE THIS CODE TO TEST GAS USAGE EXCL. MAX APPROVAL
+        // vm.startPrank(address(genericSwapFacet));
+        // dai.approve(address(uniswap), type(uint256).max);
+        // vm.stopPrank();
+
         vm.startPrank(DAI_HOLDER);
         dai.approve(address(genericSwapFacet), 100 * 10 ** dai.decimals());
 
