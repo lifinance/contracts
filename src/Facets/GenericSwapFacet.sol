@@ -12,6 +12,9 @@ import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferF
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 
+//TODO: remove
+import { console2 } from "forge-std/console2.sol";
+
 /// @title GenericSwapFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for fee collection and for swapping through any APPROVED DEX
@@ -37,7 +40,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
     ) external payable {
-        _depositAndSwapERC20Single(_swapData);
+        _depositAndSwapERC20Single(_swapData, _receiver);
 
         address receivingAssetId = _swapData.receivingAssetId;
         address sendingAssetId = _swapData.sendingAssetId;
@@ -93,7 +96,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
     ) external payable {
-        _depositAndSwapERC20Single(_swapData);
+        _depositAndSwapERC20Single(_swapData, _receiver);
 
         // get contract's balance (which will be sent in full to user)
         uint256 amountReceived = address(this).balance;
@@ -219,7 +222,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibSwap.SwapData[] calldata _swapData
     ) external payable {
         _depositMultipleERC20Tokens(_swapData);
-        _executeSwaps(_swapData, _transactionId);
+        _executeSwaps(_swapData, _transactionId, _receiver);
         _transferTokensAndEmitEvent(
             _transactionId,
             _integrator,
@@ -245,7 +248,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 _minAmountOut,
         LibSwap.SwapData[] calldata _swapData
     ) external payable {
-        _executeSwaps(_swapData, _transactionId);
+        _executeSwaps(_swapData, _transactionId, _receiver);
         _transferTokensAndEmitEvent(
             _transactionId,
             _integrator,
@@ -256,7 +259,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
     }
 
-    /// @notice Performs multiple swaps (of any kind) in one transaction
+    /// @notice Performs multiple swaps (of any kind) in one transaction || this function is less gas-efficient and is only here for backwards compatibility
     /// @param _transactionId the transaction id associated with the operation
     /// @param _integrator the name of the integrator
     /// @param _referrer the address of the referrer
@@ -321,12 +324,14 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     function _executeSwaps(
         LibSwap.SwapData[] calldata _swapData,
-        bytes32 _transactionId
+        bytes32 _transactionId,
+        address _receiver
     ) private {
         // go through all swaps
         uint256 numOfSwaps = _swapData.length;
         for (uint256 i = 0; i < numOfSwaps; ) {
             LibSwap.SwapData calldata currentSwap = _swapData[i];
+            ERC20 sendingAsset = ERC20(currentSwap.sendingAssetId);
 
             // check if callTo address is whitelisted
             if (
@@ -349,7 +354,6 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             // FOR ERC20 only: check if the current allowance is sufficient
             bool isNative = LibAsset.isNativeAsset(currentSwap.sendingAssetId);
             if (!isNative) {
-                ERC20 sendingAsset = ERC20(currentSwap.sendingAssetId);
                 uint256 currentAllowance = sendingAsset.allowance(
                     address(this),
                     currentSwap.approveTo
@@ -385,6 +389,10 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     ),
                 block.timestamp
             );
+
+            // return any potential leftover inputTokens (but only for swaps, not for fee collections)
+            if (currentSwap.sendingAssetId != currentSwap.receivingAssetId)
+                _returnPositiveSlippage(sendingAsset, _receiver);
 
             unchecked {
                 ++i;
@@ -426,7 +434,8 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     function _depositAndSwapERC20Single(
-        LibSwap.SwapData calldata _swapData
+        LibSwap.SwapData calldata _swapData,
+        address _receiver
     ) private {
         ERC20 sendingAsset = ERC20(_swapData.sendingAssetId);
         uint256 fromAmount = _swapData.fromAmount;
@@ -466,6 +475,21 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (!success) {
             string memory reason = LibUtil.getRevertMsg(res);
             revert(reason);
+        }
+
+        _returnPositiveSlippage(sendingAsset, _receiver);
+    }
+
+    function _returnPositiveSlippage(
+        ERC20 fromToken,
+        address receiver
+    ) private {
+        // if a balance exists in fromToken, it must be positive slippage
+        if (address(fromToken) != address(0)) {
+            uint256 fromTokenBalance = fromToken.balanceOf(address(this));
+            if (fromTokenBalance > 0) {
+                fromToken.safeTransfer(receiver, fromTokenBalance);
+            }
         }
     }
 }

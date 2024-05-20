@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
+import { Test, DSTest } from "forge-std/Test.sol";
 import { console } from "../utils/Console.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
@@ -11,6 +11,8 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
+import { MockUniswapDEX } from "../utils/MockUniswapDEX.sol";
+import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGenericSwapFacet is GenericSwapFacet {
@@ -23,7 +25,9 @@ contract TestGenericSwapFacet is GenericSwapFacet {
     }
 }
 
-contract GenericSwapFacetTest is DSTest, DiamondTest {
+contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
+    using SafeTransferLib for ERC20;
+
     event LiFiGenericSwapCompleted(
         bytes32 indexed transactionId,
         string integrator,
@@ -38,12 +42,14 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
     // These values are for Mainnet
     address internal constant USDC_ADDRESS =
         0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address internal constant USDT_ADDRESS =
+        0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address internal constant WETH_ADDRESS =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address internal constant DAI_ADDRESS =
         0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address internal constant USDC_HOLDER =
-        0xee5B5B923fFcE93A870B3104b7CA09c3db80047A;
+        0x4B16c5dE96EB2117bBE5fd171E4d203624B014aa;
     address internal constant DAI_HOLDER =
         0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf;
     address internal constant SOME_WALLET =
@@ -55,10 +61,10 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
     // -----
 
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
     TestGenericSwapFacet internal genericSwapFacet;
     ERC20 internal usdc;
+    ERC20 internal usdt;
     ERC20 internal dai;
     ERC20 internal weth;
     UniswapV2Router02 internal uniswap;
@@ -66,7 +72,8 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = 15588208;
+        // uint256 blockNumber = 15588208;
+        uint256 blockNumber = 19834820;
         vm.createSelectFork(rpcUrl, blockNumber);
     }
 
@@ -76,6 +83,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         diamond = createDiamond();
         genericSwapFacet = new TestGenericSwapFacet();
         usdc = ERC20(USDC_ADDRESS);
+        usdt = ERC20(USDT_ADDRESS);
         dai = ERC20(DAI_ADDRESS);
         weth = ERC20(WETH_ADDRESS);
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
@@ -108,6 +116,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         genericSwapFacet = TestGenericSwapFacet(address(diamond));
         // whitelist uniswap dex with function selectors
         genericSwapFacet.addDex(address(uniswap));
+        genericSwapFacet.addDex(0x14f2b6ca0324cd2B013aD02a7D85541d215e2906); //TODO: REMOVE AFTER TESTING
         genericSwapFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
@@ -120,6 +129,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         genericSwapFacet.setFunctionApprovalBySignature(
             uniswap.swapExactETHForTokens.selector
         );
+        genericSwapFacet.setFunctionApprovalBySignature(hex"7515d97c");
         // whitelist feeCollector with function selectors
         genericSwapFacet.addDex(FEE_COLLECTOR);
         genericSwapFacet.setFunctionApprovalBySignature(
@@ -186,7 +196,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         ) = _produceSwapDataERC20ToERC20();
 
         // expected exact amountOut based on the liquidity available in the specified block for this test case
-        uint256 expAmountOut = 99940753324315752385;
+        uint256 expAmountOut = 99491781613896927553;
 
         uint256 gasLeftBef = gasleft();
 
@@ -249,7 +259,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         );
 
         // expected exact amountOut based on the liquidity available in the specified block for this test case
-        uint256 expAmountOut = 99940753324315752385;
+        uint256 expAmountOut = 99491781613896927553;
 
         uint256 gasLeftBef = gasleft();
 
@@ -454,8 +464,6 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
     }
 
     function test_CanSwapSingleNativeToERC20_V1() public {
-        vm.startPrank(USDC_HOLDER);
-
         // get swapData
         (
             LibSwap.SwapData[] memory swapData,
@@ -487,13 +495,9 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
         uint256 gasUsed = gasLeftBef - gasleft();
         console.log("gas used: ", gasUsed);
-
-        vm.stopPrank();
     }
 
     function test_CanSwapSingleNativeToERC20_V2() public {
-        vm.startPrank(USDC_HOLDER);
-
         // get swapData
         (
             LibSwap.SwapData[] memory swapData,
@@ -527,8 +531,6 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
         uint256 gasUsed = gasLeftBef - gasleft();
         console.log("gas used V2: ", gasUsed);
-
-        vm.stopPrank();
     }
 
     // MULTIPLE SWAPS
@@ -734,9 +736,10 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
     function test_CanSwapMultipleFromERC20_V2() public {
         // ACTIVATE THIS CODE TO TEST GAS USAGE EXCL. MAX APPROVAL
-        vm.startPrank(address(genericSwapFacet));
-        dai.approve(address(uniswap), type(uint256).max);
-        vm.stopPrank();
+        // vm.startPrank(address(genericSwapFacet));
+        // dai.approve(address(uniswap), type(uint256).max);
+        // vm.stopPrank();
+
         vm.startPrank(USDC_HOLDER);
         usdc.approve(address(genericSwapFacet), 10 * 10 ** usdc.decimals());
 
@@ -844,8 +847,6 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
     }
 
     function test_CanSwapMultipleFromNative_V1() public {
-        vm.startPrank(USDC_HOLDER);
-
         // get swapData
         (
             LibSwap.SwapData[] memory swapData,
@@ -878,13 +879,9 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
         uint256 gasUsed = gasLeftBef - gasleft();
         console.log("gas used V1: ", gasUsed);
-
-        vm.stopPrank();
     }
 
     function test_CanSwapMultipleFromNative_V2() public {
-        vm.startPrank(USDC_HOLDER);
-
         // get swapData
         (
             LibSwap.SwapData[] memory swapData,
@@ -917,8 +914,6 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
         uint256 gasUsed = gasLeftBef - gasleft();
         console.log("gas used V2: ", gasUsed);
-
-        vm.stopPrank();
     }
 
     // MULTISWAP COLLECT ERC20 FEE AND SWAP
@@ -1157,8 +1152,6 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
     }
 
     function test_CanCollectNativeFeesAndSwap_V1() public {
-        vm.startPrank(USDC_HOLDER);
-
         // get swapData
         (
             LibSwap.SwapData[] memory swapData,
@@ -1191,13 +1184,9 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
         uint256 gasUsed = gasLeftBef - gasleft();
         console.log("gas used V1: ", gasUsed);
-
-        vm.stopPrank();
     }
 
     function test_CanCollectNativeFeesAndSwap_V2() public {
-        vm.startPrank(USDC_HOLDER);
-
         // get swapData
         (
             LibSwap.SwapData[] memory swapData,
@@ -1230,6 +1219,68 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
         uint256 gasUsed = gasLeftBef - gasleft();
         console.log("gas used V2: ", gasUsed);
+    }
+
+    function test_leavesNoFromTokenDust() public {
+        vm.startPrank(USDC_HOLDER);
+
+        uint256 amountIn = 100 * 10 ** usdc.decimals();
+        uint256 amountInActual = (amountIn * 99) / 100; // 1% positive slippage
+        uint256 expAmountOut = 67562151962448229198976;
+        address outTokenAddress = 0xCdb4A8742ed7D0259b51E3454C46C9D6C48d5e88;
+
+        // deploy mockDEX to simulate positive slippage
+        MockUniswapDEX mockDex = new MockUniswapDEX();
+
+        // fund DEX and set swap outcome
+        uint256 dexOutputAmount = expAmountOut;
+        deal(outTokenAddress, address(mockDex), dexOutputAmount);
+        mockDex.setSwapOutput(
+            amountInActual, // will only pull 99% of the amountIn that we usually expect to be pulled
+            ERC20(outTokenAddress),
+            expAmountOut
+        );
+
+        // whitelist DEX & function selector
+        genericSwapFacet.addDex(address(mockDex));
+        genericSwapFacet.setFunctionApprovalBySignature(
+            mockDex.swapTokensForExactTokens.selector
+        );
+
+        // prepare swapData using MockDEX
+        address[] memory path = new address[](2);
+        path[0] = USDC_ADDRESS;
+        path[1] = outTokenAddress;
+
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(
+            address(mockDex),
+            address(mockDex),
+            USDC_ADDRESS,
+            outTokenAddress,
+            amountIn,
+            abi.encodeWithSelector(
+                mockDex.swapTokensForExactTokens.selector,
+                expAmountOut,
+                amountIn,
+                path,
+                address(genericSwapFacet), // receiver
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        usdc.approve(address(genericSwapFacet), amountIn);
+
+        genericSwapFacet.swapTokensSingleERC20ToERC20(
+            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
+            "integrator", // integrator
+            "referrer", // referrer
+            payable(USDC_HOLDER), // receiver
+            expAmountOut,
+            swapData
+        );
+
+        assertEq(usdc.balanceOf(address(genericSwapFacet)), 0);
 
         vm.stopPrank();
     }
