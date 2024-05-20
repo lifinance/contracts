@@ -259,7 +259,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
     }
 
-    /// @notice Performs multiple swaps (of any kind) in one transaction || this function is less gas-efficient and is only here for backwards compatibility
+    /// @notice Performs multiple swaps (of any kind) in one transaction (ATTENTION: this function is less gas-efficient and is only here for backwards compatibility)
     /// @param _transactionId the transaction id associated with the operation
     /// @param _integrator the name of the integrator
     /// @param _referrer the address of the referrer
