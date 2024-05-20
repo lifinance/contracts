@@ -29,7 +29,7 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
-    function swapTokensSingleERC20ToERC20(
+    function swapTokensSingleV3ERC20ToERC20(
         bytes32 _transactionId,
         string calldata _integrator,
         string calldata _referrer,
@@ -85,7 +85,7 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
-    function swapTokensSingleERC20ToNative(
+    function swapTokensSingleV3ERC20ToNative(
         bytes32 _transactionId,
         string calldata _integrator,
         string calldata _referrer,
@@ -140,7 +140,7 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
-    function swapTokensSingleNativeToERC20(
+    function swapTokensSingleV3NativeToERC20(
         bytes32 _transactionId,
         string calldata _integrator,
         string calldata _referrer,
