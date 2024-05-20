@@ -323,7 +323,6 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibSwap.SwapData[] calldata _swapData,
         bytes32 _transactionId
     ) private {
-        console2.log("in _executeSwaps");
         // go through all swaps
         uint256 numOfSwaps = _swapData.length;
         for (uint256 i = 0; i < numOfSwaps; ) {
