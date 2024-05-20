@@ -6,6 +6,7 @@ import { console } from "../utils/Console.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
+import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
@@ -15,6 +16,16 @@ import { MockUniswapDEX } from "../utils/MockUniswapDEX.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 
 // Stub GenericSwapFacet Contract
+contract TestGenericSwapFacetV3 is GenericSwapFacetV3, GenericSwapFacet {
+    function addDex(address _dex) external {
+        LibAllowList.addAllowedContract(_dex);
+    }
+
+    function setFunctionApprovalBySignature(bytes4 _signature) external {
+        LibAllowList.addAllowedSelector(_signature);
+    }
+}
+
 contract TestGenericSwapFacet is GenericSwapFacet {
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -25,7 +36,7 @@ contract TestGenericSwapFacet is GenericSwapFacet {
     }
 }
 
-contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
+contract GenericSwapFacetV3Test is DSTest, DiamondTest, Test {
     using SafeTransferLib for ERC20;
 
     event LiFiGenericSwapCompleted(
@@ -63,6 +74,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
 
     LiFiDiamond internal diamond;
     TestGenericSwapFacet internal genericSwapFacet;
+    TestGenericSwapFacetV3 internal genericSwapFacetV3;
     ERC20 internal usdc;
     ERC20 internal usdt;
     ERC20 internal dai;
@@ -72,7 +84,6 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        // uint256 blockNumber = 15588208;
         uint256 blockNumber = 19834820;
         vm.createSelectFork(rpcUrl, blockNumber);
     }
@@ -82,6 +93,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
 
         diamond = createDiamond();
         genericSwapFacet = new TestGenericSwapFacet();
+        genericSwapFacetV3 = new TestGenericSwapFacetV3();
         usdc = ERC20(USDC_ADDRESS);
         usdt = ERC20(USDT_ADDRESS);
         dai = ERC20(DAI_ADDRESS);
@@ -89,34 +101,41 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
         feeCollector = FeeCollector(FEE_COLLECTOR);
 
-        bytes4[] memory functionSelectors = new bytes4[](8);
-        functionSelectors[0] = genericSwapFacet
-            .swapTokensSingleERC20ToERC20
-            .selector;
-        functionSelectors[1] = genericSwapFacet
-            .swapTokensSingleERC20ToNative
-            .selector;
+        // add genericSwapFacet (v1) to diamond (for gas usage comparison)
+        bytes4[] memory functionSelectors = new bytes4[](3);
+        functionSelectors[0] = genericSwapFacet.swapTokensGeneric.selector;
+        functionSelectors[1] = genericSwapFacet.addDex.selector;
         functionSelectors[2] = genericSwapFacet
-            .swapTokensSingleNativeToERC20
-            .selector;
-        functionSelectors[3] = genericSwapFacet.swapTokensGeneric.selector;
-        functionSelectors[4] = genericSwapFacet.addDex.selector;
-        functionSelectors[5] = genericSwapFacet
             .setFunctionApprovalBySignature
             .selector;
-        functionSelectors[6] = genericSwapFacet
-            .swapTokensGenericV2FromERC20
-            .selector;
-        functionSelectors[7] = genericSwapFacet
-            .swapTokensGenericV2FromNative
-            .selector;
-
         addFacet(diamond, address(genericSwapFacet), functionSelectors);
 
+        // add genericSwapFacet (v3) to diamond
+        bytes4[] memory functionSelectorsV3 = new bytes4[](5);
+        functionSelectorsV3[0] = genericSwapFacetV3
+            .swapTokensSingleERC20ToERC20
+            .selector;
+        functionSelectorsV3[1] = genericSwapFacetV3
+            .swapTokensSingleERC20ToNative
+            .selector;
+        functionSelectorsV3[2] = genericSwapFacetV3
+            .swapTokensSingleNativeToERC20
+            .selector;
+        functionSelectorsV3[3] = genericSwapFacetV3
+            .swapTokensGenericV3FromERC20
+            .selector;
+        functionSelectorsV3[4] = genericSwapFacetV3
+            .swapTokensGenericV3FromNative
+            .selector;
+
+        addFacet(diamond, address(genericSwapFacetV3), functionSelectorsV3);
+
         genericSwapFacet = TestGenericSwapFacet(address(diamond));
+        genericSwapFacetV3 = TestGenericSwapFacetV3(address(diamond));
+
         // whitelist uniswap dex with function selectors
+        // v1
         genericSwapFacet.addDex(address(uniswap));
-        genericSwapFacet.addDex(0x14f2b6ca0324cd2B013aD02a7D85541d215e2906); //TODO: REMOVE AFTER TESTING
         genericSwapFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
@@ -129,8 +148,23 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
         genericSwapFacet.setFunctionApprovalBySignature(
             uniswap.swapExactETHForTokens.selector
         );
-        genericSwapFacet.setFunctionApprovalBySignature(hex"7515d97c");
+        // v3
+        genericSwapFacetV3.addDex(address(uniswap));
+        genericSwapFacetV3.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForTokens.selector
+        );
+        genericSwapFacetV3.setFunctionApprovalBySignature(
+            uniswap.swapTokensForExactETH.selector
+        );
+        genericSwapFacetV3.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForETH.selector
+        );
+        genericSwapFacetV3.setFunctionApprovalBySignature(
+            uniswap.swapExactETHForTokens.selector
+        );
+
         // whitelist feeCollector with function selectors
+        // v1
         genericSwapFacet.addDex(FEE_COLLECTOR);
         genericSwapFacet.setFunctionApprovalBySignature(
             feeCollector.collectTokenFees.selector
@@ -138,8 +172,16 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
         genericSwapFacet.setFunctionApprovalBySignature(
             feeCollector.collectNativeFees.selector
         );
+        // v3
+        genericSwapFacetV3.addDex(FEE_COLLECTOR);
+        genericSwapFacetV3.setFunctionApprovalBySignature(
+            feeCollector.collectTokenFees.selector
+        );
+        genericSwapFacetV3.setFunctionApprovalBySignature(
+            feeCollector.collectNativeFees.selector
+        );
 
-        vm.label(address(genericSwapFacet), "GenericSwapFacet");
+        vm.label(address(genericSwapFacet), "LiFiDiamond");
         vm.label(WETH_ADDRESS, "WETH_TOKEN");
         vm.label(DAI_ADDRESS, "DAI_TOKEN");
         vm.label(USDC_ADDRESS, "USDC_TOKEN");
@@ -275,7 +317,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
             expAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacet.swapTokensSingleERC20ToERC20(
+        genericSwapFacetV3.swapTokensSingleERC20ToERC20(
             "",
             "integrator",
             "referrer",
@@ -288,7 +330,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
         console.log("gas used: V2", gasUsed);
 
         bytes memory callData = abi.encodeWithSelector(
-            genericSwapFacet.swapTokensSingleERC20ToERC20.selector,
+            genericSwapFacetV3.swapTokensSingleERC20ToERC20.selector,
             "",
             "integrator",
             "referrer",
@@ -412,7 +454,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
             minAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacet.swapTokensSingleERC20ToNative(
+        genericSwapFacetV3.swapTokensSingleERC20ToNative(
             "",
             "integrator",
             "referrer",
@@ -518,7 +560,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
             minAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacet.swapTokensSingleNativeToERC20{
+        genericSwapFacetV3.swapTokensSingleNativeToERC20{
             value: swapData[0].fromAmount
         }(
             "",
@@ -764,7 +806,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
             minAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacet.swapTokensGenericV2FromERC20(
+        genericSwapFacetV3.swapTokensGenericV3FromERC20(
             "",
             "integrator",
             "referrer",
@@ -903,7 +945,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
             minAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacet.swapTokensGenericV2FromNative{ value: amountIn }(
+        genericSwapFacetV3.swapTokensGenericV3FromNative{ value: amountIn }(
             "",
             "integrator",
             "referrer",
@@ -1054,7 +1096,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
             minAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacet.swapTokensGenericV2FromERC20(
+        genericSwapFacetV3.swapTokensGenericV3FromERC20(
             "",
             "integrator",
             "referrer",
@@ -1192,7 +1234,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
             minAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacet.swapTokensGenericV2FromERC20{ value: amountIn }(
+        genericSwapFacetV3.swapTokensGenericV3FromERC20{ value: amountIn }(
             "",
             "integrator",
             "referrer",
@@ -1255,7 +1297,7 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
 
         usdc.approve(address(genericSwapFacet), amountIn);
 
-        genericSwapFacet.swapTokensSingleERC20ToERC20(
+        genericSwapFacetV3.swapTokensSingleERC20ToERC20(
             0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
             "integrator", // integrator
             "referrer", // referrer
