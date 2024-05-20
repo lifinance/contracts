@@ -954,14 +954,6 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
 
         uint256 amountOutFeeCollection = amountIn - integratorFee - lifiFee;
 
-        console.log("amountIn              :", amountIn);
-        console.log("amountOutFeeCollection:", amountOutFeeCollection);
-        console.log(
-            "DAI balance before call:",
-            dai.balanceOf(address(genericSwapFacet))
-        );
-        console.log("DAI balance caller:", dai.balanceOf(DAI_HOLDER));
-
         // Swap2: DAI to USDC
         address[] memory path = new address[](2);
         path[0] = DAI_ADDRESS;
@@ -1113,14 +1105,6 @@ contract GenericSwapFacetTest is DSTest, DiamondTest, Test {
         );
 
         uint256 amountOutFeeCollection = amountIn - integratorFee - lifiFee;
-
-        console.log("amountIn              :", amountIn);
-        console.log("amountOutFeeCollection:", amountOutFeeCollection);
-        console.log(
-            "native balance before call:",
-            address(genericSwapFacet).balance
-        );
-        console.log("native balance caller:", address(USDC_HOLDER).balance);
 
         // Swap2: native to USDC
         address[] memory path = new address[](2);

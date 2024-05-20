@@ -12,9 +12,6 @@ import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferF
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 
-//TODO: remove
-import { console2 } from "forge-std/console2.sol";
-
 /// @title GenericSwapFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for fee collection and for swapping through any APPROVED DEX
@@ -301,12 +298,9 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function _depositMultipleERC20Tokens(
         LibSwap.SwapData[] calldata _swapData
     ) private {
-        // TODO: consider/test adding a dedicated parameter (array with deposit tokens/amounts) so that we dont have to go through all swapData items
-        LibSwap.SwapData[] calldata swapData = _swapData; // TODO: does this actually save gas?
-        uint256 numOfSwaps = swapData.length;
+        uint256 numOfSwaps = _swapData.length;
         for (uint256 i = 0; i < numOfSwaps; ) {
-            // CHECKED: saves gas (REMOVE COMMENT WHEN DONE)
-            LibSwap.SwapData calldata currentSwap = swapData[i];
+            LibSwap.SwapData calldata currentSwap = _swapData[i];
             if (currentSwap.requiresDeposit) {
                 // we will not check msg.value as tx will fail anyway if not enough value available
                 // thus we only deposit ERC20 tokens here
