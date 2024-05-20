@@ -9,7 +9,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { InvalidReceiver } from "../Errors/GenericErrors.sol";
 
-/// @title Generic Swap Facet
+/// @title GenericSwapFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for swapping through ANY APPROVED DEX
 /// @dev Uses calldata to execute APPROVED arbitrary methods on DEXs

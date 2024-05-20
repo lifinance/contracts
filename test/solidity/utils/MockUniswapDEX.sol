@@ -4,6 +4,10 @@ pragma solidity 0.8.17;
 import { InsufficientBalance } from "lifi/Errors/GenericErrors.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 
+// this contract is used for testing purposes and mocks the behaviour of a Uniswap-like DEX
+// it has two main functionalities:
+// 1) pull a specified amount of the input token (for testing of cases where not all inputTokens are used by a DEX)
+// 2) return any token/amount combination to the receiver address as specificied prior to the call
 contract MockUniswapDEX {
     using SafeTransferLib for ERC20;
 
@@ -56,7 +60,7 @@ contract MockUniswapDEX {
     }
 
     // this function will:
-    // - return preset the 'outputAmount' of 'outputToken' to the receiver (to)
+    // - return the preset 'outputAmount' of 'outputToken' to the receiver (to)
     function swapExactTokensForTokens(
         uint256,
         uint256 amountInMax,

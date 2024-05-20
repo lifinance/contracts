@@ -1,16 +1,16 @@
-# Generic Swap Facet
+# GenericSwapFacetV3
 
 ## How it works
 
-The Generic Swap Facet is used to make single swaps or multiple same-chain swaps in a single transaction. It will send the result of the (final) swap to the receiver.
-
-It does this by using the [LibSwap](./LibSwap.md) library.
+The GenericSwapFacetV3 is a gas-optimized new version of the GenericSwapFacet and offers the same functionality as its predecessor: executing single swaps or multiple same-chain swaps in a single transaction.
+It will send the result of the (final) swap to the specified receiver address.
+New in this version is that in cases where a DEX does not pull/use all of the inputTokens for a swap (positive slippage), these tokens will be sent to the receiver address.
 
 ```mermaid
 graph LR;
-    D{LiFiDiamond}-- DELEGATECALL -->GenericSwapFacet;
-    GenericSwapFacet -- SWAPs --> GenericSwapFacet
-    GenericSwapFacet -- withdraw --> USER
+    D{LiFiDiamond}-- DELEGATECALL -->GenericSwapFacetV3;
+    GenericSwapFacetV3 -- SWAPs --> GenericSwapFacetV3
+    GenericSwapFacetV3 -- withdraw --> USER
 ```
 
 ## Public Methods
@@ -38,6 +38,6 @@ graph LR;
 
 Some methods accept a `SwapData _swapData` parameter.
 
-Swapping is performed by a swap specific library that expects an array of calldata to can be run on various DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
+This parameter is defined in the following library:
 
 The swap library can be found [here](../src/Libraries/LibSwap.sol).
