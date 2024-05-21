@@ -156,13 +156,13 @@ const main = defineCommand({
       const approvedDexs = await dexManager.read.approvedDexs()
 
       // Loop through dexs excluding the address for FeeCollector, LiFuelFeeCollector and ServiceFeeCollector and TokenWrapper
+      let numMissing = 0
       for (let dex of dexs.filter(
         (d) => !corePeriphery.includes(getAddress(d))
       )) {
         if (!approvedDexs.includes(getAddress(dex))) {
           logError(`Dex ${dex} not approved in Diamond`)
-        } else {
-          consola.success(`Dex ${dex} approved in Diamond`)
+          numMissing++
         }
       }
 
@@ -177,10 +177,16 @@ const main = defineCommand({
       for (let f of feeCollectors) {
         if (!approvedDexs.includes(getAddress(deployedContracts[f]))) {
           logError(`Periphery contract ${f} not approved as a DEX`)
+          numMissing++
         } else {
           consola.success(`Periphery contract ${f} approved as a DEX`)
         }
       }
+
+      consola.info(
+        `Found ${numMissing} missing dex${numMissing === 1 ? '' : 's'}`
+      )
+      finish()
     }
   },
 })
@@ -193,10 +199,8 @@ const logError = (string: string) => {
 const finish = () => {
   if (errors.length) {
     consola.error(`${errors.length} Errors found in deployment`)
-    process.exit(1)
   } else {
     consola.success('Deployment checks passed')
-    process.exit(0)
   }
 }
 

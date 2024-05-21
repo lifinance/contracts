@@ -75,7 +75,8 @@
     "execute": "node ./_scripts.js run",
     "abi:generate": "make clean && forge build --skip script --skip test --skip Base --skip Test && hardhat diamondABI",
     "typechain": "make clean && forge build --skip script --skip test --skip Base --skip Test && typechain --target ethers-v5 'out/**/*.json' --out-dir typechain",
-    "codegen": "plop"
+    "codegen": "plop",
+    "healthcheck": "tsx ./script/deploy/healthCheck.mts"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
