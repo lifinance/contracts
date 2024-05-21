@@ -11,5 +11,23 @@
       "sig": "0xd9caed12",
       "name": "WithdrawFacet.withdraw"
     }
+  ],
+  "approvedSigsForDeployerWallet": [
+    {
+      "sig": "0xfcd8e49e",
+      "name": "DexManagerFacet.batchAddDex"
+    },
+    {
+      "sig": "0x9afc19c7",
+      "name": "DexManagerFacet.batchRemoveDex"
+    },
+    {
+      "sig": "0x44e2b18c",
+      "name": "DexManagerFacet.batchSetFunctionApprovalBySignature"
+    },
+    {
+      "sig": "0x5c2ed36a",
+      "name": "PeripheryRegistryFacet.registerPeripheryContract"
+    }
   ]
 }

@@ -5,11 +5,13 @@ import * as chains from 'viem/chains'
 import {
   Address,
   Chain,
+  PublicClient,
   createPublicClient,
   getAddress,
   getContract,
   http,
   parseAbi,
+  zeroAddress,
 } from 'viem'
 
 const louperCmd = 'louper-cli'
@@ -62,6 +64,8 @@ const main = defineCommand({
       network.toLowerCase()
     ] as Address[]
 
+    const globalConfig = await import('../../config/global.json')
+
     const chain = chainMap[network]
     const publicClient = createPublicClient({
       batch: { multicall: true },
@@ -105,7 +109,9 @@ const main = defineCommand({
 
     for (const facet of coreFacets) {
       if (!resgisteredFacets.includes(facet)) {
-        logError(`Facet ${facet} not registered in Diamond`)
+        logError(
+          `Facet ${facet} not registered in Diamond or possibly unverified`
+        )
       } else {
         consola.success(`Facet ${facet} registered in Diamond`)
       }
@@ -186,6 +192,76 @@ const main = defineCommand({
       consola.info(
         `Found ${numMissing} missing dex${numMissing === 1 ? '' : 's'}`
       )
+
+      // Check contract ownership
+      consola.box('Checking ownership...')
+
+      let owner: Address = zeroAddress
+      let contractAddress: Address
+      const withdrawWallet = getAddress(globalConfig.withdrawWallet)
+      const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
+      const refundWallet = getAddress(globalConfig.refundWallet)
+
+      // FeeCollector
+      if (deployedContracts['FeeCollector']) {
+        contractAddress = deployedContracts['FeeCollector']
+        owner = await getOwnablContract(
+          contractAddress,
+          publicClient
+        ).read.owner()
+        if (owner !== withdrawWallet) {
+          logError(`FeeCollector owner is ${owner}, expected ${withdrawWallet}`)
+        } else {
+          consola.success('FeeCollector owner is correct')
+        }
+      }
+
+      // LiFuelFeeCollector
+      if (deployedContracts['LiFuelFeeCollector']) {
+        contractAddress = deployedContracts['LiFuelFeeCollector']
+        owner = await getOwnablContract(
+          contractAddress,
+          publicClient
+        ).read.owner()
+        if (owner !== rebalanceWallet) {
+          logError(
+            `LiFuelFeeCollector owner is ${owner}, expected ${rebalanceWallet}`
+          )
+        } else {
+          consola.success('LiFuelFeeCollector owner is correct')
+        }
+      }
+
+      // Receiver
+      if (deployedContracts['Receiver']) {
+        contractAddress = deployedContracts['Receiver']
+        owner = await getOwnablContract(
+          contractAddress,
+          publicClient
+        ).read.owner()
+        if (owner !== refundWallet) {
+          logError(`Receiver owner is ${owner}, expected ${refundWallet}`)
+        } else {
+          consola.success('Receiver owner is correct')
+        }
+      }
+
+      // ServiceFeeCollector
+      if (deployedContracts['ServiceFeeCollector']) {
+        contractAddress = deployedContracts['ServiceFeeCollector']
+        owner = await getOwnablContract(
+          contractAddress,
+          publicClient
+        ).read.owner()
+        if (owner !== withdrawWallet) {
+          logError(
+            `ServiceFeeCollector owner is ${owner}, expected ${withdrawWallet}`
+          )
+        } else {
+          consola.success('ServiceFeeCollector owner is correct')
+        }
+      }
+
       finish()
     }
   },
@@ -194,6 +270,14 @@ const main = defineCommand({
 const logError = (string: string) => {
   consola.error(string)
   errors.push(string)
+}
+
+const getOwnablContract = (address: Address, client: PublicClient) => {
+  return getContract({
+    address,
+    abi: parseAbi(['function owner() external view returns (address)']),
+    client,
+  })
 }
 
 const finish = () => {
