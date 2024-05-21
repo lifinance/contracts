@@ -122,13 +122,13 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, Test {
             .swapTokensSingleV3NativeToERC20
             .selector;
         functionSelectorsV3[3] = genericSwapFacetV3
-            .swapTokensGenericV3FromERC20ToERC20
+            .swapTokensMultipleV3ERC20ToERC20
             .selector;
         functionSelectorsV3[4] = genericSwapFacetV3
-            .swapTokensGenericV3FromERC20ToNative
+            .swapTokensMultipleV3ERC20ToNative
             .selector;
         functionSelectorsV3[5] = genericSwapFacetV3
-            .swapTokensGenericV3FromNativeToERC20
+            .swapTokensMultipleV3NativeToERC20
             .selector;
 
         addFacet(diamond, address(genericSwapFacetV3), functionSelectorsV3);
@@ -716,7 +716,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, Test {
             minAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacetV3.swapTokensGenericV3FromERC20ToERC20(
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20(
             "",
             "integrator",
             "referrer",
@@ -855,7 +855,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, Test {
             minAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacetV3.swapTokensGenericV3FromNativeToERC20{
+        genericSwapFacetV3.swapTokensMultipleV3NativeToERC20{
             value: amountIn
         }(
             "",
@@ -1008,7 +1008,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, Test {
             minAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacetV3.swapTokensGenericV3FromERC20ToERC20(
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20(
             "",
             "integrator",
             "referrer",
@@ -1146,7 +1146,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, Test {
             minAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacetV3.swapTokensGenericV3FromNativeToERC20{
+        genericSwapFacetV3.swapTokensMultipleV3NativeToERC20{
             value: amountIn
         }(
             "",
@@ -1300,7 +1300,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, Test {
             minAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacetV3.swapTokensGenericV3FromERC20ToNative(
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToNative(
             "",
             "integrator",
             "referrer",
