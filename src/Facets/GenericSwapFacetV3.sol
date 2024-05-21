@@ -22,6 +22,8 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// External Methods ///
 
+    // SINGLE SWAPS
+
     /// @notice Performs a single swap from an ERC20 token to another ERC20 token
     /// @param _transactionId the transaction id associated with the operation
     /// @param _integrator the name of the integrator
@@ -203,14 +205,16 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
     }
 
-    /// @notice Performs multiple swaps (from an ERC20 token) in one transaction
+    // MULTIPLE SWAPS
+
+    /// @notice Performs multiple swaps in one transaction, starting with ERC20 and ending with native
     /// @param _transactionId the transaction id associated with the operation
     /// @param _integrator the name of the integrator
     /// @param _referrer the address of the referrer
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
-    function swapTokensGenericV3FromERC20(
+    function swapTokensGenericV3FromERC20ToNative(
         bytes32 _transactionId,
         string calldata _integrator,
         string calldata _referrer,
@@ -220,7 +224,7 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ) external payable {
         _depositMultipleERC20Tokens(_swapData);
         _executeSwaps(_swapData, _transactionId, _receiver);
-        _transferTokensAndEmitEvent(
+        _transferNativeTokensAndEmitEvent(
             _transactionId,
             _integrator,
             _referrer,
@@ -230,14 +234,41 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
     }
 
-    /// @notice Performs multiple swaps (from the native token) in one transaction
+    /// @notice Performs multiple swaps in one transaction, starting with ERC20 and ending with ERC20
     /// @param _transactionId the transaction id associated with the operation
     /// @param _integrator the name of the integrator
     /// @param _referrer the address of the referrer
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
-    function swapTokensGenericV3FromNative(
+    function swapTokensGenericV3FromERC20ToERC20(
+        bytes32 _transactionId,
+        string calldata _integrator,
+        string calldata _referrer,
+        address payable _receiver,
+        uint256 _minAmountOut,
+        LibSwap.SwapData[] calldata _swapData
+    ) external payable {
+        _depositMultipleERC20Tokens(_swapData);
+        _executeSwaps(_swapData, _transactionId, _receiver);
+        _transferERC20TokensAndEmitEvent(
+            _transactionId,
+            _integrator,
+            _referrer,
+            _receiver,
+            _minAmountOut,
+            _swapData
+        );
+    }
+
+    /// @notice Performs multiple swaps in one transaction, starting with native and ending with ERC20
+    /// @param _transactionId the transaction id associated with the operation
+    /// @param _integrator the name of the integrator
+    /// @param _referrer the address of the referrer
+    /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
+    /// @param _minAmountOut the minimum amount of the final asset to receive
+    /// @param _swapData an object containing swap related data to perform swaps before bridging
+    function swapTokensGenericV3FromNativeToERC20(
         bytes32 _transactionId,
         string calldata _integrator,
         string calldata _referrer,
@@ -246,7 +277,7 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         LibSwap.SwapData[] calldata _swapData
     ) external payable {
         _executeSwaps(_swapData, _transactionId, _receiver);
-        _transferTokensAndEmitEvent(
+        _transferERC20TokensAndEmitEvent(
             _transactionId,
             _integrator,
             _referrer,
@@ -339,7 +370,7 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 currentSwap.sendingAssetId,
                 currentSwap.receivingAssetId,
                 currentSwap.fromAmount,
-                isNative
+                LibAsset.isNativeAsset(currentSwap.receivingAssetId)
                     ? address(this).balance
                     : ERC20(currentSwap.receivingAssetId).balanceOf(
                         address(this)
@@ -357,7 +388,7 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
     }
 
-    function _transferTokensAndEmitEvent(
+    function _transferERC20TokensAndEmitEvent(
         bytes32 _transactionId,
         string calldata _integrator,
         string calldata _referrer,
@@ -385,6 +416,38 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _receiver,
             _swapData[0].sendingAssetId,
             finalAssetId,
+            _swapData[0].fromAmount,
+            amountReceived
+        );
+    }
+
+    function _transferNativeTokensAndEmitEvent(
+        bytes32 _transactionId,
+        string calldata _integrator,
+        string calldata _referrer,
+        address payable _receiver,
+        uint256 _minAmountOut,
+        LibSwap.SwapData[] calldata _swapData
+    ) private {
+        uint256 amountReceived = address(this).balance;
+
+        // make sure minAmountOut was received
+        if (amountReceived < _minAmountOut)
+            revert CumulativeSlippageTooHigh(_minAmountOut, amountReceived);
+
+        // transfer funds to receiver
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, ) = _receiver.call{ value: amountReceived }("");
+        if (!success) revert NativeAssetTransferFailed();
+
+        // emit event
+        emit LiFiGenericSwapCompleted(
+            _transactionId,
+            _integrator,
+            _referrer,
+            _receiver,
+            _swapData[0].sendingAssetId,
+            address(0),
             _swapData[0].fromAmount,
             amountReceived
         );
