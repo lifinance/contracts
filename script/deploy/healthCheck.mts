@@ -5,6 +5,7 @@ import * as chains from 'viem/chains'
 import {
   Address,
   Chain,
+  Hex,
   PublicClient,
   createPublicClient,
   getAddress,
@@ -262,6 +263,39 @@ const main = defineCommand({
         }
       }
 
+      // Check access permissions
+      consola.box('Checking access permissions...')
+      const accessManager = getContract({
+        address: deployedContracts['LiFiDiamond'],
+        abi: parseAbi([
+          'function addressCanExecuteMethod(bytes4,address) external view returns (bool)',
+        ]),
+        client: publicClient,
+      })
+
+      // Deployer wallet
+      const deployerWallet = getAddress(globalConfig.deployerWallet)
+      const approveSigs = globalConfig.approvedSigsForDeployerWallet as {
+        sig: Hex
+        name: string
+      }[]
+
+      for (let sig of approveSigs) {
+        if (
+          !(await accessManager.read.addressCanExecuteMethod([
+            sig.sig,
+            deployerWallet,
+          ]))
+        ) {
+          logError(
+            `Deployer wallet ${deployerWallet} cannot execute ${sig.name} (${sig.sig})`
+          )
+        } else {
+          consola.success(
+            `Deployer wallet ${deployerWallet} can execute ${sig.name} (${sig.sig})`
+          )
+        }
+      }
       finish()
     }
   },
