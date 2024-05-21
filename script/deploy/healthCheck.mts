@@ -296,6 +296,30 @@ const main = defineCommand({
           )
         }
       }
+
+      // Refund wallet
+      const refundSigs = globalConfig.approvedSigsForRefundWallet as {
+        sig: Hex
+        name: string
+      }[]
+
+      for (let sig of refundSigs) {
+        if (
+          !(await accessManager.read.addressCanExecuteMethod([
+            sig.sig,
+            refundWallet,
+          ]))
+        ) {
+          logError(
+            `Refund wallet ${refundWallet} cannot execute ${sig.name} (${sig.sig})`
+          )
+        } else {
+          consola.success(
+            `Refund wallet ${refundWallet} can execute ${sig.name} (${sig.sig})`
+          )
+        }
+      }
+
       finish()
     }
   },
