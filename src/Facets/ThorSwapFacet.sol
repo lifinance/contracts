@@ -12,7 +12,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 /// @title ThorSwap Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through ThorSwap
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     address private immutable thorchainRouter;
 
@@ -86,6 +86,10 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         ThorSwapData calldata _thorSwapData
     ) internal {
+        // Thorswap does not support transactions sent by non-whitelisted contracts
+        // Funds might get stuck, therefore we prevent such calls until further notice
+        if (LibAsset.isContract(msg.sender)) revert ContractCallNotAllowed();
+
         IERC20 sendingAssetId = IERC20(_bridgeData.sendingAssetId);
         bool isNative = LibAsset.isNativeAsset(address(sendingAssetId));
 
