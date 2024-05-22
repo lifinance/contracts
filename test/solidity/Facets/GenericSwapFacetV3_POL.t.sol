@@ -987,13 +987,13 @@ contract GenericSwapFacetV3POLTest is DSTest, DiamondTest, Test {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            address(0), // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
+            DAI_ADDRESS, // fromAssetId,
+            address(0), // toAssetId,
             amountIn, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
         );
 
-        genericSwapFacet.swapTokensGeneric{ value: amountIn }(
+        genericSwapFacet.swapTokensGeneric(
             "",
             "integrator",
             "referrer",
