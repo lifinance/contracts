@@ -8,6 +8,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { ContractCallNotAllowed } from "../Errors/GenericErrors.sol";
 
 /// @title ThorSwap Facet
 /// @author Li.Finance (https://li.finance)
