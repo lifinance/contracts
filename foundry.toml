@@ -78,7 +78,7 @@ metis = { key = "${METIS_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2
 mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan" }
 scroll = { key = "${SCROLL_ETHERSCAN_API_KEY}", url = "https://api.scrollscan.com/api" }
 mantle = { key = "${MANTLE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/5000/etherscan" }
-blast = { key = "${BLAST_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/81457/etherscan" }
+blast = { key = "${BLAST_ETHERSCAN_API_KEY}", url = "https://api.blastscan.io/api" }
 
 #testnets
 goerli = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
