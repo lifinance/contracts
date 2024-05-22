@@ -18108,5 +18108,21 @@
         ]
       }
     }
+  },
+  "GenericSwapFacetV3": {
+    "polygon": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4b904ad5Ca7601595277575824B080e078e2E812",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-05-21 10:40:07",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
   }
 }

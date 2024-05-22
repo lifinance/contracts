@@ -12,6 +12,8 @@ import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferF
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 
+import { console2 } from "forge-std/console2.sol";
+
 /// @title GenericSwapFacetV3
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for fee collection and for swapping through any APPROVED DEX
@@ -378,7 +380,8 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 block.timestamp
             );
 
-            // return any potential leftover inputTokens (but only for swaps, not for fee collections)
+            // return any potential leftover inputTokens
+            // but only for swaps, not for fee collections (otherwise the whole amount will be returned)
             if (currentSwap.sendingAssetId != currentSwap.receivingAssetId)
                 _returnPositiveSlippage(sendingAsset, _receiver);
 
@@ -501,14 +504,17 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     function _returnPositiveSlippage(
-        ERC20 fromToken,
+        ERC20 sendingAsset,
         address receiver
     ) private {
-        // if a balance exists in fromToken, it must be positive slippage
-        if (address(fromToken) != address(0)) {
-            uint256 fromTokenBalance = fromToken.balanceOf(address(this));
-            if (fromTokenBalance > 0) {
-                fromToken.safeTransfer(receiver, fromTokenBalance);
+        // if a balance exists in sendingAsset, it must be positive slippage
+        if (address(sendingAsset) != address(0)) {
+            uint256 sendingAssetBalance = sendingAsset.balanceOf(
+                address(this)
+            );
+
+            if (sendingAssetBalance > 0) {
+                sendingAsset.safeTransfer(receiver, sendingAssetBalance);
             }
         }
     }
