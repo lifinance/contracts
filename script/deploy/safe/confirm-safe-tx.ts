@@ -1,6 +1,6 @@
 import { defineCommand, runMain } from 'citty'
 import { type SafeApiKitConfig } from '@safe-global/api-kit'
-import type { Chain } from 'viem'
+import { Abi, Chain, Hex, decodeFunctionData, parseAbi } from 'viem'
 import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
 import SafeApiKit from '@safe-global/api-kit'
 import { ethers } from 'ethers6'
@@ -75,6 +75,8 @@ const main = defineCommand({
       return 0
     })) {
       let abi
+      let abiInterface: Abi
+      let decoded
       if (tx.data) {
         const selector = tx.data.substring(0, 10)
         const url = ABI_LOOKUP_URL.replace('%SELECTOR%', selector)
@@ -87,10 +89,17 @@ const main = defineCommand({
           data.result.function[selector]
         ) {
           abi = data.result.function[selector][0].name
+          const fullAbiString = `function ${abi}`
+          abiInterface = parseAbi([fullAbiString])
+          decoded = decodeFunctionData({
+            abi: abiInterface,
+            data: tx.data as Hex,
+          })
         }
       }
 
       consola.info('Method:', abi)
+      consola.info('Decoded Data:', JSON.stringify(decoded, null, 2))
       consola.info('Nonce:', tx.nonce)
       consola.info('To:', tx.to)
       consola.info('Value:', tx.value)
