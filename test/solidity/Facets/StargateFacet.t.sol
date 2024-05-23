@@ -136,7 +136,7 @@ contract StargateFacetTest is TestBaseFacet {
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             stargateFacet.startBridgeTokensViaStargate{
-                value: bridgeData.minAmount
+                value: bridgeData.minAmount + addToMessageValue
             }(bridgeData, stargateData);
         } else {
             stargateFacet.startBridgeTokensViaStargate{
