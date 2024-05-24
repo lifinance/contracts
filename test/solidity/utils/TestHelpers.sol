@@ -65,6 +65,15 @@ contract TestHelpers is Test {
             mockDex.swapETHForExactTokens.selector
         );
         DexManager(diamond).setFunctionApprovalBySignature(
+            mockDex.swapExactETHForTokens.selector
+        );
+        DexManager(diamond).setFunctionApprovalBySignature(
+            mockDex.swapExactTokensForETH.selector
+        );
+        DexManager(diamond).setFunctionApprovalBySignature(
+            mockDex.swapTokensForExactETH.selector
+        );
+        DexManager(diamond).setFunctionApprovalBySignature(
             mockDex.mockSwapWillRevertWithReason.selector
         );
     }
