@@ -2,24 +2,19 @@
 pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
-import { LibSwap } from "../Libraries/LibSwap.sol";
-import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
-import { Validatable } from "../Helpers/Validatable.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
+import { LibSwap } from "../Libraries/LibSwap.sol";
+import { LibAllowList } from "../Libraries/LibAllowList.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
-import { LibAllowList } from "../Libraries/LibAllowList.sol";
-
-import { console2 } from "forge-std/console2.sol";
 
 /// @title GenericSwapFacetV3
 /// @author LI.FI (https://li.fi)
-/// @notice Provides functionality for fee collection and for swapping through any APPROVED DEX
+/// @notice Provides gas-optimized functionality for fee collection and for swapping through any APPROVED DEX
 /// @dev Can only execute calldata for APPROVED function selectors
 /// @custom:version 1.0.0
-contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract GenericSwapFacetV3 is ILiFi {
     using SafeTransferLib for ERC20;
 
     /// External Methods ///
@@ -70,7 +65,7 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             block.timestamp
         );
 
-        emit LiFiGenericSwapCompleted(
+        emit ILiFi.LiFiGenericSwapCompleted(
             _transactionId,
             _integrator,
             _referrer,
@@ -125,7 +120,7 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             block.timestamp
         );
 
-        emit LiFiGenericSwapCompleted(
+        emit ILiFi.LiFiGenericSwapCompleted(
             _transactionId,
             _integrator,
             _referrer,
@@ -169,6 +164,8 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert(reason);
         }
 
+        _returnPositiveSlippageNative(_receiver);
+
         // get contract's balance (which will be sent in full to user)
         address receivingAssetId = _swapData.receivingAssetId;
         uint256 amountReceived = ERC20(receivingAssetId).balanceOf(
@@ -195,7 +192,7 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             block.timestamp
         );
 
-        emit LiFiGenericSwapCompleted(
+        emit ILiFi.LiFiGenericSwapCompleted(
             _transactionId,
             _integrator,
             _referrer,
@@ -341,9 +338,25 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 revert ContractCallNotAllowed();
             }
 
-            // FOR ERC20 only: check if the current allowance is sufficient
-            bool isNative = LibAsset.isNativeAsset(currentSwap.sendingAssetId);
-            if (!isNative) {
+            if (LibAsset.isNativeAsset(currentSwap.sendingAssetId)) {
+                // Native
+                // execute the swap
+                (bool success, bytes memory returnData) = currentSwap
+                    .callTo
+                    .call{ value: currentSwap.fromAmount }(
+                    currentSwap.callData
+                );
+                if (!success) {
+                    revert(LibUtil.getRevertMsg(returnData));
+                }
+
+                // return any potential leftover sendingAsset tokens
+                // but only for swaps, not for fee collections (otherwise the whole amount would be returned before the actual swap)
+                if (currentSwap.sendingAssetId != currentSwap.receivingAssetId)
+                    _returnPositiveSlippageNative(_receiver);
+            } else {
+                // ERC20
+                // check if the current allowance is sufficient
                 uint256 currentAllowance = sendingAsset.allowance(
                     address(this),
                     currentSwap.approveTo
@@ -355,14 +368,19 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                         type(uint256).max
                     );
                 }
-            }
 
-            // execute the swap
-            (bool success, bytes memory returnData) = currentSwap.callTo.call{
-                value: isNative ? currentSwap.fromAmount : 0
-            }(currentSwap.callData);
-            if (!success) {
-                revert(LibUtil.getRevertMsg(returnData));
+                // execute the swap
+                (bool success, bytes memory returnData) = currentSwap
+                    .callTo
+                    .call(currentSwap.callData);
+                if (!success) {
+                    revert(LibUtil.getRevertMsg(returnData));
+                }
+
+                // return any potential leftover sendingAsset tokens
+                // but only for swaps, not for fee collections (otherwise the whole amount would be returned before the actual swap)
+                if (currentSwap.sendingAssetId != currentSwap.receivingAssetId)
+                    _returnPositiveSlippageERC20(sendingAsset, _receiver);
             }
 
             // emit AssetSwapped event
@@ -379,11 +397,6 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     ),
                 block.timestamp
             );
-
-            // return any potential leftover inputTokens
-            // but only for swaps, not for fee collections (otherwise the whole amount will be returned)
-            if (currentSwap.sendingAssetId != currentSwap.receivingAssetId)
-                _returnPositiveSlippage(sendingAsset, _receiver);
 
             unchecked {
                 ++i;
@@ -412,7 +425,7 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ERC20(finalAssetId).safeTransfer(_receiver, amountReceived);
 
         // emit event
-        emit LiFiGenericSwapCompleted(
+        emit ILiFi.LiFiGenericSwapCompleted(
             _transactionId,
             _integrator,
             _referrer,
@@ -444,7 +457,7 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (!success) revert NativeAssetTransferFailed();
 
         // emit event
-        emit LiFiGenericSwapCompleted(
+        emit ILiFi.LiFiGenericSwapCompleted(
             _transactionId,
             _integrator,
             _referrer,
@@ -500,10 +513,11 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert(reason);
         }
 
-        _returnPositiveSlippage(sendingAsset, _receiver);
+        _returnPositiveSlippageERC20(sendingAsset, _receiver);
     }
 
-    function _returnPositiveSlippage(
+    // returns any unused sendingAsset (=> positive slippage) to the receiver address
+    function _returnPositiveSlippageERC20(
         ERC20 sendingAsset,
         address receiver
     ) private {
@@ -516,6 +530,18 @@ contract GenericSwapFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             if (sendingAssetBalance > 0) {
                 sendingAsset.safeTransfer(receiver, sendingAssetBalance);
             }
+        }
+    }
+
+    // returns any unused native tokens (=> positive slippage) to the receiver address
+    function _returnPositiveSlippageNative(address receiver) private {
+        // if a native balance exists in sendingAsset, it must be positive slippage
+        uint256 nativeBalance = address(this).balance;
+
+        if (nativeBalance > 0) {
+            // solhint-disable-next-line avoid-low-level-calls
+            (bool success, ) = receiver.call{ value: nativeBalance }("");
+            if (!success) revert NativeAssetTransferFailed();
         }
     }
 }

@@ -116,29 +116,7 @@ contract MockUniswapDEX {
         address to,
         uint256
     ) external payable {
-        //TODO: FIX
         mockSwapWithPresetInputAndOutput(amountOut, amountInMax, path, to);
-        // // pull input token
-        // address inputToken = path[0];
-        // if (inputToken == address(0)) {
-        //     // native
-        // } else {
-        //     // ERC20
-        //     ERC20 token = ERC20(path[0]);
-        //     token.safeTransferFrom(
-        //         msg.sender,
-        //         address(this),
-        //         inputAmount == 0 ? amountInMax : inputAmount
-        //     );
-        // }
-
-        // // make sure that the contract is sufficiently funded
-        // uint256 balance = outputToken.balanceOf(address(this));
-        // if (balance < outputAmount)
-        //     revert InsufficientBalance(outputAmount, balance);
-
-        // // return preset output token and amount
-        // outputToken.safeTransfer(to, outputAmount);
     }
 
     function swapExactTokensForTokens(
