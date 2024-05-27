@@ -162,8 +162,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData.callData
         );
         if (!success) {
-            string memory reason = LibUtil.getRevertMsg(res);
-            revert(reason);
+            LibUtil.revertWith(res);
         }
 
         // get contract's balance (which will be sent in full to user)
@@ -281,8 +280,7 @@ contract GenericSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory res) = callTo.call(_swapData.callData);
         if (!success) {
-            string memory reason = LibUtil.getRevertMsg(res);
-            revert(reason);
+            LibUtil.revertWith(res);
         }
     }
 }
