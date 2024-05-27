@@ -160,8 +160,7 @@ contract GenericSwapFacetV3 is ILiFi {
             _swapData.callData
         );
         if (!success) {
-            string memory reason = LibUtil.getRevertMsg(res);
-            revert(reason);
+            LibUtil.revertWith(res);
         }
 
         _returnPositiveSlippageNative(_receiver);
@@ -347,7 +346,7 @@ contract GenericSwapFacetV3 is ILiFi {
                     currentSwap.callData
                 );
                 if (!success) {
-                    revert(LibUtil.getRevertMsg(returnData));
+                    LibUtil.revertWith(res);
                 }
 
                 // return any potential leftover sendingAsset tokens
@@ -374,7 +373,7 @@ contract GenericSwapFacetV3 is ILiFi {
                     .callTo
                     .call(currentSwap.callData);
                 if (!success) {
-                    revert(LibUtil.getRevertMsg(returnData));
+                    LibUtil.revertWith(res);
                 }
 
                 // return any potential leftover sendingAsset tokens
@@ -509,8 +508,7 @@ contract GenericSwapFacetV3 is ILiFi {
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory res) = callTo.call(callData);
         if (!success) {
-            string memory reason = LibUtil.getRevertMsg(res);
-            revert(reason);
+            LibUtil.revertWith(res);
         }
 
         _returnPositiveSlippageERC20(sendingAsset, _receiver);
