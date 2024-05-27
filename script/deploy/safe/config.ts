@@ -20,6 +20,7 @@ export const safeApiUrls: Record<string, string> = {
   optimism: 'https://safe-transaction-optimism.safe.global/api',
   polygon: 'https://safe-transaction-polygon.safe.global/api',
   polygonzkevm: 'https://safe-transaction-zkevm.safe.global/api',
+  rootstock: 'https://transaction.safe.rootstock.io/api',
   scroll: 'https://transaction.safe.scroll.xyz/api',
   zksync: 'https://safe-transaction-zksync.safe.global/api',
 }
@@ -46,6 +47,7 @@ export const safeAddresses: Record<string, string> = {
   optimism: '0xa8892eA3fdDeF2aa8AfB1E3643a3284f978A5114',
   polygon: '0x8BCC385948C73736423D38cc567cFEdE0F1826A3',
   polygonzkevm: '0x9575B9fC42dec56D3772B3df5DA047a1f1D55582',
+  rootstock: '0xDF61270FdC1a892874Fd3C0143A0a4CBa74F4EF1',
   scroll: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   zksync: '0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744',
 }
