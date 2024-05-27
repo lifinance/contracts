@@ -346,7 +346,7 @@ contract GenericSwapFacetV3 is ILiFi {
                     currentSwap.callData
                 );
                 if (!success) {
-                    LibUtil.revertWith(res);
+                    LibUtil.revertWith(returnData);
                 }
 
                 // return any potential leftover sendingAsset tokens
@@ -373,7 +373,7 @@ contract GenericSwapFacetV3 is ILiFi {
                     .callTo
                     .call(currentSwap.callData);
                 if (!success) {
-                    LibUtil.revertWith(res);
+                    LibUtil.revertWith(returnData);
                 }
 
                 // return any potential leftover sendingAsset tokens
