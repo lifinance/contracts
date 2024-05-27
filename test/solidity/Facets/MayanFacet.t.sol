@@ -21,21 +21,16 @@ contract TestMayanFacet is MayanFacet {
 contract MayanFacetTest is TestBaseFacet {
     MayanFacet.MayanData internal validMayanData;
     TestMayanFacet internal mayanBridgeFacet;
-    IMayan internal MAYAN_BRIDGE =
-        IMayan(0xF3f04555f8FdA510bfC77820FD6eB8446f59E72d);
+    IMayan internal MAYAN_FORWARDER =
+        IMayan(0x0654874eb7F59C6f5b39931FC45dC45337c967c3);
     address internal POLYGON_USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
-    uint256 internal totalFees;
 
     function setUp() public {
-        customBlockNumberForForking = 19367700;
+        customBlockNumberForForking = 19960692;
         initTestBase();
 
-        address[] memory EXAMPLE_ALLOWED_TOKENS = new address[](2);
-        EXAMPLE_ALLOWED_TOKENS[0] = address(1);
-        EXAMPLE_ALLOWED_TOKENS[1] = address(2);
-
-        mayanBridgeFacet = new TestMayanFacet(MAYAN_BRIDGE);
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        mayanBridgeFacet = new TestMayanFacet(MAYAN_FORWARDER);
+        bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = mayanBridgeFacet
             .startBridgeTokensViaMayan
             .selector;
@@ -45,9 +40,6 @@ contract MayanFacetTest is TestBaseFacet {
         functionSelectors[2] = mayanBridgeFacet.addDex.selector;
         functionSelectors[3] = mayanBridgeFacet
             .setFunctionApprovalBySignature
-            .selector;
-        functionSelectors[4] = mayanBridgeFacet
-            .setMayanChainIdMapping
             .selector;
 
         addFacet(diamond, address(mayanBridgeFacet), functionSelectors);
@@ -63,8 +55,6 @@ contract MayanFacetTest is TestBaseFacet {
             uniswap.swapETHForExactTokens.selector
         );
 
-        mayanBridgeFacet.setMayanChainIdMapping(137, 5);
-
         setFacetAddressInTestBase(address(mayanBridgeFacet), "MayanFacet");
 
         // adjust bridgeData
@@ -72,31 +62,17 @@ contract MayanFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 137;
 
         // produce valid MayanData
-        validMayanData = MayanFacet.MayanData({
-            mayanAddr: 0x32f0af4069bde51a996d1250ef3f7c2431245b98e027b34aa5ca5ae435c435c9,
-            referrer: bytes32(0),
-            tokenOutAddr: bytes32(uint256(uint160(POLYGON_USDT))),
-            receiver: bytes32(uint256(uint160(USER_SENDER))),
-            swapFee: 100000,
-            redeemFee: 1000000,
-            refundFee: 1000000,
-            transferDeadline: block.timestamp + 1000,
-            swapDeadline: uint64(block.timestamp + 1000),
-            amountOutMin: uint64((bridgeData.minAmount * 99) / 100),
-            unwrap: false,
-            gasDrop: 0
-        });
-
-        totalFees =
-            validMayanData.redeemFee +
-            validMayanData.refundFee +
-            validMayanData.swapFee;
+        validMayanData = MayanFacet.MayanData(
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
+            hex"afd9b706000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000000989680000000000000000000000000000000000000000000000000000000000000000000000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000000000000000000000000000000000000000000000000000000000005000000000000000000000000c2132d05d31c914a87c6611c10748aeb04b58e8f00000000000000000000000000000000000000000000000000000000007574470000000000000000000000000000000000000000000000000000000066547cfe00000000000000000000000000000000000000000000000000000000001f8c1e0000000000000000000000000e59bec273184dbaab3123d7ca0df72f24c79f0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007000000000000000000000000f18f923480dc144326e6c65d4f3d47aa459bb41c000000000000000000000000f18f923480dc144326e6c65d4f3d47aa459bb41c",
+            ""
+        );
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             mayanBridgeFacet.startBridgeTokensViaMayan{
-                value: bridgeData.minAmount + totalFees
+                value: bridgeData.minAmount
             }(bridgeData, validMayanData);
         } else {
             mayanBridgeFacet.startBridgeTokensViaMayan(
