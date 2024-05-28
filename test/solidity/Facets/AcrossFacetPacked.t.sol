@@ -124,10 +124,11 @@ contract AcrossFacetPackedTest is TestBase {
 
         // define valid AcrossData
         validAcrossData = AcrossFacet.AcrossData({
-            relayerFeePct: 0,
+            receivingAssetId: ADDRESS_USDT,
+            outputAmount: 0.9 ether,
             quoteTimestamp: uint32(block.timestamp),
-            message: "bla",
-            maxCount: type(uint256).max
+            fillDeadline: uint32(357437626),
+            message: "bla"
         });
 
         vm.label(ACROSS_SPOKE_POOL, "SpokePool");
@@ -141,9 +142,10 @@ contract AcrossFacetPackedTest is TestBase {
                 transactionId,
                 USER_RECEIVER,
                 destinationChainId,
-                validAcrossData.relayerFeePct,
+                validAcrossData.receivingAssetId,
+                validAcrossData.outputAmount,
                 validAcrossData.quoteTimestamp,
-                validAcrossData.maxCount,
+                validAcrossData.fillDeadline,
                 validAcrossData.message
             );
         packedNativeCalldata = addReferrerIdToCalldata(packedNativeCalldata);
@@ -153,14 +155,15 @@ contract AcrossFacetPackedTest is TestBase {
         packedUSDTCalldata = acrossFacetPacked
             .encode_startBridgeTokensViaAcrossERC20Packed(
                 transactionId,
-                USER_RECEIVER,
                 ADDRESS_USDT,
                 amountUSDT,
+                USER_RECEIVER,
                 destinationChainId,
-                validAcrossData.relayerFeePct,
+                validAcrossData.receivingAssetId,
+                validAcrossData.outputAmount,
                 validAcrossData.quoteTimestamp,
-                validAcrossData.message,
-                validAcrossData.maxCount
+                validAcrossData.fillDeadline,
+                validAcrossData.message
             );
         packedUSDTCalldata = addReferrerIdToCalldata(packedUSDTCalldata);
 
@@ -171,14 +174,15 @@ contract AcrossFacetPackedTest is TestBase {
         packedUSDCCalldata = acrossFacetPacked
             .encode_startBridgeTokensViaAcrossERC20Packed(
                 transactionId,
-                USER_RECEIVER,
                 ADDRESS_USDC,
                 amountUSDC,
+                USER_RECEIVER,
                 destinationChainId,
-                validAcrossData.relayerFeePct,
+                validAcrossData.receivingAssetId,
+                validAcrossData.outputAmount,
                 validAcrossData.quoteTimestamp,
-                validAcrossData.message,
-                validAcrossData.maxCount
+                validAcrossData.fillDeadline,
+                validAcrossData.message
             );
         packedUSDCCalldata = addReferrerIdToCalldata(packedUSDCCalldata);
 
@@ -260,10 +264,11 @@ contract AcrossFacetPackedTest is TestBase {
             transactionId,
             USER_RECEIVER,
             destinationChainId,
-            validAcrossData.relayerFeePct,
+            validAcrossData.receivingAssetId,
+            validAcrossData.outputAmount,
             validAcrossData.quoteTimestamp,
-            validAcrossData.message,
-            validAcrossData.maxCount
+            validAcrossData.fillDeadline,
+            validAcrossData.message
         );
 
         vm.stopPrank();
@@ -282,10 +287,11 @@ contract AcrossFacetPackedTest is TestBase {
             transactionId,
             USER_RECEIVER,
             destinationChainId,
-            validAcrossData.relayerFeePct,
+            validAcrossData.receivingAssetId,
+            validAcrossData.outputAmount,
             validAcrossData.quoteTimestamp,
-            validAcrossData.message,
-            validAcrossData.maxCount
+            validAcrossData.fillDeadline,
+            validAcrossData.message
         );
 
         vm.stopPrank();
@@ -391,10 +397,11 @@ contract AcrossFacetPackedTest is TestBase {
             amountUSDC,
             USER_RECEIVER,
             destinationChainId,
-            validAcrossData.relayerFeePct,
+            validAcrossData.receivingAssetId,
+            validAcrossData.outputAmount,
             validAcrossData.quoteTimestamp,
-            validAcrossData.message,
-            validAcrossData.maxCount
+            validAcrossData.fillDeadline,
+            validAcrossData.message
         );
 
         vm.stopPrank();
@@ -417,10 +424,11 @@ contract AcrossFacetPackedTest is TestBase {
             amountUSDT,
             USER_RECEIVER,
             destinationChainId,
-            validAcrossData.relayerFeePct,
+            validAcrossData.receivingAssetId,
+            validAcrossData.outputAmount,
             validAcrossData.quoteTimestamp,
-            validAcrossData.message,
-            validAcrossData.maxCount
+            validAcrossData.fillDeadline,
+            validAcrossData.message
         );
 
         vm.stopPrank();
@@ -443,10 +451,11 @@ contract AcrossFacetPackedTest is TestBase {
             amountUSDC,
             USER_RECEIVER,
             destinationChainId,
-            validAcrossData.relayerFeePct,
+            validAcrossData.receivingAssetId,
+            validAcrossData.outputAmount,
             validAcrossData.quoteTimestamp,
-            validAcrossData.message,
-            validAcrossData.maxCount
+            validAcrossData.fillDeadline,
+            validAcrossData.message
         );
 
         vm.stopPrank();
@@ -472,10 +481,11 @@ contract AcrossFacetPackedTest is TestBase {
             amountUSDT,
             USER_RECEIVER,
             destinationChainId,
-            validAcrossData.relayerFeePct,
+            validAcrossData.receivingAssetId,
+            validAcrossData.outputAmount,
             validAcrossData.quoteTimestamp,
-            validAcrossData.message,
-            validAcrossData.maxCount
+            validAcrossData.fillDeadline,
+            validAcrossData.message
         );
 
         vm.stopPrank();
@@ -485,14 +495,15 @@ contract AcrossFacetPackedTest is TestBase {
         AcrossFacet.AcrossData memory original,
         AcrossFacet.AcrossData memory decoded
     ) public {
-        assertEq(original.relayerFeePct == decoded.relayerFeePct, true);
+        assertEq(original.receivingAssetId == decoded.receivingAssetId, true);
+        assertEq(original.outputAmount == decoded.outputAmount, true);
+        assertEq(original.fillDeadline == decoded.fillDeadline, true);
         assertEq(original.quoteTimestamp == decoded.quoteTimestamp, true);
         assertEq(
             keccak256(abi.encode(original.message)) ==
                 keccak256(abi.encode(decoded.message)),
             true
         );
-        assertEq(original.relayerFeePct == decoded.relayerFeePct, true);
     }
 
     function assertEqBridgeData(BridgeData memory original) public {
@@ -546,9 +557,10 @@ contract AcrossFacetPackedTest is TestBase {
             transactionId,
             USER_RECEIVER,
             invalidDestinationChainId,
-            validAcrossData.relayerFeePct,
+            validAcrossData.receivingAssetId,
+            validAcrossData.outputAmount,
             validAcrossData.quoteTimestamp,
-            validAcrossData.maxCount,
+            validAcrossData.fillDeadline,
             validAcrossData.message
         );
     }
@@ -565,14 +577,15 @@ contract AcrossFacetPackedTest is TestBase {
 
         acrossFacetPacked.encode_startBridgeTokensViaAcrossERC20Packed(
             transactionId,
-            USER_RECEIVER,
             ADDRESS_USDC,
             amountUSDC,
+            USER_RECEIVER,
             invalidDestinationChainId,
-            validAcrossData.relayerFeePct,
+            validAcrossData.receivingAssetId,
+            validAcrossData.outputAmount,
             validAcrossData.quoteTimestamp,
-            validAcrossData.message,
-            validAcrossData.maxCount
+            validAcrossData.fillDeadline,
+            validAcrossData.message
         );
     }
 
@@ -583,14 +596,15 @@ contract AcrossFacetPackedTest is TestBase {
 
         acrossFacetPacked.encode_startBridgeTokensViaAcrossERC20Packed(
             transactionId,
-            USER_RECEIVER,
             ADDRESS_USDT,
             invalidMinAmount,
+            USER_RECEIVER,
             destinationChainId,
-            validAcrossData.relayerFeePct,
+            validAcrossData.receivingAssetId,
+            validAcrossData.outputAmount,
             validAcrossData.quoteTimestamp,
-            validAcrossData.message,
-            validAcrossData.maxCount
+            validAcrossData.fillDeadline,
+            validAcrossData.message
         );
     }
 

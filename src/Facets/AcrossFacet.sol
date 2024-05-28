@@ -10,10 +10,10 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
-/// @title Across Facet
+/// @title AcrossFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
-/// @custom:version 2.0.0
+/// @custom:version 3.0.0
 contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -25,15 +25,17 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
-    /// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
-    /// @param quoteTimestamp The timestamp associated with the suggested fee.
-    /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens.
-    /// @param maxCount Used to protect the depositor from frontrunning to guarantee their quote remains valid.
+    /// @param receivingAssetId The address of the token to be received at destination chain
+    /// @param outputAmount The amount to be received at destination chain (after fees)
+    /// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
+    /// @param fillDeadline The destination chain timestamp until which the order can be filled
+    /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens
     struct AcrossData {
-        int64 relayerFeePct;
+        address receivingAssetId;
+        uint256 outputAmount;
         uint32 quoteTimestamp;
+        uint32 fillDeadline;
         bytes message;
-        uint256 maxCount;
     }
 
     /// Constructor ///
@@ -106,15 +108,19 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         AcrossData calldata _acrossData
     ) internal {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            spokePool.deposit{ value: _bridgeData.minAmount }(
-                _bridgeData.receiver,
-                wrappedNative,
-                _bridgeData.minAmount,
+            spokePool.depositV3{ value: _bridgeData.minAmount }(
+                msg.sender, // depositor
+                _bridgeData.receiver, // recipient
+                wrappedNative, // inputToken
+                _acrossData.receivingAssetId, // outputToken
+                _bridgeData.minAmount, // inputAmount
+                _acrossData.outputAmount, // outputAmount
                 _bridgeData.destinationChainId,
-                _acrossData.relayerFeePct,
+                address(0), // exclusiveRelayer (not used by us)
                 _acrossData.quoteTimestamp,
-                _acrossData.message,
-                _acrossData.maxCount
+                _acrossData.fillDeadline,
+                0, // exclusivityDeadline (not used by us)
+                _acrossData.message
             );
         } else {
             LibAsset.maxApproveERC20(
@@ -122,15 +128,19 @@ contract AcrossFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 address(spokePool),
                 _bridgeData.minAmount
             );
-            spokePool.deposit(
-                _bridgeData.receiver,
-                _bridgeData.sendingAssetId,
-                _bridgeData.minAmount,
+            spokePool.depositV3(
+                msg.sender, // depositor
+                _bridgeData.receiver, // recipient
+                wrappedNative, // inputToken
+                _acrossData.receivingAssetId, // outputToken
+                _bridgeData.minAmount, // inputAmount
+                _acrossData.outputAmount, // outputAmount
                 _bridgeData.destinationChainId,
-                _acrossData.relayerFeePct,
+                address(0), // exclusiveRelayer (not used by us)
                 _acrossData.quoteTimestamp,
-                _acrossData.message,
-                _acrossData.maxCount
+                _acrossData.fillDeadline,
+                0, // exclusivityDeadline (not used by us)
+                _acrossData.message
             );
         }
 

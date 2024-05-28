@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { AcrossFacet } from "lifi/Facets/AcrossFacet.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
+import { LibUtil } from "lifi/libraries/LibUtil.sol";
 
 // Stub AcrossFacet Contract
 contract TestAcrossFacet is AcrossFacet {
@@ -30,12 +31,15 @@ contract AcrossFacetTest is TestBaseFacet {
         0xD022510A3414f255150Aa54b2e42DB6129a20d9E;
     address internal constant SPOKE_POOL =
         0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
+    address internal constant ADDRESS_USDC_POL =
+        0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
     // -----
     AcrossFacet.AcrossData internal validAcrossData;
     TestAcrossFacet internal acrossFacet;
 
     function setUp() public {
-        customBlockNumberForForking = 17130542;
+        // customBlockNumberForForking = 17130542;
+        customBlockNumberForForking = 19960294;
         initTestBase();
 
         acrossFacet = new TestAcrossFacet(IAcrossSpokePool(SPOKE_POOL));
@@ -69,14 +73,17 @@ contract AcrossFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = 137;
 
         // produce valid AcrossData
+        uint32 quoteTimestamp = 1716791411;
         validAcrossData = AcrossFacet.AcrossData({
-            relayerFeePct: 0,
-            quoteTimestamp: uint32(block.timestamp),
-            message: "",
-            maxCount: type(uint256).max
+            receivingAssetId: ADDRESS_USDC_POL,
+            outputAmount: 0.9 ether,
+            quoteTimestamp: quoteTimestamp,
+            fillDeadline: quoteTimestamp + 1000,
+            message: "bla"
         });
 
-        vm.label(SPOKE_POOL, "SpokePool");
+        vm.label(SPOKE_POOL, "SpokePool_Proxy");
+        vm.label(0x08C21b200eD06D2e32cEC91a770C3FcA8aD5F877, "SpokePool_Impl");
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -114,13 +121,45 @@ contract AcrossFacetTest is TestBaseFacet {
         ERC20 weth = ERC20(ADDRESS_WETH);
         weth.approve(address(acrossFacet), 10_000 * 10 ** weth.decimals());
 
-        AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(
-            0, // Relayer fee
-            uint32(block.timestamp + 20 minutes),
-            "",
-            type(uint256).max
-        );
-        acrossFacet.startBridgeTokensViaAcross(bridgeData, data);
+        validAcrossData.quoteTimestamp = uint32(block.timestamp + 20 minutes);
+
+        acrossFacet.startBridgeTokensViaAcross(bridgeData, validAcrossData);
+        vm.stopPrank();
+    }
+
+    function testBase_CanBridgeNativeTokens()
+        public
+        override
+        assertBalanceChange(
+            address(0),
+            USER_SENDER,
+            -int256((defaultNativeAmount + addToMessageValue))
+        )
+    // assertBalanceChange(address(0), USER_RECEIVER, 0)
+    // assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+    // assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+    {
+        vm.startPrank(0x75e89d5979E4f6Fba9F97c104c2F0AFB3F1dcB88);
+        console.log("balance sender: ", USER_SENDER.balance);
+        // customize bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+
+        validAcrossData
+            .receivingAssetId = 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619; // WMATIC on POL
+
+        //prepare check for events
+        // vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        // emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(true);
+        // (bool success, bytes memory result) = SPOKE_POOL.call{
+        //     value: 1 ether
+        // }(
+        //     hex"7b93923200000000000000000000000075e89d5979e4f6fba9f97c104c2f0afb3f1dcb880000000000000000000000000000000000000000000000000000000abc654321000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc20000000000000000000000007ceb23fd6bc0add59e62ac25578270cff1b9f6190000000000000000000000000000000000000000000000000de0b6b3a76400000000000000000000000000000000000000000000000000000c7d713b49da00000000000000000000000000000000000000000000000000000000000000000089000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000665428730000000000000000000000000000000000000000000000000000000066542c5b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000003626c610000000000000000000000000000000000000000000000000000000000"
+        // );
+
+        if (!success) LibUtil.revertWith(result);
         vm.stopPrank();
     }
 }
