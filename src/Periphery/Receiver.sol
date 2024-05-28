@@ -70,7 +70,7 @@ contract Receiver is
 
     /// External Methods ///
 
-    function bla2() external {}
+    function bla3() external {}
 
     /// @notice Completes a cross-chain transaction with calldata via Amarok facet on the receiving chain.
     /// @dev This function is called from Amarok Router.
