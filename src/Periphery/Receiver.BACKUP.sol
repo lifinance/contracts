@@ -9,19 +9,12 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
-import { ILayerZeroComposer } from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILayerZeroComposer.sol";
-import { OFTComposeMsgCodec } from "@layerzerolabs/layerzero-v2/oapp/contracts/oft/libs/OFTComposeMsgCodec.sol";
 
 /// @title Receiver
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-/// @custom:version 3.0.0
-contract Receiver is
-    ILiFi,
-    ReentrancyGuard,
-    TransferrableOwnership,
-    ILayerZeroComposer
-{
+/// @custom:version 2.0.2
+contract Receiver is ILiFi, ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
     /// Storage ///
@@ -69,8 +62,6 @@ contract Receiver is
     }
 
     /// External Methods ///
-
-    function bla() external {}
 
     /// @notice Completes a cross-chain transaction with calldata via Amarok facet on the receiving chain.
     /// @dev This function is called from Amarok Router.
@@ -137,36 +128,6 @@ contract Receiver is
             _amountLD,
             true
         );
-    }
-
-    /// @notice Completes a cross-chain transaction on the receiving chain.
-    /// @dev This function is called from Stargate Router.
-    function lzCompose(
-        address _from,
-        bytes32 _guid,
-        bytes calldata _message,
-        address _executor,
-        bytes calldata _extraData
-    )
-        external
-        payable
-        //TODO: check if:
-        // a) nonReentrant is really necessary here
-        // b) onlySGRouter is still applicable here
-        nonReentrant
-        onlySGRouter
-    {
-        // extract message
-        bytes memory _composeMessage = OFTComposeMsgCodec.composeMsg(_message);
-
-        // acknowledgedCount++;
-        // emit ComposeAcknowledged(
-        //     _from,
-        //     _guid,
-        //     _message,
-        //     _executor,
-        //     _extraData
-        // );
     }
 
     /// @notice Performs a swap before completing a cross-chain transaction
