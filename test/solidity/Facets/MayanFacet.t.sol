@@ -20,13 +20,14 @@ contract TestMayanFacet is MayanFacet {
 
 contract MayanFacetTest is TestBaseFacet {
     MayanFacet.MayanData internal validMayanData;
+    MayanFacet.MayanData internal validMayanDataNative;
     TestMayanFacet internal mayanBridgeFacet;
     IMayan internal MAYAN_FORWARDER =
         IMayan(0x0654874eb7F59C6f5b39931FC45dC45337c967c3);
     address internal POLYGON_USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
 
     function setUp() public {
-        customBlockNumberForForking = 19960692;
+        customBlockNumberForForking = 19968172;
         initTestBase();
 
         mayanBridgeFacet = new TestMayanFacet(MAYAN_FORWARDER);
@@ -64,7 +65,13 @@ contract MayanFacetTest is TestBaseFacet {
         // produce valid MayanData
         validMayanData = MayanFacet.MayanData(
             0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
-            hex"afd9b706000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000000989680000000000000000000000000000000000000000000000000000000000000000000000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed70000000000000000000000000000000000000000000000000000000000000005000000000000000000000000c2132d05d31c914a87c6611c10748aeb04b58e8f00000000000000000000000000000000000000000000000000000000007574470000000000000000000000000000000000000000000000000000000066547cfe00000000000000000000000000000000000000000000000000000000001f8c1e0000000000000000000000000e59bec273184dbaab3123d7ca0df72f24c79f0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007000000000000000000000000f18f923480dc144326e6c65d4f3d47aa459bb41c000000000000000000000000f18f923480dc144326e6c65d4f3d47aa459bb41c",
+            hex"afd9b706000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000005f5e100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c0000000000000000000000000000000000000000000000000000000000000005000000000000000000000000c2132d05d31c914a87c6611c10748aeb04b58e8f0000000000000000000000000000000000000000000000000000000005aa76a8000000000000000000000000000000000000000000000000000000006655d64300000000000000000000000000000000000000000000000000000000001ff535000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007000000000000000000000000f18f923480dc144326e6c65d4f3d47aa459bb41c000000000000000000000000f18f923480dc144326e6c65d4f3d47aa459bb41c",
+            ""
+        );
+
+        validMayanDataNative = MayanFacet.MayanData(
+            0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4, // mayanProtocol address
+            hex"1eb1cff00000000000000000000000000000000000000000000000000000000000013e0b0000000000000000000000000000000000000000000000000000000000004df200000000000000000000000000000000000000000000000000000000000a42dfcb617b639c537bd08846f61be4481c34f9391f1b8f53d082de024e232508113e00000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c3900000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c0000000000000000000000000000000000000000000000000000000000000005000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c000000000000000000000000c2132d05d31c914a87c6611c10748aeb04b58e8f000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000001a0000000000000000000000000000000000000000000000000000000006655d880000000000000000000000000000000000000000000000000000000006655d88000000000000000000000000000000000000000000000000000000000e16ffab40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000",
             ""
         );
     }
@@ -73,7 +80,7 @@ contract MayanFacetTest is TestBaseFacet {
         if (isNative) {
             mayanBridgeFacet.startBridgeTokensViaMayan{
                 value: bridgeData.minAmount
-            }(bridgeData, validMayanData);
+            }(bridgeData, validMayanDataNative);
         } else {
             mayanBridgeFacet.startBridgeTokensViaMayan(
                 bridgeData,
@@ -96,6 +103,86 @@ contract MayanFacetTest is TestBaseFacet {
                 validMayanData
             );
         }
+    }
+
+    function testBase_CanSwapAndBridgeNativeTokens()
+        public
+        override
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+        // store initial balances
+        uint256 initialUSDCBalance = usdc.balanceOf(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WETH;
+
+        uint256 amountOut = defaultNativeAmount;
+
+        // Calculate USDC input amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        // approval
+        usdc.approve(_facetTestContractAddress, amountIn);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_USDC,
+            address(0),
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
+        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
+        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        validMayanData = validMayanDataNative;
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
+
+        // check balances after call
+        assertEq(
+            usdc.balanceOf(USER_SENDER),
+            initialUSDCBalance - swapData[0].fromAmount
+        );
     }
 
     function test_CanSwapAndBridgeTokensFromNative()
