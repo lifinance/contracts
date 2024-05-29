@@ -50,8 +50,6 @@ const main = async () => {
     null
   )
 
-  console.log('payload', payload)
-
   const iface = IMayan__factory.createInterface()
   const parsed = iface.parseTransaction({ data: payload.data as string })
 
