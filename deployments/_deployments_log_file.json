@@ -18344,6 +18344,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xfc168DE34a65692937F6b1C5A35b55694FDD90Fa",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-05-29 11:11:02",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
+            "SALT": "29052024",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "avalanche": {
