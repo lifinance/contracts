@@ -15922,6 +15922,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.1.0": [
+          {
+            "ADDRESS": "0x175E7799DA0CD40E641352EaB90D8e39e02a4Ca9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-05-29 17:00:52",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
