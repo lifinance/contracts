@@ -51,3 +51,8 @@ export const safeAddresses: Record<string, string> = {
   scroll: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   zksync: '0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744',
 }
+
+export const chainNameMappings: Record<string, string> = {
+  zksync: 'zkSync',
+  polygonzkevm: 'polygonZkEvm',
+}
