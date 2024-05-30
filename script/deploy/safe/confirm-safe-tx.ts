@@ -48,7 +48,7 @@ const main = defineCommand({
 
     const safeService = new SafeApiKit(config)
 
-    const safeAddress = safeAddresses[args.network.toLowerCase()]
+    const safeAddress = safeAddresses[chainName.toLowerCase()]
 
     const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
     const provider = new ethers.JsonRpcProvider(rpcUrl)
