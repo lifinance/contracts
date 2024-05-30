@@ -6,7 +6,7 @@ import SafeApiKit from '@safe-global/api-kit'
 import { ethers } from 'ethers6'
 import consola from 'consola'
 import * as chains from 'viem/chains'
-import { safeAddresses, safeApiUrls } from './config'
+import { chainNameMappings, safeAddresses, safeApiUrls } from './config'
 
 const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
 
@@ -38,11 +38,12 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const chain: Chain = chainMap[args.network]
+    const chainName = chainNameMappings[args.network] || args.network
+    const chain: Chain = chainMap[chainName]
 
     const config: SafeApiKitConfig = {
       chainId: BigInt(chain.id),
-      txServiceUrl: safeApiUrls[args.network.toLowerCase()],
+      txServiceUrl: safeApiUrls[chainName.toLowerCase()],
     }
 
     const safeService = new SafeApiKit(config)
@@ -52,6 +53,10 @@ const main = defineCommand({
     const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
     const provider = new ethers.JsonRpcProvider(rpcUrl)
     const signer = new ethers.Wallet(args.privateKey, provider)
+
+    const signerAddress = await signer.getAddress()
+
+    consola.info('Signer:', signerAddress)
 
     const ethAdapter = new EthersAdapter({
       ethers,
@@ -124,7 +129,12 @@ const main = defineCommand({
 
       if (action === 'Sign & Execute Later') {
         consola.info('Signing transaction', tx.safeTxHash)
-        await protocolKit.signTransaction(txToConfirm)
+        const signedTx = await protocolKit.signTransaction(txToConfirm)
+        await safeService.confirmTransaction(
+          tx.safeTxHash,
+          // @ts-ignore
+          signedTx.getSignature(signerAddress).data
+        )
         consola.success('Transaction signed', tx.safeTxHash)
       }
 
