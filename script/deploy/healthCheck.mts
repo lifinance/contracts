@@ -1,5 +1,5 @@
 import { consola } from 'consola'
-import { $ } from 'zx'
+import { $, spinner } from 'zx'
 import { defineCommand, runMain } from 'citty'
 import * as chains from 'viem/chains'
 import {
@@ -57,6 +57,24 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
+    if ((await $`${louperCmd}`.exitCode) !== 0) {
+      const answer = await consola.prompt(
+        'Louper CLI is required but not installed. Would you like to install it now?',
+        {
+          type: 'confirm',
+        }
+      )
+      if (answer) {
+        await spinner(
+          'Installing...',
+          () => $`npm install -g @mark3labs/louper-cli`
+        )
+      } else {
+        consola.error('Louper CLI is required to run this script')
+        process.exit(1)
+      }
+    }
+
     const { network } = args
     const deployedContracts = await import(
       `../../deployments/${network.toLowerCase()}.json`
@@ -142,7 +160,7 @@ const main = defineCommand({
       corePeriphery.map((c) => peripheryRegistry.read.getPeripheryContract([c]))
     )
 
-    for (let periphery of corePeriphery) {
+    for (const periphery of corePeriphery) {
       if (!addresses.includes(getAddress(deployedContracts[periphery]))) {
         logError(`Periphery contract ${periphery} not registered in Diamond`)
       } else {
@@ -164,7 +182,7 @@ const main = defineCommand({
 
       // Loop through dexs excluding the address for FeeCollector, LiFuelFeeCollector and ServiceFeeCollector and TokenWrapper
       let numMissing = 0
-      for (let dex of dexs.filter(
+      for (const dex of dexs.filter(
         (d) => !corePeriphery.includes(getAddress(d))
       )) {
         if (!approvedDexs.includes(getAddress(dex))) {
@@ -181,7 +199,7 @@ const main = defineCommand({
           p === 'ServiceFeeCollector' ||
           p === 'TokenWrapper'
       )
-      for (let f of feeCollectors) {
+      for (const f of feeCollectors) {
         if (!approvedDexs.includes(getAddress(deployedContracts[f]))) {
           logError(`Periphery contract ${f} not approved as a DEX`)
           numMissing++
@@ -280,7 +298,7 @@ const main = defineCommand({
         name: string
       }[]
 
-      for (let sig of approveSigs) {
+      for (const sig of approveSigs) {
         if (
           !(await accessManager.read.addressCanExecuteMethod([
             sig.sig,
@@ -303,7 +321,7 @@ const main = defineCommand({
         name: string
       }[]
 
-      for (let sig of refundSigs) {
+      for (const sig of refundSigs) {
         if (
           !(await accessManager.read.addressCanExecuteMethod([
             sig.sig,
