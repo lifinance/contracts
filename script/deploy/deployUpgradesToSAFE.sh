@@ -31,24 +31,10 @@ deployUpgradesToSAFE() {
     CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
     FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
     if [ "$FACET_CUT" != "0x" ]; then
-      CUTS+=("$FACET_CUT")
+      echo "Proposing facet cut for $script..."
+      DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+      ts-node script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl $(getRPCUrl $NETWORK) --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
     fi
   done
-
-  # Convert the array of cuts to a JSON array
-  CUTS_JSON=$(jq --compact-output --null-input '$ARGS.positional' --args -- "${CUTS[@]}")
-
-  if [ "$CUTS_JSON" == "[]" ]; then
-    echo "Nothing to upgrade"
-    exit 0
-  fi
-
-  # Get the diamondAddress
-  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
-
-  # Call the proposeTx script ts-node proposeTx.ts diamondAddress cuts network rpcUrl
-  ts-node script/deploy/gnosisSAFE/proposeTx.ts "$DIAMOND_ADDRESS" "$CUTS_JSON" "$NETWORK" $(getRPCUrl $NETWORK) "$PRIVATE_KEY"
   exit 0
 }
-
-# deployUpgradesToSAFE
