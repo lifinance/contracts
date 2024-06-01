@@ -45,6 +45,7 @@ mode = "${ETH_NODE_URI_MODE}"
 zksync = "${ETH_NODE_URI_ZKSYNC}"
 scroll = "${ETH_NODE_URI_SCROLL}"
 mantle = "${ETH_NODE_URI_MANTLE}"
+rootstock = "${ETH_NODE_URI_ROOTSTOCK}"
 
 # testnets
 goerli = "${ETH_NODE_URI_GOERLI}"

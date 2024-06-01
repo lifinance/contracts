@@ -2,6 +2,7 @@
   "refundWallet": "0x156CeBba59DEB2cB23742F70dCb0a11cC775591F",
   "withdrawWallet": "0x08647cc950813966142A416D40C382e2c5DB73bB",
   "lifuelRebalanceWallet": "0xC71284231A726A18ac85c94D75f9fe17A185BeAF",
+  "deployerWallet": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
   "approvedSigsForRefundWallet": [
     {
       "sig": "0x0d19e519",
@@ -10,6 +11,24 @@
     {
       "sig": "0xd9caed12",
       "name": "WithdrawFacet.withdraw"
+    }
+  ],
+  "approvedSigsForDeployerWallet": [
+    {
+      "sig": "0xfcd8e49e",
+      "name": "DexManagerFacet.batchAddDex"
+    },
+    {
+      "sig": "0x9afc19c7",
+      "name": "DexManagerFacet.batchRemoveDex"
+    },
+    {
+      "sig": "0x44e2b18c",
+      "name": "DexManagerFacet.batchSetFunctionApprovalBySignature"
+    },
+    {
+      "sig": "0x5c2ed36a",
+      "name": "PeripheryRegistryFacet.registerPeripheryContract"
     }
   ]
 }
