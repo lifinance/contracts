@@ -45,13 +45,17 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0x9D4B9784fC46496926ee4784e490F14d106D83a8": {
+      "0x175E7799DA0CD40E641352EaB90D8e39e02a4Ca9": {
         "Name": "StandardizedCallFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c": {
         "Name": "SquidFacet",
         "Version": "1.0.0"
+      },
+      "0x222b97E533220A47ad8700C396537D58e001808C": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
