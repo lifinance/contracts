@@ -284,13 +284,16 @@ contract GenericSwapFacetV3 is ILiFi {
     }
 
     /// Private helper methods ///
-
     function _depositMultipleERC20Tokens(
         LibSwap.SwapData[] calldata _swapData
     ) private {
+        // initialize variables before loop to save gas
         uint256 numOfSwaps = _swapData.length;
+        LibSwap.SwapData calldata currentSwap;
+
+        // go through all swaps and deposit tokens, where required
         for (uint256 i = 0; i < numOfSwaps; ) {
-            LibSwap.SwapData calldata currentSwap = _swapData[i];
+            currentSwap = _swapData[i];
             if (currentSwap.requiresDeposit) {
                 // we will not check msg.value as tx will fail anyway if not enough value available
                 // thus we only deposit ERC20 tokens here
@@ -311,11 +314,22 @@ contract GenericSwapFacetV3 is ILiFi {
         bytes32 _transactionId,
         address _receiver
     ) private {
-        // go through all swaps
+        // initialize variables before loop to save gas
         uint256 numOfSwaps = _swapData.length;
+        ERC20 sendingAsset;
+        address sendingAssetId;
+        address receivingAssetId;
+        LibSwap.SwapData calldata currentSwap;
+        bool success;
+        bytes memory returnData;
+        uint256 currentAllowance;
+
+        // go through all swaps
         for (uint256 i = 0; i < numOfSwaps; ) {
-            LibSwap.SwapData calldata currentSwap = _swapData[i];
-            ERC20 sendingAsset = ERC20(currentSwap.sendingAssetId);
+            currentSwap = _swapData[i];
+            sendingAssetId = currentSwap.sendingAssetId;
+            sendingAsset = ERC20(currentSwap.sendingAssetId);
+            receivingAssetId = currentSwap.receivingAssetId;
 
             // check if callTo address is whitelisted
             if (
@@ -335,26 +349,24 @@ contract GenericSwapFacetV3 is ILiFi {
                 revert ContractCallNotAllowed();
             }
 
-            if (LibAsset.isNativeAsset(currentSwap.sendingAssetId)) {
+            if (LibAsset.isNativeAsset(sendingAssetId)) {
                 // Native
                 // execute the swap
-                (bool success, bytes memory returnData) = currentSwap
-                    .callTo
-                    .call{ value: currentSwap.fromAmount }(
-                    currentSwap.callData
-                );
+                (success, returnData) = currentSwap.callTo.call{
+                    value: currentSwap.fromAmount
+                }(currentSwap.callData);
                 if (!success) {
                     LibUtil.revertWith(returnData);
                 }
 
                 // return any potential leftover sendingAsset tokens
                 // but only for swaps, not for fee collections (otherwise the whole amount would be returned before the actual swap)
-                if (currentSwap.sendingAssetId != currentSwap.receivingAssetId)
+                if (sendingAssetId != receivingAssetId)
                     _returnPositiveSlippageNative(_receiver);
             } else {
                 // ERC20
                 // check if the current allowance is sufficient
-                uint256 currentAllowance = sendingAsset.allowance(
+                currentAllowance = sendingAsset.allowance(
                     address(this),
                     currentSwap.approveTo
                 );
@@ -367,16 +379,16 @@ contract GenericSwapFacetV3 is ILiFi {
                 }
 
                 // execute the swap
-                (bool success, bytes memory returnData) = currentSwap
-                    .callTo
-                    .call(currentSwap.callData);
+                (success, returnData) = currentSwap.callTo.call(
+                    currentSwap.callData
+                );
                 if (!success) {
                     LibUtil.revertWith(returnData);
                 }
 
                 // return any potential leftover sendingAsset tokens
                 // but only for swaps, not for fee collections (otherwise the whole amount would be returned before the actual swap)
-                if (currentSwap.sendingAssetId != currentSwap.receivingAssetId)
+                if (sendingAssetId != receivingAssetId)
                     _returnPositiveSlippageERC20(sendingAsset, _receiver);
             }
 
@@ -384,14 +396,12 @@ contract GenericSwapFacetV3 is ILiFi {
             emit LibSwap.AssetSwapped(
                 _transactionId,
                 currentSwap.callTo,
-                currentSwap.sendingAssetId,
-                currentSwap.receivingAssetId,
+                sendingAssetId,
+                receivingAssetId,
                 currentSwap.fromAmount,
-                LibAsset.isNativeAsset(currentSwap.receivingAssetId)
+                LibAsset.isNativeAsset(receivingAssetId)
                     ? address(this).balance
-                    : ERC20(currentSwap.receivingAssetId).balanceOf(
-                        address(this)
-                    ),
+                    : ERC20(receivingAssetId).balanceOf(address(this)),
                 block.timestamp
             );
 
