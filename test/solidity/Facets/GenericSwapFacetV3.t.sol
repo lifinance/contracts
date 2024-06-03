@@ -410,9 +410,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
-        genericSwapFacetV3.swapTokensSingleV3ERC20ToERC20{
-            value: swapData[0].fromAmount
-        }(
+        genericSwapFacetV3.swapTokensSingleV3ERC20ToERC20(
             "",
             "integrator",
             "referrer",
@@ -638,9 +636,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
-        genericSwapFacetV3.swapTokensSingleV3ERC20ToNative{
-            value: swapData[0].fromAmount
-        }(
+        genericSwapFacetV3.swapTokensSingleV3ERC20ToNative(
             "",
             "integrator",
             "referrer",
@@ -1076,9 +1072,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
-        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20{
-            value: swapData[0].fromAmount
-        }(
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20(
             "",
             "integrator",
             "referrer",
@@ -1103,9 +1097,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
-        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20{
-            value: swapData[0].fromAmount
-        }(
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20(
             "",
             "integrator",
             "referrer",
@@ -1351,9 +1343,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
-        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20{
-            value: swapData[0].fromAmount
-        }(
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20(
             "",
             "integrator",
             "referrer",

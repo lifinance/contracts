@@ -35,7 +35,7 @@ contract GenericSwapFacetV3 is ILiFi {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
-    ) external payable {
+    ) external {
         _depositAndSwapERC20Single(_swapData, _receiver);
 
         address receivingAssetId = _swapData.receivingAssetId;
@@ -91,7 +91,7 @@ contract GenericSwapFacetV3 is ILiFi {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
-    ) external payable {
+    ) external {
         _depositAndSwapERC20Single(_swapData, _receiver);
 
         // get contract's balance (which will be sent in full to user)
@@ -219,7 +219,7 @@ contract GenericSwapFacetV3 is ILiFi {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData[] calldata _swapData
-    ) external payable {
+    ) external {
         _depositMultipleERC20Tokens(_swapData);
         _executeSwaps(_swapData, _transactionId, _receiver);
         _transferNativeTokensAndEmitEvent(
@@ -246,7 +246,7 @@ contract GenericSwapFacetV3 is ILiFi {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData[] calldata _swapData
-    ) external payable {
+    ) external {
         _depositMultipleERC20Tokens(_swapData);
         _executeSwaps(_swapData, _transactionId, _receiver);
         _transferERC20TokensAndEmitEvent(
