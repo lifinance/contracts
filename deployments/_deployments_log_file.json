@@ -5572,6 +5572,16 @@
             "SALT": "27062023",
             "VERIFIED": "true"
           }
+        ],
+        "2.0.0": [
+          {
+            "ADDRESS": "0xea76C82d31E246a30C1DC3ed26b9a97B7901D632",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-05-24 11:39:09",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
