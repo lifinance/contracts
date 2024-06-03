@@ -107,14 +107,13 @@ contract GenericSwapFacetV3 is ILiFi {
         if (!success) revert NativeAssetTransferFailed();
 
         // emit events (both required for tracking)
-        address receivingAssetId = _swapData.receivingAssetId;
         address sendingAssetId = _swapData.sendingAssetId;
         uint256 fromAmount = _swapData.fromAmount;
         emit LibSwap.AssetSwapped(
             _transactionId,
             _swapData.callTo,
             sendingAssetId,
-            receivingAssetId,
+            address(0),
             fromAmount,
             amountReceived,
             block.timestamp
@@ -126,7 +125,7 @@ contract GenericSwapFacetV3 is ILiFi {
             _referrer,
             _receiver,
             sendingAssetId,
-            receivingAssetId,
+            address(0),
             fromAmount,
             amountReceived
         );
