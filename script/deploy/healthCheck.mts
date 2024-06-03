@@ -33,7 +33,6 @@ const corePeriphery = [
   'Receiver',
   'FeeCollector',
   'LiFuelFeeCollector',
-  'ServiceFeeCollector',
   'TokenWrapper',
 ]
 
@@ -196,7 +195,6 @@ const main = defineCommand({
         (p) =>
           p === 'FeeCollector' ||
           p === 'LiFuelFeeCollector' ||
-          p === 'ServiceFeeCollector' ||
           p === 'TokenWrapper'
       )
       for (const f of feeCollectors) {
@@ -262,22 +260,6 @@ const main = defineCommand({
           logError(`Receiver owner is ${owner}, expected ${refundWallet}`)
         } else {
           consola.success('Receiver owner is correct')
-        }
-      }
-
-      // ServiceFeeCollector
-      if (deployedContracts['ServiceFeeCollector']) {
-        contractAddress = deployedContracts['ServiceFeeCollector']
-        owner = await getOwnablContract(
-          contractAddress,
-          publicClient
-        ).read.owner()
-        if (owner !== withdrawWallet) {
-          logError(
-            `ServiceFeeCollector owner is ${owner}, expected ${withdrawWallet}`
-          )
-        } else {
-          consola.success('ServiceFeeCollector owner is correct')
         }
       }
 
