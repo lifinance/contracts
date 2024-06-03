@@ -179,12 +179,11 @@ contract GenericSwapFacetV3 is ILiFi {
         ERC20(receivingAssetId).safeTransfer(_receiver, amountReceived);
 
         // emit events (both required for tracking)
-        address sendingAssetId = _swapData.sendingAssetId;
         uint256 fromAmount = _swapData.fromAmount;
         emit LibSwap.AssetSwapped(
             _transactionId,
             callTo,
-            sendingAssetId,
+            address(0),
             receivingAssetId,
             fromAmount,
             amountReceived,
@@ -196,7 +195,7 @@ contract GenericSwapFacetV3 is ILiFi {
             _integrator,
             _referrer,
             _receiver,
-            sendingAssetId,
+            address(0),
             receivingAssetId,
             fromAmount,
             amountReceived
