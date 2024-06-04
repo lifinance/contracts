@@ -41,6 +41,20 @@ const storedResponses: Record<string, string> = {}
   return this.toString()
 }
 
+const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
+  try {
+    const result = await func()
+    return result
+  } catch (e) {
+    if (retries > 0) {
+      consola.error('Retry after error:', e)
+      return retry(func, retries - 1)
+    }
+
+    throw e
+  }
+}
+
 const chainMap: Record<string, Chain> = {}
 for (const [k, v] of Object.entries(chains)) {
   // @ts-ignore
@@ -79,7 +93,9 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     safeAddress: safeAddress,
   })
 
-  const allTx = await safeService.getPendingTransactions(safeAddress)
+  const allTx = await retry(() =>
+    safeService.getPendingTransactions(safeAddress)
+  )
 
   // only show transaction Signer has not confirmed yet
   const txs = allTx.results.filter(
@@ -152,15 +168,19 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
       }))
     storedResponses[tx.data!] = action
 
-    const txToConfirm = await safeService.getTransaction(tx.safeTxHash)
+    const txToConfirm = await retry(() =>
+      safeService.getTransaction(tx.safeTxHash)
+    )
 
     if (action === 'Sign & Execute Later') {
       consola.info('Signing transaction', tx.safeTxHash)
       const signedTx = await protocolKit.signTransaction(txToConfirm)
-      await safeService.confirmTransaction(
-        tx.safeTxHash,
-        // @ts-ignore
-        signedTx.getSignature(signerAddress).data
+      await retry(() =>
+        safeService.confirmTransaction(
+          tx.safeTxHash,
+          // @ts-ignore
+          signedTx.getSignature(signerAddress).data
+        )
       )
       consola.success('Transaction signed', tx.safeTxHash)
     }
