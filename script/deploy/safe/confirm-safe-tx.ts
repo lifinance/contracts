@@ -34,6 +34,8 @@ const defaultNetworks = [
   'linea',
 ]
 
+const storedResponses: Record<string, string> = {}
+
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
 ;(BigInt.prototype as any).toJSON = function () {
   return this.toString()
@@ -130,18 +132,25 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     consola.info('Proposer:', tx.proposer)
     consola.info('Safe Tx Hash:', tx.safeTxHash)
 
-    const ok = await consola.prompt('Confirm Transaction?', {
-      type: 'confirm',
-    })
+    const storedResponse = tx.data ? storedResponses[tx.data] : undefined
+
+    const ok = storedResponse
+      ? true
+      : await consola.prompt('Confirm Transaction?', {
+          type: 'confirm',
+        })
 
     if (!ok) {
       continue
     }
 
-    const action = await consola.prompt('Action', {
-      type: 'select',
-      options: ['Sign & Execute Later', 'Execute Now'],
-    })
+    const action =
+      storedResponse ??
+      (await consola.prompt('Action', {
+        type: 'select',
+        options: ['Sign & Execute Later', 'Execute Now'],
+      }))
+    storedResponses[tx.data!] = action
 
     const txToConfirm = await safeService.getTransaction(tx.safeTxHash)
 
