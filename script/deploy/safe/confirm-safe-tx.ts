@@ -34,9 +34,25 @@ const defaultNetworks = [
   'linea',
 ]
 
+const storedResponses: Record<string, string> = {}
+
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
 ;(BigInt.prototype as any).toJSON = function () {
   return this.toString()
+}
+
+const retry = async <T>(func: () => Promise<T>, retries = 3): Promise<T> => {
+  try {
+    const result = await func()
+    return result
+  } catch (e) {
+    if (retries > 0) {
+      consola.error('Retry after error:', e)
+      return retry(func, retries - 1)
+    }
+
+    throw e
+  }
 }
 
 const chainMap: Record<string, Chain> = {}
@@ -77,7 +93,9 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     safeAddress: safeAddress,
   })
 
-  const allTx = await safeService.getPendingTransactions(safeAddress)
+  const allTx = await retry(() =>
+    safeService.getPendingTransactions(safeAddress)
+  )
 
   // only show transaction Signer has not confirmed yet
   const txs = allTx.results.filter(
@@ -130,28 +148,39 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     consola.info('Proposer:', tx.proposer)
     consola.info('Safe Tx Hash:', tx.safeTxHash)
 
-    const ok = await consola.prompt('Confirm Transaction?', {
-      type: 'confirm',
-    })
+    const storedResponse = tx.data ? storedResponses[tx.data] : undefined
+
+    const ok = storedResponse
+      ? true
+      : await consola.prompt('Confirm Transaction?', {
+          type: 'confirm',
+        })
 
     if (!ok) {
       continue
     }
 
-    const action = await consola.prompt('Action', {
-      type: 'select',
-      options: ['Sign & Execute Later', 'Execute Now'],
-    })
+    const action =
+      storedResponse ??
+      (await consola.prompt('Action', {
+        type: 'select',
+        options: ['Sign & Execute Later', 'Execute Now'],
+      }))
+    storedResponses[tx.data!] = action
 
-    const txToConfirm = await safeService.getTransaction(tx.safeTxHash)
+    const txToConfirm = await retry(() =>
+      safeService.getTransaction(tx.safeTxHash)
+    )
 
     if (action === 'Sign & Execute Later') {
       consola.info('Signing transaction', tx.safeTxHash)
       const signedTx = await protocolKit.signTransaction(txToConfirm)
-      await safeService.confirmTransaction(
-        tx.safeTxHash,
-        // @ts-ignore
-        signedTx.getSignature(signerAddress).data
+      await retry(() =>
+        safeService.confirmTransaction(
+          tx.safeTxHash,
+          // @ts-ignore
+          signedTx.getSignature(signerAddress).data
+        )
       )
       consola.success('Transaction signed', tx.safeTxHash)
     }
