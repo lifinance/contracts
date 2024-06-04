@@ -8,6 +8,7 @@ import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+import { console2 } from "forge-std/console2.sol";
 
 /// @title GenericSwapFacetV3
 /// @author LI.FI (https://li.fi)
@@ -309,6 +310,52 @@ contract GenericSwapFacetV3 is ILiFi {
         }
     }
 
+    function _depositAndSwapERC20Single(
+        LibSwap.SwapData calldata _swapData,
+        address _receiver
+    ) private {
+        ERC20 sendingAsset = ERC20(_swapData.sendingAssetId);
+        uint256 fromAmount = _swapData.fromAmount;
+        // deposit funds
+        sendingAsset.safeTransferFrom(msg.sender, address(this), fromAmount);
+
+        // ensure that contract (callTo) and function selector are whitelisted
+        address callTo = _swapData.callTo;
+        address approveTo = _swapData.approveTo;
+        bytes calldata callData = _swapData.callData;
+        if (
+            !(LibAllowList.contractIsAllowed(callTo) &&
+                LibAllowList.selectorIsAllowed(bytes4(callData[:4])))
+        ) revert ContractCallNotAllowed();
+
+        // ensure that approveTo address is also whitelisted if it differs from callTo
+        if (approveTo != callTo && !LibAllowList.contractIsAllowed(approveTo))
+            revert ContractCallNotAllowed();
+
+        // check if the current allowance is sufficient
+        uint256 currentAllowance = sendingAsset.allowance(
+            address(this),
+            approveTo
+        );
+
+        // check if existing allowance is sufficient
+        if (currentAllowance < fromAmount) {
+            // check if is non-zero, set to 0 if not
+            if (currentAllowance != 0) sendingAsset.safeApprove(approveTo, 0);
+            // set allowance to uint max to avoid future approvals
+            sendingAsset.safeApprove(approveTo, type(uint256).max);
+        }
+
+        // execute swap
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, bytes memory res) = callTo.call(callData);
+        if (!success) {
+            LibUtil.revertWith(res);
+        }
+
+        _returnPositiveSlippageERC20(sendingAsset, _receiver);
+    }
+
     function _executeSwaps(
         LibSwap.SwapData[] calldata _swapData,
         bytes32 _transactionId,
@@ -452,6 +499,7 @@ contract GenericSwapFacetV3 is ILiFi {
         uint256 _minAmountOut,
         LibSwap.SwapData[] calldata _swapData
     ) private {
+        console2.log("in _transferNativeTokensAndEmitEvent");
         uint256 amountReceived = address(this).balance;
 
         // make sure minAmountOut was received
@@ -461,7 +509,10 @@ contract GenericSwapFacetV3 is ILiFi {
         // transfer funds to receiver
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, ) = _receiver.call{ value: amountReceived }("");
-        if (!success) revert NativeAssetTransferFailed();
+        if (!success) {
+            console2.log("HEYA");
+            revert NativeAssetTransferFailed();
+        }
 
         // emit event
         emit ILiFi.LiFiGenericSwapCompleted(
@@ -476,53 +527,7 @@ contract GenericSwapFacetV3 is ILiFi {
         );
     }
 
-    function _depositAndSwapERC20Single(
-        LibSwap.SwapData calldata _swapData,
-        address _receiver
-    ) private {
-        ERC20 sendingAsset = ERC20(_swapData.sendingAssetId);
-        uint256 fromAmount = _swapData.fromAmount;
-        // deposit funds
-        sendingAsset.safeTransferFrom(msg.sender, address(this), fromAmount);
-
-        // ensure that contract (callTo) and function selector are whitelisted
-        address callTo = _swapData.callTo;
-        address approveTo = _swapData.approveTo;
-        bytes calldata callData = _swapData.callData;
-        if (
-            !(LibAllowList.contractIsAllowed(callTo) &&
-                LibAllowList.selectorIsAllowed(bytes4(callData[:4])))
-        ) revert ContractCallNotAllowed();
-
-        // ensure that approveTo address is also whitelisted if it differs from callTo
-        if (approveTo != callTo && !LibAllowList.contractIsAllowed(approveTo))
-            revert ContractCallNotAllowed();
-
-        // check if the current allowance is sufficient
-        uint256 currentAllowance = sendingAsset.allowance(
-            address(this),
-            approveTo
-        );
-
-        // check if existing allowance is sufficient
-        if (currentAllowance < fromAmount) {
-            // check if is non-zero, set to 0 if not
-            if (currentAllowance != 0) sendingAsset.safeApprove(approveTo, 0);
-            // set allowance to uint max to avoid future approvals
-            sendingAsset.safeApprove(approveTo, type(uint256).max);
-        }
-
-        // execute swap
-        // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory res) = callTo.call(callData);
-        if (!success) {
-            LibUtil.revertWith(res);
-        }
-
-        _returnPositiveSlippageERC20(sendingAsset, _receiver);
-    }
-
-    // returns any unused sendingAsset (=> positive slippage) to the receiver address
+    // returns any unused 'sendingAsset' tokens (=> positive slippage) to the receiver address
     function _returnPositiveSlippageERC20(
         ERC20 sendingAsset,
         address receiver

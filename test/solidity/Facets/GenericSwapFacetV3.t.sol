@@ -11,11 +11,11 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { ContractCallNotAllowed, CumulativeSlippageTooHigh } from "lifi/Errors/GenericErrors.sol";
+import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
 
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 // import { MockUniswapDEX } from "../utils/MockUniswapDEX.sol";
-import { TestHelpers, MockUniswapDEX } from "../utils/TestHelpers.sol";
+import { TestHelpers, MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 
 // Stub GenericSwapFacet Contract
@@ -420,6 +420,88 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         );
     }
 
+    function test_CanSwapSingleERC20ToERC20WithNonZeroAllowance() public {
+        // get swapData for USDC > DAI swap
+        (
+            LibSwap.SwapData[] memory swapData,
+            uint256 minAmountOut
+        ) = _produceSwapDataERC20ToERC20(address(genericSwapFacet));
+
+        // expected exact amountOut based on the liquidity available in the specified block for this test case
+        uint256 expAmountOut = 99491781613896927553;
+
+        // pre-register max approval between diamond and dex to get realistic gas usage
+        vm.startPrank(address(genericSwapFacet));
+        usdc.approve(swapData[0].approveTo, 1);
+        vm.stopPrank();
+
+        vm.startPrank(USDC_HOLDER);
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiGenericSwapCompleted(
+            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
+            "integrator", // integrator,
+            "referrer", // referrer,
+            SOME_WALLET, // receiver,
+            USDC_ADDRESS, // fromAssetId,
+            DAI_ADDRESS, // toAssetId,
+            swapData[0].fromAmount, // fromAmount,
+            expAmountOut // toAmount (with liquidity in that selected block)
+        );
+
+        genericSwapFacetV3.swapTokensSingleV3ERC20ToERC20(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET), // receiver
+            minAmountOut,
+            swapData[0]
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_CanSwapSingleERC20ToERC20WithZeroAllowance() public {
+        // get swapData for USDC > DAI swap
+        (
+            LibSwap.SwapData[] memory swapData,
+            uint256 minAmountOut
+        ) = _produceSwapDataERC20ToERC20(address(genericSwapFacet));
+
+        // expected exact amountOut based on the liquidity available in the specified block for this test case
+        uint256 expAmountOut = 99491781613896927553;
+
+        // pre-register max approval between diamond and dex to get realistic gas usage
+        vm.startPrank(address(genericSwapFacet));
+        usdc.approve(swapData[0].approveTo, 0);
+        vm.stopPrank();
+
+        vm.startPrank(USDC_HOLDER);
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiGenericSwapCompleted(
+            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
+            "integrator", // integrator,
+            "referrer", // referrer,
+            SOME_WALLET, // receiver,
+            USDC_ADDRESS, // fromAssetId,
+            DAI_ADDRESS, // toAssetId,
+            swapData[0].fromAmount, // fromAmount,
+            expAmountOut // toAmount (with liquidity in that selected block)
+        );
+
+        genericSwapFacetV3.swapTokensSingleV3ERC20ToERC20(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET), // receiver
+            minAmountOut,
+            swapData[0]
+        );
+
+        vm.stopPrank();
+    }
+
     // SINGLE SWAP ERC20 >> Native
     function _produceSwapDataERC20ToNative(
         address facetAddress
@@ -644,6 +726,34 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             minAmountOut,
             swapData[0]
         );
+    }
+
+    function test_SingleERC20ToNativeWillRevertIfNativeAssetTransferFails()
+        public
+    {
+        // get swapData USDC > ETH (native)
+        (
+            LibSwap.SwapData[] memory swapData,
+            uint256 minAmountOut
+        ) = _produceSwapDataERC20ToNative(address(genericSwapFacet));
+
+        vm.startPrank(USDC_HOLDER);
+
+        // deploy a contract that cannot receive ETH
+        NonETHReceiver nonETHReceiver = new NonETHReceiver();
+
+        vm.expectRevert(NativeAssetTransferFailed.selector);
+
+        genericSwapFacetV3.swapTokensSingleV3ERC20ToNative(
+            "",
+            "integrator",
+            "referrer",
+            payable(address(nonETHReceiver)), // use nonETHReceiver for testing
+            minAmountOut,
+            swapData[0]
+        );
+
+        vm.stopPrank();
     }
 
     // SINGLE SWAP NATIVE >> ERC20
@@ -1831,6 +1941,33 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         vm.stopPrank();
     }
 
+    function test_MultiSwapCollectERC20FeesAndSwapToNativeWillRevertIfNativeAssetTransferFails()
+        public
+    {
+        // get swapData
+        (
+            LibSwap.SwapData[] memory swapData,
+            uint256 amountIn,
+            uint256 minAmountOut
+        ) = _produceSwapDataMultiswapERC20FeeAndSwapToNative(
+                address(genericSwapFacetV3)
+            );
+
+        // deploy a contract that cannot receive ETH
+        NonETHReceiver nonETHReceiver = new NonETHReceiver();
+
+        vm.expectRevert(NativeAssetTransferFailed.selector);
+
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToNative(
+            "",
+            "integrator",
+            "referrer",
+            payable(address(nonETHReceiver)),
+            minAmountOut,
+            swapData
+        );
+    }
+
     // Test functionality that refunds unused input tokens by DEXs
     function test_leavesNoERC20SendingAssetDustSingleSwap() public {
         vm.startPrank(USDC_HOLDER);
@@ -2040,6 +2177,58 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         assertEq(
             usdc.balanceOf(SOME_WALLET),
             initialBalanceUSDC + expAmountOut
+        );
+    }
+
+    function test_ReturnPositiveSlippageNativeWillRevertIfNativeTransferFails()
+        public
+    {
+        uint256 amountIn = 1 ether;
+        uint256 amountInActual = (amountIn * 99) / 100; // 1% positive slippage
+        uint256 expAmountOut = 100 * 10 ** usdc.decimals();
+
+        // deploy, fund and whitelist a MockDEX
+        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
+            address(genericSwapFacetV3),
+            USDC_ADDRESS,
+            expAmountOut,
+            amountInActual
+        );
+
+        // prepare swapData using MockDEX
+        address[] memory path = new address[](2);
+        path[0] = WETH_ADDRESS;
+        path[1] = USDC_ADDRESS;
+
+        LibSwap.SwapData memory swapData = LibSwap.SwapData(
+            address(mockDEX),
+            address(mockDEX),
+            address(0),
+            USDC_ADDRESS,
+            amountIn,
+            abi.encodeWithSelector(
+                mockDEX.swapETHForExactTokens.selector,
+                expAmountOut,
+                path,
+                address(genericSwapFacet), // receiver
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        // deploy a contract that cannot receive ETH
+        NonETHReceiver nonETHReceiver = new NonETHReceiver();
+
+        vm.expectRevert(NativeAssetTransferFailed.selector);
+
+        // execute the swap
+        genericSwapFacetV3.swapTokensSingleV3NativeToERC20{ value: amountIn }(
+            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
+            "integrator", // integrator
+            "referrer", // referrer
+            payable(address(nonETHReceiver)), // receiver
+            expAmountOut,
+            swapData
         );
     }
 }
