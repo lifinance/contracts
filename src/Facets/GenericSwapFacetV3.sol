@@ -356,6 +356,10 @@ contract GenericSwapFacetV3 is ILiFi {
         _returnPositiveSlippageERC20(sendingAsset, _receiver);
     }
 
+    // @dev: this function will not work with swapData that has multiple swaps with the same sendingAssetId
+    //       as the _returnPositiveSlippage... functionality will refund all remaining tokens after the first swap
+    //       We accept this fact since the use case is not common yet. As an alternative you can always use the
+    //       "swapTokensGeneric" function of the original GenericSwapFacet
     function _executeSwaps(
         LibSwap.SwapData[] calldata _swapData,
         bytes32 _transactionId,
@@ -440,6 +444,9 @@ contract GenericSwapFacetV3 is ILiFi {
             }
 
             // emit AssetSwapped event
+            // @dev: this event might in some cases emit inaccurate information. e.g. if a token is swapped and this contract already held a balance of the receivingAsset
+            //       then the event will show swapOutputAmount + existingBalance as toAmount. We accept this potential inaccuracy in return for gas savings and may update this
+            //       at a later stage when the described use case becomes more common
             emit LibSwap.AssetSwapped(
                 _transactionId,
                 currentSwap.callTo,
