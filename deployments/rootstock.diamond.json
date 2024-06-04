@@ -1,20 +1,16 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0x1215791Ad4E823F36A71329c56e5999f8F320082": {
+      "0xaD50118509eB4c8e3E39a370151B0fD5D5957013": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
       },
-      "0x519483eEC772BA34098af187Aee7b56C77927B1a": {
-        "Name": "DiamondLoupeFacet",
-        "Version": "1.0.0"
-      },
-      "0x9f8AC9248395b93220C6ABbA41d0989Aa08257Ab": {
+      "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0xf600Caa1468FFaa0B8Eef877A84152e2bDdDe2Fb": {
-        "Name": "WithdrawFacet",
+      "0xc21a00a346d5b29955449Ca912343a3bB4c5552f": {
+        "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
       },
       "0xbd0B19349A4D0DF5Abb67D31659d4C5C17b78901": {
@@ -23,6 +19,10 @@
       },
       "0xdbffD7A135b332748Df2784D214c5f48eC706C3a": {
         "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xf600Caa1468FFaa0B8Eef877A84152e2bDdDe2Fb": {
+        "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
       "0x36eacDF8e9CF209d84B427316839800a81a2c45A": {
@@ -48,22 +48,18 @@
       "0xb8C5408ED5f40ca8df929A50DD36b252B6b39f76": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
-      },
-      "0xA4A8818D8d4e2EE27e960535D0a15299C5504605": {
-        "Name": "StargateFacet",
-        "Version": "2.2.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
+      "ERC20Proxy": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
       "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
       "GasRebateDistributor": "",
       "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
-      "Receiver": "0x2fA14922ABc117c4737260032C8fD6D9Ab35395A",
+      "Receiver": "0x0561fFe9855541C02D17951c93405A4407Df74BC",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0xf3552b98BB4234B47674700A99a0308D74B40F51",
-      "TokenWrapper": "0x0263180888007D45340F86eC0b610d250BbDcB23"
+      "TokenWrapper": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD"
     }
   }
 }

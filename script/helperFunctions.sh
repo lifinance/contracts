@@ -2797,6 +2797,10 @@ function getChainId() {
     echo "87"
     return 0
     ;;
+  "mode")
+    echo "34443"
+    return 0
+    ;;
   "goerli")
     echo "5"
     return 0
