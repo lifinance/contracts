@@ -35,7 +35,8 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// Errors ///
-    error InvalidReceiver();
+    error InvalidReceiver(address expected, address actual);
+    error InvalidNonEVMReceiver(bytes32 expected, bytes32 actual);
 
     /// Events ///
 
@@ -112,17 +113,33 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         MayanData calldata _mayanData
     ) internal {
         // Validate receiver address
+        bytes memory protocolData = _mayanData.protocolData;
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             if (_mayanData.nonEVMReceiver == bytes32(0)) {
-                revert InvalidReceiver();
+                revert InvalidNonEVMReceiver(
+                    _mayanData.nonEVMReceiver,
+                    bytes32(0)
+                );
             }
             bytes32 receiver;
-            bytes memory protocolData = _mayanData.protocolData;
+
             assembly {
                 receiver := mload(add(add(protocolData, 0x20), 0xc4)) // Non EVM address is 32 bytes and is located at offset 196 (or 0xc4 in hex)
             }
             if (_mayanData.nonEVMReceiver != receiver) {
-                revert InvalidReceiver();
+                revert InvalidNonEVMReceiver(
+                    _mayanData.nonEVMReceiver,
+                    receiver
+                );
+            }
+        } else {
+            (, , , address receiver) = abi.decode(
+                _mayanData.protocolData[4:],
+                (address, uint256, uint256, address)
+            );
+
+            if (_bridgeData.receiver != receiver) {
+                revert InvalidReceiver(_bridgeData.receiver, receiver);
             }
         }
 
