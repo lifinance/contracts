@@ -25,14 +25,17 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     IMayan public immutable mayan;
 
     /// @dev Mayan specific bridge data
+    /// @param nonEVMReceiver The address of the non-EVM receiver if applicable
     /// @param mayanProtocol The address of the Mayan protocol final contract
     /// @param protocolData The protocol data for the Mayan protocol
-    /// @param nonEVMReceiver The address of the non-EVM receiver if applicable
     struct MayanData {
+        bytes32 nonEVMReceiver;
         address mayanProtocol;
         bytes protocolData;
-        bytes32 nonEVMReceiver;
     }
+
+    /// Errors ///
+    error InvalidReceiver();
 
     /// Events ///
 
@@ -108,6 +111,21 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         MayanData calldata _mayanData
     ) internal {
+        // Validate receiver address
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            if (_mayanData.nonEVMReceiver == bytes32(0)) {
+                revert InvalidReceiver();
+            }
+            bytes32 receiver;
+            bytes memory protocolData = _mayanData.protocolData;
+            assembly {
+                receiver := mload(add(add(protocolData, 0x20), 0xc4)) // Non EVM address is 32 bytes and is located at offset 196 (or 0xc4 in hex)
+            }
+            if (_mayanData.nonEVMReceiver != receiver) {
+                revert InvalidReceiver();
+            }
+        }
+
         IMayan.PermitParams memory emptyPermitParams;
 
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
