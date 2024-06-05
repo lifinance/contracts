@@ -37,9 +37,9 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0x175E7799DA0CD40E641352EaB90D8e39e02a4Ca9": {
+      "0x9D4B9784fC46496926ee4784e490F14d106D83a8": {
         "Name": "StandardizedCallFacet",
-        "Version": "1.1.0"
+        "Version": "1.0.0"
       },
       "0x9157b6550D1C3209C20aCAd12A2dC57Df34Ca48b": {
         "Name": "CalldataVerificationFacet",
@@ -55,14 +55,6 @@
       },
       "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB": {
         "Name": "AmarokFacetPacked",
-        "Version": "1.0.0"
-      },
-      "0x4D67951397bc8162111BC45F973Ae7576Fd814F0": {
-        "Name": "AcrossFacet",
-        "Version": "2.0.0"
-      },
-      "0x54910b7b4723a775708aFd88f31b6572e168aF66": {
-        "Name": "AcrossFacetPacked",
         "Version": "1.0.0"
       }
     },

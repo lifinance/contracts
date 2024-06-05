@@ -23,10 +23,10 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/stargate.json");
         string memory json = vm.readFile(path);
 
-        address stargateComposer = json.readAddress(
+        address composer = json.readAddress(
             string.concat(".composers.", network)
         );
 
-        return abi.encode(stargateComposer);
+        return abi.encode(composer);
     }
 }

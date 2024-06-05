@@ -21,12 +21,4 @@ library LibUtil {
     function isZeroAddress(address addr) internal pure returns (bool) {
         return addr == address(0);
     }
-
-    function revertWith(bytes memory data) internal pure {
-        assembly {
-            let dataSize := mload(data) // Load the size of the data
-            let dataPtr := add(data, 0x20) // Advance data pointer to the next word
-            revert(dataPtr, dataSize) // Revert with the given data
-        }
-    }
 }

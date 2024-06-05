@@ -61,7 +61,8 @@ library LibSwap {
             value: nativeValue
         }(_swap.callData);
         if (!success) {
-            LibUtil.revertWith(res);
+            string memory reason = LibUtil.getRevertMsg(res);
+            revert(reason);
         }
 
         uint256 newBalance = LibAsset.getOwnBalance(_swap.receivingAssetId);

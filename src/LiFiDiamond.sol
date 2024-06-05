@@ -65,7 +65,5 @@ contract LiFiDiamond {
         }
     }
 
-    // Able to receive ether
-    // solhint-disable-next-line no-empty-blocks
     receive() external payable {}
 }

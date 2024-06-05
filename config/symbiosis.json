@@ -47,10 +47,6 @@
     "metaRouter": "0xb91d3060C90aac7c4c706aef2B37997b3b2a1DcF",
     "gateway": "0x668961F4923A4FB96b22ad1F18aE215bB2694593"
   },
-  "rootstock": {
-    "metaRouter": "0x7057AB3fb2Bee9C18E0cde4240dE4fF7F159e365",
-    "gateway": "0xFFfDb2A69AbCbBF55ecB2F6B348E0bd3d0f9f2E1"
-  },
   "scroll": {
     "metaRouter": "0x624FFe62eBa13e6057878bCA1D7A9E35651E1D9c",
     "gateway": "0x49952ff32FcBc3408D447E1E91Da2b44BD2D1AFE"

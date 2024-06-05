@@ -14,9 +14,6 @@
   "bsc": {
     "allBridge": "0x3C4FA639c8D7E65c603145adaD8bD12F2358312f"
   },
-  "celo": {
-    "allBridge": "0x80858f5F8EFD2Ab6485Aba1A0B9557ED46C6ba0e"
-  },
   "polygon": {
     "allBridge": "0x7775d63836987f444E2F14AA0fA2602204D7D3E0"
   },
