@@ -104,7 +104,6 @@ abstract contract TestBaseFacet is TestBase {
         // approval
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        console.log("minAmount2: ", bridgeData.minAmount);
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);

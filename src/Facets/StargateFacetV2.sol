@@ -36,9 +36,9 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     error InvalidAssetId(uint16 invalidAssetId);
 
     /// CONSTRUCTOR ///
-    /// @param tokenMessagingAddress The address of the tokenMessaging contract (used to obtain pool addresses)
-    constructor(address tokenMessagingAddress) {
-        tokenMessaging = ITokenMessaging(tokenMessagingAddress);
+    /// @param _tokenMessaging The address of the tokenMessaging contract (used to obtain pool addresses)
+    constructor(address _tokenMessaging) {
+        tokenMessaging = ITokenMessaging(_tokenMessaging);
     }
 
     /// EXTERNAL METHODS ///

@@ -44,7 +44,7 @@ contract StargateFacetV2Test is TestBaseFacet {
     uint32 internal constant DST_E_ID_USDC = 30184; // BAS
     uint32 internal constant DST_E_ID_NATIVE = 30111; // OPT
     uint16 internal constant ASSET_ID_USDC = 1;
-    uint16 internal constant ASSET_ID_USDT = 2; //TODO: remove?
+    uint16 internal constant ASSET_ID_USDT = 2;
     uint16 internal constant ASSET_ID_NATIVE = 13;
     // -----
 
@@ -112,7 +112,7 @@ contract StargateFacetV2Test is TestBaseFacet {
         stargateData = StargateFacetV2.StargateData({
             assetId: 1,
             sendParams: IStargate.SendParam({
-                dstEid: 30150, // this is the only dstEid that is currently activated on mainnet
+                dstEid: 30150,
                 to: addressToBytes32(USER_RECEIVER),
                 amountLD: defaultUSDCAmount,
                 minAmountLD: 0,

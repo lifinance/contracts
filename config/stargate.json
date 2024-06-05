@@ -49,7 +49,7 @@
     "aurora": "0x5f688f563dc16590e570f97b542fa87931af2fed",
     "fantom": ""
   },
-  "chains": [
+  "endpointIds": [
     {
       "chainId": 1,
       "endpointId": 30101
@@ -104,6 +104,64 @@
     }
   ],
   "-----------  anything from here is LEGACY (for StargateFacet.sol (v1)) ----------------------------------------------------------------": {},
+  "chains": [
+    {
+      "chainId": 1,
+      "lzChainId": 101
+    },
+    {
+      "chainId": 137,
+      "lzChainId": 109
+    },
+    {
+      "chainId": 56,
+      "lzChainId": 102
+    },
+    {
+      "chainId": 43114,
+      "lzChainId": 106
+    },
+    {
+      "chainId": 42161,
+      "lzChainId": 110
+    },
+    {
+      "chainId": 250,
+      "lzChainId": 112
+    },
+    {
+      "chainId": 10,
+      "lzChainId": 111
+    },
+    {
+      "chainId": 1088,
+      "lzChainId": 151
+    },
+    {
+      "chainId": 8453,
+      "lzChainId": 184
+    },
+    {
+      "chainId": 59144,
+      "lzChainId": 183
+    },
+    {
+      "chainId": 324,
+      "lzChainId": 165
+    },
+    {
+      "chainId": 1101,
+      "lzChainId": 158
+    },
+    {
+      "chainId": 534352,
+      "lzChainId": 214
+    },
+    {
+      "chainId": 5000,
+      "lzChainId": 181
+    }
+  ],
   "composers": {
     "mainnet": "0xeCc19E177d24551aA7ed6Bc6FE566eCa726CC8a9",
     "arbitrum": "0xeCc19E177d24551aA7ed6Bc6FE566eCa726CC8a9",
