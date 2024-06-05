@@ -18732,5 +18732,37 @@
         ]
       }
     }
+  },
+  "StargateFacetV2": {
+    "polygon": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC47B2b11C492CCd45d17406B9371E75444087724",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-05 19:22:55",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006ce9bf8cdab780416ad1fd87b318a077d2f50eac",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "ReceiverStargateV2": {
+    "optimism": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2119F41f2f058d9f990F60821b66D87C56A30e96",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-05 19:27:34",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000438d3b2f5e817c0e96a71fe239c3878ba97af0510000000000000000000000001a44076050125825900e736c501f859c50fe728c00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
   }
 }
