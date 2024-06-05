@@ -3,30 +3,30 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
+import { StargateFacetV2 } from "lifi/Facets/StargateFacetV2.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("StargateFacet") {}
+    constructor() DeployScriptBase("StargateFacetV2") {}
 
     function run()
         public
-        returns (StargateFacet deployed, bytes memory constructorArgs)
+        returns (StargateFacetV2 deployed, bytes memory constructorArgs)
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = StargateFacet(deploy(type(StargateFacet).creationCode));
+        deployed = StargateFacetV2(deploy(type(StargateFacetV2).creationCode));
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/stargate.json");
         string memory json = vm.readFile(path);
 
-        address composer = json.readAddress(
-            string.concat(".composers.", network)
+        address tokenMessaging = json.readAddress(
+            string.concat(".tokenMessaging.", network)
         );
 
-        return abi.encode(composer);
+        return abi.encode(tokenMessaging);
     }
 }

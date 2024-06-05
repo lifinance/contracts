@@ -104,6 +104,7 @@ abstract contract TestBaseFacet is TestBase {
         // approval
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
+        console.log("minAmount2: ", bridgeData.minAmount);
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
@@ -262,6 +263,10 @@ abstract contract TestBaseFacet is TestBase {
         virtual
     {
         vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
         // prepare bridgeData
         bridgeData.hasDestinationCall = true;
 

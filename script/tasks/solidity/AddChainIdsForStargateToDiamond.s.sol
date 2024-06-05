@@ -19,6 +19,7 @@ contract DeployScript is UpdateScriptBase {
         uint16 layerZeroChainId;
     }
 
+    // This script is for StargateFacet (V1) only
     function run() public {
         // load config
         path = string.concat(root, "/config/stargate.json");
