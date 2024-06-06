@@ -114,6 +114,9 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ) internal {
         // Validate receiver address
         bytes memory protocolData = _mayanData.protocolData;
+        bool isNativeAsset = LibAsset.isNativeAsset(
+            _bridgeData.sendingAssetId
+        );
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             if (_mayanData.nonEVMReceiver == bytes32(0)) {
                 revert InvalidNonEVMReceiver(
@@ -124,7 +127,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             bytes32 receiver;
 
             assembly {
-                receiver := mload(add(add(protocolData, 0x20), 0xc4)) // Non EVM address is 32 bytes and is located at offset 196 (or 0xc4 in hex)
+                receiver := mload(add(protocolData, 0xe4)) // Non EVM address is located at offset 228 (or 0xe4 in hex)
             }
             if (_mayanData.nonEVMReceiver != receiver) {
                 revert InvalidNonEVMReceiver(
@@ -133,11 +136,17 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 );
             }
         } else {
-            (, , , address receiver) = abi.decode(
-                _mayanData.protocolData[4:],
-                (address, uint256, uint256, address)
-            );
+            address receiver;
 
+            if (isNativeAsset) {
+                assembly {
+                    receiver := mload(add(protocolData, 0xe4)) // EVM address is located at offset 228 (or 0xe4 in hex)
+                }
+            } else {
+                assembly {
+                    receiver := mload(add(protocolData, 0x84)) // EVM address is located at offset 132 (or 0x84 in hex)
+                }
+            }
             if (_bridgeData.receiver != receiver) {
                 revert InvalidReceiver(_bridgeData.receiver, receiver);
             }
@@ -145,7 +154,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         IMayan.PermitParams memory emptyPermitParams;
 
-        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+        if (!isNativeAsset) {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(mayan),

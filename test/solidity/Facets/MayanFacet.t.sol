@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap } from "../utils/TestBaseFacet.sol";
+import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap, LibAsset } from "../utils/TestBaseFacet.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { IMayan } from "lifi/Interfaces/IMayan.sol";
 
@@ -26,6 +26,10 @@ contract MayanFacetTest is TestBaseFacet {
     IMayan internal MAYAN_FORWARDER =
         IMayan(0x0654874eb7F59C6f5b39931FC45dC45337c967c3);
     address internal POLYGON_USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
+
+    bytes32 ACTUAL_SOL_ADDR =
+        hex"4cb7c5f1632114c376c0e7a9a1fd1fbd562699fbd9a0c9f4f26ba8cf6e23df0d";
+    bytes32 EXPECTED_SOL_ADDR = bytes32("EXPECTED ADDRESS");
 
     function setUp() public {
         customBlockNumberForForking = 19968172;
@@ -79,7 +83,7 @@ contract MayanFacetTest is TestBaseFacet {
         );
 
         invalidMayanDataEVM2Solana = MayanFacet.MayanData(
-            hex"5cb7c5f1632114c376c0e7a9a1fd1fbd562699fbd9a0c9f4f26ba8cf6e23df0d",
+            EXPECTED_SOL_ADDR,
             0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4, // mayanProtocol address
             // Send tokens to Solana
             hex"6111ad2500000000000000000000000000000000000000000000000000000000002fa3e500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010883f01f2183c5bf05d6756bf0b0aade846ff42b2bc9afe11e60e677d80270a38b3500000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c394cb7c5f1632114c376c0e7a9a1fd1fbd562699fbd9a0c9f4f26ba8cf6e23df0d0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001e0000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831000000000000000000000000000000000000000000000000000000000098968000000000000000000000000000000000000000000000000000000000665e43ef00000000000000000000000000000000000000000000000000000000665e43ef00000000000000000000000000000000000000000000000000000000006869570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000"
@@ -102,6 +106,10 @@ contract MayanFacetTest is TestBaseFacet {
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
+        if (LibAsset.isNativeAsset(bridgeData.sendingAssetId)) {
+            validMayanData = validMayanDataNative;
+        }
+
         if (isNative) {
             mayanBridgeFacet.swapAndStartBridgeTokensViaMayan{
                 value: swapData[0].fromAmount
@@ -182,8 +190,6 @@ contract MayanFacetTest is TestBaseFacet {
         //     therefore the test is designed to only check if an event was emitted but not match the parameters
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
-
-        validMayanData = validMayanDataNative;
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
@@ -282,7 +288,13 @@ contract MayanFacetTest is TestBaseFacet {
         console.log(USER_RECEIVER);
         usdc.approve(_facetTestContractAddress, type(uint256).max);
 
-        vm.expectRevert(MayanFacet.InvalidNonEVMReceiver.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                MayanFacet.InvalidNonEVMReceiver.selector,
+                EXPECTED_SOL_ADDR,
+                ACTUAL_SOL_ADDR
+            )
+        );
         mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, validMayanData);
         vm.stopPrank();
     }
