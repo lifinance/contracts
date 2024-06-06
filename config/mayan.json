@@ -14,6 +14,12 @@
     },
     "arbitrum": {
       "bridge": "0x0654874eb7F59C6f5b39931FC45dC45337c967c3"
+    },
+    "base": {
+      "bridge": "0x0654874eb7F59C6f5b39931FC45dC45337c967c3"
+    },
+    "optimism": {
+      "bridge": "0x0654874eb7F59C6f5b39931FC45dC45337c967c3"
     }
   }
 }
