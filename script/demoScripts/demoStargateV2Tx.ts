@@ -4,13 +4,14 @@ import {
   ILiFi,
   IStargate__factory,
   IStargate,
-  StargateFacet,
+  StargateFacetV2,
+  StargateFacetV2__factory,
 } from '../../typechain'
 import { node_url } from '../../utils/network'
 import deploymentsPOL from '../../deployments/polygon.staging.json'
 import deploymentsOPT from '../../deployments/optimism.staging.json'
 import stargateConfig from '../../config/stargate.json'
-import { StargateFacet__factory } from '../../typechain/factories'
+import { addressToBytes32, Options } from '@layerzerolabs/lz-v2-utilities'
 
 type FeeParams = {
   sender: string
@@ -57,11 +58,12 @@ const amountIn = utils.parseUnits('1', 5) // 0.1 USDC
 const TAXI_EXPLORER_URL = 'https://layerzeroscan.com/tx/'
 const BUS_EXPLORER_URL =
   'https://d3k4i7b673n27r.cloudfront.net/v1/buses/bus-queue/'
+const DEFAULT_GAS_STIPEND_FOR_DEST_CALLS = 400000 // 400k gas
 
 // ############ CONFIGURE SCRIPT HERE ############################
 const IS_TAXI = false // Bus vs. Taxi mode
 const WITH_DEST_CALL = true // adds a dest call if set to true
-const SEND_TX = true // disable tx sending here for debugging purposes
+const SEND_TX = false // disable tx sending here for debugging purposes
 // ###############################################################
 
 async function main() {
@@ -78,7 +80,7 @@ async function main() {
   const walletAddress = await wallet.getAddress()
 
   // get contracts
-  const stargateFacet = StargateFacet__factory.connect(
+  const stargateFacet = StargateFacetV2__factory.connect(
     DIAMOND_ADDRESS_SRC,
     wallet
   )
@@ -184,7 +186,7 @@ async function main() {
   )
 
   // construct StargateData
-  const stargateData: StargateFacet.StargateDataStruct = {
+  const stargateData: StargateFacetV2.StargateDataStruct = {
     assetId: ASSET_ID,
     sendParams,
     fee: messagingFee,
@@ -235,7 +237,9 @@ async function main() {
 // the dst payload size/cost
 const getExtraOptions = () => {
   if (WITH_DEST_CALL) {
-    return VALID_EXTRA_OPTIONS_VALUE // value for 400_000 dstGas and no "msg.value" on dst
+    return Options.newOptions()
+      .addExecutorComposeOption(0, DEFAULT_GAS_STIPEND_FOR_DEST_CALLS, 0)
+      .toHex()
   } else {
     return '0x'
   }
@@ -304,23 +308,6 @@ async function getSupportedTokensAndPools() {
   })
 
   console.log(`filtered: ${JSON.stringify(filtered, null, 2)}`)
-}
-
-function addressToBytes32(address: string): string {
-  // Validate the address
-  if (!utils.isAddress(address)) {
-    throw new Error('Invalid Ethereum address')
-  }
-
-  // Strip the 0x prefix
-  const addressWithoutPrefix = address.replace(/^0x/, '')
-
-  // Pad the address to 32 bytes (64 characters) with zeros on the left
-  const paddedAddress =
-    '0'.repeat(64 - addressWithoutPrefix.length) + addressWithoutPrefix
-
-  // Add the 0x prefix back
-  return `0x${paddedAddress}`
 }
 
 // returns the LayerZero Eid (Endpoint ID) for a given chainId

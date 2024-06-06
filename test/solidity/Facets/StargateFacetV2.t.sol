@@ -9,6 +9,8 @@ import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 
+import { OFTComposeMsgCodec } from "lifi/Periphery/ReceiverStargateV2.sol";
+
 // Stub StargateFacetV2 Contract
 contract TestStargateFacetV2 is StargateFacetV2 {
     constructor(
@@ -25,6 +27,8 @@ contract TestStargateFacetV2 is StargateFacetV2 {
 }
 
 contract StargateFacetV2Test is TestBaseFacet {
+    using OFTComposeMsgCodec for address;
+
     // EVENTS
     event WhitelistUpdated(address[] whitelistedRouters, uint256[] values);
     event Approval(address owner, address spender, uint256 value);
@@ -32,19 +36,15 @@ contract StargateFacetV2Test is TestBaseFacet {
     error InvalidAssetId(uint16 invalidAssetId);
 
     // These values are for Mainnet
-    address internal constant WETH_ADDRESS =
-        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address internal constant STARGATE_POOL_NATIVE =
         0x77b2043768d28E9C9aB44E1aBfC95944bcE57931;
     address internal constant STARGATE_POOL_USDC =
         0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
     address internal constant TOKEN_MESSAGING =
         0x6d6620eFa72948C5f68A3C8646d58C00d3f4A980;
-    uint256 internal constant DST_CHAIN_ID = 137;
     uint32 internal constant DST_E_ID_USDC = 30184; // BAS
     uint32 internal constant DST_E_ID_NATIVE = 30111; // OPT
     uint16 internal constant ASSET_ID_USDC = 1;
-    uint16 internal constant ASSET_ID_USDT = 2;
     uint16 internal constant ASSET_ID_NATIVE = 13;
     // -----
 
@@ -110,12 +110,12 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         // prepare default StargateData
         stargateData = StargateFacetV2.StargateData({
-            assetId: 1,
+            assetId: ASSET_ID_USDC,
             sendParams: IStargate.SendParam({
                 dstEid: 30150,
-                to: addressToBytes32(USER_RECEIVER),
+                to: USER_RECEIVER.addressToBytes32(),
                 amountLD: defaultUSDCAmount,
-                minAmountLD: 0,
+                minAmountLD: (defaultUSDCAmount * 9e4) / 1e5,
                 extraOptions: "",
                 composeMsg: "",
                 oftCmd: OftCmdHelper.bus()
@@ -521,47 +521,6 @@ contract StargateFacetV2Test is TestBaseFacet {
         addresses[0] = address(uniswap);
         values = new uint256[](length);
         values[0] = 1;
-    }
-
-    /// @dev Helper function to create commonly used SendParam for riding the bus.
-    function _createRideBusSendParams(
-        uint32 lzChainId,
-        address _sender,
-        uint256 _amountLD
-    ) internal pure returns (IStargate.SendParam memory) {
-        return
-            IStargate.SendParam(
-                lzChainId,
-                addressToBytes32(_sender),
-                _amountLD,
-                (900 * _amountLD) / 1000,
-                "",
-                "",
-                OftCmdHelper.bus()
-            );
-    }
-
-    /// @dev Helper function to create commonly used SendParam for riding the bus.
-    function _createRideTaxiSendParams(
-        uint32 lzChainId,
-        address _sender,
-        uint256 _amountLD
-    ) internal pure returns (IStargate.SendParam memory sendParams) {
-        sendParams = IStargate.SendParam(
-            lzChainId,
-            addressToBytes32(_sender),
-            _amountLD,
-            (900 * _amountLD) / 1000,
-            "",
-            "",
-            OftCmdHelper.bus()
-        );
-
-        sendParams.oftCmd = OftCmdHelper.taxi();
-    }
-
-    function addressToBytes32(address _addr) internal pure returns (bytes32) {
-        return bytes32(uint256(uint160(_addr)));
     }
 }
 

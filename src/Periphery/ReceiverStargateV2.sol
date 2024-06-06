@@ -86,12 +86,7 @@ contract ReceiverStargateV2 is
         bytes calldata _message,
         address, // _executor (not used)
         bytes calldata // _extraData (not used)
-    )
-        external
-        payable
-        //nonReentrant // @REVIEWER: pls comment/confirm that we do not need this here (due to onlyEndpointV2 access control modifier)
-        onlyEndpointV2
-    {
+    ) external payable onlyEndpointV2 {
         // get the address of the token that was received from Stargate bridge
         address bridgedAssetId = IPool(_from).token();
 
@@ -117,7 +112,7 @@ contract ReceiverStargateV2 is
     }
 
     /// @notice Send remaining token to receiver
-    /// @param assetId token received from the other chain
+    /// @param assetId address of the token to be withdrawn (not to be confused with StargateV2's assetIds which are uint16 values)
     /// @param receiver address that will receive tokens in the end
     /// @param amount amount of token
     function pullToken(
@@ -139,7 +134,7 @@ contract ReceiverStargateV2 is
     /// @notice Performs a swap before completing a cross-chain transaction
     /// @param _transactionId the transaction id associated with the operation
     /// @param _swapData array of data needed for swaps
-    /// @param assetId token received from the other chain
+    /// @param assetId address of the token received from the source chain (not to be confused with StargateV2's assetIds which are uint16 values)
     /// @param receiver address that will receive tokens in the end
     /// @param amount amount of token
     /// @param reserveRecoverGas whether we need a gas buffer to recover

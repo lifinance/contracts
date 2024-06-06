@@ -11,6 +11,13 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 import { OFTComposeMsgCodec } from "lifi/Libraries/OFTComposeMsgCodec.sol";
 import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 
+address constant ENDPOINT_V2_MAINNET = 0x1a44076050125825900e736c501f859c50fE728c;
+address constant STARGATE_NATIVE_POOL_MAINNET = 0x77b2043768d28E9C9aB44E1aBfC95944bcE57931;
+bytes4 constant LZ_COMPOSE_NOT_FOUND_SELECTOR = bytes4(
+    keccak256("LZ_ComposeNotFound(bytes32,bytes32)")
+);
+bytes32 constant RECEIVED_MESSAGE_HASH = bytes32(uint256(1));
+
 contract ReceiverStargateV2Test is TestBase {
     using stdJson for string;
 
@@ -20,8 +27,6 @@ contract ReceiverStargateV2Test is TestBase {
 
     address public constant STARGATE_USDC_POOL_MAINNET =
         0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
-    address public constant ENDPOINT_V2_MAINNET =
-        0x1a44076050125825900e736c501f859c50fE728c;
     uint256 public constant RECOVER_GAS_VALUE = 100000;
     address stargateRouter;
     bytes32 internal transferId;
@@ -51,18 +56,32 @@ contract ReceiverStargateV2Test is TestBase {
         transferId = keccak256("123");
     }
 
-    function test_OwnerCanPullToken() public {
-        // send token to receiver
-        vm.startPrank(USER_SENDER);
-        dai.transfer(address(receiver), 1000);
-        vm.stopPrank();
+    function test_OwnerCanPullERC20Token() public {
+        // fund receiver with ERC20 tokens
+        deal(ADDRESS_DAI, address(receiver), 1000);
+
+        uint256 initialBalance = dai.balanceOf(USER_RECEIVER);
 
         // pull token
         vm.startPrank(USER_DIAMOND_OWNER);
 
         receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
 
-        assertEq(1000, dai.balanceOf(USER_RECEIVER));
+        assertEq(dai.balanceOf(USER_RECEIVER), initialBalance + 1000);
+    }
+
+    function test_OwnerCanPullNativeToken() public {
+        // fund receiver with native tokens
+        vm.deal(address(receiver), 1 ether);
+
+        uint256 initialBalance = USER_RECEIVER.balance;
+
+        // pull token
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        receiver.pullToken(address(0), payable(USER_RECEIVER), 1 ether);
+
+        assertEq(USER_RECEIVER.balance, initialBalance + 1 ether);
     }
 
     function test_PullTokenWillRevertIfExternalCallFails() public {
@@ -88,15 +107,14 @@ contract ReceiverStargateV2Test is TestBase {
         receiver.pullToken(ADDRESS_DAI, payable(USER_RECEIVER), 1000);
     }
 
-    function _getValidLzComposeCalldata()
-        public
-        view
-        returns (bytes memory callData, uint256 amountOutMin)
-    {
+    function _getValidLzComposeCalldata(
+        address _sendingAssetId,
+        address _receivingAssetId
+    ) public view returns (bytes memory callData, uint256 amountOutMin) {
         // create swapdata
         address[] memory path = new address[](2);
-        path[0] = ADDRESS_USDC;
-        path[1] = ADDRESS_DAI;
+        path[0] = _sendingAssetId;
+        path[1] = _receivingAssetId;
 
         uint256 amountIn = defaultUSDCAmount;
 
@@ -108,8 +126,8 @@ contract ReceiverStargateV2Test is TestBase {
         swapData[0] = LibSwap.SwapData({
             callTo: address(uniswap),
             approveTo: address(uniswap),
-            sendingAssetId: ADDRESS_USDC,
-            receivingAssetId: ADDRESS_DAI,
+            sendingAssetId: _sendingAssetId,
+            receivingAssetId: _receivingAssetId,
             fromAmount: amountIn,
             callData: abi.encodeWithSelector(
                 uniswap.swapExactTokensForTokens.selector,
@@ -158,7 +176,10 @@ contract ReceiverStargateV2Test is TestBase {
 
         // get valid payload for calling lzCompose
         // https://stargateprotocol.gitbook.io/stargate/v/v2-developer-docs/integrate-with-stargate/composability#receive
-        (bytes memory composeMsg, ) = _getValidLzComposeCalldata();
+        (bytes memory composeMsg, ) = _getValidLzComposeCalldata(
+            ADDRESS_USDC,
+            ADDRESS_WETH
+        );
 
         // call from deployer of ReceiverStargateV2
         vm.startPrank(address(this));
@@ -195,6 +216,42 @@ contract ReceiverStargateV2Test is TestBase {
         );
     }
 
+    function test_lzCompose_reentrancy() public {
+        ReentrantReceiver reentrantReceiver = new ReentrantReceiver(
+            address(receiver)
+        );
+        receiverAddress = address(reentrantReceiver);
+        vm.deal(receiverAddress, 100 ether);
+        // mock-send bridged funds to receiver contract
+        deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
+        vm.deal(address(receiver), 1 ether);
+
+        (bytes memory composeMsg, ) = _getValidLzComposeCalldata(
+            ADDRESS_USDC,
+            ADDRESS_WETH
+        );
+
+        vm.startPrank(STARGATE_NATIVE_POOL_MAINNET);
+        IMessagingComposer(ENDPOINT_V2_MAINNET).sendCompose(
+            address(receiver),
+            guid,
+            0,
+            composeMsg
+        );
+
+        address nonPermissionedUser = makeAddr("nonPermissionedUser");
+        vm.startPrank(nonPermissionedUser);
+
+        IMessagingComposer(ENDPOINT_V2_MAINNET).lzCompose{ gas: 400000 }(
+            STARGATE_NATIVE_POOL_MAINNET,
+            address(receiver),
+            "",
+            0,
+            composeMsg,
+            ""
+        );
+    }
+
     function test_canDecodeStargatePayloadAndExecuteSwap() public {
         // mock-send bridged funds to receiver contract
         deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
@@ -204,9 +261,20 @@ contract ReceiverStargateV2Test is TestBase {
         (
             bytes memory composeMsg,
             uint256 amountOutMin
-        ) = _getValidLzComposeCalldata();
+        ) = _getValidLzComposeCalldata(ADDRESS_USDC, ADDRESS_DAI);
 
-        vm.startPrank(ENDPOINT_V2_MAINNET);
+        // fake a sendCompose from USDC pool on ETH mainnet
+        vm.startPrank(STARGATE_USDC_POOL_MAINNET);
+        IMessagingComposer(ENDPOINT_V2_MAINNET).sendCompose(
+            address(receiver),
+            guid,
+            0,
+            composeMsg
+        );
+
+        // demonstrates that lzCompose(...) call is not permissioned, and that the authenticity criteria is determined in sendCompose(...) by msg.sender
+        address nonPermissionedUser = makeAddr("nonPermissionedUser");
+        vm.startPrank(nonPermissionedUser);
 
         vm.expectEmit();
         emit LiFiTransferCompleted(
@@ -216,11 +284,12 @@ contract ReceiverStargateV2Test is TestBase {
             amountOutMin,
             block.timestamp
         );
-        receiver.lzCompose{ gas: 400000 }(
+        IMessagingComposer(ENDPOINT_V2_MAINNET).lzCompose{ gas: 400000 }(
             STARGATE_USDC_POOL_MAINNET,
+            address(receiver),
             "",
+            0,
             composeMsg,
-            address(0),
             ""
         );
 
@@ -272,6 +341,71 @@ contract ReceiverStargateV2Test is TestBase {
     }
 }
 
+interface IMessagingComposer {
+    function sendCompose(
+        address _to,
+        bytes32 _guid,
+        uint16 _index,
+        bytes calldata _message
+    ) external;
+
+    function lzCompose(
+        address _from,
+        address _to,
+        bytes32 _guid,
+        uint16 _index,
+        bytes calldata _message,
+        bytes calldata _extraData
+    ) external payable;
+}
+
 contract NonETHReceiver {
     // this contract cannot receive any ETH due to missing receive function
+}
+
+contract ReentrantReceiver {
+    bytes internal composeMsg;
+
+    address internal receiver;
+
+    constructor(address _receiver) {
+        receiver = _receiver;
+    }
+
+    function setComposeMsg(bytes memory _composeMsg) public {
+        composeMsg = _composeMsg;
+    }
+
+    function assertEqual(bytes memory a, bytes memory b) public pure {
+        require(a.length == b.length, "Bytes arrays must be of equal length");
+
+        for (uint i = 0; i < a.length; i++) {
+            require(a[i] == b[i], "Bytes arrays not equal");
+        }
+    }
+
+    receive() external payable {
+        // contrived to match test_lzCompose_reentrancy
+        try
+            IMessagingComposer(ENDPOINT_V2_MAINNET).lzCompose{ gas: 400000 }(
+                address(STARGATE_NATIVE_POOL_MAINNET),
+                receiver,
+                "",
+                0,
+                composeMsg,
+                ""
+            )
+        {} catch (bytes memory reason) {
+            assertEqual(
+                abi.encodeWithSelector(
+                    LZ_COMPOSE_NOT_FOUND_SELECTOR,
+                    RECEIVED_MESSAGE_HASH, // already received;  indicates reentrancy caught
+                    bytes32(
+                        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 // precomputed
+                    )
+                ),
+                reason
+            );
+        }
+    }
 }
