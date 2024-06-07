@@ -33,7 +33,6 @@ const corePeriphery = [
   'Receiver',
   'FeeCollector',
   'LiFuelFeeCollector',
-  'ServiceFeeCollector',
   'TokenWrapper',
 ]
 
@@ -168,7 +167,7 @@ const main = defineCommand({
       }
     }
 
-    if (dexs && dexs.length) {
+    if (dexs) {
       // Check that all configured dexs are approved by calling the diamond with 'appovedDexs() returns (address[])'
       consola.box('Checking dexs approved in diamond...')
       const dexManager = getContract({
@@ -196,7 +195,6 @@ const main = defineCommand({
         (p) =>
           p === 'FeeCollector' ||
           p === 'LiFuelFeeCollector' ||
-          p === 'ServiceFeeCollector' ||
           p === 'TokenWrapper'
       )
       for (const f of feeCollectors) {
@@ -265,22 +263,6 @@ const main = defineCommand({
         }
       }
 
-      // ServiceFeeCollector
-      if (deployedContracts['ServiceFeeCollector']) {
-        contractAddress = deployedContracts['ServiceFeeCollector']
-        owner = await getOwnablContract(
-          contractAddress,
-          publicClient
-        ).read.owner()
-        if (owner !== withdrawWallet) {
-          logError(
-            `ServiceFeeCollector owner is ${owner}, expected ${withdrawWallet}`
-          )
-        } else {
-          consola.success('ServiceFeeCollector owner is correct')
-        }
-      }
-
       // Check access permissions
       consola.box('Checking access permissions...')
       const accessManager = getContract({
@@ -339,6 +321,8 @@ const main = defineCommand({
       }
 
       finish()
+    } else {
+      logError('No dexs configured')
     }
   },
 })

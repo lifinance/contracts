@@ -1233,12 +1233,7 @@
   resolved "https://registry.yarnpkg.com/@safe-global/safe-gateway-typescript-sdk/-/safe-gateway-typescript-sdk-3.21.1.tgz#984ec2d3d4211caf6a96786ab922b39909093538"
   integrity sha512-7nakIjcRSs6781LkizYpIfXh1DYlkUDqyALciqz/BjFU/S97sVjZdL4cuKsG9NEarytE+f6p0Qbq2Bo1aocVUA==
 
-"@scure/base@~1.1.0":
-  version "1.1.1"
-  resolved "https://registry.yarnpkg.com/@scure/base/-/base-1.1.1.tgz#ebb651ee52ff84f420097055f4bf46cfba403938"
-  integrity sha512-ZxOhsSyxYwLJj3pLZCefNitxsj093tb2vq90mp2txoYeBqbcjDjqFhyM8eUjq/uFm6zJ+mUuqxlS2FkuSY1MTA==
-
-"@scure/base@~1.1.2":
+"@scure/base@~1.1.0", "@scure/base@~1.1.2":
   version "1.1.6"
   resolved "https://registry.yarnpkg.com/@scure/base/-/base-1.1.6.tgz#8ce5d304b436e4c84f896e0550c83e4d88cb917d"
   integrity sha512-ok9AWwhcgYuGG3Zfhyqg+zwl+Wn5uE+dwC0NV/2qQkx4dABbb/bx96vWu8NSj+BNjjSjno+JRYRjle1jV08k3g==
@@ -9475,9 +9470,9 @@ viem@^1.6.0:
     ws "8.13.0"
 
 viem@^2.11.1:
-  version "2.11.1"
-  resolved "https://registry.yarnpkg.com/viem/-/viem-2.11.1.tgz#03ff205734c21748b7a0df8e5f956db61ebaf1c5"
-  integrity sha512-4iypXhxWkXoWO45XStxQvhj/vYZ5+3AtSEngHiOnuHOSNoiIsYfDvTMoTiAO53PeyYvExyVzJc9BFwejGHh7pg==
+  version "2.13.7"
+  resolved "https://registry.yarnpkg.com/viem/-/viem-2.13.7.tgz#c1153c02f7ffaf0263d784fc1d4e4ffa3f66c24a"
+  integrity sha512-SZWn9LPrz40PHl4PM2iwkPTTtjWPDFsnLr32UwpqC/Z5f0AwxitjLyZdDKcImvbWZ3vLQ0oPggR1aLlqvTcUug==
   dependencies:
     "@adraffy/ens-normalize" "1.10.0"
     "@noble/curves" "1.2.0"

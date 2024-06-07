@@ -46,6 +46,7 @@ zksync = "${ETH_NODE_URI_ZKSYNC}"
 scroll = "${ETH_NODE_URI_SCROLL}"
 mantle = "${ETH_NODE_URI_MANTLE}"
 rootstock = "${ETH_NODE_URI_ROOTSTOCK}"
+sei = "${ETH_NODE_URI_SEI}"
 
 # testnets
 goerli = "${ETH_NODE_URI_GOERLI}"
@@ -56,30 +57,30 @@ mumbai = "${ETH_NODE_URI_MUMBAI}"
 base = "${ETH_NODE_URI_BASE}"
 
 [etherscan]
-mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
-arbitrum = { key = "${ARBITRUM_ETHERSCAN_API_KEY}", url = "https://api.arbiscan.io/api" }
-aurora = { key = "${AURORA_ETHERSCAN_API_KEY}", url = "https://api.aurorascan.dev/api" }
-avalanche = { key = "${AVALANCHE_ETHERSCAN_API_KEY}", url = "https://api.snowtrace.io/api" }
-boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.bobascan.com/api" }
-bsc = { key = "${BSC_ETHERSCAN_API_KEY}", url = "https://api.bscscan.com/api" }
-celo = { key = "${CELO_ETHERSCAN_API_KEY}", url = "https://api.celoscan.io/api" }
-cronos = { key = "${CRONOS_ETHERSCAN_API_KEY}", url = "https://api.cronoscan.com/api" }
-fantom = { key = "${FANTOM_ETHERSCAN_API_KEY}", url = "https://api.ftmscan.com/api" }
-fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api" }
-gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://api.gnosisscan.io/api" }
-moonbeam = { key = "${MOONBEAM_ETHERSCAN_API_KEY}", url = "https://api-moonbeam.moonscan.io/api" }
-moonriver = { key = "${MOONRIVER_ETHERSCAN_API_KEY}", url = "https://api-moonriver.moonscan.io/api" }
-nova = { key = "${NOVA_ETHERSCAN_API_KEY}", url = "https://nova.arbiscan.io/api" }
-optimism = { key = "${OPTIMISM_ETHERSCAN_API_KEY}", url = "https://api-optimistic.etherscan.io/api" }
-polygon = { key = "${POLYGON_ETHERSCAN_API_KEY}", url = "https://api.polygonscan.com/api" }
-polygonzkevm = { key = "${POLYGONZKEVM_ETHERSCAN_API_KEY}", url = "https://api-zkevm.polygonscan.com/api" }
-base = { key = "${BASE_ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api" }
-linea = { key = "${LINEA_ETHERSCAN_API_KEY}", url = "https://api.lineascan.build/api" }
-metis = { key = "${METIS_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan" }
-mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan" }
-scroll = { key = "${SCROLL_ETHERSCAN_API_KEY}", url = "https://api.scrollscan.com/api" }
-mantle = { key = "${MANTLE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/5000/etherscan" }
-blast = { key = "${BLAST_ETHERSCAN_API_KEY}", url = "https://api.blastscan.io/api" }
+mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", chain = "1" }
+arbitrum = { key = "${ARBITRUM_ETHERSCAN_API_KEY}", url = "https://api.arbiscan.io/api", chain = "42161" }
+aurora = { key = "${AURORA_ETHERSCAN_API_KEY}", url = "https://api.aurorascan.dev/api", chain = "1313161554" }
+avalanche = { key = "${AVALANCHE_ETHERSCAN_API_KEY}", url = "https://api.snowtrace.io/api", chain = "43114" }
+boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.bobascan.com/api", chain = "288" }
+bsc = { key = "${BSC_ETHERSCAN_API_KEY}", url = "https://api.bscscan.com/api", chain = "56" }
+celo = { key = "${CELO_ETHERSCAN_API_KEY}", url = "https://api.celoscan.io/api", chain = "42220" }
+cronos = { key = "${CRONOS_ETHERSCAN_API_KEY}", url = "https://api.cronoscan.com/api", chain = "25" }
+fantom = { key = "${FANTOM_ETHERSCAN_API_KEY}", url = "https://api.ftmscan.com/api", chain = "250" }
+fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api", chain = "122" }
+gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://api.gnosisscan.io/api", chain = "100" }
+moonbeam = { key = "${MOONBEAM_ETHERSCAN_API_KEY}", url = "https://api-moonbeam.moonscan.io/api", chain = "1284" }
+moonriver = { key = "${MOONRIVER_ETHERSCAN_API_KEY}", url = "https://api-moonriver.moonscan.io/api", chain = "1285" }
+optimism = { key = "${OPTIMISM_ETHERSCAN_API_KEY}", url = "https://api-optimistic.etherscan.io/api", chain = "10" }
+polygon = { key = "${POLYGON_ETHERSCAN_API_KEY}", url = "https://api.polygonscan.com/api", chain = "137" }
+polygonzkevm = { key = "${POLYGONZKEVM_ETHERSCAN_API_KEY}", url = "https://api-zkevm.polygonscan.com/api", chain = "1101" }
+base = { key = "${BASE_ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api", chain = "8453" }
+linea = { key = "${LINEA_ETHERSCAN_API_KEY}", url = "https://api.lineascan.build/api", chain = "59144" }
+metis = { key = "${METIS_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan", chain = "1088" }
+mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan", chain = "34443" }
+scroll = { key = "${SCROLL_ETHERSCAN_API_KEY}", url = "https://api.scrollscan.com/api", chain = "534352" }
+mantle = { key = "${MANTLE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/5000/etherscan", chain = "5000" }
+blast = { key = "${BLAST_ETHERSCAN_API_KEY}", url = "https://api.blastscan.io/api", chain = "81457" }
+sei = { key = "${SEI_ETHERSCAN_API_KEY}", url = "https://seitrace.com/pacific-1/api", chain = "1329" }
 
 #testnets
 goerli = { key = "${MAINNET_ETHERSCAN_API_KEY}" }

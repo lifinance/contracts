@@ -1357,16 +1357,16 @@ function verifyContract() {
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}"
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}"
       else
-        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}" >/dev/null 2>&1
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}" >/dev/null 2>&1
       fi
     else
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}"
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}"
       else
-        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}" >/dev/null 2>&1
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}" >/dev/null 2>&1
       fi
     fi
     COMMAND_STATUS=$?
@@ -2843,6 +2843,10 @@ function getChainId() {
     ;;
   "mantle")
     echo "5000"
+    return 0
+    ;;
+  "sei")
+    echo "1329"
     return 0
     ;;
   *)

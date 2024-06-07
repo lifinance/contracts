@@ -66,5 +66,9 @@
   "mantle": {
     "metaRouter": "0xca506793A420E901BbCa8066be5661E3C52c84c2",
     "gateway": "0xd92Ca299F1C2518E78E48C207b64591BA6E9b9a8"
+  },
+  "sei": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   }
 }
