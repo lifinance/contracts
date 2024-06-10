@@ -146,9 +146,7 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount,
             _swapData,
             payable(msg.sender),
-            LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
-                ? 0
-                : _stargateData.lzFee
+            _stargateData.lzFee
         );
 
         _startBridge(_bridgeData, _stargateData);
@@ -182,12 +180,12 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         StargateData calldata _stargateData
     ) private {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            composer.swapETHAndCall{ value: _bridgeData.minAmount }(
+            composer.swapETHAndCall{ value: _bridgeData.minAmount + _stargateData.lzFee}(
                 getLayerZeroChainId(_bridgeData.destinationChainId),
                 _stargateData.refundAddress,
                 _stargateData.callTo,
                 IStargateRouter.SwapAmount(
-                    _bridgeData.minAmount - _stargateData.lzFee,
+                    _bridgeData.minAmount,
                     _stargateData.minAmountLD
                 ),
                 IStargateRouter.lzTxObj(
