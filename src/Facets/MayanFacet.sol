@@ -114,9 +114,6 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ) internal {
         // Validate receiver address
         bytes memory protocolData = _mayanData.protocolData;
-        bool isNativeAsset = LibAsset.isNativeAsset(
-            _bridgeData.sendingAssetId
-        );
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             if (_mayanData.nonEVMReceiver == bytes32(0)) {
                 revert InvalidNonEVMReceiver(
@@ -124,11 +121,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     bytes32(0)
                 );
             }
-            bytes32 receiver;
-
-            assembly {
-                receiver := mload(add(protocolData, 0xe4)) // Non EVM address is located at offset 228 (or 0xe4 in hex)
-            }
+            bytes32 receiver = _parseReceiver(protocolData);
             if (_mayanData.nonEVMReceiver != receiver) {
                 revert InvalidNonEVMReceiver(
                     _mayanData.nonEVMReceiver,
@@ -136,17 +129,9 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 );
             }
         } else {
-            address receiver;
-
-            if (isNativeAsset) {
-                assembly {
-                    receiver := mload(add(protocolData, 0xe4)) // EVM address is located at offset 228 (or 0xe4 in hex)
-                }
-            } else {
-                assembly {
-                    receiver := mload(add(protocolData, 0x84)) // EVM address is located at offset 132 (or 0x84 in hex)
-                }
-            }
+            address receiver = address(
+                uint160(uint256(_parseReceiver(protocolData)))
+            );
             if (_bridgeData.receiver != receiver) {
                 revert InvalidReceiver(_bridgeData.receiver, receiver);
             }
@@ -154,7 +139,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         IMayan.PermitParams memory emptyPermitParams;
 
-        if (!isNativeAsset) {
+        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(mayan),
@@ -184,5 +169,47 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    // 0x94454a5d bridgeWithFee(address,uint256,uint64,uint64,bytes32,(uint32,bytes32,bytes32))
+    // 0x32ad465f bridgeWithLockedFee(address,uint256,uint64,uint256,(uint32,bytes32,bytes32))
+    // 0xafd9b706 createOrder((address,uint256,uint64,bytes32,uint16,bytes32,uint64,uint64,uint64,bytes32,uint8),(uint32,bytes32,bytes32))
+    // 0x6111ad25 swap(tuple relayerFees,tuple recipient,bytes32 tokenOutAddr,uint16 tokenOutChainId,tuple criteria,address tokenIn,uint256 amountIn)
+    // 0x1eb1cff0 wrapAndSwapETH(tuple relayerFees,tuple recipient,bytes32 tokenOutAddr,uint16 tokenOutChainId,tuple criteria)
+    // 0xb866e173 createOrderWithEth((bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,*bytes32,uint16,bytes32,uint8,uint8,bytes32))
+    // 0x8e8d142b createOrderWithToken(address,uint256,(bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,*bytes32,uint16,bytes32,uint8,uint8,bytes32))
+
+    function _parseReceiver(
+        bytes memory protocolData
+    ) internal pure returns (bytes32 receiver) {
+        bytes4 selector;
+        assembly {
+            selector := mload(add(protocolData, 0x20))
+            switch selector
+            case 0x94454a5d {
+                receiver := mload(add(protocolData, 0x20)) // MayanCircle::bridgeWithFee()
+            }
+            case 0x32ad465f {
+                receiver := mload(add(protocolData, 0x20)) // MayanCircle::bridgeWithLockedFee()
+            }
+            case 0xafd9b706 {
+                receiver := mload(add(protocolData, 0x84)) // MayanCircle::createOrder()
+            }
+            case 0x6111ad25 {
+                receiver := mload(add(protocolData, 0xe4)) // MayanSwap::swap()
+            }
+            case 0x1eb1cff0 {
+                receiver := mload(add(protocolData, 0xe4)) // MayanSwap::wrapAndSwapETH()
+            }
+            case 0xb866e173 {
+                receiver := mload(add(protocolData, 0x20)) // MayanSwift::createOrderWithEth()
+            }
+            case 0x8e8d142b {
+                receiver := mload(add(protocolData, 0x20)) // MayanSwift::createOrderWithToken()
+            }
+            default {
+                receiver := selector
+            }
+        }
     }
 }
