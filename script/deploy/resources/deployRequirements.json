@@ -27,6 +27,48 @@
       }
     }
   },
+  "AcrossFacetV3": {
+    "configData": {
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.weth",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "AcrossFacetPacked": {
+    "configData": {
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.weth",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "AcrossFacetPackedV3": {
+    "configData": {
+      "_spokePool": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_wrappedNative": {
+        "configFileName": "across.json",
+        "keyInConfigFile": ".<NETWORK>.weth",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "AllBridgeFacet": {
     "configData": {
       "_allBridge": {
