@@ -1,5 +1,5 @@
 // // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.0;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { NonStandardSelectorsRegistryFacet } from "lifi/Facets/NonStandardSelectorsRegistryFacet.sol";

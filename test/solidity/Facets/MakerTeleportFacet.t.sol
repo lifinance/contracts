@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.0;
 
 import { LibAllowList, LibSwap, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { MakerTeleportFacet } from "lifi/Facets/MakerTeleportFacet.sol";

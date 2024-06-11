@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.0;
 
 interface IXDaiBridgeL2 {
     /// @notice Bridge xDai to DAI and sends to receiver

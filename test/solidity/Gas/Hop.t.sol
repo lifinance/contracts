@@ -1,4 +1,4 @@
-pragma solidity 0.8.17;
+pragma solidity ^0.8.0;
 
 import "ds-test/test.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";

@@ -1,5 +1,5 @@
 // // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.0;
 
 import { IHopBridge, IL2AmmWrapper, ISwap } from "../Interfaces/IHopBridge.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.0;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IStargateRouter } from "../Interfaces/IStargateRouter.sol";
@@ -180,7 +180,9 @@ contract StargateFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         StargateData calldata _stargateData
     ) private {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            composer.swapETHAndCall{ value: _bridgeData.minAmount + _stargateData.lzFee}(
+            composer.swapETHAndCall{
+                value: _bridgeData.minAmount + _stargateData.lzFee
+            }(
                 getLayerZeroChainId(_bridgeData.destinationChainId),
                 _stargateData.refundAddress,
                 _stargateData.callTo,
