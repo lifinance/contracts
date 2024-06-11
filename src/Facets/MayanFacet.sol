@@ -10,6 +10,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IMayan } from "../Interfaces/IMayan.sol";
 import { UnsupportedChainId } from "../Errors/GenericErrors.sol";
+import { console } from "hardhat/console.sol";
 
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
@@ -121,7 +122,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                     bytes32(0)
                 );
             }
-            bytes32 receiver = _parseReceiver(protocolData);
+            bytes32 receiver = _parseReceiver(_mayanData.protocolData);
             if (_mayanData.nonEVMReceiver != receiver) {
                 revert InvalidNonEVMReceiver(
                     _mayanData.nonEVMReceiver,
@@ -130,7 +131,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             }
         } else {
             address receiver = address(
-                uint160(uint256(_parseReceiver(protocolData)))
+                uint160(uint256(_parseReceiver(_mayanData.protocolData)))
             );
             if (_bridgeData.receiver != receiver) {
                 revert InvalidReceiver(_bridgeData.receiver, receiver);
@@ -171,44 +172,50 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    // 0x94454a5d bridgeWithFee(address,uint256,uint64,uint64,bytes32,(uint32,bytes32,bytes32))
-    // 0x32ad465f bridgeWithLockedFee(address,uint256,uint64,uint256,(uint32,bytes32,bytes32))
-    // 0xafd9b706 createOrder((address,uint256,uint64,bytes32,uint16,bytes32,uint64,uint64,uint64,bytes32,uint8),(uint32,bytes32,bytes32))
-    // 0x6111ad25 swap(tuple relayerFees,tuple recipient,bytes32 tokenOutAddr,uint16 tokenOutChainId,tuple criteria,address tokenIn,uint256 amountIn)
-    // 0x1eb1cff0 wrapAndSwapETH(tuple relayerFees,tuple recipient,bytes32 tokenOutAddr,uint16 tokenOutChainId,tuple criteria)
-    // 0xb866e173 createOrderWithEth((bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,*bytes32,uint16,bytes32,uint8,uint8,bytes32))
-    // 0x8e8d142b createOrderWithToken(address,uint256,(bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,*bytes32,uint16,bytes32,uint8,uint8,bytes32))
-
+    // @dev Parses the receiver address from the protocol data
+    // @param protocolData The protocol data for the Mayan protocol
+    // @return receiver The receiver address
     function _parseReceiver(
         bytes memory protocolData
     ) internal pure returns (bytes32 receiver) {
         bytes4 selector;
         assembly {
+            // Load the selector from the protocol data
             selector := mload(add(protocolData, 0x20))
-            switch selector
+            // Shift the selector to the right by 224 bits to match shape of literal in switch statement
+            let shiftedSelector := shr(224, selector)
+            switch shiftedSelector
+            // Note: [*bytes32*] = location of receiver address
             case 0x94454a5d {
-                receiver := mload(add(protocolData, 0x20)) // MayanCircle::bridgeWithFee()
+                // 0x94454a5d bridgeWithFee(address,uint256,uint64,uint64,bytes32,(uint32,[*bytes32*],bytes32))
+                receiver := mload(add(protocolData, 0xe4)) // MayanCircle::bridgeWithFee()
             }
             case 0x32ad465f {
-                receiver := mload(add(protocolData, 0x20)) // MayanCircle::bridgeWithLockedFee()
+                // 0x32ad465f bridgeWithLockedFee(address,uint256,uint64,uint256,(uint32,[*bytes32*],bytes32))
+                receiver := mload(add(protocolData, 0xc4)) // MayanCircle::bridgeWithLockedFee()
             }
             case 0xafd9b706 {
+                // 0xafd9b706 createOrder((address,uint256,uint64,[*bytes32*],uint16,bytes32,uint64,uint64,uint64,bytes32,uint8),(uint32,bytes32,bytes32))
                 receiver := mload(add(protocolData, 0x84)) // MayanCircle::createOrder()
             }
             case 0x6111ad25 {
+                // 0x6111ad25 swap((uint64,uint64,uint64),(bytes32,uint16,bytes32,[*bytes32*],uint16,bytes32,bytes32),bytes32,uint16,(uint256,uint64,uint64,bool,uint64,bytes),address,uint256)
                 receiver := mload(add(protocolData, 0xe4)) // MayanSwap::swap()
             }
             case 0x1eb1cff0 {
+                // 0x1eb1cff0 wrapAndSwapETH((uint64,uint64,uint64),(bytes32,uint16,bytes32,[*bytes32*],uint16,bytes32,bytes32),bytes32,uint16,(uint256,uint64,uint64,bool,uint64,bytes))
                 receiver := mload(add(protocolData, 0xe4)) // MayanSwap::wrapAndSwapETH()
             }
             case 0xb866e173 {
-                receiver := mload(add(protocolData, 0x20)) // MayanSwift::createOrderWithEth()
+                // 0xb866e173 createOrderWithEth((bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
+                receiver := mload(add(protocolData, 0x104)) // MayanSwift::createOrderWithEth()
             }
             case 0x8e8d142b {
-                receiver := mload(add(protocolData, 0x20)) // MayanSwift::createOrderWithToken()
+                // 0x8e8d142b createOrderWithToken(address,uint256,(bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
+                receiver := mload(add(protocolData, 0x144)) // MayanSwift::createOrderWithToken()
             }
             default {
-                receiver := selector
+                receiver := 0x0
             }
         }
     }
