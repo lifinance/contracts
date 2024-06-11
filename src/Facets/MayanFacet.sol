@@ -187,8 +187,8 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             switch shiftedSelector
             // Note: [*bytes32*] = location of receiver address
             case 0x94454a5d {
-                // 0x94454a5d bridgeWithFee(address,uint256,uint64,uint64,bytes32,(uint32,[*bytes32*],bytes32))
-                receiver := mload(add(protocolData, 0xe4)) // MayanCircle::bridgeWithFee()
+                // 0x94454a5d bridgeWithFee(address,uint256,uint64,uint64,[*bytes32*],(uint32,bytes32,bytes32))
+                receiver := mload(add(protocolData, 0xa4)) // MayanCircle::bridgeWithFee()
             }
             case 0x32ad465f {
                 // 0x32ad465f bridgeWithLockedFee(address,uint256,uint64,uint256,(uint32,[*bytes32*],bytes32))
