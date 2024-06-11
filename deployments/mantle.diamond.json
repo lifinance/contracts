@@ -48,6 +48,14 @@
       "0xb8C5408ED5f40ca8df929A50DD36b252B6b39f76": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0xA4A8818D8d4e2EE27e960535D0a15299C5504605": {
+        "Name": "StargateFacet",
+        "Version": "2.2.0"
+      },
+      "0xc23ae3A8d74C0a428FA59E4AD3EB6aa4b2330530": {
+        "Name": "SquidFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -56,7 +64,7 @@
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
       "GasRebateDistributor": "",
       "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
-      "Receiver": "0x0561fFe9855541C02D17951c93405A4407Df74BC",
+      "Receiver": "0x2fA14922ABc117c4737260032C8fD6D9Ab35395A",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0xf3552b98BB4234B47674700A99a0308D74B40F51",
       "TokenWrapper": "0x0263180888007D45340F86eC0b610d250BbDcB23"

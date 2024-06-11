@@ -9,7 +9,7 @@ import {
   type SafeTransactionDataPartial,
 } from '@safe-global/safe-core-sdk-types'
 import * as chains from 'viem/chains'
-import { safeAddresses, safeApiUrls } from './config'
+import { chainNameMappings, safeAddresses, safeApiUrls } from './config'
 
 const chainMap: Record<string, Chain> = {}
 for (const [k, v] of Object.entries(chains)) {
@@ -49,16 +49,17 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const chain: Chain = chainMap[args.network]
+    const chainName = chainNameMappings[args.network] || args.network
+    const chain: Chain = chainMap[chainName]
 
     const config: SafeApiKitConfig = {
       chainId: BigInt(chain.id),
-      txServiceUrl: safeApiUrls[args.network.toLowerCase()],
+      txServiceUrl: safeApiUrls[chainName.toLowerCase()],
     }
 
     const safeService = new SafeApiKit(config)
 
-    const safeAddress = safeAddresses[args.network.toLowerCase()]
+    const safeAddress = safeAddresses[chainName.toLowerCase()]
 
     const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
     const provider = new ethers.JsonRpcProvider(rpcUrl)
@@ -93,7 +94,7 @@ const main = defineCommand({
 
     console.info('Signer Address', senderAddress)
     console.info('Safe Address', safeAddress)
-    console.info('Network', args.network)
+    console.info('Network', chainName)
     console.info('Proosing transaction to', args.to)
 
     // Propose transaction to the service

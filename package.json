@@ -78,6 +78,7 @@
     "abi:generate": "make clean && forge build --skip script --skip test --skip Base --skip Test && hardhat diamondABI",
     "typechain": "make clean && forge build --skip script --skip test --skip Base --skip Test && typechain --target ethers-v5 'out/**/*.json' --out-dir typechain",
     "codegen": "plop",
+    "healthcheck": "tsx ./script/deploy/healthCheck.mts",
     "propose-safe-tx": "ts-node ./script/deploy/safe/propose-to-safe.ts",
     "confirm-safe-tx": "ts-node ./script/deploy/safe/confirm-safe-tx.ts",
     "add-safe-owners": "ts-node ./script/deploy/safe/add-owners-to-safe.ts"
@@ -101,8 +102,9 @@
     "merkletreejs": "^0.3.11",
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
-    "viem": "^2.10.1",
-    "yarn": "^1.22.19"
+    "tsx": "^4.7.2",
+    "viem": "^2.11.1",
+    "zx": "^8.0.2"
   },
   "lint-staged": {
     "*.{ts,js}": [
