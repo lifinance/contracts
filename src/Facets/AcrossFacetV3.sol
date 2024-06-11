@@ -10,6 +10,8 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
+import { console2 } from "forge-std/console2.sol";
+
 /// @title AcrossFacetV3
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
@@ -18,10 +20,10 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
     /// @notice The contract address of the spoke pool on the source chain.
-    IAcrossSpokePool private immutable spokePool;
+    IAcrossSpokePool public immutable spokePool;
 
     /// @notice The WETH address on the current chain.
-    address private immutable wrappedNative;
+    address public immutable wrappedNative;
 
     /// Types ///
 
@@ -108,6 +110,7 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         AcrossData calldata _acrossData
     ) internal {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            console2.log("inNative");
             // NATIVE
             spokePool.depositV3{ value: _bridgeData.minAmount }(
                 msg.sender, // depositor
@@ -125,6 +128,7 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         } else {
             // ERC20
+            console2.log("inERC20");
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(spokePool),

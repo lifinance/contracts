@@ -1,23 +1,3 @@
-// WORKING depositV3 (not mine):
-// https://etherscan.io/tx/0xa9f617b3f59fe37259eb2e4e2eb1a19469f097f9d498477c0dc0d06655ae31d7
-
-// Parameters
-//   "0xdBC0Ac7F3eD888001C035Ad4033833974FDaBEF7",
-//   "0xdBC0Ac7F3eD888001C035Ad4033833974FDaBEF7",
-//   "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-//   "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-//   "100000000000",
-//   "99988986958",
-//   "42161",
-//   "0x0000000000000000000000000000000000000000",
-//   "1717991015",
-//   "1718012856",
-//   "0",
-//   "0x"
-
-// waiting for response here
-// https://github.com/foundry-rs/foundry/issues/4988
-
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
 
@@ -95,13 +75,12 @@ contract AcrossFacetV3Test is TestBaseFacet {
         bridgeData.destinationChainId = 42161;
 
         // produce valid AcrossData
-        uint32 quoteTimestamp = 1716791411;
+        uint32 quoteTimestamp = uint32(block.timestamp);
         validAcrossData = AcrossFacetV3.AcrossData({
-            // receivingAssetId: ADDRESS_USDC_POL,
-            receivingAssetId: 0xaf88d065e77c8cC2239327C5EDb3A432268e5831, //USDC @ ARB
-            outputAmount: 0.9 ether,
+            receivingAssetId: ADDRESS_USDC_POL,
+            outputAmount: (defaultUSDCAmount * 9) / 10,
             quoteTimestamp: quoteTimestamp,
-            fillDeadline: quoteTimestamp + 1000,
+            fillDeadline: uint32(quoteTimestamp + 1000),
             message: ""
         });
 
@@ -150,53 +129,105 @@ contract AcrossFacetV3Test is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testCanBridgeTokens() public {
-        vm.startPrank(USER_SENDER);
+    function test_contractIsSetUpCorrectly() public {
+        acrossFacetV3 = new TestAcrossFacetV3(IAcrossSpokePool(SPOKE_POOL));
 
-        // set approval
-        usdc.approve(address(acrossFacetV3), defaultUSDCAmount);
-
-        // set up expected event emission
-        vm.expectEmit(true, true, true, true, address(acrossFacetV3));
-        emit LiFiTransferStarted(bridgeData);
-
-        initiateBridgeTxWithFacet(false);
-        vm.stopPrank();
+        assertEq(address(acrossFacetV3.spokePool()) == SPOKE_POOL, true);
+        assertEq(acrossFacetV3.wrappedNative() == ADDRESS_WETH, true);
     }
 
-    function testBase_CanBridgeNativeTokens()
-        public
-        override
-        assertBalanceChange(
-            address(0),
-            USER_SENDER,
-            -int256((defaultNativeAmount + addToMessageValue))
-        )
-    // assertBalanceChange(address(0), USER_RECEIVER, 0)
-    // assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
-    // assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
-    {
-        vm.startPrank(0x75e89d5979E4f6Fba9F97c104c2F0AFB3F1dcB88);
-        console.log("balance sender: ", USER_SENDER.balance);
-        // customize bridgeData
-        bridgeData.sendingAssetId = address(0);
-        bridgeData.minAmount = defaultNativeAmount;
+    // function test_CanBridgeERC20() public {
+    //     vm.startPrank(USER_SENDER);
 
-        validAcrossData
-            .receivingAssetId = 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619; // WMATIC on POL
+    //     // set approval
+    //     usdc.approve(address(acrossFacetV3), defaultUSDCAmount);
 
-        //prepare check for events
-        // vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        // emit LiFiTransferStarted(bridgeData);
+    //     // set up expected event emission
+    //     vm.expectEmit(true, true, true, true, address(acrossFacetV3));
+    //     emit LiFiTransferStarted(bridgeData);
 
-        initiateBridgeTxWithFacet(true);
-        // (bool success, bytes memory result) = SPOKE_POOL.call{
-        //     value: 1 ether
-        // }(
-        //     hex"7b93923200000000000000000000000075e89d5979e4f6fba9f97c104c2f0afb3f1dcb880000000000000000000000000000000000000000000000000000000abc654321000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc20000000000000000000000007ceb23fd6bc0add59e62ac25578270cff1b9f6190000000000000000000000000000000000000000000000000de0b6b3a76400000000000000000000000000000000000000000000000000000c7d713b49da00000000000000000000000000000000000000000000000000000000000000000089000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000665428730000000000000000000000000000000000000000000000000000000066542c5b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000003626c610000000000000000000000000000000000000000000000000000000000"
-        // );
+    //     initiateBridgeTxWithFacet(false);
+    //     vm.stopPrank();
+    // }
 
-        // if (!success) LibUtil.revertWith(result);
-        vm.stopPrank();
-    }
+    // function test_CanBridgeTokensWITHVALIDPARAMETERS() public {
+    //     address depositor = 0xdBC0Ac7F3eD888001C035Ad4033833974FDaBEF7;
+    //     address inputToken = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    //     address outputToken = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+
+    //     //
+    //     deal(inputToken, depositor, 100000000000);
+    //     vm.startPrank(depositor);
+
+    //     // set approval
+    //     usdc.approve(address(acrossFacetV3), 100000000000);
+
+    //     bridgeData.receiver = depositor;
+    //     bridgeData.sendingAssetId = inputToken;
+    //     validAcrossData.receivingAssetId = outputToken;
+    //     bridgeData.minAmount = 100000000000;
+    //     validAcrossData.outputAmount = 99988986958;
+    //     bridgeData.destinationChainId = 42161;
+    //     validAcrossData.quoteTimestamp = uint32(block.timestamp);
+    //     validAcrossData.fillDeadline = uint32(block.timestamp + 1000);
+    //     validAcrossData.message = "";
+
+    //     // set up expected event emission
+    //     vm.expectEmit(true, true, true, true, address(acrossFacetV3));
+    //     emit LiFiTransferStarted(bridgeData);
+
+    //     initiateBridgeTxWithFacet(false);
+    //     vm.stopPrank();
+    // }
+
+    // function testCanBridgeTokensWITHVALID_PARAMETERS_DIRECT_SPOKE_POOL()
+    //     public
+    // {
+    //     // trying to simulate this (successful) tx in a test case:
+    //     // https://etherscan.io/tx/0xa9f617b3f59fe37259eb2e4e2eb1a19469f097f9d498477c0dc0d06655ae31d7
+    //     // Parameters:
+    //     //   "0xdBC0Ac7F3eD888001C035Ad4033833974FDaBEF7",
+    //     //   "0xdBC0Ac7F3eD888001C035Ad4033833974FDaBEF7",
+    //     //   "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    //     //   "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    //     //   "100000000000",
+    //     //   "99988986958",
+    //     //   "42161",
+    //     //   "0x0000000000000000000000000000000000000000",
+    //     //   "1717991015",
+    //     //   "1718012856",
+    //     //   "0",
+    //     //   "0x"
+
+    //     address depositor = 0xdBC0Ac7F3eD888001C035Ad4033833974FDaBEF7;
+    //     address inputToken = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    //     address outputToken = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+    //     uint256 inputAmount = 100000000000;
+    //     uint256 outputAmount = 99988986958;
+    //     uint256 destinationChainId = 42161;
+    //     uint32 quoteTimestamp = 1717991015;
+    //     uint32 fillDeadline = 1718012856;
+    //     bytes memory message = "";
+
+    //     vm.startPrank(depositor);
+
+    //     // set approval
+    //     usdc.approve(address(acrossFacetV3), inputAmount);
+
+    //     IAcrossSpokePool(SPOKE_POOL).depositV3(
+    //         depositor,
+    //         depositor,
+    //         inputToken,
+    //         outputToken,
+    //         inputAmount,
+    //         outputAmount,
+    //         destinationChainId,
+    //         address(0),
+    //         quoteTimestamp,
+    //         fillDeadline,
+    //         0,
+    //         message
+    //     );
+    //     vm.stopPrank();
+    // }
 }

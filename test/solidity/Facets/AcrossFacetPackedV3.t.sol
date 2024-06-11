@@ -6,8 +6,9 @@ import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
 import { AcrossFacetPackedV3, TransferrableOwnership } from "lifi/Facets/AcrossFacetPackedV3.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
+import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { TestBase } from "../utils/TestBase.sol";
+import { console, TestBase } from "../utils/TestBase.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LiFiDiamond } from "../utils/DiamondTest.sol";
 import { console2 } from "forge-std/console2.sol";
@@ -34,6 +35,8 @@ contract AcrossFacetPackedV3Test is TestBase {
     address internal constant ACROSS_SPOKE_POOL =
         0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
     address internal ADDRESS_USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    address internal ADDRESS_USDC_POL =
+        0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
     address internal ACROSS_MERKLE_DISTRIBUTOR =
         0xE50b2cEAC4f60E840Ae513924033E753e2366487;
     address internal ADDRESS_ACX_TOKEN =
@@ -66,7 +69,7 @@ contract AcrossFacetPackedV3Test is TestBase {
     event LiFiAcrossTransfer(bytes8 _transactionId);
 
     function setUp() public {
-        customBlockNumberForForking = 19145375;
+        customBlockNumberForForking = 19960294;
 
         initTestBase();
 
@@ -125,15 +128,17 @@ contract AcrossFacetPackedV3Test is TestBase {
         destinationChainId = 137;
 
         // define valid AcrossData
+        uint32 quoteTimestamp = uint32(block.timestamp);
         validAcrossData = AcrossFacetV3.AcrossData({
-            receivingAssetId: ADDRESS_USDT,
-            outputAmount: 0.9 ether,
-            quoteTimestamp: uint32(block.timestamp),
-            fillDeadline: uint32(357437626),
-            message: "bla"
+            receivingAssetId: ADDRESS_USDC_POL,
+            outputAmount: (defaultUSDCAmount * 9) / 10,
+            quoteTimestamp: quoteTimestamp,
+            fillDeadline: uint32(quoteTimestamp + 1000),
+            message: ""
         });
 
-        vm.label(ACROSS_SPOKE_POOL, "SpokePool");
+        vm.label(ACROSS_SPOKE_POOL, "SpokePool_PROX");
+        vm.label(0x08C21b200eD06D2e32cEC91a770C3FcA8aD5F877, "SpokePool_IMPL");
         vm.label(ADDRESS_USDT, "USDT_TOKEN");
         vm.label(ACROSS_MERKLE_DISTRIBUTOR, "ACROSS_MERKLE_DISTRIBUTOR");
 
@@ -173,6 +178,8 @@ contract AcrossFacetPackedV3Test is TestBase {
 
         // usdc params
         amountUSDC = 100 * 10 ** usdc.decimals();
+        // bridgeData.minAmount = amountUSDC;
+        uint256 minAmountOut = (amountUSDC * 9) / 10;
         packedUSDCCalldata = acrossFacetPackedV3
             .encode_startBridgeTokensViaAcrossERC20Packed(
                 transactionId,
@@ -181,7 +188,7 @@ contract AcrossFacetPackedV3Test is TestBase {
                 USER_RECEIVER,
                 destinationChainId,
                 validAcrossData.receivingAssetId,
-                validAcrossData.outputAmount,
+                minAmountOut,
                 validAcrossData.quoteTimestamp,
                 validAcrossData.fillDeadline,
                 validAcrossData.message
@@ -310,9 +317,11 @@ contract AcrossFacetPackedV3Test is TestBase {
         emit LiFiAcrossTransfer(bytes8(transactionId));
 
         // call facet through diamond
-        (bool success, ) = address(diamond).call(packedUSDCCalldata);
+        (bool success, bytes memory reason) = address(diamond).call(
+            packedUSDCCalldata
+        );
         if (!success) {
-            revert();
+            revert(LibUtil.getRevertMsg(reason));
         }
         vm.stopPrank();
     }
@@ -537,13 +546,19 @@ contract AcrossFacetPackedV3Test is TestBase {
                 packedUSDCCalldata
             );
 
+        console.log(1);
         // validate bridgeData
         assertEqBridgeData(bridgeData);
+        console.log("amountUSDC: ", amountUSDC);
+
         assertEq(bridgeData.minAmount == amountUSDC, true);
+        console.log(3);
         assertEq(bridgeData.sendingAssetId == ADDRESS_USDC, true);
+        console.log(4);
 
         // validate acrossData
         assertEqAcrossData(validAcrossData, acrossData);
+        console.log(5);
     }
 
     function test_revert_cannotEncodeDestinationChainIdAboveUint32Max_Native()
@@ -572,7 +587,6 @@ contract AcrossFacetPackedV3Test is TestBase {
     {
         uint64 invalidDestinationChainId = uint64(type(uint32).max) + 1;
 
-        // USDC
         vm.expectRevert(
             "destinationChainId value passed too big to fit in uint32"
         );
@@ -594,7 +608,7 @@ contract AcrossFacetPackedV3Test is TestBase {
     function test_revert_cannotUseMinAmountAboveUint128Max_ERC20() public {
         uint256 invalidMinAmount = uint256(type(uint128).max) + 1;
 
-        vm.expectRevert("minAmount value passed too big to fit in uint128");
+        vm.expectRevert("inputAmount value passed too big to fit in uint128");
 
         acrossFacetPackedV3.encode_startBridgeTokensViaAcrossERC20Packed(
             transactionId,
@@ -635,5 +649,19 @@ contract AcrossFacetPackedV3Test is TestBase {
             amountUSDT
         );
         vm.stopPrank();
+    }
+
+    function test_contractIsSetUpCorrectly() public {
+        acrossFacetPackedV3 = new AcrossFacetPackedV3(
+            IAcrossSpokePool(ACROSS_SPOKE_POOL),
+            ADDRESS_WETH,
+            address(this)
+        );
+
+        assertEq(
+            address(acrossFacetPackedV3.spokePool()) == ACROSS_SPOKE_POOL,
+            true
+        );
+        assertEq(acrossFacetPackedV3.wrappedNative() == ADDRESS_WETH, true);
     }
 }

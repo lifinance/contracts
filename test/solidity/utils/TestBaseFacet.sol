@@ -125,8 +125,7 @@ abstract contract TestBaseFacet is TestBase {
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
     {
         vm.startPrank(USER_SENDER);
-        // vm.startPrank(0x75e89d5979E4f6Fba9F97c104c2F0AFB3F1dcB88);
-        console.log("balance sender: ", USER_SENDER.balance);
+
         // customize bridgeData
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = defaultNativeAmount;
