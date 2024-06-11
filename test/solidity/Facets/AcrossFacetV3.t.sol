@@ -1,3 +1,23 @@
+// WORKING depositV3 (not mine):
+// https://etherscan.io/tx/0xa9f617b3f59fe37259eb2e4e2eb1a19469f097f9d498477c0dc0d06655ae31d7
+
+// Parameters
+//   "0xdBC0Ac7F3eD888001C035Ad4033833974FDaBEF7",
+//   "0xdBC0Ac7F3eD888001C035Ad4033833974FDaBEF7",
+//   "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+//   "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+//   "100000000000",
+//   "99988986958",
+//   "42161",
+//   "0x0000000000000000000000000000000000000000",
+//   "1717991015",
+//   "1718012856",
+//   "0",
+//   "0x"
+
+// waiting for response here
+// https://github.com/foundry-rs/foundry/issues/4988
+
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
@@ -38,7 +58,6 @@ contract AcrossFacetV3Test is TestBaseFacet {
     TestAcrossFacetV3 internal acrossFacetV3;
 
     function setUp() public {
-        // customBlockNumberForForking = 17130542;
         customBlockNumberForForking = 19960294;
         initTestBase();
 
@@ -72,16 +91,18 @@ contract AcrossFacetV3Test is TestBaseFacet {
 
         // adjust bridgeData
         bridgeData.bridge = "across";
-        bridgeData.destinationChainId = 137;
+        // bridgeData.destinationChainId = 137;
+        bridgeData.destinationChainId = 42161;
 
         // produce valid AcrossData
         uint32 quoteTimestamp = 1716791411;
         validAcrossData = AcrossFacetV3.AcrossData({
-            receivingAssetId: ADDRESS_USDC_POL,
+            // receivingAssetId: ADDRESS_USDC_POL,
+            receivingAssetId: 0xaf88d065e77c8cC2239327C5EDb3A432268e5831, //USDC @ ARB
             outputAmount: 0.9 ether,
             quoteTimestamp: quoteTimestamp,
             fillDeadline: quoteTimestamp + 1000,
-            message: "bla"
+            message: ""
         });
 
         vm.label(SPOKE_POOL, "SpokePool_Proxy");
@@ -126,6 +147,20 @@ contract AcrossFacetV3Test is TestBaseFacet {
         validAcrossData.quoteTimestamp = uint32(block.timestamp + 20 minutes);
 
         acrossFacetV3.startBridgeTokensViaAcross(bridgeData, validAcrossData);
+        vm.stopPrank();
+    }
+
+    function testCanBridgeTokens() public {
+        vm.startPrank(USER_SENDER);
+
+        // set approval
+        usdc.approve(address(acrossFacetV3), defaultUSDCAmount);
+
+        // set up expected event emission
+        vm.expectEmit(true, true, true, true, address(acrossFacetV3));
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
         vm.stopPrank();
     }
 

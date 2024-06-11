@@ -108,6 +108,7 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         AcrossData calldata _acrossData
     ) internal {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            // NATIVE
             spokePool.depositV3{ value: _bridgeData.minAmount }(
                 msg.sender, // depositor
                 _bridgeData.receiver, // recipient
@@ -123,6 +124,7 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _acrossData.message
             );
         } else {
+            // ERC20
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(spokePool),
@@ -131,7 +133,7 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             spokePool.depositV3(
                 msg.sender, // depositor
                 _bridgeData.receiver, // recipient
-                wrappedNative, // inputToken
+                _bridgeData.sendingAssetId, // inputToken
                 _acrossData.receivingAssetId, // outputToken
                 _bridgeData.minAmount, // inputAmount
                 _acrossData.outputAmount, // outputAmount
