@@ -149,11 +149,19 @@ syncStagingWithProdDiamond() {
 
 syncRegisteredFacets() {
   # get all facets that are registered in PROD diamond
-  echo "[info] checking registered facets in PROD diamond now"
-  FACETS_RAW=$(cast call "$DIAMOND_PROD" "facets()" --rpc-url "$RPC_URL")
+  echo "[info] getting registered facets in STAGING diamond now"
+  STAGING_FACETS_RAW=$(cast call "$DIAMOND_STAGING" "facetAddresses()" --rpc-url "$RPC_URL")
+  STAGING_FACETS_DECODED=$(cast abi-decode "facets()(address[])" $STAGING_FACETS_RAW)
+
+  echoDebug "STAGING_FACETS: $STAGING_FACETS_DECODED"
+
+  echo "[info] getting registered facets in PROD diamond now"
+  PROD_FACETS_RAW=$(cast call "$DIAMOND_PROD" "facets()" --rpc-url "$RPC_URL")
+
+
 
   # decode the data returned by the diamond to obtain facet addresses and related function selectors
-  FACETS_DECODED=$(cast abi-decode "facets()((address,bytes4[])[])" $FACETS_RAW)
+  FACETS_DECODED=$(cast abi-decode "facets()((address,bytes4[])[])" $PROD_FACETS_RAW)
 
 
   # Remove the outer brackets
@@ -168,6 +176,7 @@ syncRegisteredFacets() {
   IFS=$DELIMITER read -ra FACETS_ARRAY <<< "$FACETS_DECODED"
 
   # Iterate through the facets and their function selectors
+  SELECTORS_TO_BE_REMOVED=()
   for RAW_VALUE in "${FACETS_ARRAY[@]}"; do
       # skip empty values
       if [[ -z "$RAW_VALUE" ]]; then
@@ -184,23 +193,33 @@ syncRegisteredFacets() {
     IFS=$DELIMITER read -ra PARTS <<< "$RAW_VALUE"
 
     # Extract the address and selectors
-    ADDRESS=${PARTS[0]}
-    if [[ ! -ze $ADDRESS ]]; then
+    FACET_ADDRESS=${PARTS[0]}
+    if [[ ! -ze $FACET_ADDRESS ]]; then
       FACET_COUNT=$((FACET_COUNT + 1))
     fi
     SELECTORS=${PARTS[4]}
 
     # Clean up address and selectors
-    ADDRESS=${ADDRESS//\'/}
+    FACET_ADDRESS=${FACET_ADDRESS//\'/}
     SELECTORS=${SELECTORS//[\[\]]/}
 
     # Print the address
-    echo "Facet Address: $ADDRESS"
+    echo "Now checking facet with address: $FACET_ADDRESS"
+
+    # check if this facet is already registered in STAGING diamond
+    if [[ " ${STAGING_FACETS_DECODED[@]} " =~ " ${FACET_ADDRESS} " ]]; then
+      # we assume here that function selectors match and continue with the next facet address
+      echoDebug "Facet is registered in STAGING diamond. Continuing with the next address."
+      continue
+    else
+      echoDebug "Facet is not registered in STAGING diamond."
+    fi
 
     # Split selectors by ', ' and iterate through each selector
-    IFS=', ' read -r -a SELECTORS_ARRAY <<< "$SELECTORS"
-
-    for SELECTOR_RAW in "${SELECTORS_ARRAY[@]}"; do
+    # to check if one of the selectors is already registered in the diamond
+    IFS=', ' read -r -a SELECTORS_RAW_ARRAY <<< "$SELECTORS"
+    SELECTORS_ARRAY=()
+    for SELECTOR_RAW in "${SELECTORS_RAW_ARRAY[@]}"; do
         # extract the actual function selector from the 32 bytes value
         SELECTOR=${SELECTOR_RAW:0:10}
 
@@ -208,16 +227,155 @@ syncRegisteredFacets() {
         if [[ ! -ze $SELECTOR ]]; then
           # count the selector
           SELECTOR_COUNT=$((SELECTOR_COUNT + 1))
+        else
+          error "Selector did not contain any data: $SELECTOR"
+          continue
         fi
 
-        # Print the function selector
-        echo "  Function Selector: $SELECTOR"
+        #  add selector to new array
+        SELECTOR_ARRAY+=($SELECTOR)
 
+        # check if the function selector is registered in the STAGING diamond
+        local REGISTERED_ADDRESS=$(getFacetAddressFromDiamond "$NETWORK" "$DIAMOND_STAGING" "$SELECTOR")
+        if ! compareAddresses "$REGISTERED_ADDRESS" "$ZERO_ADDRESS" >/dev/null; then
+          echoDebug "Selector is already registered in STAGING diamond and will be removed first: $SELECTOR"
+          SELECTORS_TO_BE_REMOVED+=($SELECTOR)
+        fi
     done
-        echo ""
+
+    # make a diamondCut call to remove all function selectors that are
+    if [[ ${#SELECTORS_TO_BE_REMOVED[@]} -ne 0 ]]; then
+      removeFunctionSelectorsFromStagingDiamond "$DIAMOND_STAGING" "$NETWORK" "$RPC_URL" "${SELECTORS_TO_BE_REMOVED[@]}"
+    else
+      echoDebug "No function selectors found that need to be removed first"
+    fi
+
+    # create diamond cut to add new facet with its function selectors
+    addFunctionSelectorsToStagingDiamond "$DIAMOND_STAGING" "$NETWORK" "$RPC_URL" "$FACET_ADDRESS" "${SELECTORS_ARRAY[@]}"
+    ADDED_COUNT=$((ADDED_COUNT + 1))
+
+    # ISSUE: what about initiation of the facets?
+
+    echo ""
   done
 
   echo "[info] ${FACET_COUNT} registered facet addresses with ${SELECTOR_COUNT} function selectors found in PROD diamond"
+  echo "[info] ${ADDED_COUNT} of those facet addresses were added to the staging diamond"
+}
+
+addFunctionSelectorsToStagingDiamond() {
+  # read function arguments into variables
+  local DIAMOND_ADDRESS="$1"
+  local NETWORK="$2"
+  local RPC_URL="$3"
+  local FACET_ADDRESS="$4"
+  shift 4
+  local SELECTORS=("$@")
+
+  # prepare arguments for diamondCut call
+  local FACET_CUT_ACTION="1" # (add == 1 according to enum)
+  local DIAMOND_CUT_FUNCTION_SIGNATURE="diamondCut((address,uint8,bytes4[])[],address,bytes)"
+
+  local TUPLE="[(""$ZERO_ADDRESS"",""$FACET_CUT_ACTION,["$SELECTORS"])]"
+
+  # Encode the function call arguments with the encode command
+  local ENCODED_ARGS=$(cast calldata "$DIAMOND_CUT_FUNCTION_SIGNATURE" "$TUPLE" "$ZERO_ADDRESS" "0x")
+
+  ATTEMPTS=1
+  while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+    echo "[info] trying to add facet $FACET_ADDRESS to staging diamond $DIAMOND_ADDRESS - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
+
+    # call diamond
+    if [[ "$DEBUG" == *"true"* ]]; then
+      # print output to console
+      # TODO: UNDO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<≤<<<<<
+      # cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "staging")" --rpc-url "$RPC_URL" --legacy
+      echoDebug "cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "staging")" --rpc-url "$RPC_URL" --legacy"
+
+    else
+      # do not print output to console
+      # TODO: UNDO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<≤<<<<<
+      # cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "staging")" --rpc-url "$RPC_URL" --legacy >/dev/null 2>&1
+      echoDebug "cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "staging")" --rpc-url "$RPC_URL" --legacy >/dev/null 2>&1"
+    fi
+
+    # check the return code the last call
+    if [ $? -eq 0 ]; then
+      break # exit the loop if the operation was successful
+    fi
+
+    ATTEMPTS=$((ATTEMPTS + 1)) # increment ATTEMPTS
+    sleep 1                    # wait for 1 second before trying the operation again
+  done
+
+  # check if call was executed successfully or used all ATTEMPTS
+  if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
+    error "failed to add facet $FACET_ADDRESS to staging diamond $DIAMOND_ADDRESS on network $NETWORK"
+    # end this script according to flag
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
+  echo "[info] facet successfully added"
+}
+removeFunctionSelectorsFromStagingDiamond() {
+  # read function arguments into variables
+  local DIAMOND_ADDRESS="$1"
+  local NETWORK="$2"
+  local RPC_URL="$3"
+  shift 3
+  local SELECTORS=("$@")
+
+  # prepare arguments for diamondCut call
+  local FACET_CUT_ACTION="2" # (remove == 2 according to enum)
+  local DIAMOND_CUT_FUNCTION_SIGNATURE="diamondCut((address,uint8,bytes4[])[],address,bytes)"
+
+  local TUPLE="[(""$ZERO_ADDRESS"",""$FACET_CUT_ACTION,["$SELECTORS"])]"
+
+  # Encode the function call arguments with the encode command
+  local ENCODED_ARGS=$(cast calldata "$DIAMOND_CUT_FUNCTION_SIGNATURE" "$TUPLE" "$ZERO_ADDRESS" "0x")
+
+  ATTEMPTS=1
+  while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+    echo "[info] trying to remove function selectors from diamond $DIAMOND_ADDRESS - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
+
+    # call diamond
+    if [[ "$DEBUG" == *"true"* ]]; then
+      # print output to console
+      # TODO: UNDO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<≤<<<<<
+      # cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "staging")" --rpc-url "$RPC_URL" --legacy
+      echoDebug "cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "staging")" --rpc-url "$RPC_URL" --legacy"
+    else
+      # do not print output to console
+      # TODO: UNDO <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<≤<<<<<
+      # cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "staging")" --rpc-url "$RPC_URL" --legacy >/dev/null 2>&1
+      echoDebug "cast send "$DIAMOND_ADDRESS" "$ENCODED_ARGS" --private-key "$(getPrivateKey "$NETWORK" "staging")" --rpc-url "$RPC_URL" --legacy >/dev/null 2>&1"
+    fi
+
+    # check the return code the last call
+    if [ $? -eq 0 ]; then
+      break # exit the loop if the operation was successful
+    fi
+
+    ATTEMPTS=$((ATTEMPTS + 1)) # increment ATTEMPTS
+    sleep 1                    # wait for 1 second before trying the operation again
+  done
+
+  # check if call was executed successfully or used all ATTEMPTS
+  if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
+    error "failed to remove function selectors from $DIAMOND_ADDRESS on network $NETWORK"
+    # end this script according to flag
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
+  echo "[info] function selectors successfully removed"
 }
 
 syncStagingWithProdDiamond mainnet
