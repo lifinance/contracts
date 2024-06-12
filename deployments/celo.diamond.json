@@ -56,6 +56,10 @@
       "0x222b97E533220A47ad8700C396537D58e001808C": {
         "Name": "AllBridgeFacet",
         "Version": "2.0.0"
+      },
+      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

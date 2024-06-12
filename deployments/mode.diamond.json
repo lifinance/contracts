@@ -64,6 +64,10 @@
       "0x54910b7b4723a775708aFd88f31b6572e168aF66": {
         "Name": "AcrossFacetPacked",
         "Version": "1.0.0"
+      },
+      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

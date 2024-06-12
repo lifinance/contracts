@@ -15,20 +15,8 @@ graph LR;
 
 ## Public Methods
 
-- `function swapTokensSingleERC20ToERC20(bytes32 _transactionId,string calldata _integrator,string calldata _referrer,address payable _receive,uint256 _minAmountOut,LibSwap.SwapData calldata _swapData)`
-
-  - Performs a single swap from an ERC20 to another ERC20 token
-
-- `function swapTokensSingleERC20ToNative(bytes32 _transactionId,string calldata _integrator,string calldata _referrer,address payable _receive,uint256 _minAmountOut,LibSwap.SwapData calldata _swapData)`
-
-  - Performs a single swap from an ERC20 to the network's native token
-
-- `function swapTokensSingleNativeToERC20(bytes32 _transactionId,string calldata _integrator,string calldata _referrer,address payable _receive,uint256 _minAmountOut,LibSwap.SwapData calldata _swapData)`
-
-  - Performs a single swap from the network's native token to an ERC20 token
-
 - `function swapTokensGeneric(bytes32 _transactionId, string calldata _integrator, string calldata _referrer, address payable _receiver, uint256 _minAmount, SwapData[] calldata _swapData)`
-  - Performs multiple swap(s) before withdrawing the final token to the user
+  - Performs a single or multiple swap(s) before withdrawing the final token to the user
 
 ## Swap Data
 

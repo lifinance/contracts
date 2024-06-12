@@ -56,6 +56,10 @@
       "0x93f6D08Cd61605897eD6105b96777E720Fff5d38": {
         "Name": "LIFuelFacet",
         "Version": "1.0.1"
+      },
+      "0x6f862c35A2eDAa23DF8949b77F3E828bCBBE48dA": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
