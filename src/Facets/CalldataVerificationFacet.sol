@@ -100,6 +100,35 @@ contract CalldataVerificationFacet {
         );
     }
 
+    // @notice Extracts the non-EVM address from the calldata
+    // @param data The calldata to extract the non-EVM address from
+    // @return nonEVMAddress The non-EVM address extracted from the calldata
+    function extractNonEVMAddress(
+        bytes calldata data
+    ) external pure returns (bytes32 nonEVMAddress) {
+        bytes memory callData = data;
+        ILiFi.BridgeData memory bridgeData = _extractBridgeData(data);
+
+        if (
+            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
+        ) {
+            // standardizedCall
+            callData = abi.decode(data[4:], (bytes));
+        }
+
+        if (bridgeData.hasSourceSwaps) {
+            (, , nonEVMAddress, ) = abi.decode(
+                callData,
+                (ILiFi.BridgeData, LibSwap.SwapData[], bytes32, bytes)
+            );
+        } else {
+            (, nonEVMAddress, ) = abi.decode(
+                callData,
+                (ILiFi.BridgeData, bytes32, bytes)
+            );
+        }
+    }
+
     /// @notice Extracts the generic swap parameters from the calldata
     /// @param data The calldata to extract the generic swap parameters from
     /// @return sendingAssetId The sending asset id extracted from the calldata
