@@ -25,6 +25,12 @@ const coreFacets = [
   'DexManagerFacet',
   'PeripheryRegistryFacet',
   'AccessManagerFacet',
+  'PeripheryRegistryFacet',
+  'GenericSwapFacet',
+  'GenericSwapFacetV2',
+  'LIFuelFacet',
+  'CalldataVerificationFacet',
+  'StandardizedCallFacet',
 ]
 
 const corePeriphery = [
