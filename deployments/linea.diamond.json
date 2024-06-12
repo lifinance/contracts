@@ -96,6 +96,10 @@
       "0xEa8EF3E532db49915FDbDdB29244a83E76768111": {
         "Name": "SquidFacet",
         "Version": "1.0.0"
+      },
+      "0xf4E73E2A9cDF1F94579cda3da07aD04031359CB5": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

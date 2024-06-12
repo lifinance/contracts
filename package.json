@@ -73,7 +73,7 @@
     "test": "make test",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
     "gas": "make snapshot",
-    "coverage": "make coverage",
+    "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov && ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
     "execute": "node ./_scripts.js run",
     "abi:generate": "make clean && forge build --skip script --skip test --skip Base --skip Test && hardhat diamondABI",
     "typechain": "make clean && forge build --skip script --skip test --skip Base --skip Test && typechain --target ethers-v5 'out/**/*.json' --out-dir typechain",
