@@ -2,17 +2,12 @@
 pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
-import { stdJson } from "forge-std/StdJson.sol";
-import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
-import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
-    using stdJson for string;
-
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
     {
-        return update("MayanFacet");
+        return update("GenericSwapFacetV3");
     }
 }

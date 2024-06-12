@@ -2729,6 +2729,10 @@ function getChainId() {
     echo "1101"
     return 0
     ;;
+  "rootstock")
+    echo "30"
+    return 0
+    ;;
   "gnosis")
     echo "100"
     return 0

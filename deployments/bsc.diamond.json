@@ -92,6 +92,10 @@
       "0x14B4e2e2e3422DeC6F8bF3DcDc0BF3566F37197D": {
         "Name": "MayanFacet",
         "Version": "1.0.0"
+      },
+      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

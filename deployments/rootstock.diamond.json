@@ -48,10 +48,14 @@
       "0xb8C5408ED5f40ca8df929A50DD36b252B6b39f76": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
+      "ERC20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
       "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
       "GasRebateDistributor": "",

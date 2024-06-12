@@ -48,6 +48,10 @@
       "0xb8C5408ED5f40ca8df929A50DD36b252B6b39f76": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

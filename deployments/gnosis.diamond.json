@@ -72,6 +72,10 @@
       "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB": {
         "Name": "AmarokFacetPacked",
         "Version": "1.0.0"
+      },
+      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
