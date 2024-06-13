@@ -38,30 +38,30 @@ deployAllContracts() {
   local DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
   echo "[info] selected diamond type: $DIAMOND_CONTRACT_NAME"
 
-  # # deploy core facets
-  # deployCoreFacets "$NETWORK" "$ENVIRONMENT"
-  # echo ""
-  #
-  # # get current diamond contract version
-  # local VERSION=$(getCurrentContractVersion "$DIAMOND_CONTRACT_NAME")
-  #
-  # # deploy diamond
-  # echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $DIAMOND_CONTRACT_NAME now"
-  # deploySingleContract "$DIAMOND_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" "true"
-  #
-  # # check if last command was executed successfully, otherwise exit script with error message
-  # checkFailure $? "deploy contract $DIAMOND_CONTRACT_NAME to network $NETWORK"
-  # echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $DIAMOND_CONTRACT_NAME successfully deployed"
-  #
-  # # update diamond with core facets
-  # echo ""
-  # echo ""
-  # echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now updating core facets in diamond contract"
-  # diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateCoreFacets" false
-  #
-  # # check if last command was executed successfully, otherwise exit script with error message
-  # checkFailure $? "update core facets in $DIAMOND_CONTRACT_NAME on network $NETWORK"
-  # echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets update completed"
+  # deploy core facets
+  deployCoreFacets "$NETWORK" "$ENVIRONMENT"
+  echo ""
+
+  # get current diamond contract version
+  local VERSION=$(getCurrentContractVersion "$DIAMOND_CONTRACT_NAME")
+
+  # deploy diamond
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying $DIAMOND_CONTRACT_NAME now"
+  deploySingleContract "$DIAMOND_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" "true"
+
+  # check if last command was executed successfully, otherwise exit script with error message
+  checkFailure $? "deploy contract $DIAMOND_CONTRACT_NAME to network $NETWORK"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< $DIAMOND_CONTRACT_NAME successfully deployed"
+
+  # update diamond with core facets
+  echo ""
+  echo ""
+  echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now updating core facets in diamond contract"
+  diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" "UpdateCoreFacets" false
+
+  # check if last command was executed successfully, otherwise exit script with error message
+  checkFailure $? "update core facets in $DIAMOND_CONTRACT_NAME on network $NETWORK"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets update completed"
 
   # approve refund wallet to execute refund-related functions
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now approving refund wallet to execute functions listed in config/global.json"
