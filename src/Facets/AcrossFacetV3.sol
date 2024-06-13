@@ -10,8 +10,6 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 
-import { console2 } from "forge-std/console2.sol";
-
 /// @title AcrossFacetV3
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across Protocol
@@ -32,7 +30,7 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
     /// @param fillDeadline The destination chain timestamp until which the order can be filled
     /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens
-    struct AcrossData {
+    struct AcrossV3Data {
         address receivingAssetId;
         uint256 outputAmount;
         uint32 quoteTimestamp;
@@ -55,9 +53,9 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens via Across
     /// @param _bridgeData the core information needed for bridging
     /// @param _acrossData data specific to Across
-    function startBridgeTokensViaAcross(
+    function startBridgeTokensViaAcrossV3(
         ILiFi.BridgeData memory _bridgeData,
-        AcrossData calldata _acrossData
+        AcrossV3Data calldata _acrossData
     )
         external
         payable
@@ -78,10 +76,10 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData the core information needed for bridging
     /// @param _swapData an array of swap related data for performing swaps before bridging
     /// @param _acrossData data specific to Across
-    function swapAndStartBridgeTokensViaAcross(
+    function swapAndStartBridgeTokensViaAcrossV3(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        AcrossData calldata _acrossData
+        AcrossV3Data calldata _acrossData
     )
         external
         payable
@@ -107,10 +105,9 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _acrossData data specific to Across
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        AcrossData calldata _acrossData
+        AcrossV3Data calldata _acrossData
     ) internal {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            console2.log("inNative");
             // NATIVE
             spokePool.depositV3{ value: _bridgeData.minAmount }(
                 msg.sender, // depositor
@@ -128,7 +125,6 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         } else {
             // ERC20
-            console2.log("inERC20");
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(spokePool),

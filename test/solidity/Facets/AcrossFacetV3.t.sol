@@ -34,7 +34,7 @@ contract AcrossFacetV3Test is TestBaseFacet {
     address internal constant ADDRESS_USDC_POL =
         0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
     // -----
-    AcrossFacetV3.AcrossData internal validAcrossData;
+    AcrossFacetV3.AcrossV3Data internal validAcrossData;
     TestAcrossFacetV3 internal acrossFacetV3;
 
     function setUp() public {
@@ -44,10 +44,10 @@ contract AcrossFacetV3Test is TestBaseFacet {
         acrossFacetV3 = new TestAcrossFacetV3(IAcrossSpokePool(SPOKE_POOL));
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = acrossFacetV3
-            .startBridgeTokensViaAcross
+            .startBridgeTokensViaAcrossV3
             .selector;
         functionSelectors[1] = acrossFacetV3
-            .swapAndStartBridgeTokensViaAcross
+            .swapAndStartBridgeTokensViaAcrossV3
             .selector;
         functionSelectors[2] = acrossFacetV3.addDex.selector;
         functionSelectors[3] = acrossFacetV3
@@ -76,7 +76,7 @@ contract AcrossFacetV3Test is TestBaseFacet {
 
         // produce valid AcrossData
         uint32 quoteTimestamp = uint32(block.timestamp);
-        validAcrossData = AcrossFacetV3.AcrossData({
+        validAcrossData = AcrossFacetV3.AcrossV3Data({
             receivingAssetId: ADDRESS_USDC_POL,
             outputAmount: (defaultUSDCAmount * 9) / 10,
             quoteTimestamp: quoteTimestamp,
@@ -90,11 +90,11 @@ contract AcrossFacetV3Test is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            acrossFacetV3.startBridgeTokensViaAcross{
+            acrossFacetV3.startBridgeTokensViaAcrossV3{
                 value: bridgeData.minAmount
             }(bridgeData, validAcrossData);
         } else {
-            acrossFacetV3.startBridgeTokensViaAcross(
+            acrossFacetV3.startBridgeTokensViaAcrossV3(
                 bridgeData,
                 validAcrossData
             );
@@ -105,11 +105,11 @@ contract AcrossFacetV3Test is TestBaseFacet {
         bool isNative
     ) internal override {
         if (isNative) {
-            acrossFacetV3.swapAndStartBridgeTokensViaAcross{
+            acrossFacetV3.swapAndStartBridgeTokensViaAcrossV3{
                 value: swapData[0].fromAmount
             }(bridgeData, swapData, validAcrossData);
         } else {
-            acrossFacetV3.swapAndStartBridgeTokensViaAcross(
+            acrossFacetV3.swapAndStartBridgeTokensViaAcrossV3(
                 bridgeData,
                 swapData,
                 validAcrossData
@@ -118,14 +118,16 @@ contract AcrossFacetV3Test is TestBaseFacet {
     }
 
     function testFailsToBridgeERC20TokensDueToQuoteTimeout() public {
-        console.logBytes4(IAcrossSpokePool.deposit.selector);
         vm.startPrank(WETH_HOLDER);
         ERC20 weth = ERC20(ADDRESS_WETH);
         weth.approve(address(acrossFacetV3), 10_000 * 10 ** weth.decimals());
 
         validAcrossData.quoteTimestamp = uint32(block.timestamp + 20 minutes);
 
-        acrossFacetV3.startBridgeTokensViaAcross(bridgeData, validAcrossData);
+        acrossFacetV3.startBridgeTokensViaAcrossV3(
+            bridgeData,
+            validAcrossData
+        );
         vm.stopPrank();
     }
 
@@ -135,99 +137,4 @@ contract AcrossFacetV3Test is TestBaseFacet {
         assertEq(address(acrossFacetV3.spokePool()) == SPOKE_POOL, true);
         assertEq(acrossFacetV3.wrappedNative() == ADDRESS_WETH, true);
     }
-
-    // function test_CanBridgeERC20() public {
-    //     vm.startPrank(USER_SENDER);
-
-    //     // set approval
-    //     usdc.approve(address(acrossFacetV3), defaultUSDCAmount);
-
-    //     // set up expected event emission
-    //     vm.expectEmit(true, true, true, true, address(acrossFacetV3));
-    //     emit LiFiTransferStarted(bridgeData);
-
-    //     initiateBridgeTxWithFacet(false);
-    //     vm.stopPrank();
-    // }
-
-    // function test_CanBridgeTokensWITHVALIDPARAMETERS() public {
-    //     address depositor = 0xdBC0Ac7F3eD888001C035Ad4033833974FDaBEF7;
-    //     address inputToken = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    //     address outputToken = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-
-    //     //
-    //     deal(inputToken, depositor, 100000000000);
-    //     vm.startPrank(depositor);
-
-    //     // set approval
-    //     usdc.approve(address(acrossFacetV3), 100000000000);
-
-    //     bridgeData.receiver = depositor;
-    //     bridgeData.sendingAssetId = inputToken;
-    //     validAcrossData.receivingAssetId = outputToken;
-    //     bridgeData.minAmount = 100000000000;
-    //     validAcrossData.outputAmount = 99988986958;
-    //     bridgeData.destinationChainId = 42161;
-    //     validAcrossData.quoteTimestamp = uint32(block.timestamp);
-    //     validAcrossData.fillDeadline = uint32(block.timestamp + 1000);
-    //     validAcrossData.message = "";
-
-    //     // set up expected event emission
-    //     vm.expectEmit(true, true, true, true, address(acrossFacetV3));
-    //     emit LiFiTransferStarted(bridgeData);
-
-    //     initiateBridgeTxWithFacet(false);
-    //     vm.stopPrank();
-    // }
-
-    // function testCanBridgeTokensWITHVALID_PARAMETERS_DIRECT_SPOKE_POOL()
-    //     public
-    // {
-    //     // trying to simulate this (successful) tx in a test case:
-    //     // https://etherscan.io/tx/0xa9f617b3f59fe37259eb2e4e2eb1a19469f097f9d498477c0dc0d06655ae31d7
-    //     // Parameters:
-    //     //   "0xdBC0Ac7F3eD888001C035Ad4033833974FDaBEF7",
-    //     //   "0xdBC0Ac7F3eD888001C035Ad4033833974FDaBEF7",
-    //     //   "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    //     //   "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-    //     //   "100000000000",
-    //     //   "99988986958",
-    //     //   "42161",
-    //     //   "0x0000000000000000000000000000000000000000",
-    //     //   "1717991015",
-    //     //   "1718012856",
-    //     //   "0",
-    //     //   "0x"
-
-    //     address depositor = 0xdBC0Ac7F3eD888001C035Ad4033833974FDaBEF7;
-    //     address inputToken = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    //     address outputToken = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-    //     uint256 inputAmount = 100000000000;
-    //     uint256 outputAmount = 99988986958;
-    //     uint256 destinationChainId = 42161;
-    //     uint32 quoteTimestamp = 1717991015;
-    //     uint32 fillDeadline = 1718012856;
-    //     bytes memory message = "";
-
-    //     vm.startPrank(depositor);
-
-    //     // set approval
-    //     usdc.approve(address(acrossFacetV3), inputAmount);
-
-    //     IAcrossSpokePool(SPOKE_POOL).depositV3(
-    //         depositor,
-    //         depositor,
-    //         inputToken,
-    //         outputToken,
-    //         inputAmount,
-    //         outputAmount,
-    //         destinationChainId,
-    //         address(0),
-    //         quoteTimestamp,
-    //         fillDeadline,
-    //         0,
-    //         message
-    //     );
-    //     vm.stopPrank();
-    // }
 }

@@ -9,9 +9,6 @@ import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 
-// TODO: remove
-import { console2 } from "forge-std/console2.sol";
-
 /// @title AcrossFacetPackedV3
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Across in a gas-optimized way
@@ -75,7 +72,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
 
     /// @notice Bridges native tokens via Across (packed implementation)
     /// No params, all data will be extracted from manually encoded callData
-    function startBridgeTokensViaAcrossNativePacked() external payable {
+    function startBridgeTokensViaAcrossV3NativePacked() external payable {
         // call Across spoke pool to bridge assets
         spokePool.depositV3{ value: msg.value }(
             msg.sender, // depositor
@@ -104,7 +101,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     /// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
     /// @param fillDeadline The destination chain timestamp until which the order can be filled
     /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens
-    function startBridgeTokensViaAcrossNativeMin(
+    function startBridgeTokensViaAcrossV3NativeMin(
         bytes32 transactionId,
         address receiver,
         uint256 destinationChainId,
@@ -135,12 +132,9 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
 
     /// @notice Bridges ERC20 tokens via Across (packed implementation)
     /// No params, all data will be extracted from manually encoded callData
-    function startBridgeTokensViaAcrossERC20Packed() external payable {
-        console2.log("HERE");
+    function startBridgeTokensViaAcrossV3ERC20Packed() external payable {
         address sendingAssetId = address(bytes20(msg.data[32:52]));
         uint256 inputAmount = uint256(uint128(bytes16(msg.data[52:68])));
-        console2.log("sendingAssetId: ", sendingAssetId);
-        console2.log("inputAmount: ", inputAmount);
 
         // Deposit assets
         ERC20(sendingAssetId).safeTransferFrom(
@@ -150,15 +144,6 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
         );
 
         // call Across SpokePool
-        console2.log("recipient: ", address(bytes20(msg.data[12:32])));
-        console2.log("outputToken: ", address(bytes20(msg.data[88:108])));
-        console2.log("outputAmount: ", uint256(bytes32(msg.data[108:140])));
-        console2.log(
-            "destinationChainId: ",
-            uint64(uint32(bytes4(msg.data[68:72])))
-        );
-        console2.log("quoteTimestamp: ", uint32(bytes4(msg.data[140:144])));
-        console2.log("fillDeadline: ", uint32(bytes4(msg.data[144:148])));
         spokePool.depositV3(
             msg.sender, // depositor
             address(bytes20(msg.data[12:32])), // recipient
@@ -188,7 +173,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     /// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
     /// @param fillDeadline The destination chain timestamp until which the order can be filled
     /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens
-    function startBridgeTokensViaAcrossERC20Min(
+    function startBridgeTokensViaAcrossV3ERC20Min(
         bytes32 transactionId,
         address sendingAssetId,
         uint256 inputAmount,
@@ -235,7 +220,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     /// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
     /// @param fillDeadline The destination chain timestamp until which the order can be filled
     /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens
-    function encode_startBridgeTokensViaAcrossNativePacked(
+    function encode_startBridgeTokensViaAcrossV3NativePacked(
         bytes32 transactionId,
         address receiver,
         uint256 destinationChainId,
@@ -247,17 +232,15 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     ) external pure returns (bytes memory) {
         // there are already existing networks with chainIds outside uint32 range but since we not support either of them yet,
         // we feel comfortable using this approach to save further gas
-        console2.log("1");
         require(
             destinationChainId <= type(uint32).max,
             "destinationChainId value passed too big to fit in uint32"
         );
-        console2.log("2");
 
         return
             bytes.concat(
                 AcrossFacetPackedV3
-                    .startBridgeTokensViaAcrossNativePacked
+                    .startBridgeTokensViaAcrossV3NativePacked
                     .selector,
                 bytes8(transactionId),
                 bytes20(receiver),
@@ -281,7 +264,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     /// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
     /// @param fillDeadline The destination chain timestamp until which the order can be filled
     /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens
-    function encode_startBridgeTokensViaAcrossERC20Packed(
+    function encode_startBridgeTokensViaAcrossV3ERC20Packed(
         bytes32 transactionId,
         address sendingAssetId,
         uint256 inputAmount,
@@ -308,7 +291,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
         return
             bytes.concat(
                 AcrossFacetPackedV3
-                    .startBridgeTokensViaAcrossERC20Packed
+                    .startBridgeTokensViaAcrossV3ERC20Packed
                     .selector,
                 bytes8(transactionId),
                 bytes20(receiver),
@@ -325,14 +308,14 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
 
     /// @notice Decodes calldata that is meant to be used for calling the native 'packed' function
     /// @param data the calldata to be decoded
-    function decode_startBridgeTokensViaAcrossNativePacked(
+    function decode_startBridgeTokensViaAcrossV3NativePacked(
         bytes calldata data
     )
         external
         pure
         returns (
             BridgeData memory bridgeData,
-            AcrossFacetV3.AcrossData memory acrossData
+            AcrossFacetV3.AcrossV3Data memory acrossData
         )
     {
         require(
@@ -360,14 +343,14 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
 
     /// @notice Decodes calldata that is meant to be used for calling the ERC20 'packed' function
     /// @param data the calldata to be decoded
-    function decode_startBridgeTokensViaAcrossERC20Packed(
+    function decode_startBridgeTokensViaAcrossV3ERC20Packed(
         bytes calldata data
     )
         external
         pure
         returns (
             BridgeData memory bridgeData,
-            AcrossFacetV3.AcrossData memory acrossData
+            AcrossFacetV3.AcrossV3Data memory acrossData
         )
     {
         require(
@@ -382,12 +365,6 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
         bridgeData.receiver = address(bytes20(data[12:32]));
         bridgeData.sendingAssetId = address(bytes20(data[32:52]));
         bridgeData.minAmount = uint256(uint128(bytes16(data[52:68])));
-        console2.log("a_bridgeData.receiver: ", bridgeData.receiver);
-        console2.log(
-            "a_bridgeData.sendingAssetId: ",
-            bridgeData.sendingAssetId
-        );
-        console2.log("a_bridgeData.minAmount: ", bridgeData.minAmount);
         bridgeData.destinationChainId = uint64(uint32(bytes4(data[68:72])));
 
         // extract acrossData

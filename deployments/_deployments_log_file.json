@@ -19122,5 +19122,35 @@
         ]
       }
     }
+  },
+  "AcrossFacetV3": {
+    "polygon": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2CD74Cf97D1BD7a7c7FEd29Bfb5127e71b896643",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-12 21:41:13",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009295ee1d8c5b022be115a2ad3c30c72e34e7f0960000000000000000000000007ceb23fd6bc0add59e62ac25578270cff1b9f619",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "optimism": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x2CD74Cf97D1BD7a7c7FEd29Bfb5127e71b896643",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-13 11:48:12",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006f26bf09b1c792e3228e5467807a900a503c02810000000000000000000000004200000000000000000000000000000000000006",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
   }
 }

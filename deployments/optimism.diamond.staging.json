@@ -48,16 +48,22 @@
       "0xb590b3B312f3C73621aa1E363841c8baecc2E712": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x2CD74Cf97D1BD7a7c7FEd29Bfb5127e71b896643": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x5F9a7Ce82722e7641d2b8533472181f89f5f6936",
       "Executor": "0x6c565C1f41270fD11D41b47f1fD0Fa3a9F395D33",
       "FeeCollector": "0xFA581eEE97897f60C60Ce436C25Bb1C37336F511",
+      "GasRebateDistributor": "",
       "LiFuelFeeCollector": "",
-      "Receiver": "0x36Fed707D41e301e30C7953D58DD3e7722EFb6AA",
+      "Receiver": "0xe36c722a73eb2FD182A35C3579266B43DFCFCAba",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0x0874Be3949ABF784C11E5f822F1a54c8655904C1"
+      "ServiceFeeCollector": "0x0874Be3949ABF784C11E5f822F1a54c8655904C1",
+      "TokenWrapper": ""
     }
   }
 }
