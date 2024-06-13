@@ -114,7 +114,6 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         MayanData calldata _mayanData
     ) internal {
         // Validate receiver address
-        bytes memory protocolData = _mayanData.protocolData;
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             if (_mayanData.nonEVMReceiver == bytes32(0)) {
                 revert InvalidNonEVMReceiver(
