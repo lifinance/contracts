@@ -63,7 +63,8 @@
       "Receiver": "0xe36c722a73eb2FD182A35C3579266B43DFCFCAba",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x0874Be3949ABF784C11E5f822F1a54c8655904C1",
-      "TokenWrapper": ""
+      "TokenWrapper": "",
+      "ReceiverAcrossV3": ""
     }
   }
 }

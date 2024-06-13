@@ -1,8 +1,9 @@
-import { providers, Wallet, BigNumber, constants } from 'ethers'
+import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
 import { node_url } from '../../../utils/network'
 import { addressToBytes32 as addressToBytes32Lz } from '@layerzerolabs/lz-v2-utilities'
-import { ERC20__factory } from '../../../typechain'
+import { AcrossFacetV3, ERC20__factory } from '../../../typechain'
 import { blocks } from '@uma/sdk/dist/types/tables'
+import { LibSwap } from '../../../typechain/AcrossFacetV3'
 
 export enum TX_TYPE {
   ERC20,
@@ -22,11 +23,15 @@ export const ADDRESS_USDC_OPT = '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85'
 export const ADDRESS_USDCe_OPT = '0x7F5c764cBc14f9669B88837ca1490cCa17c31607'
 export const ADDRESS_WETH_ETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
 export const ADDRESS_WETH_OPT = '0x4200000000000000000000000000000000000006'
+export const ADDRESS_WETH_POL = '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619'
 export const ADDRESS_WETH_ARB = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
-// export const ADDRESS_WETH_POL = '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619'
 export const ADDRESS_WMATIC_POL = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270 '
 
-// export const ADDRESS_UNISWAP_ETH
+export const ADDRESS_UNISWAP_ETH = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
+export const ADDRESS_UNISWAP_BSC = '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24'
+export const ADDRESS_UNISWAP_POL = '0xedf6066a2b290C185783862C7F4776A2C8077AD1'
+export const ADDRESS_UNISWAP_OPT = '0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2'
+export const ADDRESS_UNISWAP_ARB = '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24'
 // const UNISWAP_ADDRESS_DST = '0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2' // Uniswap OPT
 
 /// ############# HELPER FUNCTIONS ###################### ///
@@ -121,4 +126,44 @@ export const ensureBalanceAndAllowanceToDiamond = async (
   console.log(
     `Current wallet balance in sendingAsset is sufficient: ${balance}`
   )
+}
+
+export const getUniswapSwapDataERC20ToERC20 = async (
+  uniswapAddress: string,
+  sendingAssetId: string,
+  receivingAssetId: string,
+  fromAmount: BigNumber,
+  receiverAddress: string,
+  deadline = Math.floor(Date.now() / 1000) + 60 * 60
+) => {
+  // prepare destSwap callData
+  const uniswap = new Contract(uniswapAddress, [
+    'function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
+  ])
+  const path = [sendingAssetId, receivingAssetId]
+
+  const uniswapCalldata = (
+    await uniswap.populateTransaction.swapExactTokensForTokens(
+      fromAmount, // amountIn
+      0, // amountOutMin
+      path,
+      receiverAddress,
+      deadline
+    )
+  ).data
+
+  if (!uniswapCalldata) throw Error('Could not create Uniswap calldata')
+
+  // construct LibSwap.SwapData
+  const swapData: LibSwap.SwapDataStruct = {
+    callTo: uniswapAddress,
+    approveTo: uniswapAddress,
+    sendingAssetId,
+    receivingAssetId,
+    fromAmount,
+    callData: uniswapCalldata,
+    requiresDeposit: true,
+  }
+
+  return swapData
 }

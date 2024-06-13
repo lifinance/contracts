@@ -2,7 +2,10 @@ import { utils, BigNumber, constants } from 'ethers'
 import { AcrossFacetV3, AcrossFacetV3__factory, ILiFi } from '../../typechain'
 import deploymentsPOL from '../../deployments/polygon.staging.json'
 import deploymentsOPT from '../../deployments/optimism.staging.json'
+import deploymentsARB from '../../deployments/arbitrum.staging.json'
 import {
+  ADDRESS_UNISWAP_OPT,
+  ADDRESS_UNISWAP_POL,
   ADDRESS_USDC_OPT,
   ADDRESS_USDC_POL,
   ADDRESS_WETH_ARB,
@@ -15,6 +18,7 @@ import {
   TX_TYPE,
 } from './utils/demoScriptHelpers'
 import { LibSwap } from '../../typechain/AcrossFacetV3'
+import { getUniswapSwapDataERC20ToERC20 } from './utils/demoScriptHelpers'
 
 // Successful transactions:
 // POL.USDC > OPT.USDC: https://polygonscan.com/tx/0x27c6b57653e58fb7ee9315190a5dc2a13c9d2aaba4c83e66df74abcc2074c6bc (ERC20)
@@ -155,17 +159,17 @@ const getAcrossQuote = async (
   sendingAssetId: string,
   fromChainId: number,
   toChainId: number,
-  amount: string
+  amount: string,
+  receiverAddress = constants.AddressZero,
+  payload = '0x'
 ): Promise<AcrossV3Quote> => {
   const endpointURL = '/suggested-fees'
-  const fullURL = `${ACROSS_API_BASE_URL}${endpointURL}?token=${sendingAssetId}&destinationChainId=${toChainId}&amount=${amount}`
+  const fullURL = `${ACROSS_API_BASE_URL}${endpointURL}?token=${sendingAssetId}&originChainId=${fromChainId}&destinationChainId=${toChainId}&amount=${amount}&recipient=${receiverAddress}&message=${payload}`
   logDebug(`requesting quote: ${fullURL}`)
 
   let resp: AcrossV3Quote | undefined = undefined
   try {
-    resp = await fetch(
-      `${ACROSS_API_BASE_URL}${endpointURL}?token=${sendingAssetId}&originChainId=${fromChainId}&destinationChainId=${toChainId}&amount=${amount}`
-    ).then((response) => response.json())
+    resp = await fetch(fullURL).then((response) => response.json())
   } catch (error) {
     console.error(error)
   }
@@ -184,6 +188,15 @@ const getMinAmountOut = (quote: AcrossV3Quote, fromAmount: string) => {
   const outputAmount = BigNumber.from(fromAmount).sub(quote.totalRelayFee.total)
   if (!outputAmount) throw Error('could not calculate output amount')
   return outputAmount
+}
+
+const createDestCallPayload = (): string => {
+  // return empty calldata if dest call is not applicable
+  if (!WITH_DEST_CALL) return '0x'
+
+  let payload
+
+  return payload
 }
 
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
@@ -290,10 +303,24 @@ async function main() {
   console.log('bridgeData prepared')
 
   // prepare swapData, if applicable
-  const swapData: LibSwap.SwapDataStruct[] = []
+  const swapData = []
+  const uniswapAddress = isNativeTX(TRANSACTION_TYPE)
+    ? ADDRESS_UNISWAP_OPT
+    : ADDRESS_UNISWAP_POL
+  const receiverAddress = isNativeTX(TRANSACTION_TYPE)
+    ? deploymentsARB.ReceiverAcrossV3
+    : deploymentsOPT.ReceiverAcrossV3
+
+  swapData[0] = await getUniswapSwapDataERC20ToERC20(
+    uniswapAddress,
+    sendingAssetId,
+    receivingAssetId,
+    BigNumber.from(fromAmount),
+    receiverAddress
+  )
 
   // prepare dest calldata, if applicable
-  const payload = '0x' //FIXME:
+  const payload = createDestCallPayload() //FIXME:
   if (WITH_DEST_CALL) console.log('payload prepared')
 
   // prepare AcrossV3Data
