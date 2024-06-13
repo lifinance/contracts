@@ -222,7 +222,7 @@ const main = defineCommand({
       // FeeCollector
       if (deployedContracts['FeeCollector']) {
         contractAddress = deployedContracts['FeeCollector']
-        owner = await getOwnablContract(
+        owner = await getOwnableContract(
           contractAddress,
           publicClient
         ).read.owner()
@@ -236,7 +236,7 @@ const main = defineCommand({
       // LiFuelFeeCollector
       if (deployedContracts['LiFuelFeeCollector']) {
         contractAddress = deployedContracts['LiFuelFeeCollector']
-        owner = await getOwnablContract(
+        owner = await getOwnableContract(
           contractAddress,
           publicClient
         ).read.owner()
@@ -252,7 +252,7 @@ const main = defineCommand({
       // Receiver
       if (deployedContracts['Receiver']) {
         contractAddress = deployedContracts['Receiver']
-        owner = await getOwnablContract(
+        owner = await getOwnableContract(
           contractAddress,
           publicClient
         ).read.owner()
@@ -332,7 +332,7 @@ const logError = (string: string) => {
   errors.push(string)
 }
 
-const getOwnablContract = (address: Address, client: PublicClient) => {
+const getOwnableContract = (address: Address, client: PublicClient) => {
   return getContract({
     address,
     abi: parseAbi(['function owner() external view returns (address)']),
