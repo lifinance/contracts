@@ -43,8 +43,13 @@ contract DeployScript is UpdateScriptBase {
 
     function run()
         public
-        returns (LiFiDiamond deployed, bytes memory constructorArgs)
+        returns (LiFiDiamond diamondContract, bytes memory constructorArgs)
     {
+        // this is to silence compiler warnings
+        constructorArgs = abi.encodePacked("");
+        diamondContract = LiFiDiamond(payable(diamond));
+
+        // get CREATE3-Factory
         CREATE3Factory factory = CREATE3Factory(
             vm.envAddress("CREATE3_FACTORY_ADDRESS")
         );
