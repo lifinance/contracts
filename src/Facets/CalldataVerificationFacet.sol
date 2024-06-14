@@ -117,15 +117,15 @@ contract CalldataVerificationFacet {
         }
 
         if (bridgeData.hasSourceSwaps) {
-            (, , nonEVMAddress, ) = abi.decode(
-                callData,
-                (ILiFi.BridgeData, LibSwap.SwapData[], bytes32, bytes)
-            );
+            assembly {
+                let offset := mload(add(callData, 0x64)) // Get the offset of the bridge specific data
+                nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
+            }
         } else {
-            (, nonEVMAddress, ) = abi.decode(
-                callData,
-                (ILiFi.BridgeData, bytes32, bytes)
-            );
+            assembly {
+                let offset := mload(add(callData, 0x44)) // Get the offset of the bridge specific data
+                nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
+            }
         }
     }
 

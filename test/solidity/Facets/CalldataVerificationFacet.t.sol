@@ -163,6 +163,37 @@ contract CalldataVerificationFacetTest is TestBase {
     }
 
     function test_CanExtractNonEVMAddress() public {
+        // produce valid MayanData
+        MayanFacet.MayanData memory mayanData = MayanFacet.MayanData(
+            bytes32("Just some address"),
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
+            hex"00"
+        );
+
+        bytes memory callData = abi.encodeWithSelector(
+            MayanFacet.startBridgeTokensViaMayan.selector,
+            bridgeData,
+            mayanData
+        );
+
+        bytes32 returnedNonEVMAddress = calldataVerificationFacet
+            .extractNonEVMAddress(callData);
+
+        assertEq(returnedNonEVMAddress, bytes32("Just some address"));
+
+        // standardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+        returnedNonEVMAddress = calldataVerificationFacet.extractNonEVMAddress(
+            standardizedCallData
+        );
+
+        assertEq(returnedNonEVMAddress, bytes32("Just some address"));
+    }
+
+    function test_CanExtractNonEVMAddressWithSwaps() public {
         bridgeData.hasSourceSwaps = true;
 
         // produce valid MayanData
