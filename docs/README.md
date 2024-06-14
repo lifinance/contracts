@@ -15,6 +15,7 @@
 - [DiamondLoupe Facet](./DiamondLoupeFacet.md)
 - [Generic Swap Facet](./GenericSwapFacet.md)
 - [Gnosis Bridge Facet](./GnosisBridgeFacet.md)
+- [Gravity Facet](./GravityFacet.md)
 - [Hop Facet](./HopFacet.md)
 - [Hop Facet Packed](./HopFacetPacked.md)
 - [Hyphen Facet](./HyphenFacet.md)
