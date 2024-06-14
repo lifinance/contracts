@@ -4,26 +4,30 @@ import deploymentsPOL from '../../deployments/polygon.staging.json'
 import deploymentsOPT from '../../deployments/optimism.staging.json'
 import deploymentsARB from '../../deployments/arbitrum.staging.json'
 import {
+  ADDRESS_UNISWAP_ARB,
   ADDRESS_UNISWAP_OPT,
-  ADDRESS_UNISWAP_POL,
+  ADDRESS_USDC_ARB,
   ADDRESS_USDC_OPT,
   ADDRESS_USDC_POL,
   ADDRESS_WETH_ARB,
   ADDRESS_WETH_OPT,
+  DEFAULT_DEST_PAYLOAD_ABI,
+  DEV_WALLET_ADDRESS,
   ensureBalanceAndAllowanceToDiamond,
   getProvider,
+  getUniswapSwapDataERC20ToERC20,
   getWalletFromPrivateKeyInDotEnv,
   isNativeTX,
   sendTransaction,
   TX_TYPE,
 } from './utils/demoScriptHelpers'
 import { LibSwap } from '../../typechain/AcrossFacetV3'
-import { getUniswapSwapDataERC20ToERC20 } from './utils/demoScriptHelpers'
 
 // Successful transactions:
 // POL.USDC > OPT.USDC: https://polygonscan.com/tx/0x27c6b57653e58fb7ee9315190a5dc2a13c9d2aaba4c83e66df74abcc2074c6bc (ERC20)
-// OPT.WETH > ARB.WETH: https://optimistic.etherscan.io/tx/0x3e8628b80ffdcb86f2e4d8f64afc2c93f35aaa85730b040dbdce13a9f87dd035 (Native)
-// POL.USDC > OPT.USDC:  (ERC20 + destCall)
+// OPT.ETH > ARB.WETH: https://optimistic.etherscan.io/tx/0x3e8628b80ffdcb86f2e4d8f64afc2c93f35aaa85730b040dbdce13a9f87dd035 (Native)
+// POL.USDC > OPT.WETH: https://polygonscan.com/tx/0xee32b07e80f900633e4d23d3fbd603586a26c56049214cd45e2eb5f070cbb9e1 (ERC20 + destCall)
+// OPT.ETH > ARB.USDC:  (Native + destCall)
 
 /// TYPES
 type AcrossV3Route = {
@@ -67,8 +71,6 @@ type AcrossV3Limit = {
 /// DEFAULT VARIABLES
 const ACROSS_API_BASE_URL = 'https://across.to/api'
 /// #################
-
-// const EXECUTOR_ADDRESS_DST = deploymentsOPT.Executor
 
 /// HELPER FUNCTIONS
 const logDebug = (msg: string) => {
@@ -160,7 +162,7 @@ const getAcrossQuote = async (
   fromChainId: number,
   toChainId: number,
   amount: string,
-  receiverAddress = constants.AddressZero,
+  receiverAddress = DEV_WALLET_ADDRESS,
   payload = '0x'
 ): Promise<AcrossV3Quote> => {
   const endpointURL = '/suggested-fees'
@@ -179,6 +181,7 @@ const getAcrossQuote = async (
       `Could not obtain a quote for fromToken=${sendingAssetId}, destChainId=${toChainId}, amount=${amount}`
     )
 
+  // logDebug(`quote: ${JSON.stringify(resp, null, 2)}`)
   return resp
 }
 
@@ -190,17 +193,26 @@ const getMinAmountOut = (quote: AcrossV3Quote, fromAmount: string) => {
   return outputAmount
 }
 
-const createDestCallPayload = (): string => {
+const createDestCallPayload = (
+  bridgeData: ILiFi.BridgeDataStruct,
+  swapData: LibSwap.SwapDataStruct[],
+  receiverAddress: string
+): string => {
   // return empty calldata if dest call is not applicable
   if (!WITH_DEST_CALL) return '0x'
 
-  let payload
+  const payload = utils.defaultAbiCoder.encode(DEFAULT_DEST_PAYLOAD_ABI, [
+    bridgeData.transactionId,
+    swapData,
+    receiverAddress,
+  ])
+  logDebug(`payload: ${payload}`)
 
   return payload
 }
 
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
-const TRANSACTION_TYPE = TX_TYPE.ERC20 as TX_TYPE // define which type of transaction you want to send
+const TRANSACTION_TYPE = TX_TYPE.ERC20_WITH_DEST as TX_TYPE // define which type of transaction you want to send
 const SEND_TX = true // let the script run without actually sending a transaction
 const DEBUG = true // set to true for higher verbosity in console output
 
@@ -225,6 +237,11 @@ const SRC_CHAIN = isNativeTX(TRANSACTION_TYPE) ? 'optimism' : 'polygon'
 const DIAMOND_ADDRESS_SRC = isNativeTX(TRANSACTION_TYPE)
   ? deploymentsOPT.LiFiDiamond
   : deploymentsPOL.LiFiDiamond
+const RECEIVER_ADDRESS_DST = WITH_DEST_CALL
+  ? isNativeTX(TRANSACTION_TYPE)
+    ? deploymentsARB.ReceiverAcrossV3
+    : deploymentsOPT.ReceiverAcrossV3
+  : constants.AddressZero
 const EXPLORER_BASE_URL = isNativeTX(TRANSACTION_TYPE)
   ? 'https://optimistic.etherscan.io/tx/'
   : 'https://polygonscan.com/tx/' // Across doesnt have an explorer
@@ -233,7 +250,6 @@ const EXPLORER_BASE_URL = isNativeTX(TRANSACTION_TYPE)
 async function main() {
   // get provider and wallet
   const provider = getProvider(SRC_CHAIN)
-  console.log('SRC_CHAIN: ', SRC_CHAIN)
   const wallet = getWalletFromPrivateKeyInDotEnv(provider)
   const walletAddress = await wallet.getAddress()
   console.log('you are using this wallet address: ', walletAddress)
@@ -273,7 +289,7 @@ async function main() {
   console.log(`quote obtained`)
 
   // calculate fees/minAmountOut
-  const minAmountOut = getMinAmountOut(quote, fromAmount)
+  let minAmountOut = getMinAmountOut(quote, fromAmount)
   console.log('minAmountOut determined: ', minAmountOut.toString())
 
   // make sure that wallet has sufficient balance and allowance set for diamond
@@ -294,7 +310,7 @@ async function main() {
     sendingAssetId: isNativeTX(TRANSACTION_TYPE)
       ? constants.AddressZero
       : sendingAssetId,
-    receiver: walletAddress,
+    receiver: WITH_DEST_CALL ? RECEIVER_ADDRESS_DST : walletAddress,
     minAmount: fromAmount,
     destinationChainId: toChainId,
     hasSourceSwaps: false,
@@ -305,23 +321,57 @@ async function main() {
   // prepare swapData, if applicable
   const swapData = []
   const uniswapAddress = isNativeTX(TRANSACTION_TYPE)
-    ? ADDRESS_UNISWAP_OPT
-    : ADDRESS_UNISWAP_POL
-  const receiverAddress = isNativeTX(TRANSACTION_TYPE)
-    ? deploymentsARB.ReceiverAcrossV3
-    : deploymentsOPT.ReceiverAcrossV3
+    ? ADDRESS_UNISWAP_ARB
+    : ADDRESS_UNISWAP_OPT
+  const executorAddress = isNativeTX(TRANSACTION_TYPE)
+    ? deploymentsARB.Executor
+    : deploymentsOPT.Executor
 
   swapData[0] = await getUniswapSwapDataERC20ToERC20(
     uniswapAddress,
-    sendingAssetId,
-    receivingAssetId,
-    BigNumber.from(fromAmount),
-    receiverAddress
+    isNativeTX(TRANSACTION_TYPE) ? ADDRESS_WETH_ARB : ADDRESS_USDC_OPT,
+    isNativeTX(TRANSACTION_TYPE) ? ADDRESS_USDC_ARB : ADDRESS_WETH_OPT,
+    minAmountOut,
+    executorAddress,
+    false
   )
 
   // prepare dest calldata, if applicable
-  const payload = createDestCallPayload() //FIXME:
+  let payload = createDestCallPayload(bridgeData, swapData, walletAddress)
   if (WITH_DEST_CALL) console.log('payload prepared')
+
+  // if dest call then get updated quote (with full message) to get accurate relayerFee estimate
+  if (WITH_DEST_CALL) {
+    // get updated quote
+    const quote = await getAcrossQuote(
+      sendingAssetId,
+      fromChainId,
+      toChainId,
+      fromAmount,
+      RECEIVER_ADDRESS_DST, // must be a contract address when a message is provided
+      payload
+    )
+
+    // update minAmountOut
+    minAmountOut = getMinAmountOut(quote, fromAmount)
+    console.log(
+      'minAmountOut updated (with payload estimate): ',
+      minAmountOut.toString()
+    )
+
+    // update swapdata with new inputAmount
+    swapData[0] = await getUniswapSwapDataERC20ToERC20(
+      uniswapAddress,
+      isNativeTX(TRANSACTION_TYPE) ? ADDRESS_WETH_ARB : ADDRESS_USDC_OPT,
+      isNativeTX(TRANSACTION_TYPE) ? ADDRESS_USDC_ARB : ADDRESS_WETH_OPT,
+      minAmountOut,
+      executorAddress,
+      false
+    )
+
+    // update payload accordingly
+    payload = createDestCallPayload(bridgeData, swapData, walletAddress)
+  }
 
   // prepare AcrossV3Data
   const acrossV3Data: AcrossFacetV3.AcrossV3DataStruct = {
@@ -337,18 +387,11 @@ async function main() {
 
   // // execute src transaction
   if (SEND_TX) {
-    let executeTxData
-    if (WITH_DEST_CALL) {
-      executeTxData = acrossV3Facet.interface.encodeFunctionData(
-        'swapAndStartBridgeTokensViaAcrossV3',
-        [bridgeData, swapData, acrossV3Data]
-      )
-    } else {
-      executeTxData = acrossV3Facet.interface.encodeFunctionData(
-        'startBridgeTokensViaAcrossV3',
-        [bridgeData, acrossV3Data]
-      )
-    }
+    // create calldata from facet interface
+    const executeTxData = acrossV3Facet.interface.encodeFunctionData(
+      'startBridgeTokensViaAcrossV3',
+      [bridgeData, acrossV3Data]
+    )
 
     // determine msg.value
     const msgValue = BigNumber.from(
@@ -362,7 +405,7 @@ async function main() {
       executeTxData,
       msgValue
     )
-    logDebug(`calldata: ${transactionResponse.data}`)
+    logDebug(`calldata: ${transactionResponse.data}\n`)
 
     console.log(
       'src TX successfully executed: ',

@@ -125,7 +125,7 @@
         "Name": "",
         "Version": ""
       },
-      "0x2CD74Cf97D1BD7a7c7FEd29Bfb5127e71b896643": {
+      "0xe2e5428F972d9C0a5Ba433e0c402752b472dB248": {
         "Name": "AcrossFacetV3",
         "Version": "1.0.0"
       }
@@ -137,6 +137,7 @@
       "GasRebateDistributor": "",
       "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
       "Receiver": "0x6aDF98E613703d628361B340eC22Bf35ec3ee122",
+      "ReceiverAcrossV3": "",
       "RelayerCelerIM": "0x9d3573b1d85112446593f617f1f3eb5ec1778D27",
       "ServiceFeeCollector": "0x9cc3164f01ED3796Fdf7Da538484D634608D2203",
       "TokenWrapper": "0x888C42f345c25e276327504CE2F1Da6a9C60c73E"

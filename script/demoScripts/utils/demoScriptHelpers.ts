@@ -5,6 +5,14 @@ import { AcrossFacetV3, ERC20__factory } from '../../../typechain'
 import { blocks } from '@uma/sdk/dist/types/tables'
 import { LibSwap } from '../../../typechain/AcrossFacetV3'
 
+export const DEV_WALLET_ADDRESS = '0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7'
+
+export const DEFAULT_DEST_PAYLOAD_ABI = [
+  'bytes32', // Transaction Id
+  'tuple(address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[]', // Swap Data
+  'address', // Receiver
+]
+
 export enum TX_TYPE {
   ERC20,
   NATIVE,
@@ -20,6 +28,7 @@ export const isNativeTX = (type: TX_TYPE): boolean => {
 export const ADDRESS_USDC_ETH = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 export const ADDRESS_USDC_POL = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'
 export const ADDRESS_USDC_OPT = '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85'
+export const ADDRESS_USDC_ARB = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
 export const ADDRESS_USDCe_OPT = '0x7F5c764cBc14f9669B88837ca1490cCa17c31607'
 export const ADDRESS_WETH_ETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
 export const ADDRESS_WETH_OPT = '0x4200000000000000000000000000000000000006'
@@ -134,6 +143,8 @@ export const getUniswapSwapDataERC20ToERC20 = async (
   receivingAssetId: string,
   fromAmount: BigNumber,
   receiverAddress: string,
+  requiresDeposit = true,
+  minAmountOut = 0,
   deadline = Math.floor(Date.now() / 1000) + 60 * 60
 ) => {
   // prepare destSwap callData
@@ -145,7 +156,7 @@ export const getUniswapSwapDataERC20ToERC20 = async (
   const uniswapCalldata = (
     await uniswap.populateTransaction.swapExactTokensForTokens(
       fromAmount, // amountIn
-      0, // amountOutMin
+      minAmountOut == 0 ? fromAmount.mul(95).div(100).toString() : minAmountOut, // use 95% of fromAmount if no minAmountOut was supplied
       path,
       receiverAddress,
       deadline
@@ -162,7 +173,7 @@ export const getUniswapSwapDataERC20ToERC20 = async (
     receivingAssetId,
     fromAmount,
     callData: uniswapCalldata,
-    requiresDeposit: true,
+    requiresDeposit,
   }
 
   return swapData

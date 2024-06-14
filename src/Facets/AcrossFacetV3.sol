@@ -63,7 +63,6 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
     {
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -86,7 +85,6 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
         _bridgeData.minAmount = _depositAndSwap(
