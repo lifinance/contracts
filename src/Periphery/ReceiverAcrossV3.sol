@@ -17,6 +17,9 @@ import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 contract ReceiverAcrossV3 is ILiFi, ReentrancyGuard, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
+    /// Error ///
+    error InsufficientGasLimit(uint256 gasLeft);
+
     /// Storage ///
     IExecutor public immutable executor;
     address public immutable spokepool;
@@ -118,18 +121,9 @@ contract ReceiverAcrossV3 is ILiFi, ReentrancyGuard, TransferrableOwnership {
             uint256 cacheGasLeft = gasleft();
             if (reserveRecoverGas && cacheGasLeft < _recoverGas) {
                 // case 1a: not enough gas left to execute calls
-                // solhint-disable-next-line avoid-low-level-calls
-                (bool success, ) = receiver.call{ value: amount }("");
-                if (!success) revert ExternalCallFailed();
-
-                emit LiFiTransferRecovered(
-                    _transactionId,
-                    assetId,
-                    receiver,
-                    amount,
-                    block.timestamp
-                );
-                return;
+                // @dev: we removed the handling to send bridged funds to receiver in case of insufficient gas
+                //       as it's better for AcrossV3 to revert these cases instead
+                revert InsufficientGasLimit(cacheGasLeft);
             }
 
             // case 1b: enough gas left to execute calls
@@ -160,16 +154,9 @@ contract ReceiverAcrossV3 is ILiFi, ReentrancyGuard, TransferrableOwnership {
 
             if (reserveRecoverGas && cacheGasLeft < _recoverGas) {
                 // case 2a: not enough gas left to execute calls
-                token.safeTransfer(receiver, amount);
-
-                emit LiFiTransferRecovered(
-                    _transactionId,
-                    assetId,
-                    receiver,
-                    amount,
-                    block.timestamp
-                );
-                return;
+                // @dev: we removed the handling to send bridged funds to receiver in case of insufficient gas
+                //       as it's better for AcrossV3 to revert these cases instead
+                revert InsufficientGasLimit(cacheGasLeft);
             }
 
             // case 2b: enough gas left to execute calls
