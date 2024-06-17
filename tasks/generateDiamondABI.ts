@@ -57,7 +57,7 @@ task(
   const finalAbi = JSON.stringify(cleanAbi)
   fs.writeFileSync('./diamond.json', finalAbi)
 
-  // try to parse it
+  // try to extract it (that's where it failed before in typechain package)
   const extractedABI = extractAbi(finalAbi)
   console.log(`ABI extracted`)
   // console.log(`ABI extracted : ${extractedABI}`)
