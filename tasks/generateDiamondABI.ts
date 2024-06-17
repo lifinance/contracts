@@ -62,7 +62,7 @@ task(
   console.log(`ABI extracted`)
   // console.log(`ABI extracted : ${extractedABI}`)
 
-  if (validateAbi(JSON.parse(finalAbi)))
+  if (!validateAbi(JSON.parse(finalAbi)))
     throw Error('ABI validation step failed')
   console.log('ABI written to diamond.json')
 })
