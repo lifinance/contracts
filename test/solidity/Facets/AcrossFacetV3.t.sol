@@ -137,4 +137,11 @@ contract AcrossFacetV3Test is TestBaseFacet {
         assertEq(address(acrossFacetV3.spokePool()) == SPOKE_POOL, true);
         assertEq(acrossFacetV3.wrappedNative() == ADDRESS_WETH, true);
     }
+
+    function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
+        public
+        override
+    {
+        // this test is not applicable since AcrossV3 supports destination calls
+    }
 }

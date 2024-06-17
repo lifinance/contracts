@@ -15,7 +15,6 @@ fs_permissions = [
 ffi = true
 libs = ["node_modules", "lib"]
 cache = true
-verbosity = 5
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"

@@ -263,6 +263,8 @@ abstract contract TestBaseFacet is TestBase {
         virtual
     {
         vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
         // prepare bridgeData
         bridgeData.hasDestinationCall = true;
 
