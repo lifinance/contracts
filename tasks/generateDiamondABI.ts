@@ -131,7 +131,7 @@ function validateAbi(abi: any): boolean {
 
     return true // ABI is valid
   } catch (error) {
-    console.error(`ABI validation failed: ${error.message}`)
+    console.error(`ABI validation failed: ${JSON.stringify(error, null, 2)}`)
     return false // ABI is invalid
   }
 }
