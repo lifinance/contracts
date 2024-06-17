@@ -23,11 +23,14 @@ import {
 } from './utils/demoScriptHelpers'
 import { LibSwap } from '../../typechain/AcrossFacetV3'
 
-// Successful transactions:
+// SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
 // POL.USDC > OPT.USDC: https://polygonscan.com/tx/0x27c6b57653e58fb7ee9315190a5dc2a13c9d2aaba4c83e66df74abcc2074c6bc (ERC20)
 // OPT.ETH > ARB.WETH: https://optimistic.etherscan.io/tx/0x3e8628b80ffdcb86f2e4d8f64afc2c93f35aaa85730b040dbdce13a9f87dd035 (Native)
-// POL.USDC > OPT.WETH: https://polygonscan.com/tx/0xee32b07e80f900633e4d23d3fbd603586a26c56049214cd45e2eb5f070cbb9e1 (ERC20 + destCall)
-// OPT.ETH > ARB.USDC:  (Native + destCall)
+// POL.USDC > OPT.WETH: https://polygonscan.com/tx/0x88c1e1c1ca64dfddc3405b491e4dc68cce9a797305570ebdab80c622f6e4698a (ERC20 + destCall)
+//                      https://optimistic.etherscan.io/tx/0xc1d092967abd299ba12ff25c92e1c7d026490dd36058f0b62eb5c3440391323f (release TX)
+// OPT.ETH > ARB.USDC:  https://optimistic.etherscan.io/tx/0x7d3e7b2b14f42e504af045120d3bfec5c490e3042d14d2a4e767998414e1afec (Native + destCall)
+//                      https://arbiscan.io/tx/0xca902d3080a25a6e629e9b48ad12e15d4fe3efda9ae8cc7bbb59299d2b0485a7 (release TX)
+// ---------------------------------------------------------------------------------------------------------------------------------------------------
 
 /// TYPES
 type AcrossV3Route = {
@@ -90,7 +93,7 @@ const getAllAvailableAcrossRoutes = async (): Promise<AcrossV3Route[]> => {
 
   if (!resp) throw Error(`Could not obtain a list of available routes`)
 
-  logDebug(`found ${resp.length} routes`)
+  // logDebug(`found ${resp.length} routes`)
 
   return resp
 }
@@ -138,7 +141,9 @@ const isRouteAvailable = async (
       fromAmount
     )
   )
-    logDebug(`fromAmount (${fromAmount})  is within send limits`)
+    logDebug(
+      `fromAmount (${fromAmount}) of token (${sendingAssetId}) is within send limits`
+    )
   else
     throw Error(
       `fromAmount (${fromAmount}) is outside of transfer limits. Script cannot continue.`
@@ -212,13 +217,11 @@ const createDestCallPayload = (
 }
 
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
-const TRANSACTION_TYPE = TX_TYPE.ERC20_WITH_DEST as TX_TYPE // define which type of transaction you want to send
-const SEND_TX = true // let the script run without actually sending a transaction
-const DEBUG = true // set to true for higher verbosity in console output
+const TRANSACTION_TYPE = TX_TYPE.NATIVE_WITH_DEST as TX_TYPE // define which type of transaction you want to send
+const SEND_TX = true // allows you to the script run without actually sending a transaction (=false)
+const DEBUG = false // set to true for higher verbosity in console output
 
 // change these values only if you need to
-const FROM_AMOUNT_ERC20 = '5100000' // 5.1 USDC (min send limit is just over 5 USD for this token)
-const FROM_AMOUNT_NATIVE = '2000000000000000' // 0.002 (MATIC)
 const fromChainId = isNativeTX(TRANSACTION_TYPE) ? 10 : 137 // WMATIC/MATIC is not supported by AcrossV3
 const toChainId = isNativeTX(TRANSACTION_TYPE) ? 42161 : 10
 const sendingAssetId = isNativeTX(TRANSACTION_TYPE)
@@ -228,8 +231,8 @@ const receivingAssetId = isNativeTX(TRANSACTION_TYPE)
   ? ADDRESS_WETH_ARB
   : ADDRESS_USDC_OPT
 const fromAmount = isNativeTX(TRANSACTION_TYPE)
-  ? FROM_AMOUNT_NATIVE
-  : FROM_AMOUNT_ERC20
+  ? '2000000000000000' // 0.002 (MATIC)
+  : '5100000' // 5.1 USDC (min send limit is just over 5 USD for this token)
 const WITH_DEST_CALL =
   TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_DEST ||
   TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_DEST
@@ -318,30 +321,32 @@ async function main() {
   }
   console.log('bridgeData prepared')
 
-  // prepare swapData, if applicable
   const swapData = []
-  const uniswapAddress = isNativeTX(TRANSACTION_TYPE)
-    ? ADDRESS_UNISWAP_ARB
-    : ADDRESS_UNISWAP_OPT
-  const executorAddress = isNativeTX(TRANSACTION_TYPE)
-    ? deploymentsARB.Executor
-    : deploymentsOPT.Executor
-
-  swapData[0] = await getUniswapSwapDataERC20ToERC20(
-    uniswapAddress,
-    isNativeTX(TRANSACTION_TYPE) ? ADDRESS_WETH_ARB : ADDRESS_USDC_OPT,
-    isNativeTX(TRANSACTION_TYPE) ? ADDRESS_USDC_ARB : ADDRESS_WETH_OPT,
-    minAmountOut,
-    executorAddress,
-    false
-  )
-
-  // prepare dest calldata, if applicable
-  let payload = createDestCallPayload(bridgeData, swapData, walletAddress)
-  if (WITH_DEST_CALL) console.log('payload prepared')
-
-  // if dest call then get updated quote (with full message) to get accurate relayerFee estimate
+  let payload = '0x'
+  let uniswapAddress, executorAddress
+  // prepare swapData, if tx has destination call
   if (WITH_DEST_CALL) {
+    uniswapAddress = isNativeTX(TRANSACTION_TYPE)
+      ? ADDRESS_UNISWAP_ARB
+      : ADDRESS_UNISWAP_OPT
+    executorAddress = isNativeTX(TRANSACTION_TYPE)
+      ? deploymentsARB.Executor
+      : deploymentsOPT.Executor
+
+    swapData[0] = await getUniswapSwapDataERC20ToERC20(
+      uniswapAddress,
+      toChainId,
+      isNativeTX(TRANSACTION_TYPE) ? ADDRESS_WETH_ARB : ADDRESS_USDC_OPT,
+      isNativeTX(TRANSACTION_TYPE) ? ADDRESS_USDC_ARB : ADDRESS_WETH_OPT,
+      BigNumber.from(fromAmount),
+      executorAddress,
+      false
+    )
+
+    // prepare dest calldata, if tx has destination call
+    payload = createDestCallPayload(bridgeData, swapData, walletAddress)
+    console.log('payload prepared')
+
     // get updated quote
     const quote = await getAcrossQuote(
       sendingAssetId,
@@ -362,6 +367,7 @@ async function main() {
     // update swapdata with new inputAmount
     swapData[0] = await getUniswapSwapDataERC20ToERC20(
       uniswapAddress,
+      toChainId,
       isNativeTX(TRANSACTION_TYPE) ? ADDRESS_WETH_ARB : ADDRESS_USDC_OPT,
       isNativeTX(TRANSACTION_TYPE) ? ADDRESS_USDC_ARB : ADDRESS_WETH_OPT,
       minAmountOut,

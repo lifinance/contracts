@@ -49,7 +49,7 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x2CD74Cf97D1BD7a7c7FEd29Bfb5127e71b896643": {
+      "0xA45409F0a6BF02ac21f10f27FA5B27f2e76b9a35": {
         "Name": "AcrossFacetV3",
         "Version": "1.0.0"
       }
@@ -61,10 +61,10 @@
       "GasRebateDistributor": "",
       "LiFuelFeeCollector": "",
       "Receiver": "0xe36c722a73eb2FD182A35C3579266B43DFCFCAba",
+      "ReceiverAcrossV3": "",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x0874Be3949ABF784C11E5f822F1a54c8655904C1",
-      "TokenWrapper": "",
-      "ReceiverAcrossV3": ""
+      "TokenWrapper": ""
     }
   }
 }

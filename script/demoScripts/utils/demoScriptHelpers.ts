@@ -1,9 +1,10 @@
 import { providers, Wallet, BigNumber, constants, Contract } from 'ethers'
 import { node_url } from '../../../utils/network'
 import { addressToBytes32 as addressToBytes32Lz } from '@layerzerolabs/lz-v2-utilities'
-import { AcrossFacetV3, ERC20__factory } from '../../../typechain'
-import { blocks } from '@uma/sdk/dist/types/tables'
+import { ERC20__factory } from '../../../typechain'
 import { LibSwap } from '../../../typechain/AcrossFacetV3'
+import { parseAbi } from 'viem'
+import { network } from 'hardhat'
 
 export const DEV_WALLET_ADDRESS = '0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7'
 
@@ -42,6 +43,37 @@ export const ADDRESS_UNISWAP_POL = '0xedf6066a2b290C185783862C7F4776A2C8077AD1'
 export const ADDRESS_UNISWAP_OPT = '0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2'
 export const ADDRESS_UNISWAP_ARB = '0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24'
 // const UNISWAP_ADDRESS_DST = '0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2' // Uniswap OPT
+
+const chainIdNetworkNameMapping: Record<number, string> = {
+  1: 'mainnet',
+  42161: 'arbitrum',
+  1313161554: 'aurora',
+  43114: 'avalanche',
+  8453: 'base',
+  81457: 'blast',
+  288: 'boba',
+  56: 'bsc',
+  42220: 'celo',
+  250: 'fantom',
+  122: 'fuse',
+  100: 'gnosis',
+  59144: 'linea',
+  5000: 'mantle',
+  1088: 'metis',
+  34443: 'mode',
+  1284: 'moonbeam',
+  1285: 'moonriver',
+  10: 'optimism',
+  137: 'polygon',
+  1101: 'polygonzkevm',
+  30: 'rootstock',
+  534352: 'scroll',
+  324: 'zksync',
+  97: 'bsc-testnet',
+  59140: 'lineatest',
+  80001: 'mumbai',
+  11155111: 'sepolia',
+}
 
 /// ############# HELPER FUNCTIONS ###################### ///
 
@@ -139,6 +171,7 @@ export const ensureBalanceAndAllowanceToDiamond = async (
 
 export const getUniswapSwapDataERC20ToERC20 = async (
   uniswapAddress: string,
+  chainId: number,
   sendingAssetId: string,
   receivingAssetId: string,
   fromAmount: BigNumber,
@@ -153,10 +186,24 @@ export const getUniswapSwapDataERC20ToERC20 = async (
   ])
   const path = [sendingAssetId, receivingAssetId]
 
+  // get minAmountOut from Uniswap router
+  console.log(`finalFromAmount  : ${fromAmount}`)
+
+  const finalMinAmountOut =
+    minAmountOut == 0
+      ? await getAmountsOutUniswap(
+          uniswapAddress,
+          chainId,
+          [sendingAssetId, receivingAssetId],
+          fromAmount
+        )
+      : minAmountOut
+  console.log(`finalMinAmountOut: ${finalMinAmountOut}`)
+
   const uniswapCalldata = (
     await uniswap.populateTransaction.swapExactTokensForTokens(
       fromAmount, // amountIn
-      minAmountOut == 0 ? fromAmount.mul(95).div(100).toString() : minAmountOut, // use 95% of fromAmount if no minAmountOut was supplied
+      finalMinAmountOut,
       path,
       receiverAddress,
       deadline
@@ -177,4 +224,61 @@ export const getUniswapSwapDataERC20ToERC20 = async (
   }
 
   return swapData
+}
+
+export const getAmountsOutUniswap = async (
+  uniswapAddress: string,
+  chainId: number,
+  path: string[],
+  fromAmount: BigNumber
+): Promise<string[]> => {
+  const provider = getProviderForChainId(chainId)
+
+  // prepare ABI
+  const uniswapABI = parseAbi([
+    'function getAmountsOut(uint256, address[]) public returns(uint256[])',
+  ])
+
+  // get uniswap contract
+  const uniswap = new Contract(uniswapAddress, uniswapABI, provider)
+
+  // get amountsOut
+  let amountsOut = undefined
+  try {
+    // Call Uniswap contract to get amountsOut
+    const response = await uniswap.callStatic.getAmountsOut(
+      fromAmount.toString(),
+      path
+    )
+
+    // extract amountOut from second position in array
+    amountsOut = response[1]
+  } catch (error) {
+    console.error(`Error reading contract: ${error}`)
+  }
+
+  if (!amountsOut)
+    throw Error(
+      `Could not get amountsOut from Uniswap for path (${path}) on chainId ${chainId}`
+    )
+
+  return amountsOut
+}
+
+export const getNetworkNameForChainId = (chainId: number): string => {
+  const networkName = chainIdNetworkNameMapping[chainId]
+  if (!networkName)
+    throw Error(`Could not find a network name for chainId ${chainId}`)
+  else return networkName
+}
+
+const getProviderForChainId = (chainId: number) => {
+  // get network name for chainId
+  const networkName = getNetworkNameForChainId(chainId)
+
+  // get provider for network name
+  const provider = getProvider(networkName)
+  if (!provider)
+    throw Error(`Could not find a provider for network ${networkName}`)
+  else return provider
 }
