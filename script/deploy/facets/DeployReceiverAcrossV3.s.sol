@@ -56,6 +56,9 @@ contract DeployScript is DeployScriptBase {
         json = vm.readFile(path);
         address executor = json.readAddress(".Executor");
 
-        return abi.encode(refundWalletAddress, executor, spokePool, 100000);
+        uint256 recoverGas = 100000;
+
+        return
+            abi.encode(refundWalletAddress, executor, spokePool, recoverGas);
     }
 }

@@ -17,6 +17,7 @@
     "solidity"
   ],
   "devDependencies": {
+    "@layerzerolabs/lz-v2-utilities": "^2.3.15",
     "@matterlabs/hardhat-zksync-deploy": "0.6.3",
     "@matterlabs/hardhat-zksync-solc": "0.3.17",
     "@matterlabs/hardhat-zksync-verify": "0.1.7",

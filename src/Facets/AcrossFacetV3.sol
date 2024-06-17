@@ -108,8 +108,8 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // NATIVE
             spokePool.depositV3{ value: _bridgeData.minAmount }(
-                msg.sender, // depositor
-                _bridgeData.receiver, // recipient
+                _bridgeData.receiver, // depositor (also acts as refund address in case release tx cannot be executed)
+                _bridgeData.receiver, // recipient (on dst)
                 wrappedNative, // inputToken
                 _acrossData.receivingAssetId, // outputToken
                 _bridgeData.minAmount, // inputAmount
@@ -129,8 +129,8 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount
             );
             spokePool.depositV3(
-                msg.sender, // depositor
-                _bridgeData.receiver, // recipient
+                _bridgeData.receiver, // depositor (also acts as refund address in case release tx cannot be executed)
+                _bridgeData.receiver, // recipient (on dst)
                 _bridgeData.sendingAssetId, // inputToken
                 _acrossData.receivingAssetId, // outputToken
                 _bridgeData.minAmount, // inputAmount

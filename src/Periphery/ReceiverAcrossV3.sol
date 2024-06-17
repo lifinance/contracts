@@ -5,6 +5,7 @@ import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/Saf
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
@@ -134,6 +135,12 @@ contract ReceiverAcrossV3 is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     gas: cacheGasLeft - _recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
+                cacheGasLeft = gasleft();
+                // if the only gas left here is the _recoverGas then the swap must have failed due to out-of-gas error and in this case we want to revert
+                if (cacheGasLeft <= _recoverGas)
+                    revert InsufficientGasLimit(cacheGasLeft);
+
+                // send the bridged (and unswapped) funds to receiver address
                 // solhint-disable-next-line avoid-low-level-calls
                 (bool success, ) = receiver.call{ value: amount }("");
                 if (!success) revert ExternalCallFailed();
@@ -166,7 +173,14 @@ contract ReceiverAcrossV3 is ILiFi, ReentrancyGuard, TransferrableOwnership {
                     gas: cacheGasLeft - _recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
+                cacheGasLeft = gasleft();
+                // if the only gas left here is the _recoverGas then the swap must have failed due to out-of-gas error and in this case we want to revert
+                if (cacheGasLeft <= _recoverGas)
+                    revert InsufficientGasLimit(cacheGasLeft);
+
+                // send the bridged (and unswapped) funds to receiver address
                 token.safeTransfer(receiver, amount);
+
                 emit LiFiTransferRecovered(
                     _transactionId,
                     assetId,
@@ -176,6 +190,7 @@ contract ReceiverAcrossV3 is ILiFi, ReentrancyGuard, TransferrableOwnership {
                 );
             }
 
+            // reset approval to 0
             token.safeApprove(address(executor), 0);
         }
     }
