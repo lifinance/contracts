@@ -46,7 +46,7 @@ jobs:
           make clean && forge build --skip script --skip test --skip Base --skip Test
           echo "Listing output files..."
           ls -l out/**/*.json
-          typechain --show-stack-traces --target ethers-v5 'out/**/*.json' --out-dir typechain
+          npx typechain --show-stack-traces --target ethers-v5 'out/**/*.json' --out-dir typechain
         env:
           CI: true
 
