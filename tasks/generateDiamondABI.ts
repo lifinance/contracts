@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { Fragment } from '@ethersproject/abi'
 import { task } from 'hardhat/config'
+import { Interface } from 'ethers/lib/utils'
 
 const basePath = 'src/Facets/'
 const libraryBasePath = 'src/Libraries/'
@@ -55,5 +56,82 @@ task(
   // Write the final ABI to a file
   const finalAbi = JSON.stringify(cleanAbi)
   fs.writeFileSync('./diamond.json', finalAbi)
+
+  // try to parse it
+  const extractedABI = extractAbi(finalAbi)
+  console.log(`ABI extracted`)
+  // console.log(`ABI extracted : ${extractedABI}`)
+
+  if (validateAbi(JSON.parse(finalAbi)))
+    throw Error('ABI validation step failed')
   console.log('ABI written to diamond.json')
 })
+
+function extractAbi(rawJson: any) {
+  let json = rawJson
+
+  if (typeof rawJson === 'string') {
+    try {
+      json = JSON.parse(rawJson)
+    } catch (error) {
+      throw new Error(`Not a json: (error: ${error})`)
+    }
+  }
+
+  if (!json) {
+    throw new Error('Not a json 2')
+  }
+
+  if (Array.isArray(json)) {
+    return json
+  }
+
+  if (Array.isArray(json.abi)) {
+    return json.abi
+  } else if (json.compilerOutput && Array.isArray(json.compilerOutput.abi)) {
+    return json.compilerOutput.abi
+  }
+
+  throw new Error('Not a valid ABI')
+}
+
+// Function to validate ABI
+function validateAbi(abi: any): boolean {
+  console.log('validating ABI now')
+  try {
+    // Ensure the ABI is an array
+    if (!Array.isArray(abi)) {
+      throw new Error('ABI is not an array')
+    }
+
+    // Create an Interface instance to validate the ABI
+    const iface = new Interface(abi)
+
+    // Iterate through each fragment to ensure they are valid
+    abi.forEach((fragment: any) => {
+      if (fragment.type === 'constructor' || fragment.type === 'receive') {
+        // Constructor and receive fragments are valid by default
+        // console.log(`Special fragment found: ${JSON.stringify(fragment)}`)
+        return
+      }
+      try {
+        iface.getFunction(fragment.name)
+      } catch (error) {
+        try {
+          iface.getEvent(fragment.name)
+        } catch (error) {
+          try {
+            iface.getError(fragment.name)
+          } catch (error) {
+            throw new Error(`Invalid fragment: ${JSON.stringify(fragment)}`)
+          }
+        }
+      }
+    })
+
+    return true // ABI is valid
+  } catch (error) {
+    console.error(`ABI validation failed: ${error.message}`)
+    return false // ABI is invalid
+  }
+}
