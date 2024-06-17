@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import { LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
 import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
-import { LibUtil } from "lifi/libraries/LibUtil.sol";
+import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 
 // Stub AcrossFacetV3 Contract
 contract TestAcrossFacetV3 is AcrossFacetV3 {
