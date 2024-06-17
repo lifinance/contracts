@@ -151,7 +151,7 @@ export const ensureBalanceAndAllowanceToDiamond = async (
       ])
 
       await sendTransaction(wallet, tokenAddress, approveTxData)
-      console.log('allowance set to: ', amount)
+      console.log(`allowance set to: ${amount} `)
     }
   }
 

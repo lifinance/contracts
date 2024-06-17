@@ -1,14 +1,11 @@
 import { utils, BigNumber, constants } from 'ethers'
 import { AcrossFacetV3, AcrossFacetV3__factory, ILiFi } from '../../typechain'
-import deploymentsPOL from '../../deployments/polygon.staging.json'
 import deploymentsOPT from '../../deployments/optimism.staging.json'
 import deploymentsARB from '../../deployments/arbitrum.staging.json'
 import {
   ADDRESS_UNISWAP_ARB,
-  ADDRESS_UNISWAP_OPT,
   ADDRESS_USDC_ARB,
   ADDRESS_USDC_OPT,
-  ADDRESS_USDC_POL,
   ADDRESS_WETH_ARB,
   ADDRESS_WETH_OPT,
   DEFAULT_DEST_PAYLOAD_ABI,
@@ -24,10 +21,10 @@ import {
 import { LibSwap } from '../../typechain/AcrossFacetV3'
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
-// POL.USDC > OPT.USDC: https://polygonscan.com/tx/0x27c6b57653e58fb7ee9315190a5dc2a13c9d2aaba4c83e66df74abcc2074c6bc (ERC20)
+// OPT.USDC > ARB.USDC: https://optimistic.etherscan.io/tx/0xd3562edd97fdcead8dbb556344ad80cd3b5b19cfee9f5bf33c3f094ef7b8b456 (ERC20)
 // OPT.ETH > ARB.WETH: https://optimistic.etherscan.io/tx/0x3e8628b80ffdcb86f2e4d8f64afc2c93f35aaa85730b040dbdce13a9f87dd035 (Native)
-// POL.USDC > OPT.WETH: https://polygonscan.com/tx/0x88c1e1c1ca64dfddc3405b491e4dc68cce9a797305570ebdab80c622f6e4698a (ERC20 + destCall)
-//                      https://optimistic.etherscan.io/tx/0xc1d092967abd299ba12ff25c92e1c7d026490dd36058f0b62eb5c3440391323f (release TX)
+// OPT.USDC > ARB.WETH: https://optimistic.etherscan.io/tx/0xd11f15e0efe22956fb57305b1dc972102316f3e2b6fc2c8a212f53448a6828b4 (ERC20 + destCall)
+//                      https://arbiscan.io/tx/0x7e3ba99bc09305650291927cede3afc46e89db19d113b2af3b940ac35b2b3aca (release TX)
 // OPT.ETH > ARB.USDC:  https://optimistic.etherscan.io/tx/0x7d3e7b2b14f42e504af045120d3bfec5c490e3042d14d2a4e767998414e1afec (Native + destCall)
 //                      https://arbiscan.io/tx/0xca902d3080a25a6e629e9b48ad12e15d4fe3efda9ae8cc7bbb59299d2b0485a7 (release TX)
 // ---------------------------------------------------------------------------------------------------------------------------------------------------
@@ -217,37 +214,31 @@ const createDestCallPayload = (
 }
 
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
-const TRANSACTION_TYPE = TX_TYPE.NATIVE_WITH_DEST as TX_TYPE // define which type of transaction you want to send
+const TRANSACTION_TYPE = TX_TYPE.ERC20_WITH_DEST as TX_TYPE // define which type of transaction you want to send
 const SEND_TX = true // allows you to the script run without actually sending a transaction (=false)
 const DEBUG = false // set to true for higher verbosity in console output
 
 // change these values only if you need to
-const fromChainId = isNativeTX(TRANSACTION_TYPE) ? 10 : 137 // WMATIC/MATIC is not supported by AcrossV3
-const toChainId = isNativeTX(TRANSACTION_TYPE) ? 42161 : 10
+const fromChainId = 10 // WMATIC/MATIC is not supported by AcrossV3
+const toChainId = 42161
 const sendingAssetId = isNativeTX(TRANSACTION_TYPE)
   ? ADDRESS_WETH_OPT
-  : ADDRESS_USDC_POL
+  : ADDRESS_USDC_OPT
 const receivingAssetId = isNativeTX(TRANSACTION_TYPE)
   ? ADDRESS_WETH_ARB
-  : ADDRESS_USDC_OPT
+  : ADDRESS_USDC_ARB
 const fromAmount = isNativeTX(TRANSACTION_TYPE)
-  ? '2000000000000000' // 0.002 (MATIC)
+  ? '2000000000000000' // 0.002 (ETH)
   : '5100000' // 5.1 USDC (min send limit is just over 5 USD for this token)
 const WITH_DEST_CALL =
   TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_DEST ||
   TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_DEST
-const SRC_CHAIN = isNativeTX(TRANSACTION_TYPE) ? 'optimism' : 'polygon'
-const DIAMOND_ADDRESS_SRC = isNativeTX(TRANSACTION_TYPE)
-  ? deploymentsOPT.LiFiDiamond
-  : deploymentsPOL.LiFiDiamond
+const SRC_CHAIN = 'optimism'
+const DIAMOND_ADDRESS_SRC = deploymentsOPT.LiFiDiamond
 const RECEIVER_ADDRESS_DST = WITH_DEST_CALL
-  ? isNativeTX(TRANSACTION_TYPE)
-    ? deploymentsARB.ReceiverAcrossV3
-    : deploymentsOPT.ReceiverAcrossV3
+  ? deploymentsARB.ReceiverAcrossV3
   : constants.AddressZero
-const EXPLORER_BASE_URL = isNativeTX(TRANSACTION_TYPE)
-  ? 'https://optimistic.etherscan.io/tx/'
-  : 'https://polygonscan.com/tx/' // Across doesnt have an explorer
+const EXPLORER_BASE_URL = 'https://optimistic.etherscan.io/tx/'
 
 // ############################################################################################################
 async function main() {
@@ -326,18 +317,14 @@ async function main() {
   let uniswapAddress, executorAddress
   // prepare swapData, if tx has destination call
   if (WITH_DEST_CALL) {
-    uniswapAddress = isNativeTX(TRANSACTION_TYPE)
-      ? ADDRESS_UNISWAP_ARB
-      : ADDRESS_UNISWAP_OPT
-    executorAddress = isNativeTX(TRANSACTION_TYPE)
-      ? deploymentsARB.Executor
-      : deploymentsOPT.Executor
+    uniswapAddress = ADDRESS_UNISWAP_ARB
+    executorAddress = deploymentsARB.Executor
 
     swapData[0] = await getUniswapSwapDataERC20ToERC20(
       uniswapAddress,
       toChainId,
-      isNativeTX(TRANSACTION_TYPE) ? ADDRESS_WETH_ARB : ADDRESS_USDC_OPT,
-      isNativeTX(TRANSACTION_TYPE) ? ADDRESS_USDC_ARB : ADDRESS_WETH_OPT,
+      isNativeTX(TRANSACTION_TYPE) ? ADDRESS_WETH_ARB : ADDRESS_USDC_ARB,
+      isNativeTX(TRANSACTION_TYPE) ? ADDRESS_USDC_ARB : ADDRESS_WETH_ARB,
       BigNumber.from(fromAmount),
       executorAddress,
       false
@@ -368,8 +355,8 @@ async function main() {
     swapData[0] = await getUniswapSwapDataERC20ToERC20(
       uniswapAddress,
       toChainId,
-      isNativeTX(TRANSACTION_TYPE) ? ADDRESS_WETH_ARB : ADDRESS_USDC_OPT,
-      isNativeTX(TRANSACTION_TYPE) ? ADDRESS_USDC_ARB : ADDRESS_WETH_OPT,
+      isNativeTX(TRANSACTION_TYPE) ? ADDRESS_WETH_ARB : ADDRESS_USDC_ARB,
+      isNativeTX(TRANSACTION_TYPE) ? ADDRESS_USDC_ARB : ADDRESS_WETH_ARB,
       minAmountOut,
       executorAddress,
       false
