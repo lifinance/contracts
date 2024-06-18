@@ -36,7 +36,6 @@ interface ILayerZeroComposer {
 /// @custom:version 1.0.0
 contract ReceiverStargateV2 is
     ILiFi,
-    ReentrancyGuard,
     TransferrableOwnership,
     ILayerZeroComposer
 {

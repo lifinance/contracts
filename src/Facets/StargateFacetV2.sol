@@ -168,5 +168,6 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (routerAddress == address(0)) revert InvalidAssetId(assetId);
     }
 
+    /// @dev required to receive ETH (e.g. from pre-bridging swaps)
     receive() external payable {}
 }
