@@ -140,14 +140,15 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     }
 
     /// PRIVATE HELPER METHODS ///
-    /// @dev makes sure that calldata contains payload for destination when bridging tokens+destCall
+    /// @dev makes sure that calldata contains payload for destination and that oftCmd is set for taxi mode (length: 0) when bridging tokens+destCall
     function _validateDestinationCallFlag(
         ILiFi.BridgeData memory _bridgeData,
         StargateData calldata _stargateData
     ) private pure {
         if (
             (_stargateData.sendParams.composeMsg.length > 0) !=
-            _bridgeData.hasDestinationCall
+            _bridgeData.hasDestinationCall !=
+            (_stargateData.sendParams.oftCmd.length != 0)
         ) {
             revert InformationMismatch();
         }

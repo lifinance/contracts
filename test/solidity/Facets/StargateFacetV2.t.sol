@@ -232,6 +232,21 @@ contract StargateFacetV2Test is TestBaseFacet {
         }(bridgeData, stargateData);
     }
 
+    function test_revert_BridgeERC20TokensWithDestCallBusMode() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(stargateFacetV2), bridgeData.minAmount);
+
+        bridgeData.hasDestinationCall = true;
+        stargateData.sendParams.composeMsg = hex"123456";
+        stargateData.sendParams.oftCmd = OftCmdHelper.bus();
+        console.log("length: ", stargateData.sendParams.oftCmd.length);
+
+        vm.expectRevert(InformationMismatch.selector);
+        stargateFacetV2.startBridgeTokensViaStargate{
+            value: stargateData.fee.nativeFee
+        }(bridgeData, stargateData);
+    }
+
     function test_canBridgeERC20TokensWithExistingNonZeroApproval() public {
         // set allowance from facet to router to non-zero value
         vm.startPrank(address(stargateFacetV2));
