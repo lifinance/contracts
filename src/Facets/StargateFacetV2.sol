@@ -146,8 +146,13 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         StargateData calldata _stargateData
     ) private pure {
         if (
-            (_stargateData.sendParams.composeMsg.length > 0) !=
-            _bridgeData.hasDestinationCall !=
+            _stargateData.sendParams.composeMsg.length > 0 !=
+            _bridgeData.hasDestinationCall
+        ) {
+            revert InformationMismatch();
+        }
+        if (
+            _bridgeData.hasDestinationCall &&
             (_stargateData.sendParams.oftCmd.length != 0)
         ) {
             revert InformationMismatch();

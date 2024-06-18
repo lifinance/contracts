@@ -46,6 +46,8 @@ contract StargateFacetV2Test is TestBaseFacet {
     uint32 internal constant DST_E_ID_NATIVE = 30111; // OPT
     uint16 internal constant ASSET_ID_USDC = 1;
     uint16 internal constant ASSET_ID_NATIVE = 13;
+    bytes internal constant VALID_EXTRA_OPTIONS_VALUE =
+        hex"000301001303000000000000000000000000000000061a80";
     // -----
 
     TestStargateFacetV2 internal stargateFacetV2;
@@ -128,6 +130,7 @@ contract StargateFacetV2Test is TestBaseFacet {
         vm.label(STARGATE_POOL_USDC, "STARGATE_POOL_USDC");
         vm.label(STARGATE_POOL_NATIVE, "STARGATE_POOL_NATIVE");
         vm.label(TOKEN_MESSAGING, "TOKEN_MESSAGING");
+        vm.label(0x1a44076050125825900e736c501f859c50fE728c, "LZ_EndpointV2");
 
         // get quote and update fee information in stargateData
         IStargate.MessagingFee memory fees = IStargate(STARGATE_POOL_USDC)
@@ -163,6 +166,19 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
+        }(bridgeData, stargateData);
+    }
+
+    function test_revert_BridgeERC20TokensWithInsufficientMsgValueForFee()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(stargateFacetV2), bridgeData.minAmount);
+
+        vm.expectRevert();
+
+        stargateFacetV2.startBridgeTokensViaStargate{
+            value: stargateData.fee.nativeFee - 1
         }(bridgeData, stargateData);
     }
 
@@ -214,6 +230,13 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         bridgeData.hasDestinationCall = true;
         stargateData.sendParams.composeMsg = hex"123456";
+        stargateData.sendParams.oftCmd = OftCmdHelper.taxi();
+
+        // get quote and update fee information in stargateData
+        IStargate.MessagingFee memory fees = IStargate(STARGATE_POOL_USDC)
+            .quoteSend(stargateData.sendParams, false);
+        stargateData.fee = fees;
+        addToMessageValue = fees.nativeFee;
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
@@ -232,6 +255,23 @@ contract StargateFacetV2Test is TestBaseFacet {
         }(bridgeData, stargateData);
     }
 
+    function test_revert_BridgeERC20TokensWithDestCallWrongReceiverAddress()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(stargateFacetV2), bridgeData.minAmount);
+
+        // update sendParams for dest call
+        stargateData.sendParams.composeMsg = hex"123456";
+        stargateData.sendParams.oftCmd = OftCmdHelper.bus();
+        stargateData.sendParams.extraOptions = VALID_EXTRA_OPTIONS_VALUE;
+
+        vm.expectRevert(InformationMismatch.selector);
+        stargateFacetV2.startBridgeTokensViaStargate{
+            value: stargateData.fee.nativeFee
+        }(bridgeData, stargateData);
+    }
+
     function test_revert_BridgeERC20TokensWithDestCallBusMode() public {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(stargateFacetV2), bridgeData.minAmount);
@@ -239,7 +279,6 @@ contract StargateFacetV2Test is TestBaseFacet {
         bridgeData.hasDestinationCall = true;
         stargateData.sendParams.composeMsg = hex"123456";
         stargateData.sendParams.oftCmd = OftCmdHelper.bus();
-        console.log("length: ", stargateData.sendParams.oftCmd.length);
 
         vm.expectRevert(InformationMismatch.selector);
         stargateFacetV2.startBridgeTokensViaStargate{
@@ -289,7 +328,6 @@ contract StargateFacetV2Test is TestBaseFacet {
         usdc.approve(address(stargateFacetV2), bridgeData.minAmount);
         stargateData.assetId = type(uint16).max;
 
-        // vm.expectRevert(InvalidAssetId.selector, stargateData.assetId);
         vm.expectRevert(
             abi.encodeWithSelector(
                 InvalidAssetId.selector,
@@ -314,6 +352,19 @@ contract StargateFacetV2Test is TestBaseFacet {
         }(bridgeData, stargateData);
     }
 
+    function test_revert_BridgeNativeTokensWithInsufficientMsgValue() public {
+        vm.startPrank(USER_SENDER);
+
+        // get native bridge- and stargateData
+        _getNativeBridgingData();
+
+        vm.expectRevert();
+
+        stargateFacetV2.startBridgeTokensViaStargate{
+            value: bridgeData.minAmount + stargateData.fee.nativeFee - 1
+        }(bridgeData, stargateData);
+    }
+
     function test_CanBridgeNativeTokensWithDestCall() public {
         vm.startPrank(USER_SENDER);
 
@@ -321,8 +372,16 @@ contract StargateFacetV2Test is TestBaseFacet {
         _getNativeBridgingData();
         bridgeData.hasDestinationCall = true;
 
-        // add dummy calldata to sendParams in stargateData
+        // update sendParams for dest call
         stargateData.sendParams.composeMsg = hex"123456";
+        stargateData.sendParams.oftCmd = OftCmdHelper.taxi();
+        stargateData.sendParams.extraOptions = VALID_EXTRA_OPTIONS_VALUE;
+
+        // get quote and update fee information in stargateData
+        IStargate.MessagingFee memory fees = IStargate(STARGATE_POOL_USDC)
+            .quoteSend(stargateData.sendParams, false);
+        stargateData.fee = fees;
+        addToMessageValue = fees.nativeFee;
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: bridgeData.minAmount + stargateData.fee.nativeFee
@@ -372,7 +431,14 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         // update bridgeData
         bridgeData.hasDestinationCall = true;
-        stargateData.sendParams.composeMsg = hex"123456"; //TODO: replace with actual calldata
+        stargateData.sendParams.composeMsg = hex"123456";
+        stargateData.sendParams.oftCmd = OftCmdHelper.taxi();
+
+        // get quote and update fee information in stargateData
+        IStargate.MessagingFee memory fees = IStargate(STARGATE_POOL_USDC)
+            .quoteSend(stargateData.sendParams, false);
+        stargateData.fee = fees;
+        addToMessageValue = fees.nativeFee;
 
         // expect event to be emitted
         vm.expectEmit(true, true, true, true, address(stargateFacetV2));
