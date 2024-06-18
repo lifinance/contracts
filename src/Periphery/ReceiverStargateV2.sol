@@ -102,8 +102,7 @@ contract ReceiverStargateV2 is
             swapData,
             bridgedAssetId,
             payable(receiver),
-            OFTComposeMsgCodec.amountLD(_message),
-            true
+            OFTComposeMsgCodec.amountLD(_message)
         );
     }
 
@@ -133,21 +132,18 @@ contract ReceiverStargateV2 is
     /// @param assetId address of the token received from the source chain (not to be confused with StargateV2's assetIds which are uint16 values)
     /// @param receiver address that will receive tokens in the end
     /// @param amount amount of token
-    /// @param reserveRecoverGas whether we need a gas buffer to recover
     function _swapAndCompleteBridgeTokens(
         bytes32 _transactionId,
         LibSwap.SwapData[] memory _swapData,
         address assetId,
         address payable receiver,
-        uint256 amount,
-        bool reserveRecoverGas
+        uint256 amount
     ) private {
-        uint256 _recoverGas = reserveRecoverGas ? recoverGas : 0;
+        uint256 cacheGasLeft = gasleft();
 
         if (LibAsset.isNativeAsset(assetId)) {
             // case 1: native asset
-            uint256 cacheGasLeft = gasleft();
-            if (reserveRecoverGas && cacheGasLeft < _recoverGas) {
+            if (cacheGasLeft < recoverGas) {
                 // case 1a: not enough gas left to execute calls
                 // solhint-disable-next-line avoid-low-level-calls
                 (bool success, ) = receiver.call{ value: amount }("");
@@ -168,7 +164,7 @@ contract ReceiverStargateV2 is
             try
                 executor.swapAndCompleteBridgeTokens{
                     value: amount,
-                    gas: cacheGasLeft - _recoverGas
+                    gas: cacheGasLeft - recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
                 // solhint-disable-next-line avoid-low-level-calls
@@ -185,11 +181,10 @@ contract ReceiverStargateV2 is
             }
         } else {
             // case 2: ERC20 asset
-            uint256 cacheGasLeft = gasleft();
             IERC20 token = IERC20(assetId);
             token.safeApprove(address(executor), 0);
 
-            if (reserveRecoverGas && cacheGasLeft < _recoverGas) {
+            if (cacheGasLeft < recoverGas) {
                 // case 2a: not enough gas left to execute calls
                 token.safeTransfer(receiver, amount);
 
@@ -207,7 +202,7 @@ contract ReceiverStargateV2 is
             token.safeIncreaseAllowance(address(executor), amount);
             try
                 executor.swapAndCompleteBridgeTokens{
-                    gas: cacheGasLeft - _recoverGas
+                    gas: cacheGasLeft - recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
                 token.safeTransfer(receiver, amount);
