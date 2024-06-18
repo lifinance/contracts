@@ -8,14 +8,16 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InformationMismatch } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+// import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { ERC20 } from "solady/tokens/ERC20.sol";
 
 /// @title StargateFacetV2
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate (V2)
 /// @custom:version 1.0.0
 contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    using SafeTransferLib for ERC20;
+    using SafeTransferLib for address;
 
     /// STORAGE ///
     ITokenMessaging public immutable tokenMessaging;
@@ -113,8 +115,8 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         } else {
             // ERC20
             // check current allowance to router
-            ERC20 sendingAsset = ERC20(_bridgeData.sendingAssetId);
-            uint256 currentAllowance = sendingAsset.allowance(
+            address sendingAssetId = _bridgeData.sendingAssetId;
+            uint256 currentAllowance = ERC20(sendingAssetId).allowance(
                 address(this),
                 routerAddress
             );
@@ -122,10 +124,10 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             if (currentAllowance < _bridgeData.minAmount) {
                 // check if allowance is 0
                 if (currentAllowance != 0) {
-                    sendingAsset.safeApprove(routerAddress, 0);
+                    sendingAssetId.safeApprove(routerAddress, 0);
                 }
                 // set allowance to uintMax
-                sendingAsset.safeApprove(routerAddress, type(uint256).max);
+                sendingAssetId.safeApprove(routerAddress, type(uint256).max);
             }
         }
 
