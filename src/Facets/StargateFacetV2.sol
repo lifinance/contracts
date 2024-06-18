@@ -101,10 +101,20 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         StargateData calldata _stargateData
     ) private {
-        _validateDestinationCallFlag(_bridgeData, _stargateData);
+        // validate destination call flag
+        if (
+            (_stargateData.sendParams.composeMsg.length > 0 !=
+                _bridgeData.hasDestinationCall) ||
+            (_bridgeData.hasDestinationCall &&
+                _stargateData.sendParams.oftCmd.length != 0)
+        ) revert InformationMismatch();
 
-        // get the address of the Stargate pool/router contract
-        address routerAddress = _getRouterAddress(_stargateData.assetId);
+        // get the router-/pool address through the TokenMessaging contract
+        address routerAddress = tokenMessaging.stargateImpls(
+            _stargateData.assetId
+        );
+        if (routerAddress == address(0))
+            revert InvalidAssetId(_stargateData.assetId);
 
         // check if NATIVE or ERC20
         uint256 msgValue = _stargateData.fee.nativeFee;
@@ -139,35 +149,6 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         emit LiFiTransferStarted(_bridgeData);
-    }
-
-    /// PRIVATE HELPER METHODS ///
-    /// @dev makes sure that calldata contains payload for destination and that oftCmd is set for taxi mode (length: 0) when bridging tokens+destCall
-    function _validateDestinationCallFlag(
-        ILiFi.BridgeData memory _bridgeData,
-        StargateData calldata _stargateData
-    ) private pure {
-        if (
-            _stargateData.sendParams.composeMsg.length > 0 !=
-            _bridgeData.hasDestinationCall
-        ) {
-            revert InformationMismatch();
-        }
-        if (
-            _bridgeData.hasDestinationCall &&
-            (_stargateData.sendParams.oftCmd.length != 0)
-        ) {
-            revert InformationMismatch();
-        }
-    }
-
-    /// @dev returns the pool-/routerAddress for a given asset(Id), reverts if no address can be found
-    function _getRouterAddress(
-        uint16 assetId
-    ) private returns (address routerAddress) {
-        // get the router-/pool address through the TokenMessaging contract
-        routerAddress = tokenMessaging.stargateImpls(assetId);
-        if (routerAddress == address(0)) revert InvalidAssetId(assetId);
     }
 
     /// @dev required to receive ETH (e.g. from pre-bridging swaps)
