@@ -1,0 +1,35 @@
+{
+  "data": {
+    "status": {
+      "code": 0,
+      "text": "Success"
+    },
+    "tx": {
+      "hash": "0x179457edbb8f80460f498a0bbcacd7206e6d13f80135e40d4fd4830d07025a25",
+      "chainId": 56,
+      "tokenAmount": {
+        "symbol": "BNB",
+        "icon": "https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png",
+        "address": "",
+        "amount": "7186351008694512640",
+        "chainId": 56,
+        "decimals": 18
+      },
+      "time": "2024-02-14T08:16:00Z",
+      "address": "0x85226781a42ea1C3382992e4494625B8C3d8E233"
+    },
+    "txIn": {
+      "chainId": 42161,
+      "txHash": "0xf1dadc3cdb202e49cc180e2d0d291b0b09fd3fa66ffcfca83d0c296ba09505ae",
+      "tokenAmount": {
+        "symbol": "USDC",
+        "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "amount": "2359581763",
+        "decimals": 6
+      },
+      "time": "2024-02-14T08:13:58Z",
+      "address": "0x85226781a42ea1C3382992e4494625B8C3d8E233"
+    },
+    "transitTokenSent": null
+  }
+}
