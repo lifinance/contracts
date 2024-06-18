@@ -122,10 +122,10 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             if (currentAllowance < _bridgeData.minAmount) {
                 // check if allowance is 0
                 if (currentAllowance != 0) {
-                    sendingAsset.approve(routerAddress, 0);
+                    sendingAsset.safeApprove(routerAddress, 0);
                 }
                 // set allowance to uintMax
-                sendingAsset.approve(routerAddress, type(uint256).max);
+                sendingAsset.safeApprove(routerAddress, type(uint256).max);
             }
         }
 
