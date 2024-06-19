@@ -116,6 +116,7 @@ contract CalldataVerificationFacet {
             callData = abi.decode(data[4:], (bytes));
         }
 
+        // Non-EVM address is always the first parameter of bridge specific data
         if (bridgeData.hasSourceSwaps) {
             assembly {
                 let offset := mload(add(callData, 0x64)) // Get the offset of the bridge specific data
