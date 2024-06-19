@@ -150,7 +150,4 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         emit LiFiTransferStarted(_bridgeData);
     }
-
-    /// @dev required to receive ETH (e.g. from pre-bridging swaps)
-    receive() external payable {}
 }
