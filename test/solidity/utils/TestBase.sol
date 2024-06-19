@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
 import { DSTest } from "ds-test/test.sol";
@@ -11,6 +11,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { LibUtil } from "lifi/Libraries/LibUtil.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { console } from "test/solidity/utils/Console.sol";
 import { NoSwapDataProvided, InformationMismatch, NativeAssetTransferFailed, ReentrancyError, InsufficientBalance, CannotBridgeToSameNetwork, InvalidReceiver, InvalidAmount, InvalidConfig, InvalidSendingToken, AlreadyInitialized, NotInitialized, UnAuthorized } from "src/Errors/GenericErrors.sol";
 

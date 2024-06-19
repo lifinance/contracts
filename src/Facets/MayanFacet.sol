@@ -10,6 +10,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IMayan } from "../Interfaces/IMayan.sol";
 import { UnsupportedChainId } from "../Errors/GenericErrors.sol";
+import { console } from "hardhat/console.sol";
 
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
@@ -21,59 +22,25 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.mayan");
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
-    bytes32 internal constant MAYAN_AUCTION_ADDRESS =
-        0x3383cb0c0c60fc12b717160b699a55db62c56baed78a0ff9ebed68e1b003d38c;
-    uint16 internal constant MAYAN_CHAIN_ID = 1;
 
     IMayan public immutable mayan;
 
-    /// Types ///
-
-    struct Storage {
-        mapping(uint256 => uint16) wormholeChainId;
-    }
-
-    struct Config {
-        uint256 chainId;
-        uint16 wormholeChainId;
-    }
-
-    /// @dev Optional bridge specific struct
-    /// @param mayanAddr The address of the Mayan Bridge
-    /// @param referrer The referrer address
-    /// @param tokenOutAddr The address of the token to be received
-    /// @param receiver The address of the receiver
-    /// @param swapFee The swap fee
-    /// @param redeemFee The redeem fee
-    /// @param refundFee The refund fee
-    /// @param transferDeadline The transfer deadline
-    /// @param swapDeadline The swap deadline
-    /// @param amountOutMin The minimum amount out
-    /// @param destChainId The (wormhole) destination chain id
-    /// @param unwrap Whether to unwrap the asset
-    /// @param gasDrop The gas drop
+    /// @dev Mayan specific bridge data
+    /// @param nonEVMReceiver The address of the non-EVM receiver if applicable
+    /// @param mayanProtocol The address of the Mayan protocol final contract
+    /// @param protocolData The protocol data for the Mayan protocol
     struct MayanData {
-        bytes32 mayanAddr;
-        bytes32 referrer;
-        bytes32 tokenOutAddr;
-        bytes32 receiver;
-        uint64 swapFee;
-        uint64 redeemFee;
-        uint64 refundFee;
-        uint256 transferDeadline;
-        uint64 swapDeadline;
-        uint64 amountOutMin;
-        bool unwrap;
-        uint64 gasDrop;
+        bytes32 nonEVMReceiver;
+        address mayanProtocol;
+        bytes protocolData;
     }
+
+    /// Errors ///
+    error InvalidReceiver(address expected, address actual);
+    error InvalidNonEVMReceiver(bytes32 expected, bytes32 actual);
 
     /// Events ///
 
-    event MayanInitialized(Config[] configs);
-    event MayanChainIdMapped(
-        uint256 indexed lifiChainId,
-        uint256 indexed wormholeChainId
-    );
     event BridgeToNonEVMChain(
         bytes32 indexed transactionId,
         uint256 indexed destinationChainId,
@@ -87,38 +54,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         mayan = _mayan;
     }
 
-    /// Init ///
-
-    /// @notice Initialize local variables for the Wormhole Facet
-    /// @param configs Bridge configuration data
-    function initMayan(Config[] calldata configs) external {
-        LibDiamond.enforceIsContractOwner();
-
-        Storage storage sm = getStorage();
-
-        uint256 numConfigs = configs.length;
-        for (uint256 i = 0; i < numConfigs; i++) {
-            sm.wormholeChainId[configs[i].chainId] = configs[i]
-                .wormholeChainId;
-        }
-
-        emit MayanInitialized(configs);
-    }
-
     /// External Methods ///
-
-    /// @notice Creates a mapping between a lifi chain id and a wormhole chain id
-    /// @param _lifiChainId lifi chain id
-    /// @param _wormholeChainId wormhole chain id
-    function setMayanChainIdMapping(
-        uint256 _lifiChainId,
-        uint16 _wormholeChainId
-    ) external {
-        LibDiamond.enforceIsContractOwner();
-        Storage storage sm = getStorage();
-        sm.wormholeChainId[_lifiChainId] = _wormholeChainId;
-        emit MayanChainIdMapped(_lifiChainId, _wormholeChainId);
-    }
 
     /// @notice Bridges tokens via Mayan
     /// @param _bridgeData The core information needed for bridging
@@ -135,15 +71,11 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
-        uint256 totalFees = _mayanData.swapFee +
-            _mayanData.redeemFee +
-            _mayanData.refundFee;
-
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
-        _startBridge(_bridgeData, _mayanData, totalFees);
+        _startBridge(_bridgeData, _mayanData);
     }
 
     /// @notice Performs a swap before bridging via Mayan
@@ -163,18 +95,13 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        uint256 totalFees = _mayanData.swapFee +
-            _mayanData.redeemFee +
-            _mayanData.refundFee;
-        address assetId = _bridgeData.sendingAssetId;
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender),
-            LibAsset.isNativeAsset(assetId) ? 0 : totalFees
+            payable(msg.sender)
         );
-        _startBridge(_bridgeData, _mayanData, totalFees);
+        _startBridge(_bridgeData, _mayanData);
     }
 
     /// Internal Methods ///
@@ -184,37 +111,33 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _mayanData Data specific to Mayan
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        MayanData calldata _mayanData,
-        uint256 _totalFees
+        MayanData calldata _mayanData
     ) internal {
-        uint16 whDestChainId = getWormholeChainId(
-            _bridgeData.destinationChainId
-        );
+        // Validate receiver address
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            if (_mayanData.nonEVMReceiver == bytes32(0)) {
+                revert InvalidNonEVMReceiver(
+                    _mayanData.nonEVMReceiver,
+                    bytes32(0)
+                );
+            }
+            bytes32 receiver = _parseReceiver(_mayanData.protocolData);
+            if (_mayanData.nonEVMReceiver != receiver) {
+                revert InvalidNonEVMReceiver(
+                    _mayanData.nonEVMReceiver,
+                    receiver
+                );
+            }
+        } else {
+            address receiver = address(
+                uint160(uint256(_parseReceiver(_mayanData.protocolData)))
+            );
+            if (_bridgeData.receiver != receiver) {
+                revert InvalidReceiver(_bridgeData.receiver, receiver);
+            }
+        }
 
-        IMayan.RelayerFees memory relayerFees = IMayan.RelayerFees({
-            swapFee: _mayanData.swapFee,
-            redeemFee: _mayanData.redeemFee,
-            refundFee: _mayanData.refundFee
-        });
-
-        IMayan.Recepient memory recipient = IMayan.Recepient({
-            mayanAddr: _mayanData.mayanAddr,
-            mayanChainId: MAYAN_CHAIN_ID,
-            auctionAddr: MAYAN_AUCTION_ADDRESS,
-            destAddr: _mayanData.receiver,
-            destChainId: whDestChainId,
-            referrer: _mayanData.referrer,
-            refundAddr: _mayanData.receiver
-        });
-
-        IMayan.Criteria memory criteria = IMayan.Criteria({
-            transferDeadline: _mayanData.transferDeadline,
-            swapDeadline: _mayanData.swapDeadline,
-            amountOutMin: _mayanData.amountOutMin,
-            unwrap: _mayanData.unwrap,
-            gasDrop: _mayanData.gasDrop,
-            customPayload: ""
-        });
+        IMayan.PermitParams memory emptyPermitParams;
 
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             LibAsset.maxApproveERC20(
@@ -223,22 +146,17 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount
             );
 
-            mayan.swap(
-                relayerFees,
-                recipient,
-                _mayanData.tokenOutAddr,
-                whDestChainId,
-                criteria,
+            mayan.forwardERC20(
                 _bridgeData.sendingAssetId,
-                _bridgeData.minAmount - _totalFees
+                _bridgeData.minAmount,
+                emptyPermitParams,
+                _mayanData.mayanProtocol,
+                _mayanData.protocolData
             );
         } else {
-            mayan.wrapAndSwapETH{ value: _bridgeData.minAmount }(
-                relayerFees,
-                recipient,
-                _mayanData.tokenOutAddr,
-                whDestChainId,
-                criteria
+            mayan.forwardEth{ value: _bridgeData.minAmount }(
+                _mayanData.mayanProtocol,
+                _mayanData.protocolData
             );
         }
 
@@ -246,31 +164,58 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             emit BridgeToNonEVMChain(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
-                _mayanData.receiver
+                _mayanData.nonEVMReceiver
             );
         }
 
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    /// @notice Gets the wormhole chain id for a given lifi chain id
-    /// @param _lifiChainId uint256 of the lifi chain ID
-    /// @return uint16 of the wormhole chain id
-    function getWormholeChainId(
-        uint256 _lifiChainId
-    ) private view returns (uint16) {
-        Storage storage sm = getStorage();
-        uint16 wormholeChainId = sm.wormholeChainId[_lifiChainId];
-        if (wormholeChainId == 0) revert UnsupportedChainId(_lifiChainId);
-        return wormholeChainId;
-    }
-
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
+    // @dev Parses the receiver address from the protocol data
+    // @param protocolData The protocol data for the Mayan protocol
+    // @return receiver The receiver address
+    function _parseReceiver(
+        bytes memory protocolData
+    ) internal pure returns (bytes32 receiver) {
+        bytes4 selector;
         assembly {
-            s.slot := namespace
+            // Load the selector from the protocol data
+            selector := mload(add(protocolData, 0x20))
+            // Shift the selector to the right by 224 bits to match shape of literal in switch statement
+            let shiftedSelector := shr(224, selector)
+            switch shiftedSelector
+            // Note: [*bytes32*] = location of receiver address
+            case 0x94454a5d {
+                // 0x94454a5d bridgeWithFee(address,uint256,uint64,uint64,[*bytes32*],(uint32,bytes32,bytes32))
+                receiver := mload(add(protocolData, 0xa4)) // MayanCircle::bridgeWithFee()
+            }
+            case 0x32ad465f {
+                // 0x32ad465f bridgeWithLockedFee(address,uint256,uint64,uint256,(uint32,[*bytes32*],bytes32))
+                receiver := mload(add(protocolData, 0xc4)) // MayanCircle::bridgeWithLockedFee()
+            }
+            case 0xafd9b706 {
+                // 0xafd9b706 createOrder((address,uint256,uint64,[*bytes32*],uint16,bytes32,uint64,uint64,uint64,bytes32,uint8),(uint32,bytes32,bytes32))
+                receiver := mload(add(protocolData, 0x84)) // MayanCircle::createOrder()
+            }
+            case 0x6111ad25 {
+                // 0x6111ad25 swap((uint64,uint64,uint64),(bytes32,uint16,bytes32,[*bytes32*],uint16,bytes32,bytes32),bytes32,uint16,(uint256,uint64,uint64,bool,uint64,bytes),address,uint256)
+                receiver := mload(add(protocolData, 0xe4)) // MayanSwap::swap()
+            }
+            case 0x1eb1cff0 {
+                // 0x1eb1cff0 wrapAndSwapETH((uint64,uint64,uint64),(bytes32,uint16,bytes32,[*bytes32*],uint16,bytes32,bytes32),bytes32,uint16,(uint256,uint64,uint64,bool,uint64,bytes))
+                receiver := mload(add(protocolData, 0xe4)) // MayanSwap::wrapAndSwapETH()
+            }
+            case 0xb866e173 {
+                // 0xb866e173 createOrderWithEth((bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
+                receiver := mload(add(protocolData, 0x104)) // MayanSwift::createOrderWithEth()
+            }
+            case 0x8e8d142b {
+                // 0x8e8d142b createOrderWithToken(address,uint256,(bytes32,bytes32,uint64,uint64,uint64,uint64,uint64,[*bytes32*],uint16,bytes32,uint8,uint8,bytes32))
+                receiver := mload(add(protocolData, 0x144)) // MayanSwift::createOrderWithToken()
+            }
+            default {
+                receiver := 0x0
+            }
         }
     }
 }

@@ -118,8 +118,8 @@
         "Version": "1.0.0"
       },
       "0x4b904ad5Ca7601595277575824B080e078e2E812": {
-        "Name": "",
-        "Version": ""
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.0"
       },
       "0xC47B2b11C492CCd45d17406B9371E75444087724": {
         "Name": "StargateFacetV2",
