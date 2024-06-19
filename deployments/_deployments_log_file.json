@@ -15551,11 +15551,11 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0xc23ae3A8d74C0a428FA59E4AD3EB6aa4b2330530",
+            "ADDRESS": "0x1F2872f7133F4fCbfCE1947C5376b4Ed5865dC97",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-06-06 14:19:51",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666",
-            "SALT": "",
+            "TIMESTAMP": "2024-06-18 10:31:25",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000492751ec3c57141deb205ec2da8bfcb410738630",
+            "SALT": "18062024",
             "VERIFIED": "true"
           }
         ]
