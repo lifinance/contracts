@@ -35,7 +35,7 @@
     "sepolia": "0x0000000000000000000000000000000000000000"
   },
   "tokenMessaging": {
-    "mainnet": "0x6d6620efa72948c5f68a3c8646d58c00d3f4a980",
+    "mainnet": "0x6d6620eFa72948C5f68A3C8646d58C00d3f4A980",
     "bsc": "0x6e3d884c96d640526f273c61dfcf08915ebd7e2b",
     "polygon": "0x6ce9bf8cdab780416ad1fd87b318a077d2f50eac",
     "arbitrum": "0x19cfce47ed54a88614648dc3f19a5980097007dd",

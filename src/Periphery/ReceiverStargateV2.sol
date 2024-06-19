@@ -9,6 +9,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
+import { ITokenMessaging } from "../Interfaces/IStargate.sol";
 
 interface IPool {
     function token() external view returns (address tokenAddress);
@@ -43,6 +44,7 @@ contract ReceiverStargateV2 is
 
     /// Storage ///
     IExecutor public immutable executor;
+    ITokenMessaging public immutable tokenMessaging;
     address public immutable endpointV2;
     uint256 public immutable recoverGas;
 
@@ -58,11 +60,13 @@ contract ReceiverStargateV2 is
     constructor(
         address _owner,
         address _executor,
+        address _tokenMessaging,
         address _endpointV2,
         uint256 _recoverGas
     ) TransferrableOwnership(_owner) {
         owner = _owner;
         executor = IExecutor(_executor);
+        tokenMessaging = ITokenMessaging(_tokenMessaging);
         endpointV2 = _endpointV2;
         recoverGas = _recoverGas;
     }
@@ -83,6 +87,10 @@ contract ReceiverStargateV2 is
         address, // _executor (not used)
         bytes calldata // _extraData (not used)
     ) external payable onlyEndpointV2 {
+        // verify that _from address is actually a Stargate pool by checking if Stargate's
+        // TokenMessaging contract has an assetId registered for this address
+        if (tokenMessaging.assetIds(_from) == 0) revert UnAuthorized();
+
         // get the address of the token that was received from Stargate bridge
         address bridgedAssetId = IPool(_from).token();
 

@@ -27,6 +27,8 @@ contract ReceiverStargateV2Test is TestBase {
 
     address public constant STARGATE_USDC_POOL_MAINNET =
         0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
+    address public constant STARGATE_TOKEN_MESSAGING_MAINNET =
+        0x6d6620eFa72948C5f68A3C8646d58C00d3f4A980;
     uint256 public constant RECOVER_GAS_VALUE = 100000;
     address stargateRouter;
     bytes32 internal transferId;
@@ -46,6 +48,7 @@ contract ReceiverStargateV2Test is TestBase {
         receiver = new ReceiverStargateV2(
             address(this),
             address(executor),
+            STARGATE_TOKEN_MESSAGING_MAINNET,
             ENDPOINT_V2_MAINNET,
             RECOVER_GAS_VALUE
         );
@@ -161,6 +164,7 @@ contract ReceiverStargateV2Test is TestBase {
         receiver = new ReceiverStargateV2(
             address(this),
             address(executor),
+            STARGATE_TOKEN_MESSAGING_MAINNET,
             ENDPOINT_V2_MAINNET,
             100000
         );
