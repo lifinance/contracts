@@ -43,6 +43,9 @@ contract DeployScript is DeployScriptBase {
         address endpointV2 = json.readAddress(
             string.concat(".endpointV2.", network)
         );
+        address tokenMessaging = json.readAddress(
+            string.concat(".tokenMessaging.", network)
+        );
 
         // get Executor address from deploy log
         path = string.concat(
@@ -56,6 +59,13 @@ contract DeployScript is DeployScriptBase {
         json = vm.readFile(path);
         address executor = json.readAddress(".Executor");
 
-        return abi.encode(refundWalletAddress, executor, endpointV2, 100000);
+        return
+            abi.encode(
+                refundWalletAddress,
+                executor,
+                tokenMessaging,
+                endpointV2,
+                100000
+            );
     }
 }

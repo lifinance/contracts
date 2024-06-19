@@ -376,6 +376,11 @@
         "configFileName": "stargate.json",
         "keyInConfigFile": ".endpointV2.<NETWORK>",
         "allowToDeployWithZeroAddress": "false"
+      },
+      "_tokenMessaging": {
+        "configFileName": "stargate.json",
+        "keyInConfigFile": ".tokenMessaging.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
       }
     },
     "contractAddresses": {
