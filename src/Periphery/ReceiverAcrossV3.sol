@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
@@ -9,13 +8,15 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { ERC20 } from "solady/tokens/ERC20.sol";
 
 /// @title ReceiverAcrossV3
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing via AcrossV3
 /// @custom:version 1.0.0
 contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
-    using SafeERC20 for IERC20;
+    using SafeTransferLib for address;
 
     /// Error ///
     error InsufficientGasLimit(uint256 gasLeft);
@@ -92,7 +93,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
             (bool success, ) = receiver.call{ value: amount }("");
             if (!success) revert ExternalCallFailed();
         } else {
-            IERC20(assetId).safeTransfer(receiver, amount);
+            assetId.safeTransfer(receiver, amount);
         }
     }
 
@@ -150,8 +151,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
         } else {
             // case 2: ERC20 asset
             uint256 cacheGasLeft = gasleft();
-            IERC20 token = IERC20(assetId);
-            token.safeApprove(address(executor), 0);
+            assetId.safeApprove(address(executor), 0);
 
             if (cacheGasLeft < recoverGas) {
                 // case 2a: not enough gas left to execute calls
@@ -161,7 +161,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
             }
 
             // case 2b: enough gas left to execute calls
-            token.safeIncreaseAllowance(address(executor), amount);
+            assetId.safeApprove(address(executor), amount);
             try
                 executor.swapAndCompleteBridgeTokens{
                     gas: cacheGasLeft - recoverGas
@@ -173,7 +173,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
                     revert InsufficientGasLimit(cacheGasLeft);
 
                 // send the bridged (and unswapped) funds to receiver address
-                token.safeTransfer(receiver, amount);
+                assetId.safeTransfer(receiver, amount);
 
                 emit LiFiTransferRecovered(
                     _transactionId,
@@ -185,7 +185,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
             }
 
             // reset approval to 0
-            token.safeApprove(address(executor), 0);
+            assetId.safeApprove(address(executor), 0);
         }
     }
 
