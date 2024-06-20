@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";

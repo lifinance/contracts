@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
 import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";

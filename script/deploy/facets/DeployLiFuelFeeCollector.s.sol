@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { LiFuelFeeCollector } from "lifi/Periphery/LiFuelFeeCollector.sol";

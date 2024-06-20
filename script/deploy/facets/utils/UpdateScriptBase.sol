@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import { ScriptBase } from "./ScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";

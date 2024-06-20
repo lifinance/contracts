@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";

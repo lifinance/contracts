@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import "forge-std/console.sol";
 import { UpdateScriptBase } from "../../deploy/facets/utils/UpdateScriptBase.sol";

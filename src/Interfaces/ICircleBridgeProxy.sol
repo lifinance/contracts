@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 interface ICircleBridgeProxy {
     /// @notice Deposits and burns tokens from sender to be minted on destination domain.

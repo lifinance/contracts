@@ -1,5 +1,5 @@
 // // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import "ds-test/test.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
