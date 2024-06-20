@@ -12,9 +12,9 @@ graph LR;
 
 ## Public Methods
 
-- `function startBridgeTokensViaAcross(BridgeData memory _bridgeData, AcrossData calldata _acrossData)`
+- `function startBridgeTokensViaAcrossV3(BridgeData memory _bridgeData, AcrossData calldata _acrossData)`
   - Simply bridges tokens using Across
-- `swapAndStartBridgeTokensViaAcross(BridgeData memory _bridgeData, SwapData[] calldata _swapData, AcrossData calldata _acrossData)`
+- `swapAndStartBridgeTokensViaAcrossV3(BridgeData memory _bridgeData, SwapData[] calldata _swapData, AcrossData calldata _acrossData)`
   - Performs swap(s) before bridging tokens using Across
 
 ## Across Specific Parameters
@@ -22,15 +22,21 @@ graph LR;
 The methods listed above take a variable labeled `_acrossData`. This data is specific to Across and is represented as the following struct type:
 
 ```solidity
-/// @param relayerFeePct The relayer fee in token percentage with 18 decimals.
-/// @param quoteTimestamp The timestamp associated with the suggested fee.
-/// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens.
-/// @param maxCount Used to protect the depositor from frontrunning to guarantee their quote remains valid.
-struct AcrossData {
-  int64 relayerFeePct;
+/// @param receiverAddress The address that will receive the token on dst chain (our Receiver contract or the user-defined receiver address)
+/// @param refundAddress The address that will be used for potential bridge refunds
+/// @param receivingAssetId The address of the token to be received at destination chain
+/// @param outputAmount The amount to be received at destination chain (after fees)
+/// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
+/// @param fillDeadline The destination chain timestamp until which the order can be filled
+/// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens
+struct AcrossV3Data {
+  address receiverAddress;
+  address refundAddress;
+  address receivingAssetId;
+  uint256 outputAmount;
   uint32 quoteTimestamp;
+  uint32 fillDeadline;
   bytes message;
-  uint256 maxCount;
 }
 ```
 
