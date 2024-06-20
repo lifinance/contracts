@@ -37,6 +37,10 @@
         "Name": "GenericSwapFacet",
         "Version": "2.0.0"
       },
+      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.0"
+      },
       "0xeB98530f99e1c4406d24FdE4b590C96Ac7143aEe": {
         "Name": "StandardizedCallFacet",
         "Version": "1.1.0"
