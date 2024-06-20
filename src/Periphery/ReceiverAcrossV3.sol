@@ -112,81 +112,43 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
         address payable receiver,
         uint256 amount
     ) private {
-        if (LibAsset.isNativeAsset(assetId)) {
-            // case 1: native asset
-            uint256 cacheGasLeft = gasleft();
-            if (cacheGasLeft < recoverGas) {
-                // case 1a: not enough gas left to execute calls
-                // @dev: we removed the handling to send bridged funds to receiver in case of insufficient gas
-                //       as it's better for AcrossV3 to revert these cases instead
-                revert InsufficientGasLimit(cacheGasLeft);
-            }
+        // since Across will always send wrappedNative to contract, we do not need a native handling here
+        uint256 cacheGasLeft = gasleft();
 
-            // case 1b: enough gas left to execute calls
-            // solhint-disable no-empty-blocks
-            try
-                executor.swapAndCompleteBridgeTokens{
-                    value: amount,
-                    gas: cacheGasLeft - recoverGas
-                }(_transactionId, _swapData, assetId, receiver)
-            {} catch {
-                cacheGasLeft = gasleft();
-                // if the only gas left here is the recoverGas then the swap must have failed due to out-of-gas error and in this case we want to revert
-                if (cacheGasLeft <= recoverGas)
-                    revert InsufficientGasLimit(cacheGasLeft);
-
-                // send the bridged (and unswapped) funds to receiver address
-                // solhint-disable-next-line avoid-low-level-calls
-                (bool success, ) = receiver.call{ value: amount }("");
-                if (!success) revert ExternalCallFailed();
-
-                emit LiFiTransferRecovered(
-                    _transactionId,
-                    assetId,
-                    receiver,
-                    amount,
-                    block.timestamp
-                );
-            }
-        } else {
-            // case 2: ERC20 asset
-            uint256 cacheGasLeft = gasleft();
-            assetId.safeApprove(address(executor), 0);
-
-            if (cacheGasLeft < recoverGas) {
-                // case 2a: not enough gas left to execute calls
-                // @dev: we removed the handling to send bridged funds to receiver in case of insufficient gas
-                //       as it's better for AcrossV3 to revert these cases instead
-                revert InsufficientGasLimit(cacheGasLeft);
-            }
-
-            // case 2b: enough gas left to execute calls
-            assetId.safeApprove(address(executor), amount);
-            try
-                executor.swapAndCompleteBridgeTokens{
-                    gas: cacheGasLeft - recoverGas
-                }(_transactionId, _swapData, assetId, receiver)
-            {} catch {
-                cacheGasLeft = gasleft();
-                // if the only gas left here is the recoverGas then the swap must have failed due to out-of-gas error and in this case we want to revert
-                if (cacheGasLeft <= recoverGas)
-                    revert InsufficientGasLimit(cacheGasLeft);
-
-                // send the bridged (and unswapped) funds to receiver address
-                assetId.safeTransfer(receiver, amount);
-
-                emit LiFiTransferRecovered(
-                    _transactionId,
-                    assetId,
-                    receiver,
-                    amount,
-                    block.timestamp
-                );
-            }
-
-            // reset approval to 0
-            assetId.safeApprove(address(executor), 0);
+        if (cacheGasLeft < recoverGas) {
+            // case A: not enough gas left to execute calls
+            // @dev: we removed the handling to send bridged funds to receiver in case of insufficient gas
+            //       as it's better for AcrossV3 to revert these cases instead
+            revert InsufficientGasLimit(cacheGasLeft);
         }
+
+        // case 2b: enough gas left to execute calls
+        assetId.safeApprove(address(executor), 0);
+        assetId.safeApprove(address(executor), amount);
+        try
+            executor.swapAndCompleteBridgeTokens{
+                gas: cacheGasLeft - recoverGas
+            }(_transactionId, _swapData, assetId, receiver)
+        {} catch {
+            cacheGasLeft = gasleft();
+            // if the only gas left here is the recoverGas then the swap must have failed due to out-of-gas error and in this case we want to revert
+            if (cacheGasLeft <= recoverGas)
+                revert InsufficientGasLimit(cacheGasLeft);
+
+            // send the bridged (and unswapped) funds to receiver address
+            assetId.safeTransfer(receiver, amount);
+
+            emit LiFiTransferRecovered(
+                _transactionId,
+                assetId,
+                receiver,
+                amount,
+                block.timestamp
+            );
+        }
+
+        // reset approval to 0
+        assetId.safeApprove(address(executor), 0);
     }
 
     /// @notice Receive native asset directly.
