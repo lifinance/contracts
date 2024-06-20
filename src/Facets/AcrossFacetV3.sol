@@ -110,6 +110,10 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         AcrossV3Data calldata _acrossData
     ) internal {
+        // validate destination call flag
+        if (_acrossData.message.length > 0 != _bridgeData.hasDestinationCall)
+            revert InformationMismatch();
+
         // ensure that receiver addresses match in case of no destination call
         if (
             !_bridgeData.hasDestinationCall &&
