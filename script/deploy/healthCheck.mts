@@ -12,7 +12,6 @@ import {
   getContract,
   http,
   parseAbi,
-  zeroAddress,
 } from 'viem'
 
 const louperCmd = 'louper-cli'
@@ -213,55 +212,28 @@ const main = defineCommand({
       // Check contract ownership
       consola.box('Checking ownership...')
 
-      let owner: Address = zeroAddress
-      let contractAddress: Address
       const withdrawWallet = getAddress(globalConfig.withdrawWallet)
       const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
       const refundWallet = getAddress(globalConfig.refundWallet)
 
       // FeeCollector
-      if (deployedContracts['FeeCollector']) {
-        contractAddress = deployedContracts['FeeCollector']
-        owner = await getOwnableContract(
-          contractAddress,
-          publicClient
-        ).read.owner()
-        if (owner !== withdrawWallet) {
-          logError(`FeeCollector owner is ${owner}, expected ${withdrawWallet}`)
-        } else {
-          consola.success('FeeCollector owner is correct')
-        }
-      }
+      checkOwnership(
+        'FeeCollector',
+        withdrawWallet,
+        deployedContracts,
+        publicClient
+      )
 
       // LiFuelFeeCollector
-      if (deployedContracts['LiFuelFeeCollector']) {
-        contractAddress = deployedContracts['LiFuelFeeCollector']
-        owner = await getOwnableContract(
-          contractAddress,
-          publicClient
-        ).read.owner()
-        if (owner !== rebalanceWallet) {
-          logError(
-            `LiFuelFeeCollector owner is ${owner}, expected ${rebalanceWallet}`
-          )
-        } else {
-          consola.success('LiFuelFeeCollector owner is correct')
-        }
-      }
+      checkOwnership(
+        'LiFuelFeeCollector',
+        rebalanceWallet,
+        deployedContracts,
+        publicClient
+      )
 
       // Receiver
-      if (deployedContracts['Receiver']) {
-        contractAddress = deployedContracts['Receiver']
-        owner = await getOwnableContract(
-          contractAddress,
-          publicClient
-        ).read.owner()
-        if (owner !== refundWallet) {
-          logError(`Receiver owner is ${owner}, expected ${refundWallet}`)
-        } else {
-          consola.success('Receiver owner is correct')
-        }
-      }
+      checkOwnership('Receiver', refundWallet, deployedContracts, publicClient)
 
       // Check access permissions
       consola.box('Checking access permissions...')
@@ -338,6 +310,26 @@ const getOwnableContract = (address: Address, client: PublicClient) => {
     abi: parseAbi(['function owner() external view returns (address)']),
     client,
   })
+}
+
+const checkOwnership = async (
+  name: string,
+  expectedOwner: Address,
+  deployedContracts: Record<string, Address>,
+  publicClient: PublicClient
+) => {
+  if (deployedContracts[name]) {
+    const contractAddress = deployedContracts[name]
+    const owner = await getOwnablContract(
+      contractAddress,
+      publicClient
+    ).read.owner()
+    if (owner !== expectedOwner) {
+      logError(`${name} owner is ${owner}, expected ${expectedOwner}`)
+    } else {
+      consola.success(`${name} owner is correct`)
+    }
+  }
 }
 
 const finish = () => {
