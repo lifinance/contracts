@@ -837,7 +837,8 @@
         "SquidFacet": "1.0.0",
         "StargateFacet": "1.0.0",
         "SynapseBridgeFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
+        "WormholeFacet": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -960,7 +961,8 @@
         "Executor": "2.0.0",
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
-        "ServiceFeeCollector": "1.0.0"
+        "ServiceFeeCollector": "1.0.0",
+        "AcrossFacetV3": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
@@ -15,7 +14,7 @@ import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing via AcrossV3
 /// @custom:version 1.0.0
-contract ReceiverAcrossV3 is ILiFi, ReentrancyGuard, TransferrableOwnership {
+contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
     using SafeERC20 for IERC20;
 
     /// Error ///
@@ -75,8 +74,7 @@ contract ReceiverAcrossV3 is ILiFi, ReentrancyGuard, TransferrableOwnership {
             swapData,
             tokenSent,
             payable(receiver),
-            amount,
-            true
+            amount
         );
     }
 
@@ -106,21 +104,17 @@ contract ReceiverAcrossV3 is ILiFi, ReentrancyGuard, TransferrableOwnership {
     /// @param assetId address of the token received from the source chain (not to be confused with StargateV2's assetIds which are uint16 values)
     /// @param receiver address that will receive tokens in the end
     /// @param amount amount of token
-    /// @param reserveRecoverGas whether we need a gas buffer to recover
     function _swapAndCompleteBridgeTokens(
         bytes32 _transactionId,
         LibSwap.SwapData[] memory _swapData,
         address assetId,
         address payable receiver,
-        uint256 amount,
-        bool reserveRecoverGas
+        uint256 amount
     ) private {
-        uint256 _recoverGas = reserveRecoverGas ? recoverGas : 0;
-
         if (LibAsset.isNativeAsset(assetId)) {
             // case 1: native asset
             uint256 cacheGasLeft = gasleft();
-            if (reserveRecoverGas && cacheGasLeft < _recoverGas) {
+            if (cacheGasLeft < recoverGas) {
                 // case 1a: not enough gas left to execute calls
                 // @dev: we removed the handling to send bridged funds to receiver in case of insufficient gas
                 //       as it's better for AcrossV3 to revert these cases instead
@@ -132,12 +126,12 @@ contract ReceiverAcrossV3 is ILiFi, ReentrancyGuard, TransferrableOwnership {
             try
                 executor.swapAndCompleteBridgeTokens{
                     value: amount,
-                    gas: cacheGasLeft - _recoverGas
+                    gas: cacheGasLeft - recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
                 cacheGasLeft = gasleft();
-                // if the only gas left here is the _recoverGas then the swap must have failed due to out-of-gas error and in this case we want to revert
-                if (cacheGasLeft <= _recoverGas)
+                // if the only gas left here is the recoverGas then the swap must have failed due to out-of-gas error and in this case we want to revert
+                if (cacheGasLeft <= recoverGas)
                     revert InsufficientGasLimit(cacheGasLeft);
 
                 // send the bridged (and unswapped) funds to receiver address
@@ -159,7 +153,7 @@ contract ReceiverAcrossV3 is ILiFi, ReentrancyGuard, TransferrableOwnership {
             IERC20 token = IERC20(assetId);
             token.safeApprove(address(executor), 0);
 
-            if (reserveRecoverGas && cacheGasLeft < _recoverGas) {
+            if (cacheGasLeft < recoverGas) {
                 // case 2a: not enough gas left to execute calls
                 // @dev: we removed the handling to send bridged funds to receiver in case of insufficient gas
                 //       as it's better for AcrossV3 to revert these cases instead
@@ -170,12 +164,12 @@ contract ReceiverAcrossV3 is ILiFi, ReentrancyGuard, TransferrableOwnership {
             token.safeIncreaseAllowance(address(executor), amount);
             try
                 executor.swapAndCompleteBridgeTokens{
-                    gas: cacheGasLeft - _recoverGas
+                    gas: cacheGasLeft - recoverGas
                 }(_transactionId, _swapData, assetId, receiver)
             {} catch {
                 cacheGasLeft = gasleft();
-                // if the only gas left here is the _recoverGas then the swap must have failed due to out-of-gas error and in this case we want to revert
-                if (cacheGasLeft <= _recoverGas)
+                // if the only gas left here is the recoverGas then the swap must have failed due to out-of-gas error and in this case we want to revert
+                if (cacheGasLeft <= recoverGas)
                     revert InsufficientGasLimit(cacheGasLeft);
 
                 // send the bridged (and unswapped) funds to receiver address
