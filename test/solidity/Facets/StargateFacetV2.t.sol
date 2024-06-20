@@ -183,6 +183,18 @@ contract StargateFacetV2Test is TestBaseFacet {
         }(bridgeData, stargateData);
     }
 
+    function test_revert_ReceiverAddressesDontMatchWhenNoDestCall() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(stargateFacetV2), bridgeData.minAmount);
+        bridgeData.receiver = USER_SENDER;
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        stargateFacetV2.startBridgeTokensViaStargate{
+            value: stargateData.fee.nativeFee
+        }(bridgeData, stargateData);
+    }
+
     function test_canBridgeERC20TokensWithExistingNonZeroAllowance() public {
         // set non-zero allowance between facet and Stargate pool
         vm.startPrank(address(stargateFacetV2));

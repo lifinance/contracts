@@ -8,9 +8,9 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { InformationMismatch } from "../Errors/GenericErrors.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-// import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { ERC20 } from "solady/tokens/ERC20.sol";
+import { console2 } from "forge-std/console2.sol";
 
 /// @title StargateFacetV2
 /// @author Li.Finance (https://li.finance)
@@ -107,6 +107,13 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.hasDestinationCall) ||
             (_bridgeData.hasDestinationCall &&
                 _stargateData.sendParams.oftCmd.length != 0)
+        ) revert InformationMismatch();
+
+        // ensure that receiver addresses match in case of no destination call
+        if (
+            !_bridgeData.hasDestinationCall &&
+            (_bridgeData.receiver !=
+                address(uint160(uint256(_stargateData.sendParams.to))))
         ) revert InformationMismatch();
 
         // get the router-/pool address through the TokenMessaging contract
