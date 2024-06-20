@@ -166,7 +166,7 @@ const main = defineCommand({
       }
     }
 
-    if (dexs && dexs.length) {
+    if (dexs) {
       // Check that all configured dexs are approved by calling the diamond with 'appovedDexs() returns (address[])'
       consola.box('Checking dexs approved in diamond...')
       const dexManager = getContract({
@@ -293,6 +293,8 @@ const main = defineCommand({
       }
 
       finish()
+    } else {
+      logError('No dexs configured')
     }
   },
 })
@@ -302,7 +304,7 @@ const logError = (string: string) => {
   errors.push(string)
 }
 
-const getOwnablContract = (address: Address, client: PublicClient) => {
+const getOwnableContract = (address: Address, client: PublicClient) => {
   return getContract({
     address,
     abi: parseAbi(['function owner() external view returns (address)']),

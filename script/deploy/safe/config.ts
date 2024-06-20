@@ -22,6 +22,7 @@ export const safeApiUrls: Record<string, string> = {
   polygonzkevm: 'https://safe-transaction-zkevm.safe.global/api',
   rootstock: 'https://transaction.safe.rootstock.io/api',
   scroll: 'https://transaction.safe.scroll.xyz/api',
+  sei: 'https://transaction.sei-safe.protofire.io/api',
   zksync: 'https://safe-transaction-zksync.safe.global/api',
 }
 
@@ -49,6 +50,7 @@ export const safeAddresses: Record<string, string> = {
   polygonzkevm: '0x9575B9fC42dec56D3772B3df5DA047a1f1D55582',
   rootstock: '0xDF61270FdC1a892874Fd3C0143A0a4CBa74F4EF1',
   scroll: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
+  sei: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   zksync: '0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744',
 }
 
