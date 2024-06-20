@@ -77,6 +77,8 @@ contract AcrossFacetV3Test is TestBaseFacet {
         // produce valid AcrossData
         uint32 quoteTimestamp = uint32(block.timestamp);
         validAcrossData = AcrossFacetV3.AcrossV3Data({
+            receiverAddress: USER_RECEIVER,
+            refundAddress: USER_REFUND,
             receivingAssetId: ADDRESS_USDC_POL,
             outputAmount: (defaultUSDCAmount * 9) / 10,
             quoteTimestamp: quoteTimestamp,

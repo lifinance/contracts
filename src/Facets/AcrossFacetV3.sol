@@ -9,6 +9,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { InformationMismatch } from "../Errors/GenericErrors.sol";
 
 /// @title AcrossFacetV3
 /// @author LI.FI (https://li.fi)
@@ -25,12 +26,16 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
+    /// @param receiverAddress The address that will receive the token on dst chain (our Receiver contract or the user-defined receiver address)
+    /// @param refundAddress The address that will be used for potential bridge refunds
     /// @param receivingAssetId The address of the token to be received at destination chain
     /// @param outputAmount The amount to be received at destination chain (after fees)
     /// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
     /// @param fillDeadline The destination chain timestamp until which the order can be filled
     /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens
     struct AcrossV3Data {
+        address receiverAddress;
+        address refundAddress;
         address receivingAssetId;
         uint256 outputAmount;
         uint32 quoteTimestamp;
@@ -105,11 +110,18 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         AcrossV3Data calldata _acrossData
     ) internal {
+        // ensure that receiver addresses match in case of no destination call
+        if (
+            !_bridgeData.hasDestinationCall &&
+            (_bridgeData.receiver != _acrossData.receiverAddress)
+        ) revert InformationMismatch();
+
+        // check if sendingAsset is native or ERC20
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
             // NATIVE
             spokePool.depositV3{ value: _bridgeData.minAmount }(
-                _bridgeData.receiver, // depositor (also acts as refund address in case release tx cannot be executed)
-                _bridgeData.receiver, // recipient (on dst)
+                _acrossData.refundAddress, // depositor (also acts as refund address in case release tx cannot be executed)
+                _acrossData.receiverAddress, // recipient (on dst)
                 wrappedNative, // inputToken
                 _acrossData.receivingAssetId, // outputToken
                 _bridgeData.minAmount, // inputAmount
@@ -129,8 +141,8 @@ contract AcrossFacetV3 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount
             );
             spokePool.depositV3(
-                _bridgeData.receiver, // depositor (also acts as refund address in case release tx cannot be executed)
-                _bridgeData.receiver, // recipient (on dst)
+                _acrossData.refundAddress, // depositor (also acts as refund address in case release tx cannot be executed)
+                _acrossData.receiverAddress, // recipient (on dst)
                 _bridgeData.sendingAssetId, // inputToken
                 _acrossData.receivingAssetId, // outputToken
                 _bridgeData.minAmount, // inputAmount
