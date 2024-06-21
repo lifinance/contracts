@@ -320,7 +320,7 @@ const checkOwnership = async (
 ) => {
   if (deployedContracts[name]) {
     const contractAddress = deployedContracts[name]
-    const owner = await getOwnablContract(
+    const owner = await getOwnableContract(
       contractAddress,
       publicClient
     ).read.owner()

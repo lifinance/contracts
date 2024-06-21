@@ -153,6 +153,12 @@
     "domain": "",
     "tokensToApprove": []
   },
+  "fraxtal": {
+    "chainId": 252,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
   "heco": {
     "chainId": 128,
     "connextHandler": "0x0000000000000000000000000000000000000000",
