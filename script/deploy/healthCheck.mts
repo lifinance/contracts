@@ -86,7 +86,7 @@ const main = defineCommand({
     const targetStateJson = await import(
       `../../script/deploy/_targetState.json`
     )
-    const desiredState = Object.keys(
+    const nonCoreFacets = Object.keys(
       targetStateJson[network.toLowerCase()].production.LiFiDiamond
     ).filter((k) => {
       return (
@@ -110,23 +110,9 @@ const main = defineCommand({
 
     consola.info('Running post deployment checks...\n')
 
-    // Check core facets
-    consola.box('Checking Core Facets...')
-    for (const facet of coreFacets) {
-      const isDeployed = await checkIsDeployed(
-        facet,
-        deployedContracts,
-        publicClient
-      )
-      if (!isDeployed) {
-        logError(`Facet ${facet} not deployed`)
-        continue
-      }
-
-      consola.success(`Facet ${facet} deployed`)
-    }
-
-    // Checking Diamond Contract
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                Check Diamond Contract                   │
+    //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking diamond Contract...')
     const diamondDeployed = await checkIsDeployed(
       'LiFiDiamond',
@@ -142,29 +128,29 @@ const main = defineCommand({
 
     const diamondAddress = deployedContracts['LiFiDiamond']
 
-    // Check that core facets are registered
-    consola.box('Checking facets registered in diamond...')
-    $.quiet = true
-    const facetsResult =
-      await $`${louperCmd} inspect diamond -a ${diamondAddress} -n ${network} --json`
-
-    const resgisteredFacets = JSON.parse(facetsResult.stdout).facets.map(
-      (f: { name: string }) => f.name
-    )
-
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                    Check core facets                    │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking Core Facets...')
     for (const facet of coreFacets) {
-      if (!resgisteredFacets.includes(facet)) {
-        logError(
-          `Facet ${facet} not registered in Diamond or possibly unverified`
-        )
-      } else {
-        consola.success(`Facet ${facet} registered in Diamond`)
+      const isDeployed = await checkIsDeployed(
+        facet,
+        deployedContracts,
+        publicClient
+      )
+      if (!isDeployed) {
+        logError(`Facet ${facet} not deployed`)
+        continue
       }
+
+      consola.success(`Facet ${facet} deployed`)
     }
 
-    // Check that desired state is set
-    consola.box('Checking desired facet state...')
-    for (const facet of desiredState) {
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │         Check that non core facets are deployed         │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking Non-Core facets...')
+    for (const facet of nonCoreFacets) {
       const isDeployed = await checkIsDeployed(
         facet,
         deployedContracts,
@@ -177,7 +163,31 @@ const main = defineCommand({
       consola.success(`Facet ${facet} deployed`)
     }
 
-    // Check that core periphery facets are deployed
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │          Check that all facets are registered           │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking facets registered in diamond...')
+    $.quiet = true
+    const facetsResult =
+      await $`${louperCmd} inspect diamond -a ${diamondAddress} -n ${network} --json`
+
+    const resgisteredFacets = JSON.parse(facetsResult.stdout).facets.map(
+      (f: { name: string }) => f.name
+    )
+
+    for (const facet of [...coreFacets, ...nonCoreFacets]) {
+      if (!resgisteredFacets.includes(facet)) {
+        logError(
+          `Facet ${facet} not registered in Diamond or possibly unverified`
+        )
+      } else {
+        consola.success(`Facet ${facet} registered in Diamond`)
+      }
+    }
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │      Check that core periphery facets are deployed      │
+    //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking periphery contracts...')
     for (const contract of corePeriphery) {
       const isDeployed = await checkIsDeployed(
@@ -192,7 +202,9 @@ const main = defineCommand({
       consola.success(`Periphery contract ${contract} deployed`)
     }
 
-    // Check that periphery contracts are registered by calling the diamond with 'getPeripheryContract(string) returns (address)'
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │          Check registered periphery contracts           │
+    //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking periphery contracts registered in diamond...')
     const peripheryRegistry = getContract({
       address: deployedContracts['LiFiDiamond'],
@@ -213,8 +225,10 @@ const main = defineCommand({
       }
     }
 
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                   Check approved DEXs                   │
+    //          ╰─────────────────────────────────────────────────────────╯
     if (dexs) {
-      // Check that all configured dexs are approved by calling the diamond with 'appovedDexs() returns (address[])'
       consola.box('Checking dexs approved in diamond...')
       const dexManager = getContract({
         address: deployedContracts['LiFiDiamond'],
@@ -256,7 +270,9 @@ const main = defineCommand({
         `Found ${numMissing} missing dex${numMissing === 1 ? '' : 's'}`
       )
 
-      // Check contract ownership
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                Check contract ownership                 │
+      //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking ownership...')
 
       const withdrawWallet = getAddress(globalConfig.withdrawWallet)
