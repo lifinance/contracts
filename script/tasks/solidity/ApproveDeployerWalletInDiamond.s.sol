@@ -10,7 +10,7 @@ contract DeployScript is UpdateScriptBase {
     function run() public returns (bool) {
         vm.startBroadcast(deployerPrivateKey);
 
-        // approve refundWallet to execute certain functions (as defined in config/global.json)
+        // approve deployerWallet to execute certain functions (as defined in config/global.json)
         // exclude this step for localanvil network. Does not work there for some reason
 
         // @DEV: this function will fail on Gnosis (several transactions in one run seem to not be accepted by RPC)
