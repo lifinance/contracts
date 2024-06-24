@@ -83,6 +83,18 @@ const main = defineCommand({
     const deployedContracts = await import(
       `../../deployments/${network.toLowerCase()}.json`
     )
+    const targetStateJson = await import(
+      `../../script/deploy/_targetState.json`
+    )
+    const desiredState = Object.keys(
+      targetStateJson[network.toLowerCase()].production.LiFiDiamond
+    ).filter((k) => {
+      return (
+        !coreFacets.includes(k) &&
+        !corePeriphery.includes(k) &&
+        k !== 'LiFiDiamond'
+      )
+    })
     const dexs = (await import(`../../config/dexs.json`))[
       network.toLowerCase()
     ] as Address[]
@@ -101,7 +113,12 @@ const main = defineCommand({
     // Check core facets
     consola.box('Checking Core Facets...')
     for (const facet of coreFacets) {
-      if (!deployedContracts[facet]) {
+      const isDeployed = await checkIsDeployed(
+        facet,
+        deployedContracts,
+        publicClient
+      )
+      if (!isDeployed) {
         logError(`Facet ${facet} not deployed`)
         continue
       }
@@ -111,7 +128,12 @@ const main = defineCommand({
 
     // Checking Diamond Contract
     consola.box('Checking diamond Contract...')
-    if (!deployedContracts['LiFiDiamond']) {
+    const diamondDeployed = await checkIsDeployed(
+      'LiFiDiamond',
+      deployedContracts,
+      publicClient
+    )
+    if (!diamondDeployed) {
       logError(`LiFiDiamond not deployed`)
       finish()
     } else {
@@ -140,20 +162,33 @@ const main = defineCommand({
       }
     }
 
+    // Check that desired state is set
+    consola.box('Checking desired facet state...')
+    for (const facet of desiredState) {
+      const isDeployed = await checkIsDeployed(
+        facet,
+        deployedContracts,
+        publicClient
+      )
+      if (!isDeployed) {
+        logError(`Facet ${facet} not deployed`)
+        continue
+      }
+      consola.success(`Facet ${facet} deployed`)
+    }
+
     // Check that core periphery facets are deployed
     consola.box('Checking periphery contracts...')
     for (const contract of corePeriphery) {
-      if (!deployedContracts[contract]) {
+      const isDeployed = await checkIsDeployed(
+        contract,
+        deployedContracts,
+        publicClient
+      )
+      if (!isDeployed) {
         logError(`Periphery contract ${contract} not deployed`)
         continue
       }
-      const code = await publicClient.getCode({
-        address: deployedContracts[contract],
-      })
-      if (code === '0x') {
-        logError(`Periphery contract ${contract} not deployed`)
-      }
-
       consola.success(`Periphery contract ${contract} deployed`)
     }
 
@@ -342,6 +377,23 @@ const checkOwnership = async (
       consola.success(`${name} owner is correct`)
     }
   }
+}
+
+const checkIsDeployed = async (
+  contract: string,
+  deployedContracts: Record<string, Address>,
+  publicClient: PublicClient
+): Promise<boolean> => {
+  if (!deployedContracts[contract]) {
+    return false
+  }
+  const code = await publicClient.getCode({
+    address: deployedContracts[contract],
+  })
+  if (code === '0x') {
+    return false
+  }
+  return true
 }
 
 const finish = () => {
