@@ -26,7 +26,7 @@ const coreFacets = [
   'AccessManagerFacet',
   'PeripheryRegistryFacet',
   'GenericSwapFacet',
-  'GenericSwapFacetV2',
+  'GenericSwapFacetV3',
   'LIFuelFacet',
   'CalldataVerificationFacet',
   'StandardizedCallFacet',
@@ -146,6 +146,12 @@ const main = defineCommand({
       if (!deployedContracts[contract]) {
         logError(`Periphery contract ${contract} not deployed`)
         continue
+      }
+      const code = await publicClient.getCode({
+        address: deployedContracts[contract],
+      })
+      if (code === '0x') {
+        logError(`Periphery contract ${contract} not deployed`)
       }
 
       consola.success(`Periphery contract ${contract} deployed`)
@@ -326,7 +332,7 @@ const checkOwnership = async (
 ) => {
   if (deployedContracts[name]) {
     const contractAddress = deployedContracts[name]
-    const owner = await getOwnablContract(
+    const owner = await getOwnableContract(
       contractAddress,
       publicClient
     ).read.owner()
