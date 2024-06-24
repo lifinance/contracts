@@ -86,14 +86,12 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "OmniBridgeFacet": "1.0.0",
         "OptimismBridgeFacet": "1.0.0",
         "PolygonBridgeFacet": "1.0.0",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "ThorSwapFacet": "1.1.0",
-        "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0",
         "AmarokFacetPacked": "1.0.0",
         "SymbiosisFacet": "1.0.0"
@@ -131,14 +129,12 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "OmniBridgeFacet": "1.0.0",
         "OptimismBridgeFacet": "1.0.0",
         "PolygonBridgeFacet": "1.0.0",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "ThorSwapFacet": "1.1.0",
-        "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0",
         "AmarokFacetPacked": "1.0.0",
         "SymbiosisFacet": "1.0.0"
@@ -234,10 +230,8 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0",
         "AmarokFacetPacked": "1.0.0",
         "SymbiosisFacet": "1.0.0"
@@ -273,10 +267,8 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0",
         "AmarokFacetPacked": "1.0.0",
         "SymbiosisFacet": "1.0.0"
@@ -381,11 +373,9 @@
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "ThorSwapFacet": "1.1.0",
-        "WormholeFacet": "1.0.0",
         "AmarokFacetPacked": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
@@ -415,11 +405,9 @@
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "ThorSwapFacet": "1.1.0",
-        "WormholeFacet": "1.0.0",
         "AmarokFacetPacked": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -493,7 +481,6 @@
         "GnosisBridgeL2Facet": "1.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
-        "MultichainFacet": "1.0.1",
         "OmniBridgeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0",
         "AmarokFacetPacked": "1.0.0"
@@ -521,7 +508,6 @@
         "GnosisBridgeL2Facet": "1.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
-        "MultichainFacet": "1.0.1",
         "OmniBridgeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0",
         "AmarokFacetPacked": "1.0.0"
@@ -592,10 +578,8 @@
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "SquidFacet": "1.0.0",
-        "StargateFacet": "2.2.0",
-        "WormholeFacet": "1.0.0"
+        "StargateFacet": "2.2.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -620,10 +604,8 @@
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "SquidFacet": "1.0.0",
-        "StargateFacet": "2.2.0",
-        "WormholeFacet": "1.0.0"
+        "StargateFacet": "2.2.0"
       }
     }
   },
@@ -687,8 +669,7 @@
         "Receiver": "2.0.0",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1"
+        "CBridgeFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -709,8 +690,7 @@
         "Receiver": "2.0.0",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1"
+        "CBridgeFacet": "1.0.0"
       }
     }
   },
@@ -742,11 +722,9 @@
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "ThorSwapFacet": "1.1.0",
-        "WormholeFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -775,11 +753,9 @@
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "ThorSwapFacet": "1.1.0",
-        "WormholeFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -873,10 +849,8 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0",
         "AmarokFacetPacked": "1.0.0",
         "SymbiosisFacet": "1.0.0"
@@ -912,10 +886,8 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0",
         "AmarokFacetPacked": "1.0.0",
         "SymbiosisFacet": "1.0.0"
@@ -994,9 +966,7 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "StargateFacet": "2.2.0",
-        "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0",
         "AmarokFacetPacked": "1.0.0",
         "SymbiosisFacet": "1.0.0"
@@ -1032,9 +1002,7 @@
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
         "HyphenFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "StargateFacet": "2.2.0",
-        "WormholeFacet": "1.0.0",
         "HopFacetOptimized": "2.0.0",
         "AmarokFacetPacked": "1.0.0",
         "SymbiosisFacet": "1.0.0"
@@ -1103,8 +1071,7 @@
         "TokenWrapper": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0",
-        "MultichainFacet": "1.0.1"
+        "CelerIMFacetMutable": "2.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1127,8 +1094,7 @@
         "TokenWrapper": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0",
-        "MultichainFacet": "1.0.1"
+        "CelerIMFacetImmutable": "2.0.0"
       }
     }
   },
@@ -1193,9 +1159,7 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
-        "SquidFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
+        "SquidFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1217,9 +1181,7 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
-        "SquidFacet": "1.0.0",
-        "WormholeFacet": "1.0.0"
+        "SquidFacet": "1.0.0"
       }
     }
   },
@@ -1330,8 +1292,7 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0",
-        "MultichainFacet": "1.0.1"
+        "TokenWrapper": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1351,8 +1312,7 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0",
-        "MultichainFacet": "1.0.1"
+        "TokenWrapper": "1.0.0"
       }
     }
   },
@@ -1416,8 +1376,7 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0",
-        "MultichainFacet": "1.0.1"
+        "TokenWrapper": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1437,8 +1396,7 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0",
-        "MultichainFacet": "1.0.1"
+        "TokenWrapper": "1.0.0"
       }
     }
   },
@@ -1501,8 +1459,7 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0",
-        "MultichainFacet": "1.0.1"
+        "TokenWrapper": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1522,8 +1479,7 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.0",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0",
-        "MultichainFacet": "1.0.1"
+        "TokenWrapper": "1.0.0"
       }
     }
   },
@@ -1588,8 +1544,7 @@
         "Receiver": "2.0.0",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1"
+        "CBridgeFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1610,8 +1565,7 @@
         "Receiver": "2.0.0",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
-        "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1"
+        "CBridgeFacet": "1.0.0"
       }
     }
   },
@@ -1677,9 +1631,7 @@
         "TokenWrapper": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0",
-        "MultichainFacet": "1.0.1",
-        "WormholeFacet": "1.0.0"
+        "CelerIMFacetMutable": "2.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1702,9 +1654,7 @@
         "TokenWrapper": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0",
-        "MultichainFacet": "1.0.1",
-        "WormholeFacet": "1.0.0"
+        "CelerIMFacetImmutable": "2.0.0"
       }
     }
   },
@@ -1769,7 +1719,6 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -1792,7 +1741,6 @@
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "MultichainFacet": "1.0.1",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -1944,7 +1892,6 @@
         "CelerIMFacetMutable": "2.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
-        "MultichainFacet": "1.0.1",
         "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -1971,7 +1918,6 @@
         "CelerIMFacetImmutable": "2.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
-        "MultichainFacet": "1.0.1",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -2679,7 +2625,6 @@
         "TokenWrapper": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "MultichainFacet": "1.0.1",
         "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -2703,7 +2648,6 @@
         "TokenWrapper": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
-        "MultichainFacet": "1.0.1",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -2734,7 +2678,6 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerIMFacetMutable": "2.0.0",
-        "MultichainFacet": "1.0.1",
         "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -2761,7 +2704,6 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerIMFacetImmutable": "2.0.0",
-        "MultichainFacet": "1.0.1",
         "SymbiosisFacet": "1.0.0"
       }
     }

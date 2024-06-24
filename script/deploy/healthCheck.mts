@@ -229,7 +229,7 @@ const main = defineCommand({
     //          │                   Check approved DEXs                   │
     //          ╰─────────────────────────────────────────────────────────╯
     if (dexs) {
-      consola.box('Checking dexs approved in diamond...')
+      consola.box('Checking DEXs approved in diamond...')
       const dexManager = getContract({
         address: deployedContracts['LiFiDiamond'],
         abi: parseAbi([
@@ -280,7 +280,7 @@ const main = defineCommand({
       const refundWallet = getAddress(globalConfig.refundWallet)
 
       // FeeCollector
-      checkOwnership(
+      await checkOwnership(
         'FeeCollector',
         withdrawWallet,
         deployedContracts,
@@ -288,7 +288,7 @@ const main = defineCommand({
       )
 
       // LiFuelFeeCollector
-      checkOwnership(
+      await checkOwnership(
         'LiFuelFeeCollector',
         rebalanceWallet,
         deployedContracts,
@@ -296,7 +296,12 @@ const main = defineCommand({
       )
 
       // Receiver
-      checkOwnership('Receiver', refundWallet, deployedContracts, publicClient)
+      await checkOwnership(
+        'Receiver',
+        refundWallet,
+        deployedContracts,
+        publicClient
+      )
 
       // Check access permissions
       consola.box('Checking access permissions...')
