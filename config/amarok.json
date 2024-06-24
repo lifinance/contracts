@@ -79,6 +79,12 @@
     "domain": "",
     "tokensToApprove": []
   },
+  "sei": {
+    "chainId": 1329,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
   "rootstock": {
     "chainId": 30,
     "connextHandler": "0x0000000000000000000000000000000000000000",

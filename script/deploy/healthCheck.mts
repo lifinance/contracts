@@ -12,7 +12,6 @@ import {
   getContract,
   http,
   parseAbi,
-  zeroAddress,
 } from 'viem'
 
 const louperCmd = 'louper-cli'
@@ -39,7 +38,6 @@ const corePeriphery = [
   'Receiver',
   'FeeCollector',
   'LiFuelFeeCollector',
-  'ServiceFeeCollector',
   'TokenWrapper',
 ]
 
@@ -174,7 +172,7 @@ const main = defineCommand({
       }
     }
 
-    if (dexs && dexs.length) {
+    if (dexs) {
       // Check that all configured dexs are approved by calling the diamond with 'appovedDexs() returns (address[])'
       consola.box('Checking dexs approved in diamond...')
       const dexManager = getContract({
@@ -202,7 +200,6 @@ const main = defineCommand({
         (p) =>
           p === 'FeeCollector' ||
           p === 'LiFuelFeeCollector' ||
-          p === 'ServiceFeeCollector' ||
           p === 'TokenWrapper'
       )
       for (const f of feeCollectors) {
@@ -221,71 +218,28 @@ const main = defineCommand({
       // Check contract ownership
       consola.box('Checking ownership...')
 
-      let owner: Address = zeroAddress
-      let contractAddress: Address
       const withdrawWallet = getAddress(globalConfig.withdrawWallet)
       const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
       const refundWallet = getAddress(globalConfig.refundWallet)
 
       // FeeCollector
-      if (deployedContracts['FeeCollector']) {
-        contractAddress = deployedContracts['FeeCollector']
-        owner = await getOwnablContract(
-          contractAddress,
-          publicClient
-        ).read.owner()
-        if (owner !== withdrawWallet) {
-          logError(`FeeCollector owner is ${owner}, expected ${withdrawWallet}`)
-        } else {
-          consola.success('FeeCollector owner is correct')
-        }
-      }
+      checkOwnership(
+        'FeeCollector',
+        withdrawWallet,
+        deployedContracts,
+        publicClient
+      )
 
       // LiFuelFeeCollector
-      if (deployedContracts['LiFuelFeeCollector']) {
-        contractAddress = deployedContracts['LiFuelFeeCollector']
-        owner = await getOwnablContract(
-          contractAddress,
-          publicClient
-        ).read.owner()
-        if (owner !== rebalanceWallet) {
-          logError(
-            `LiFuelFeeCollector owner is ${owner}, expected ${rebalanceWallet}`
-          )
-        } else {
-          consola.success('LiFuelFeeCollector owner is correct')
-        }
-      }
+      checkOwnership(
+        'LiFuelFeeCollector',
+        rebalanceWallet,
+        deployedContracts,
+        publicClient
+      )
 
       // Receiver
-      if (deployedContracts['Receiver']) {
-        contractAddress = deployedContracts['Receiver']
-        owner = await getOwnablContract(
-          contractAddress,
-          publicClient
-        ).read.owner()
-        if (owner !== refundWallet) {
-          logError(`Receiver owner is ${owner}, expected ${refundWallet}`)
-        } else {
-          consola.success('Receiver owner is correct')
-        }
-      }
-
-      // ServiceFeeCollector
-      if (deployedContracts['ServiceFeeCollector']) {
-        contractAddress = deployedContracts['ServiceFeeCollector']
-        owner = await getOwnablContract(
-          contractAddress,
-          publicClient
-        ).read.owner()
-        if (owner !== withdrawWallet) {
-          logError(
-            `ServiceFeeCollector owner is ${owner}, expected ${withdrawWallet}`
-          )
-        } else {
-          consola.success('ServiceFeeCollector owner is correct')
-        }
-      }
+      checkOwnership('Receiver', refundWallet, deployedContracts, publicClient)
 
       // Check access permissions
       consola.box('Checking access permissions...')
@@ -345,6 +299,8 @@ const main = defineCommand({
       }
 
       finish()
+    } else {
+      logError('No dexs configured')
     }
   },
 })
@@ -354,12 +310,32 @@ const logError = (string: string) => {
   errors.push(string)
 }
 
-const getOwnablContract = (address: Address, client: PublicClient) => {
+const getOwnableContract = (address: Address, client: PublicClient) => {
   return getContract({
     address,
     abi: parseAbi(['function owner() external view returns (address)']),
     client,
   })
+}
+
+const checkOwnership = async (
+  name: string,
+  expectedOwner: Address,
+  deployedContracts: Record<string, Address>,
+  publicClient: PublicClient
+) => {
+  if (deployedContracts[name]) {
+    const contractAddress = deployedContracts[name]
+    const owner = await getOwnablContract(
+      contractAddress,
+      publicClient
+    ).read.owner()
+    if (owner !== expectedOwner) {
+      logError(`${name} owner is ${owner}, expected ${expectedOwner}`)
+    } else {
+      consola.success(`${name} owner is correct`)
+    }
+  }
 }
 
 const finish = () => {
