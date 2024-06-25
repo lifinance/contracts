@@ -70,8 +70,8 @@ contract AmarokFacetTest is TestBaseFacet {
         // produce valid AmarokData
         address delegate = address(0x0BAEE5700179d87FabAd13022447Bd4E160374DD);
         amarokData = AmarokFacet.AmarokData({
-            callTo: USER_RECEIVER,
             callData: "",
+            callTo: USER_RECEIVER,
             relayerFee: 0,
             slippageTol: 955,
             delegate: delegate,
