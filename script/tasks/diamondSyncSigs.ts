@@ -50,18 +50,21 @@ const main = defineCommand({
     const chainName = chainNameMappings[network] || network
     const chain: Chain = chainMap[chainName]
 
+    // Fetch list of deployed contracts
     const deployedContracts = await import(
       `../../deployments/${network.toLowerCase()}.json`
     )
 
     const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
 
+    // Instantiate public client for reading
     const publicClient = createPublicClient({
       batch: { multicall: true },
       chain,
       transport: http(rpcUrl),
     })
 
+    // Instantiate readonly dex manager contract
     const dexManagerReader = getContract({
       address: deployedContracts['LiFiDiamond'],
       abi: parseAbi([
@@ -70,6 +73,7 @@ const main = defineCommand({
       client: publicClient,
     })
 
+    // Check if function signatures are approved
     const { sigs } = await import(`../../config/sigs.json`)
     const calls = sigs.map((sig: string) => {
       return {
@@ -80,8 +84,8 @@ const main = defineCommand({
     })
     const results = await publicClient.multicall({ contracts: calls })
 
+    // Get list of function signatures to approve
     const sigsToApprove: Hex[] = []
-
     for (let i = 0; i < results.length; i++) {
       if (!results[i].result) {
         console.log('Function not approved:', sigs[i])
@@ -89,7 +93,7 @@ const main = defineCommand({
       }
     }
 
-    // Instantiate wallet client
+    // Instantiate wallet (write enabled) client
     const account = privateKeyToAccount(`0x${privateKey}` as Hex)
     const walletClient = createWalletClient({
       chain,
