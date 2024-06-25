@@ -430,5 +430,19 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "GasZip": {
+    "configData": {
+      "_owner": {
+        "configFileName": "gaszip.json",
+        "keyInConfigFile": ".withdrawWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_gasZipRouter": {
+        "configFileName": "gaszip.json",
+        "keyInConfigFile": ".gasZipRouters.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
   }
 }
