@@ -1,5 +1,4 @@
 {
-  "withdrawWallet": "0x0000000000000000000000000000000000000000",
   "gasZipRouters": {
     "mainnet": "0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390",
     "arbitrum": "0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390",

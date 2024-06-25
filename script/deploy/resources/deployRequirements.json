@@ -434,7 +434,7 @@
   "GasZip": {
     "configData": {
       "_owner": {
-        "configFileName": "gaszip.json",
+        "configFileName": "global.json",
         "keyInConfigFile": ".withdrawWallet",
         "allowToDeployWithZeroAddress": "false"
       },
