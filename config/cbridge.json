@@ -39,6 +39,10 @@
   "base": {
     "cBridge": "0x7d43AABC515C356145049227CeE54B608342c0ad"
   },
+  "blast": {
+    "cBridge": "0x841ce48F9446C8E281D3F1444cB859b4A6D0738C",
+    "messageBus": "0xFCE49bAa70E415bF410c18D89D321f39BF2637f4"
+  },
   "boba": {
     "cBridge": "0x841ce48F9446C8E281D3F1444cB859b4A6D0738C"
   },

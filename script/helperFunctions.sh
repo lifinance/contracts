@@ -1357,16 +1357,16 @@ function verifyContract() {
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}"
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}"
       else
-        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}" >/dev/null 2>&1
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}" >/dev/null 2>&1
       fi
     else
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}"
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}"
       else
-        forge verify-contract --watch --chain "$NETWORK" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}" >/dev/null 2>&1
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}" >/dev/null 2>&1
       fi
     fi
     COMMAND_STATUS=$?
@@ -2713,6 +2713,10 @@ function getChainId() {
     echo "1"
     return 0
     ;;
+  "blast")
+    echo "81457"
+    return 0
+    ;;
   "bsc")
     echo "56"
     return 0
@@ -2723,6 +2727,10 @@ function getChainId() {
     ;;
   "polygonzkevm")
     echo "1101"
+    return 0
+    ;;
+  "rootstock")
+    echo "30"
     return 0
     ;;
   "gnosis")
@@ -2793,6 +2801,10 @@ function getChainId() {
     echo "87"
     return 0
     ;;
+  "mode")
+    echo "34443"
+    return 0
+    ;;
   "goerli")
     echo "5"
     return 0
@@ -2831,6 +2843,14 @@ function getChainId() {
     ;;
   "zksync")
     echo "324"
+    return 0
+    ;;
+  "mantle")
+    echo "5000"
+    return 0
+    ;;
+  "sei")
+    echo "1329"
     return 0
     ;;
   *)
@@ -3607,4 +3627,3 @@ function test_tmp() {
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
   verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 }
-

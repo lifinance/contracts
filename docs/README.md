@@ -20,6 +20,7 @@
 - [Hyphen Facet](./HyphenFacet.md)
 - [LIFuel Facet](./LIFuelFacet.md)
 - [MakerTeleport Facet](./MakerTeleportFacet.md)
+- [Mayan Facet](./MayanFacet.md)
 - [Multichain Facet](./MultichainFacet.md)
 - [OmniBridge Facet](./OmniBridgeFacet.md)
 - [Optimism Bridge Facet](./OptimismBridgeFacet.md)
