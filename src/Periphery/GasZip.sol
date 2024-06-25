@@ -1,26 +1,9 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
-
-struct ExactInputSingleParams {
-    address tokenIn;
-    address tokenOut;
-    uint24 fee;
-    address recipient;
-    uint256 deadline;
-    uint256 amountIn;
-    uint256 amountOutMinimum;
-    uint160 sqrtPriceLimitX96;
-}
-
-interface ISwapRouter {
-    function exactInputSingle(
-        ExactInputSingleParams memory params
-    ) external returns (uint256 amountOut);
-}
 
 interface IGasZip {
     function deposit(
@@ -29,9 +12,9 @@ interface IGasZip {
     ) external payable;
 }
 
-/// @title Fee Collector
+/// @title GasZip
 /// @author LI.FI (https://li.fi)
-/// @notice Provides functionality for collecting integrator fees
+/// @notice Provides functionality to swap and trigger gaz.zip protocol
 /// @custom:version 1.0.0
 contract GasZip is TransferrableOwnership {
     address public immutable ZERO = address(0);
@@ -52,7 +35,7 @@ contract GasZip is TransferrableOwnership {
     /// Constructor ///
 
     modifier inboundTokenIsAllowed(address token) {
-        if(!allowedInboundTokens[token]) revert InboundTokenDisallowed();
+        if (!allowedInboundTokens[token]) revert InboundTokenDisallowed();
         _;
     }
 
@@ -71,7 +54,7 @@ contract GasZip is TransferrableOwnership {
         LibSwap.SwapData calldata _swap,
         uint256 destinationChain,
         address recipient
-    ) inboundTokenIsAllowed(_swap.sendingAssetId) public {
+    ) public inboundTokenIsAllowed(_swap.sendingAssetId) {
         LibSwap.swap(0, _swap);
         uint256 availableNative = LibAsset.getOwnBalance(ZERO);
         gasZipRouter.deposit{ value: availableNative }(
