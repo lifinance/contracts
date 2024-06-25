@@ -27,8 +27,8 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param destChainDomainId The Amarok-specific domainId of the destination chain
     /// @param payFeeWithSendingAsset Whether to pay the relayer fee with the sending asset or not
     struct AmarokData {
-        bytes callData;
         address callTo;
+        bytes callData;
         uint256 relayerFee;
         uint256 slippageTol;
         address delegate;
@@ -110,6 +110,12 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         BridgeData memory _bridgeData,
         AmarokData calldata _amarokData
     ) private {
+        // ensure that receiver addresses match in case of no destination call
+        if (
+            !_bridgeData.hasDestinationCall &&
+            (_bridgeData.receiver != _amarokData.callTo)
+        ) revert InformationMismatch();
+
         // give max approval for token to Amarok bridge, if not already
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
