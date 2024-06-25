@@ -3,12 +3,15 @@ arbitrum
 aurora
 avalanche
 base
+blast
 boba
 bsc
+celo
 fantom
 fuse
 gnosis
 linea
+mantle
 metis
 mode
 moonbeam
@@ -16,7 +19,9 @@ moonriver
 optimism
 polygon
 polygonzkevm
+rootstock
 scroll
+sei
 zksync
 bsc-testnet
 lineatest

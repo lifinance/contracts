@@ -100,6 +100,36 @@ contract CalldataVerificationFacet {
         );
     }
 
+    // @notice Extracts the non-EVM address from the calldata
+    // @param data The calldata to extract the non-EVM address from
+    // @return nonEVMAddress The non-EVM address extracted from the calldata
+    function extractNonEVMAddress(
+        bytes calldata data
+    ) external pure returns (bytes32 nonEVMAddress) {
+        bytes memory callData = data;
+        ILiFi.BridgeData memory bridgeData = _extractBridgeData(data);
+
+        if (
+            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
+        ) {
+            // standardizedCall
+            callData = abi.decode(data[4:], (bytes));
+        }
+
+        // Non-EVM address is always the first parameter of bridge specific data
+        if (bridgeData.hasSourceSwaps) {
+            assembly {
+                let offset := mload(add(callData, 0x64)) // Get the offset of the bridge specific data
+                nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
+            }
+        } else {
+            assembly {
+                let offset := mload(add(callData, 0x44)) // Get the offset of the bridge specific data
+                nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
+            }
+        }
+    }
+
     /// @notice Extracts the generic swap parameters from the calldata
     /// @param data The calldata to extract the generic swap parameters from
     /// @return sendingAssetId The sending asset id extracted from the calldata
