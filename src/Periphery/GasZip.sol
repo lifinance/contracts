@@ -49,8 +49,15 @@ contract GasZip is TransferrableOwnership {
             destinationChain,
             recipient
         );
-        (bool success, ) = msg.sender.call{ value: address(this).balance }("");
-        if (!success) revert TransferFailed();
+
+        // Send back any remaining sendingAsset token to the sender
+        IERC20 sendingAsset = IERC20(_swap.sendingAssetId);
+        uint256 remainingBalance = sendingAsset.balanceOf(address(this));
+
+        if (remainingBalance > 0) {
+            bool success = sendingAsset.transfer(msg.sender, remainingBalance);
+            if (!success) revert TransferFailed();
+        }
     }
 
     function zip(
@@ -62,7 +69,13 @@ contract GasZip is TransferrableOwnership {
             destinationChain,
             recipient
         );
-        (bool success, ) = msg.sender.call{ value: address(this).balance }("");
-        if (!success) revert TransferFailed();
+        uint256 nativeBalance = address(this).balance;
+
+        if (nativeBalance > 0) {
+            (bool success, ) = msg.sender.call{ value: address(this).balance }(
+                ""
+            );
+            if (!success) revert TransferFailed();
+        }
     }
 }
