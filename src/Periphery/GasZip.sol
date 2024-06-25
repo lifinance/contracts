@@ -20,8 +20,6 @@ contract GasZip is TransferrableOwnership {
     address public immutable ZERO = address(0);
 
     /// State ///
-
-    mapping(address => bool) public allowedInboundTokens;
     IGasZip public immutable gasZipRouter;
 
     /// Errors ///
@@ -33,12 +31,6 @@ contract GasZip is TransferrableOwnership {
     /// Events ///
 
     /// Constructor ///
-
-    modifier inboundTokenIsAllowed(address token) {
-        if (!allowedInboundTokens[token]) revert InboundTokenDisallowed();
-        _;
-    }
-
     constructor(
         address _owner,
         address _gasZipRouter
@@ -46,21 +38,19 @@ contract GasZip is TransferrableOwnership {
         gasZipRouter = IGasZip(_gasZipRouter);
     }
 
-    function allowToken(address token, bool allowed) external onlyOwner {
-        allowedInboundTokens[token] = allowed;
-    }
-
     function zipERC20(
         LibSwap.SwapData calldata _swap,
         uint256 destinationChain,
         address recipient
-    ) public inboundTokenIsAllowed(_swap.sendingAssetId) {
+    ) public {
         LibSwap.swap(0, _swap);
         uint256 availableNative = LibAsset.getOwnBalance(ZERO);
         gasZipRouter.deposit{ value: availableNative }(
             destinationChain,
             recipient
         );
+        (bool success, ) = msg.sender.call{ value: address(this).balance }("");
+        if (!success) revert TransferFailed();
     }
 
     function zip(
