@@ -32,10 +32,7 @@ contract GasZip is TransferrableOwnership {
     /// Events ///
 
     /// Constructor ///
-    constructor(
-        address _owner,
-        address _gasZipRouter
-    ) TransferrableOwnership(_owner) {
+    constructor(address _gasZipRouter) {
         gasZipRouter = IGasZip(_gasZipRouter);
     }
 

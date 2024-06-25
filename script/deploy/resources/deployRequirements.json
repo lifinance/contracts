@@ -433,11 +433,6 @@
   },
   "GasZip": {
     "configData": {
-      "_owner": {
-        "configFileName": "global.json",
-        "keyInConfigFile": ".withdrawWallet",
-        "allowToDeployWithZeroAddress": "false"
-      },
       "_gasZipRouter": {
         "configFileName": "gaszip.json",
         "keyInConfigFile": ".gasZipRouters.<NETWORK>",
