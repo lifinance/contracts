@@ -23,10 +23,7 @@ contract GasZip {
     IGasZip public immutable gasZipRouter;
 
     /// Errors ///
-    error SwapFailed(address, address);
-    error GasZipFailed(uint256);
     error TransferFailed();
-    error InboundTokenDisallowed();
 
     /// Events ///
 
