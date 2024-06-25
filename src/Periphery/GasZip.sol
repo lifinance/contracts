@@ -4,7 +4,6 @@ pragma solidity 0.8.17;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 
 interface IGasZip {
     function deposit(
@@ -17,7 +16,7 @@ interface IGasZip {
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality to swap and trigger gaz.zip protocol
 /// @custom:version 1.0.0
-contract GasZip is TransferrableOwnership {
+contract GasZip {
     address public immutable ZERO = address(0);
 
     /// State ///
