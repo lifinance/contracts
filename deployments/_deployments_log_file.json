@@ -19062,9 +19062,9 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xCA2782e4B29044d623efECf34c4e93Fb3968B275",
+            "ADDRESS": "0xb179bfa49d8B5d272288C59b26ac93f036735790",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-06-26 14:50:41",
+            "TIMESTAMP": "2024-06-26 17:42:27",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
             "SALT": "",
             "VERIFIED": "false"

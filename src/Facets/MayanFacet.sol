@@ -102,29 +102,28 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             payable(msg.sender)
         );
 
-        // Get the decimals of the sending asset
-        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            uint256 decimals;
-            decimals = ERC20(_bridgeData.sendingAssetId).decimals();
+        uint256 decimals;
+        decimals = LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
+            ? 18
+            : ERC20(_bridgeData.sendingAssetId).decimals();
 
-            // Round the amount to 8 decimals
-            // e.g LINK with 18 decimals 1123456678900000000 should be 1123456678000000000
-            // and USDC with 6 decimamls 1123456 should be 1123456
-            if (decimals > 8) {
-                _bridgeData.minAmount =
-                    _bridgeData.minAmount /
-                    10 ** (decimals - 8);
-                _bridgeData.minAmount =
-                    _bridgeData.minAmount *
-                    10 ** (decimals - 8);
-            }
-
-            // Update the protocol data with the new input amount
-            _mayanData.protocolData = _replaceInputAmount(
-                _mayanData.protocolData,
-                _bridgeData.minAmount
-            );
+        // Round the amount to 8 decimals
+        // e.g LINK with 18 decimals 1123456678900000000 should be 1123456678000000000
+        // and USDC with 6 decimamls 1123456 should be 1123456
+        if (decimals > 8) {
+            _bridgeData.minAmount =
+                _bridgeData.minAmount /
+                10 ** (decimals - 8);
+            _bridgeData.minAmount =
+                _bridgeData.minAmount *
+                10 ** (decimals - 8);
         }
+
+        // Update the protocol data with the new input amount
+        _mayanData.protocolData = _replaceInputAmount(
+            _mayanData.protocolData,
+            _bridgeData.minAmount
+        );
 
         _startBridge(_bridgeData, _mayanData);
     }
