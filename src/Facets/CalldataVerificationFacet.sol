@@ -5,14 +5,15 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { AmarokFacet } from "./AmarokFacet.sol";
 import { StargateFacet } from "./StargateFacet.sol";
+import { AcrossFacetV3 } from "./AcrossFacetV3.sol";
 import { CelerIMFacetBase, CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
 
-/// @title Calldata Verification Facet
+/// @title CalldataVerificationFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
-/// @custom:version 1.1.1
+/// @custom:version 1.1.2
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
@@ -206,7 +207,7 @@ contract CalldataVerificationFacet {
     /// @param data The calldata to validate
     /// @param callTo The call to address to validate
     /// @param dstCalldata The destination calldata to validate
-    /// @return isValid Whether the destination calldata is validate
+    /// @return isValid Returns true if the calldata matches with the provided parameters
     function validateDestinationCalldata(
         bytes calldata data,
         bytes calldata callTo,
@@ -294,7 +295,36 @@ contract CalldataVerificationFacet {
             );
             return
                 keccak256(dstCalldata) == keccak256(celerIMData.callData) &&
-                keccak256(callTo) == keccak256(celerIMData.callTo);
+                keccak256(callTo) == keccak256((celerIMData.callTo));
+        }
+        // Case: AcrossV3
+        if (selector == AcrossFacetV3.startBridgeTokensViaAcrossV3.selector) {
+            (, AcrossFacetV3.AcrossV3Data memory acrossV3Data) = abi.decode(
+                callData.slice(4, callData.length - 4),
+                (ILiFi.BridgeData, AcrossFacetV3.AcrossV3Data)
+            );
+
+            return
+                keccak256(dstCalldata) == keccak256(acrossV3Data.message) &&
+                keccak256(callTo) ==
+                keccak256(abi.encode(acrossV3Data.receiverAddress));
+        }
+        if (
+            selector ==
+            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector
+        ) {
+            (, , AcrossFacetV3.AcrossV3Data memory acrossV3Data) = abi.decode(
+                callData.slice(4, callData.length - 4),
+                (
+                    ILiFi.BridgeData,
+                    LibSwap.SwapData[],
+                    AcrossFacetV3.AcrossV3Data
+                )
+            );
+            return
+                keccak256(dstCalldata) == keccak256(acrossV3Data.message) &&
+                keccak256(callTo) ==
+                keccak256(abi.encode(acrossV3Data.receiverAddress));
         }
 
         // All other cases

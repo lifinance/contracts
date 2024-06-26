@@ -5,6 +5,7 @@ import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet
 import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
+import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { CelerIM, CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
@@ -557,6 +558,87 @@ contract CallVerificationFacetTest is TestBase {
             bridgeData,
             swapData,
             cimData
+        );
+
+        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            abi.encode(USER_RECEIVER),
+            bytes("foobarbytes")
+        );
+        bool validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                callDataWithSwap,
+                abi.encode(USER_RECEIVER),
+                bytes("foobarbytes")
+            );
+
+        bool badCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            abi.encode(USER_RECEIVER),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        bytes memory standardizedCallDataWithSwap = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        validCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
+            bytes("foobarbytes")
+        );
+        validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                standardizedCallDataWithSwap,
+                abi.encode(USER_RECEIVER),
+                bytes("foobarbytes")
+            );
+
+        badCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+    }
+
+    function test_CanValidateAcrossV3DestinationCalldata() public {
+        AcrossFacetV3.AcrossV3Data memory acrossData = AcrossFacetV3
+            .AcrossV3Data({
+                receiverAddress: USER_RECEIVER,
+                refundAddress: USER_REFUND,
+                receivingAssetId: ADDRESS_USDC,
+                outputAmount: (defaultUSDCAmount * 9) / 10,
+                quoteTimestamp: uint32(block.timestamp),
+                fillDeadline: uint32(uint32(block.timestamp) + 1000),
+                message: bytes("foobarbytes")
+            });
+
+        bytes memory callData = abi.encodeWithSelector(
+            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
+            bridgeData,
+            acrossData
+        );
+
+        bytes memory callDataWithSwap = abi.encodeWithSelector(
+            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
+            bridgeData,
+            swapData,
+            acrossData
         );
 
         bool validCall = calldataVerificationFacet.validateDestinationCalldata(
