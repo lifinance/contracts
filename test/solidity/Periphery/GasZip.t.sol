@@ -21,6 +21,7 @@ contract GasZipTest is Test {
     GasZip public gasZip;
     uint256 public defaultDestinationChains = 96;
     address public defaultRecipient = address(12345);
+    address public defaultRefundAddress = address(56789);
     uint256 public defaultNativeAmount = 0.0006 ether;
     uint256 public defaultUSDCAmount = 10e6;
     UniswapV2Router02 public uniswap;
@@ -88,7 +89,12 @@ contract GasZipTest is Test {
         );
 
         // deposit via GasZip periphery contract
-        gasZip.zipERC20(swapData, defaultDestinationChains, defaultRecipient);
+        gasZip.zipERC20(
+            swapData,
+            defaultDestinationChains,
+            defaultRecipient,
+            defaultRefundAddress
+        );
     }
 
     function _getUniswapCalldataForERC20ToNativeSwap(
