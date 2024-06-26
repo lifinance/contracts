@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
 import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
+import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
@@ -15,7 +16,7 @@ import { TestBase } from "../utils/TestBase.sol";
 import { MsgDataTypes } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import "forge-std/console.sol";
 
-contract CallVerificationFacetTest is TestBase {
+contract CalldataVerificationFacetTest is TestBase {
     CalldataVerificationFacet internal calldataVerificationFacet;
 
     function setUp() public {
@@ -160,6 +161,71 @@ contract CallVerificationFacetTest is TestBase {
 
         checkBridgeData(returnedBridgeData);
         assertEq(returnedSwapData.length, 0);
+    }
+
+    function test_CanExtractNonEVMAddress() public {
+        // produce valid MayanData
+        MayanFacet.MayanData memory mayanData = MayanFacet.MayanData(
+            bytes32("Just some address"),
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
+            hex"00"
+        );
+
+        bytes memory callData = abi.encodeWithSelector(
+            MayanFacet.startBridgeTokensViaMayan.selector,
+            bridgeData,
+            mayanData
+        );
+
+        bytes32 returnedNonEVMAddress = calldataVerificationFacet
+            .extractNonEVMAddress(callData);
+
+        assertEq(returnedNonEVMAddress, bytes32("Just some address"));
+
+        // standardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+        returnedNonEVMAddress = calldataVerificationFacet.extractNonEVMAddress(
+            standardizedCallData
+        );
+
+        assertEq(returnedNonEVMAddress, bytes32("Just some address"));
+    }
+
+    function test_CanExtractNonEVMAddressWithSwaps() public {
+        bridgeData.hasSourceSwaps = true;
+
+        // produce valid MayanData
+        MayanFacet.MayanData memory mayanData = MayanFacet.MayanData(
+            bytes32("Just some address"),
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
+            hex"00"
+        );
+
+        bytes memory callData = abi.encodeWithSelector(
+            MayanFacet.swapAndStartBridgeTokensViaMayan.selector,
+            bridgeData,
+            swapData,
+            mayanData
+        );
+
+        bytes32 returnedNonEVMAddress = calldataVerificationFacet
+            .extractNonEVMAddress(callData);
+
+        assertEq(returnedNonEVMAddress, bytes32("Just some address"));
+
+        // standardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+        returnedNonEVMAddress = calldataVerificationFacet.extractNonEVMAddress(
+            standardizedCallData
+        );
+
+        assertEq(returnedNonEVMAddress, bytes32("Just some address"));
     }
 
     function test_CanExtractMainParameters() public {

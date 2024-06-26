@@ -12,7 +12,7 @@ import { Validatable } from "../Helpers/Validatable.sol";
 /// @title Amarok Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Connext Amarok
-/// @custom:version 2.0.0
+/// @custom:version 3.0.0
 contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
@@ -110,6 +110,12 @@ contract AmarokFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         BridgeData memory _bridgeData,
         AmarokData calldata _amarokData
     ) private {
+        // ensure that receiver addresses match in case of no destination call
+        if (
+            !_bridgeData.hasDestinationCall &&
+            (_bridgeData.receiver != _amarokData.callTo)
+        ) revert InformationMismatch();
+
         // give max approval for token to Amarok bridge, if not already
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),

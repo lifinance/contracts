@@ -45,11 +45,13 @@ task(
   // Filters by checking if the name and type of the
   // function already exists in another ABI fragment
   const cleanAbi = <Fragment[]>(
-    abi.filter(
-      (item, index, self) =>
-        index ===
-        self.findIndex((t) => t.name === item.name && t.type === item.type)
-    )
+    abi
+      .filter(
+        (item, index, self) =>
+          index ===
+          self.findIndex((t) => t.name === item.name && t.type === item.type)
+      )
+      .filter((item) => item.type !== 'constructor')
   )
 
   // Write the final ABI to a file

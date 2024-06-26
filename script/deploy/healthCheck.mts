@@ -12,7 +12,6 @@ import {
   getContract,
   http,
   parseAbi,
-  zeroAddress,
 } from 'viem'
 
 const louperCmd = 'louper-cli'
@@ -25,6 +24,12 @@ const coreFacets = [
   'DexManagerFacet',
   'PeripheryRegistryFacet',
   'AccessManagerFacet',
+  'PeripheryRegistryFacet',
+  'GenericSwapFacet',
+  'GenericSwapFacetV3',
+  'LIFuelFacet',
+  'CalldataVerificationFacet',
+  'StandardizedCallFacet',
 ]
 
 const corePeriphery = [
@@ -33,7 +38,6 @@ const corePeriphery = [
   'Receiver',
   'FeeCollector',
   'LiFuelFeeCollector',
-  'ServiceFeeCollector',
   'TokenWrapper',
 ]
 
@@ -79,6 +83,18 @@ const main = defineCommand({
     const deployedContracts = await import(
       `../../deployments/${network.toLowerCase()}.json`
     )
+    const targetStateJson = await import(
+      `../../script/deploy/_targetState.json`
+    )
+    const nonCoreFacets = Object.keys(
+      targetStateJson[network.toLowerCase()].production.LiFiDiamond
+    ).filter((k) => {
+      return (
+        !coreFacets.includes(k) &&
+        !corePeriphery.includes(k) &&
+        k !== 'LiFiDiamond'
+      )
+    })
     const dexs = (await import(`../../config/dexs.json`))[
       network.toLowerCase()
     ] as Address[]
@@ -94,20 +110,16 @@ const main = defineCommand({
 
     consola.info('Running post deployment checks...\n')
 
-    // Check core facets
-    consola.box('Checking Core Facets...')
-    for (const facet of coreFacets) {
-      if (!deployedContracts[facet]) {
-        logError(`Facet ${facet} not deployed`)
-        continue
-      }
-
-      consola.success(`Facet ${facet} deployed`)
-    }
-
-    // Checking Diamond Contract
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                Check Diamond Contract                   │
+    //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking diamond Contract...')
-    if (!deployedContracts['LiFiDiamond']) {
+    const diamondDeployed = await checkIsDeployed(
+      'LiFiDiamond',
+      deployedContracts,
+      publicClient
+    )
+    if (!diamondDeployed) {
       logError(`LiFiDiamond not deployed`)
       finish()
     } else {
@@ -116,7 +128,44 @@ const main = defineCommand({
 
     const diamondAddress = deployedContracts['LiFiDiamond']
 
-    // Check that core facets are registered
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                    Check core facets                    │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking Core Facets...')
+    for (const facet of coreFacets) {
+      const isDeployed = await checkIsDeployed(
+        facet,
+        deployedContracts,
+        publicClient
+      )
+      if (!isDeployed) {
+        logError(`Facet ${facet} not deployed`)
+        continue
+      }
+
+      consola.success(`Facet ${facet} deployed`)
+    }
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │         Check that non core facets are deployed         │
+    //          ╰─────────────────────────────────────────────────────────╯
+    consola.box('Checking Non-Core facets...')
+    for (const facet of nonCoreFacets) {
+      const isDeployed = await checkIsDeployed(
+        facet,
+        deployedContracts,
+        publicClient
+      )
+      if (!isDeployed) {
+        logError(`Facet ${facet} not deployed`)
+        continue
+      }
+      consola.success(`Facet ${facet} deployed`)
+    }
+
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │          Check that all facets are registered           │
+    //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking facets registered in diamond...')
     $.quiet = true
     const facetsResult =
@@ -126,7 +175,7 @@ const main = defineCommand({
       (f: { name: string }) => f.name
     )
 
-    for (const facet of coreFacets) {
+    for (const facet of [...coreFacets, ...nonCoreFacets]) {
       if (!resgisteredFacets.includes(facet)) {
         logError(
           `Facet ${facet} not registered in Diamond or possibly unverified`
@@ -136,18 +185,26 @@ const main = defineCommand({
       }
     }
 
-    // Check that core periphery facets are deployed
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │      Check that core periphery facets are deployed      │
+    //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking periphery contracts...')
     for (const contract of corePeriphery) {
-      if (!deployedContracts[contract]) {
+      const isDeployed = await checkIsDeployed(
+        contract,
+        deployedContracts,
+        publicClient
+      )
+      if (!isDeployed) {
         logError(`Periphery contract ${contract} not deployed`)
         continue
       }
-
       consola.success(`Periphery contract ${contract} deployed`)
     }
 
-    // Check that periphery contracts are registered by calling the diamond with 'getPeripheryContract(string) returns (address)'
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │          Check registered periphery contracts           │
+    //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking periphery contracts registered in diamond...')
     const peripheryRegistry = getContract({
       address: deployedContracts['LiFiDiamond'],
@@ -168,9 +225,11 @@ const main = defineCommand({
       }
     }
 
-    if (dexs && dexs.length) {
-      // Check that all configured dexs are approved by calling the diamond with 'appovedDexs() returns (address[])'
-      consola.box('Checking dexs approved in diamond...')
+    //          ╭─────────────────────────────────────────────────────────╮
+    //          │                   Check approved DEXs                   │
+    //          ╰─────────────────────────────────────────────────────────╯
+    if (dexs) {
+      consola.box('Checking DEXs approved in diamond...')
       const dexManager = getContract({
         address: deployedContracts['LiFiDiamond'],
         abi: parseAbi([
@@ -196,7 +255,6 @@ const main = defineCommand({
         (p) =>
           p === 'FeeCollector' ||
           p === 'LiFuelFeeCollector' ||
-          p === 'ServiceFeeCollector' ||
           p === 'TokenWrapper'
       )
       for (const f of feeCollectors) {
@@ -212,74 +270,38 @@ const main = defineCommand({
         `Found ${numMissing} missing dex${numMissing === 1 ? '' : 's'}`
       )
 
-      // Check contract ownership
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                Check contract ownership                 │
+      //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking ownership...')
 
-      let owner: Address = zeroAddress
-      let contractAddress: Address
       const withdrawWallet = getAddress(globalConfig.withdrawWallet)
       const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
       const refundWallet = getAddress(globalConfig.refundWallet)
 
       // FeeCollector
-      if (deployedContracts['FeeCollector']) {
-        contractAddress = deployedContracts['FeeCollector']
-        owner = await getOwnablContract(
-          contractAddress,
-          publicClient
-        ).read.owner()
-        if (owner !== withdrawWallet) {
-          logError(`FeeCollector owner is ${owner}, expected ${withdrawWallet}`)
-        } else {
-          consola.success('FeeCollector owner is correct')
-        }
-      }
+      await checkOwnership(
+        'FeeCollector',
+        withdrawWallet,
+        deployedContracts,
+        publicClient
+      )
 
       // LiFuelFeeCollector
-      if (deployedContracts['LiFuelFeeCollector']) {
-        contractAddress = deployedContracts['LiFuelFeeCollector']
-        owner = await getOwnablContract(
-          contractAddress,
-          publicClient
-        ).read.owner()
-        if (owner !== rebalanceWallet) {
-          logError(
-            `LiFuelFeeCollector owner is ${owner}, expected ${rebalanceWallet}`
-          )
-        } else {
-          consola.success('LiFuelFeeCollector owner is correct')
-        }
-      }
+      await checkOwnership(
+        'LiFuelFeeCollector',
+        rebalanceWallet,
+        deployedContracts,
+        publicClient
+      )
 
       // Receiver
-      if (deployedContracts['Receiver']) {
-        contractAddress = deployedContracts['Receiver']
-        owner = await getOwnablContract(
-          contractAddress,
-          publicClient
-        ).read.owner()
-        if (owner !== refundWallet) {
-          logError(`Receiver owner is ${owner}, expected ${refundWallet}`)
-        } else {
-          consola.success('Receiver owner is correct')
-        }
-      }
-
-      // ServiceFeeCollector
-      if (deployedContracts['ServiceFeeCollector']) {
-        contractAddress = deployedContracts['ServiceFeeCollector']
-        owner = await getOwnablContract(
-          contractAddress,
-          publicClient
-        ).read.owner()
-        if (owner !== withdrawWallet) {
-          logError(
-            `ServiceFeeCollector owner is ${owner}, expected ${withdrawWallet}`
-          )
-        } else {
-          consola.success('ServiceFeeCollector owner is correct')
-        }
-      }
+      await checkOwnership(
+        'Receiver',
+        refundWallet,
+        deployedContracts,
+        publicClient
+      )
 
       // Check access permissions
       consola.box('Checking access permissions...')
@@ -339,6 +361,8 @@ const main = defineCommand({
       }
 
       finish()
+    } else {
+      logError('No dexs configured')
     }
   },
 })
@@ -348,12 +372,49 @@ const logError = (string: string) => {
   errors.push(string)
 }
 
-const getOwnablContract = (address: Address, client: PublicClient) => {
+const getOwnableContract = (address: Address, client: PublicClient) => {
   return getContract({
     address,
     abi: parseAbi(['function owner() external view returns (address)']),
     client,
   })
+}
+
+const checkOwnership = async (
+  name: string,
+  expectedOwner: Address,
+  deployedContracts: Record<string, Address>,
+  publicClient: PublicClient
+) => {
+  if (deployedContracts[name]) {
+    const contractAddress = deployedContracts[name]
+    const owner = await getOwnableContract(
+      contractAddress,
+      publicClient
+    ).read.owner()
+    if (owner !== expectedOwner) {
+      logError(`${name} owner is ${owner}, expected ${expectedOwner}`)
+    } else {
+      consola.success(`${name} owner is correct`)
+    }
+  }
+}
+
+const checkIsDeployed = async (
+  contract: string,
+  deployedContracts: Record<string, Address>,
+  publicClient: PublicClient
+): Promise<boolean> => {
+  if (!deployedContracts[contract]) {
+    return false
+  }
+  const code = await publicClient.getCode({
+    address: deployedContracts[contract],
+  })
+  if (code === '0x') {
+    return false
+  }
+  return true
 }
 
 const finish = () => {
