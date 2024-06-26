@@ -11,7 +11,6 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IMayan } from "../Interfaces/IMayan.sol";
 import { UnsupportedChainId } from "../Errors/GenericErrors.sol";
-import { console } from "hardhat/console.sol";
 
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
