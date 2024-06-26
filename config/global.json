@@ -25,10 +25,6 @@
     {
       "sig": "0x44e2b18c",
       "name": "DexManagerFacet.batchSetFunctionApprovalBySignature"
-    },
-    {
-      "sig": "0x5c2ed36a",
-      "name": "PeripheryRegistryFacet.registerPeripheryContract"
     }
   ]
 }
