@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { ERC20 } from "solady/tokens/ERC20.sol";
+
+//TODO: REMOVE  <<<<<<<<<<<<<<<<<<<<<
+import { console2 } from "forge-std/console2.sol";
 
 interface IGasZip {
     function deposit(
@@ -14,12 +17,13 @@ interface IGasZip {
 
 /// @title GasZip
 /// @author LI.FI (https://li.fi)
-/// @notice Provides functionality to swap and trigger gaz.zip protocol
+/// @notice Provides functionality to swap and trigger gas.zip protocol
 /// @custom:version 1.0.0
 contract GasZip {
-    address public immutable ZERO = address(0);
+    using SafeTransferLib for address;
 
     /// State ///
+    address public immutable ZERO = address(0);
     IGasZip public immutable gasZipRouter;
 
     /// Errors ///
@@ -32,44 +36,71 @@ contract GasZip {
         gasZipRouter = IGasZip(_gasZipRouter);
     }
 
+    /// @notice Swaps ERC20 tokens to native and deposits these native tokens in the GasZip router contract
+    /// @param _swapData The swap data struct
+    /// @param _destinationChainId the id of the chain where gas should be made available
+    /// @param _recipient the address to receive the gas on dst chain
     function zipERC20(
-        LibSwap.SwapData calldata _swap,
-        uint256 destinationChain,
-        address recipient
+        LibSwap.SwapData calldata _swapData,
+        uint256 _destinationChainId,
+        address _recipient
     ) public {
-        LibSwap.swap(0, _swap);
-        uint256 availableNative = LibAsset.getOwnBalance(ZERO);
-        gasZipRouter.deposit{ value: availableNative }(
-            destinationChain,
-            recipient
+        // pull tokens from caller (e.g. LI.FI diamond)
+        _swapData.sendingAssetId.safeTransferFrom(
+            msg.sender,
+            address(this),
+            _swapData.fromAmount
         );
 
-        // Send back any remaining sendingAsset token to the sender
-        IERC20 sendingAsset = IERC20(_swap.sendingAssetId);
-        uint256 remainingBalance = sendingAsset.balanceOf(address(this));
+        // execute the swapData that swaps the ERC20 token into native
+        LibSwap.swap(0, _swapData);
 
+        // call the gas zip router and deposit tokens
+        gasZipRouter.deposit{ value: address(this).balance }(
+            _destinationChainId,
+            _recipient
+        );
+
+        // check remaining balance of sendingAsset
+        uint256 remainingBalance = ERC20(_swapData.sendingAssetId).balanceOf(
+            address(this)
+        );
+
+        // Send back any remaining sendingAsset tokens to the sender
         if (remainingBalance > 0) {
-            bool success = sendingAsset.transfer(msg.sender, remainingBalance);
-            if (!success) revert TransferFailed();
+            _swapData.sendingAssetId.safeTransfer(
+                msg.sender, //TODO: why send it back to msg.sender? That would mean that unused tokens are sent to the diamond. Should this be sent to _receiver instead?
+                remainingBalance
+            );
         }
     }
 
+    /// @notice Deposits native tokens in the GasZip router contract and returns any unused
+    /// @param _amountToZip The swap data struct
+    /// @param _destinationChainId the id of the chain where gas should be made available
+    /// @param _recipient the address to receive the gas on dst chain
     function zip(
-        uint256 amountToZip,
-        uint256 destinationChain,
-        address recipient
+        uint256 _amountToZip,
+        uint256 _destinationChainId,
+        address _recipient
     ) public payable {
-        gasZipRouter.deposit{ value: amountToZip }(
-            destinationChain,
-            recipient
+        // call the gas zip router and deposit tokens
+        gasZipRouter.deposit{ value: _amountToZip }(
+            _destinationChainId,
+            _recipient
         );
+
+        // TODO: why do we need this? Costs unnecessary gas....is it not sufficient to just run the deposit?
         uint256 nativeBalance = address(this).balance;
 
+        // Send back any remaining native balance to the sender
+        //TODO: is this required for multi-swaps? Otherwise this should also be sent to _recipient instead I believe
         if (nativeBalance > 0) {
-            (bool success, ) = msg.sender.call{ value: address(this).balance }(
-                ""
-            );
+            // solhint-disable-next-line avoid-low-level-calls
+            (bool success, ) = msg.sender.call{ value: nativeBalance }("");
             if (!success) revert TransferFailed();
         }
     }
+
+    receive() external payable {}
 }
