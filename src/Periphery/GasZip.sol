@@ -40,10 +40,12 @@ contract GasZip {
     /// @param _swapData The swap data struct
     /// @param _destinationChainId the id of the chain where gas should be made available
     /// @param _recipient the address to receive the gas on dst chain
+    /// @param _refundAddress the address to receive the gas on dst chain
     function zipERC20(
         LibSwap.SwapData calldata _swapData,
         uint256 _destinationChainId,
-        address _recipient
+        address _recipient,
+        address _refundAddress
     ) public {
         // pull tokens from caller (e.g. LI.FI diamond)
         _swapData.sendingAssetId.safeTransferFrom(
@@ -69,7 +71,7 @@ contract GasZip {
         // Send back any remaining sendingAsset tokens to the sender
         if (remainingBalance > 0) {
             _swapData.sendingAssetId.safeTransfer(
-                msg.sender, //TODO: why send it back to msg.sender? That would mean that unused tokens are sent to the diamond. Should this be sent to _receiver instead?
+                _refundAddress,
                 remainingBalance
             );
         }
@@ -90,11 +92,8 @@ contract GasZip {
             _recipient
         );
 
-        // TODO: why do we need this? Costs unnecessary gas....is it not sufficient to just run the deposit?
+        // Send back any remaining native balance to the msg.sender (i.e. LI.FI diamond)
         uint256 nativeBalance = address(this).balance;
-
-        // Send back any remaining native balance to the sender
-        //TODO: is this required for multi-swaps? Otherwise this should also be sent to _recipient instead I believe
         if (nativeBalance > 0) {
             // solhint-disable-next-line avoid-low-level-calls
             (bool success, ) = msg.sender.call{ value: nativeBalance }("");
