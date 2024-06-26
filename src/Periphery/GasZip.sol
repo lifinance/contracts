@@ -5,9 +5,6 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { ERC20 } from "solady/tokens/ERC20.sol";
 
-//TODO: REMOVE  <<<<<<<<<<<<<<<<<<<<<
-import { console2 } from "forge-std/console2.sol";
-
 interface IGasZip {
     function deposit(
         uint256 destinationChain,
