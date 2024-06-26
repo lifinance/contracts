@@ -19062,12 +19062,12 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xcED4B608A468ce334c75c6652e18E2Ba7f3F44dA",
+            "ADDRESS": "0xCA2782e4B29044d623efECf34c4e93Fb3968B275",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-04-04 11:52:23",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f3f04555f8fda510bfc77820fd6eb8446f59e72d",
+            "TIMESTAMP": "2024-06-26 14:50:41",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
             "SALT": "",
-            "VERIFIED": "true"
+            "VERIFIED": "false"
           }
         ]
       },
@@ -19100,12 +19100,12 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x94D25a74dCABda3511A391f855669475998C44BD",
+            "ADDRESS": "0xCA2782e4B29044d623efECf34c4e93Fb3968B275",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-06-11 14:25:42",
+            "TIMESTAMP": "2024-06-26 14:49:02",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }

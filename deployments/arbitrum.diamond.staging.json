@@ -93,14 +93,6 @@
         "Name": "SynapseBridgeFacet",
         "Version": "1.0.0"
       },
-      "0xDadC1DA73CeaBE53038A467aa8aD6b5Dd92041d9": {
-        "Name": "",
-        "Version": ""
-      },
-      "0xA0b874f1F2Aa45606A80937E7866552259f600f6": {
-        "Name": "",
-        "Version": ""
-      },
       "0xb590b3B312f3C73621aa1E363841c8baecc2E712": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
@@ -109,7 +101,7 @@
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       },
-      "0x94D25a74dCABda3511A391f855669475998C44BD": {
+      "0xCA2782e4B29044d623efECf34c4e93Fb3968B275": {
         "Name": "MayanFacet",
         "Version": "1.0.0"
       }
