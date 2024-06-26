@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
@@ -85,7 +86,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function swapAndStartBridgeTokensViaMayan(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        MayanData calldata _mayanData
+        MayanData memory _mayanData
     )
         external
         payable
@@ -101,6 +102,30 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _swapData,
             payable(msg.sender)
         );
+
+        // Get the decimals of the sending asset
+        uint256 decimals;
+        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            decimals = ERC20(_bridgeData.sendingAssetId).decimals();
+        } else {
+            decimals = 18;
+        }
+
+        // Round the amount to 8 decimals
+        // e.g ETH with 18 decimals 1123456678900000000 should be 1123456678000000000
+        // and USDC with 6 decimamls 1123456 should be 112345600
+        if (decimals > 8) {
+            _bridgeData.minAmount =
+                (_bridgeData.minAmount / (10 ** (decimals - 8))) *
+                (10 ** (decimals - 8));
+        }
+
+        // Update the protocol data with the new input amount
+        _mayanData.protocolData = _replaceInputAmount(
+            _mayanData.protocolData,
+            _bridgeData.minAmount
+        );
+
         _startBridge(_bridgeData, _mayanData);
     }
 
@@ -111,7 +136,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _mayanData Data specific to Mayan
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        MayanData calldata _mayanData
+        MayanData memory _mayanData
     ) internal {
         // Validate receiver address
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
@@ -217,5 +242,46 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 receiver := 0x0
             }
         }
+    }
+
+    function _replaceInputAmount(
+        bytes memory protocolData,
+        uint256 inputAmount
+    ) internal pure returns (bytes memory) {
+        require(protocolData.length >= 68, "protocol data too short");
+        bytes memory modifiedData = new bytes(protocolData.length);
+        bytes4 functionSelector = bytes4(protocolData[0]) |
+            (bytes4(protocolData[1]) >> 8) |
+            (bytes4(protocolData[2]) >> 16) |
+            (bytes4(protocolData[3]) >> 24);
+
+        uint256 amountIndex;
+        // Only the wh swap method has the amount as last argument
+        bytes4 swapSelector = 0x6111ad25;
+        if (functionSelector == swapSelector) {
+            amountIndex = protocolData.length - 32;
+        } else {
+            amountIndex = 36;
+        }
+
+        // Copy the function selector and params before amount in
+        for (uint i = 0; i < amountIndex; i++) {
+            modifiedData[i] = protocolData[i];
+        }
+
+        // Encode the amount and place it into the modified call data
+        bytes memory encodedAmount = abi.encode(inputAmount);
+        for (uint i = 0; i < 32; i++) {
+            modifiedData[i + amountIndex] = encodedAmount[i];
+        }
+
+        // Copy the rest of the original data after the input argument
+        if (functionSelector != swapSelector) {
+            for (uint i = 68; i < protocolData.length; i++) {
+                modifiedData[i] = protocolData[i];
+            }
+        }
+
+        return modifiedData;
     }
 }
