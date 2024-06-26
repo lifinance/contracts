@@ -113,11 +113,14 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // Round the amount to 8 decimals
         // e.g ETH with 18 decimals 1123456678900000000 should be 1123456678000000000
-        // and USDC with 6 decimamls 1123456 should be 112345600
+        // and USDC with 6 decimamls 1123456 should be 1123456
         if (decimals > 8) {
             _bridgeData.minAmount =
-                (_bridgeData.minAmount / (10 ** (decimals - 8))) *
-                (10 ** (decimals - 8));
+                _bridgeData.minAmount /
+                10 ** (decimals - 8);
+            _bridgeData.minAmount =
+                _bridgeData.minAmount *
+                10 ** (decimals - 8);
         }
 
         // Update the protocol data with the new input amount
