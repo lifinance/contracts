@@ -108,17 +108,11 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             ? 18
             : ERC20(_bridgeData.sendingAssetId).decimals();
 
-        // Round the amount to 8 decimals
-        // e.g LINK with 18 decimals 1123456678900000000 should be 1123456678000000000
-        // and USDC with 6 decimamls 1123456 should be 1123456
-        if (decimals > 8) {
-            _bridgeData.minAmount =
-                _bridgeData.minAmount /
-                10 ** (decimals - 8);
-            _bridgeData.minAmount =
-                _bridgeData.minAmount *
-                10 ** (decimals - 8);
-        }
+        // Normalize the amount to 8 decimals
+        _bridgeData.minAmount = _normalizeAmount(
+            _bridgeData.minAmount,
+            uint8(decimals)
+        );
 
         // Native values are not passed as calldata
         if (!isNative) {
@@ -245,6 +239,20 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 receiver := 0x0
             }
         }
+    }
+
+    // @dev Normalizes the amount to 8 decimals
+    // @param amount The amount to normalize
+    // @param decimals The number of decimals in the asset
+    function _normalizeAmount(
+        uint256 amount,
+        uint8 decimals
+    ) internal pure returns (uint256) {
+        if (decimals > 8) {
+            amount /= 10 ** (decimals - 8);
+            amount *= 10 ** (decimals - 8);
+        }
+        return amount;
     }
 
     // @dev Replaces the input amount in the protocol data
