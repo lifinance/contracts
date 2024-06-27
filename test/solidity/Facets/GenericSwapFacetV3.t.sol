@@ -1946,7 +1946,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         // get swapData
         (
             LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
+            ,
             uint256 minAmountOut
         ) = _produceSwapDataMultiswapERC20FeeAndSwapToNative(
                 address(genericSwapFacetV3)

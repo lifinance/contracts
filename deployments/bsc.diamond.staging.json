@@ -3,35 +3,35 @@
     "Facets": {
       "0x06045F5FA6EA7c6AcEb104b55BcD6C3dE3a08831": {
         "Name": "DiamondCutFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x8938CEa23C3c5eAABb895765f5B0b2b07D680402": {
         "Name": "DiamondLoupeFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x53d4Bcd5BEa4e863376b7eA43D7465351a4d71B0": {
         "Name": "OwnershipFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x83be9a6642c41f7ef78A0B60a355B5D7f3C9A62f": {
         "Name": "WithdrawFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xB94Fd26F6b138E1bE6CfEa5Ec4F67C5573F5d6AD": {
         "Name": "DexManagerFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x1A841931913806FB7570B43bcD64A487A8E7A50c": {
         "Name": "AccessManagerFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x27A0B9Dd7ee2762e15CCF36DF2F54A4A7B7a9304": {
         "Name": "PeripheryRegistryFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x9E39c6906F8FBC16D7CC996aB81bcBeD0F6E021d": {
         "Name": "AllBridgeFacet",
-        "Version": "2.0.0"
+        "Version": ""
       },
       "0xd6aba485e836d1C717734fFD00A25d16Cf738b49": {
         "Name": "",
@@ -39,35 +39,39 @@
       },
       "0x9a077b9dD746237d8854848BDB01521B47edC8DF": {
         "Name": "LIFuelFacet",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0x04BD4b6430483cFdD0450D0aFb08633d33C93275": {
         "Name": "",
         "Version": ""
       },
-      "0xcED4B608A468ce334c75c6652e18E2Ba7f3F44dA": {
-        "Name": "MayanFacet",
-        "Version": "1.0.0"
+      "0xb179bfa49d8B5d272288C59b26ac93f036735790": {
+        "Name": "",
+        "Version": ""
       },
       "0xAfcC5c55d5Ec3082675D51331E7Ed9AdE195db48": {
         "Name": "StargateFacet",
-        "Version": "2.2.0"
+        "Version": ""
       },
       "0xa6aAe470E7B8E8916e692882A5db25bB40C398A7": {
         "Name": "ThorSwapFacet",
-        "Version": "0.0.3"
+        "Version": ""
       },
       "0x8BFC9f022ACb65dfa0Eb6CCbA45c04C2a6cb9A34": {
         "Name": "SquidFacet",
-        "Version": "0.0.8"
+        "Version": ""
       },
       "0x7ac3EB2D191EBAb9E925CAbFD4F8155be066b3aa": {
         "Name": "AmarokFacetPacked",
-        "Version": "1.0.0"
+        "Version": ""
       },
       "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
         "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+        "Version": ""
+      },
+      "0xf92D157a857d55B5DA987E35488e746EA85f1ca3": {
+        "Name": "GasZipFacet",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -79,8 +83,7 @@
       "Receiver": "0x76EE0F8fb09047284B6ea89881595Fc6F5B09E12",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d",
-      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d",
-      "GasZip": "0xD9a07743138b6a76A8a56F305048D17f1175B11A"
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
 }
