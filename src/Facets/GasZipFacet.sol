@@ -68,15 +68,5 @@ contract GasZipFacet {
             _destinationChainId,
             _recipient
         );
-
-        // Send back any remaining native balance to the msg.sender (i.e. LI.FI diamond)
-        uint256 nativeBalance = address(this).balance;
-        if (nativeBalance > 0) {
-            // solhint-disable-next-line avoid-low-level-calls
-            (bool success, ) = msg.sender.call{ value: nativeBalance }("");
-            if (!success) revert NativeAssetTransferFailed();
-        }
     }
-
-    receive() external payable {}
 }

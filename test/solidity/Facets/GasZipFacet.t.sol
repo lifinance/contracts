@@ -94,10 +94,12 @@ contract GasZipFacetV3Test is DSTest, DiamondTest, TestHelpers {
         gasZipFacet = TestGasZipFacet(payable(address(diamond)));
 
         // whitelist uniswap dex with function selectors
-        // v1
         gasZipFacet.addDex(address(uniswap));
         gasZipFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
+        );
+        gasZipFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactETHForTokens.selector
         );
 
         vm.label(address(gasZipFacet), "LiFiDiamond");
@@ -124,7 +126,9 @@ contract GasZipFacetV3Test is DSTest, DiamondTest, TestHelpers {
         );
     }
 
-    function test_canCollectFeesThenSwapThenDepositERC20ThenBridge() public {
+    function test_canCollectERC20FeesThenSwapToERC20ThenDepositThenBridge()
+        public
+    {
         // Testcase:
         // 1. pay 1 USDC fee to FeeCollector in USDC
         // 2. swap remaining (9) USDC to DAI
@@ -243,6 +247,94 @@ contract GasZipFacetV3Test is DSTest, DiamondTest, TestHelpers {
             bridgeData,
             swapData
         );
+    }
+
+    function test_canDepositNativeThenSwapThenBridge() public {
+        // Testcase:
+        // 1. deposit small native amount to gasZip
+        // 2. swap remaining native to DAI
+        // 3. bridge remaining DAI to Gnosis using GnosisBridgeFacet
+
+        uint256 nativeFromAmount = 1 ether;
+
+        vm.deal(address(this), nativeFromAmount);
+
+        uint256 nativeZipAmount = 1e14;
+
+        // get swapData for gas zip
+        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
+        swapData[0] = LibSwap.SwapData(
+            address(gasZipFacet),
+            address(gasZipFacet),
+            address(0),
+            address(0),
+            nativeZipAmount,
+            abi.encodeWithSelector(
+                gasZipFacet.depositToGasZipNative.selector,
+                nativeZipAmount,
+                defaultDestinationChains,
+                defaultRecipientAddress
+            ),
+            false
+        );
+
+        // get swapData for swap
+        uint256 swapInputAmount = nativeFromAmount - nativeZipAmount;
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WETH;
+        path[1] = ADDRESS_DAI;
+
+        // Calculate expected amountOut
+        uint256[] memory amounts = uniswap.getAmountsOut(
+            swapInputAmount,
+            path
+        );
+        uint256 swapOutputAmount = amounts[1];
+
+        swapData[1] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            address(0),
+            ADDRESS_DAI,
+            swapInputAmount,
+            abi.encodeWithSelector(
+                uniswap.swapExactETHForTokens.selector,
+                swapOutputAmount,
+                path,
+                address(diamond),
+                block.timestamp + 20 minutes
+            ),
+            false // not required since tokens are already in diamond
+        );
+
+        // get BridgeData
+        ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
+            transactionId: "",
+            bridge: "GnosisBridge",
+            integrator: "",
+            referrer: address(0),
+            sendingAssetId: ADDRESS_DAI,
+            receiver: defaultRecipientAddress,
+            minAmount: swapOutputAmount,
+            destinationChainId: 100,
+            hasSourceSwaps: true,
+            hasDestinationCall: false
+        });
+
+        // whitelist gasZipFacet and FeeCollector
+        gasZipFacet.addDex(address(gasZipFacet));
+        gasZipFacet.setFunctionApprovalBySignature(
+            gasZipFacet.depositToGasZipNative.selector
+        );
+
+        // bridge using (standalone) GnosisBridgeFacet
+        TestGnosisBridgeFacet gnosisBridgeFacet = _getGnosisBridgeFacet();
+
+        gnosisBridgeFacet.swapAndStartBridgeTokensViaXDaiBridge{
+            value: nativeFromAmount
+        }(bridgeData, swapData);
     }
 
     function _getGnosisBridgeFacet()
