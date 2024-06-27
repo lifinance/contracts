@@ -599,6 +599,20 @@
           }
         ]
       }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xc00507d91cD2d4EBb8694E553ba70Cf416C0779C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 08:50:44",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -1207,6 +1221,20 @@
             "ADDRESS": "0x4A8b4d675143116c523068476f8CEdd99Ed50A42",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-07 12:40:51",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4A8b4d675143116c523068476f8CEdd99Ed50A42",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 08:53:25",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -1828,6 +1856,20 @@
           }
         ]
       }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1563FE796907bd6ef6F98e035593072F4BEeF605",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 08:54:07",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "DexManagerFacet": {
@@ -2392,6 +2434,20 @@
             "ADDRESS": "0xed8AfA069BB4Cec4AAb757E28A8289d0Ac3A1E38",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-07 12:16:05",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xed8AfA069BB4Cec4AAb757E28A8289d0Ac3A1E38",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 08:44:29",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -2980,6 +3036,20 @@
           }
         ]
       }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4bDCd7FC26078E492b89763871163CCBca62c6D6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 08:45:05",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -3544,6 +3614,20 @@
             "ADDRESS": "0x8C65D3Be9B0A98492538068f95A4150b29c8e701",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-07 12:16:57",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x8C65D3Be9B0A98492538068f95A4150b29c8e701",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 08:45:41",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -4147,6 +4231,20 @@
           }
         ]
       }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xc844D2E52C0fB544E68f2A48D39F0bFfE424d37F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 08:46:17",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -4720,6 +4818,20 @@
             "ADDRESS": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-07 11:23:46",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000c00507d91cd2d4ebb8694e553ba70cf416c0779c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 08:55:04",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000c00507d91cd2d4ebb8694e553ba70cf416c0779c",
             "SALT": "",
             "VERIFIED": "true"
@@ -6242,6 +6354,20 @@
           }
         ]
       }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xeA6e6EDEf3e153960B3baabfC145FA84BDFa1A46",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 08:47:30",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "HopFacetOptimized": {
@@ -7485,6 +7611,20 @@
             "ADDRESS": "0x8B3673b9b757aFc8a86010889cd8657AF5c34f06",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-07 12:18:03",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x8B3673b9b757aFc8a86010889cd8657AF5c34f06",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 09:17:02",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -9238,6 +9378,20 @@
           }
         ]
       }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xEd170C587Ccb4DaD6986798c8E7cC66fBb564AC5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 09:23:24",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "Executor": {
@@ -9994,6 +10148,20 @@
           }
         ]
       }
+    },
+    "fraxtal": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x6d425eAb1Eb6e002Bf40c44e5d9Ff7fC6a38824a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 09:24:01",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ed170c587ccb4dad6986798c8e7cc66fbb564ac5",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -10558,6 +10726,20 @@
             "ADDRESS": "0x7956280Ec4B4d651C4083Ca737a1fa808b5319D8",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-07 12:43:13",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x7956280Ec4B4d651C4083Ca737a1fa808b5319D8",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 09:24:39",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
             "VERIFIED": "true"
@@ -11660,6 +11842,20 @@
           }
         ]
       }
+    },
+    "fraxtal": {
+      "production": {
+        "2.0.2": [
+          {
+            "ADDRESS": "0xf22c55c50fF14d9AB1fa4D9DCA832085D143E854",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 09:25:52",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006d425eab1eb6e002bf40c44e5d9ff7fc6a38824a00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "ServiceFeeCollector": {
@@ -12408,6 +12604,20 @@
             "ADDRESS": "0x45d69A8a07F79DE2364F0B80F78af86e99015162",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-07 12:44:51",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x45d69A8a07F79DE2364F0B80F78af86e99015162",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 09:26:28",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
             "VERIFIED": "true"
@@ -15884,6 +16094,20 @@
           }
         ]
       }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD89381BfFC3b1662AaAe4C4475353FA0ff10A83e",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 09:22:02",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000dc3d8e1abe590bca428a8a2fc4cfdbd1acf57bd9",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "SynapseBridgeFacet": {
@@ -16746,6 +16970,20 @@
           }
         ]
       }
+    },
+    "fraxtal": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xeB98530f99e1c4406d24FdE4b590C96Ac7143aEe",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 08:48:07",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "CalldataVerificationFacet": {
@@ -17286,6 +17524,20 @@
             "ADDRESS": "0x0687F1B49E7d536adb8ab7EfC80E934175dF4dA9",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-07 12:19:44",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fraxtal": {
+      "production": {
+        "1.1.1": [
+          {
+            "ADDRESS": "0x787E4Eb9af1F7a8c62AD3B0db15ba48896fC87eC",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 09:18:30",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
@@ -18035,6 +18287,20 @@
           }
         ]
       }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x9870F0C91D722B3393383722968269496d919bD8",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 09:25:18",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "AcrossFacetPacked": {
@@ -18632,6 +18898,20 @@
           }
         ]
       }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x095857146B116802fBf4f75D96CC1b35c5F3ad1a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-26 10:55:18",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce8f24a58d85ed5c5a6824f7be1f8d4711a0eb4c000000000000000000000000adb2d3b711bb8d8ea92ff70292c466140432c278",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "MayanBridgeFacet": {
@@ -19034,6 +19314,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-07 12:56:34",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000e30fedd158a2e3b13e9badaeabafc5516e95e8c7",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC82fd49be3F3D851b9E10589C50784cEAC7114a5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 09:27:02",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000fc00000000000000000000000000000000000006",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -19523,6 +19817,20 @@
             "ADDRESS": "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-20 07:49:49",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x333c7Ed1B5E3a1C5E8E41735a40D7b249C4397ee",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-21 08:54:28",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"

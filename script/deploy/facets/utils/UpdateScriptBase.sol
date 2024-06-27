@@ -234,4 +234,32 @@ contract UpdateScriptBase is ScriptBase {
             );
         }
     }
+
+    function approveDeployerWallet() internal {
+        // get refund wallet address from global config file
+        path = string.concat(root, "/config/global.json");
+        json = vm.readFile(path);
+        address refundWallet = json.readAddress(".deployerWallet");
+
+        // get function signatures that should be approved for refundWallet
+        bytes memory rawConfig = json.parseRaw(
+            ".approvedSigsForDeployerWallet"
+        );
+
+        // parse raw data from config into FunctionSignature array
+        FunctionSignature[] memory funcSigsToBeApproved = abi.decode(
+            rawConfig,
+            (FunctionSignature[])
+        );
+
+        // go through array with function signatures
+        for (uint256 i = 0; i < funcSigsToBeApproved.length; i++) {
+            // Register refundWallet as authorized wallet to call these functions
+            AccessManagerFacet(diamond).setCanExecute(
+                bytes4(funcSigsToBeApproved[i].sig),
+                refundWallet,
+                true
+            );
+        }
+    }
 }

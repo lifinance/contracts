@@ -50,7 +50,7 @@ DEPLOY_CONFIG_FILE_PATH="config/"
 # exclude all test networks:       EXCLUDE_NETWORKS="bsctest,goerli,sepolia,mumbai,lineatest,localanvil"
 # exclude all production networks: EXCLUDE_NETWORKS="mainnet,polygon,bsc,gnosis,fantom,okx,avalanche,arbitrum,optimism,moonriver,moonbeam,celo,fuse,cronos,velas,harmony,evmos,aurora,boba,nova"
 #EXCLUDE_NETWORKS="gnosis,okx,moonbeam,celo,fuse,cronos,velas,harmony,evmos,boba,nova,bsctest,goerli,sepolia,mumbai,lineatest"
-EXCLUDE_NETWORKS="lineatest,localanvil"
+EXCLUDE_NETWORKS="bsc-testnet,goerli,sepolia,mumbai,lineatest,localanvil,velas"
 
 # a list of all networks that are testnets
 TEST_NETWORKS="bsc-testnet,goerli,sepolia,mumbai,lineatest,localanvil"
@@ -59,7 +59,7 @@ TEST_NETWORKS="bsc-testnet,goerli,sepolia,mumbai,lineatest,localanvil"
 DEBUG=true
 
 # defines if newly deployed contracts should be verified or not
-VERIFY_CONTRACTS=false
+VERIFY_CONTRACTS=true
 
 # contract verification will be deactivated for any network listed here
 DO_NOT_VERIFY_IN_THESE_NETWORKS="gnosis,testNetwork,aurora,localanvil"
