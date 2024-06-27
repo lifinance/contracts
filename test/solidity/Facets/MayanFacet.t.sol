@@ -298,4 +298,9 @@ contract MayanFacetTest is TestBaseFacet {
         mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, validMayanData);
         vm.stopPrank();
     }
+
+    function test_CanSwapAndBridgeNativeTokensWithMoreThan8Decimals() public {
+        defaultNativeAmount += 0.123456789 ether;
+        testBase_CanSwapAndBridgeNativeTokens();
+    }
 }
