@@ -18957,20 +18957,6 @@
       }
     }
   },
-  "GasZip": {
-    "bsc": {
-      "staging": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0x70f365dC8d4cF91C2318337157E76BB9c786C116",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-05-02 16:20:25",
-            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000004a364f8c717caad9a442737eb7b8a55cc6cf18d80000000000000000000000004a364f8c717caad9a442737eb7b8a55cc6cf18d8",
-          }
-        ]
-      }
-    }
-  },
   "MayanFacet": {
     "bsc": {
       "staging": {
@@ -19438,6 +19424,22 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-20 07:49:49",
             "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "GasZipFacet": {
+    "bsc": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf92D157a857d55B5DA987E35488e746EA85f1ca3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-27 09:53:54",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000085e5fb57844be79b42997c898d177a39f328ccf0",
             "SALT": "",
             "VERIFIED": "true"
           }
