@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { ERC20 } from "solady/tokens/ERC20.sol";
+import { NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
 
 interface IGasZip {
     function deposit(
@@ -12,21 +13,15 @@ interface IGasZip {
     ) external payable;
 }
 
-/// @title GasZip
+/// @title GasZipFacet
 /// @author LI.FI (https://li.fi)
-/// @notice Provides functionality to swap and trigger gas.zip protocol
+/// @notice Provides functionality to swap ERC20 tokens to native and deposit them to the  gas.zip protocol (https://www.gas.zip/)
 /// @custom:version 1.0.0
-contract GasZip {
+contract GasZipFacet {
     using SafeTransferLib for address;
 
     /// State ///
-    address public immutable ZERO = address(0);
     IGasZip public immutable gasZipRouter;
-
-    /// Errors ///
-    error TransferFailed();
-
-    /// Events ///
 
     /// Constructor ///
     constructor(address _gasZipRouter) {
@@ -37,12 +32,10 @@ contract GasZip {
     /// @param _swapData The swap data struct
     /// @param _destinationChainId the id of the chain where gas should be made available
     /// @param _recipient the address to receive the gas on dst chain
-    /// @param _refundAddress the address to receive the gas on dst chain
-    function zipERC20(
+    function depositToGasZipERC20(
         LibSwap.SwapData calldata _swapData,
         uint256 _destinationChainId,
-        address _recipient,
-        address _refundAddress
+        address _recipient
     ) public {
         // pull tokens from caller (e.g. LI.FI diamond)
         _swapData.sendingAssetId.safeTransferFrom(
@@ -59,26 +52,13 @@ contract GasZip {
             _destinationChainId,
             _recipient
         );
-
-        // check remaining balance of sendingAsset
-        uint256 remainingBalance = ERC20(_swapData.sendingAssetId).balanceOf(
-            address(this)
-        );
-
-        // Send back any remaining sendingAsset tokens to the sender
-        if (remainingBalance > 0) {
-            _swapData.sendingAssetId.safeTransfer(
-                _refundAddress,
-                remainingBalance
-            );
-        }
     }
 
     /// @notice Deposits native tokens in the GasZip router contract and returns any unused
     /// @param _amountToZip The swap data struct
     /// @param _destinationChainId the id of the chain where gas should be made available
     /// @param _recipient the address to receive the gas on dst chain
-    function zip(
+    function depositToGasZipNative(
         uint256 _amountToZip,
         uint256 _destinationChainId,
         address _recipient
@@ -94,7 +74,7 @@ contract GasZip {
         if (nativeBalance > 0) {
             // solhint-disable-next-line avoid-low-level-calls
             (bool success, ) = msg.sender.call{ value: nativeBalance }("");
-            if (!success) revert TransferFailed();
+            if (!success) revert NativeAssetTransferFailed();
         }
     }
 

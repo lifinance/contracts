@@ -2,21 +2,21 @@
 pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
-import { GasZip } from "lifi/Periphery/GasZip.sol";
+import { GasZipFacet } from "lifi/Facets/GasZipFacet.sol";
 import { stdJson } from "forge-std/Script.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("GasZip") {}
+    constructor() DeployScriptBase("GasZipFacet") {}
 
     function run()
         public
-        returns (GasZip deployed, bytes memory constructorArgs)
+        returns (GasZipFacet deployed, bytes memory constructorArgs)
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = GasZip(deploy(type(GasZip).creationCode));
+        deployed = GasZipFacet(deploy(type(GasZipFacet).creationCode));
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
