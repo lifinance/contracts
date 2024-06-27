@@ -28,6 +28,24 @@ contract GasZipFacet {
         gasZipRouter = IGasZip(_gasZipRouter);
     }
 
+    /// @notice Pulls and swaps ERC20 tokens to native and then deposits these native tokens in the GasZip router contract
+    /// @param _swapData The swap data struct
+    /// @param _destinationChainId the id of the chain where gas should be made available
+    /// @param _recipient the address to receive the gas on dst chain
+    function depositToGasZipERC20WithDeposit(
+        LibSwap.SwapData calldata _swapData,
+        uint256 _destinationChainId,
+        address _recipient
+    ) external {
+        // pull tokens from caller (e.g. LI.FI diamond)
+        _swapData.sendingAssetId.safeTransferFrom(
+            msg.sender,
+            address(this),
+            _swapData.fromAmount
+        );
+        depositToGasZipERC20(_swapData, _destinationChainId, _recipient);
+    }
+
     /// @notice Swaps ERC20 tokens to native and deposits these native tokens in the GasZip router contract
     /// @param _swapData The swap data struct
     /// @param _destinationChainId the id of the chain where gas should be made available
@@ -37,13 +55,6 @@ contract GasZipFacet {
         uint256 _destinationChainId,
         address _recipient
     ) public {
-        // pull tokens from caller (e.g. LI.FI diamond)
-        _swapData.sendingAssetId.safeTransferFrom(
-            msg.sender,
-            address(this),
-            _swapData.fromAmount
-        );
-
         // execute the swapData that swaps the ERC20 token into native
         LibSwap.swap(0, _swapData);
 
@@ -62,7 +73,7 @@ contract GasZipFacet {
         uint256 _amountToZip,
         uint256 _destinationChainId,
         address _recipient
-    ) public payable {
+    ) external payable {
         // call the gas zip router and deposit tokens
         gasZipRouter.deposit{ value: _amountToZip }(
             _destinationChainId,

@@ -35,7 +35,7 @@ contract TestGasZipFacet is GasZipFacet {
     }
 }
 
-contract GasZipFacetV3Test is DSTest, DiamondTest, TestHelpers {
+contract GasZipFacetTest is DSTest, DiamondTest, TestHelpers {
     address public constant GAS_ZIP_ROUTER_MAINNET =
         0x9E22ebeC84c7e4C4bD6D4aE7FF6f4D436D6D8390;
     address internal ADDRESS_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
@@ -81,13 +81,16 @@ contract GasZipFacetV3Test is DSTest, DiamondTest, TestHelpers {
         defaultUSDCAmount = 10 * 10 ** usdc.decimals(); // 10 USDC
 
         // add genericSwapFacet (v1) to diamond (for gas usage comparison)
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = gasZipFacet.depositToGasZipNative.selector;
         functionSelectors[1] = gasZipFacet.depositToGasZipERC20.selector;
         functionSelectors[2] = gasZipFacet.addDex.selector;
         functionSelectors[3] = gasZipFacet.removeDex.selector;
         functionSelectors[4] = gasZipFacet
             .setFunctionApprovalBySignature
+            .selector;
+        functionSelectors[5] = gasZipFacet
+            .depositToGasZipERC20WithDeposit
             .selector;
         addFacet(diamond, address(gasZipFacet), functionSelectors);
 
@@ -337,28 +340,7 @@ contract GasZipFacetV3Test is DSTest, DiamondTest, TestHelpers {
         }(bridgeData, swapData);
     }
 
-    function _getGnosisBridgeFacet()
-        internal
-        returns (TestGnosisBridgeFacet gnosisBridgeFacet)
-    {
-        gnosisBridgeFacet = new TestGnosisBridgeFacet(
-            IXDaiBridge(XDAI_BRIDGE)
-        );
-
-        bytes4[] memory functionSelectors = new bytes4[](2);
-        functionSelectors[0] = gnosisBridgeFacet
-            .startBridgeTokensViaXDaiBridge
-            .selector;
-        functionSelectors[1] = gnosisBridgeFacet
-            .swapAndStartBridgeTokensViaXDaiBridge
-            .selector;
-
-        addFacet(diamond, address(gnosisBridgeFacet), functionSelectors);
-
-        gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
-    }
-
-    function test_canSwapERC20ToNativeAndDeposit() public {
+    function test_canSwapERC20ToNativeAndDeposit_DirectCallToFacet() public {
         (
             LibSwap.SwapData memory swapData,
             uint256 amountOutMin
@@ -381,11 +363,32 @@ contract GasZipFacetV3Test is DSTest, DiamondTest, TestHelpers {
         );
 
         // deposit via GasZip periphery contract
-        gasZipFacet.depositToGasZipERC20(
+        gasZipFacet.depositToGasZipERC20WithDeposit(
             swapData,
             defaultDestinationChains,
             defaultRecipientAddress
         );
+    }
+
+    function _getGnosisBridgeFacet()
+        internal
+        returns (TestGnosisBridgeFacet gnosisBridgeFacet)
+    {
+        gnosisBridgeFacet = new TestGnosisBridgeFacet(
+            IXDaiBridge(XDAI_BRIDGE)
+        );
+
+        bytes4[] memory functionSelectors = new bytes4[](2);
+        functionSelectors[0] = gnosisBridgeFacet
+            .startBridgeTokensViaXDaiBridge
+            .selector;
+        functionSelectors[1] = gnosisBridgeFacet
+            .swapAndStartBridgeTokensViaXDaiBridge
+            .selector;
+
+        addFacet(diamond, address(gnosisBridgeFacet), functionSelectors);
+
+        gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
     }
 
     function _getUniswapCalldataForERC20ToNativeSwap(
