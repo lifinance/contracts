@@ -71,7 +71,7 @@ function diamondSyncSigs {
       # ensure that gas price is below maximum threshold (for mainnet only)
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-      tsx ./script/tasks/diamondSyncSigs.ts --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
+      ts-node ./script/tasks/diamondSyncSigs.ts --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
 
       # check the return code of the last call
       if [ $? -eq 0 ]; then
