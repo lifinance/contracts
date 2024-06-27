@@ -54,7 +54,7 @@ contract GasZipFacet {
         );
     }
 
-    /// @notice Deposits native tokens in the GasZip router contract and returns any unused
+    /// @notice Deposits native tokens in the GasZip router contract
     /// @param _amountToZip The swap data struct
     /// @param _destinationChainId the id of the chain where gas should be made available
     /// @param _recipient the address to receive the gas on dst chain
