@@ -103,7 +103,8 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         uint256 decimals;
-        decimals = LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
+        bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
+        decimals = isNative
             ? 18
             : ERC20(_bridgeData.sendingAssetId).decimals();
 
@@ -119,11 +120,14 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 10 ** (decimals - 8);
         }
 
-        // Update the protocol data with the new input amount
-        _mayanData.protocolData = _replaceInputAmount(
-            _mayanData.protocolData,
-            _bridgeData.minAmount
-        );
+        // Native values are not passed as calldata
+        if (!isNative) {
+            // Update the protocol data with the new input amount
+            _mayanData.protocolData = _replaceInputAmount(
+                _mayanData.protocolData,
+                _bridgeData.minAmount
+            );
+        }
 
         _startBridge(_bridgeData, _mayanData);
     }
@@ -243,6 +247,10 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
     }
 
+    // @dev Replaces the input amount in the protocol data
+    // @param protocolData The protocol data for the Mayan protocol
+    // @param inputAmount The new input amount
+    // @return modifiedData The modified protocol data
     function _replaceInputAmount(
         bytes memory protocolData,
         uint256 inputAmount
