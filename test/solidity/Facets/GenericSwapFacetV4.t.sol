@@ -7,6 +7,7 @@ import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
 import { GenericSwapFacetV4 } from "lifi/Facets/GenericSwapFacetV4.sol";
+import { RouteProcessor4 } from "lifi/Periphery/RouteProcessor4.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
@@ -92,6 +93,7 @@ contract GenericSwapFacetV4Test is DSTest, DiamondTest, TestHelpers {
     ERC20 internal weth;
     UniswapV2Router02 internal uniswap;
     FeeCollector internal feeCollector;
+    RouteProcessor4 internal routeProcessor;
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
@@ -111,6 +113,7 @@ contract GenericSwapFacetV4Test is DSTest, DiamondTest, TestHelpers {
         weth = ERC20(WETH_ADDRESS);
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
         feeCollector = FeeCollector(FEE_COLLECTOR);
+        routeProcessor = new RouteProcessor4(address(0), new address[](0));
 
         // add genericSwapFacet (v1) to diamond (for gas usage comparison)
         bytes4[] memory functionSelectors = new bytes4[](4);
