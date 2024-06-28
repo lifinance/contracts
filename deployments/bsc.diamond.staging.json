@@ -33,11 +33,19 @@
         "Name": "AllBridgeFacet",
         "Version": "2.0.0"
       },
+      "0xd6aba485e836d1C717734fFD00A25d16Cf738b49": {
+        "Name": "",
+        "Version": ""
+      },
       "0x9a077b9dD746237d8854848BDB01521B47edC8DF": {
         "Name": "LIFuelFacet",
         "Version": "1.0.0"
       },
-      "0x06a9fdE33E7Dd4429a035a3aA14A3f6b0b2142f8": {
+      "0x04BD4b6430483cFdD0450D0aFb08633d33C93275": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xd596C903d78870786c5DB0E448ce7F87A65A0daD": {
         "Name": "MayanFacet",
         "Version": "1.0.0"
       },
@@ -60,6 +68,10 @@
       "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
+      },
+      "0xf92D157a857d55B5DA987E35488e746EA85f1ca3": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {

@@ -75,6 +75,15 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
+
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            // Normalize the amount to 8 decimals
+            _bridgeData.minAmount = _normalizeAmount(
+                _bridgeData.minAmount,
+                18
+            );
+        }
+
         _startBridge(_bridgeData, _mayanData);
     }
 
