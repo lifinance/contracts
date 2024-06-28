@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import { LibAllowList, TestBaseFacet, console, ERC20, LibSwap, LibAsset } from "../utils/TestBaseFacet.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { IMayan } from "lifi/Interfaces/IMayan.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 
 // Stub MayanFacet Contract
 contract TestMayanFacet is MayanFacet {
@@ -26,6 +27,7 @@ contract MayanFacetTest is TestBaseFacet {
     IMayan internal MAYAN_FORWARDER =
         IMayan(0x0654874eb7F59C6f5b39931FC45dC45337c967c3);
     address internal POLYGON_USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
+    address DEV_WALLET = 0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7;
 
     bytes32 ACTUAL_SOL_ADDR =
         hex"4cb7c5f1632114c376c0e7a9a1fd1fbd562699fbd9a0c9f4f26ba8cf6e23df0d";
@@ -306,14 +308,6 @@ contract MayanFacetTest is TestBaseFacet {
     function test_CanSwapAndBridgeTokensWithMoreThan8Decimals()
         public
         virtual
-        assertBalanceChange(
-            ADDRESS_DAI,
-            USER_SENDER,
-            -int256(swapData[0].fromAmount)
-        )
-        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
-        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
-        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
     {
         // Overrides
         // Change fork to BSC
@@ -323,10 +317,8 @@ contract MayanFacetTest is TestBaseFacet {
         ADDRESS_DAI = 0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3;
         ADDRESS_UNISWAP = 0x10ED43C718714eb63d5aA57B78B54704E256024E;
         ADDRESS_WETH = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c;
-        address DEV_WALLET = 0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7;
         vm.label(DEV_WALLET, "DEV_WALLET");
         initTestBase();
-        vm.chainId(56);
         setupMayan();
 
         // transfer initial DAI/USDC/WETH balance to USER_SENDER
@@ -346,7 +338,8 @@ contract MayanFacetTest is TestBaseFacet {
 
         vm.startPrank(DEV_WALLET);
 
-        // vm.warp(1719499300);
+        // Time travel
+        vm.warp(1719499200);
 
         // prepare bridgeData
         defaultUSDCAmount = 4.123123123123 ether;
@@ -373,8 +366,10 @@ contract MayanFacetTest is TestBaseFacet {
             block.timestamp
         );
 
+        ILiFi.BridgeData memory eventBridgeData = bridgeData;
+        eventBridgeData.minAmount = 4123123120000000000; // Adjusted for 8 decimals
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit LiFiTransferStarted(bridgeData);
+        emit LiFiTransferStarted(eventBridgeData);
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);

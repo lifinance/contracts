@@ -274,7 +274,7 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // Only the wh swap method has the amount as last argument
         bytes4 swapSelector = 0x6111ad25;
         if (functionSelector == swapSelector) {
-            amountIndex = protocolData.length - 32;
+            amountIndex = protocolData.length - 256;
         } else {
             amountIndex = 36;
         }
@@ -291,10 +291,8 @@ contract MayanFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         // Copy the rest of the original data after the input argument
-        if (functionSelector != swapSelector) {
-            for (uint i = 68; i < protocolData.length; i++) {
-                modifiedData[i] = protocolData[i];
-            }
+        for (uint i = amountIndex + 32; i < protocolData.length; i++) {
+            modifiedData[i] = protocolData[i];
         }
 
         return modifiedData;
