@@ -1975,6 +1975,16 @@
             "SALT": "27062023",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x5c9cbc3FB4FF588199BFbE68b72Fc127dd0D8630",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-06-28 20:45:04",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
         ]
       }
     },
