@@ -13,6 +13,7 @@ jobs:
       ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
       ETH_NODE_URI_GOERLI: ${{ secrets.ETH_NODE_URI_GOERLI }}
       ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
+      ETH_NODE_URI_BSC: ${{ ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
       FORK_NUMBER: ${{ secrets.FORK_NUMBER }}
       POLYGON_FORK_NUMBER: ${{ secrets.POLYGON_FORK_NUMBER }}
