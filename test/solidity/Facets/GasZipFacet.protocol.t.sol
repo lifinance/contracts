@@ -157,7 +157,7 @@ contract GasZipProtocolTest is DSTest, DiamondTest, TestHelpers {
             true
         );
 
-        // get swapData for swap
+        // get swapData for USDC to DAI swap
         uint256 swapInputAmount = defaultUSDCAmount - feeCollectionAmount;
         // prepare swap data
         address[] memory path = new address[](2);
@@ -192,7 +192,7 @@ contract GasZipProtocolTest is DSTest, DiamondTest, TestHelpers {
         uint256 gasZipERC20Amount = 2 * 10 ** dai.decimals();
         (
             LibSwap.SwapData memory gasZipSwapData,
-
+            uint256 amountOutMinGasZipSwap
         ) = _getUniswapCalldataForERC20ToNativeSwap(
                 ADDRESS_DAI,
                 gasZipERC20Amount
@@ -208,7 +208,8 @@ contract GasZipProtocolTest is DSTest, DiamondTest, TestHelpers {
                 gasZipFacet.depositToGasZipERC20.selector,
                 gasZipSwapData,
                 defaultDestinationChains,
-                defaultRecipientAddress
+                defaultRecipientAddress,
+                amountOutMinGasZipSwap
             ),
             false // not required since tokens are already in the diamond
         );

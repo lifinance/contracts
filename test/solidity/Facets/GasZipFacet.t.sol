@@ -79,7 +79,7 @@ contract GasZipFacetTest is TestBaseFacet {
 
         (
             LibSwap.SwapData memory gasZipSwapData,
-
+            uint256 amountOutMin
         ) = _getUniswapCalldataForERC20ToNativeSwap(
                 ADDRESS_USDC,
                 defaultUSDCAmount
@@ -90,7 +90,8 @@ contract GasZipFacetTest is TestBaseFacet {
         // produce valid GasZipData
         gasZipData = GasZipFacet.GasZipData({
             destinationChains: defaultDestinationChains,
-            gasZipSwapData: gasZipSwapData
+            gasZipSwapData: gasZipSwapData,
+            amountOutMin: amountOutMin
         });
 
         vm.label(address(gasZipFacet), "LiFiDiamond");

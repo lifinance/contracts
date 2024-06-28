@@ -28,9 +28,11 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev GasZip-specific bridge data
     /// @param destinationChains a value that represents a list of chains to which gas should be distributed (see https://dev.gas.zip/gas/code-examples/deposit for more details)
     /// @param gasZipSwapData (only required for ERC20 tokens): the swapData that swaps from ERC20 to native before depositing to gas.zip
+    /// @param amountOutMin (only required for ERC20 tokens): the native amount we expect to receive from swap and plan to deposit to gas.zip
     struct GasZipData {
         uint256 destinationChains;
         LibSwap.SwapData gasZipSwapData;
+        uint256 amountOutMin;
     }
 
     /// State ///
@@ -94,18 +96,20 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Swaps ERC20 tokens to native and deposits these native tokens in the GasZip router contract
     /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
     /// @param _swapData The swap data that executes the swap from ERC20 to native
-    /// @param _destinationChains a value that represents a list of chains to which gas should be distributed
-    /// @param _recipient the address to receive the gas on dst chain
+    /// @param _destinationChains A value that represents a list of chains to which gas should be distributed
+    /// @param _recipient The address to receive the gas on dst chain
+    /// @param _amountOutMin The native amount we expect to receive from swap and plan to deposit to gas.zip
     function depositToGasZipERC20(
         LibSwap.SwapData calldata _swapData,
         uint256 _destinationChains,
-        address _recipient
+        address _recipient,
+        uint256 _amountOutMin
     ) public {
         // execute the swapData that swaps the ERC20 token into native
         LibSwap.swap(0, _swapData);
 
         // call the gas zip router and deposit tokens
-        gasZipRouter.deposit{ value: address(this).balance }(
+        gasZipRouter.deposit{ value: _amountOutMin }(
             _destinationChains,
             _recipient
         );
@@ -148,7 +152,8 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             depositToGasZipERC20(
                 _gasZipData.gasZipSwapData,
                 _gasZipData.destinationChains,
-                _bridgeData.receiver
+                _bridgeData.receiver,
+                _gasZipData.amountOutMin
             );
 
         emit LiFiTransferStarted(_bridgeData);
