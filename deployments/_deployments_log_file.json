@@ -19356,12 +19356,12 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xb179bfa49d8B5d272288C59b26ac93f036735790",
+            "ADDRESS": "0x06a9fdE33E7Dd4429a035a3aA14A3f6b0b2142f8",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-06-26 17:42:27",
+            "TIMESTAMP": "2024-06-28 08:33:06",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       },
@@ -19394,9 +19394,9 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x9e8A14B16FFdb4DB5713f0f7F00E36593F2c15ac",
+            "ADDRESS": "0x06a9fdE33E7Dd4429a035a3aA14A3f6b0b2142f8",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-06-27 16:42:25",
+            "TIMESTAMP": "2024-06-28 08:34:40",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000654874eb7f59c6f5b39931fc45dc45337c967c3",
             "SALT": "",
             "VERIFIED": "true"
