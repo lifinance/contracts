@@ -50,6 +50,8 @@ const main = defineCommand({
     const chainName = chainNameMappings[network] || network
     const chain: Chain = chainMap[chainName]
 
+    console.log(`Checking signature for ${chain.name}`)
+
     // Fetch list of deployed contracts
     const deployedContracts = await import(
       `../../deployments/${network.toLowerCase()}.json`
@@ -101,19 +103,23 @@ const main = defineCommand({
       account,
     })
 
-    // Approve function signatures
-    console.log('Approving function signatures...')
-    const tx = await walletClient.writeContract({
-      address: deployedContracts['LiFiDiamond'],
-      abi: parseAbi([
-        'function batchSetFunctionApprovalBySignature(bytes4[],bool) external',
-      ]),
-      functionName: 'batchSetFunctionApprovalBySignature',
-      args: [sigsToApprove, true],
-      account,
-    })
+    if (sigsToApprove.length > 0) {
+      // Approve function signatures
+      console.log('Approving function signatures...')
+      const tx = await walletClient.writeContract({
+        address: deployedContracts['LiFiDiamond'],
+        abi: parseAbi([
+          'function batchSetFunctionApprovalBySignature(bytes4[],bool) external',
+        ]),
+        functionName: 'batchSetFunctionApprovalBySignature',
+        args: [sigsToApprove, true],
+        account,
+      })
 
-    console.log('Transaction:', tx)
+      console.log('Transaction:', tx)
+    } else {
+      console.log('All Signatures are already approved.')
+    }
   },
 })
 
