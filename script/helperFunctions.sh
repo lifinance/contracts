@@ -2737,6 +2737,10 @@ function getChainId() {
     echo "100"
     return 0
     ;;
+  "fraxtal")
+    echo "252"
+    return 0
+    ;;
   "fantom")
     echo "250"
     return 0

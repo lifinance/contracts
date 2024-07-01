@@ -41,9 +41,9 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
-      "0x411F81f16FF40984ac8a4546f2Ad19e22704693F": {
+      "0x3F95b05a77FDC6D82162D86A72b156b55030627f": {
         "Name": "AmarokFacet",
-        "Version": "2.0.0"
+        "Version": "3.0.0"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",

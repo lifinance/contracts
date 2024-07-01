@@ -4,9 +4,9 @@ function diamondSyncSigs {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script syncSIGs now...."
   # load env variables
-	source .env
+  source .env
 
-	# load config & helper functions
+  # load config & helper functions
   source script/helperFunctions.sh
 
   # read function arguments into variables
@@ -57,28 +57,8 @@ function diamondSyncSigs {
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echo ""
 
-  # get function selectors (sigs) from config files
-  CFG_SIGS=($(jq -r '.[] | @sh' "./config/sigs.json" | tr -d \' | tr '[:upper:]' '[:lower:]' ))
-
-  # prepare parameter for batchSetFunctionApprovalBySignature call (=add all sigs to an array)
-  for d in "${CFG_SIGS[@]}"; do
-    local PARAMS+="${d},"
-  done
-
   # go through all networks and execute the script
   for NETWORK in "${NETWORKS[@]}"; do
-    # get diamond address from deployments script
-    DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
-
-    echo ""
-    echo "[info] now syncing function signatures for $DIAMOND_CONTRACT_NAME on network $NETWORK with address $DIAMOND_ADDRESS"
-
-    # if no diamond address was found, throw an error and exit the script
-      if [[ "$DIAMOND_ADDRESS" == "null" || -z "$DIAMOND_ADDRESS" ]]; then
-      error "could not find address for $DIAMOND_CONTRACT_NAME on network $NETWORK in file './deployments/${NETWORK}.${FILE_SUFFIX}json'"
-      local RETURN=1
-      continue
-    fi
 
     # get RPC URL for given network
     RPC_URL=$(getRPCUrl "$NETWORK")
@@ -91,14 +71,7 @@ function diamondSyncSigs {
       # ensure that gas price is below maximum threshold (for mainnet only)
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-      # call diamond
-      if [[ "$DEBUG" == *"true"* ]]; then
-        # print output to console
-        cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy
-      else
-        # do not print output to console
-        cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null 2>&1
-      fi
+      ts-node ./script/tasks/diamondSyncSigs.ts --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
 
       # check the return code of the last call
       if [ $? -eq 0 ]; then
