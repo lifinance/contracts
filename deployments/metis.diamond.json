@@ -38,8 +38,8 @@
         "Version": "1.0.0"
       },
       "0x49aC4f4Be1838090fc02AFb109DD08Da458b4227": {
-        "Name": "",
-        "Version": ""
+        "Name": "AmarokFacet",
+        "Version": "3.0.0"
       },
       "0x898Ae46530bAF99FBEe16225db8e9771B580DC0D": {
         "Name": "StargateFacet",
@@ -83,4 +83,3 @@
       "TokenWrapper": "0x01bDf46A673FC3c081ddBD21cb51fBA4972d00aC"
     }
   }
-}

@@ -79,6 +79,12 @@
     "domain": "",
     "tokensToApprove": []
   },
+  "sei": {
+    "chainId": 1329,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
   "rootstock": {
     "chainId": 30,
     "connextHandler": "0x0000000000000000000000000000000000000000",
@@ -143,6 +149,12 @@
   },
   "fuse": {
     "chainId": 122,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "fraxtal": {
+    "chainId": 252,
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "",
     "tokensToApprove": []
