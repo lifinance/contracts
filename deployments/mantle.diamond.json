@@ -60,6 +60,10 @@
       "0xc23ae3A8d74C0a428FA59E4AD3EB6aa4b2330530": {
         "Name": "SquidFacet",
         "Version": "1.0.0"
+      },
+      "0x139e0a9c4C90cC40D562859e8D6d3246C1915FD4": {
+        "Name": "StargateFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

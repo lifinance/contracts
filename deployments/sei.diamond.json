@@ -52,6 +52,10 @@
       "0x7670FC09C1d4aDA26E2199f98A221b7389B844b2": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x139e0a9c4C90cC40D562859e8D6d3246C1915FD4": {
+        "Name": "StargateFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
