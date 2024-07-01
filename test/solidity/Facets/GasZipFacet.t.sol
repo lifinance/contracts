@@ -89,7 +89,6 @@ contract GasZipFacetTest is TestBaseFacet {
 
         // produce valid GasZipData
         gasZipData = GasZipFacet.GasZipData({
-            destinationChains: defaultDestinationChains,
             gasZipSwapData: gasZipSwapData,
             amountOutMin: amountOutMin
         });

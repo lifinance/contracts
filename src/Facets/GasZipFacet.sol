@@ -26,11 +26,9 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
 
     /// @dev GasZip-specific bridge data
-    /// @param destinationChains a value that represents a list of chains to which gas should be distributed (see https://dev.gas.zip/gas/code-examples/deposit for more details)
     /// @param gasZipSwapData (only required for ERC20 tokens): the swapData that swaps from ERC20 to native before depositing to gas.zip
     /// @param amountOutMin (only required for ERC20 tokens): the native amount we expect to receive from swap and plan to deposit to gas.zip
     struct GasZipData {
-        uint256 destinationChains;
         LibSwap.SwapData gasZipSwapData;
         uint256 amountOutMin;
     }
@@ -96,7 +94,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Swaps ERC20 tokens to native and deposits these native tokens in the GasZip router contract
     /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
     /// @param _swapData The swap data that executes the swap from ERC20 to native
-    /// @param _destinationChains A value that represents a list of chains to which gas should be distributed
+    /// @param _destinationChains A value that represents a list of chains to which gas should be distributed (see https://dev.gas.zip/gas/code-examples/deposit for more details)
     /// @param _recipient The address to receive the gas on dst chain
     /// @param _amountOutMin The native amount we expect to receive from swap and plan to deposit to gas.zip
     function depositToGasZipERC20(
@@ -118,7 +116,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Deposits native tokens in the GasZip router contract
     /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
     /// @param _amountToZip The amount to be deposited to the protocol
-    /// @param _destinationChains a value that represents a list of chains to which gas should be distributed
+    /// @param _destinationChains a value that represents a list of chains to which gas should be distributed (see https://dev.gas.zip/gas/code-examples/deposit for more details)
     /// @param _recipient the address to receive the gas on dst chain
     function depositToGasZipNative(
         uint256 _amountToZip,
@@ -145,13 +143,13 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId))
             depositToGasZipNative(
                 _bridgeData.minAmount,
-                _gasZipData.destinationChains,
+                _bridgeData.destinationChainId,
                 _bridgeData.receiver
             );
         else
             depositToGasZipERC20(
                 _gasZipData.gasZipSwapData,
-                _gasZipData.destinationChains,
+                _bridgeData.destinationChainId,
                 _bridgeData.receiver,
                 _gasZipData.amountOutMin
             );
