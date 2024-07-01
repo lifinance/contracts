@@ -132,7 +132,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
 
     /// @notice Bridges ERC20 tokens via Across (packed implementation)
     /// No params, all data will be extracted from manually encoded callData
-    function startBridgeTokensViaAcrossV3ERC20Packed() external payable {
+    function startBridgeTokensViaAcrossV3ERC20Packed() external {
         address sendingAssetId = address(bytes20(msg.data[32:52]));
         uint256 inputAmount = uint256(uint128(bytes16(msg.data[52:68])));
 
@@ -184,7 +184,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
         uint32 quoteTimestamp,
         uint32 fillDeadline,
         bytes calldata message
-    ) external payable {
+    ) external {
         // Deposit assets
         ERC20(sendingAssetId).safeTransferFrom(
             msg.sender,
