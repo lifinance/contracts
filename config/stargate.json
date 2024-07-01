@@ -1,5 +1,6 @@
 {
   "endpointV2": {
+    "LinkToDeployedToAddresses": "https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts",
     "mainnet": "0x1a44076050125825900e736c501f859c50fE728c",
     "arbitrum": "0x1a44076050125825900e736c501f859c50fE728c",
     "aurora": "0x1a44076050125825900e736c501f859c50fE728c",
@@ -12,7 +13,7 @@
     "cronos": "0x0000000000000000000000000000000000000000",
     "evmos": "0x0000000000000000000000000000000000000000",
     "fantom": "0x1a44076050125825900e736c501f859c50fE728c",
-    "fraxtal": "0x0000000000000000000000000000000000000000",
+    "fraxtal": "0x1a44076050125825900e736c501f859c50fE728c",
     "fuse": "0x1a44076050125825900e736c501f859c50fE728c",
     "harmony": "0x1a44076050125825900e736c501f859c50fE728c",
     "heco": "0x0000000000000000000000000000000000000000",
@@ -31,11 +32,14 @@
     "mode": "0x1a44076050125825900e736c501f859c50fE728c",
     "mantle": "0x1a44076050125825900e736c501f859c50fE728c",
     "scroll": "0x1a44076050125825900e736c501f859c50fE728c",
+    "zksync": "0xd07C30aF3Ff30D96BDc9c6044958230Eb797DDBF",
+    "sei": "0x1a44076050125825900e736c501f859c50fE728c",
     "localanvil": "0x0000000000000000000000000000000000000000",
     "mumbai": "0x0000000000000000000000000000000000000000",
     "sepolia": "0x0000000000000000000000000000000000000000"
   },
   "tokenMessaging": {
+    "LinkToDeployedToAddresses": "https://stargateprotocol.gitbook.io/stargate/v/v2-developer-docs/technical-reference/mainnet-contracts",
     "mainnet": "0x6d6620eFa72948C5f68A3C8646d58C00d3f4A980",
     "bsc": "0x6e3d884c96d640526f273c61dfcf08915ebd7e2b",
     "polygon": "0x6ce9bf8cdab780416ad1fd87b318a077d2f50eac",
@@ -48,8 +52,11 @@
     "base": "0x5634c4a5fed09819e3c46d86a965dd9447d86e47",
     "avalanche": "0x17e450be3ba9557f2378e20d64ad417e59ef9a34",
     "aurora": "0x5f688f563dc16590e570f97b542fa87931af2fed",
-    "fantom": ""
+    "fantom": "----FantomIsNotSupportedByStargateV2----",
+    "sei": "0x1502FA4be69d526124D453619276FacCab275d3D",
+    "zksync": "---comingSoon---"
   },
+
   "endpointIds": [
     {
       "chainId": 1,
@@ -102,6 +109,10 @@
     {
       "chainId": 534352,
       "endpointId": 30214
+    },
+    {
+      "chainId": 1329,
+      "endpointId": 30280
     }
   ],
   "-----------  anything from here is LEGACY (for StargateFacet.sol (v1)) ----------------------------------------------------------------": {},
@@ -161,6 +172,10 @@
     {
       "chainId": 5000,
       "lzChainId": 181
+    },
+    {
+      "chainId": 1329,
+      "lzChainId": 30280
     }
   ],
   "composers": {
