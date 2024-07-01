@@ -9,6 +9,7 @@ export const safeApiUrls: Record<string, string> = {
   bsc: 'https://safe-transaction-bsc.safe.global/api',
   celo: 'https://safe-transaction-celo.safe.global/api',
   fantom: 'https://safe-txservice.fantom.network/api',
+  fraxtal: 'https://safe.origin.mainnet.frax.com/txs/api',
   fuse: 'https://transaction-fuse.safe.fuse.io/api',
   gnosis: 'https://safe-transaction-gnosis-chain.safe.global/api',
   linea: 'https://transaction.safe.linea.build/api',
@@ -22,6 +23,7 @@ export const safeApiUrls: Record<string, string> = {
   polygonzkevm: 'https://safe-transaction-zkevm.safe.global/api',
   rootstock: 'https://transaction.safe.rootstock.io/api',
   scroll: 'https://transaction.safe.scroll.xyz/api',
+  sei: 'https://transaction.sei-safe.protofire.io/api',
   zksync: 'https://safe-transaction-zksync.safe.global/api',
 }
 
@@ -36,6 +38,7 @@ export const safeAddresses: Record<string, string> = {
   bsc: '0x20B6b31D76E054C3e4de6154fEca385Ca58c7C15',
   celo: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
   fantom: '0x9B325B1c43BB3c018FcDB24A64E05EF4B8B8057b',
+  fraxtal: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
   fuse: '0x5336e97bA7332FAC20281Bda8B790c8892245Ded',
   gnosis: '0x2bC523875b59A1Ddd03CEB1F1b28c5B0e8e6654A',
   linea: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
@@ -49,6 +52,7 @@ export const safeAddresses: Record<string, string> = {
   polygonzkevm: '0x9575B9fC42dec56D3772B3df5DA047a1f1D55582',
   rootstock: '0xDF61270FdC1a892874Fd3C0143A0a4CBa74F4EF1',
   scroll: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
+  sei: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   zksync: '0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744',
 }
 

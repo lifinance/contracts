@@ -37,11 +37,11 @@
         "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       },
-      "0x863aB521e384Bde4B65E2D884986D4698a81D7d8": {
+      "0x49aC4f4Be1838090fc02AFb109DD08Da458b4227": {
         "Name": "AmarokFacet",
-        "Version": "2.0.0"
+        "Version": "3.0.0"
       },
-      "0x36C5c79dBa87e22B85F9aE72604Daf2843704470": {
+      "0x898Ae46530bAF99FBEe16225db8e9771B580DC0D": {
         "Name": "StargateFacet",
         "Version": "2.2.0"
       },
@@ -60,12 +60,16 @@
       "0x6f862c35A2eDAa23DF8949b77F3E828bCBBE48dA": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.0"
+      },
+      "0x7865919678265435472756b59D5141D0F76312E1": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.1.1"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x88BFF60dFB4382dfb8da7dD5caC23397350D2078",
       "Executor": "0x6696F031C099dE6089427ceBFb38258feA6fdaFE",
-      "FeeCollector": "0x821Dfa5537Ab91b02271d92049B2fF7edE2Be86C",
+      "FeeCollector": "0x27f0e36dE6B1BA8232f6c2e87E00A50731048C6B",
       "GasRebateDistributor": "",
       "LiFuelFeeCollector": "0x851450e3b624ea4b068c3E8cFBcf79cD03D31C54",
       "Receiver": "0x0a4D7f27e8d24625eCb8d29d6445934a440A05E0",
