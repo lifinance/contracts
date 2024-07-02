@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { consola } from 'consola'
 import { $, spinner } from 'zx'
 import { defineCommand, runMain } from 'citty'
@@ -13,6 +14,8 @@ import {
   http,
   parseAbi,
 } from 'viem'
+
+const SAFE_THRESHOLD = 3
 
 const louperCmd = 'louper-cli'
 
@@ -280,9 +283,7 @@ const main = defineCommand({
       const refundWallet = getAddress(globalConfig.refundWallet)
 
       // Check that Diamond is owned by SAFE
-      // @ts-ignore
       if (globalConfig.safeAddresses[network.toLowerCase()]) {
-        // @ts-ignore
         const safeAddress = globalConfig.safeAddresses[network.toLowerCase()]
         await checkOwnership(
           'LiFiDiamond',
@@ -316,7 +317,9 @@ const main = defineCommand({
         publicClient
       )
 
-      // Check access permissions
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                Check access permissions                 │
+      //          ╰─────────────────────────────────────────────────────────╯
       consola.box('Checking access permissions...')
       const accessManager = getContract({
         address: deployedContracts['LiFiDiamond'],
@@ -370,6 +373,42 @@ const main = defineCommand({
           consola.success(
             `Refund wallet ${refundWallet} can execute ${sig.name} (${sig.sig})`
           )
+        }
+      }
+
+      //          ╭─────────────────────────────────────────────────────────╮
+      //          │                   SAFE Configuration                    │
+      //          ╰─────────────────────────────────────────────────────────╯
+      consola.box('Checking SAFE configuration...')
+      if (
+        !globalConfig.safeAddresses[network.toLowerCase()] ||
+        !globalConfig.safeApiUrls[network.toLowerCase()]
+      ) {
+        consola.warn('SAFE address not configured')
+      } else {
+        const safeOwners = globalConfig.safeOwners
+        const safeAddress = globalConfig.safeAddresses[network.toLowerCase()]
+        const safeApiUrl = globalConfig.safeApiUrls[network.toLowerCase()]
+        const configUrl = `${safeApiUrl}/v1/safes/${safeAddress}`
+        const res = await fetch(configUrl)
+        const safeConfig = await res.json()
+
+        // Check that each safeOwner is in safeConfig.owners
+        for (const o in safeOwners) {
+          if (!safeConfig.owners.includes(safeOwners[o])) {
+            logError(`SAFE owner ${safeOwners[o]} not in SAFE configuration`)
+          } else {
+            consola.success(
+              `SAFE owner ${safeOwners[o]} is in SAFE configuration`
+            )
+          }
+        }
+
+        // Check that threshold is correct
+        if (safeConfig.threshold < SAFE_THRESHOLD) {
+          logError(`SAFE signtaure threshold is less than ${SAFE_THRESHOLD}`)
+        } else {
+          consola.success(`SAFE signtaure threshold is ${safeConfig.threshold}`)
         }
       }
 

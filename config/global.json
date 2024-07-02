@@ -53,5 +53,39 @@
     "scroll": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "sei": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "zksync": "0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744"
+  },
+  "safeOwners": [
+    "0xb78FbE12d9C09d98ce7271Fa089c2fe437B7B4D5",
+    "0x65f6F29D3eb871254d71A79CC4F74dB3AAF3b86e",
+    "0x24767E3A1cb07ee500BA9A5621F2B608440Ca270",
+    "0x81Dbb716aA13869323974A1766120D0854188e3e",
+    "0x11F1022cA6AdEF6400e5677528a80d49a069C00c"
+  ],
+  "safeApiUrls": {
+    "mainnet": "https://safe-transaction-mainnet.safe.global/api",
+    "arbitrum": "https://safe-transaction-arbitrum.safe.global/api",
+    "aurora": "https://safe-transaction-aurora.safe.global/api",
+    "avalanche": "https://safe-transaction-avalanche.safe.global/api",
+    "base": "https://safe-transaction-base.safe.global/api",
+    "blast": "https://transaction.blast-safe.io/api",
+    "boba": "https://safe-transaction.mainnet.boba.network/api",
+    "bsc": "https://safe-transaction-bsc.safe.global/api",
+    "celo": "https://safe-transaction-celo.safe.global/api",
+    "fantom": "https://safe-txservice.fantom.network/api",
+    "fraxtal": "https://safe.origin.mainnet.frax.com/txs/api",
+    "fuse": "https://transaction-fuse.safe.fuse.io/api",
+    "gnosis": "https://safe-transaction-gnosis-chain.safe.global/api",
+    "linea": "https://transaction.safe.linea.build/api",
+    "mantle": "https://transaction.multisig.mantle.xyz/api",
+    "mode": "https://transaction-mode.safe.optimism.io/api",
+    "moonbeam": "https://transaction.multisig.moonbeam.network/api",
+    "moonriver": "https://transaction.moonriver.multisig.moonbeam.network/api",
+    "optimism": "https://safe-transaction-optimism.safe.global/api",
+    "polygon": "https://safe-transaction-polygon.safe.global/api",
+    "polygonzkevm": "https://safe-transaction-zkevm.safe.global/api",
+    "rootstock": "https://transaction.safe.rootstock.io/api",
+    "scroll": "https://transaction.safe.scroll.xyz/api",
+    "sei": "https://transaction.sei-safe.protofire.io/api",
+    "zksync": "https://safe-transaction-zksync.safe.global/api"
   }
 }
