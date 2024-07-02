@@ -181,7 +181,7 @@ contract ReceiverAcrossV3Test is TestBase {
         // fake a sendCompose from USDC pool on ETH mainnet
         vm.startPrank(SPOKEPOOL_MAINNET);
 
-        uint256 expGasLeft = 96509;
+        uint256 expGasLeft = 96485;
         vm.expectRevert(
             abi.encodeWithSelector(InsufficientGasLimit.selector, expGasLeft)
         );
@@ -207,7 +207,7 @@ contract ReceiverAcrossV3Test is TestBase {
         // fake a sendCompose from USDC pool on ETH mainnet
         vm.startPrank(SPOKEPOOL_MAINNET);
 
-        uint256 expectedGasLeft = 64842;
+        uint256 expectedGasLeft = 64841;
         vm.expectRevert(
             abi.encodeWithSelector(
                 InsufficientGasLimit.selector,
