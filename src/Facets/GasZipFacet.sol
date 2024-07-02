@@ -9,7 +9,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { ERC20 } from "solady/tokens/ERC20.sol";
-import { NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
+import { NativeAssetTransferFailed, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 interface IGasZip {
     function deposit(
@@ -28,11 +28,9 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev GasZip-specific bridge data
     /// @param gasZipChainId The Gas.zip-specific chainId of the chain on which gas should be received on (https://dev.gas1.zip/gas/chain-support/outbound)
     /// @param gasZipSwapData (only required for ERC20 tokens): the swapData that swaps from ERC20 to native before depositing to gas.zip
-    /// @param amountOutMin (only required for ERC20 tokens): the native amount we expect to receive from swap and plan to deposit to gas.zip
     struct GasZipData {
         uint256 gasZipChainId;
         LibSwap.SwapData gasZipSwapData;
-        uint256 amountOutMin;
     }
 
     /// State ///
@@ -59,10 +57,8 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
-        LibAsset.depositAsset(
-            _bridgeData.sendingAssetId,
-            _bridgeData.minAmount
-        );
+        if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId))
+            revert InvalidCallData();
 
         depositToGasZipNative(
             _bridgeData.minAmount,
@@ -108,8 +104,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             depositToGasZipERC20(
                 _gasZipData.gasZipSwapData,
                 _gasZipData.gasZipChainId,
-                _bridgeData.receiver,
-                _gasZipData.amountOutMin
+                _bridgeData.receiver
             );
 
         emit LiFiTransferStarted(_bridgeData);
@@ -120,18 +115,23 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _swapData The swap data that executes the swap from ERC20 to native
     /// @param _destinationChains A value that represents a list of chains to which gas should be distributed (see https://dev.gas.zip/gas/code-examples/deposit for more details)
     /// @param _recipient The address to receive the gas on dst chain
-    /// @param _amountOutMin The native amount we expect to receive from swap and plan to deposit to gas.zip
     function depositToGasZipERC20(
         LibSwap.SwapData calldata _swapData,
         uint256 _destinationChains,
-        address _recipient,
-        uint256 _amountOutMin
+        address _recipient
     ) public {
+        // get the current native balance
+        uint256 currentNativeBalance = address(this).balance;
+
         // execute the swapData that swaps the ERC20 token into native
         LibSwap.swap(0, _swapData);
 
+        // calculate the swap output amount using the initial native balance
+        uint256 swapOutputAmount = address(this).balance -
+            currentNativeBalance;
+
         // call the gas zip router and deposit tokens
-        gasZipRouter.deposit{ value: _amountOutMin }(
+        gasZipRouter.deposit{ value: swapOutputAmount }(
             _destinationChains,
             _recipient
         );

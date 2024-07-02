@@ -79,7 +79,7 @@ contract GasZipFacetTest is TestBaseFacet {
 
         (
             LibSwap.SwapData memory gasZipSwapData,
-            uint256 amountOutMin
+
         ) = _getUniswapCalldataForERC20ToNativeSwap(
                 ADDRESS_USDC,
                 defaultUSDCAmount
@@ -90,8 +90,7 @@ contract GasZipFacetTest is TestBaseFacet {
         // produce valid GasZipData
         gasZipData = GasZipFacet.GasZipData({
             gasZipChainId: 17, // Polygon (https://dev.gas1.zip/gas/chain-support/outbound)
-            gasZipSwapData: gasZipSwapData,
-            amountOutMin: amountOutMin
+            gasZipSwapData: gasZipSwapData
         });
 
         vm.label(address(gasZipFacet), "LiFiDiamond");
@@ -163,5 +162,24 @@ contract GasZipFacetTest is TestBaseFacet {
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
         // deactivated for this facet since we would have to update the calldata that swaps from ERC20 to native for every amount
+    }
+
+    function testBase_CanBridgeTokens() public override {
+        // the startBridgeTokensViaGasZip can only be used for native tokens, therefore we need to adapt this test case
+        vm.startPrank(USER_SENDER);
+
+        // update bridgeData to use native
+        bridgeData.sendingAssetId = address(0);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_CallerHasInsufficientFunds() public override {
+        // the startBridgeTokensViaGasZip can only be used for native tokens, therefore this test case is not applicable
     }
 }
