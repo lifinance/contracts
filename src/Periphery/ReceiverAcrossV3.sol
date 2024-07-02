@@ -59,7 +59,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
         uint256 amount,
         address,
         bytes memory message
-    ) external payable onlySpokepool {
+    ) external onlySpokepool {
         // decode payload
         (
             bytes32 transactionId,
