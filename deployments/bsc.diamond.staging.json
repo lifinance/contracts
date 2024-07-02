@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xB94Fd26F6b138E1bE6CfEa5Ec4F67C5573F5d6AD": {
+      "0x5c9cbc3FB4FF588199BFbE68b72Fc127dd0D8630": {
         "Name": "DexManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0x1A841931913806FB7570B43bcD64A487A8E7A50c": {
         "Name": "AccessManagerFacet",
@@ -45,9 +45,9 @@
         "Name": "",
         "Version": ""
       },
-      "0xcED4B608A468ce334c75c6652e18E2Ba7f3F44dA": {
-        "Name": "MayanFacet",
-        "Version": "1.0.0"
+      "0xd596C903d78870786c5DB0E448ce7F87A65A0daD": {
+        "Name": "",
+        "Version": ""
       },
       "0xAfcC5c55d5Ec3082675D51331E7Ed9AdE195db48": {
         "Name": "StargateFacet",
@@ -68,6 +68,10 @@
       "0xA08EcCb4aDd1556CC42ABD5d8dFbEe8a56012359": {
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
+      },
+      "0xf92D157a857d55B5DA987E35488e746EA85f1ca3": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
