@@ -8,7 +8,6 @@ import { IExecutor } from "../Interfaces/IExecutor.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { ExternalCallFailed, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { ERC20 } from "solady/tokens/ERC20.sol";
 
 /// @title ReceiverAcrossV3
 /// @author LI.FI (https://li.fi)
