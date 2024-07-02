@@ -77,7 +77,7 @@
     "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --ir-minimum && ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
     "execute": "node ./_scripts.js run",
     "abi:generate": "make clean && forge build --skip script --skip test --skip Base --skip Test && hardhat diamondABI",
-    "typechain": "make clean && forge build src && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
+    "typechain": "make clean && forge build && npx typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
     "codegen": "plop",
     "healthcheck": "tsx ./script/deploy/healthCheck.mts",
     "propose-safe-tx": "ts-node ./script/deploy/safe/propose-to-safe.ts",
