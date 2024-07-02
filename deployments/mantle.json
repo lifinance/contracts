@@ -3,7 +3,7 @@
   "DiamondLoupeFacet": "0x519483eEC772BA34098af187Aee7b56C77927B1a",
   "OwnershipFacet": "0x9f8AC9248395b93220C6ABbA41d0989Aa08257Ab",
   "WithdrawFacet": "0xf600Caa1468FFaa0B8Eef877A84152e2bDdDe2Fb",
-  "DexManagerFacet": "0x22B31a1a81d5e594315c866616db793E799556c5",
+  "DexManagerFacet": "0x06ff0357088cd04eb80347c12D6Fbc6de78977a8",
   "AccessManagerFacet": "0xdbffD7A135b332748Df2784D214c5f48eC706C3a",
   "PeripheryRegistryFacet": "0x36eacDF8e9CF209d84B427316839800a81a2c45A",
   "StandardizedCallFacet": "0x175E7799DA0CD40E641352EaB90D8e39e02a4Ca9",
