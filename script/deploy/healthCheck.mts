@@ -279,6 +279,19 @@ const main = defineCommand({
       const rebalanceWallet = getAddress(globalConfig.lifuelRebalanceWallet)
       const refundWallet = getAddress(globalConfig.refundWallet)
 
+      // Check that Diamond is owned by SAFE
+      // @ts-ignore
+      if (globalConfig.safeAddresses[network.toLowerCase()]) {
+        // @ts-ignore
+        const safeAddress = globalConfig.safeAddresses[network.toLowerCase()]
+        await checkOwnership(
+          'LiFiDiamond',
+          safeAddress,
+          deployedContracts,
+          publicClient
+        )
+      }
+
       // FeeCollector
       await checkOwnership(
         'FeeCollector',
