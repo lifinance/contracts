@@ -154,7 +154,10 @@ contract CalldataVerificationFacet {
         bytes memory callData = data;
 
         if (
-            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
+            bytes4(data[:4]) ==
+            StandardizedCallFacet.standardizedCall.selector ||
+            bytes4(data[:4]) ==
+            StandardizedCallFacet.standardizedSwapCall.selector
         ) {
             // standardizedCall
             callData = abi.decode(data[4:], (bytes));
@@ -246,7 +249,12 @@ contract CalldataVerificationFacet {
 
         // Handle standardizedCall
         if (
-            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
+            bytes4(data[:4]) ==
+            StandardizedCallFacet.standardizedCall.selector ||
+            bytes4(data[:4]) ==
+            StandardizedCallFacet.standardizedBridgeCall.selector ||
+            bytes4(data[:4]) ==
+            StandardizedCallFacet.standardizedSwapAndBridgeCall.selector
         ) {
             callData = abi.decode(data[4:], (bytes));
         }
@@ -340,7 +348,12 @@ contract CalldataVerificationFacet {
         bytes calldata data
     ) internal pure returns (ILiFi.BridgeData memory bridgeData) {
         if (
-            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
+            bytes4(data[:4]) ==
+            StandardizedCallFacet.standardizedCall.selector ||
+            bytes4(data[:4]) ==
+            StandardizedCallFacet.standardizedBridgeCall.selector ||
+            bytes4(data[:4]) ==
+            StandardizedCallFacet.standardizedSwapAndBridgeCall.selector
         ) {
             // StandardizedCall
             bytes memory unwrappedData = abi.decode(data[4:], (bytes));
@@ -361,7 +374,10 @@ contract CalldataVerificationFacet {
         bytes calldata data
     ) internal pure returns (LibSwap.SwapData[] memory swapData) {
         if (
-            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
+            bytes4(data[:4]) ==
+            StandardizedCallFacet.standardizedCall.selector ||
+            bytes4(data[:4]) ==
+            StandardizedCallFacet.standardizedSwapAndBridgeCall.selector
         ) {
             // standardizedCall
             bytes memory unwrappedData = abi.decode(data[4:], (bytes));
