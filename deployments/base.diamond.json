@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xD19dAc7519387533C4DB1B38337EA488599Fa612": {
+      "0x22B31a1a81d5e594315c866616db793E799556c5": {
         "Name": "DexManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xFf296c17499C8eda2DdF61db580149bB819C804A": {
         "Name": "AccessManagerFacet",
