@@ -73,6 +73,7 @@
       "GasRebateDistributor": "",
       "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
       "Receiver": "0x2fA14922ABc117c4737260032C8fD6D9Ab35395A",
+      "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0xf3552b98BB4234B47674700A99a0308D74B40F51",
       "TokenWrapper": "0x0263180888007D45340F86eC0b610d250BbDcB23"
