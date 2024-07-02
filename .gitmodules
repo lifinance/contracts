@@ -19,3 +19,9 @@
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
+[submodule "lib/sstore2"]
+	path = lib/sstore2
+	url = https://github.com/0xsequence/sstore2
+[submodule "lib/create3"]
+	path = lib/create3
+	url = https://github.com/0xsequence/create3
