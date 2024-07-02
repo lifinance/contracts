@@ -15,10 +15,6 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     using SafeTransferLib for ERC20;
 
-    bytes8 public constant ACROSS_REFERRER_DELIMITER = hex"d00dfeeddeadbeef";
-    uint8 private constant ACROSS_REFERRER_ADDRESS_LENGTH = 20;
-    uint256 private constant REFERRER_OFFSET = 28;
-
     /// Storage ///
 
     /// @notice The contract address of the cbridge on the source chain.
@@ -85,7 +81,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
             uint32(bytes4(msg.data[88:92])),
             uint32(bytes4(msg.data[92:96])),
             0, // exclusivityDeadline (not used by us)
-            msg.data[96:msg.data.length - REFERRER_OFFSET]
+            msg.data[96:msg.data.length]
         );
 
         emit LiFiAcrossTransfer(bytes8(msg.data[4:12]));
@@ -155,7 +151,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
             uint32(bytes4(msg.data[124:128])), // uint32 quoteTimestamp
             uint32(bytes4(msg.data[128:132])), // uint32 fillDeadline
             0, // exclusivityDeadline (not used by us)
-            msg.data[132:msg.data.length - REFERRER_OFFSET]
+            msg.data[132:msg.data.length]
         );
 
         emit LiFiAcrossTransfer(bytes8(msg.data[4:12]));
@@ -322,9 +318,6 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
             "invalid calldata (must have length >= 96)"
         );
 
-        // calculate end of calldata (and start of delimiter + referrer address)
-        uint256 calldataEndsAt = data.length - REFERRER_OFFSET;
-
         // extract bridgeData
         bridgeData.transactionId = bytes32(bytes8(data[4:12]));
         bridgeData.receiver = address(bytes20(data[12:32]));
@@ -335,7 +328,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
         acrossData.outputAmount = uint256(bytes32(data[56:88]));
         acrossData.quoteTimestamp = uint32(bytes4(data[88:92]));
         acrossData.fillDeadline = uint32(bytes4(data[92:96]));
-        acrossData.message = data[96:calldataEndsAt];
+        acrossData.message = data[96:];
 
         return (bridgeData, acrossData);
     }
@@ -357,9 +350,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
             "invalid calldata (must have length > 132)"
         );
 
-        // calculate end of calldata (and start of delimiter + referrer address)
-        uint256 calldataEndsAt = data.length - REFERRER_OFFSET;
-
+        // extract bridgeData
         bridgeData.transactionId = bytes32(bytes8(data[4:12]));
         bridgeData.receiver = address(bytes20(data[12:32]));
         bridgeData.sendingAssetId = address(bytes20(data[32:52]));
@@ -371,7 +362,7 @@ contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
         acrossData.outputAmount = uint256(bytes32(data[92:124]));
         acrossData.quoteTimestamp = uint32(bytes4(data[124:128]));
         acrossData.fillDeadline = uint32(bytes4(data[128:132]));
-        acrossData.message = data[132:calldataEndsAt];
+        acrossData.message = data[132:];
 
         return (bridgeData, acrossData);
     }

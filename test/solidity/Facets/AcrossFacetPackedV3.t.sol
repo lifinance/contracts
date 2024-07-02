@@ -32,9 +32,6 @@ contract TestClaimContract {
 contract AcrossFacetPackedV3Test is TestBase {
     using SafeERC20 for IERC20;
 
-    bytes8 public constant ACROSS_REFERRER_DELIMITER = hex"d00dfeeddeadbeef";
-    address public constant ACROSS_REFERRER_ADDRESS =
-        0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
     address internal constant ACROSS_SPOKE_POOL =
         0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
     address internal ADDRESS_USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
@@ -161,7 +158,6 @@ contract AcrossFacetPackedV3Test is TestBase {
                 validAcrossData.fillDeadline,
                 validAcrossData.message
             );
-        packedNativeCalldata = addReferrerIdToCalldata(packedNativeCalldata);
 
         // usdt params
         amountUSDT = 100 * 10 ** usdt.decimals();
@@ -178,7 +174,6 @@ contract AcrossFacetPackedV3Test is TestBase {
                 validAcrossData.fillDeadline,
                 validAcrossData.message
             );
-        packedUSDTCalldata = addReferrerIdToCalldata(packedUSDTCalldata);
 
         deal(ADDRESS_USDT, USER_SENDER, amountUSDT);
 
@@ -199,7 +194,6 @@ contract AcrossFacetPackedV3Test is TestBase {
                 validAcrossData.fillDeadline,
                 validAcrossData.message
             );
-        packedUSDCCalldata = addReferrerIdToCalldata(packedUSDCCalldata);
 
         // fund claim rewards contract
         deal(ADDRESS_USDT, address(claimContract), amountUSDT);
@@ -221,17 +215,6 @@ contract AcrossFacetPackedV3Test is TestBase {
         );
         usdc.approve(ACROSS_SPOKE_POOL, type(uint256).max);
         vm.stopPrank();
-    }
-
-    function addReferrerIdToCalldata(
-        bytes memory callData
-    ) internal pure returns (bytes memory) {
-        return
-            bytes.concat(
-                callData,
-                ACROSS_REFERRER_DELIMITER,
-                bytes20(ACROSS_REFERRER_ADDRESS)
-            );
     }
 
     function test_canBridgeNativeTokensViaPackedFunction_Facet() public {

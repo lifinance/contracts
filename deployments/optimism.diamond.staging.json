@@ -49,8 +49,8 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x146a4dB9684F286cd69ecA7156aC443F258AD51f": {
-        "Name": "AcrossFacetV3",
+      "0x1291C29823607aBe63AD1102Ccdc665A9A92F4Bc": {
+        "Name": "AcrossFacetPackedV3",
         "Version": "1.0.0"
       }
     },
