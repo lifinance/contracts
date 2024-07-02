@@ -14,7 +14,7 @@ This allows for maximum flexibility when it comes to sending gas to another chai
 ### Functions for bridging
 
 - `function startBridgeTokensViaGasZip(BridgeData memory _bridgeData, GasZipData calldata _gasZipData)`
-  - Simply bridges tokens using GasZipFacet
+  - Simply bridges tokens using GasZipFacet (can only be used for native tokens)
 - `function swapAndStartBridgeTokensViaGasZip(BridgeData memory _bridgeData, SwapData[] calldata _swapData, GasZipData calldata _gasZipData)`
   - Performs swap(s) before bridging tokens using GasZipFacet
 
