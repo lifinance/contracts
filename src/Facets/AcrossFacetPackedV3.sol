@@ -6,7 +6,6 @@ import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { AcrossFacetV3 } from "./AcrossFacetV3.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 
 /// @title AcrossFacetPackedV3
