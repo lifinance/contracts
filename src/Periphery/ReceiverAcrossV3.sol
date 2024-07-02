@@ -113,6 +113,11 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
         // since Across will always send wrappedNative to contract, we do not need a native handling here
         uint256 cacheGasLeft = gasleft();
 
+        // We introduced this handling to prevent relayers from under-estimating our destination transactions and then
+        // running into out-of-gas errors which would cause the bridged tokens to be refunded to the receiver. This is
+        // an emergency behaviour but testing showed that this would happen very frequently.
+        // Reverting transactions that dont have enough gas helps to make sure that transactions will get correctly estimated
+        // by the relayers on source chain and thus improves the success rate of destination calls.
         if (cacheGasLeft < recoverGas) {
             // case A: not enough gas left to execute calls
             // @dev: we removed the handling to send bridged funds to receiver in case of insufficient gas
@@ -129,7 +134,8 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
             }(_transactionId, _swapData, assetId, receiver)
         {} catch {
             cacheGasLeft = gasleft();
-            // if the only gas left here is the recoverGas then the swap must have failed due to out-of-gas error and in this case we want to revert
+            // if the only gas left here is the recoverGas then the swap must have failed due to out-of-gas error and in this
+            // case we want to revert (again, to force relayers to estimate our destination calls with sufficient gas limit)
             if (cacheGasLeft <= recoverGas)
                 revert InsufficientGasLimit(cacheGasLeft);
 
