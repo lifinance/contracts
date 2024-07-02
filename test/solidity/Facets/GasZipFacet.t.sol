@@ -89,7 +89,7 @@ contract GasZipFacetTest is TestBaseFacet {
 
         // produce valid GasZipData
         gasZipData = GasZipFacet.GasZipData({
-            gasZipChainId: 17, // Polygon (https://dev.gas1.zip/gas/chain-support/outbound)
+            gasZipChainId: 17, // Polygon (https://dev.gas.zip/gas/chain-support/outbound)
             gasZipSwapData: gasZipSwapData
         });
 

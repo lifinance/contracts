@@ -1,5 +1,6 @@
 {
   "gasZipRouters": {
+    "---ListOfRouterAddresses---": "https://dev.gas.zip/gas/chain-support/inbound",
     "mainnet": "0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390",
     "arbitrum": "0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390",
     "blast": "0x6d4Ac5Ba1D649030227718C05ca4399F8522828b",

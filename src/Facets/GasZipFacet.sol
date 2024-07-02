@@ -26,7 +26,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
 
     /// @dev GasZip-specific bridge data
-    /// @param gasZipChainId The Gas.zip-specific chainId of the chain on which gas should be received on (https://dev.gas1.zip/gas/chain-support/outbound)
+    /// @param gasZipChainId The Gas.zip-specific chainId of the chain on which gas should be received on (https://dev.gas.zip/gas/chain-support/outbound)
     /// @param gasZipSwapData (only required for ERC20 tokens): the swapData that swaps from ERC20 to native before depositing to gas.zip
     struct GasZipData {
         uint256 gasZipChainId;
