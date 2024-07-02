@@ -15,7 +15,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 contract AcrossFacetPackedV3 is ILiFi, TransferrableOwnership {
     using SafeTransferLib for ERC20;
 
-    bytes public constant ACROSS_REFERRER_DELIMITER = hex"d00dfeeddeadbeef";
+    bytes8 public constant ACROSS_REFERRER_DELIMITER = hex"d00dfeeddeadbeef";
     uint8 private constant ACROSS_REFERRER_ADDRESS_LENGTH = 20;
     uint256 private constant REFERRER_OFFSET = 28;
 

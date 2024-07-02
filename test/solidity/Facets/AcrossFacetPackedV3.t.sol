@@ -32,7 +32,7 @@ contract TestClaimContract {
 contract AcrossFacetPackedV3Test is TestBase {
     using SafeERC20 for IERC20;
 
-    bytes public constant ACROSS_REFERRER_DELIMITER = hex"d00dfeeddeadbeef";
+    bytes8 public constant ACROSS_REFERRER_DELIMITER = hex"d00dfeeddeadbeef";
     address public constant ACROSS_REFERRER_ADDRESS =
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
     address internal constant ACROSS_SPOKE_POOL =
