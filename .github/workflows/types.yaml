@@ -32,9 +32,6 @@ jobs:
       - name: Install Node deps
         run: yarn install
 
-      - name: Clean TypeScript bindings
-        run: rm -rf typechain
-
       - name: Generate ABI
         run: yarn abi:generate
 
