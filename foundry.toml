@@ -28,6 +28,7 @@ celo = "${ETH_NODE_URI_CELO}"
 cronos = "${ETH_NODE_URI_CRONOS}"
 evmos = "${ETH_NODE_URI_EVMOS}"
 fantom = "${ETH_NODE_URI_FANTOM}"
+fraxtal = "${ETH_NODE_URI_FRAXTAL}"
 fuse = "${ETH_NODE_URI_FUSE}"
 harmony = "${ETH_NODE_URI_HARMONY}"
 gnosis = "${ETH_NODE_URI_GNOSIS}"
@@ -67,6 +68,7 @@ bsc = { key = "${BSC_ETHERSCAN_API_KEY}", url = "https://api.bscscan.com/api", c
 celo = { key = "${CELO_ETHERSCAN_API_KEY}", url = "https://api.celoscan.io/api", chain = "42220" }
 cronos = { key = "${CRONOS_ETHERSCAN_API_KEY}", url = "https://api.cronoscan.com/api", chain = "25" }
 fantom = { key = "${FANTOM_ETHERSCAN_API_KEY}", url = "https://api.ftmscan.com/api", chain = "250" }
+fraxtal = { key = "${FRAXTAL_ETHERSCAN_API_KEY}", url = "https://api.fraxscan.com/api", chain = "252" }
 fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api", chain = "122" }
 gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://api.gnosisscan.io/api", chain = "100" }
 moonbeam = { key = "${MOONBEAM_ETHERSCAN_API_KEY}", url = "https://api-moonbeam.moonscan.io/api", chain = "1284" }

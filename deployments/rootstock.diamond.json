@@ -13,9 +13,9 @@
         "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
       },
-      "0xbd0B19349A4D0DF5Abb67D31659d4C5C17b78901": {
+      "0x22B31a1a81d5e594315c866616db793E799556c5": {
         "Name": "DexManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xdbffD7A135b332748Df2784D214c5f48eC706C3a": {
         "Name": "AccessManagerFacet",

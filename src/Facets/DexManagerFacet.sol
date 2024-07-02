@@ -9,7 +9,7 @@ import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 /// @title Dex Manager Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Facet contract for managing approved DEXs to be used in swaps.
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract DexManagerFacet {
     /// Events ///
 
@@ -27,10 +27,6 @@ contract DexManagerFacet {
     function addDex(address _dex) external {
         if (msg.sender != LibDiamond.contractOwner()) {
             LibAccess.enforceAccessControl();
-        }
-
-        if (_dex == address(this)) {
-            revert CannotAuthoriseSelf();
         }
 
         LibAllowList.addAllowedContract(_dex);
