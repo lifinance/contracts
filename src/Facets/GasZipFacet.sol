@@ -27,10 +27,8 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @dev GasZip-specific bridge data
     /// @param gasZipChainId The Gas.zip-specific chainId of the chain on which gas should be received on (https://dev.gas.zip/gas/chain-support/outbound)
-    /// @param gasZipSwapData (only required for ERC20 tokens): the swapData that swaps from ERC20 to native before depositing to gas.zip
     struct GasZipData {
         uint256 gasZipChainId;
-        LibSwap.SwapData gasZipSwapData;
     }
 
     /// State ///
@@ -57,6 +55,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        // this function shall only be used for native assets
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId))
             revert InvalidCallData();
 
@@ -86,6 +85,11 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        // this function shall only be used for ERC20 assets
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId))
+            revert InvalidCallData();
+
+        // deposit and swap ERC20 tokens
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -93,19 +97,12 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             payable(msg.sender)
         );
 
-        // deposit to gas.zip depending on which asset type is being used
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId))
-            depositToGasZipNative(
-                _bridgeData.minAmount,
-                _gasZipData.gasZipChainId,
-                _bridgeData.receiver
-            );
-        else
-            depositToGasZipERC20(
-                _gasZipData.gasZipSwapData,
-                _gasZipData.gasZipChainId,
-                _bridgeData.receiver
-            );
+        // deposit to gas.zip
+        depositToGasZipNative(
+            _bridgeData.minAmount,
+            _gasZipData.gasZipChainId,
+            _bridgeData.receiver
+        );
 
         emit LiFiTransferStarted(_bridgeData);
     }
