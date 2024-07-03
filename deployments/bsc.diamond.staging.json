@@ -18,8 +18,8 @@
         "Version": "1.0.0"
       },
       "0x5c9cbc3FB4FF588199BFbE68b72Fc127dd0D8630": {
-        "Name": "",
-        "Version": ""
+        "Name": "DexManagerFacet",
+        "Version": "1.0.1"
       },
       "0x1A841931913806FB7570B43bcD64A487A8E7A50c": {
         "Name": "AccessManagerFacet",
@@ -46,8 +46,8 @@
         "Version": ""
       },
       "0xd596C903d78870786c5DB0E448ce7F87A65A0daD": {
-        "Name": "",
-        "Version": ""
+        "Name": "MayanFacet",
+        "Version": "1.0.0"
       },
       "0xAfcC5c55d5Ec3082675D51331E7Ed9AdE195db48": {
         "Name": "StargateFacet",

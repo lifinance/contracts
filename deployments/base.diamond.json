@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xD19dAc7519387533C4DB1B38337EA488599Fa612": {
+      "0x22B31a1a81d5e594315c866616db793E799556c5": {
         "Name": "DexManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xFf296c17499C8eda2DdF61db580149bB819C804A": {
         "Name": "AccessManagerFacet",
@@ -103,6 +103,10 @@
       },
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
         "Name": "GenericSwapFacetV3",
+        "Version": "1.0.0"
+      },
+      "0x4682d79DD4D0e7555415841b5151933AF50594A8": {
+        "Name": "MayanFacet",
         "Version": "1.0.0"
       }
     },
