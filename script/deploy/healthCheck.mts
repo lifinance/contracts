@@ -395,12 +395,11 @@ const main = defineCommand({
 
         // Check that each safeOwner is in safeConfig.owners
         for (const o in safeOwners) {
-          if (!safeConfig.owners.includes(safeOwners[o])) {
-            logError(`SAFE owner ${safeOwners[o]} not in SAFE configuration`)
+          const safeOwner = getAddress(safeOwners[o])
+          if (!safeConfig.owners.includes(safeOwner)) {
+            logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
           } else {
-            consola.success(
-              `SAFE owner ${safeOwners[o]} is in SAFE configuration`
-            )
+            consola.success(`SAFE owner ${safeOwner} is in SAFE configuration`)
           }
         }
 
@@ -444,8 +443,12 @@ const checkOwnership = async (
       contractAddress,
       publicClient
     ).read.owner()
-    if (owner !== expectedOwner) {
-      logError(`${name} owner is ${owner}, expected ${expectedOwner}`)
+    if (getAddress(owner) !== getAddress(expectedOwner)) {
+      logError(
+        `${name} owner is ${getAddress(owner)}, expected ${getAddress(
+          expectedOwner
+        )}`
+      )
     } else {
       consola.success(`${name} owner is correct`)
     }
