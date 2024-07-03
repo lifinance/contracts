@@ -1,8 +1,8 @@
-name: "Check old PRs"
+name: 'Check old PRs'
 on:
   schedule:
-    - cron: '0 0 * * *'  # run once a day
-  workflow_dispatch:  # enables manual trigger
+    - cron: '0 0 * * *' # run once a day
+  workflow_dispatch: # enables manual trigger
 
 jobs:
   check:
@@ -13,7 +13,7 @@ jobs:
 
       - name: Check PR age
         id: check_age
-        env:  # set the GH_TOKEN environment variable here
+        env: # set the GH_TOKEN environment variable here
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -x
@@ -37,6 +37,11 @@ jobs:
               continue
             fi
 
+            # Continue loop if the PR has the label "WaitForBackend"
+            if echo "$PR_LABELS" | grep -q "WaitForBackend"; then
+              continue
+            fi
+
             # Convert date to Unix timestamp
             PR_CREATED_AT=$(date -d"$PR_CREATED_AT" +%s)
             NOW=$(date +%s)
@@ -55,6 +60,6 @@ jobs:
         if: env.old_prs != ''
         uses: Ilshidur/action-discord@0.3.2
         with:
-          args: "Hey team, please check out the following PRs that are not yet reviewed/merged: ${{ env.old_prs }}"
+          args: 'Hey team, please check out the following PRs that are not yet reviewed/merged: ${{ env.old_prs }}'
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
