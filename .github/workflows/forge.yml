@@ -38,7 +38,7 @@ jobs:
       - name: Run forge tests
         uses: Wandalen/wretry.action@v1.3.0
         with:
-          command: forge test --evm-version 'london'
+          command: forge test --evm-version 'shanghai'
           attempt_limit: 10
           attempt_delay: 5000
       - name: Get forge test coverage
