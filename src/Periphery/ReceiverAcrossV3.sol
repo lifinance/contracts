@@ -17,7 +17,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
     using SafeTransferLib for address;
 
     /// Error ///
-    error InsufficientGasLimit(uint256 gasLeft);
+    error InsufficientGasLimit();
 
     /// Storage ///
     IExecutor public immutable executor;
@@ -122,7 +122,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
             // case A: not enough gas left to execute calls
             // @dev: we removed the handling to send bridged funds to receiver in case of insufficient gas
             //       as it's better for AcrossV3 to revert these cases instead
-            revert InsufficientGasLimit(cacheGasLeft);
+            revert InsufficientGasLimit();
         }
 
         // case 2b: enough gas left to execute calls
@@ -136,8 +136,7 @@ contract ReceiverAcrossV3 is ILiFi, TransferrableOwnership {
             cacheGasLeft = gasleft();
             // if the only gas left here is the recoverGas then the swap must have failed due to out-of-gas error and in this
             // case we want to revert (again, to force relayers to estimate our destination calls with sufficient gas limit)
-            if (cacheGasLeft <= recoverGas)
-                revert InsufficientGasLimit(cacheGasLeft);
+            if (cacheGasLeft <= recoverGas) revert InsufficientGasLimit();
 
             // send the bridged (and unswapped) funds to receiver address
             assetId.safeTransfer(receiver, amount);

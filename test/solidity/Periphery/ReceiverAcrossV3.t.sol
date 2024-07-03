@@ -27,7 +27,7 @@ contract ReceiverAcrossV3Test is TestBase {
     event ExecutorSet(address indexed executor);
     event RecoverGasSet(uint256 indexed recoverGas);
 
-    error InsufficientGasLimit(uint256 gasLeft);
+    error InsufficientGasLimit();
 
     function setUp() public {
         customBlockNumberForForking = 20024274;
@@ -181,10 +181,7 @@ contract ReceiverAcrossV3Test is TestBase {
         // fake a sendCompose from USDC pool on ETH mainnet
         vm.startPrank(SPOKEPOOL_MAINNET);
 
-        uint256 expGasLeft = 96485;
-        vm.expectRevert(
-            abi.encodeWithSelector(InsufficientGasLimit.selector, expGasLeft)
-        );
+        vm.expectRevert(abi.encodeWithSelector(InsufficientGasLimit.selector));
 
         receiver.handleV3AcrossMessage{ gas: RECOVER_GAS_VALUE }(
             ADDRESS_USDC,
@@ -207,13 +204,7 @@ contract ReceiverAcrossV3Test is TestBase {
         // fake a sendCompose from USDC pool on ETH mainnet
         vm.startPrank(SPOKEPOOL_MAINNET);
 
-        uint256 expectedGasLeft = 64841;
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                InsufficientGasLimit.selector,
-                expectedGasLeft
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(InsufficientGasLimit.selector));
 
         receiver.handleV3AcrossMessage{ gas: RECOVER_GAS_VALUE + 150000 }(
             ADDRESS_USDC,

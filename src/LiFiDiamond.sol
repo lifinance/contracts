@@ -14,12 +14,12 @@ contract LiFiDiamond {
         LibDiamond.setContractOwner(_contractOwner);
 
         // Add the diamondCut external function from the diamondCutFacet
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
+        LibDiamond.FacetCut[] memory cut = new LibDiamond.FacetCut[](1);
         bytes4[] memory functionSelectors = new bytes4[](1);
         functionSelectors[0] = IDiamondCut.diamondCut.selector;
-        cut[0] = IDiamondCut.FacetCut({
+        cut[0] = LibDiamond.FacetCut({
             facetAddress: _diamondCutFacet,
-            action: IDiamondCut.FacetCutAction.Add,
+            action: LibDiamond.FacetCutAction.Add,
             functionSelectors: functionSelectors
         });
         LibDiamond.diamondCut(cut, address(0), "");

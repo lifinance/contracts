@@ -3,9 +3,10 @@ pragma solidity ^0.8.17;
 
 import { ScriptBase } from "./ScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
+import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
+import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 
 contract UpdateScriptBase is ScriptBase {
     using stdJson for string;
@@ -16,7 +17,7 @@ contract UpdateScriptBase is ScriptBase {
     }
 
     address internal diamond;
-    IDiamondCut.FacetCut[] internal cut;
+    LibDiamond.FacetCut[] internal cut;
     bytes4[] internal selectorsToReplace;
     bytes4[] internal selectorsToRemove;
     bytes4[] internal selectorsToAdd;
@@ -147,9 +148,9 @@ contract UpdateScriptBase is ScriptBase {
         // Build diamond cut
         if (selectorsToReplace.length > 0) {
             cut.push(
-                IDiamondCut.FacetCut({
+                LibDiamond.FacetCut({
                     facetAddress: newFacet,
-                    action: IDiamondCut.FacetCutAction.Replace,
+                    action: LibDiamond.FacetCutAction.Replace,
                     functionSelectors: selectorsToReplace
                 })
             );
@@ -157,9 +158,9 @@ contract UpdateScriptBase is ScriptBase {
 
         if (selectorsToRemove.length > 0) {
             cut.push(
-                IDiamondCut.FacetCut({
+                LibDiamond.FacetCut({
                     facetAddress: address(0),
-                    action: IDiamondCut.FacetCutAction.Remove,
+                    action: LibDiamond.FacetCutAction.Remove,
                     functionSelectors: selectorsToRemove
                 })
             );
@@ -167,9 +168,9 @@ contract UpdateScriptBase is ScriptBase {
 
         if (selectorsToAdd.length > 0) {
             cut.push(
-                IDiamondCut.FacetCut({
+                LibDiamond.FacetCut({
                     facetAddress: newFacet,
-                    action: IDiamondCut.FacetCutAction.Add,
+                    action: LibDiamond.FacetCutAction.Add,
                     functionSelectors: selectorsToAdd
                 })
             );
@@ -181,9 +182,9 @@ contract UpdateScriptBase is ScriptBase {
         address newFacet
     ) internal {
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: newFacet,
-                action: IDiamondCut.FacetCutAction.Add,
+                action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: newSelectors
             })
         );

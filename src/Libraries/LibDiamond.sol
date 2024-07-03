@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { IDiamondCut } from "../Interfaces/IDiamondCut.sol";
+// import { IDiamondCut } from "../Interfaces/LibDiamond.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { OnlyContractOwner } from "../Errors/GenericErrors.sol";
 
@@ -50,6 +51,19 @@ library LibDiamond {
         address contractOwner;
     }
 
+    enum FacetCutAction {
+        Add,
+        Replace,
+        Remove
+    }
+    // Add=0, Replace=1, Remove=2
+
+    struct FacetCut {
+        address facetAddress;
+        FacetCutAction action;
+        bytes4[] functionSelectors;
+    }
+
     function diamondStorage()
         internal
         pure
@@ -67,6 +81,8 @@ library LibDiamond {
         address indexed newOwner
     );
 
+    event DiamondCut(FacetCut[] _diamondCut, address _init, bytes _calldata);
+
     function setContractOwner(address _newOwner) internal {
         DiamondStorage storage ds = diamondStorage();
         address previousOwner = ds.contractOwner;
@@ -83,31 +99,25 @@ library LibDiamond {
             revert OnlyContractOwner();
     }
 
-    event DiamondCut(
-        IDiamondCut.FacetCut[] _diamondCut,
-        address _init,
-        bytes _calldata
-    );
-
     // Internal function version of diamondCut
     function diamondCut(
-        IDiamondCut.FacetCut[] memory _diamondCut,
+        FacetCut[] memory _diamondCut,
         address _init,
         bytes memory _calldata
     ) internal {
         for (uint256 facetIndex; facetIndex < _diamondCut.length; ) {
-            IDiamondCut.FacetCutAction action = _diamondCut[facetIndex].action;
-            if (action == IDiamondCut.FacetCutAction.Add) {
+            LibDiamond.FacetCutAction action = _diamondCut[facetIndex].action;
+            if (action == LibDiamond.FacetCutAction.Add) {
                 addFunctions(
                     _diamondCut[facetIndex].facetAddress,
                     _diamondCut[facetIndex].functionSelectors
                 );
-            } else if (action == IDiamondCut.FacetCutAction.Replace) {
+            } else if (action == LibDiamond.FacetCutAction.Replace) {
                 replaceFunctions(
                     _diamondCut[facetIndex].facetAddress,
                     _diamondCut[facetIndex].functionSelectors
                 );
-            } else if (action == IDiamondCut.FacetCutAction.Remove) {
+            } else if (action == LibDiamond.FacetCutAction.Remove) {
                 removeFunctions(
                     _diamondCut[facetIndex].facetAddress,
                     _diamondCut[facetIndex].functionSelectors

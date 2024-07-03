@@ -5,11 +5,11 @@ import "lifi/LiFiDiamond.sol";
 import "lifi/Facets/DiamondCutFacet.sol";
 import "lifi/Facets/DiamondLoupeFacet.sol";
 import "lifi/Facets/OwnershipFacet.sol";
-import "lifi/Interfaces/IDiamondCut.sol";
+import "lifi/Libraries/LibDiamond.sol";
 import "lifi/Facets/PeripheryRegistryFacet.sol";
 
 contract DiamondTest {
-    IDiamondCut.FacetCut[] internal cut;
+    LibDiamond.FacetCut[] internal cut;
 
     function createDiamond() internal returns (LiFiDiamond) {
         DiamondCutFacet diamondCut = new DiamondCutFacet();
@@ -34,9 +34,9 @@ contract DiamondTest {
         functionSelectors[3] = DiamondLoupeFacet.facetAddresses.selector;
         functionSelectors[4] = DiamondLoupeFacet.supportsInterface.selector;
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: address(diamondLoupe),
-                action: IDiamondCut.FacetCutAction.Add,
+                action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: functionSelectors
             })
         );
@@ -52,9 +52,9 @@ contract DiamondTest {
         functionSelectors[3] = OwnershipFacet.owner.selector;
 
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: address(ownership),
-                action: IDiamondCut.FacetCutAction.Add,
+                action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: functionSelectors
             })
         );
@@ -69,9 +69,9 @@ contract DiamondTest {
             .selector;
 
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: address(periphery),
-                action: IDiamondCut.FacetCutAction.Add,
+                action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: functionSelectors
             })
         );
@@ -109,9 +109,9 @@ contract DiamondTest {
         bytes memory _initCallData
     ) internal {
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: _facet,
-                action: IDiamondCut.FacetCutAction.Add,
+                action: LibDiamond.FacetCutAction.Add,
                 functionSelectors: _selectors
             })
         );

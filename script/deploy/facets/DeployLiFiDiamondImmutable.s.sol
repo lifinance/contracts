@@ -4,12 +4,13 @@ pragma solidity ^0.8.17;
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { LiFiDiamondImmutable } from "lifi/LiFiDiamondImmutable.sol";
-import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
+import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
+import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    IDiamondCut.FacetCut[] internal cut;
+    LibDiamond.FacetCut[] internal cut;
     address internal diamondImmutable;
     DiamondCutFacet internal cutter;
 
