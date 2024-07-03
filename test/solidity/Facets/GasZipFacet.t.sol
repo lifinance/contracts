@@ -2,6 +2,7 @@
 pragma solidity 0.8.17;
 import { GasZipFacet } from "lifi/Facets/GasZipFacet.sol";
 import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGasZipFacet is GasZipFacet {
@@ -89,9 +90,10 @@ contract GasZipFacetTest is TestBaseFacet {
 
         // produce valid GasZipData
         gasZipData = GasZipFacet.GasZipData({
-            gasZipChainId: 17, // Polygon (https://dev.gas.zip/gas/chain-support/outbound)
-            gasZipSwapData: gasZipSwapData
+            gasZipChainId: 17 // Polygon (https://dev.gas.zip/gas/chain-support/outbound)
         });
+
+        bridgeData.bridge = "GasZip";
 
         vm.label(address(gasZipFacet), "LiFiDiamond");
         vm.label(ADDRESS_WETH, "WETH_TOKEN");
@@ -181,5 +183,88 @@ contract GasZipFacetTest is TestBaseFacet {
 
     function testBase_Revert_CallerHasInsufficientFunds() public override {
         // the startBridgeTokensViaGasZip can only be used for native tokens, therefore this test case is not applicable
+    }
+
+    function testBase_CanSwapAndBridgeNativeTokens() public override {
+        // the swapAndStartBridgeTokensViaGasZip can only be used for ERC20 tokens
+        // therefore this test is expected to revert with InvalidCallData()
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WETH;
+
+        uint256 amountOut = defaultNativeAmount;
+
+        // Calculate USDC input amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        // approval
+        usdc.approve(_facetTestContractAddress, amountIn);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
+    }
+
+    function testBase_CanSwapAndBridgeTokens() public override {
+        vm.startPrank(USER_SENDER);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.minAmount = defaultNativeAmount;
+
+        // reset swap data
+        setDefaultSwapDataSingleDAItoETH();
+
+        // approval
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_DAI,
+            address(0),
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(false);
     }
 }
