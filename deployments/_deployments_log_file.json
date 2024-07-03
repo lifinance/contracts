@@ -19844,12 +19844,12 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x70cD2f8937aF9599583c18042C63704DfF3B67f6",
+            "ADDRESS": "0xA269cb81E6bBB86683558e449cb1bAFFdb155Bfc",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-06-28 20:55:43",
+            "TIMESTAMP": "2024-07-03 09:43:10",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000085e5fb57844be79b42997c898d177a39f328ccf0",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
