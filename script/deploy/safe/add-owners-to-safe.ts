@@ -1,6 +1,6 @@
 import { defineCommand, runMain } from 'citty'
 import { type SafeApiKitConfig } from '@safe-global/api-kit'
-import type { Chain } from 'viem'
+import { type Chain, getAddress } from 'viem'
 import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
 import SafeApiKit from '@safe-global/api-kit'
 import { ethers } from 'ethers6'
@@ -50,7 +50,7 @@ const main = defineCommand({
 
     const safeService = new SafeApiKit(config)
 
-    const safeAddress = safeAddresses[chainName.toLowerCase()]
+    const safeAddress = getAddress(safeAddresses[chainName.toLowerCase()])
 
     const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]
     const provider = new ethers.JsonRpcProvider(rpcUrl)
@@ -69,7 +69,8 @@ const main = defineCommand({
     const owners = String(args.owners).split(',')
 
     let nextNonce = await safeService.getNextNonce(safeAddress)
-    for (const owner of owners) {
+    for (const o of owners) {
+      const owner = getAddress(o)
       const existingOwners = await protocolKit.getOwners()
       if (existingOwners.includes(owner)) {
         console.info('Owner already exists', owner)

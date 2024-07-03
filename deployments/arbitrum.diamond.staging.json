@@ -109,9 +109,13 @@
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       },
-      "0x94D25a74dCABda3511A391f855669475998C44BD": {
+      "0xd596C903d78870786c5DB0E448ce7F87A65A0daD": {
         "Name": "MayanFacet",
         "Version": "1.0.0"
+      },
+      "0xC79Fd17411902B7D914350aD12Ab50b9001e0EF8": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {

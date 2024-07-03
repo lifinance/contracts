@@ -19,7 +19,7 @@ const main = async () => {
   const RPC_URL = process.env.ETH_NODE_URI_ARBITRUM
   const PRIVATE_KEY = process.env.PRIVATE_KEY
   const LIFI_ADDRESS = deployments.LiFiDiamond
-  const ARB_USDC_ADDRESS = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
+  const ARB_WETH_ADDRESS = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
   const POLYGON_USDT_ADDRESS = '0xc2132D05D31c914a87C6611C10748AEb04B58e8F'
 
   const provider = new ethers.providers.JsonRpcProvider(RPC_URL)
@@ -31,8 +31,8 @@ const main = async () => {
   let tx
 
   const quote: Quote[] = await fetchQuote({
-    amount: 10,
-    fromToken: ARB_USDC_ADDRESS,
+    amount: 0.0010012345678,
+    fromToken: ARB_WETH_ADDRESS,
     toToken: POLYGON_USDT_ADDRESS,
     fromChain: 'arbitrum',
     toChain: 'polygon',
@@ -53,14 +53,14 @@ const main = async () => {
   const iface = IMayan__factory.createInterface()
   const parsed = iface.parseTransaction({ data: payload.data as string })
 
-  const token = ERC20__factory.connect(ARB_USDC_ADDRESS, provider)
+  const token = ERC20__factory.connect(ARB_WETH_ADDRESS, provider)
 
   const bridgeData: ILiFi.BridgeDataStruct = {
     transactionId: utils.randomBytes(32),
     bridge: 'Mayan',
     integrator: 'ACME Devs',
     referrer: '0x0000000000000000000000000000000000000000',
-    sendingAssetId: ARB_USDC_ADDRESS,
+    sendingAssetId: ARB_WETH_ADDRESS,
     receiver: address,
     minAmount: utils.parseUnits('10', 6),
     destinationChainId: 137,
