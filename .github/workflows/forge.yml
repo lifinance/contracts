@@ -41,5 +41,3 @@ jobs:
           command: forge test --evm-version 'shanghai'
           attempt_limit: 10
           attempt_delay: 5000
-      - name: Get forge test coverage
-        run: forge coverage --ir-minimum --evm-version 'shanghai'
