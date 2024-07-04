@@ -27,6 +27,10 @@
     "metaRouter": "0x44487a445a7595446309464A82244B4bD4e325D5",
     "gateway": "0x5c97D726bf5130AE15408cE32bc764e458320D2f"
   },
+  "fraxtal": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
+  },
   "linea": {
     "metaRouter": "0x9A31bAC4b3B958C835C243800B474818D04393dd",
     "gateway": "0x83f71AabdDBb9F0E3B6462Cc7635b6fFAD0f2f2e"

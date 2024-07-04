@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x1Fb75B487991660df1c38D984E5c17D9415c652E": {
+      "0x5eBcD07ba73f32de389cc5F7B0a34989A1422cAE": {
         "Name": "DexManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0x6BC529A247af67735A7c0a2459d7df0b6A49AA0C": {
         "Name": "AccessManagerFacet",
@@ -37,9 +37,9 @@
         "Name": "StandardizedCallFacet",
         "Version": "1.0.0"
       },
-      "0x863aB521e384Bde4B65E2D884986D4698a81D7d8": {
+      "0x49aC4f4Be1838090fc02AFb109DD08Da458b4227": {
         "Name": "AmarokFacet",
-        "Version": "2.0.0"
+        "Version": "3.0.0"
       },
       "0x898Ae46530bAF99FBEe16225db8e9771B580DC0D": {
         "Name": "StargateFacet",
@@ -64,6 +64,10 @@
       "0x7865919678265435472756b59D5141D0F76312E1": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
+      },
+      "0x8a0e4Ffcc4B847A452011213cFb5cA9636fF228A": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {

@@ -9,9 +9,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x4bEAa5D26300e81cd17e0981fc15494Bb4B10959": {
+      "0x22B31a1a81d5e594315c866616db793E799556c5": {
         "Name": "DexManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
         "Name": "AccessManagerFacet",
@@ -41,9 +41,9 @@
         "Name": "MultichainFacet",
         "Version": "1.0.1"
       },
-      "0x411F81f16FF40984ac8a4546f2Ad19e22704693F": {
+      "0x3F95b05a77FDC6D82162D86A72b156b55030627f": {
         "Name": "AmarokFacet",
-        "Version": "2.0.0"
+        "Version": "3.0.0"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
@@ -105,7 +105,7 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0x14B4e2e2e3422DeC6F8bF3DcDc0BF3566F37197D": {
+      "0x4682d79DD4D0e7555415841b5151933AF50594A8": {
         "Name": "MayanFacet",
         "Version": "1.0.0"
       },
