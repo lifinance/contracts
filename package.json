@@ -86,6 +86,7 @@
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
     "@hop-protocol/sdk": "0.0.1-beta.310",
+    "@layerzerolabs/lz-v2-utilities": "^2.3.21",
     "@safe-global/api-kit": "^2.3.1",
     "@safe-global/protocol-kit": "^3.1.0",
     "@safe-global/safe-apps-sdk": "^9.0.0",
