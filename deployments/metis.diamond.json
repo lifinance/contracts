@@ -62,12 +62,12 @@
         "Version": "1.0.0"
       },
       "0x7865919678265435472756b59D5141D0F76312E1": {
-        "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
-      },
-      "0x8a0e4Ffcc4B847A452011213cFb5cA9636fF228A": {
         "Name": "",
         "Version": ""
+      },
+      "0x8a0e4Ffcc4B847A452011213cFb5cA9636fF228A": {
+        "Name": "StargateFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -77,6 +77,7 @@
       "GasRebateDistributor": "",
       "LiFuelFeeCollector": "0x851450e3b624ea4b068c3E8cFBcf79cD03D31C54",
       "Receiver": "0x0a4D7f27e8d24625eCb8d29d6445934a440A05E0",
+      "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x0000000000000000000000000000000000001234",
       "TokenWrapper": "0x01bDf46A673FC3c081ddBD21cb51fBA4972d00aC"

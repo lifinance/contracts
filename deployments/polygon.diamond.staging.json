@@ -120,6 +120,14 @@
       "0x4b904ad5Ca7601595277575824B080e078e2E812": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.0"
+      },
+      "0xeb3f9490d8cbD0C34C0642a8d0495e5E0B0745AA": {
+        "Name": "StargateFacetV2",
+        "Version": "1.0.0"
+      },
+      "0xe2e5428F972d9C0a5Ba433e0c402752b472dB248": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -129,6 +137,7 @@
       "GasRebateDistributor": "",
       "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
       "Receiver": "0x6aDF98E613703d628361B340eC22Bf35ec3ee122",
+      "ReceiverStargateV2": "",
       "RelayerCelerIM": "0x9d3573b1d85112446593f617f1f3eb5ec1778D27",
       "ServiceFeeCollector": "0x9cc3164f01ED3796Fdf7Da538484D634608D2203",
       "TokenWrapper": "0x888C42f345c25e276327504CE2F1Da6a9C60c73E"

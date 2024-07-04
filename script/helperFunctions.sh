@@ -2797,6 +2797,10 @@ function getChainId() {
     echo "1313161554"
     return 0
     ;;
+  "base")
+    echo "8453"
+    return 0
+    ;;
   "boba")
     echo "288"
     return 0
@@ -2807,6 +2811,10 @@ function getChainId() {
     ;;
   "mode")
     echo "34443"
+    return 0
+    ;;
+  "scroll")
+    echo "534352"
     return 0
     ;;
   "goerli")

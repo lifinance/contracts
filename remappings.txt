@@ -8,6 +8,7 @@ hardhat-deploy/=node_modules/hardhat-deploy/
 celer-network/=lib/sgn-v2-contracts/
 create3-factory/=lib/create3-factory/src/
 solmate/=lib/solmate/src/
+solady/=lib/solady/src/
 
 ds-test/=lib/ds-test/src/
 forge-std/=lib/forge-std/src/
