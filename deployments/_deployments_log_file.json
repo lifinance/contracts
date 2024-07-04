@@ -20490,5 +20490,21 @@
         ]
       }
     }
+  },
+  "IntentFactory": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf67dfdA04820C17E12C5C08DB3a59859cF08508D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-04 17:12:51",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000c7f2cf4845c6db0e1a1e91ed41bcd0fcc1b0e141",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
   }
 }
