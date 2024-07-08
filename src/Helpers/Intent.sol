@@ -20,7 +20,7 @@ contract Intent {
     address public immutable implementation;
     address public factory;
     address public tokenOut;
-    uint256 public amoutOutMin;
+    uint256 public amountOutMin;
     bool public executed = false;
 
     constructor() {
@@ -44,7 +44,7 @@ contract Intent {
         intentId = _initData.intentId;
         receiver = _initData.receiver;
         tokenOut = _initData.tokenOut;
-        amoutOutMin = _initData.amoutOutMin;
+        amountOutMin = _initData.amountOutMin;
     }
 
     /// @notice Executes the intent with the given calls.
@@ -61,7 +61,7 @@ contract Intent {
         }
 
         require(
-            IERC20(tokenOut).balanceOf(address(this)) >= amoutOutMin,
+            IERC20(tokenOut).balanceOf(address(this)) >= amountOutMin,
             "Intent: insufficient output amount"
         );
         if (tokenOut == address(0)) {

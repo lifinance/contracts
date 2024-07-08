@@ -40,7 +40,7 @@ contract IntentFactoryTest is Test {
                 intentId: intentId,
                 receiver: alice,
                 tokenOut: address(tokenB),
-                amoutOutMin: 100
+                amountOutMin: 100
             })
         );
 
@@ -82,7 +82,7 @@ contract IntentFactoryTest is Test {
                 intentId: intentId,
                 receiver: alice,
                 tokenOut: address(tokenB),
-                amoutOutMin: 100
+                amountOutMin: 100
             }),
             calls
         );
@@ -103,7 +103,7 @@ contract IntentFactoryTest is Test {
                 intentId: intentId,
                 receiver: alice,
                 tokenOut: address(tokenB),
-                amoutOutMin: 100
+                amountOutMin: 100
             })
         );
         // Send tokens to the precomputed address
@@ -117,7 +117,7 @@ contract IntentFactoryTest is Test {
                 intentId: intentId,
                 receiver: alice,
                 tokenOut: address(tokenB),
-                amoutOutMin: 100
+                amountOutMin: 100
             }),
             tokens
         );

@@ -12,6 +12,6 @@ interface IIntent {
         bytes32 intentId;
         address receiver;
         address tokenOut;
-        uint256 amoutOutMin;
+        uint256 amountOutMin;
     }
 }
