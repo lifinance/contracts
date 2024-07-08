@@ -48,12 +48,6 @@ const main = defineCommand({
       abi: ABI,
     }
 
-    // struct InitData {
-    //     bytes32 intentId;
-    //     address receiver;
-    //     address tokenOut;
-    //     uint256 amoutOutMin;
-    // }
     const predictedIntentAddress = await publicClient.readContract({
       ...intentFactory,
       functionName: 'getIntentAddress',
@@ -62,7 +56,7 @@ const main = defineCommand({
           intentId: keccak256(toHex(parseInt(Math.random().toString()))),
           receiver: privateKeyToAccount(args.privateKey as Hex).address,
           tokenOut: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
-          amoutOutMin: parseUnits('10', 6),
+          amountOutMin: parseUnits('10', 6),
         },
       ],
     })
