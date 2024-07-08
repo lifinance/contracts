@@ -30,6 +30,8 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
+    const { privateKey } = args
+    const account = privateKeyToAccount(`0x${privateKey}`)
     // Read client
     const publicClient = createPublicClient({
       chain: arbitrum,
@@ -38,7 +40,7 @@ const main = defineCommand({
 
     // Write client
     const walletClient = createWalletClient({
-      account: privateKeyToAccount(args.privateKey as Hex),
+      account,
       chain: arbitrum,
       transport: http(),
     })
@@ -54,13 +56,17 @@ const main = defineCommand({
       args: [
         {
           intentId: keccak256(toHex(parseInt(Math.random().toString()))),
-          receiver: privateKeyToAccount(args.privateKey as Hex).address,
+          receiver: account.address,
           tokenOut: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
           amountOutMin: parseUnits('10', 6),
         },
       ],
     })
     console.log(predictedIntentAddress)
+
+    // TODO: Get quote from LIFI API for simple swap from DAI to USDC
+    // TODO: Send DAI to predictedIntentAddress
+    // TODO: Execute the swap
   },
 })
 
