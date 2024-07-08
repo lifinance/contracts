@@ -13,9 +13,12 @@ import {
   toHex,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
+import { ChainId, getQuote } from '@lifi/sdk'
 
 const INTENT_FACTORY_ADDReSS = Deployments.IntentFactory as Address
 const ABI = IntentFactory.abi
+const DAI = '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1'
+const USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
 
 const main = defineCommand({
   meta: {
@@ -50,7 +53,7 @@ const main = defineCommand({
       abi: ABI,
     }
 
-    const predictedIntentAddress = await publicClient.readContract({
+    const predictedIntentAddress: Address = (await publicClient.readContract({
       ...intentFactory,
       functionName: 'getIntentAddress',
       args: [
@@ -61,10 +64,20 @@ const main = defineCommand({
           amountOutMin: parseUnits('10', 6),
         },
       ],
-    })
+    })) as Address
     console.log(predictedIntentAddress)
 
-    // TODO: Get quote from LIFI API for simple swap from DAI to USDC
+    const quote = await getQuote({
+      fromAddress: predictedIntentAddress,
+      toAddress: account.address,
+      fromChain: ChainId.ARB,
+      toChain: ChainId.ARB,
+      fromToken: DAI,
+      toToken: USDC,
+      fromAmount: '10000000000000000000',
+    })
+
+    console.log(quote)
     // TODO: Send DAI to predictedIntentAddress
     // TODO: Execute the swap
   },
