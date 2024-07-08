@@ -14,7 +14,7 @@ export const safeApiUrls: Record<string, string> = {
   gnosis: 'https://safe-transaction-gnosis-chain.safe.global/api',
   linea: 'https://transaction.safe.linea.build/api',
   mantle: 'https://transaction.multisig.mantle.xyz/api',
-  // metis
+  metis: 'https://metissafe.tech/txs/api',
   mode: 'https://transaction-mode.safe.optimism.io/api',
   moonbeam: 'https://transaction.multisig.moonbeam.network/api',
   moonriver: 'https://transaction.moonriver.multisig.moonbeam.network/api',
@@ -43,7 +43,7 @@ export const safeAddresses: Record<string, string> = {
   gnosis: '0x2bC523875b59A1Ddd03CEB1F1b28c5B0e8e6654A',
   linea: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   mantle: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
-  // metis
+  metis: '0x925cD8289Ac2d617F52974da8338867f3bB62d56',
   mode: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   moonbeam: '0xB51E43CeCAB8A42cD6225e16C9C3a3ba1A76871A',
   moonriver: '0xfC78B018B4daD77351095f00D92934A9A851DA34',
