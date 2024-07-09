@@ -25,8 +25,8 @@ contract IntentFactoryTest is Test {
     }
 
     function deploy() public returns (Intent, IntentFactory) {
-        address _implementation = address(new Intent());
-        IntentFactory _factory = new IntentFactory(_implementation);
+        IntentFactory _factory = new IntentFactory();
+        address _implementation = _factory.implementation();
         return (Intent(_implementation), _factory);
     }
 

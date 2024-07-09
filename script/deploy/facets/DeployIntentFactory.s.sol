@@ -10,24 +10,7 @@ contract DeployScript is DeployScriptBase {
 
     constructor() DeployScriptBase("IntentFactory") {}
 
-    function run()
-        public
-        returns (IntentFactory deployed, bytes memory constructorArgs)
-    {
-        vm.startBroadcast(deployerPrivateKey);
-        implementation = new Intent();
-        vm.stopBroadcast();
-        constructorArgs = getConstructorArgs();
-
+    function run() public returns (IntentFactory deployed) {
         deployed = IntentFactory(deploy(type(IntentFactory).creationCode));
-    }
-
-    function getConstructorArgs()
-        internal
-        view
-        override
-        returns (bytes memory)
-    {
-        return abi.encode(address(implementation));
     }
 }

@@ -23,6 +23,12 @@ contract Intent {
     uint256 public amountOutMin;
     bool public executed = false;
 
+    error Unauthorized();
+    error AlreadyExecuted();
+    error InvalidParams();
+    error ExecutionFailed();
+    error InsufficientOutputAmount();
+
     constructor() {
         implementation = address(this);
     }
@@ -30,16 +36,16 @@ contract Intent {
     /// @notice Initializes the intent with the given parameters.
     /// @param _initData The init data.
     function init(IIntent.InitData calldata _initData) external {
-        bytes32 _salt = keccak256(abi.encode(_initData));
+        salt = keccak256(abi.encode(_initData));
+        factory = msg.sender;
         address predictedAddress = LibClone.predictDeterministicAddress(
             implementation,
-            _salt,
+            salt,
             msg.sender
         );
-        require(
-            address(this) == predictedAddress,
-            "Intent: invalid init params"
-        );
+        if (address(this) != predictedAddress) {
+            revert InvalidParams();
+        }
 
         intentId = _initData.intentId;
         receiver = _initData.receiver;
@@ -50,20 +56,26 @@ contract Intent {
     /// @notice Executes the intent with the given calls.
     /// @param calls The calls to execute.
     function execute(IIntent.Call[] calldata calls) external {
-        require(!executed, "Intent: already executed");
+        if (msg.sender != factory) {
+            revert Unauthorized();
+        }
+        if (executed) {
+            revert AlreadyExecuted();
+        }
         executed = true;
 
         for (uint256 i = 0; i < calls.length; i++) {
             (bool success, ) = calls[i].to.call{ value: calls[i].value }(
                 calls[i].data
             );
-            require(success, "Intent: call failed");
+            if (!success) {
+                revert ExecutionFailed();
+            }
         }
 
-        require(
-            IERC20(tokenOut).balanceOf(address(this)) >= amountOutMin,
-            "Intent: insufficient output amount"
-        );
+        if (IERC20(tokenOut).balanceOf(address(this)) < amountOutMin) {
+            revert InsufficientOutputAmount();
+        }
         if (tokenOut == address(0)) {
             SafeTransferLib.safeTransferAllETH(receiver);
             return;
@@ -74,6 +86,9 @@ contract Intent {
     /// @notice Withdraws all the tokens.
     /// @param tokens The tokens to withdraw.
     function withdrawAll(address[] calldata tokens) external {
+        if (msg.sender != factory) {
+            revert Unauthorized();
+        }
         for (uint256 i = 0; i < tokens.length; i++) {
             if (tokens[i] == address(0)) {
                 SafeTransferLib.safeTransferAllETH(receiver);

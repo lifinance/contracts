@@ -20496,12 +20496,12 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x6947Fd6D099d2F2E50C02C90423C3133c7D0D3B6",
+            "ADDRESS": "0x6e9B8579097F45E843584595541fF805101a18aA",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-07-09 15:55:42",
-            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f96a44d62bd33ea4af9ed18efaae190f5924ddc8",
+            "TIMESTAMP": "2024-07-09 16:26:46",
+            "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }

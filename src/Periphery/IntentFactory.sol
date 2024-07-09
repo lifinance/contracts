@@ -16,8 +16,8 @@ contract IntentFactory {
 
     /// Constructor ///
 
-    constructor(address _implementation) {
-        implementation = _implementation;
+    constructor() {
+        implementation = address(new Intent());
     }
 
     /// External Functions ///
