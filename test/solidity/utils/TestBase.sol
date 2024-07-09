@@ -5,6 +5,8 @@ import { Test } from "forge-std/Test.sol";
 import { DSTest } from "ds-test/test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
@@ -87,14 +89,21 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));
     UniswapV2Router02 internal uniswap;
     ERC20 internal usdc;
+    ERC20 internal usdt;
     ERC20 internal dai;
     ERC20 internal weth;
     LiFiDiamond internal diamond;
     ILiFi.BridgeData internal bridgeData;
     LibSwap.SwapData[] internal swapData;
+    FeeCollector internal feeCollector;
     uint256 internal defaultDAIAmount;
     uint256 internal defaultUSDCAmount;
     uint256 internal defaultNativeAmount;
+    // amounts for feeCollection
+    uint256 defaultNativeFeeCollectionAmount = 0.001 ether;
+    uint256 defaultUSDCFeeCollectionAmount;
+    uint256 defaultLiFiFeeAmount = 0;
+
     // tokenAddress => userAddress => balance
     mapping(address => mapping(address => uint256)) internal initialBalances;
     uint256 internal addToMessageValue;
@@ -129,12 +138,14 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     address internal ADDRESS_UNISWAP =
         0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
     address internal ADDRESS_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address internal ADDRESS_USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address internal ADDRESS_DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address internal ADDRESS_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     // User accounts (Whales: ETH only)
     address internal constant USER_SENDER = address(0xabc123456); // initially funded with 100,000 DAI, USDC & ETHER
     address internal constant USER_RECEIVER = address(0xabc654321);
     address internal constant USER_REFUND = address(0xabcdef281);
+    address internal constant USER_INTEGRATOR = address(0xdeadbeef);
     address internal constant USER_DIAMOND_OWNER =
         0x5042255A3F3FD7727e419CeA387cAFDfad3C3aF8;
     address internal constant USER_USDC_WHALE =
@@ -184,6 +195,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         vm.label(USER_DIAMOND_OWNER, "USER_DIAMOND_OWNER");
         vm.label(USER_USDC_WHALE, "USER_USDC_WHALE");
         vm.label(USER_DAI_WHALE, "USER_DAI_WHALE");
+        vm.label(USER_INTEGRATOR, "USER_INTEGRATOR");
         vm.label(ADDRESS_USDC, "ADDRESS_USDC_PROXY");
         vm.label(
             0xa2327a938Febf5FEC13baCFb16Ae10EcBc4cbDCF,
@@ -199,11 +211,13 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         // fill user accounts with starting balance
         uniswap = UniswapV2Router02(ADDRESS_UNISWAP);
         usdc = ERC20(ADDRESS_USDC);
+        usdt = ERC20(ADDRESS_USDT);
         dai = ERC20(ADDRESS_DAI);
         weth = ERC20(ADDRESS_WETH);
 
-        // deploy & configure diamond
+        // deploy & configure contracts
         diamond = createDiamond();
+        feeCollector = new FeeCollector(USER_DIAMOND_OWNER);
 
         // transfer initial DAI/USDC/WETH balance to USER_SENDER
         deal(ADDRESS_USDC, USER_SENDER, 100_000 * 10 ** usdc.decimals());
@@ -217,6 +231,8 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
         defaultDAIAmount = 100 * 10 ** dai.decimals();
         defaultUSDCAmount = 100 * 10 ** usdc.decimals();
         defaultNativeAmount = 1 ether;
+        // amounts for feeCollection
+        defaultUSDCFeeCollectionAmount = 1 * 10 ** usdc.decimals();
 
         // set path for logfile (esp. interesting for fuzzing tests)
         logFilePath = "./test/logs/";

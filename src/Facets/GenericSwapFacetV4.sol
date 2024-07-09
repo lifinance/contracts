@@ -6,8 +6,12 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
-import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
+import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed, InvalidCallData } from "../Errors/GenericErrors.sol";
+
+//TODO: replace with solady
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+
+//TODO: remove
 import { console2 } from "forge-std/console2.sol";
 
 /// @title GenericSwapFacetV4
@@ -18,141 +22,125 @@ import { console2 } from "forge-std/console2.sol";
 contract GenericSwapFacetV4 is ILiFi {
     using SafeTransferLib for ERC20;
 
+    /// Storage ///
+
+    address public immutable dexAggregatorAddress;
+
+    /// Constructor
+
+    /// @notice Initialize the contract
+    /// @param _dexAggregatorAddress The address of the DEX aggregator
+    constructor(address _dexAggregatorAddress) {
+        dexAggregatorAddress = _dexAggregatorAddress;
+    }
+
+    /// Modifier
+    modifier onlyCallsToDexAggregator(address callTo) {
+        if (callTo != dexAggregatorAddress) revert InvalidCallData();
+        _;
+    }
+
     /// External Methods ///
 
     // SINGLE SWAPS
 
     /// @notice Performs a single swap from an ERC20 token to another ERC20 token
-    /// @param _transactionId the transaction id associated with the operation
-    /// @param _integrator the name of the integrator
-    /// @param _referrer the address of the referrer
+    /// @param (unused)_transactionId the transaction id associated with the operation
+    /// @param (unused) _integrator the name of the integrator
+    /// @param (unused) _referrer the address of the referrer
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
     function swapTokensSingleV3ERC20ToERC20(
-        bytes32 _transactionId,
-        string calldata _integrator,
-        string calldata _referrer,
-        address payable _receiver,
+        bytes32,
+        string calldata,
+        string calldata,
+        address _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
-    ) external {
-        _depositAndSwapERC20Single(_swapData, _receiver);
-
-        address receivingAssetId = _swapData.receivingAssetId;
-        address sendingAssetId = _swapData.sendingAssetId;
-
-        // get contract's balance (which will be sent in full to user)
-        uint256 amountReceived = ERC20(receivingAssetId).balanceOf(
-            address(this)
+    ) external onlyCallsToDexAggregator(_swapData.callTo) {
+        ERC20 sendingAsset = ERC20(_swapData.sendingAssetId);
+        // deposit funds
+        sendingAsset.safeTransferFrom(
+            msg.sender,
+            address(this),
+            _swapData.fromAmount
         );
 
-        // ensure that minAmountOut was received
+        // execute swap
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, bytes memory res) = _swapData.callTo.call(
+            _swapData.callData
+        );
+        if (!success) {
+            LibUtil.revertWith(res);
+        }
+
+        // make sure that minAmount was received
+        uint256 amountReceived = abi.decode(res, (uint256));
         if (amountReceived < _minAmountOut)
             revert CumulativeSlippageTooHigh(_minAmountOut, amountReceived);
 
-        // transfer funds to receiver
-        ERC20(receivingAssetId).safeTransfer(_receiver, amountReceived);
-
-        // emit events (both required for tracking)
-        uint256 fromAmount = _swapData.fromAmount;
-        emit LibSwap.AssetSwapped(
-            _transactionId,
-            _swapData.callTo,
-            sendingAssetId,
-            receivingAssetId,
-            fromAmount,
-            amountReceived,
-            block.timestamp
-        );
-
-        emit ILiFi.LiFiGenericSwapCompleted(
-            _transactionId,
-            _integrator,
-            _referrer,
-            _receiver,
-            sendingAssetId,
-            receivingAssetId,
-            fromAmount,
-            amountReceived
-        );
+        _returnPositiveSlippageERC20(sendingAsset, _receiver);
     }
 
     /// @notice Performs a single swap from an ERC20 token to the network's native token
-    /// @param _transactionId the transaction id associated with the operation
-    /// @param _integrator the name of the integrator
-    /// @param _referrer the address of the referrer
+    /// @param (unused)_transactionId the transaction id associated with the operation
+    /// @param (unused) _integrator the name of the integrator
+    /// @param (unused) _referrer the address of the referrer
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
     function swapTokensSingleV3ERC20ToNative(
-        bytes32 _transactionId,
-        string calldata _integrator,
-        string calldata _referrer,
+        bytes32,
+        string calldata,
+        string calldata,
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
-    ) external {
-        _depositAndSwapERC20Single(_swapData, _receiver);
+    ) external onlyCallsToDexAggregator(_swapData.callTo) {
+        ERC20 sendingAsset = ERC20(_swapData.sendingAssetId);
 
-        // get contract's balance (which will be sent in full to user)
-        uint256 amountReceived = address(this).balance;
+        // deposit funds
+        sendingAsset.safeTransferFrom(
+            msg.sender,
+            address(this),
+            _swapData.fromAmount
+        );
 
-        // ensure that minAmountOut was received
+        // execute swap
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, bytes memory res) = _swapData.callTo.call(
+            _swapData.callData
+        );
+        if (!success) {
+            LibUtil.revertWith(res);
+        }
+
+        // make sure that minAmount was received
+        uint256 amountReceived = abi.decode(res, (uint256));
         if (amountReceived < _minAmountOut)
             revert CumulativeSlippageTooHigh(_minAmountOut, amountReceived);
 
-        // transfer funds to receiver
-        // solhint-disable-next-line avoid-low-level-calls
-        (bool success, ) = _receiver.call{ value: amountReceived }("");
-        if (!success) revert NativeAssetTransferFailed();
-
-        // emit events (both required for tracking)
-        address sendingAssetId = _swapData.sendingAssetId;
-        uint256 fromAmount = _swapData.fromAmount;
-        emit LibSwap.AssetSwapped(
-            _transactionId,
-            _swapData.callTo,
-            sendingAssetId,
-            address(0),
-            fromAmount,
-            amountReceived,
-            block.timestamp
-        );
-
-        emit ILiFi.LiFiGenericSwapCompleted(
-            _transactionId,
-            _integrator,
-            _referrer,
-            _receiver,
-            sendingAssetId,
-            address(0),
-            fromAmount,
-            amountReceived
-        );
+        _returnPositiveSlippageNative(_receiver);
     }
 
     /// @notice Performs a single swap from the network's native token to ERC20 token
-    /// @param _transactionId the transaction id associated with the operation
-    /// @param _integrator the name of the integrator
-    /// @param _referrer the address of the referrer
+    /// @param (unused)_transactionId the transaction id associated with the operation
+    /// @param (unused) _integrator the name of the integrator
+    /// @param (unused) _referrer the address of the referrer
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
     function swapTokensSingleV3NativeToERC20(
-        bytes32 _transactionId,
-        string calldata _integrator,
-        string calldata _referrer,
+        bytes32,
+        string calldata,
+        string calldata,
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
-    ) external payable {
+    ) external payable onlyCallsToDexAggregator(_swapData.callTo) {
         address callTo = _swapData.callTo;
-        // ensure that contract (callTo) and function selector are whitelisted
-        if (
-            !(LibAllowList.contractIsAllowed(callTo) &&
-                LibAllowList.selectorIsAllowed(bytes4(_swapData.callData[:4])))
-        ) revert ContractCallNotAllowed();
 
         // execute swap
         // solhint-disable-next-line avoid-low-level-calls
@@ -163,39 +151,13 @@ contract GenericSwapFacetV4 is ILiFi {
             LibUtil.revertWith(res);
         }
 
+        // make sure that minAmount was received
+        uint256 amountReceived = abi.decode(res, (uint256));
+        if (amountReceived < _minAmountOut)
+            revert CumulativeSlippageTooHigh(_minAmountOut, amountReceived);
+
+        // return any positive slippage (i.e. unused sendingAsset tokens)
         _returnPositiveSlippageNative(_receiver);
-
-        // get contract's balance (which will be sent in full to user)
-        address receivingAssetId = _swapData.receivingAssetId;
-        uint256 amountReceived = ERC20(receivingAssetId).balanceOf(
-            address(this)
-        );
-
-        // transfer funds to receiver
-        ERC20(receivingAssetId).safeTransfer(_receiver, amountReceived);
-
-        // emit events (both required for tracking)
-        uint256 fromAmount = _swapData.fromAmount;
-        emit LibSwap.AssetSwapped(
-            _transactionId,
-            callTo,
-            address(0),
-            receivingAssetId,
-            fromAmount,
-            amountReceived,
-            block.timestamp
-        );
-
-        emit ILiFi.LiFiGenericSwapCompleted(
-            _transactionId,
-            _integrator,
-            _referrer,
-            _receiver,
-            address(0),
-            receivingAssetId,
-            fromAmount,
-            amountReceived
-        );
     }
 
     // MULTIPLE SWAPS
@@ -309,24 +271,17 @@ contract GenericSwapFacetV4 is ILiFi {
     function _depositAndSwapERC20Single(
         LibSwap.SwapData calldata _swapData,
         address _receiver
-    ) private {
+    ) private onlyCallsToDexAggregator(_swapData.callTo) {
         ERC20 sendingAsset = ERC20(_swapData.sendingAssetId);
         uint256 fromAmount = _swapData.fromAmount;
         // deposit funds
         sendingAsset.safeTransferFrom(msg.sender, address(this), fromAmount);
 
-        // ensure that contract (callTo) and function selector are whitelisted
-        address callTo = _swapData.callTo;
-        address approveTo = _swapData.approveTo;
-        bytes calldata callData = _swapData.callData;
-        if (
-            !(LibAllowList.contractIsAllowed(callTo) &&
-                LibAllowList.selectorIsAllowed(bytes4(callData[:4])))
-        ) revert ContractCallNotAllowed();
-
         // execute swap
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory res) = callTo.call(callData);
+        (bool success, bytes memory res) = _swapData.callTo.call(
+            _swapData.callData
+        );
         if (!success) {
             LibUtil.revertWith(res);
         }
@@ -484,7 +439,6 @@ contract GenericSwapFacetV4 is ILiFi {
         uint256 _minAmountOut,
         LibSwap.SwapData[] calldata _swapData
     ) private {
-        console2.log("in _transferNativeTokensAndEmitEvent");
         uint256 amountReceived = address(this).balance;
 
         // make sure minAmountOut was received
@@ -495,7 +449,6 @@ contract GenericSwapFacetV4 is ILiFi {
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, ) = _receiver.call{ value: amountReceived }("");
         if (!success) {
-            console2.log("HEYA");
             revert NativeAssetTransferFailed();
         }
 
@@ -540,4 +493,6 @@ contract GenericSwapFacetV4 is ILiFi {
             if (!success) revert NativeAssetTransferFailed();
         }
     }
+
+    receive() external payable {}
 }

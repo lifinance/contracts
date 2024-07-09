@@ -1,26 +1,21 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { Test, DSTest } from "forge-std/Test.sol";
-import { console } from "../utils/Console.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { Vm } from "forge-std/Vm.sol";
-import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
+import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { GenericSwapFacetV4 } from "lifi/Facets/GenericSwapFacetV4.sol";
 import { RouteProcessor4 } from "lifi/Periphery/RouteProcessor4.sol";
-import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
 
-import { UniswapV2Router02 } from "../utils/Interfaces.sol";
-// import { MockUniswapDEX } from "../utils/MockUniswapDEX.sol";
-import { TestHelpers, MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
-import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+import { TestHelpers, MockUniswapDEX, NonETHReceiver, LiFiDiamond, LibSwap, LibAllowList, ERC20, console } from "../utils/TestHelpers.sol";
+
+import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol"; // TODO: replace with SOLADY
 
 // Stub GenericSwapFacet Contract
-contract TestGenericSwapFacetV4 is GenericSwapFacetV4, GenericSwapFacet {
+contract TestGenericSwapFacetV4 is GenericSwapFacetV4 {
+    constructor(
+        address _dexAggregatorAddress
+    ) GenericSwapFacetV4(_dexAggregatorAddress) {}
+
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -34,7 +29,7 @@ contract TestGenericSwapFacetV4 is GenericSwapFacetV4, GenericSwapFacet {
     }
 }
 
-contract TestGenericSwapFacet is GenericSwapFacet {
+contract TestGenericSwapFacetV3 is GenericSwapFacetV3 {
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -48,150 +43,91 @@ contract TestGenericSwapFacet is GenericSwapFacet {
     }
 }
 
-contract GenericSwapFacetV4Test is DSTest, DiamondTest, TestHelpers {
+contract GenericSwapFacetV4Test is TestHelpers {
     using SafeTransferLib for ERC20;
 
-    event LiFiGenericSwapCompleted(
-        bytes32 indexed transactionId,
-        string integrator,
-        string referrer,
-        address receiver,
-        address fromAssetId,
-        address toAssetId,
-        uint256 fromAmount,
-        uint256 toAmount
-    );
-
     // These values are for Mainnet
-    address internal constant USDC_ADDRESS =
-        0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address internal constant USDT_ADDRESS =
-        0xdAC17F958D2ee523a2206206994597C13D831ec7;
-    address internal constant WETH_ADDRESS =
-        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address internal constant DAI_ADDRESS =
-        0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address internal constant USDC_HOLDER =
         0x4B16c5dE96EB2117bBE5fd171E4d203624B014aa;
     address internal constant DAI_HOLDER =
         0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf;
     address internal constant SOME_WALLET =
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
-    address internal constant UNISWAP_V2_ROUTER =
-        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
-    address internal constant FEE_COLLECTOR =
-        0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9;
 
-    // -----
-
-    LiFiDiamond internal diamond;
-    TestGenericSwapFacet internal genericSwapFacet;
+    TestGenericSwapFacetV3 internal genericSwapFacetV3;
     TestGenericSwapFacetV4 internal genericSwapFacetV4;
-    ERC20 internal usdc;
-    ERC20 internal usdt;
-    ERC20 internal dai;
-    ERC20 internal weth;
-    UniswapV2Router02 internal uniswap;
-    FeeCollector internal feeCollector;
     RouteProcessor4 internal routeProcessor;
 
-    function fork() internal {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = 19834820;
-        vm.createSelectFork(rpcUrl, blockNumber);
-    }
+    uint256 defaultMinAmountOutNativeToERC20 = 2991350294;
+    uint256 defaultMinAmountOutERC20ToNative = 32539678644151061;
+    uint256 defaultMinAmountOutERC20ToERC20 = 99868787;
 
     function setUp() public {
-        fork();
+        customBlockNumberForForking = 20266387;
+        initTestBase();
 
         diamond = createDiamond();
-        genericSwapFacet = new TestGenericSwapFacet();
-        genericSwapFacetV4 = new TestGenericSwapFacetV4();
-        usdc = ERC20(USDC_ADDRESS);
-        usdt = ERC20(USDT_ADDRESS);
-        dai = ERC20(DAI_ADDRESS);
-        weth = ERC20(WETH_ADDRESS);
-        uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
-        feeCollector = FeeCollector(FEE_COLLECTOR);
         routeProcessor = new RouteProcessor4(address(0), new address[](0));
+        genericSwapFacetV3 = new TestGenericSwapFacetV3();
+        genericSwapFacetV4 = new TestGenericSwapFacetV4(
+            address(routeProcessor)
+        );
 
-        // add genericSwapFacet (v1) to diamond (for gas usage comparison)
-        bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = genericSwapFacet.swapTokensGeneric.selector;
-        functionSelectors[1] = genericSwapFacet.addDex.selector;
-        functionSelectors[2] = genericSwapFacet.removeDex.selector;
-        functionSelectors[3] = genericSwapFacet
-            .setFunctionApprovalBySignature
-            .selector;
-        addFacet(diamond, address(genericSwapFacet), functionSelectors);
-
-        // add genericSwapFacet (v3) to diamond
-        bytes4[] memory functionSelectorsV3 = new bytes4[](6);
-        functionSelectorsV3[0] = genericSwapFacetV4
+        // add genericSwapFacet (v3) to diamond (for gas usage comparison)
+        bytes4[] memory functionSelectors = new bytes4[](9);
+        functionSelectors[0] = genericSwapFacetV4
             .swapTokensSingleV3ERC20ToERC20
             .selector;
-        functionSelectorsV3[1] = genericSwapFacetV4
+        functionSelectors[1] = genericSwapFacetV4
             .swapTokensSingleV3ERC20ToNative
             .selector;
-        functionSelectorsV3[2] = genericSwapFacetV4
+        functionSelectors[2] = genericSwapFacetV4
             .swapTokensSingleV3NativeToERC20
             .selector;
-        functionSelectorsV3[3] = genericSwapFacetV4
+        functionSelectors[3] = genericSwapFacetV4
             .swapTokensMultipleV3ERC20ToERC20
             .selector;
-        functionSelectorsV3[4] = genericSwapFacetV4
+        functionSelectors[4] = genericSwapFacetV4
             .swapTokensMultipleV3ERC20ToNative
             .selector;
-        functionSelectorsV3[5] = genericSwapFacetV4
+        functionSelectors[5] = genericSwapFacetV4
             .swapTokensMultipleV3NativeToERC20
             .selector;
+        functionSelectors[6] = genericSwapFacetV4.addDex.selector;
+        functionSelectors[7] = genericSwapFacetV4.removeDex.selector;
+        functionSelectors[8] = genericSwapFacetV4
+            .setFunctionApprovalBySignature
+            .selector;
 
-        addFacet(diamond, address(genericSwapFacetV4), functionSelectorsV3);
+        // add v3 to diamond
+        // v4 will be standalone, so we dont add it here
+        addFacet(diamond, address(genericSwapFacetV3), functionSelectors);
+        genericSwapFacetV3 = TestGenericSwapFacetV3(address(diamond));
 
-        genericSwapFacet = TestGenericSwapFacet(address(diamond));
-        genericSwapFacetV4 = TestGenericSwapFacetV4(address(diamond));
-
-        // whitelist uniswap dex with function selectors
-        // v1
-        genericSwapFacet.addDex(address(uniswap));
-        genericSwapFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForTokens.selector
-        );
-        genericSwapFacet.setFunctionApprovalBySignature(
-            uniswap.swapTokensForExactETH.selector
-        );
-        genericSwapFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForETH.selector
-        );
-        genericSwapFacet.setFunctionApprovalBySignature(
-            uniswap.swapExactETHForTokens.selector
-        );
+        // whitelist dexAggregator dex with function selectors
         // v3
-        genericSwapFacetV4.addDex(address(uniswap));
-        genericSwapFacetV4.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForTokens.selector
+        genericSwapFacetV3.addDex(address(routeProcessor));
+        genericSwapFacetV3.setFunctionApprovalBySignature(
+            routeProcessor.processRoute.selector
         );
+
+        // v4
+        genericSwapFacetV4.addDex(address(routeProcessor));
         genericSwapFacetV4.setFunctionApprovalBySignature(
-            uniswap.swapTokensForExactETH.selector
-        );
-        genericSwapFacetV4.setFunctionApprovalBySignature(
-            uniswap.swapExactTokensForETH.selector
-        );
-        genericSwapFacetV4.setFunctionApprovalBySignature(
-            uniswap.swapExactETHForTokens.selector
+            routeProcessor.processRoute.selector
         );
 
         // whitelist feeCollector with function selectors
-        // v1
-        genericSwapFacet.addDex(FEE_COLLECTOR);
-        genericSwapFacet.setFunctionApprovalBySignature(
-            feeCollector.collectTokenFees.selector
-        );
-        genericSwapFacet.setFunctionApprovalBySignature(
-            feeCollector.collectNativeFees.selector
-        );
         // v3
-        genericSwapFacetV4.addDex(FEE_COLLECTOR);
+        genericSwapFacetV3.addDex(address(feeCollector));
+        genericSwapFacetV3.setFunctionApprovalBySignature(
+            feeCollector.collectTokenFees.selector
+        );
+        genericSwapFacetV3.setFunctionApprovalBySignature(
+            feeCollector.collectNativeFees.selector
+        );
+        // v4
+        genericSwapFacetV4.addDex(address(feeCollector));
         genericSwapFacetV4.setFunctionApprovalBySignature(
             feeCollector.collectTokenFees.selector
         );
@@ -199,2027 +135,320 @@ contract GenericSwapFacetV4Test is DSTest, DiamondTest, TestHelpers {
             feeCollector.collectNativeFees.selector
         );
 
-        vm.label(address(genericSwapFacet), "LiFiDiamond");
-        vm.label(WETH_ADDRESS, "WETH_TOKEN");
-        vm.label(DAI_ADDRESS, "DAI_TOKEN");
-        vm.label(USDC_ADDRESS, "USDC_TOKEN");
-        vm.label(UNISWAP_V2_ROUTER, "UNISWAP_V2_ROUTER");
+        vm.label(address(genericSwapFacetV3), "GenericSwapV3 via Diamond");
+        vm.label(address(genericSwapFacetV4), "GenericSwapV4");
+        vm.label(address(routeProcessor), "RouteProcessor");
+        vm.label(ADDRESS_WETH, "WETH_TOKEN");
+        vm.label(ADDRESS_DAI, "DAI_TOKEN");
+        vm.label(ADDRESS_USDC, "USDC_TOKEN");
+        vm.label(ADDRESS_USDT, "USDT_TOKEN");
+        vm.label(ADDRESS_UNISWAP, "ADDRESS_UNISWAP");
     }
 
-    // SINGLE SWAP ERC20 >> ERC20
-    function _produceSwapDataERC20ToERC20(
-        address facetAddress
-    )
-        private
-        returns (LibSwap.SwapData[] memory swapData, uint256 minAmountOut)
-    {
-        // Swap USDC to DAI
-        address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = DAI_ADDRESS;
+    // SINGLE NATIVE TO ERC20 (ETH > USDC)
 
-        uint256 amountIn = 100 * 10 ** usdc.decimals();
-
-        // Calculate minimum input amount
-        uint256[] memory amounts = uniswap.getAmountsOut(amountIn, path);
-        minAmountOut = amounts[0];
-
-        // prepare swapData
-        swapData = new LibSwap.SwapData[](1);
-        swapData[0] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
-            USDC_ADDRESS,
-            DAI_ADDRESS,
-            amountIn,
-            abi.encodeWithSelector(
-                uniswap.swapExactTokensForTokens.selector,
-                amountIn,
-                minAmountOut,
-                path,
-                address(genericSwapFacet),
-                block.timestamp + 20 minutes
-            ),
-            true
-        );
-
-        vm.startPrank(USDC_HOLDER);
-        usdc.approve(facetAddress, amountIn);
-        vm.stopPrank();
-    }
-
-    function test_CanSwapSingleERC20ToERC20_V1() public {
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToERC20(address(genericSwapFacet));
-
-        vm.startPrank(USDC_HOLDER);
-        // expected exact amountOut based on the liquidity available in the specified block for this test case
-        uint256 expAmountOut = 99491781613896927553;
-
-        uint256 gasLeftBef = gasleft();
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            DAI_ADDRESS, // toAssetId,
-            swapData[0].fromAmount, // fromAmount,
-            expAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacet.swapTokensGeneric(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used: V1", gasUsed);
-
-        // bytes memory callData = abi.encodeWithSelector(
-        //     genericSwapFacet.swapTokensGeneric.selector,
-        //     "",
-        //     "integrator",
-        //     "referrer",
-        //     payable(SOME_WALLET),
-        //     minAmountOut,
-        //     swapData
-        // );
-
-        // console.log("Calldata V1:");
-        // console.logBytes(callData);
-
-        // vm.stopPrank();
-    }
-
-    function test_CanSwapSingleERC20ToERC20_V2() public {
-        // get swapData for USDC > DAI swap
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToERC20(address(genericSwapFacet));
-
-        // pre-register max approval between diamond and dex to get realistic gas usage
-        vm.startPrank(address(genericSwapFacet));
-        usdc.approve(swapData[0].approveTo, type(uint256).max);
-        vm.stopPrank();
-
-        vm.startPrank(USDC_HOLDER);
-
-        // expected exact amountOut based on the liquidity available in the specified block for this test case
-        uint256 expAmountOut = 99491781613896927553;
-
-        uint256 gasLeftBef = gasleft();
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            DAI_ADDRESS, // toAssetId,
-            swapData[0].fromAmount, // fromAmount,
-            expAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacetV4.swapTokensSingleV3ERC20ToERC20(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData[0]
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used: V2", gasUsed);
-
-        // bytes memory callData = abi.encodeWithSelector(
-        //     genericSwapFacetV4.swapTokensSingleV3ERC20ToERC20.selector,
-        //     "",
-        //     "integrator",
-        //     "referrer",
-        //     payable(SOME_WALLET),
-        //     minAmountOut,
-        //     swapData[0]
-        // );
-
-        // console.log("Calldata V2:");
-        // console.logBytes(callData);
-        vm.stopPrank();
-    }
-
-    function test_WillRevertIfSlippageIsTooHighSingleERC20ToERC20() public {
-        // get swapData for USDC > DAI swap
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToERC20(address(genericSwapFacet));
-        vm.startPrank(USDC_HOLDER);
-
-        // deploy, fund and whitelist a MockDEX
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(genericSwapFacetV4),
-            DAI_ADDRESS,
-            minAmountOut - 1,
-            0
-        );
-
-        // update SwapData
-        swapData[0].callTo = swapData[0].approveTo = address(mockDEX);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                CumulativeSlippageTooHigh.selector,
-                minAmountOut,
-                minAmountOut - 1
-            )
-        );
-
-        genericSwapFacetV4.swapTokensSingleV3ERC20ToERC20(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData[0]
-        );
-
-        vm.stopPrank();
-    }
-
-    function test_WillRevertIfDEXIsNotWhitelistedButApproveToIsSingleERC20()
+    function test_CanExecuteSingleSwapNativeToERC20_V3()
         public
-    {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToERC20(address(genericSwapFacetV4));
-
-        vm.startPrank(USDC_HOLDER);
-
-        // update approveTo address in swapData
-        swapData[0].approveTo = SOME_WALLET;
-
-        vm.expectRevert(ContractCallNotAllowed.selector);
-
-        genericSwapFacetV4.swapTokensSingleV3ERC20ToERC20(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData[0]
-        );
-    }
-
-    function test_CanSwapSingleERC20ToERC20WithNonZeroAllowance() public {
-        // get swapData for USDC > DAI swap
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToERC20(address(genericSwapFacet));
-
-        // expected exact amountOut based on the liquidity available in the specified block for this test case
-        uint256 expAmountOut = 99491781613896927553;
-
-        // pre-register max approval between diamond and dex to get realistic gas usage
-        vm.startPrank(address(genericSwapFacet));
-        usdc.approve(swapData[0].approveTo, 1);
-        vm.stopPrank();
-
-        vm.startPrank(USDC_HOLDER);
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            DAI_ADDRESS, // toAssetId,
-            swapData[0].fromAmount, // fromAmount,
-            expAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacetV4.swapTokensSingleV3ERC20ToERC20(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData[0]
-        );
-
-        vm.stopPrank();
-    }
-
-    function test_CanSwapSingleERC20ToERC20WithZeroAllowance() public {
-        // get swapData for USDC > DAI swap
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToERC20(address(genericSwapFacet));
-
-        // expected exact amountOut based on the liquidity available in the specified block for this test case
-        uint256 expAmountOut = 99491781613896927553;
-
-        // pre-register max approval between diamond and dex to get realistic gas usage
-        vm.startPrank(address(genericSwapFacet));
-        usdc.approve(swapData[0].approveTo, 0);
-        vm.stopPrank();
-
-        vm.startPrank(USDC_HOLDER);
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            DAI_ADDRESS, // toAssetId,
-            swapData[0].fromAmount, // fromAmount,
-            expAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacetV4.swapTokensSingleV3ERC20ToERC20(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData[0]
-        );
-
-        vm.stopPrank();
-    }
-
-    // SINGLE SWAP ERC20 >> Native
-    function _produceSwapDataERC20ToNative(
-        address facetAddress
-    )
-        private
-        returns (LibSwap.SwapData[] memory swapData, uint256 minAmountOut)
-    {
-        // Swap USDC to Native ETH
-        address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = WETH_ADDRESS;
-
-        minAmountOut = 2 ether;
-
-        // Calculate minimum input amount
-        uint256[] memory amounts = uniswap.getAmountsIn(minAmountOut, path);
-        uint256 amountIn = amounts[0];
-
-        // prepare swapData
-        swapData = new LibSwap.SwapData[](1);
-        swapData[0] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
-            USDC_ADDRESS,
-            address(0),
-            amountIn,
-            abi.encodeWithSelector(
-                uniswap.swapTokensForExactETH.selector,
-                minAmountOut,
-                amountIn,
-                path,
-                address(genericSwapFacet),
-                block.timestamp + 20 minutes
-            ),
-            true
-        );
-
-        vm.startPrank(USDC_HOLDER);
-        usdc.approve(facetAddress, amountIn);
-        vm.stopPrank();
-    }
-
-    function test_CanSwapSingleERC20ToNative_V1() public {
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToNative(address(genericSwapFacet));
-
-        vm.startPrank(USDC_HOLDER);
-
-        uint256 gasLeftBef = gasleft();
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            address(0), // toAssetId,
-            swapData[0].fromAmount, // fromAmount,
-            minAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacet.swapTokensGeneric(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
-
-        vm.stopPrank();
-    }
-
-    function test_CanSwapSingleERC20ToNative_V2() public {
-        // get swapData USDC > ETH (native)
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToNative(address(genericSwapFacet));
-
-        // pre-register max approval between diamond and dex to get realistic gas usage
-        vm.startPrank(address(genericSwapFacet));
-        usdc.approve(swapData[0].approveTo, type(uint256).max);
-        vm.stopPrank();
-
-        vm.startPrank(USDC_HOLDER);
-
-        uint256 gasLeftBef = gasleft();
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            address(0), // toAssetId,
-            swapData[0].fromAmount, // fromAmount,
-            minAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacetV4.swapTokensSingleV3ERC20ToNative(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData[0]
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
-
-        vm.stopPrank();
-    }
-
-    function test_WillRevertIfSlippageIsTooHighSingleERC20ToNative() public {
-        // get swapData USDC > ETH (native)
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToNative(address(genericSwapFacet));
-
-        vm.startPrank(USDC_HOLDER);
-
-        // deploy, fund and whitelist a MockDEX
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(genericSwapFacetV4),
-            address(0),
-            minAmountOut - 1,
-            0
-        );
-
-        // update SwapData
-        swapData[0].callTo = swapData[0].approveTo = address(mockDEX);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                CumulativeSlippageTooHigh.selector,
-                minAmountOut,
-                minAmountOut - 1
-            )
-        );
-
-        genericSwapFacetV4.swapTokensSingleV3ERC20ToNative(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData[0]
-        );
-
-        vm.stopPrank();
-    }
-
-    function test_ERC20SwapWillRevertIfSwapFails() public {
-        // get swapData USDC > ETH (native)
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToNative(address(genericSwapFacet));
-
-        vm.startPrank(USDC_HOLDER);
-
-        // deploy, fund and whitelist a MockDEX
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(genericSwapFacetV4),
-            address(0),
-            0,
-            0
-        );
-
-        // update SwapData
-        bytes memory revertReason = abi.encodePacked("Just because");
-        swapData[0].callTo = swapData[0].approveTo = address(mockDEX);
-
-        swapData[0].callData = abi.encodeWithSelector(
-            mockDEX.mockSwapWillRevertWithReason.selector,
-            revertReason
-        );
-
-        vm.expectRevert(revertReason);
-
-        genericSwapFacetV4.swapTokensSingleV3ERC20ToNative(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData[0]
-        );
-
-        vm.stopPrank();
-    }
-
-    function test_WillRevertIfDEXIsNotWhitelistedSingleERC20() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToNative(address(genericSwapFacetV4));
-
-        vm.startPrank(USDC_HOLDER);
-
-        // remove dex from whitelist
-        genericSwapFacetV4.removeDex(UNISWAP_V2_ROUTER);
-
-        vm.expectRevert(ContractCallNotAllowed.selector);
-
-        genericSwapFacetV4.swapTokensSingleV3ERC20ToNative(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData[0]
-        );
-    }
-
-    function test_SingleERC20ToNativeWillRevertIfNativeAssetTransferFails()
-        public
-    {
-        // get swapData USDC > ETH (native)
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataERC20ToNative(address(genericSwapFacet));
-
-        vm.startPrank(USDC_HOLDER);
-
-        // deploy a contract that cannot receive ETH
-        NonETHReceiver nonETHReceiver = new NonETHReceiver();
-
-        vm.expectRevert(NativeAssetTransferFailed.selector);
-
-        genericSwapFacetV4.swapTokensSingleV3ERC20ToNative(
-            "",
-            "integrator",
-            "referrer",
-            payable(address(nonETHReceiver)), // use nonETHReceiver for testing
-            minAmountOut,
-            swapData[0]
-        );
-
-        vm.stopPrank();
-    }
-
-    // SINGLE SWAP NATIVE >> ERC20
-    function _produceSwapDataNativeToERC20()
-        private
-        view
-        returns (LibSwap.SwapData[] memory swapData, uint256 minAmountOut)
-    {
-        // Swap native to USDC
-        address[] memory path = new address[](2);
-        path[0] = WETH_ADDRESS;
-        path[1] = USDC_ADDRESS;
-
-        uint256 amountIn = 2 ether;
-
-        // Calculate minimum input amount
-        uint256[] memory amounts = uniswap.getAmountsOut(amountIn, path);
-        minAmountOut = amounts[1];
-
-        // prepare swapData
-        swapData = new LibSwap.SwapData[](1);
-        swapData[0] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
-            address(0),
-            USDC_ADDRESS,
-            amountIn,
-            abi.encodeWithSelector(
-                uniswap.swapExactETHForTokens.selector,
-                minAmountOut,
-                path,
-                address(genericSwapFacet),
-                block.timestamp + 20 minutes
-            ),
-            true
-        );
-    }
-
-    function test_CanSwapSingleNativeToERC20_V1() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataNativeToERC20();
-
-        uint256 gasLeftBef = gasleft();
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            address(0), // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
-            swapData[0].fromAmount, // fromAmount,
-            minAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacet.swapTokensGeneric{ value: swapData[0].fromAmount }(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used: ", gasUsed);
-    }
-
-    function test_CanSwapSingleNativeToERC20_V2() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataNativeToERC20();
-
-        uint256 gasLeftBef = gasleft();
-
-        genericSwapFacetV4.swapTokensSingleV3NativeToERC20{
-            value: swapData[0].fromAmount
-        }(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData[0]
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
-    }
-
-    function test_WillRevertIfDEXIsNotWhitelistedSingleNative() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataNativeToERC20();
-
-        // remove dex from whitelist
-        genericSwapFacetV4.removeDex(UNISWAP_V2_ROUTER);
-
-        vm.expectRevert(ContractCallNotAllowed.selector);
-
-        genericSwapFacetV4.swapTokensSingleV3NativeToERC20{
-            value: swapData[0].fromAmount
-        }(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData[0]
-        );
-    }
-
-    function test_NativeSwapWillRevertIfSwapFails() public {
-        // get swapData USDC > ETH (native)
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataNativeToERC20();
-
-        // deploy, fund and whitelist a MockDEX
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(genericSwapFacetV4),
-            address(0),
-            0,
-            0
-        );
-
-        // update SwapData
-        bytes memory revertReason = abi.encodePacked("Some reason");
-        swapData[0].callTo = swapData[0].approveTo = address(mockDEX);
-
-        swapData[0].callData = abi.encodeWithSelector(
-            mockDEX.mockSwapWillRevertWithReason.selector,
-            revertReason
-        );
-
-        vm.expectRevert(revertReason);
-
-        genericSwapFacetV4.swapTokensSingleV3NativeToERC20(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData[0]
-        );
-    }
-
-    function test_WillRevertIfSlippageIsTooHighSingleNativeToERC20() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 minAmountOut
-        ) = _produceSwapDataNativeToERC20();
-
-        // deploy, fund and whitelist a MockDEX
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(genericSwapFacetV4),
-            USDC_ADDRESS,
-            minAmountOut - 1,
-            0
-        );
-
-        // update SwapData
-        swapData[0].callTo = swapData[0].approveTo = address(mockDEX);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                CumulativeSlippageTooHigh.selector,
-                minAmountOut,
-                minAmountOut - 1
-            )
-        );
-
-        genericSwapFacetV4.swapTokensSingleV3NativeToERC20{ value: 2 ether }(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData[0]
-        );
-    }
-
-    // MULTISWAP FROM ERC20 TO ERC20
-
-    function _produceSwapDataMultiswapFromERC20TOERC20(
-        address facetAddress
-    )
-        private
-        returns (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_RECEIVER,
+            int256(defaultMinAmountOutNativeToERC20)
         )
     {
-        // Swap1: USDC to DAI
-        address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = DAI_ADDRESS;
-
-        amountIn = 10 * 10 ** usdc.decimals();
-
-        // Calculate expected DAI amount to be received
-        uint256[] memory amounts = uniswap.getAmountsOut(amountIn, path);
-        uint256 swappedAmountDAI = amounts[0];
-
-        // prepare swapData
-        swapData = new LibSwap.SwapData[](2);
-        swapData[0] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
-            USDC_ADDRESS,
-            DAI_ADDRESS,
-            amountIn,
-            abi.encodeWithSelector(
-                uniswap.swapExactTokensForTokens.selector,
-                amountIn,
-                swappedAmountDAI,
-                path,
-                address(genericSwapFacet),
-                block.timestamp + 20 minutes
-            ),
-            true
-        );
-
-        // Swap2: DAI to WETH
-        path = new address[](2);
-        path[0] = DAI_ADDRESS;
-        path[1] = WETH_ADDRESS;
-
-        // Calculate required DAI input amount
-        amounts = uniswap.getAmountsOut(swappedAmountDAI, path);
-        minAmountOut = amounts[1];
-
-        swapData[1] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
-            DAI_ADDRESS,
-            WETH_ADDRESS,
-            swappedAmountDAI,
-            abi.encodeWithSelector(
-                uniswap.swapExactTokensForTokens.selector,
-                swappedAmountDAI,
-                minAmountOut,
-                path,
-                address(genericSwapFacet),
-                block.timestamp + 20 minutes
-            ),
-            false
-        );
-
-        vm.startPrank(USDC_HOLDER);
-        usdc.approve(facetAddress, 10 * 10 ** usdc.decimals());
-    }
-
-    function test_CanSwapMultipleFromERC20_V1() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapFromERC20TOERC20(
-                address(genericSwapFacetV4)
-            );
-
         uint256 gasLeftBef = gasleft();
 
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            WETH_ADDRESS, // toAssetId,
-            amountIn, // fromAmount,
-            minAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacet.swapTokensGeneric(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET),
-            minAmountOut,
-            swapData
-        );
+        (bool success, ) = address(genericSwapFacetV3).call{
+            value: defaultNativeAmount
+        }(_getGenericSwapCallDataSingle(true, SwapCase.NativeToERC20));
+        if (!success) revert();
 
         uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
-
-        vm.stopPrank();
+        console.log("gas used: V3", gasUsed);
     }
 
-    function test_CanSwapMultipleFromERC20_V2() public {
-        // ACTIVATE THIS CODE TO TEST GAS USAGE EXCL. MAX APPROVAL
-        vm.startPrank(address(genericSwapFacet));
-        dai.approve(address(uniswap), type(uint256).max);
-        vm.stopPrank();
-
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapFromERC20TOERC20(
-                address(genericSwapFacetV4)
-            );
-
+    function test_CanExecuteSingleSwapNativeToERC20_V4()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_RECEIVER,
+            int256(defaultMinAmountOutNativeToERC20)
+        )
+    {
         uint256 gasLeftBef = gasleft();
 
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            WETH_ADDRESS, // toAssetId,
-            amountIn, // fromAmount,
-            minAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacetV4.swapTokensMultipleV3ERC20ToERC20(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET),
-            minAmountOut,
-            swapData
-        );
+        (bool success, ) = address(genericSwapFacetV4).call{
+            value: defaultNativeAmount
+        }(_getGenericSwapCallDataSingle(false, SwapCase.NativeToERC20));
+        if (!success) revert();
 
         uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
-
-        // bytes memory callData = abi.encodeWithSelector(
-        //     genericSwapFacetV4.swapTokensMultipleV3ERC20ToERC20.selector,
-        //     "",
-        //     "integrator",
-        //     "referrer",
-        //     payable(SOME_WALLET),
-        //     minAmountOut,
-        //     swapData
-        // );
-
-        // console.log("Calldata V2:");
-        // console.logBytes(callData);
-
-        vm.stopPrank();
+        console.log("gas used: V4", gasUsed);
     }
 
-    function test_MultiSwapERC20WillRevertIfSwapFails() public {
-        // get swapData USDC > ETH (native)
-        (
-            LibSwap.SwapData[] memory swapData,
-            ,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapFromERC20TOERC20(
-                address(genericSwapFacet)
-            );
+    // SINGLE ERC20 TO Native (USDC > ETH)
 
-        // deploy, fund and whitelist a MockDEX
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(genericSwapFacetV4),
+    function test_CanExecuteSingleSwapERC20ToNative_V3()
+        public
+        assertBalanceChange(
             address(0),
-            0,
-            0
+            USER_RECEIVER,
+            int256(32610177968847511)
+        )
+    {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(genericSwapFacetV3), defaultUSDCAmount);
+
+        uint256 gasLeftBef = gasleft();
+
+        (bool success, ) = address(genericSwapFacetV3).call(
+            _getGenericSwapCallDataSingle(true, SwapCase.ERC20ToNative)
         );
+        if (!success) revert();
 
-        // update SwapData
-        bytes memory revertReason = abi.encodePacked("Some reason");
-        swapData[1].callTo = swapData[1].approveTo = address(mockDEX);
+        uint256 gasUsed = gasLeftBef - gasleft();
+        console.log("gas used: V3", gasUsed);
+    }
 
-        swapData[1].callData = abi.encodeWithSelector(
-            mockDEX.mockSwapWillRevertWithReason.selector,
-            revertReason
-        );
-
-        vm.expectRevert(revertReason);
-
-        genericSwapFacetV4.swapTokensMultipleV3ERC20ToERC20(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData
-        );
-
+    function test_CanExecuteSingleSwapERC20ToNative_V4()
+        public
+        assertBalanceChange(
+            address(0),
+            USER_RECEIVER,
+            int256(defaultMinAmountOutERC20ToNative)
+        )
+    {
+        // ensure that max approval exists from GenericSwapFacet to DEX aggregator
+        vm.startPrank(address(genericSwapFacetV4));
+        usdc.approve(address(routeProcessor), type(uint256).max);
         vm.stopPrank();
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(genericSwapFacetV4), defaultUSDCAmount);
+
+        uint256 gasLeftBef = gasleft();
+
+        (bool success, ) = address(genericSwapFacetV4).call(
+            _getGenericSwapCallDataSingle(false, SwapCase.ERC20ToNative)
+        );
+        if (!success) revert();
+
+        uint256 gasUsed = gasLeftBef - gasleft();
+        console.log("gas used: V4", gasUsed);
     }
 
-    function test_WillRevertIfDEXIsNotWhitelistedMulti() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            ,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapFromERC20TOERC20(
-                address(genericSwapFacetV4)
-            );
+    // SINGLE ERC20 TO ERC20 (USDC > USDT)
 
-        // remove dex from whitelist
-        genericSwapFacetV4.removeDex(UNISWAP_V2_ROUTER);
+    function test_CanExecuteSingleSwapERC20ToERC20_V3()
+        public
+        assertBalanceChange(
+            ADDRESS_USDT,
+            USER_RECEIVER,
+            int256(defaultMinAmountOutERC20ToERC20)
+        )
+    {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(genericSwapFacetV3), defaultUSDCAmount);
 
-        vm.expectRevert(ContractCallNotAllowed.selector);
+        uint256 gasLeftBef = gasleft();
 
-        genericSwapFacetV4.swapTokensMultipleV3ERC20ToERC20(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData
+        bytes memory callData = _getGenericSwapCallDataSingle(
+            true,
+            SwapCase.ERC20ToERC20
         );
+
+        (bool success, ) = address(genericSwapFacetV3).call(
+            _getGenericSwapCallDataSingle(true, SwapCase.ERC20ToERC20)
+        );
+        if (!success) revert();
+
+        uint256 gasUsed = gasLeftBef - gasleft();
+        console.log("gas used: V3", gasUsed);
     }
 
-    function test_WillRevertIfDEXIsNotWhitelistedButApproveToIsMulti() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            ,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapFromERC20TOERC20(
-                address(genericSwapFacetV4)
-            );
-
-        // update approveTo address in swapData
-        swapData[1].callTo = SOME_WALLET;
-
-        vm.expectRevert(ContractCallNotAllowed.selector);
-
-        genericSwapFacetV4.swapTokensMultipleV3ERC20ToERC20(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData
-        );
-    }
-
-    function test_WillRevertIfSlippageIsTooHighMultiToERC20() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            ,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapFromERC20TOERC20(
-                address(genericSwapFacetV4)
-            );
-
-        // deploy, fund and whitelist a MockDEX
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(genericSwapFacetV4),
-            WETH_ADDRESS,
-            minAmountOut - 1,
-            0
-        );
-
-        // update SwapData
-        swapData[1].callTo = swapData[1].approveTo = address(mockDEX);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                CumulativeSlippageTooHigh.selector,
-                minAmountOut,
-                minAmountOut - 1
-            )
-        );
-
-        genericSwapFacetV4.swapTokensMultipleV3ERC20ToERC20(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData
-        );
-
+    function test_CanExecuteSingleSwapERC20ToERC20_V4()
+        public
+        assertBalanceChange(
+            ADDRESS_USDT,
+            USER_RECEIVER,
+            int256(defaultMinAmountOutERC20ToERC20)
+        )
+    {
+        // ensure that max approval exists from GenericSwapFacet to DEX aggregator
+        vm.startPrank(address(genericSwapFacetV4));
+        usdc.approve(address(routeProcessor), type(uint256).max);
         vm.stopPrank();
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(genericSwapFacetV4), defaultUSDCAmount);
+
+        uint256 gasLeftBef = gasleft();
+
+        (bool success, ) = address(genericSwapFacetV4).call(
+            _getGenericSwapCallDataSingle(false, SwapCase.ERC20ToERC20)
+        );
+        if (!success) revert();
+
+        uint256 gasUsed = gasLeftBef - gasleft();
+        console.log("gas used: V4", gasUsed);
     }
 
-    // MULTISWAP FROM NATIVE TO ERC20
+    // ------ HELPER FUNCTIONS
 
-    function _produceSwapDataMultiswapFromNativeToERC20()
-        private
+    enum SwapCase {
+        NativeToERC20,
+        ERC20ToERC20,
+        ERC20ToNative
+    }
+
+    function _getValidDexAggregatorCalldata(
+        bool isV3,
+        SwapCase swapCase
+    ) internal view returns (bytes memory callData) {
+        if (swapCase == SwapCase.NativeToERC20) {
+            if (isV3)
+                // swapped tokens will be sent to diamond (and then forwarded to USER_RECEIVER by the facet)
+                return
+                    hex"2646478b000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000001ea36d8000000000000000000000000020C24B58c803c6e487a41D3Fd87788ef0bBdB2a00000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000700301ffff02012E8135bE71230c6B1B4045696d41C09Db0414226C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc204C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2002E8135bE71230c6B1B4045696d41C09Db041422600020C24B58c803c6e487a41D3Fd87788ef0bBdB2a0009c400000000000000000000000000000000";
+            else {
+                // swapped tokens will be sent directly to USER_RECEIVER
+                return
+                    hex"2646478b000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee000000000000000000000000000000000000000000000000002386f26fc10000000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000001ea36d80000000000000000000000000000000000000000000000000000000abc65432100000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000700301ffff02012E8135bE71230c6B1B4045696d41C09Db0414226C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc204C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2002E8135bE71230c6B1B4045696d41C09Db0414226000000000000000000000000000000000abC6543210009c400000000000000000000000000000000";
+            }
+        }
+        if (swapCase == SwapCase.ERC20ToERC20) {
+            if (isV3)
+                // swapped tokens will be sent to diamond (and then forwarded to USER_RECEIVER by the facet)
+                return
+                    hex"2646478b000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000005f5e100000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec70000000000000000000000000000000000000000000000000000000005ec3e74000000000000000000000000020c24b58c803c6e487a41d3fd87788ef0bbdb2a00000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000004502A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4801ffff003041CbD36888bECc7bbCBc0045E3B1f144466f5f01020C24B58c803c6e487a41D3Fd87788ef0bBdB2a000bb8000000000000000000000000000000000000000000000000000000";
+            else {
+                // swapped tokens will be sent directly to USER_RECEIVER
+                return
+                    hex"2646478b000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000005f5e100000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec70000000000000000000000000000000000000000000000000000000005edbbbb0000000000000000000000000000000000000000000000000000000abc65432100000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000004502A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4801ffff003041CbD36888bECc7bbCBc0045E3B1f144466f5f010000000000000000000000000000000abC654321000bb8000000000000000000000000000000000000000000000000000000";
+            }
+        }
+        if (swapCase == SwapCase.ERC20ToNative) {
+            if (isV3) {
+                // swapped tokens will be sent to diamond (and then forwarded to USER_RECEIVER by the facet)
+                return
+                    hex"2646478b000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000005f5e100000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000000000000073467d7b86a48a000000000000000000000000020c24b58c803c6e487a41d3fd87788ef0bbdb2a00000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000007302A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4801ffff006E1fbeeABA87BAe1100d95f8340dc27aD7C8427b01F88d7F6357910E01e6e3A4f890B7Ca86471Eb6Ac000bb801C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc201ffff0200020C24B58c803c6e487a41D3Fd87788ef0bBdB2a00000000000000000000000000";
+            } else {
+                // swapped tokens will be sent directly to USER_RECEIVER
+                return
+                    hex"2646478b000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000005f5e100000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee000000000000000000000000000000000000000000000000007378cf172f087a0000000000000000000000000000000000000000000000000000000abc65432100000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000007302A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB4801ffff00B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc01F88d7F6357910E01e6e3A4f890B7Ca86471Eb6Ac000bb801C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc201ffff02000000000000000000000000000000000abC65432100000000000000000000000000";
+            }
+        }
+
+        // should not reach this code
+        revert(hex"dead");
+    }
+
+    function _getValidSingleSwapDataViaDexAggregator(
+        bool isV3,
+        SwapCase swapCase
+    ) internal view returns (LibSwap.SwapData memory swapData) {
+        (
+            address sendingAssetId,
+            address receivingAssetId,
+            uint256 inputAmount
+        ) = _getSwapDataParameters(swapCase);
+
+        swapData = LibSwap.SwapData(
+            address(routeProcessor),
+            address(routeProcessor),
+            sendingAssetId,
+            receivingAssetId,
+            inputAmount,
+            _getValidDexAggregatorCalldata(isV3, swapCase),
+            swapCase == SwapCase.NativeToERC20 ? false : true
+        );
+    }
+
+    function _getValidMultiSwapData(
+        bool isV3,
+        SwapCase swapCase,
+        bool fromNative
+    ) internal view returns (LibSwap.SwapData[] memory swapData) {
+        (
+            address sendingAssetId,
+            address receivingAssetId,
+            uint256 inputAmount
+        ) = _getSwapDataParameters(swapCase);
+
+        swapData = new LibSwap.SwapData[](2);
+        swapData[0] = _getFeeCollectorSwapData(fromNative);
+        swapData[1] = LibSwap.SwapData(
+            address(routeProcessor),
+            address(routeProcessor),
+            sendingAssetId,
+            receivingAssetId,
+            inputAmount,
+            _getValidDexAggregatorCalldata(isV3, swapCase),
+            swapCase == SwapCase.NativeToERC20 ? false : true
+        );
+    }
+
+    function _getSwapDataParameters(
+        SwapCase swapCase
+    )
+        internal
         view
         returns (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
+            address sendingAssetId,
+            address receivingAssetId,
+            uint256 inputAmount
         )
     {
-        // Swap1: Native to DAI
-        address[] memory path = new address[](2);
-        path[0] = WETH_ADDRESS;
-        path[1] = DAI_ADDRESS;
+        sendingAssetId = swapCase == SwapCase.NativeToERC20
+            ? address(0)
+            : ADDRESS_USDC;
+        receivingAssetId = swapCase == SwapCase.ERC20ToNative
+            ? address(0)
+            : swapCase == SwapCase.ERC20ToERC20
+            ? ADDRESS_USDT
+            : ADDRESS_USDC;
 
-        amountIn = 2 ether;
+        inputAmount = swapCase == SwapCase.NativeToERC20
+            ? defaultNativeAmount
+            : defaultUSDCAmount;
+    }
 
-        // Calculate expected DAI amount to be received
-        uint256[] memory amounts = uniswap.getAmountsOut(amountIn, path);
-        uint256 swappedAmountDAI = amounts[1];
+    function _getGenericSwapCallDataSingle(
+        bool isV3,
+        SwapCase swapCase
+    ) internal view returns (bytes memory callData) {
+        bytes4 selector = swapCase == SwapCase.ERC20ToERC20
+            ? genericSwapFacetV4.swapTokensSingleV3ERC20ToERC20.selector
+            : swapCase == SwapCase.ERC20ToNative
+            ? genericSwapFacetV4.swapTokensSingleV3ERC20ToNative.selector
+            : genericSwapFacetV4.swapTokensSingleV3NativeToERC20.selector;
 
-        // prepare swapData
-        swapData = new LibSwap.SwapData[](2);
-        swapData[0] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
-            address(0),
-            DAI_ADDRESS,
-            amountIn,
+        uint256 minAmountOut = swapCase == SwapCase.ERC20ToERC20
+            ? defaultMinAmountOutERC20ToERC20
+            : swapCase == SwapCase.ERC20ToNative
+            ? defaultMinAmountOutERC20ToNative
+            : defaultMinAmountOutNativeToERC20;
+
+        callData = _attachTransactionIdToCallData(
             abi.encodeWithSelector(
-                uniswap.swapExactETHForTokens.selector,
-                swappedAmountDAI,
-                path,
-                address(genericSwapFacet),
-                block.timestamp + 20 minutes
-            ),
-            true
-        );
-
-        // Swap2: DAI to USDC
-        path = new address[](2);
-        path[0] = DAI_ADDRESS;
-        path[1] = USDC_ADDRESS;
-
-        // Calculate required DAI input amount
-        amounts = uniswap.getAmountsOut(swappedAmountDAI, path);
-        minAmountOut = amounts[1];
-
-        swapData[1] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
-            DAI_ADDRESS,
-            USDC_ADDRESS,
-            swappedAmountDAI,
-            abi.encodeWithSelector(
-                uniswap.swapExactTokensForTokens.selector,
-                swappedAmountDAI,
+                selector,
+                "",
+                "",
+                "",
+                payable(USER_RECEIVER),
                 minAmountOut,
-                path,
-                address(genericSwapFacet),
-                block.timestamp + 20 minutes
-            ),
-            false
-        );
-    }
-
-    function test_CanSwapMultipleFromNativeToERC20_V1() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapFromNativeToERC20();
-
-        uint256 gasLeftBef = gasleft();
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            address(0), // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
-            amountIn, // fromAmount,
-            minAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacet.swapTokensGeneric{ value: amountIn }(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET),
-            minAmountOut,
-            swapData
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
-    }
-
-    function test_CanSwapMultipleFromNativeToERC20_V2() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapFromNativeToERC20();
-
-        uint256 gasLeftBef = gasleft();
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            address(0), // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
-            amountIn, // fromAmount,
-            minAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacetV4.swapTokensMultipleV3NativeToERC20{
-            value: amountIn
-        }(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET),
-            minAmountOut,
-            swapData
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
-    }
-
-    function test_MultiSwapNativeWillRevertIfSwapFails() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapFromNativeToERC20();
-
-        // deploy, fund and whitelist a MockDEX
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(genericSwapFacetV4),
-            address(0),
-            0,
-            0
-        );
-
-        // update SwapData
-        bytes memory revertReason = abi.encodePacked("Some reason");
-        swapData[0].callTo = swapData[0].approveTo = address(mockDEX);
-
-        swapData[0].callData = abi.encodeWithSelector(
-            mockDEX.mockSwapWillRevertWithReason.selector,
-            revertReason
-        );
-
-        vm.expectRevert(revertReason);
-
-        genericSwapFacetV4.swapTokensMultipleV3NativeToERC20{
-            value: amountIn
-        }(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData
-        );
-    }
-
-    function test_WillRevertIfDEXIsNotWhitelistedButApproveToIsMultiNative()
-        public
-    {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            ,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapFromERC20TOERC20(
-                address(genericSwapFacetV4)
-            );
-
-        // update approveTo address in swapData
-        swapData[0].approveTo = SOME_WALLET;
-
-        vm.expectRevert(ContractCallNotAllowed.selector);
-
-        genericSwapFacetV4.swapTokensMultipleV3ERC20ToERC20(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData
-        );
-    }
-
-    // MULTISWAP COLLECT ERC20 FEE AND SWAP to ERC20
-
-    function _produceSwapDataMultiswapERC20FeeAndSwapToERC20()
-        private
-        view
-        returns (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        )
-    {
-        amountIn = 100 * 10 ** dai.decimals();
-
-        uint integratorFee = 5 * 10 ** dai.decimals();
-        uint lifiFee = 0;
-        address integratorAddress = address(0xb33f); // some random address
-
-        // Swap1: Collect ERC20 fee (DAI)
-        // prepare swapData
-        swapData = new LibSwap.SwapData[](2);
-        swapData[0] = LibSwap.SwapData(
-            FEE_COLLECTOR,
-            FEE_COLLECTOR,
-            DAI_ADDRESS,
-            DAI_ADDRESS,
-            amountIn,
-            abi.encodeWithSelector(
-                feeCollector.collectTokenFees.selector,
-                DAI_ADDRESS,
-                integratorFee,
-                lifiFee,
-                integratorAddress
-            ),
-            true
-        );
-
-        uint256 amountOutFeeCollection = amountIn - integratorFee - lifiFee;
-
-        // Swap2: DAI to USDC
-        address[] memory path = new address[](2);
-        path[0] = DAI_ADDRESS;
-        path[1] = USDC_ADDRESS;
-
-        // Calculate required DAI input amount
-        uint256[] memory amounts = uniswap.getAmountsOut(
-            amountOutFeeCollection,
-            path
-        );
-        minAmountOut = amounts[1];
-
-        swapData[1] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
-            DAI_ADDRESS,
-            USDC_ADDRESS,
-            amountOutFeeCollection,
-            abi.encodeWithSelector(
-                uniswap.swapExactTokensForTokens.selector,
-                amountOutFeeCollection,
-                minAmountOut,
-                path,
-                address(genericSwapFacet),
-                block.timestamp + 20 minutes
-            ),
-            false
-        );
-    }
-
-    function test_CanCollectERC20FeesAndSwapToERC20_V1() public {
-        vm.startPrank(DAI_HOLDER);
-        dai.approve(address(genericSwapFacet), 100 * 10 ** dai.decimals());
-
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapERC20FeeAndSwapToERC20();
-
-        uint256 gasLeftBef = gasleft();
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            DAI_ADDRESS, // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
-            amountIn, // fromAmount,
-            minAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacet.swapTokensGeneric(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET),
-            minAmountOut,
-            swapData
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
-
-        vm.stopPrank();
-    }
-
-    function test_CanCollectERC20FeesAndSwapToERC20_V2() public {
-        // ACTIVATE THIS CODE TO TEST GAS USAGE EXCL. MAX APPROVAL
-        vm.startPrank(address(genericSwapFacet));
-        dai.approve(address(uniswap), type(uint256).max);
-        vm.stopPrank();
-
-        vm.startPrank(DAI_HOLDER);
-        dai.approve(address(genericSwapFacet), 100 * 10 ** dai.decimals());
-
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapERC20FeeAndSwapToERC20();
-
-        uint256 gasLeftBef = gasleft();
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            DAI_ADDRESS, // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
-            amountIn, // fromAmount,
-            minAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacetV4.swapTokensMultipleV3ERC20ToERC20(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET),
-            minAmountOut,
-            swapData
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
-
-        vm.stopPrank();
-    }
-
-    // MULTISWAP COLLECT NATIVE FEE AND SWAP TO ERC20
-
-    function _produceSwapDataMultiswapNativeFeeAndSwapToERC20()
-        private
-        view
-        returns (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        )
-    {
-        amountIn = 1 ether;
-
-        uint integratorFee = 0.1 ether;
-        uint lifiFee = 0;
-        address integratorAddress = address(0xb33f); // some random address
-
-        // Swap1: Collect native fee
-        // prepare swapData
-        swapData = new LibSwap.SwapData[](2);
-        swapData[0] = LibSwap.SwapData(
-            FEE_COLLECTOR,
-            FEE_COLLECTOR,
-            address(0),
-            address(0),
-            amountIn,
-            abi.encodeWithSelector(
-                feeCollector.collectNativeFees.selector,
-                integratorFee,
-                lifiFee,
-                integratorAddress
-            ),
-            true
-        );
-
-        uint256 amountOutFeeCollection = amountIn - integratorFee - lifiFee;
-
-        // Swap2: native to USDC
-        address[] memory path = new address[](2);
-        path[0] = WETH_ADDRESS;
-        path[1] = USDC_ADDRESS;
-
-        // Calculate required DAI input amount
-        uint256[] memory amounts = uniswap.getAmountsOut(
-            amountOutFeeCollection,
-            path
-        );
-        minAmountOut = amounts[1];
-
-        swapData[1] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
-            address(0),
-            USDC_ADDRESS,
-            amountOutFeeCollection,
-            abi.encodeWithSelector(
-                uniswap.swapExactETHForTokens.selector,
-                minAmountOut,
-                path,
-                address(genericSwapFacet),
-                block.timestamp + 20 minutes
-            ),
-            false
-        );
-    }
-
-    function test_CanCollectNativeFeesAndSwap_V1() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapNativeFeeAndSwapToERC20();
-
-        uint256 gasLeftBef = gasleft();
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            address(0), // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
-            amountIn, // fromAmount,
-            minAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacet.swapTokensGeneric{ value: amountIn }(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET),
-            minAmountOut,
-            swapData
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
-    }
-
-    function test_CanCollectNativeFeesAndSwap_V2() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapNativeFeeAndSwapToERC20();
-
-        uint256 gasLeftBef = gasleft();
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            address(0), // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
-            amountIn, // fromAmount,
-            minAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacetV4.swapTokensMultipleV3NativeToERC20{
-            value: amountIn
-        }(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET),
-            minAmountOut,
-            swapData
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
-    }
-
-    // MULTISWAP COLLECT ERC20 FEE AND SWAP TO NATIVE
-
-    function _produceSwapDataMultiswapERC20FeeAndSwapToNative(
-        address facetAddress
-    )
-        private
-        returns (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        )
-    {
-        amountIn = 100 * 10 ** dai.decimals();
-
-        uint integratorFee = 5 * 10 ** dai.decimals();
-        uint lifiFee = 0;
-        address integratorAddress = address(0xb33f); // some random address
-
-        // Swap1: Collect ERC20 fee (5 DAI)
-        // prepare swapData
-        swapData = new LibSwap.SwapData[](2);
-        swapData[0] = LibSwap.SwapData(
-            FEE_COLLECTOR,
-            FEE_COLLECTOR,
-            DAI_ADDRESS,
-            DAI_ADDRESS,
-            amountIn,
-            abi.encodeWithSelector(
-                feeCollector.collectTokenFees.selector,
-                DAI_ADDRESS,
-                integratorFee,
-                lifiFee,
-                integratorAddress
-            ),
-            true
-        );
-
-        uint256 amountOutFeeCollection = amountIn - integratorFee - lifiFee;
-
-        // Swap2: DAI to native
-        address[] memory path = new address[](2);
-        path[0] = DAI_ADDRESS;
-        path[1] = WETH_ADDRESS;
-
-        // Calculate required DAI input amount
-        uint256[] memory amounts = uniswap.getAmountsOut(
-            amountOutFeeCollection,
-            path
-        );
-        minAmountOut = amounts[1];
-
-        swapData[1] = LibSwap.SwapData(
-            address(uniswap),
-            address(uniswap),
-            DAI_ADDRESS,
-            address(0),
-            amountOutFeeCollection,
-            abi.encodeWithSelector(
-                uniswap.swapExactTokensForETH.selector,
-                amountOutFeeCollection,
-                minAmountOut,
-                path,
-                address(genericSwapFacet),
-                block.timestamp + 20 minutes
-            ),
-            false
-        );
-
-        vm.startPrank(DAI_HOLDER);
-        dai.approve(facetAddress, amountIn);
-    }
-
-    function test_CanCollectERC20FeesAndSwapToNative_V1() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapERC20FeeAndSwapToNative(
-                address(genericSwapFacetV4)
-            );
-
-        uint256 gasLeftBef = gasleft();
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            DAI_ADDRESS, // fromAssetId,
-            address(0), // toAssetId,
-            amountIn, // fromAmount,
-            minAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacet.swapTokensGeneric(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET),
-            minAmountOut,
-            swapData
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V1: ", gasUsed);
-    }
-
-    function test_CanCollectERC20FeesAndSwapToNative_V2() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapERC20FeeAndSwapToNative(
-                address(genericSwapFacetV4)
-            );
-
-        uint256 gasLeftBef = gasleft();
-
-        vm.expectEmit(true, true, true, true, address(diamond));
-        emit LiFiGenericSwapCompleted(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator,
-            "referrer", // referrer,
-            SOME_WALLET, // receiver,
-            DAI_ADDRESS, // fromAssetId,
-            address(0), // toAssetId,
-            amountIn, // fromAmount,
-            minAmountOut // toAmount (with liquidity in that selected block)
-        );
-
-        genericSwapFacetV4.swapTokensMultipleV3ERC20ToNative(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET),
-            minAmountOut,
-            swapData
-        );
-
-        uint256 gasUsed = gasLeftBef - gasleft();
-        console.log("gas used V2: ", gasUsed);
-    }
-
-    function test_WillRevertIfSlippageIsTooHighMultiToNative() public {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            ,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapERC20FeeAndSwapToNative(
-                address(genericSwapFacetV4)
-            );
-
-        // deploy, fund and whitelist a MockDEX
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(genericSwapFacetV4),
-            address(0),
-            minAmountOut - 1,
-            0
-        );
-
-        // update SwapData
-        swapData[1].callTo = swapData[1].approveTo = address(mockDEX);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                CumulativeSlippageTooHigh.selector,
-                minAmountOut,
-                minAmountOut - 1
+                _getValidSingleSwapDataViaDexAggregator(isV3, swapCase)
             )
         );
-
-        genericSwapFacetV4.swapTokensMultipleV3ERC20ToNative(
-            "",
-            "integrator",
-            "referrer",
-            payable(SOME_WALLET), // receiver
-            minAmountOut,
-            swapData
-        );
-
-        vm.stopPrank();
     }
 
-    function test_MultiSwapCollectERC20FeesAndSwapToNativeWillRevertIfNativeAssetTransferFails()
-        public
-    {
-        // get swapData
-        (
-            LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
-            uint256 minAmountOut
-        ) = _produceSwapDataMultiswapERC20FeeAndSwapToNative(
-                address(genericSwapFacetV4)
-            );
+    function _attachTransactionIdToCallData(
+        bytes memory callData
+    ) internal pure returns (bytes memory adjustedCallData) {
+        bytes memory delimiter = hex"deadbeef";
+        bytes memory transactionID = hex"513ae98e50764707a4a573b35df47051";
 
-        // deploy a contract that cannot receive ETH
-        NonETHReceiver nonETHReceiver = new NonETHReceiver();
+        bytes memory mergedAppendix = mergeBytes(delimiter, transactionID);
 
-        vm.expectRevert(NativeAssetTransferFailed.selector);
-
-        genericSwapFacetV4.swapTokensMultipleV3ERC20ToNative(
-            "",
-            "integrator",
-            "referrer",
-            payable(address(nonETHReceiver)),
-            minAmountOut,
-            swapData
-        );
-    }
-
-    // Test functionality that refunds unused input tokens by DEXs
-    function test_leavesNoERC20SendingAssetDustSingleSwap() public {
-        vm.startPrank(USDC_HOLDER);
-        uint256 initialBalance = usdc.balanceOf(USDC_HOLDER);
-
-        uint256 amountIn = 100 * 10 ** usdc.decimals();
-        uint256 amountInActual = (amountIn * 99) / 100; // 1% positive slippage
-        uint256 expAmountOut = 100 * 10 ** dai.decimals();
-
-        // deploy mockDEX to simulate positive slippage
-        MockUniswapDEX mockDex = new MockUniswapDEX();
-
-        // prepare swapData using MockDEX
-        address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = DAI_ADDRESS;
-
-        LibSwap.SwapData memory swapData = LibSwap.SwapData(
-            address(mockDex),
-            address(mockDex),
-            USDC_ADDRESS,
-            DAI_ADDRESS,
-            amountIn,
-            abi.encodeWithSelector(
-                mockDex.swapTokensForExactTokens.selector,
-                expAmountOut,
-                amountIn,
-                path,
-                address(genericSwapFacet), // receiver
-                block.timestamp + 20 minutes
-            ),
-            true
-        );
-
-        // fund DEX and set swap outcome
-        deal(path[1], address(mockDex), expAmountOut);
-        mockDex.setSwapOutput(
-            amountInActual, // will only pull 99% of the amountIn that we usually expect to be pulled
-            ERC20(path[1]),
-            expAmountOut
-        );
-
-        // whitelist DEX & function selector
-        genericSwapFacet.addDex(address(mockDex));
-        genericSwapFacet.setFunctionApprovalBySignature(
-            mockDex.swapTokensForExactTokens.selector
-        );
-
-        usdc.approve(address(genericSwapFacet), amountIn);
-
-        genericSwapFacetV4.swapTokensSingleV3ERC20ToERC20(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator
-            "referrer", // referrer
-            payable(USDC_HOLDER), // receiver
-            expAmountOut,
-            swapData
-        );
-
-        assertEq(usdc.balanceOf(address(genericSwapFacet)), 0);
-        assertEq(usdc.balanceOf(USDC_HOLDER), initialBalance - amountInActual);
-
-        vm.stopPrank();
-    }
-
-    function test_leavesNoERC20SendingAssetDustMultiSwap() public {
-        vm.startPrank(USDC_HOLDER);
-        uint256 initialBalance = usdc.balanceOf(USDC_HOLDER);
-        uint256 initialBalanceFeeCollector = usdc.balanceOf(FEE_COLLECTOR);
-        uint256 initialBalanceDAI = dai.balanceOf(USDC_HOLDER);
-
-        uint256 amountIn = 100 * 10 ** usdc.decimals();
-        uint256 expAmountOut = 95 * 10 ** dai.decimals();
-
-        // prepare swapData
-        // Swap1: Collect ERC20 fee (5 USDC)
-        uint integratorFee = 5 * 10 ** usdc.decimals();
-        address integratorAddress = address(0xb33f); // some random address
-        LibSwap.SwapData[] memory swapData = new LibSwap.SwapData[](2);
-        swapData[0] = LibSwap.SwapData(
-            FEE_COLLECTOR,
-            FEE_COLLECTOR,
-            USDC_ADDRESS,
-            USDC_ADDRESS,
-            amountIn,
-            abi.encodeWithSelector(
-                feeCollector.collectTokenFees.selector,
-                USDC_ADDRESS,
-                integratorFee,
-                0, //lifiFee
-                integratorAddress
-            ),
-            true
-        );
-
-        uint256 amountOutFeeCollection = amountIn - integratorFee;
-
-        // deploy, fund and whitelist a MockDEX
-        uint256 amountInActual = (amountOutFeeCollection * 99) / 100; // 1% positive slippage
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(genericSwapFacetV4),
-            DAI_ADDRESS,
-            expAmountOut,
-            amountInActual
-        );
-
-        // Swap2: Swap 95 USDC to DAI
-        address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = DAI_ADDRESS;
-
-        swapData[1] = LibSwap.SwapData(
-            address(mockDEX),
-            address(mockDEX),
-            USDC_ADDRESS,
-            DAI_ADDRESS,
-            amountOutFeeCollection,
-            abi.encodeWithSelector(
-                mockDEX.swapTokensForExactTokens.selector,
-                expAmountOut,
-                amountOutFeeCollection,
-                path,
-                address(genericSwapFacet), // receiver
-                block.timestamp + 20 minutes
-            ),
-            false
-        );
-
-        usdc.approve(address(genericSwapFacet), amountIn);
-
-        genericSwapFacetV4.swapTokensMultipleV3ERC20ToERC20(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator
-            "referrer", // referrer
-            payable(USDC_HOLDER), // receiver
-            expAmountOut,
-            swapData
-        );
-
-        assertEq(usdc.balanceOf(address(genericSwapFacet)), 0);
-        assertEq(
-            usdc.balanceOf(FEE_COLLECTOR),
-            initialBalanceFeeCollector + integratorFee
-        );
-        assertEq(
-            usdc.balanceOf(USDC_HOLDER),
-            initialBalance - amountInActual - integratorFee
-        );
-        assertEq(dai.balanceOf(USDC_HOLDER), initialBalanceDAI + expAmountOut);
-
-        vm.stopPrank();
-    }
-
-    function test_leavesNoNativeSendingAssetDustSingleSwap() public {
-        uint256 initialBalanceETH = address(SOME_WALLET).balance;
-        uint256 initialBalanceUSDC = usdc.balanceOf(address(SOME_WALLET));
-
-        uint256 amountIn = 1 ether;
-        uint256 amountInActual = (amountIn * 99) / 100; // 1% positive slippage
-        uint256 expAmountOut = 100 * 10 ** usdc.decimals();
-
-        // deploy, fund and whitelist a MockDEX
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(genericSwapFacetV4),
-            USDC_ADDRESS,
-            expAmountOut,
-            amountInActual
-        );
-
-        // prepare swapData using MockDEX
-        address[] memory path = new address[](2);
-        path[0] = WETH_ADDRESS;
-        path[1] = USDC_ADDRESS;
-
-        LibSwap.SwapData memory swapData = LibSwap.SwapData(
-            address(mockDEX),
-            address(mockDEX),
-            address(0),
-            USDC_ADDRESS,
-            amountIn,
-            abi.encodeWithSelector(
-                mockDEX.swapETHForExactTokens.selector,
-                expAmountOut,
-                path,
-                address(genericSwapFacet), // receiver
-                block.timestamp + 20 minutes
-            ),
-            true
-        );
-
-        // execute the swap
-        genericSwapFacetV4.swapTokensSingleV3NativeToERC20{ value: amountIn }(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator
-            "referrer", // referrer
-            payable(SOME_WALLET), // receiver
-            expAmountOut,
-            swapData
-        );
-
-        // we expect that the receiver has received the unused native tokens...
-        assertEq(
-            address(SOME_WALLET).balance,
-            initialBalanceETH + (amountIn - amountInActual)
-        );
-        //... and that the swap result was received as well
-        assertEq(
-            usdc.balanceOf(SOME_WALLET),
-            initialBalanceUSDC + expAmountOut
-        );
-    }
-
-    function test_ReturnPositiveSlippageNativeWillRevertIfNativeTransferFails()
-        public
-    {
-        uint256 amountIn = 1 ether;
-        uint256 amountInActual = (amountIn * 99) / 100; // 1% positive slippage
-        uint256 expAmountOut = 100 * 10 ** usdc.decimals();
-
-        // deploy, fund and whitelist a MockDEX
-        MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
-            address(genericSwapFacetV4),
-            USDC_ADDRESS,
-            expAmountOut,
-            amountInActual
-        );
-
-        // prepare swapData using MockDEX
-        address[] memory path = new address[](2);
-        path[0] = WETH_ADDRESS;
-        path[1] = USDC_ADDRESS;
-
-        LibSwap.SwapData memory swapData = LibSwap.SwapData(
-            address(mockDEX),
-            address(mockDEX),
-            address(0),
-            USDC_ADDRESS,
-            amountIn,
-            abi.encodeWithSelector(
-                mockDEX.swapETHForExactTokens.selector,
-                expAmountOut,
-                path,
-                address(genericSwapFacet), // receiver
-                block.timestamp + 20 minutes
-            ),
-            true
-        );
-
-        // deploy a contract that cannot receive ETH
-        NonETHReceiver nonETHReceiver = new NonETHReceiver();
-
-        vm.expectRevert(NativeAssetTransferFailed.selector);
-
-        // execute the swap
-        genericSwapFacetV4.swapTokensSingleV3NativeToERC20{ value: amountIn }(
-            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
-            "integrator", // integrator
-            "referrer", // referrer
-            payable(address(nonETHReceiver)), // receiver
-            expAmountOut,
-            swapData
-        );
+        adjustedCallData = mergeBytes(callData, mergedAppendix);
     }
 }

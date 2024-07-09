@@ -47,69 +47,31 @@ contract TestGenericSwapFacet is GenericSwapFacet {
     }
 }
 
-contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
+contract GenericSwapFacetV3Test is TestHelpers {
     using SafeTransferLib for ERC20;
 
-    event LiFiGenericSwapCompleted(
-        bytes32 indexed transactionId,
-        string integrator,
-        string referrer,
-        address receiver,
-        address fromAssetId,
-        address toAssetId,
-        uint256 fromAmount,
-        uint256 toAmount
-    );
-
     // These values are for Mainnet
-    address internal constant USDC_ADDRESS =
-        0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address internal constant USDT_ADDRESS =
-        0xdAC17F958D2ee523a2206206994597C13D831ec7;
-    address internal constant WETH_ADDRESS =
-        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address internal constant DAI_ADDRESS =
-        0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address internal constant USDC_HOLDER =
         0x4B16c5dE96EB2117bBE5fd171E4d203624B014aa;
     address internal constant DAI_HOLDER =
         0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf;
     address internal constant SOME_WALLET =
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
-    address internal constant UNISWAP_V2_ROUTER =
-        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
     address internal constant FEE_COLLECTOR =
         0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9;
 
     // -----
 
-    LiFiDiamond internal diamond;
     TestGenericSwapFacet internal genericSwapFacet;
     TestGenericSwapFacetV3 internal genericSwapFacetV3;
-    ERC20 internal usdc;
-    ERC20 internal usdt;
-    ERC20 internal dai;
-    ERC20 internal weth;
-    UniswapV2Router02 internal uniswap;
-    FeeCollector internal feeCollector;
-
-    function fork() internal {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = 19834820;
-        vm.createSelectFork(rpcUrl, blockNumber);
-    }
 
     function setUp() public {
-        fork();
+        customBlockNumberForForking = 19834820;
+        initTestBase();
 
         diamond = createDiamond();
         genericSwapFacet = new TestGenericSwapFacet();
         genericSwapFacetV3 = new TestGenericSwapFacetV3();
-        usdc = ERC20(USDC_ADDRESS);
-        usdt = ERC20(USDT_ADDRESS);
-        dai = ERC20(DAI_ADDRESS);
-        weth = ERC20(WETH_ADDRESS);
-        uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
         feeCollector = FeeCollector(FEE_COLLECTOR);
 
         // add genericSwapFacet (v1) to diamond (for gas usage comparison)
@@ -197,10 +159,10 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         );
 
         vm.label(address(genericSwapFacet), "LiFiDiamond");
-        vm.label(WETH_ADDRESS, "WETH_TOKEN");
-        vm.label(DAI_ADDRESS, "DAI_TOKEN");
-        vm.label(USDC_ADDRESS, "USDC_TOKEN");
-        vm.label(UNISWAP_V2_ROUTER, "UNISWAP_V2_ROUTER");
+        vm.label(ADDRESS_WETH, "WETH_TOKEN");
+        vm.label(ADDRESS_DAI, "DAI_TOKEN");
+        vm.label(ADDRESS_USDC, "USDC_TOKEN");
+        vm.label(ADDRESS_UNISWAP, "ADDRESS_UNISWAP");
     }
 
     // SINGLE SWAP ERC20 >> ERC20
@@ -212,8 +174,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
     {
         // Swap USDC to DAI
         address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = DAI_ADDRESS;
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_DAI;
 
         uint256 amountIn = 100 * 10 ** usdc.decimals();
 
@@ -226,8 +188,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         swapData[0] = LibSwap.SwapData(
             address(uniswap),
             address(uniswap),
-            USDC_ADDRESS,
-            DAI_ADDRESS,
+            ADDRESS_USDC,
+            ADDRESS_DAI,
             amountIn,
             abi.encodeWithSelector(
                 uniswap.swapExactTokensForTokens.selector,
@@ -263,8 +225,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            DAI_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // fromAssetId,
+            ADDRESS_DAI, // toAssetId,
             swapData[0].fromAmount, // fromAmount,
             expAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -322,8 +284,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            DAI_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // fromAssetId,
+            ADDRESS_DAI, // toAssetId,
             swapData[0].fromAmount, // fromAmount,
             expAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -366,7 +328,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         // deploy, fund and whitelist a MockDEX
         MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
             address(genericSwapFacetV3),
-            DAI_ADDRESS,
+            ADDRESS_DAI,
             minAmountOut - 1,
             0
         );
@@ -443,8 +405,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            DAI_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // fromAssetId,
+            ADDRESS_DAI, // toAssetId,
             swapData[0].fromAmount, // fromAmount,
             expAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -484,8 +446,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            DAI_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // fromAssetId,
+            ADDRESS_DAI, // toAssetId,
             swapData[0].fromAmount, // fromAmount,
             expAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -511,8 +473,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
     {
         // Swap USDC to Native ETH
         address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = WETH_ADDRESS;
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WETH;
 
         minAmountOut = 2 ether;
 
@@ -525,7 +487,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         swapData[0] = LibSwap.SwapData(
             address(uniswap),
             address(uniswap),
-            USDC_ADDRESS,
+            ADDRESS_USDC,
             address(0),
             amountIn,
             abi.encodeWithSelector(
@@ -560,7 +522,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
+            ADDRESS_USDC, // fromAssetId,
             address(0), // toAssetId,
             swapData[0].fromAmount, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
@@ -603,7 +565,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
+            ADDRESS_USDC, // fromAssetId,
             address(0), // toAssetId,
             swapData[0].fromAmount, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
@@ -714,7 +676,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         vm.startPrank(USDC_HOLDER);
 
         // remove dex from whitelist
-        genericSwapFacetV3.removeDex(UNISWAP_V2_ROUTER);
+        genericSwapFacetV3.removeDex(ADDRESS_UNISWAP);
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
@@ -764,8 +726,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
     {
         // Swap native to USDC
         address[] memory path = new address[](2);
-        path[0] = WETH_ADDRESS;
-        path[1] = USDC_ADDRESS;
+        path[0] = ADDRESS_WETH;
+        path[1] = ADDRESS_USDC;
 
         uint256 amountIn = 2 ether;
 
@@ -779,7 +741,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             address(uniswap),
             address(uniswap),
             address(0),
-            USDC_ADDRESS,
+            ADDRESS_USDC,
             amountIn,
             abi.encodeWithSelector(
                 uniswap.swapExactETHForTokens.selector,
@@ -808,7 +770,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "referrer", // referrer,
             SOME_WALLET, // receiver,
             address(0), // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // toAssetId,
             swapData[0].fromAmount, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -842,7 +804,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "referrer", // referrer,
             SOME_WALLET, // receiver,
             address(0), // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // toAssetId,
             swapData[0].fromAmount, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -870,7 +832,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         ) = _produceSwapDataNativeToERC20();
 
         // remove dex from whitelist
-        genericSwapFacetV3.removeDex(UNISWAP_V2_ROUTER);
+        genericSwapFacetV3.removeDex(ADDRESS_UNISWAP);
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
@@ -932,7 +894,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         // deploy, fund and whitelist a MockDEX
         MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
             address(genericSwapFacetV3),
-            USDC_ADDRESS,
+            ADDRESS_USDC,
             minAmountOut - 1,
             0
         );
@@ -972,8 +934,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
     {
         // Swap1: USDC to DAI
         address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = DAI_ADDRESS;
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_DAI;
 
         amountIn = 10 * 10 ** usdc.decimals();
 
@@ -986,8 +948,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         swapData[0] = LibSwap.SwapData(
             address(uniswap),
             address(uniswap),
-            USDC_ADDRESS,
-            DAI_ADDRESS,
+            ADDRESS_USDC,
+            ADDRESS_DAI,
             amountIn,
             abi.encodeWithSelector(
                 uniswap.swapExactTokensForTokens.selector,
@@ -1002,8 +964,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
 
         // Swap2: DAI to WETH
         path = new address[](2);
-        path[0] = DAI_ADDRESS;
-        path[1] = WETH_ADDRESS;
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WETH;
 
         // Calculate required DAI input amount
         amounts = uniswap.getAmountsOut(swappedAmountDAI, path);
@@ -1012,8 +974,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         swapData[1] = LibSwap.SwapData(
             address(uniswap),
             address(uniswap),
-            DAI_ADDRESS,
-            WETH_ADDRESS,
+            ADDRESS_DAI,
+            ADDRESS_WETH,
             swappedAmountDAI,
             abi.encodeWithSelector(
                 uniswap.swapExactTokensForTokens.selector,
@@ -1048,8 +1010,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            WETH_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // fromAssetId,
+            ADDRESS_WETH, // toAssetId,
             amountIn, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -1092,8 +1054,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            WETH_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // fromAssetId,
+            ADDRESS_WETH, // toAssetId,
             amountIn, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -1178,7 +1140,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             );
 
         // remove dex from whitelist
-        genericSwapFacetV3.removeDex(UNISWAP_V2_ROUTER);
+        genericSwapFacetV3.removeDex(ADDRESS_UNISWAP);
 
         vm.expectRevert(ContractCallNotAllowed.selector);
 
@@ -1230,7 +1192,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         // deploy, fund and whitelist a MockDEX
         MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
             address(genericSwapFacetV3),
-            WETH_ADDRESS,
+            ADDRESS_WETH,
             minAmountOut - 1,
             0
         );
@@ -1271,8 +1233,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
     {
         // Swap1: Native to DAI
         address[] memory path = new address[](2);
-        path[0] = WETH_ADDRESS;
-        path[1] = DAI_ADDRESS;
+        path[0] = ADDRESS_WETH;
+        path[1] = ADDRESS_DAI;
 
         amountIn = 2 ether;
 
@@ -1286,7 +1248,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             address(uniswap),
             address(uniswap),
             address(0),
-            DAI_ADDRESS,
+            ADDRESS_DAI,
             amountIn,
             abi.encodeWithSelector(
                 uniswap.swapExactETHForTokens.selector,
@@ -1300,8 +1262,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
 
         // Swap2: DAI to USDC
         path = new address[](2);
-        path[0] = DAI_ADDRESS;
-        path[1] = USDC_ADDRESS;
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
 
         // Calculate required DAI input amount
         amounts = uniswap.getAmountsOut(swappedAmountDAI, path);
@@ -1310,8 +1272,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         swapData[1] = LibSwap.SwapData(
             address(uniswap),
             address(uniswap),
-            DAI_ADDRESS,
-            USDC_ADDRESS,
+            ADDRESS_DAI,
+            ADDRESS_USDC,
             swappedAmountDAI,
             abi.encodeWithSelector(
                 uniswap.swapExactTokensForTokens.selector,
@@ -1342,7 +1304,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "referrer", // referrer,
             SOME_WALLET, // receiver,
             address(0), // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // toAssetId,
             amountIn, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -1377,7 +1339,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "referrer", // referrer,
             SOME_WALLET, // receiver,
             address(0), // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // toAssetId,
             amountIn, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -1486,12 +1448,12 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         swapData[0] = LibSwap.SwapData(
             FEE_COLLECTOR,
             FEE_COLLECTOR,
-            DAI_ADDRESS,
-            DAI_ADDRESS,
+            ADDRESS_DAI,
+            ADDRESS_DAI,
             amountIn,
             abi.encodeWithSelector(
                 feeCollector.collectTokenFees.selector,
-                DAI_ADDRESS,
+                ADDRESS_DAI,
                 integratorFee,
                 lifiFee,
                 integratorAddress
@@ -1503,8 +1465,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
 
         // Swap2: DAI to USDC
         address[] memory path = new address[](2);
-        path[0] = DAI_ADDRESS;
-        path[1] = USDC_ADDRESS;
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
 
         // Calculate required DAI input amount
         uint256[] memory amounts = uniswap.getAmountsOut(
@@ -1516,8 +1478,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         swapData[1] = LibSwap.SwapData(
             address(uniswap),
             address(uniswap),
-            DAI_ADDRESS,
-            USDC_ADDRESS,
+            ADDRESS_DAI,
+            ADDRESS_USDC,
             amountOutFeeCollection,
             abi.encodeWithSelector(
                 uniswap.swapExactTokensForTokens.selector,
@@ -1550,8 +1512,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            DAI_ADDRESS, // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
+            ADDRESS_DAI, // fromAssetId,
+            ADDRESS_USDC, // toAssetId,
             amountIn, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -1595,8 +1557,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            DAI_ADDRESS, // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
+            ADDRESS_DAI, // fromAssetId,
+            ADDRESS_USDC, // toAssetId,
             amountIn, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -1655,8 +1617,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
 
         // Swap2: native to USDC
         address[] memory path = new address[](2);
-        path[0] = WETH_ADDRESS;
-        path[1] = USDC_ADDRESS;
+        path[0] = ADDRESS_WETH;
+        path[1] = ADDRESS_USDC;
 
         // Calculate required DAI input amount
         uint256[] memory amounts = uniswap.getAmountsOut(
@@ -1669,7 +1631,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             address(uniswap),
             address(uniswap),
             address(0),
-            USDC_ADDRESS,
+            ADDRESS_USDC,
             amountOutFeeCollection,
             abi.encodeWithSelector(
                 uniswap.swapExactETHForTokens.selector,
@@ -1699,7 +1661,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "referrer", // referrer,
             SOME_WALLET, // receiver,
             address(0), // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // toAssetId,
             amountIn, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -1734,7 +1696,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "referrer", // referrer,
             SOME_WALLET, // receiver,
             address(0), // fromAssetId,
-            USDC_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // toAssetId,
             amountIn, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
         );
@@ -1778,12 +1740,12 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         swapData[0] = LibSwap.SwapData(
             FEE_COLLECTOR,
             FEE_COLLECTOR,
-            DAI_ADDRESS,
-            DAI_ADDRESS,
+            ADDRESS_DAI,
+            ADDRESS_DAI,
             amountIn,
             abi.encodeWithSelector(
                 feeCollector.collectTokenFees.selector,
-                DAI_ADDRESS,
+                ADDRESS_DAI,
                 integratorFee,
                 lifiFee,
                 integratorAddress
@@ -1795,8 +1757,8 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
 
         // Swap2: DAI to native
         address[] memory path = new address[](2);
-        path[0] = DAI_ADDRESS;
-        path[1] = WETH_ADDRESS;
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WETH;
 
         // Calculate required DAI input amount
         uint256[] memory amounts = uniswap.getAmountsOut(
@@ -1808,7 +1770,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         swapData[1] = LibSwap.SwapData(
             address(uniswap),
             address(uniswap),
-            DAI_ADDRESS,
+            ADDRESS_DAI,
             address(0),
             amountOutFeeCollection,
             abi.encodeWithSelector(
@@ -1844,7 +1806,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            DAI_ADDRESS, // fromAssetId,
+            ADDRESS_DAI, // fromAssetId,
             address(0), // toAssetId,
             amountIn, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
@@ -1881,7 +1843,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            DAI_ADDRESS, // fromAssetId,
+            ADDRESS_DAI, // fromAssetId,
             address(0), // toAssetId,
             amountIn, // fromAmount,
             minAmountOut // toAmount (with liquidity in that selected block)
@@ -1947,7 +1909,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         // get swapData
         (
             LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
+            ,
             uint256 minAmountOut
         ) = _produceSwapDataMultiswapERC20FeeAndSwapToNative(
                 address(genericSwapFacetV3)
@@ -1982,14 +1944,14 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
 
         // prepare swapData using MockDEX
         address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = DAI_ADDRESS;
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_DAI;
 
         LibSwap.SwapData memory swapData = LibSwap.SwapData(
             address(mockDex),
             address(mockDex),
-            USDC_ADDRESS,
-            DAI_ADDRESS,
+            ADDRESS_USDC,
+            ADDRESS_DAI,
             amountIn,
             abi.encodeWithSelector(
                 mockDex.swapTokensForExactTokens.selector,
@@ -2050,12 +2012,12 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         swapData[0] = LibSwap.SwapData(
             FEE_COLLECTOR,
             FEE_COLLECTOR,
-            USDC_ADDRESS,
-            USDC_ADDRESS,
+            ADDRESS_USDC,
+            ADDRESS_USDC,
             amountIn,
             abi.encodeWithSelector(
                 feeCollector.collectTokenFees.selector,
-                USDC_ADDRESS,
+                ADDRESS_USDC,
                 integratorFee,
                 0, //lifiFee
                 integratorAddress
@@ -2069,21 +2031,21 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         uint256 amountInActual = (amountOutFeeCollection * 99) / 100; // 1% positive slippage
         MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
             address(genericSwapFacetV3),
-            DAI_ADDRESS,
+            ADDRESS_DAI,
             expAmountOut,
             amountInActual
         );
 
         // Swap2: Swap 95 USDC to DAI
         address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = DAI_ADDRESS;
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_DAI;
 
         swapData[1] = LibSwap.SwapData(
             address(mockDEX),
             address(mockDEX),
-            USDC_ADDRESS,
-            DAI_ADDRESS,
+            ADDRESS_USDC,
+            ADDRESS_DAI,
             amountOutFeeCollection,
             abi.encodeWithSelector(
                 mockDEX.swapTokensForExactTokens.selector,
@@ -2132,21 +2094,21 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         // deploy, fund and whitelist a MockDEX
         MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
             address(genericSwapFacetV3),
-            USDC_ADDRESS,
+            ADDRESS_USDC,
             expAmountOut,
             amountInActual
         );
 
         // prepare swapData using MockDEX
         address[] memory path = new address[](2);
-        path[0] = WETH_ADDRESS;
-        path[1] = USDC_ADDRESS;
+        path[0] = ADDRESS_WETH;
+        path[1] = ADDRESS_USDC;
 
         LibSwap.SwapData memory swapData = LibSwap.SwapData(
             address(mockDEX),
             address(mockDEX),
             address(0),
-            USDC_ADDRESS,
+            ADDRESS_USDC,
             amountIn,
             abi.encodeWithSelector(
                 mockDEX.swapETHForExactTokens.selector,
@@ -2190,21 +2152,21 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         // deploy, fund and whitelist a MockDEX
         MockUniswapDEX mockDEX = deployFundAndWhitelistMockDEX(
             address(genericSwapFacetV3),
-            USDC_ADDRESS,
+            ADDRESS_USDC,
             expAmountOut,
             amountInActual
         );
 
         // prepare swapData using MockDEX
         address[] memory path = new address[](2);
-        path[0] = WETH_ADDRESS;
-        path[1] = USDC_ADDRESS;
+        path[0] = ADDRESS_WETH;
+        path[1] = ADDRESS_USDC;
 
         LibSwap.SwapData memory swapData = LibSwap.SwapData(
             address(mockDEX),
             address(mockDEX),
             address(0),
-            USDC_ADDRESS,
+            ADDRESS_USDC,
             amountIn,
             abi.encodeWithSelector(
                 mockDEX.swapETHForExactTokens.selector,
