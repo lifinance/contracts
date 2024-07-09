@@ -8,7 +8,6 @@ import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
-import { console2 } from "forge-std/console2.sol";
 
 /// @title GenericSwapFacetV3
 /// @author LI.FI (https://li.fi)
@@ -506,7 +505,6 @@ contract GenericSwapFacetV3 is ILiFi {
         uint256 _minAmountOut,
         LibSwap.SwapData[] calldata _swapData
     ) private {
-        console2.log("in _transferNativeTokensAndEmitEvent");
         uint256 amountReceived = address(this).balance;
 
         // make sure minAmountOut was received
@@ -517,7 +515,6 @@ contract GenericSwapFacetV3 is ILiFi {
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, ) = _receiver.call{ value: amountReceived }("");
         if (!success) {
-            console2.log("HEYA");
             revert NativeAssetTransferFailed();
         }
 

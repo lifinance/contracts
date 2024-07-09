@@ -102,7 +102,9 @@ contract TestHelpers is TestBase {
             address(feeCollector),
             assetId,
             assetId,
-            fromNative ? defaultNativeAmount : defaultUSDCAmount,
+            fromNative
+                ? defaultNativeAmount + defaultNativeFeeCollectionAmount
+                : defaultUSDCAmount + defaultUSDCFeeCollectionAmount,
             callData,
             fromNative ? false : true
         );

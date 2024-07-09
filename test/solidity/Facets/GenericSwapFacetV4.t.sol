@@ -75,27 +75,27 @@ contract GenericSwapFacetV4Test is TestHelpers {
 
         // add genericSwapFacet (v3) to diamond (for gas usage comparison)
         bytes4[] memory functionSelectors = new bytes4[](9);
-        functionSelectors[0] = genericSwapFacetV4
+        functionSelectors[0] = genericSwapFacetV3
             .swapTokensSingleV3ERC20ToERC20
             .selector;
-        functionSelectors[1] = genericSwapFacetV4
+        functionSelectors[1] = genericSwapFacetV3
             .swapTokensSingleV3ERC20ToNative
             .selector;
-        functionSelectors[2] = genericSwapFacetV4
+        functionSelectors[2] = genericSwapFacetV3
             .swapTokensSingleV3NativeToERC20
             .selector;
-        functionSelectors[3] = genericSwapFacetV4
+        functionSelectors[3] = genericSwapFacetV3
             .swapTokensMultipleV3ERC20ToERC20
             .selector;
-        functionSelectors[4] = genericSwapFacetV4
+        functionSelectors[4] = genericSwapFacetV3
             .swapTokensMultipleV3ERC20ToNative
             .selector;
-        functionSelectors[5] = genericSwapFacetV4
+        functionSelectors[5] = genericSwapFacetV3
             .swapTokensMultipleV3NativeToERC20
             .selector;
-        functionSelectors[6] = genericSwapFacetV4.addDex.selector;
-        functionSelectors[7] = genericSwapFacetV4.removeDex.selector;
-        functionSelectors[8] = genericSwapFacetV4
+        functionSelectors[6] = genericSwapFacetV3.addDex.selector;
+        functionSelectors[7] = genericSwapFacetV3.removeDex.selector;
+        functionSelectors[8] = genericSwapFacetV3
             .setFunctionApprovalBySignature
             .selector;
 
@@ -251,11 +251,6 @@ contract GenericSwapFacetV4Test is TestHelpers {
 
         uint256 gasLeftBef = gasleft();
 
-        bytes memory callData = _getGenericSwapCallDataSingle(
-            true,
-            SwapCase.ERC20ToERC20
-        );
-
         (bool success, ) = address(genericSwapFacetV3).call(
             _getGenericSwapCallDataSingle(true, SwapCase.ERC20ToERC20)
         );
@@ -292,6 +287,185 @@ contract GenericSwapFacetV4Test is TestHelpers {
         console.log("gas used: V4", gasUsed);
     }
 
+    // FEE COLLECTION + SWAP NATIVE TO ERC20 (ETH > USDC)
+
+    function test_CanExecuteFeeCollectionPlusSwapNativeToERC20_V3()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_RECEIVER,
+            int256(defaultMinAmountOutNativeToERC20)
+        )
+    {
+        vm.startPrank(USER_SENDER);
+        uint256 gasLeftBef = gasleft();
+
+        (bool success, ) = address(genericSwapFacetV3).call{
+            value: defaultNativeAmount + defaultNativeFeeCollectionAmount
+        }(
+            _getGenericSwapCallDataFeeCollectionPlusSwap(
+                true,
+                SwapCase.NativeToERC20
+            )
+        );
+        if (!success) revert();
+
+        uint256 gasUsed = gasLeftBef - gasleft();
+        console.log("gas used: V3", gasUsed);
+    }
+
+    function test_CanExecuteFeeCollectionPlusSwapNativeToERC20_V4()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_RECEIVER,
+            int256(defaultMinAmountOutNativeToERC20)
+        )
+    {
+        uint256 gasLeftBef = gasleft();
+
+        (bool success, ) = address(genericSwapFacetV4).call{
+            value: defaultNativeAmount + defaultNativeFeeCollectionAmount
+        }(
+            _getGenericSwapCallDataFeeCollectionPlusSwap(
+                false,
+                SwapCase.NativeToERC20
+            )
+        );
+        if (!success) revert();
+
+        uint256 gasUsed = gasLeftBef - gasleft();
+        console.log("gas used: V4", gasUsed);
+    }
+
+    // FEE COLLECTION + SWAP  ERC20 TO Native (USDC > ETH)
+
+    function test_CanExecuteFeeCollectionPlusSwapERC20ToNative_V3()
+        public
+        assertBalanceChange(
+            address(0),
+            USER_RECEIVER,
+            int256(32610177968847511)
+        )
+    {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(
+            address(genericSwapFacetV3),
+            defaultUSDCAmount + defaultUSDCFeeCollectionAmount
+        );
+
+        uint256 gasLeftBef = gasleft();
+
+        (bool success, ) = address(genericSwapFacetV3).call(
+            _getGenericSwapCallDataFeeCollectionPlusSwap(
+                true,
+                SwapCase.ERC20ToNative
+            )
+        );
+        if (!success) revert();
+
+        uint256 gasUsed = gasLeftBef - gasleft();
+        console.log("gas used: V3", gasUsed);
+    }
+
+    function test_CanExecuteFeeCollectionPlusSwapERC20ToNative_V4()
+        public
+        assertBalanceChange(
+            address(0),
+            USER_RECEIVER,
+            int256(defaultMinAmountOutERC20ToNative)
+        )
+    {
+        // ensure that max approval exists from GenericSwapFacet to DEX aggregator and FeeCollector
+        vm.startPrank(address(genericSwapFacetV4));
+        usdc.approve(address(routeProcessor), type(uint256).max);
+        usdc.approve(address(feeCollector), type(uint256).max);
+        vm.stopPrank();
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(
+            address(genericSwapFacetV4),
+            defaultUSDCAmount + defaultUSDCFeeCollectionAmount
+        );
+
+        uint256 gasLeftBef = gasleft();
+
+        (bool success, ) = address(genericSwapFacetV4).call(
+            _getGenericSwapCallDataFeeCollectionPlusSwap(
+                false,
+                SwapCase.ERC20ToNative
+            )
+        );
+        if (!success) revert();
+
+        uint256 gasUsed = gasLeftBef - gasleft();
+        console.log("gas used: V4", gasUsed);
+    }
+
+    // FEE COLLECTION + SWAP  ERC20 TO ERC20 (USDC > USDT)
+
+    function test_CanExecuteFeeCollectionPlusSwapERC20ToERC20_V3()
+        public
+        assertBalanceChange(
+            ADDRESS_USDT,
+            USER_RECEIVER,
+            int256(defaultMinAmountOutERC20ToERC20)
+        )
+    {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(
+            address(genericSwapFacetV3),
+            defaultUSDCAmount + defaultUSDCFeeCollectionAmount
+        );
+
+        uint256 gasLeftBef = gasleft();
+
+        (bool success, ) = address(genericSwapFacetV3).call(
+            _getGenericSwapCallDataFeeCollectionPlusSwap(
+                true,
+                SwapCase.ERC20ToERC20
+            )
+        );
+        if (!success) revert();
+
+        uint256 gasUsed = gasLeftBef - gasleft();
+        console.log("gas used: V3", gasUsed);
+    }
+
+    function test_CanExecuteFeeCollectionPlusSwapERC20ToERC20_V4()
+        public
+        assertBalanceChange(
+            ADDRESS_USDT,
+            USER_RECEIVER,
+            int256(defaultMinAmountOutERC20ToERC20)
+        )
+    {
+        // ensure that max approval exists from GenericSwapFacet to DEX aggregator and FeeCollector
+        vm.startPrank(address(genericSwapFacetV4));
+        usdc.approve(address(routeProcessor), type(uint256).max);
+        usdc.approve(address(feeCollector), type(uint256).max);
+        vm.stopPrank();
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(
+            address(genericSwapFacetV4),
+            defaultUSDCAmount + defaultUSDCFeeCollectionAmount
+        );
+
+        uint256 gasLeftBef = gasleft();
+
+        (bool success, ) = address(genericSwapFacetV4).call(
+            _getGenericSwapCallDataFeeCollectionPlusSwap(
+                false,
+                SwapCase.ERC20ToERC20
+            )
+        );
+        if (!success) revert();
+
+        uint256 gasUsed = gasLeftBef - gasleft();
+        console.log("gas used: V4", gasUsed);
+    }
+
     // ------ HELPER FUNCTIONS
 
     enum SwapCase {
@@ -303,7 +477,7 @@ contract GenericSwapFacetV4Test is TestHelpers {
     function _getValidDexAggregatorCalldata(
         bool isV3,
         SwapCase swapCase
-    ) internal view returns (bytes memory callData) {
+    ) internal pure returns (bytes memory callData) {
         if (swapCase == SwapCase.NativeToERC20) {
             if (isV3)
                 // swapped tokens will be sent to diamond (and then forwarded to USER_RECEIVER by the facet)
@@ -365,8 +539,7 @@ contract GenericSwapFacetV4Test is TestHelpers {
 
     function _getValidMultiSwapData(
         bool isV3,
-        SwapCase swapCase,
-        bool fromNative
+        SwapCase swapCase
     ) internal view returns (LibSwap.SwapData[] memory swapData) {
         (
             address sendingAssetId,
@@ -375,7 +548,10 @@ contract GenericSwapFacetV4Test is TestHelpers {
         ) = _getSwapDataParameters(swapCase);
 
         swapData = new LibSwap.SwapData[](2);
-        swapData[0] = _getFeeCollectorSwapData(fromNative);
+        swapData[0] = _getFeeCollectorSwapData(
+            swapCase == SwapCase.NativeToERC20 ? true : false
+        );
+
         swapData[1] = LibSwap.SwapData(
             address(routeProcessor),
             address(routeProcessor),
@@ -383,7 +559,7 @@ contract GenericSwapFacetV4Test is TestHelpers {
             receivingAssetId,
             inputAmount,
             _getValidDexAggregatorCalldata(isV3, swapCase),
-            swapCase == SwapCase.NativeToERC20 ? false : true
+            false
         );
     }
 
@@ -437,6 +613,35 @@ contract GenericSwapFacetV4Test is TestHelpers {
                 payable(USER_RECEIVER),
                 minAmountOut,
                 _getValidSingleSwapDataViaDexAggregator(isV3, swapCase)
+            )
+        );
+    }
+
+    function _getGenericSwapCallDataFeeCollectionPlusSwap(
+        bool isV3,
+        SwapCase swapCase
+    ) internal view returns (bytes memory callData) {
+        bytes4 selector = swapCase == SwapCase.ERC20ToERC20
+            ? genericSwapFacetV4.swapTokensMultipleV3ERC20ToERC20.selector
+            : swapCase == SwapCase.ERC20ToNative
+            ? genericSwapFacetV4.swapTokensMultipleV3ERC20ToNative.selector
+            : genericSwapFacetV4.swapTokensMultipleV3NativeToERC20.selector;
+
+        uint256 minAmountOut = swapCase == SwapCase.ERC20ToERC20
+            ? defaultMinAmountOutERC20ToERC20
+            : swapCase == SwapCase.ERC20ToNative
+            ? defaultMinAmountOutERC20ToNative
+            : defaultMinAmountOutNativeToERC20;
+
+        callData = _attachTransactionIdToCallData(
+            abi.encodeWithSelector(
+                selector,
+                "",
+                "",
+                "",
+                payable(USER_RECEIVER),
+                minAmountOut,
+                _getValidMultiSwapData(isV3, swapCase)
             )
         );
     }
