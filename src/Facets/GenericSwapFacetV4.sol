@@ -140,13 +140,11 @@ contract GenericSwapFacetV4 is ILiFi {
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
     ) external payable onlyCallsToDexAggregator(_swapData.callTo) {
-        address callTo = _swapData.callTo;
-
         // execute swap
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory res) = callTo.call{ value: msg.value }(
-            _swapData.callData
-        );
+        (bool success, bytes memory res) = _swapData.callTo.call{
+            value: msg.value
+        }(_swapData.callData);
         if (!success) {
             LibUtil.revertWith(res);
         }
@@ -169,7 +167,7 @@ contract GenericSwapFacetV4 is ILiFi {
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
-    function swapTokensMultipleV3ERC20ToERC20(
+    function swapTokensMultipleV3ERC20ToAny(
         bytes32,
         string calldata,
         string calldata,
@@ -177,7 +175,6 @@ contract GenericSwapFacetV4 is ILiFi {
         uint256 _minAmountOut,
         LibSwap.SwapData[] calldata _swapData
     ) external {
-        //TODO: merge two functions ..MultipleV3ERCTo...
         // deposit token of first swap
         LibSwap.SwapData calldata currentSwap = _swapData[0];
 

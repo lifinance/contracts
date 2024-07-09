@@ -621,11 +621,15 @@ contract GenericSwapFacetV4Test is TestHelpers {
         bool isV3,
         SwapCase swapCase
     ) internal view returns (bytes memory callData) {
-        bytes4 selector = swapCase == SwapCase.ERC20ToERC20
-            ? genericSwapFacetV4.swapTokensMultipleV3ERC20ToERC20.selector
-            : swapCase == SwapCase.ERC20ToNative
-            ? genericSwapFacetV4.swapTokensMultipleV3ERC20ToNative.selector
-            : genericSwapFacetV4.swapTokensMultipleV3NativeToERC20.selector;
+        bytes4 selector = isV3
+            ? swapCase == SwapCase.NativeToERC20
+                ? genericSwapFacetV3.swapTokensMultipleV3NativeToERC20.selector
+                : swapCase == SwapCase.ERC20ToERC20
+                ? genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20.selector
+                : genericSwapFacetV3.swapTokensMultipleV3ERC20ToNative.selector
+            : swapCase == SwapCase.NativeToERC20
+            ? genericSwapFacetV4.swapTokensMultipleV3NativeToERC20.selector
+            : genericSwapFacetV4.swapTokensMultipleV3ERC20ToAny.selector;
 
         uint256 minAmountOut = swapCase == SwapCase.ERC20ToERC20
             ? defaultMinAmountOutERC20ToERC20
