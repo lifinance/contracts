@@ -14,7 +14,9 @@ contract DeployScript is DeployScriptBase {
         public
         returns (IntentFactory deployed, bytes memory constructorArgs)
     {
+        vm.startBroadcast(deployerPrivateKey);
         implementation = new Intent();
+        vm.stopBroadcast();
         constructorArgs = getConstructorArgs();
 
         deployed = IntentFactory(deploy(type(IntentFactory).creationCode));

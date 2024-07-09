@@ -5,10 +5,13 @@ import * as IntentFactory from '../../out/IntentFactory.sol/IntentFactory.json'
 import {
   Address,
   Hex,
+  SendTransactionRequest,
   createPublicClient,
   createWalletClient,
+  encodeFunctionData,
   http,
   keccak256,
+  parseAbi,
   parseUnits,
   toHex,
 } from 'viem'
@@ -17,8 +20,13 @@ import { ChainId, getQuote } from '@lifi/sdk'
 
 const INTENT_FACTORY_ADDReSS = Deployments.IntentFactory as Address
 const ABI = IntentFactory.abi
+const ERC20_ABI = parseAbi([
+  'function transfer(address,uint256) external',
+  'function approve(address,uint256) external',
+])
 const DAI = '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1'
 const USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
+const AMOUNT_TO_SWAP = '100000000000000000'
 
 const main = defineCommand({
   meta: {
@@ -48,38 +56,82 @@ const main = defineCommand({
       transport: http(),
     })
 
+    // Initialize the intentfactory
     const intentFactory = {
       address: INTENT_FACTORY_ADDReSS,
       abi: ABI,
     }
 
-    const predictedIntentAddress: Address = (await publicClient.readContract({
-      ...intentFactory,
-      functionName: 'getIntentAddress',
-      args: [
-        {
-          intentId: keccak256(toHex(parseInt(Math.random().toString()))),
-          receiver: account.address,
-          tokenOut: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
-          amountOutMin: parseUnits('10', 6),
-        },
-      ],
-    })) as Address
-    console.log(predictedIntentAddress)
-
-    const quote = await getQuote({
-      fromAddress: predictedIntentAddress,
+    // Get an initial quote from LIFI
+    let quote = await getQuote({
+      fromAddress: account.address,
       toAddress: account.address,
       fromChain: ChainId.ARB,
       toChain: ChainId.ARB,
       fromToken: DAI,
       toToken: USDC,
-      fromAmount: '10000000000000000000',
+      fromAmount: AMOUNT_TO_SWAP,
+    })
+    console.log(quote)
+
+    // Calculate the intent address
+    const intentData = {
+      intentId: keccak256(toHex(parseInt(Math.random().toString()))),
+      receiver: account.address,
+      tokenOut: USDC,
+      amountOutMin: quote.estimate.toAmountMin,
+    }
+    const predictedIntentAddress: Address = (await publicClient.readContract({
+      ...intentFactory,
+      functionName: 'getIntentAddress',
+      args: [intentData],
+    })) as Address
+    console.log(predictedIntentAddress)
+
+    // Send DAI to predictedIntentAddress
+    let tx = await walletClient.writeContract({
+      address: DAI,
+      abi: ERC20_ABI,
+      functionName: 'transfer',
+      args: [predictedIntentAddress, BigInt(AMOUNT_TO_SWAP)],
+    })
+    console.log(tx)
+
+    // Get updated quote and use intent address
+    quote = await getQuote({
+      fromAddress: predictedIntentAddress,
+      toAddress: predictedIntentAddress,
+      fromChain: ChainId.ARB,
+      toChain: ChainId.ARB,
+      fromToken: DAI,
+      toToken: USDC,
+      fromAmount: AMOUNT_TO_SWAP,
     })
 
-    console.log(quote)
-    // TODO: Send DAI to predictedIntentAddress
-    // TODO: Execute the swap
+    // Deploy intent and execute the swap
+    const calls = []
+    const approveCallData = encodeFunctionData({
+      abi: ERC20_ABI,
+      functionName: 'approve',
+      args: [quote.estimate.approvalAddress as Address, BigInt(AMOUNT_TO_SWAP)],
+    })
+    calls.push({
+      to: DAI,
+      data: approveCallData,
+      value: BigInt(0),
+    })
+    calls.push({
+      to: quote.transactionRequest?.to,
+      data: quote.transactionRequest?.data,
+      value: BigInt(0),
+    })
+    tx = await walletClient.writeContract({
+      address: intentFactory.address,
+      abi: ABI,
+      functionName: 'deployAndExecuteIntent',
+      args: [intentData, calls],
+    })
+    console.log(tx)
   },
 })
 
