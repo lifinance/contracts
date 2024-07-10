@@ -4,19 +4,24 @@ pragma solidity ^0.8.17;
 import { LibClone } from "solady/utils/LibClone.sol";
 import { IIntent } from "../Interfaces/IIntent.sol";
 import { Intent } from "../Helpers/Intent.sol";
+import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 
 /// @title Intent Factory
 /// @author LI.FI (https://li.fi)
 /// @notice Deploys minimal proxies of "intents" that can execute arbitrary calls.
 /// @custom:version 1.0.0
-contract IntentFactory {
+contract IntentFactory is TransferrableOwnership {
     /// Storage ///
 
     address public immutable implementation;
 
+    /// Errors ///
+
+    error Unauthorized();
+
     /// Constructor ///
 
-    constructor() {
+    constructor(address _owner) TransferrableOwnership(_owner) {
         implementation = address(new Intent());
     }
 
@@ -29,6 +34,10 @@ contract IntentFactory {
         IIntent.InitData calldata _initData,
         IIntent.Call[] calldata _calls
     ) external {
+        if (msg.sender != owner) {
+            revert Unauthorized();
+        }
+
         bytes32 salt = keccak256(abi.encode(_initData));
         address clone = LibClone.cloneDeterministic(implementation, salt);
         Intent(clone).init(_initData);

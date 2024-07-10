@@ -14,6 +14,8 @@ interface IERC20 {
 /// @notice Intent contract that can execute arbitrary calls.
 /// @custom:version 1.0.0
 contract Intent {
+    /// Storage ///
+
     bytes32 public intentId;
     bytes32 public salt;
     address public receiver;
@@ -23,15 +25,21 @@ contract Intent {
     uint256 public amountOutMin;
     bool public executed = false;
 
+    /// Errors ///
+
     error Unauthorized();
     error AlreadyExecuted();
     error InvalidParams();
     error ExecutionFailed();
     error InsufficientOutputAmount();
 
+    /// Constructor ///
+
     constructor() {
         implementation = address(this);
     }
+
+    /// External Methods ///
 
     /// @notice Initializes the intent with the given parameters.
     /// @param _initData The init data.

@@ -8,6 +8,7 @@
   "withdrawWallet": "0x08647cc950813966142A416D40C382e2c5DB73bB",
   "lifuelRebalanceWallet": "0xC71284231A726A18ac85c94D75f9fe17A185BeAF",
   "deployerWallet": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+  "intentExecutorWallet": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
   "approvedSigsForRefundWallet": [
     {
       "sig": "0x0d19e519",
