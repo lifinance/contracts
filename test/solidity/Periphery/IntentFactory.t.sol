@@ -109,7 +109,8 @@ contract IntentFactoryTest is Test {
 
         // Send tokens to the precomputed address
         vm.prank(alice);
-        intentClone.call{ value: 0.1 ether }("");
+        (bool ok, ) = intentClone.call{ value: 0.1 ether }("");
+        ok;
 
         IIntent.Call[] memory calls = new IIntent.Call[](1);
 
@@ -159,9 +160,12 @@ contract IntentFactoryTest is Test {
         // Send tokens to the precomputed address
         vm.prank(alice);
         tokenA.transfer(intentClone, 1000);
+        (bool ok, ) = intentClone.call{ value: 1 ether }("");
+        ok;
         // execute the intent
-        address[] memory tokens = new address[](1);
+        address[] memory tokens = new address[](2);
         tokens[0] = address(tokenA);
+        tokens[1] = address(0);
         factory.deployAndWithdrawAll(
             IIntent.InitData({
                 intentId: intentId,
@@ -174,5 +178,6 @@ contract IntentFactoryTest is Test {
         // assertions
         assertEq(tokenA.balanceOf(alice), 1000);
         assertEq(tokenA.balanceOf(intentClone), 0);
+        assertEq(intentClone.balance, 0);
     }
 }
