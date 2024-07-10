@@ -94,6 +94,56 @@ contract IntentFactoryTest is Test {
         assertEq(tokenA.balanceOf(intentClone), 0);
     }
 
+    function test_can_deposit_native_and_execute_swap() public {
+        bytes32 intentId = keccak256("intentId");
+
+        // Compute the address of the intent
+        address intentClone = factory.getIntentAddress(
+            IIntent.InitData({
+                intentId: intentId,
+                receiver: alice,
+                tokenOut: address(tokenB),
+                amountOutMin: 100
+            })
+        );
+
+        // Send tokens to the precomputed address
+        vm.prank(alice);
+        intentClone.call{ value: 0.1 ether }("");
+
+        IIntent.Call[] memory calls = new IIntent.Call[](1);
+
+        // get swap calldata
+        bytes memory swapCalldata = abi.encodeWithSignature(
+            "swap(address,uint256,address,uint256)",
+            address(0),
+            0.1 ether,
+            address(tokenB),
+            100
+        );
+        calls[0] = IIntent.Call({
+            to: address(amm),
+            value: 0,
+            data: swapCalldata
+        });
+
+        // execute the intent
+        factory.deployAndExecuteIntent(
+            IIntent.InitData({
+                intentId: intentId,
+                receiver: alice,
+                tokenOut: address(tokenB),
+                amountOutMin: 100
+            }),
+            calls
+        );
+
+        // assertions
+        assertEq(tokenB.balanceOf(alice), 100);
+        assertEq(tokenB.balanceOf(intentClone), 0);
+        assertEq(intentClone.balance, 0);
+    }
+
     function test_can_deposit_and_withdraw_all() public {
         tokenA.mint(alice, 1000);
         bytes32 intentId = keccak256("intentId");
