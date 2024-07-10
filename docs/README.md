@@ -56,3 +56,4 @@
 - [FeeCollector](./FeeCollector.md)
 - [Receiver](./Receiver.md)
 - [RelayerCelerIM](./RelayerCelerIM.md)
+- [IntentFactory](./IntentFactory.md)
