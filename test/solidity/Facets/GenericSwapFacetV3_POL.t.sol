@@ -17,6 +17,8 @@ import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGenericSwapFacetV3 is GenericSwapFacetV3, GenericSwapFacet {
+    constructor(address _nativeAddress) GenericSwapFacetV3(_nativeAddress) {}
+
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -95,7 +97,7 @@ contract GenericSwapFacetV3POLTest is DSTest, DiamondTest, Test {
 
         diamond = createDiamond();
         genericSwapFacet = new TestGenericSwapFacet();
-        genericSwapFacetV3 = new TestGenericSwapFacetV3();
+        genericSwapFacetV3 = new TestGenericSwapFacetV3(address(0));
         usdc = ERC20(USDC_ADDRESS);
         usdt = ERC20(USDT_ADDRESS);
         dai = ERC20(DAI_ADDRESS);

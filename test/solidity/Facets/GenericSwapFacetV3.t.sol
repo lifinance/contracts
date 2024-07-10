@@ -14,12 +14,13 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
 
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
-// import { MockUniswapDEX } from "../utils/MockUniswapDEX.sol";
 import { TestHelpers, MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGenericSwapFacetV3 is GenericSwapFacetV3, GenericSwapFacet {
+    constructor(address _nativeAddress) GenericSwapFacetV3(_nativeAddress) {}
+
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -71,7 +72,12 @@ contract GenericSwapFacetV3Test is TestHelpers {
 
         diamond = createDiamond();
         genericSwapFacet = new TestGenericSwapFacet();
-        genericSwapFacetV3 = new TestGenericSwapFacetV3();
+        genericSwapFacetV3 = new TestGenericSwapFacetV3(address(0));
+        usdc = ERC20(USDC_ADDRESS);
+        usdt = ERC20(USDT_ADDRESS);
+        dai = ERC20(DAI_ADDRESS);
+        weth = ERC20(WETH_ADDRESS);
+        uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
         feeCollector = FeeCollector(FEE_COLLECTOR);
 
         // add genericSwapFacet (v1) to diamond (for gas usage comparison)
