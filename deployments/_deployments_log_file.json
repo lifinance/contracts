@@ -19858,6 +19858,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xE871874D8AC30E8aCD0eC67529b4a5dDD73Bf0d6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-10 10:13:56",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "celo": {
