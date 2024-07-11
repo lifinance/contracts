@@ -17,38 +17,19 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 contract GenericSwapper is ILiFi {
     using SafeTransferLib for address;
 
-    struct TokenApproval {
-        address tokenAddress;
-        bool maxApprovalToFeeCollector; // if true then a max approval will be set between this contract and LI.FI FeeCollector
-        bool maxApprovalToDexAggregator; // if true then a max approval will be set between this contract and the LI.FI DEX Aggregator
-    }
-
-    /// Modifier ///
-    modifier onlyAdmin() {
-        if (msg.sender != adminAddress) revert UnAuthorized();
-        _;
-    }
-
     /// Storage ///
 
     address public immutable dexAggregatorAddress;
     address public immutable feeCollectorAddress;
-    address public immutable adminAddress;
 
     /// Constructor
 
     /// @notice Initialize the contract
     /// @param _dexAggregatorAddress The address of the LI.FI DEX aggregator
     /// @param _feeCollectorAddress The address of the LI.FI FeeCollector
-    /// @param _adminAddress The address of admin wallet (that can set token approvals)
-    constructor(
-        address _dexAggregatorAddress,
-        address _feeCollectorAddress,
-        address _adminAddress
-    ) {
+    constructor(address _dexAggregatorAddress, address _feeCollectorAddress) {
         dexAggregatorAddress = _dexAggregatorAddress;
         feeCollectorAddress = _feeCollectorAddress;
-        adminAddress = _adminAddress;
     }
 
     /// Modifier
@@ -221,56 +202,89 @@ contract GenericSwapper is ILiFi {
             revert CumulativeSlippageTooHigh(_minAmountOut, finalAmountOut);
     }
 
-    /// @notice (Re-)Sets max approvals from this contract to DEX Aggregator and FeeCollector
-    /// @param _approvals The information which approvals to set for which token
+    /// @notice Sets max approvals from this contract to DEX Aggregator and FeeCollector
+    /// @param _tokensToBeApproved The addresses of the tokens to be approved
+    /// @param _swapCallData The full calldata for the swap via this contract (e.g. swapTokensMultipleV3NativeToERC20(...))
+    function setApprovalForTokensAndSwap(
+        address[] calldata _tokensToBeApproved,
+        bytes memory _swapCallData
+    ) external {
+        // set token approvals
+        setApprovalForTokens(_tokensToBeApproved);
+
+        // execute swap on this contract using assembly for gas optimization purposes
+        assembly {
+            // Load the length of the callData
+            let callDataLength := mload(_swapCallData)
+            // Load the pointer to the callData
+            let callDataPointer := add(_swapCallData, 0x20)
+
+            // Perform the delegatecall to itself
+            let result := delegatecall(
+                gas(), // Forward all available gas
+                address(), // Address of this contract
+                callDataPointer, // Pointer to the callData
+                callDataLength, // Length of the callData
+                0, // Output location (none)
+                0 // Output size (none)
+            )
+
+            // Check if the call was successful
+            if eq(result, 0) {
+                // Revert if the call failed
+                revert(0, 0)
+            }
+        }
+    }
+
+    /// @notice Sets max approvals from this contract to DEX Aggregator and FeeCollector
+    /// @param _tokensToBeApproved The addresses of the tokens to be approved
     function setApprovalForTokens(
-        TokenApproval[] calldata _approvals
-    ) external onlyAdmin {
-        address tokenAddress;
+        address[] calldata _tokensToBeApproved
+    ) public {
         uint256 currentAllowance;
-        for (uint256 i; i < _approvals.length; ) {
-            tokenAddress = _approvals[i].tokenAddress;
-
-            // if maxApprovalToDexAggregator==true, set max approval, otherwise set approval to 0
-            // same for 'maxApprovalToFeeCollector' flag
-
+        address tokenAddress;
+        for (uint256 i; i < _tokensToBeApproved.length; ) {
+            tokenAddress = _tokensToBeApproved[i];
             // update approval for DEX aggregator
-            if (_approvals[i].maxApprovalToDexAggregator) {
-                // if an allowance exists, set it to 0 first
-                currentAllowance = IERC20(tokenAddress).allowance(
-                    address(this),
-                    dexAggregatorAddress
-                );
-                if (
-                    currentAllowance != 0 &&
-                    currentAllowance != type(uint256).max
-                ) tokenAddress.safeApprove(dexAggregatorAddress, 0);
+            // check current allowance
+            currentAllowance = IERC20(tokenAddress).allowance(
+                address(this),
+                dexAggregatorAddress
+            );
 
-                // set max approval
+            // check if existing allowance is max
+            if (currentAllowance != type(uint256).max) {
+                if (currentAllowance != 0)
+                    // if a non-max allowance exists, reset to 0 first
+                    tokenAddress.safeApprove(dexAggregatorAddress, 0);
+
+                // set to max
                 tokenAddress.safeApprove(
                     dexAggregatorAddress,
                     type(uint256).max
                 );
-            } else tokenAddress.safeApprove(dexAggregatorAddress, 0);
+            }
 
             // update approval for FeeCollector
-            if (_approvals[i].maxApprovalToFeeCollector) {
-                // if an allowance exists, set it to 0 first
-                currentAllowance = IERC20(tokenAddress).allowance(
-                    address(this),
-                    feeCollectorAddress
-                );
-                if (
-                    currentAllowance != 0 &&
-                    currentAllowance != type(uint256).max
-                ) tokenAddress.safeApprove(feeCollectorAddress, 0);
+            // check current allowance
+            currentAllowance = IERC20(tokenAddress).allowance(
+                address(this),
+                feeCollectorAddress
+            );
 
-                // set max approval
+            // check if existing allowance is max
+            if (currentAllowance != type(uint256).max) {
+                if (currentAllowance != 0)
+                    // if a non-max allowance exists, reset to 0 first
+                    tokenAddress.safeApprove(feeCollectorAddress, 0);
+
+                // set to max
                 tokenAddress.safeApprove(
                     feeCollectorAddress,
                     type(uint256).max
                 );
-            } else tokenAddress.safeApprove(feeCollectorAddress, 0);
+            }
 
             // gas-efficient way to increase counter
             unchecked {
