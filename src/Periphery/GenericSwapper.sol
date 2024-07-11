@@ -78,16 +78,10 @@ contract GenericSwapper is ILiFi {
     // SINGLE SWAPS
 
     /// @notice Performs a single swap from an ERC20 token to another ERC20 token
-    /// @param (unused)_transactionId the transaction id associated with the operation
-    /// @param (unused) _integrator the name of the integrator
-    /// @param (unused) _referrer the address of the referrer
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
     function swapTokensSingleV3ERC20ToERC20(
-        bytes32,
-        string calldata,
-        string calldata,
         address _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
@@ -118,16 +112,10 @@ contract GenericSwapper is ILiFi {
     }
 
     /// @notice Performs a single swap from an ERC20 token to the network's native token
-    /// @param (unused)_transactionId the transaction id associated with the operation
-    /// @param (unused) _integrator the name of the integrator
-    /// @param (unused) _referrer the address of the referrer
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
     function swapTokensSingleV3ERC20ToNative(
-        bytes32,
-        string calldata,
-        string calldata,
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
@@ -159,16 +147,10 @@ contract GenericSwapper is ILiFi {
     }
 
     /// @notice Performs a single swap from the network's native token to ERC20 token
-    /// @param (unused)_transactionId the transaction id associated with the operation
-    /// @param (unused) _integrator the name of the integrator
-    /// @param (unused) _referrer the address of the referrer
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
     function swapTokensSingleV3NativeToERC20(
-        bytes32,
-        string calldata,
-        string calldata,
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData calldata _swapData
@@ -194,45 +176,10 @@ contract GenericSwapper is ILiFi {
     // MULTIPLE SWAPS
 
     /// @notice Performs multiple swaps in one transaction, starting with ERC20 and ending with native
-    /// @param (*) _transactionId the transaction id associated with the operation
-    /// @param (*) _integrator the name of the integrator
-    /// @param (*) _referrer the address of the referrer
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
     function swapTokensMultipleV3ERC20ToAny(
-        bytes32,
-        string calldata,
-        string calldata,
-        address payable _receiver,
-        uint256 _minAmountOut,
-        LibSwap.SwapData[] calldata _swapData
-    ) external onlyCallsToLiFiContracts(_swapData) {
-        // deposit token of first swap
-        LibSwap.SwapData calldata currentSwap = _swapData[0];
-
-        // check if a deposit is required
-        if (currentSwap.requiresDeposit) {
-            // we will not check msg.value as tx will fail anyway if not enough value available
-            // thus we only deposit ERC20 tokens here
-            currentSwap.sendingAssetId.safeTransferFrom(
-                msg.sender,
-                address(this),
-                currentSwap.fromAmount
-            );
-        }
-
-        uint256 finalAmountOut = _executeSwaps(_swapData, _receiver);
-
-        // make sure that minAmount was received
-        if (finalAmountOut < _minAmountOut)
-            revert CumulativeSlippageTooHigh(_minAmountOut, finalAmountOut);
-    }
-
-    function swapTokensMultipleV3ERC20ToNative(
-        bytes32,
-        string calldata,
-        string calldata,
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData[] calldata _swapData
@@ -259,16 +206,10 @@ contract GenericSwapper is ILiFi {
     }
 
     /// @notice Performs multiple swaps in one transaction, starting with native and ending with ERC20
-    /// @param (*) _transactionId the transaction id associated with the operation
-    /// @param (*) _integrator the name of the integrator
-    /// @param (*) _referrer the address of the referrer
     /// @param _receiver the address to receive the swapped tokens into (also excess tokens)
     /// @param _minAmountOut the minimum amount of the final asset to receive
     /// @param _swapData an object containing swap related data to perform swaps before bridging
     function swapTokensMultipleV3NativeToERC20(
-        bytes32,
-        string calldata,
-        string calldata,
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData[] calldata _swapData

@@ -59,6 +59,7 @@ contract GenericSwapperTest is TestHelpers {
         0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf;
     address internal constant USER_ADMIN =
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
+    bytes constant CALLDATA_DELIMITER = hex"deadbeef";
 
     TestGenericSwapFacetV3 internal genericSwapFacetV3;
     TestGenericSwapper internal genericSwapper;
@@ -660,7 +661,13 @@ contract GenericSwapperTest is TestHelpers {
         bool isV3,
         SwapCase swapCase
     ) internal view returns (bytes memory callData) {
-        bytes4 selector = swapCase == SwapCase.ERC20ToERC20
+        bytes4 selector = isV3
+            ? swapCase == SwapCase.ERC20ToERC20
+                ? genericSwapFacetV3.swapTokensSingleV3ERC20ToERC20.selector
+                : swapCase == SwapCase.ERC20ToNative
+                ? genericSwapFacetV3.swapTokensSingleV3ERC20ToNative.selector
+                : genericSwapFacetV3.swapTokensSingleV3NativeToERC20.selector
+            : swapCase == SwapCase.ERC20ToERC20
             ? genericSwapper.swapTokensSingleV3ERC20ToERC20.selector
             : swapCase == SwapCase.ERC20ToNative
             ? genericSwapper.swapTokensSingleV3ERC20ToNative.selector
@@ -673,15 +680,22 @@ contract GenericSwapperTest is TestHelpers {
             : defaultMinAmountOutNativeToERC20;
 
         callData = _attachTransactionIdToCallData(
-            abi.encodeWithSelector(
-                selector,
-                "",
-                "",
-                "",
-                payable(USER_RECEIVER),
-                minAmountOut,
-                _getValidSingleSwapDataViaDexAggregator(isV3, swapCase)
-            )
+            isV3
+                ? abi.encodeWithSelector(
+                    selector,
+                    "",
+                    "",
+                    "",
+                    payable(USER_RECEIVER),
+                    minAmountOut,
+                    _getValidSingleSwapDataViaDexAggregator(isV3, swapCase)
+                )
+                : abi.encodeWithSelector(
+                    selector,
+                    payable(USER_RECEIVER),
+                    minAmountOut,
+                    _getValidSingleSwapDataViaDexAggregator(isV3, swapCase)
+                )
         );
     }
 
@@ -706,25 +720,34 @@ contract GenericSwapperTest is TestHelpers {
             : defaultMinAmountOutNativeToERC20;
 
         callData = _attachTransactionIdToCallData(
-            abi.encodeWithSelector(
-                selector,
-                "",
-                "",
-                "",
-                payable(USER_RECEIVER),
-                minAmountOut,
-                _getValidMultiSwapData(isV3, swapCase)
-            )
+            isV3
+                ? abi.encodeWithSelector(
+                    selector,
+                    "",
+                    "",
+                    "",
+                    payable(USER_RECEIVER),
+                    minAmountOut,
+                    _getValidMultiSwapData(isV3, swapCase)
+                )
+                : abi.encodeWithSelector(
+                    selector,
+                    payable(USER_RECEIVER),
+                    minAmountOut,
+                    _getValidMultiSwapData(isV3, swapCase)
+                )
         );
     }
 
     function _attachTransactionIdToCallData(
         bytes memory callData
     ) internal pure returns (bytes memory adjustedCallData) {
-        bytes memory delimiter = hex"deadbeef";
         bytes memory transactionID = hex"513ae98e50764707a4a573b35df47051";
 
-        bytes memory mergedAppendix = mergeBytes(delimiter, transactionID);
+        bytes memory mergedAppendix = mergeBytes(
+            CALLDATA_DELIMITER,
+            transactionID
+        );
 
         adjustedCallData = mergeBytes(callData, mergedAppendix);
     }
