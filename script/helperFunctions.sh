@@ -7,6 +7,8 @@ source .env
 # load script
 source script/config.sh
 
+
+
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 RED='\033[0;31m'   # Red color
 GREEN='\033[0;32m' # Green color
@@ -2797,6 +2799,10 @@ function getChainId() {
     echo "1313161554"
     return 0
     ;;
+  "base")
+    echo "8453"
+    return 0
+    ;;
   "boba")
     echo "288"
     return 0
@@ -2807,6 +2813,10 @@ function getChainId() {
     ;;
   "mode")
     echo "34443"
+    return 0
+    ;;
+  "scroll")
+    echo "534352"
     return 0
     ;;
   "goerli")
@@ -2863,6 +2873,17 @@ function getChainId() {
   esac
 
 }
+
+function getCreate3FactoryAddress() {
+  NETWORK="$1"
+  local CONFIG="config/global.json"
+
+  CREATE3_FACTORY=$(jq --arg NETWORK "$NETWORK" -r '.create3Factory[$NETWORK] // .create3Factory["default"]' $CONFIG)
+
+  echo $CREATE3_FACTORY
+}
+  
+
 function printDeploymentsStatus() {
   # read function arguments into variables
   ENVIRONMENT="$1"
