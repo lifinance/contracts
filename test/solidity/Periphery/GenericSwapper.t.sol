@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { GenericSwapper } from "lifi/Periphery/GenericSwapper.sol";
-import { RouteProcessor4 } from "lifi/Periphery/RouteProcessor4.sol";
+import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 import { TestHelpers, MockUniswapDEX, NonETHReceiver, LiFiDiamond, LibSwap, LibAllowList, ERC20, console } from "../utils/TestHelpers.sol";
@@ -65,7 +65,7 @@ contract GenericSwapperTest is TestHelpers {
 
     TestGenericSwapFacetV3 internal genericSwapFacetV3;
     TestGenericSwapper internal genericSwapper;
-    RouteProcessor4 internal routeProcessor;
+    LiFiDEXAggregator internal routeProcessor;
 
     uint256 defaultMinAmountOutNativeToERC20 = 2991350294;
     uint256 defaultMinAmountOutERC20ToNative = 32539678644151061;
@@ -77,7 +77,7 @@ contract GenericSwapperTest is TestHelpers {
         initTestBase();
 
         diamond = createDiamond();
-        routeProcessor = new RouteProcessor4(address(0), new address[](0));
+        routeProcessor = new LiFiDEXAggregator(address(0), new address[](0));
         genericSwapFacetV3 = new TestGenericSwapFacetV3(address(0));
         genericSwapper = new TestGenericSwapper(
             address(routeProcessor),
