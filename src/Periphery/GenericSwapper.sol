@@ -9,15 +9,12 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed, InvalidCallData, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-//TODO: remove
-import { console2 } from "forge-std/console2.sol";
-
-/// @title GenericSwapFacetV4
+/// @title GenericSwapper
 /// @author LI.FI (https://li.fi)
 /// @notice Provides gas-optimized functionality for fee collection and for swapping through any APPROVED DEX
 /// @dev Can only execute calldata for APPROVED function selectors
 /// @custom:version 1.0.0
-contract GenericSwapFacetV4 is ILiFi {
+contract GenericSwapper is ILiFi {
     using SafeTransferLib for address;
 
     struct TokenApproval {

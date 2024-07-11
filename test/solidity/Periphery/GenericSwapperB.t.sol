@@ -2,20 +2,20 @@
 pragma solidity 0.8.17;
 
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
-import { GenericSwapFacetV4 } from "lifi/Facets/GenericSwapFacetV4.sol";
+import { GenericSwapperB } from "lifi/Periphery/GenericSwapperB.sol";
 import { RouteProcessor4 } from "lifi/Periphery/RouteProcessor4.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 import { TestHelpers, MockUniswapDEX, NonETHReceiver, LiFiDiamond, LibSwap, LibAllowList, ERC20, console } from "../utils/TestHelpers.sol";
 
 // Stub GenericSwapFacet Contract
-contract TestGenericSwapFacetV4 is GenericSwapFacetV4 {
+contract TestGenericSwapperB is GenericSwapperB {
     constructor(
         address _dexAggregatorAddress,
         address _feeCollectorAddress,
         address _adminAddress
     )
-        GenericSwapFacetV4(
+        GenericSwapperB(
             _dexAggregatorAddress,
             _feeCollectorAddress,
             _adminAddress
@@ -51,7 +51,7 @@ contract TestGenericSwapFacetV3 is GenericSwapFacetV3 {
     }
 }
 
-contract GenericSwapFacetV4Test is TestHelpers {
+contract GenericSwapperBTest is TestHelpers {
     // These values are for Mainnet
     address internal constant USDC_HOLDER =
         0x4B16c5dE96EB2117bBE5fd171E4d203624B014aa;
@@ -61,7 +61,7 @@ contract GenericSwapFacetV4Test is TestHelpers {
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
 
     TestGenericSwapFacetV3 internal genericSwapFacetV3;
-    TestGenericSwapFacetV4 internal genericSwapFacetV4;
+    TestGenericSwapperB internal genericSwapper;
     RouteProcessor4 internal routeProcessor;
 
     uint256 defaultMinAmountOutNativeToERC20 = 2991350294;
@@ -75,7 +75,7 @@ contract GenericSwapFacetV4Test is TestHelpers {
         diamond = createDiamond();
         routeProcessor = new RouteProcessor4(address(0), new address[](0));
         genericSwapFacetV3 = new TestGenericSwapFacetV3(address(0));
-        genericSwapFacetV4 = new TestGenericSwapFacetV4(
+        genericSwapper = new TestGenericSwapperB(
             address(routeProcessor),
             address(feeCollector),
             USER_ADMIN
@@ -120,8 +120,8 @@ contract GenericSwapFacetV4Test is TestHelpers {
         );
 
         // v4
-        genericSwapFacetV4.addDex(address(routeProcessor));
-        genericSwapFacetV4.setFunctionApprovalBySignature(
+        genericSwapper.addDex(address(routeProcessor));
+        genericSwapper.setFunctionApprovalBySignature(
             routeProcessor.processRoute.selector
         );
 
@@ -135,16 +135,16 @@ contract GenericSwapFacetV4Test is TestHelpers {
             feeCollector.collectNativeFees.selector
         );
         // v4
-        genericSwapFacetV4.addDex(address(feeCollector));
-        genericSwapFacetV4.setFunctionApprovalBySignature(
+        genericSwapper.addDex(address(feeCollector));
+        genericSwapper.setFunctionApprovalBySignature(
             feeCollector.collectTokenFees.selector
         );
-        genericSwapFacetV4.setFunctionApprovalBySignature(
+        genericSwapper.setFunctionApprovalBySignature(
             feeCollector.collectNativeFees.selector
         );
 
         vm.label(address(genericSwapFacetV3), "GenericSwapV3 via Diamond");
-        vm.label(address(genericSwapFacetV4), "GenericSwapV4");
+        vm.label(address(genericSwapper), "GenericSwapV4");
         vm.label(address(routeProcessor), "RouteProcessor");
         vm.label(ADDRESS_WETH, "WETH_TOKEN");
         vm.label(ADDRESS_DAI, "DAI_TOKEN");
@@ -184,7 +184,7 @@ contract GenericSwapFacetV4Test is TestHelpers {
     {
         uint256 gasLeftBef = gasleft();
 
-        (bool success, ) = address(genericSwapFacetV4).call{
+        (bool success, ) = address(genericSwapper).call{
             value: defaultNativeAmount
         }(_getGenericSwapCallDataSingle(false, SwapCase.NativeToERC20));
         if (!success) revert();
@@ -226,16 +226,16 @@ contract GenericSwapFacetV4Test is TestHelpers {
         )
     {
         // ensure that max approval exists from GenericSwapFacet to DEX aggregator
-        vm.startPrank(address(genericSwapFacetV4));
+        vm.startPrank(address(genericSwapper));
         usdc.approve(address(routeProcessor), type(uint256).max);
         vm.stopPrank();
 
         vm.startPrank(USER_SENDER);
-        usdc.approve(address(genericSwapFacetV4), defaultUSDCAmount);
+        usdc.approve(address(genericSwapper), defaultUSDCAmount);
 
         uint256 gasLeftBef = gasleft();
 
-        (bool success, ) = address(genericSwapFacetV4).call(
+        (bool success, ) = address(genericSwapper).call(
             _getGenericSwapCallDataSingle(false, SwapCase.ERC20ToNative)
         );
         if (!success) revert();
@@ -277,16 +277,16 @@ contract GenericSwapFacetV4Test is TestHelpers {
         )
     {
         // ensure that max approval exists from GenericSwapFacet to DEX aggregator
-        vm.startPrank(address(genericSwapFacetV4));
+        vm.startPrank(address(genericSwapper));
         usdc.approve(address(routeProcessor), type(uint256).max);
         vm.stopPrank();
 
         vm.startPrank(USER_SENDER);
-        usdc.approve(address(genericSwapFacetV4), defaultUSDCAmount);
+        usdc.approve(address(genericSwapper), defaultUSDCAmount);
 
         uint256 gasLeftBef = gasleft();
 
-        (bool success, ) = address(genericSwapFacetV4).call(
+        (bool success, ) = address(genericSwapper).call(
             _getGenericSwapCallDataSingle(false, SwapCase.ERC20ToERC20)
         );
         if (!success) revert();
@@ -332,7 +332,7 @@ contract GenericSwapFacetV4Test is TestHelpers {
     {
         uint256 gasLeftBef = gasleft();
 
-        (bool success, ) = address(genericSwapFacetV4).call{
+        (bool success, ) = address(genericSwapper).call{
             value: defaultNativeAmount + defaultNativeFeeCollectionAmount
         }(
             _getGenericSwapCallDataFeeCollectionPlusSwap(
@@ -385,20 +385,20 @@ contract GenericSwapFacetV4Test is TestHelpers {
         )
     {
         // ensure that max approval exists from GenericSwapFacet to DEX aggregator and FeeCollector
-        vm.startPrank(address(genericSwapFacetV4));
+        vm.startPrank(address(genericSwapper));
         usdc.approve(address(routeProcessor), type(uint256).max);
         usdc.approve(address(feeCollector), type(uint256).max);
         vm.stopPrank();
 
         vm.startPrank(USER_SENDER);
         usdc.approve(
-            address(genericSwapFacetV4),
+            address(genericSwapper),
             defaultUSDCAmount + defaultUSDCFeeCollectionAmount
         );
 
         uint256 gasLeftBef = gasleft();
 
-        (bool success, ) = address(genericSwapFacetV4).call(
+        (bool success, ) = address(genericSwapper).call(
             _getGenericSwapCallDataFeeCollectionPlusSwap(
                 false,
                 SwapCase.ERC20ToNative
@@ -449,20 +449,20 @@ contract GenericSwapFacetV4Test is TestHelpers {
         )
     {
         // ensure that max approval exists from GenericSwapFacet to DEX aggregator and FeeCollector
-        vm.startPrank(address(genericSwapFacetV4));
+        vm.startPrank(address(genericSwapper));
         usdc.approve(address(routeProcessor), type(uint256).max);
         usdc.approve(address(feeCollector), type(uint256).max);
         vm.stopPrank();
 
         vm.startPrank(USER_SENDER);
         usdc.approve(
-            address(genericSwapFacetV4),
+            address(genericSwapper),
             defaultUSDCAmount + defaultUSDCFeeCollectionAmount
         );
 
         uint256 gasLeftBef = gasleft();
 
-        (bool success, ) = address(genericSwapFacetV4).call(
+        (bool success, ) = address(genericSwapper).call(
             _getGenericSwapCallDataFeeCollectionPlusSwap(
                 false,
                 SwapCase.ERC20ToERC20
@@ -476,59 +476,47 @@ contract GenericSwapFacetV4Test is TestHelpers {
 
     function test_AdminCanUpdateTokenApprovals() public {
         assertEq(
-            usdc.allowance(
-                address(genericSwapFacetV4),
-                address(routeProcessor)
-            ),
+            usdc.allowance(address(genericSwapper), address(routeProcessor)),
             0
         );
         assertEq(
-            usdt.allowance(
-                address(genericSwapFacetV4),
-                address(routeProcessor)
-            ),
+            usdt.allowance(address(genericSwapper), address(routeProcessor)),
             0
         );
 
-        GenericSwapFacetV4.TokenApproval[]
+        GenericSwapperB.TokenApproval[]
             memory approvals = _getTokenApprovalsStruct();
 
         vm.startPrank(USER_ADMIN);
-        genericSwapFacetV4.setApprovalForTokens(approvals);
+        genericSwapper.setApprovalForTokens(approvals);
 
         assertEq(
-            usdc.allowance(
-                address(genericSwapFacetV4),
-                address(routeProcessor)
-            ),
+            usdc.allowance(address(genericSwapper), address(routeProcessor)),
             type(uint256).max
         );
         assertEq(
-            usdc.allowance(address(genericSwapFacetV4), address(feeCollector)),
+            usdc.allowance(address(genericSwapper), address(feeCollector)),
             0
         );
         assertEq(
-            usdt.allowance(
-                address(genericSwapFacetV4),
-                address(routeProcessor)
-            ),
+            usdt.allowance(address(genericSwapper), address(routeProcessor)),
             0
         );
         assertEq(
-            usdt.allowance(address(genericSwapFacetV4), address(feeCollector)),
+            usdt.allowance(address(genericSwapper), address(feeCollector)),
             type(uint256).max
         );
     }
 
     function test_NonAdminCannotUpdateTokenApprovals() public {
-        GenericSwapFacetV4.TokenApproval[]
+        GenericSwapperB.TokenApproval[]
             memory approvals = _getTokenApprovalsStruct();
 
         vm.startPrank(USER_SENDER);
 
         vm.expectRevert(UnAuthorized.selector);
 
-        genericSwapFacetV4.setApprovalForTokens(approvals);
+        genericSwapper.setApprovalForTokens(approvals);
     }
 
     // ------ HELPER FUNCTIONS
@@ -536,9 +524,9 @@ contract GenericSwapFacetV4Test is TestHelpers {
     function _getTokenApprovalsStruct()
         internal
         view
-        returns (GenericSwapFacetV4.TokenApproval[] memory approvals)
+        returns (GenericSwapperB.TokenApproval[] memory approvals)
     {
-        approvals = new GenericSwapFacetV4.TokenApproval[](2);
+        approvals = new GenericSwapperB.TokenApproval[](2);
         approvals[0].tokenAddress = ADDRESS_USDC;
         approvals[0].maxApprovalToDexAggregator = true;
         approvals[0].maxApprovalToFeeCollector = false;
@@ -672,11 +660,17 @@ contract GenericSwapFacetV4Test is TestHelpers {
         bool isV3,
         SwapCase swapCase
     ) internal view returns (bytes memory callData) {
-        bytes4 selector = swapCase == SwapCase.ERC20ToERC20
-            ? genericSwapFacetV4.swapTokensSingleV3ERC20ToERC20.selector
+        bytes4 selector = isV3
+            ? swapCase == SwapCase.ERC20ToERC20
+                ? genericSwapFacetV3.swapTokensSingleV3ERC20ToERC20.selector
+                : swapCase == SwapCase.ERC20ToNative
+                ? genericSwapFacetV3.swapTokensSingleV3ERC20ToNative.selector
+                : genericSwapFacetV3.swapTokensSingleV3NativeToERC20.selector
+            : swapCase == SwapCase.ERC20ToERC20
+            ? genericSwapper.swapTokensSingleV3ERC20ToERC20.selector
             : swapCase == SwapCase.ERC20ToNative
-            ? genericSwapFacetV4.swapTokensSingleV3ERC20ToNative.selector
-            : genericSwapFacetV4.swapTokensSingleV3NativeToERC20.selector;
+            ? genericSwapper.swapTokensSingleV3ERC20ToNative.selector
+            : genericSwapper.swapTokensSingleV3NativeToERC20.selector;
 
         uint256 minAmountOut = swapCase == SwapCase.ERC20ToERC20
             ? defaultMinAmountOutERC20ToERC20
@@ -685,15 +679,22 @@ contract GenericSwapFacetV4Test is TestHelpers {
             : defaultMinAmountOutNativeToERC20;
 
         callData = _attachTransactionIdToCallData(
-            abi.encodeWithSelector(
-                selector,
-                "",
-                "",
-                "",
-                payable(USER_RECEIVER),
-                minAmountOut,
-                _getValidSingleSwapDataViaDexAggregator(isV3, swapCase)
-            )
+            isV3
+                ? abi.encodeWithSelector(
+                    selector,
+                    "",
+                    "",
+                    "",
+                    payable(USER_RECEIVER),
+                    minAmountOut,
+                    _getValidSingleSwapDataViaDexAggregator(isV3, swapCase)
+                )
+                : abi.encodeWithSelector(
+                    selector,
+                    payable(USER_RECEIVER),
+                    minAmountOut,
+                    _getValidSingleSwapDataViaDexAggregator(isV3, swapCase)
+                )
         );
     }
 
@@ -708,8 +709,8 @@ contract GenericSwapFacetV4Test is TestHelpers {
                 ? genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20.selector
                 : genericSwapFacetV3.swapTokensMultipleV3ERC20ToNative.selector
             : swapCase == SwapCase.NativeToERC20
-            ? genericSwapFacetV4.swapTokensMultipleV3NativeToERC20.selector
-            : genericSwapFacetV4.swapTokensMultipleV3ERC20ToAny.selector;
+            ? genericSwapper.swapTokensMultipleV3NativeToERC20.selector
+            : genericSwapper.swapTokensMultipleV3ERC20ToAny.selector;
 
         uint256 minAmountOut = swapCase == SwapCase.ERC20ToERC20
             ? defaultMinAmountOutERC20ToERC20
@@ -718,15 +719,22 @@ contract GenericSwapFacetV4Test is TestHelpers {
             : defaultMinAmountOutNativeToERC20;
 
         callData = _attachTransactionIdToCallData(
-            abi.encodeWithSelector(
-                selector,
-                "",
-                "",
-                "",
-                payable(USER_RECEIVER),
-                minAmountOut,
-                _getValidMultiSwapData(isV3, swapCase)
-            )
+            isV3
+                ? abi.encodeWithSelector(
+                    selector,
+                    "",
+                    "",
+                    "",
+                    payable(USER_RECEIVER),
+                    minAmountOut,
+                    _getValidMultiSwapData(isV3, swapCase)
+                )
+                : abi.encodeWithSelector(
+                    selector,
+                    payable(USER_RECEIVER),
+                    minAmountOut,
+                    _getValidMultiSwapData(isV3, swapCase)
+                )
         );
     }
 
