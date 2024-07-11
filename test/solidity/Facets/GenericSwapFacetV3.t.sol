@@ -73,11 +73,6 @@ contract GenericSwapFacetV3Test is TestHelpers {
         diamond = createDiamond();
         genericSwapFacet = new TestGenericSwapFacet();
         genericSwapFacetV3 = new TestGenericSwapFacetV3(address(0));
-        usdc = ERC20(USDC_ADDRESS);
-        usdt = ERC20(USDT_ADDRESS);
-        dai = ERC20(DAI_ADDRESS);
-        weth = ERC20(WETH_ADDRESS);
-        uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
         feeCollector = FeeCollector(FEE_COLLECTOR);
 
         // add genericSwapFacet (v1) to diamond (for gas usage comparison)

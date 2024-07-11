@@ -4,17 +4,23 @@ pragma solidity 0.8.17;
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { GenericSwapFacetV4 } from "lifi/Facets/GenericSwapFacetV4.sol";
 import { RouteProcessor4 } from "lifi/Periphery/RouteProcessor4.sol";
-import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
+import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 import { TestHelpers, MockUniswapDEX, NonETHReceiver, LiFiDiamond, LibSwap, LibAllowList, ERC20, console } from "../utils/TestHelpers.sol";
-
-import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol"; // TODO: replace with SOLADY
 
 // Stub GenericSwapFacet Contract
 contract TestGenericSwapFacetV4 is GenericSwapFacetV4 {
     constructor(
-        address _dexAggregatorAddress
-    ) GenericSwapFacetV4(_dexAggregatorAddress) {}
+        address _dexAggregatorAddress,
+        address _feeCollectorAddress,
+        address _adminAddress
+    )
+        GenericSwapFacetV4(
+            _dexAggregatorAddress,
+            _feeCollectorAddress,
+            _adminAddress
+        )
+    {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -30,6 +36,8 @@ contract TestGenericSwapFacetV4 is GenericSwapFacetV4 {
 }
 
 contract TestGenericSwapFacetV3 is GenericSwapFacetV3 {
+    constructor(address _nativeAddress) GenericSwapFacetV3(_nativeAddress) {}
+
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -44,14 +52,12 @@ contract TestGenericSwapFacetV3 is GenericSwapFacetV3 {
 }
 
 contract GenericSwapFacetV4Test is TestHelpers {
-    using SafeTransferLib for ERC20;
-
     // These values are for Mainnet
     address internal constant USDC_HOLDER =
         0x4B16c5dE96EB2117bBE5fd171E4d203624B014aa;
     address internal constant DAI_HOLDER =
         0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf;
-    address internal constant SOME_WALLET =
+    address internal constant USER_ADMIN =
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
 
     TestGenericSwapFacetV3 internal genericSwapFacetV3;
@@ -68,9 +74,11 @@ contract GenericSwapFacetV4Test is TestHelpers {
 
         diamond = createDiamond();
         routeProcessor = new RouteProcessor4(address(0), new address[](0));
-        genericSwapFacetV3 = new TestGenericSwapFacetV3();
+        genericSwapFacetV3 = new TestGenericSwapFacetV3(address(0));
         genericSwapFacetV4 = new TestGenericSwapFacetV4(
-            address(routeProcessor)
+            address(routeProcessor),
+            address(feeCollector),
+            USER_ADMIN
         );
 
         // add genericSwapFacet (v3) to diamond (for gas usage comparison)
@@ -466,7 +474,79 @@ contract GenericSwapFacetV4Test is TestHelpers {
         console.log("gas used: V4", gasUsed);
     }
 
+    function test_AdminCanUpdateTokenApprovals() public {
+        assertEq(
+            usdc.allowance(
+                address(genericSwapFacetV4),
+                address(routeProcessor)
+            ),
+            0
+        );
+        assertEq(
+            usdt.allowance(
+                address(genericSwapFacetV4),
+                address(routeProcessor)
+            ),
+            0
+        );
+
+        GenericSwapFacetV4.TokenApproval[]
+            memory approvals = _getTokenApprovalsStruct();
+
+        vm.startPrank(USER_ADMIN);
+        genericSwapFacetV4.setApprovalForTokens(approvals);
+
+        assertEq(
+            usdc.allowance(
+                address(genericSwapFacetV4),
+                address(routeProcessor)
+            ),
+            type(uint256).max
+        );
+        assertEq(
+            usdc.allowance(address(genericSwapFacetV4), address(feeCollector)),
+            0
+        );
+        assertEq(
+            usdt.allowance(
+                address(genericSwapFacetV4),
+                address(routeProcessor)
+            ),
+            0
+        );
+        assertEq(
+            usdt.allowance(address(genericSwapFacetV4), address(feeCollector)),
+            type(uint256).max
+        );
+    }
+
+    function test_NonAdminCannotUpdateTokenApprovals() public {
+        GenericSwapFacetV4.TokenApproval[]
+            memory approvals = _getTokenApprovalsStruct();
+
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(UnAuthorized.selector);
+
+        genericSwapFacetV4.setApprovalForTokens(approvals);
+    }
+
     // ------ HELPER FUNCTIONS
+
+    function _getTokenApprovalsStruct()
+        internal
+        view
+        returns (GenericSwapFacetV4.TokenApproval[] memory approvals)
+    {
+        approvals = new GenericSwapFacetV4.TokenApproval[](2);
+        approvals[0].tokenAddress = ADDRESS_USDC;
+        approvals[0].maxApprovalToDexAggregator = true;
+        approvals[0].maxApprovalToFeeCollector = false;
+
+        approvals[1].tokenAddress = ADDRESS_USDT;
+        approvals[1].maxApprovalToDexAggregator = false;
+        approvals[1].maxApprovalToFeeCollector = true;
+    }
 
     enum SwapCase {
         NativeToERC20,

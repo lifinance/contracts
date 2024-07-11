@@ -3,12 +3,10 @@ pragma solidity 0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
-import { LibSwap } from "../Libraries/LibSwap.sol";
+import { LibSwap, IERC20 } from "../Libraries/LibSwap.sol";
 import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
-import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed, InvalidCallData } from "../Errors/GenericErrors.sol";
-
-//TODO: replace with solady
+import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed, InvalidCallData, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 //TODO: remove
@@ -22,21 +20,59 @@ import { console2 } from "forge-std/console2.sol";
 contract GenericSwapFacetV4 is ILiFi {
     using SafeTransferLib for address;
 
+    struct TokenApproval {
+        address tokenAddress;
+        bool maxApprovalToFeeCollector; // if true then a max approval will be set between this contract and LI.FI FeeCollector
+        bool maxApprovalToDexAggregator; // if true then a max approval will be set between this contract and the LI.FI DEX Aggregator
+    }
+
+    /// Modifier ///
+    modifier onlyAdmin() {
+        if (msg.sender != adminAddress) revert UnAuthorized();
+        _;
+    }
+
     /// Storage ///
 
     address public immutable dexAggregatorAddress;
+    address public immutable feeCollectorAddress;
+    address public immutable adminAddress;
 
     /// Constructor
 
     /// @notice Initialize the contract
-    /// @param _dexAggregatorAddress The address of the DEX aggregator
-    constructor(address _dexAggregatorAddress) {
+    /// @param _dexAggregatorAddress The address of the LI.FI DEX aggregator
+    /// @param _feeCollectorAddress The address of the LI.FI FeeCollector
+    /// @param _adminAddress The address of admin wallet (that can set token approvals)
+    constructor(
+        address _dexAggregatorAddress,
+        address _feeCollectorAddress,
+        address _adminAddress
+    ) {
         dexAggregatorAddress = _dexAggregatorAddress;
+        feeCollectorAddress = _feeCollectorAddress;
+        adminAddress = _adminAddress;
     }
 
     /// Modifier
     modifier onlyCallsToDexAggregator(address callTo) {
         if (callTo != dexAggregatorAddress) revert InvalidCallData();
+        _;
+    }
+
+    modifier onlyCallsToLiFiContracts(LibSwap.SwapData[] memory swapData) {
+        for (uint256 i; i < swapData.length; ) {
+            if (
+                swapData[i].callTo != dexAggregatorAddress &&
+                swapData[i].callTo != feeCollectorAddress
+            ) revert InvalidCallData();
+
+            // gas-efficient way to increase loop counter
+            unchecked {
+                ++i;
+            }
+        }
+
         _;
     }
 
@@ -174,7 +210,7 @@ contract GenericSwapFacetV4 is ILiFi {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData[] calldata _swapData
-    ) external {
+    ) external onlyCallsToLiFiContracts(_swapData) {
         // deposit token of first swap
         LibSwap.SwapData calldata currentSwap = _swapData[0];
 
@@ -203,7 +239,7 @@ contract GenericSwapFacetV4 is ILiFi {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData[] calldata _swapData
-    ) external {
+    ) external onlyCallsToLiFiContracts(_swapData) {
         // deposit token of first swap
         LibSwap.SwapData calldata currentSwap = _swapData[0];
 
@@ -239,7 +275,7 @@ contract GenericSwapFacetV4 is ILiFi {
         address payable _receiver,
         uint256 _minAmountOut,
         LibSwap.SwapData[] calldata _swapData
-    ) external payable {
+    ) external payable onlyCallsToLiFiContracts(_swapData) {
         uint256 finalAmountOut = _executeSwaps(_swapData, _receiver);
 
         // make sure that minAmount was received
@@ -247,31 +283,65 @@ contract GenericSwapFacetV4 is ILiFi {
             revert CumulativeSlippageTooHigh(_minAmountOut, finalAmountOut);
     }
 
-    /// Private helper methods ///
-    function _depositMultipleERC20Tokens(
-        LibSwap.SwapData[] calldata _swapData
-    ) private {}
+    /// @notice (Re-)Sets max approvals from this contract to DEX Aggregator and FeeCollector
+    /// @param _approvals The information which approvals to set for which token
+    function setApprovalForTokens(
+        TokenApproval[] calldata _approvals
+    ) external onlyAdmin {
+        address tokenAddress;
+        uint256 currentAllowance;
+        for (uint256 i; i < _approvals.length; ) {
+            tokenAddress = _approvals[i].tokenAddress;
 
-    function _depositAndSwapERC20Single(
-        LibSwap.SwapData calldata _swapData,
-        address _receiver
-    ) private onlyCallsToDexAggregator(_swapData.callTo) {
-        address sendingAssetId = _swapData.sendingAssetId;
-        uint256 fromAmount = _swapData.fromAmount;
-        // deposit funds
-        sendingAssetId.safeTransferFrom(msg.sender, address(this), fromAmount);
+            // if maxApprovalToDexAggregator==true, set max approval, otherwise set approval to 0
+            // same for 'maxApprovalToFeeCollector' flag
 
-        // execute swap
-        // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory res) = _swapData.callTo.call(
-            _swapData.callData
-        );
-        if (!success) {
-            LibUtil.revertWith(res);
+            // update approval for DEX aggregator
+            if (_approvals[i].maxApprovalToDexAggregator) {
+                // if an allowance exists, set it to 0 first
+                currentAllowance = IERC20(tokenAddress).allowance(
+                    address(this),
+                    dexAggregatorAddress
+                );
+                if (
+                    currentAllowance != 0 &&
+                    currentAllowance != type(uint256).max
+                ) tokenAddress.safeApprove(dexAggregatorAddress, 0);
+
+                // set max approval
+                tokenAddress.safeApprove(
+                    dexAggregatorAddress,
+                    type(uint256).max
+                );
+            } else tokenAddress.safeApprove(dexAggregatorAddress, 0);
+
+            // update approval for FeeCollector
+            if (_approvals[i].maxApprovalToFeeCollector) {
+                // if an allowance exists, set it to 0 first
+                currentAllowance = IERC20(tokenAddress).allowance(
+                    address(this),
+                    feeCollectorAddress
+                );
+                if (
+                    currentAllowance != 0 &&
+                    currentAllowance != type(uint256).max
+                ) tokenAddress.safeApprove(feeCollectorAddress, 0);
+
+                // set max approval
+                tokenAddress.safeApprove(
+                    feeCollectorAddress,
+                    type(uint256).max
+                );
+            } else tokenAddress.safeApprove(feeCollectorAddress, 0);
+
+            // gas-efficient way to increase counter
+            unchecked {
+                ++i;
+            }
         }
-
-        _returnPositiveSlippageERC20(sendingAssetId, _receiver);
     }
+
+    /// Private helper methods ///
 
     // @dev: this function will not work with swapData that has multiple swaps with the same sendingAssetId
     //       as the _returnPositiveSlippage... functionality will refund all remaining tokens after the first swap
