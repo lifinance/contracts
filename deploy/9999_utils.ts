@@ -194,7 +194,7 @@ export const deployFacet = async function (
   const facet = await ethers.getContract(name)
   const diamond = await ethers.getContract(diamondContractName)
 
-  await addOrReplaceFacets([facet], diamond.address)
+  // await addOrReplaceFacets([facet], diamond.address)
 
   const isVerified = await verifyContract(hre, name, {
     address: facet.address,
