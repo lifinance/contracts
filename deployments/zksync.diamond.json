@@ -44,6 +44,10 @@
       "0x1c21F1De46ff4f29D47517d753454E2EB8BEbe31": {
         "Name": "LIFuelFacet",
         "Version": "1.0.1"
+      },
+      "0xe7de245AF7ADdB8F5E21426D6e7685B543b13ed9": {
+        "Name": "GasZipFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
