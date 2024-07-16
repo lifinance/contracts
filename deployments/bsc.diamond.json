@@ -73,9 +73,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0xC3cD90545f30F4F9E71e582510Cc64ab5a743E85": {
+      "0x376f99f7EADE8A17f036fCff9eBA978E66e5fd28": {
         "Name": "ThorSwapFacet",
-        "Version": "1.0.0"
+        "Version": "1.2.0"
       },
       "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB": {
         "Name": "AmarokFacetPacked",
