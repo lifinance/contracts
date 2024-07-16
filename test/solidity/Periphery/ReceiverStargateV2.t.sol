@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { Test, TestBase, Vm, LiFiDiamond, DSTest, ILiFi, LibSwap, LibAllowList, console, InvalidAmount, ERC20, UniswapV2Router02 } from "../utils/TestBase.sol";
-import { OnlyContractOwner, UnAuthorized, ExternalCallFailed } from "src/Errors/GenericErrors.sol";
+import { TestHelpers, LiFiDiamond, ILiFi, LibSwap, LibAllowList, console, ERC20, UniswapV2Router02, NonETHReceiver } from "../utils/TestHelpers.sol";
+import { OnlyContractOwner, UnAuthorized, ExternalCallFailed, InvalidAmount } from "src/Errors/GenericErrors.sol";
 
 import { ReceiverStargateV2 } from "lifi/Periphery/ReceiverStargateV2.sol";
 import { stdJson } from "forge-std/Script.sol";
@@ -18,7 +18,7 @@ bytes4 constant LZ_COMPOSE_NOT_FOUND_SELECTOR = bytes4(
 );
 bytes32 constant RECEIVED_MESSAGE_HASH = bytes32(uint256(1));
 
-contract ReceiverStargateV2Test is TestBase {
+contract ReceiverStargateV2Test is TestHelpers {
     using stdJson for string;
 
     ReceiverStargateV2 internal receiver;
@@ -299,50 +299,6 @@ contract ReceiverStargateV2Test is TestBase {
 
         assertTrue(dai.balanceOf(receiverAddress) == amountOutMin);
     }
-
-    // HELPER FUNCTIONS
-    function mergeBytes(
-        bytes memory a,
-        bytes memory b
-    ) public pure returns (bytes memory c) {
-        // Store the length of the first array
-        uint alen = a.length;
-        // Store the length of BOTH arrays
-        uint totallen = alen + b.length;
-        // Count the loops required for array a (sets of 32 bytes)
-        uint loopsa = (a.length + 31) / 32;
-        // Count the loops required for array b (sets of 32 bytes)
-        uint loopsb = (b.length + 31) / 32;
-        assembly {
-            let m := mload(0x40)
-            // Load the length of both arrays to the head of the new bytes array
-            mstore(m, totallen)
-            // Add the contents of a to the array
-            for {
-                let i := 0
-            } lt(i, loopsa) {
-                i := add(1, i)
-            } {
-                mstore(
-                    add(m, mul(32, add(1, i))),
-                    mload(add(a, mul(32, add(1, i))))
-                )
-            }
-            // Add the contents of b to the array
-            for {
-                let i := 0
-            } lt(i, loopsb) {
-                i := add(1, i)
-            } {
-                mstore(
-                    add(m, add(mul(32, add(1, i)), alen)),
-                    mload(add(b, mul(32, add(1, i))))
-                )
-            }
-            mstore(0x40, add(m, add(32, totallen)))
-            c := m
-        }
-    }
 }
 
 interface IMessagingComposer {
@@ -361,10 +317,6 @@ interface IMessagingComposer {
         bytes calldata _message,
         bytes calldata _extraData
     ) external payable;
-}
-
-contract NonETHReceiver {
-    // this contract cannot receive any ETH due to missing receive function
 }
 
 contract ReentrantReceiver {

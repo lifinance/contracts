@@ -42,7 +42,6 @@ contract StargateFacetTest is TestBaseFacet {
     // -----
 
     TestStargateFacet internal stargateFacet;
-    FeeCollector internal feeCollector;
     StargateFacet.StargateData internal stargateData;
     uint256 internal nativeAddToMessageValue;
 
@@ -55,7 +54,6 @@ contract StargateFacetTest is TestBaseFacet {
         stargateFacet = new TestStargateFacet(
             IStargateRouter(MAINNET_COMPOSER)
         );
-        feeCollector = new FeeCollector(address(this));
 
         bytes4[] memory functionSelectors = new bytes4[](8);
         functionSelectors[0] = stargateFacet.initStargate.selector;

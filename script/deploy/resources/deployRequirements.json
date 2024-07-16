@@ -413,6 +413,17 @@
       }
     }
   },
+  "GenericSwapper": {
+    "configData": {
+    "contractAddresses": {
+      "FeeCollector": {
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "LiFiDEXAggregator": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "FeeCollector": {
     "configData": {
       "_owner": {

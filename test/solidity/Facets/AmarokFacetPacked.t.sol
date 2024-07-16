@@ -16,11 +16,9 @@ contract AmarokFacetPackedTest is TestBase {
 
     address internal constant CONNEXT_HANDLER =
         0x8898B472C54c31894e3B9bb83cEA802a5d0e63C6;
-    address internal ADDRESS_USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     uint256 internal BSC_CHAIN_ID = 56;
 
     IConnextHandler internal amarok;
-    ERC20 internal usdt;
     AmarokFacetPacked internal amarokFacetPacked;
     AmarokFacetPacked internal amarokStandAlone;
     AmarokFacet.AmarokData internal validAmarokData;
