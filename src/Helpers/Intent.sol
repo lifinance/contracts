@@ -24,7 +24,7 @@ contract Intent {
         address tokenOut;
         uint256 amountOutMin;
         uint256 deadline;
-        bool executed;
+        uint8 executed;
     }
 
     address public immutable implementation;
@@ -72,10 +72,10 @@ contract Intent {
         if (msg.sender != config.factory) {
             revert Unauthorized();
         }
-        if (config.executed) {
+        if (config.executed > 0) {
             revert AlreadyExecuted();
         }
-        config.executed = true;
+        config.executed = 1; // Set as executed
 
         for (uint256 i = 0; i < calls.length; i++) {
             (bool success, ) = calls[i].to.call{ value: calls[i].value }(
