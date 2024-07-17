@@ -53,7 +53,7 @@ const main = defineCommand({
       transport: http(),
     })
 
-    // Initialize the intentfactory
+    // Setup the intentfactory ABI
     const intentFactory = {
       address: INTENT_FACTORY_ADDRESS,
       abi: ABI,
