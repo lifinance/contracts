@@ -4,21 +4,18 @@ import * as Deployments from '../../deployments/arbitrum.staging.json'
 import * as IntentFactory from '../../out/IntentFactory.sol/IntentFactory.json'
 import {
   Address,
-  Hex,
-  SendTransactionRequest,
   createPublicClient,
   createWalletClient,
   encodeFunctionData,
   http,
   keccak256,
   parseAbi,
-  parseUnits,
   toHex,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { ChainId, getQuote } from '@lifi/sdk'
 
-const INTENT_FACTORY_ADDReSS = Deployments.IntentFactory as Address
+const INTENT_FACTORY_ADDRESS = Deployments.IntentFactory as Address
 const ABI = IntentFactory.abi
 const ERC20_ABI = parseAbi([
   'function transfer(address,uint256) external',
@@ -58,7 +55,7 @@ const main = defineCommand({
 
     // Initialize the intentfactory
     const intentFactory = {
-      address: INTENT_FACTORY_ADDReSS,
+      address: INTENT_FACTORY_ADDRESS,
       abi: ABI,
     }
 
