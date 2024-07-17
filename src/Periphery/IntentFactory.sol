@@ -22,7 +22,7 @@ contract IntentFactory is TransferrableOwnership {
     /// Constructor ///
 
     constructor(address _owner) TransferrableOwnership(_owner) {
-        implementation = address(new Intent());
+        implementation = payable(address(new Intent()));
     }
 
     /// External Functions ///
@@ -39,7 +39,9 @@ contract IntentFactory is TransferrableOwnership {
         }
 
         bytes32 salt = keccak256(abi.encode(_initData));
-        address clone = LibClone.cloneDeterministic(implementation, salt);
+        address payable clone = payable(
+            LibClone.cloneDeterministic(implementation, salt)
+        );
         Intent(clone).init(_initData);
         Intent(clone).execute(_calls);
     }
@@ -52,7 +54,9 @@ contract IntentFactory is TransferrableOwnership {
         address[] calldata tokens
     ) external {
         bytes32 salt = keccak256(abi.encode(_initData));
-        address clone = LibClone.cloneDeterministic(implementation, salt);
+        address payable clone = payable(
+            LibClone.cloneDeterministic(implementation, salt)
+        );
         Intent(clone).init(_initData);
         Intent(clone).withdrawAll(tokens);
     }

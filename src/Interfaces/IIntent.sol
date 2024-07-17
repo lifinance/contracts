@@ -13,5 +13,6 @@ interface IIntent {
         address receiver;
         address tokenOut;
         uint256 amountOutMin;
+        uint256 deadline;
     }
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.17;
 
 import { Test, console } from "forge-std/Test.sol";
 import { Intent } from "lifi/Helpers/Intent.sol";
@@ -26,7 +26,7 @@ contract IntentFactoryTest is Test {
 
     function deploy() public returns (Intent, IntentFactory) {
         IntentFactory _factory = new IntentFactory(address(this));
-        address _implementation = _factory.implementation();
+        address payable _implementation = payable(_factory.implementation());
         return (Intent(_implementation), _factory);
     }
 
@@ -40,7 +40,8 @@ contract IntentFactoryTest is Test {
                 intentId: intentId,
                 receiver: alice,
                 tokenOut: address(tokenB),
-                amountOutMin: 100
+                amountOutMin: 100,
+                deadline: block.timestamp
             })
         );
 
@@ -82,7 +83,8 @@ contract IntentFactoryTest is Test {
                 intentId: intentId,
                 receiver: alice,
                 tokenOut: address(tokenB),
-                amountOutMin: 100
+                amountOutMin: 100,
+                deadline: block.timestamp
             }),
             calls
         );
@@ -103,7 +105,8 @@ contract IntentFactoryTest is Test {
                 intentId: intentId,
                 receiver: alice,
                 tokenOut: address(tokenB),
-                amountOutMin: 100
+                amountOutMin: 100,
+                deadline: block.timestamp
             })
         );
 
@@ -134,7 +137,8 @@ contract IntentFactoryTest is Test {
                 intentId: intentId,
                 receiver: alice,
                 tokenOut: address(tokenB),
-                amountOutMin: 100
+                amountOutMin: 100,
+                deadline: block.timestamp
             }),
             calls
         );
@@ -154,7 +158,8 @@ contract IntentFactoryTest is Test {
                 intentId: intentId,
                 receiver: alice,
                 tokenOut: address(tokenB),
-                amountOutMin: 100
+                amountOutMin: 100,
+                deadline: block.timestamp
             })
         );
         // Send tokens to the precomputed address
@@ -171,7 +176,8 @@ contract IntentFactoryTest is Test {
                 intentId: intentId,
                 receiver: alice,
                 tokenOut: address(tokenB),
-                amountOutMin: 100
+                amountOutMin: 100,
+                deadline: block.timestamp
             }),
             tokens
         );
