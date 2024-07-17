@@ -16,14 +16,19 @@ interface IERC20 {
 contract Intent {
     /// Storage ///
 
-    bytes32 public intentId;
-    bytes32 public salt;
-    address public receiver;
+    struct IntentConfig {
+        bytes32 intentId;
+        bytes32 salt;
+        address receiver;
+        address factory;
+        address tokenOut;
+        uint256 amountOutMin;
+        uint256 deadline;
+        bool executed;
+    }
+
     address public immutable implementation;
-    address public factory;
-    address public tokenOut;
-    uint256 public amountOutMin;
-    bool public executed = false;
+    IntentConfig public config;
 
     /// Errors ///
 
@@ -44,33 +49,33 @@ contract Intent {
     /// @notice Initializes the intent with the given parameters.
     /// @param _initData The init data.
     function init(IIntent.InitData calldata _initData) external {
-        salt = keccak256(abi.encode(_initData));
-        factory = msg.sender;
+        config.salt = keccak256(abi.encode(_initData));
+        config.factory = msg.sender;
         address predictedAddress = LibClone.predictDeterministicAddress(
             implementation,
-            salt,
+            config.salt,
             msg.sender
         );
         if (address(this) != predictedAddress) {
             revert InvalidParams();
         }
 
-        intentId = _initData.intentId;
-        receiver = _initData.receiver;
-        tokenOut = _initData.tokenOut;
-        amountOutMin = _initData.amountOutMin;
+        config.intentId = _initData.intentId;
+        config.receiver = _initData.receiver;
+        config.tokenOut = _initData.tokenOut;
+        config.amountOutMin = _initData.amountOutMin;
     }
 
     /// @notice Executes the intent with the given calls.
     /// @param calls The calls to execute.
     function execute(IIntent.Call[] calldata calls) external {
-        if (msg.sender != factory) {
+        if (msg.sender != config.factory) {
             revert Unauthorized();
         }
-        if (executed) {
+        if (config.executed) {
             revert AlreadyExecuted();
         }
-        executed = true;
+        config.executed = true;
 
         for (uint256 i = 0; i < calls.length; i++) {
             (bool success, ) = calls[i].to.call{ value: calls[i].value }(
@@ -81,28 +86,40 @@ contract Intent {
             }
         }
 
-        if (IERC20(tokenOut).balanceOf(address(this)) < amountOutMin) {
+        if (
+            IERC20(config.tokenOut).balanceOf(address(this)) <
+            config.amountOutMin
+        ) {
             revert InsufficientOutputAmount();
         }
-        if (tokenOut == address(0)) {
-            SafeTransferLib.safeTransferAllETH(receiver);
+        if (config.tokenOut == address(0)) {
+            SafeTransferLib.safeTransferAllETH(config.receiver);
             return;
         }
-        SafeTransferLib.safeTransferAll(tokenOut, receiver);
+        SafeTransferLib.safeTransferAll(config.tokenOut, config.receiver);
     }
 
     /// @notice Withdraws all the tokens.
     /// @param tokens The tokens to withdraw.
     function withdrawAll(address[] calldata tokens) external {
-        if (msg.sender != factory) {
+        if (msg.sender != config.factory) {
             revert Unauthorized();
         }
-        for (uint256 i = 0; i < tokens.length; i++) {
+        for (uint256 i = 0; i < tokens.length; ) {
             if (tokens[i] == address(0)) {
-                SafeTransferLib.safeTransferAllETH(receiver);
+                SafeTransferLib.safeTransferAllETH(config.receiver);
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
-            SafeTransferLib.safeTransferAll(tokens[i], receiver);
+            SafeTransferLib.safeTransferAll(tokens[i], config.receiver);
+            unchecked {
+                ++i;
+            }
         }
     }
+
+    // Recieve ETH
+    receive() external payable {}
 }
