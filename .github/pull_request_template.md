@@ -14,4 +14,4 @@
 
 - [ ] I have checked that any arbitrary calls to external contracts are validated and or restricted
 - [ ] I have checked that any privileged calls (i.e. storage modifications) are validated and or restricted
-- [ ] I have ensured that any new contracts have had AT A MINIMUM 1 preliminary audit by a third-party 
+- [ ] I have ensured that any new contracts have had AT A MINIMUM 1 preliminary audit conducted on <date> by <company/auditor>
