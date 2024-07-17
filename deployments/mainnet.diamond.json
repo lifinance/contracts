@@ -105,9 +105,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0xC3cD90545f30F4F9E71e582510Cc64ab5a743E85": {
+      "0x376f99f7EADE8A17f036fCff9eBA978E66e5fd28": {
         "Name": "ThorSwapFacet",
-        "Version": "1.0.0"
+        "Version": "1.2.0"
       },
       "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9": {
         "Name": "AcrossFacetPacked",
