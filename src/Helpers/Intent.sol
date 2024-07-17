@@ -86,17 +86,25 @@ contract Intent {
             }
         }
 
-        if (
-            IERC20(config.tokenOut).balanceOf(address(this)) <
-            config.amountOutMin
-        ) {
-            revert InsufficientOutputAmount();
-        }
-        if (config.tokenOut == address(0)) {
+        bool isNative = config.tokenOut == address(0);
+
+        if (isNative) {
+            // Handle native output
+            if (address(this).balance < config.amountOutMin) {
+                revert InsufficientOutputAmount();
+            }
             SafeTransferLib.safeTransferAllETH(config.receiver);
             return;
+        } else {
+            // Handle ERC20 output
+            if (
+                IERC20(config.tokenOut).balanceOf(address(this)) <
+                config.amountOutMin
+            ) {
+                revert InsufficientOutputAmount();
+            }
+            SafeTransferLib.safeTransferAll(config.tokenOut, config.receiver);
         }
-        SafeTransferLib.safeTransferAll(config.tokenOut, config.receiver);
     }
 
     /// @notice Withdraws all the tokens.
