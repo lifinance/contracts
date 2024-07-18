@@ -69,9 +69,9 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0xf92D157a857d55B5DA987E35488e746EA85f1ca3": {
-        "Name": "",
-        "Version": ""
+      "0xA269cb81E6bBB86683558e449cb1bAFFdb155Bfc": {
+        "Name": "GasZipFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

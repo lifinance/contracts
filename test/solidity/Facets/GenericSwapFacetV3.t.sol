@@ -14,7 +14,6 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
 
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
-// import { MockUniswapDEX } from "../utils/MockUniswapDEX.sol";
 import { TestHelpers, MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 
@@ -1947,7 +1946,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         // get swapData
         (
             LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
+            ,
             uint256 minAmountOut
         ) = _produceSwapDataMultiswapERC20FeeAndSwapToNative(
                 address(genericSwapFacetV3)
