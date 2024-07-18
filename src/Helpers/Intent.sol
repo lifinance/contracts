@@ -30,6 +30,14 @@ contract Intent {
     address public immutable implementation;
     IntentConfig public config;
 
+    /// Events ///
+    event IntentExecuted(
+        bytes32 indexed intentId,
+        address receiver,
+        address tokenOut,
+        uint256 amountOut
+    );
+
     /// Errors ///
 
     error Unauthorized();
@@ -94,16 +102,26 @@ contract Intent {
                 revert InsufficientOutputAmount();
             }
             SafeTransferLib.safeTransferAllETH(config.receiver);
+            emit IntentExecuted(
+                config.intentId,
+                config.receiver,
+                config.tokenOut,
+                address(this).balance
+            );
             return;
         } else {
+            uint256 balance = IERC20(config.tokenOut).balanceOf(address(this));
             // Handle ERC20 output
-            if (
-                IERC20(config.tokenOut).balanceOf(address(this)) <
-                config.amountOutMin
-            ) {
+            if (balance < config.amountOutMin) {
                 revert InsufficientOutputAmount();
             }
             SafeTransferLib.safeTransferAll(config.tokenOut, config.receiver);
+            emit IntentExecuted(
+                config.intentId,
+                config.receiver,
+                config.tokenOut,
+                balance
+            );
         }
     }
 
