@@ -29,7 +29,6 @@ contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
 
     bytes internal CALLDATA;
 
-    Vm internal constant vm = Vm(HEVM_ADDRESS);
     LiFiDiamond internal diamond;
     WithdrawFacet internal withdrawFacet;
 

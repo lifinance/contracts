@@ -1,17 +1,10 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { OptimismBridgeFacet } from "lifi/Facets/OptimismBridgeFacet.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { IL1StandardBridge } from "lifi/Interfaces/IL1StandardBridge.sol";
-import "lifi/Errors/GenericErrors.sol";
+import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond, ILiFi } from "../utils/TestBase.sol";
+import { InvalidAmount, InvalidReceiver, InsufficientBalance, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
 
 // Stub OptimismBridgeFacet Contract
 contract TestOptimismBridgeFacet is OptimismBridgeFacet {
@@ -24,7 +17,7 @@ contract TestOptimismBridgeFacet is OptimismBridgeFacet {
     }
 }
 
-contract OptimismBridgeFacetTest is DSTest, DiamondTest {
+contract OptimismBridgeFacetTest is TestBase {
     // These values are for Mainnet
     address internal constant USDC_ADDRESS =
         0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -47,29 +40,15 @@ contract OptimismBridgeFacetTest is DSTest, DiamondTest {
 
     // -----
 
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
-    LiFiDiamond internal diamond;
     TestOptimismBridgeFacet internal optimismBridgeFacet;
-    UniswapV2Router02 internal uniswap;
-    ERC20 internal usdc;
-    ERC20 internal dai;
     ILiFi.BridgeData internal validBridgeData;
     OptimismBridgeFacet.OptimismData internal validOptimismData;
 
-    function fork() internal {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = 15876510;
-        vm.createSelectFork(rpcUrl, blockNumber);
-    }
-
     function setUp() public {
-        fork();
+        customBlockNumberForForking = 15876510;
+        initTestBase();
 
-        diamond = createDiamond();
         optimismBridgeFacet = new TestOptimismBridgeFacet();
-        usdc = ERC20(USDC_ADDRESS);
-        dai = ERC20(DAI_L1_ADDRESS);
-        uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
 
         bytes4[] memory functionSelectors = new bytes4[](5);
         functionSelectors[0] = optimismBridgeFacet
@@ -120,6 +99,12 @@ contract OptimismBridgeFacetTest is DSTest, DiamondTest {
             DAI_L2_ADDRESS,
             L2_GAS,
             false
+        );
+
+        // set facet address in TestBase
+        setFacetAddressInTestBase(
+            address(optimismBridgeFacet),
+            "OptimismBridgeFacet"
         );
     }
 

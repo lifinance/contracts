@@ -51,9 +51,7 @@ contract StargateFacetV2Test is TestBaseFacet {
     // -----
 
     TestStargateFacetV2 internal stargateFacetV2;
-    FeeCollector internal feeCollector;
     StargateFacetV2.StargateData internal stargateData;
-    uint256 internal nativeAddToMessageValue;
 
     function setUp() public {
         // set custom block number for forking
@@ -62,7 +60,6 @@ contract StargateFacetV2Test is TestBaseFacet {
         initTestBase();
 
         stargateFacetV2 = new TestStargateFacetV2(TOKEN_MESSAGING);
-        feeCollector = new FeeCollector(address(this));
 
         defaultUSDCAmount = 100 * 10 ** usdc.decimals();
 

@@ -225,7 +225,7 @@ contract MultichainFacetTest is TestBaseFacet {
 
     function testFailWhenUsingNotWhitelistedRouter() public {
         // re-deploy multichain facet with adjusted router whitelist
-        diamond = createDiamond();
+        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         routers = [
             0x55aF5865807b196bD0197e0902746F31FBcCFa58, // TestMultichainToken
             0x7782046601e7b9B05cA55A3899780CE6EE6B8B2B // AnyswapV6Router
@@ -279,7 +279,7 @@ contract MultichainFacetTest is TestBaseFacet {
 
     function testFail_revert_UsingNonWhitelistedRouter() public {
         // re-deploy multichain facet with adjusted router whitelist
-        diamond = createDiamond();
+        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         routers = [
             0x55aF5865807b196bD0197e0902746F31FBcCFa58, // TestMultichainToken
             0x7782046601e7b9B05cA55A3899780CE6EE6B8B2B // AnyswapV6Router
@@ -334,8 +334,8 @@ contract MultichainFacetTest is TestBaseFacet {
     }
 
     function test_OwnerCanInitializeFacet() public {
+        LiFiDiamond diamond2 = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         vm.startPrank(USER_DIAMOND_OWNER);
-        LiFiDiamond diamond2 = createDiamond();
 
         TestMultichainFacet multichainFacet2 = new TestMultichainFacet();
         bytes4[] memory functionSelectors = new bytes4[](7);
