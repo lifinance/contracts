@@ -16,6 +16,13 @@ contract IntentFactoryTest is Test {
     TestToken public tokenB;
     address public alice;
 
+    event IntentExecuted(
+        bytes32 indexed intentId,
+        address receiver,
+        address tokenOut,
+        uint256 amountOut
+    );
+
     function setUp() public {
         (implementation, factory) = deploy();
         amm = new TestAMM();
@@ -76,6 +83,9 @@ contract IntentFactoryTest is Test {
             value: 0,
             data: swapCalldata
         });
+
+        vm.expectEmit();
+        emit IntentExecuted(intentId, alice, address(tokenB), 100);
 
         // execute the intent
         factory.deployAndExecuteIntent(
@@ -191,6 +201,9 @@ contract IntentFactoryTest is Test {
             value: 0,
             data: swapCalldata
         });
+
+        vm.expectEmit();
+        emit IntentExecuted(intentId, alice, address(tokenB), 100);
 
         // execute the intent
         factory.deployAndExecuteIntent(
