@@ -86,8 +86,10 @@ contract DiamondTest is Test {
         );
 
         // EmergencyPauseFacet
-        functionSelectors = new bytes4[](1);
+        functionSelectors = new bytes4[](3);
         functionSelectors[0] = emergencyPause.removeFacet.selector;
+        functionSelectors[1] = emergencyPause.pauseDiamond.selector;
+        functionSelectors[2] = emergencyPause.unpauseDiamond.selector;
 
         cut.push(
             IDiamondCut.FacetCut({
