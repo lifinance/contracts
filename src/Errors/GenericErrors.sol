@@ -6,6 +6,7 @@ error CannotAuthoriseSelf();
 error CannotBridgeToSameNetwork();
 error ContractCallNotAllowed();
 error CumulativeSlippageTooHigh(uint256 minAmount, uint256 receivedAmount);
+error DiamondIsPaused();
 error ExternalCallFailed();
 error InformationMismatch();
 error InsufficientBalance(uint256 required, uint256 balance);

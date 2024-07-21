@@ -3,16 +3,15 @@ pragma solidity 0.8.17;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAccess } from "../Libraries/LibAccess.sol";
-import { CannotAuthoriseSelf, UnAuthorized, InvalidCallData } from "../Errors/GenericErrors.sol";
+import { CannotAuthoriseSelf, UnAuthorized, InvalidCallData, DiamondIsPaused } from "../Errors/GenericErrors.sol";
 import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
-import { console2 } from "forge-std/console2.sol";
 
-/// @title EmergencyPauseFacet
+/// @title EmergencyPauseFacet (Admin only)
 /// @author LI.FI (https://li.fi)
-/// @notice Allows a LI.FI-owned and -controlled, non-multisig "PauserWallet" to remove a facet in case of emergency
+/// @notice Allows a LI.FI-owned and -controlled, non-multisig "PauserWallet" to remove a facet or pause the diamond in case of emergency
 /// @custom:version 1.0.0
 /// @dev Admin-Facet for emergency purposes only
 contract EmergencyPauseFacet {
@@ -25,6 +24,7 @@ contract EmergencyPauseFacet {
     address public immutable pauserWallet;
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.emergencyPauseFacet");
+    address public immutable emergencyPauseFacetAddress;
 
     struct Storage {
         IDiamondLoupe.Facet[] facets;
@@ -43,13 +43,14 @@ contract EmergencyPauseFacet {
     /// @param _pauserWallet The address of the wallet that can execute emergency facet removal actions
     constructor(address _pauserWallet) {
         pauserWallet = _pauserWallet;
+        emergencyPauseFacetAddress = address(this);
     }
 
     /// External Methods ///
 
     /// @notice Removes the given facet from the diamond
-    /// @dev can only be executed by pauserWallet (non-multisig for fast response time)
     /// @param _facetAddress The address of the facet that should be removed
+    /// @dev can only be executed by pauserWallet (non-multisig for fast response time) or by the diamond owner
     function removeFacet(
         address _facetAddress
     ) external OnlyPauserWalletOrOwner(msg.sender) {
@@ -58,7 +59,6 @@ contract EmergencyPauseFacet {
             .facetFunctionSelectors(_facetAddress);
 
         // make sure that DiamondCutFacet cannot be removed
-        // TODO: do we need this check? What if we need to remove diamondCutFacet to shut down diamond entirely (accepting that we would have to redeploy to reactivate)?
         if (functionSelectors[0] == DiamondCutFacet.diamondCut.selector)
             revert InvalidCallData();
 
@@ -79,9 +79,11 @@ contract EmergencyPauseFacet {
     }
 
     /// @notice Effectively pauses the diamond contract by overwriting the facetAddress-to-function-selector mappings in storage for all facets
-    ///         with one exception: the EmergencyPauseFacet (this will remain as registered facet to be able to reactivate the diamond)
-    /// @dev can only be executed by pauserWallet (non-multisig for fast response time)
+    ///         and redirecting all function selectors to the EmergencyPauseFacet (this will remain as the only registered facet) so that
+    ///         a meaningful error message will be returned when third parties try to call the diamond
+    /// @dev can only be executed by pauserWallet (non-multisig for fast response time) or by the diamond owner
     function pauseDiamond() external OnlyPauserWalletOrOwner(msg.sender) {
+        //TODO: add handling for cases where there are too many facets and tx will run out of gas (>> pagination) ??
         Storage storage s = getStorage();
 
         // get a list of all facets that need to be removed (=all facets except EmergencyPauseFacet)
@@ -91,8 +93,8 @@ contract EmergencyPauseFacet {
         // go through all facets
         for (uint256 i; i < facets.length; ) {
             // remove functions from diamond
-            LibDiamond.removeFunctions(
-                address(0),
+            LibDiamond.replaceFunctions(
+                emergencyPauseFacetAddress,
                 facets[i].functionSelectors
             );
 
@@ -126,7 +128,7 @@ contract EmergencyPauseFacet {
                 continue;
 
             // re-add facet and its selectors to diamond
-            LibDiamond.addFunctions(
+            LibDiamond.replaceFunctions(
                 s.facets[i].facetAddress,
                 s.facets[i].functionSelectors
             );
@@ -206,4 +208,12 @@ contract EmergencyPauseFacet {
             s.slot := namespace
         }
     }
+
+    // this function will be called when the diamond is paused to return a meaningful error message instead of "FunctionDoesNotExist"
+    fallback() external payable {
+        revert DiamondIsPaused();
+    }
+
+    // only added to silence compiler warnings
+    receive() external payable {}
 }

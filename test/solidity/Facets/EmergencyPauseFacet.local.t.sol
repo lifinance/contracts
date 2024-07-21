@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
-import { OnlyContractOwner, InvalidConfig, NotInitialized, InformationMismatch, AlreadyInitialized, UnAuthorized } from "src/Errors/GenericErrors.sol";
+import { OnlyContractOwner, InvalidConfig, NotInitialized, InformationMismatch, AlreadyInitialized, UnAuthorized, DiamondIsPaused } from "src/Errors/GenericErrors.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { IStargate, ITokenMessaging } from "lifi/Interfaces/IStargate.sol";
@@ -31,9 +31,6 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
     event EmergencyFacetRemoved(address facetAddress, address msgSender);
     event EmergencyPaused(address msgSender);
     event EmergencyUnpaused(address msgSender);
-
-    // ERRORS
-    error FunctionDoesNotExist();
 
     // STORAGE
     TestEmergencyPauseFacet internal emergencyPauseFacet;
@@ -69,7 +66,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         emergencyPauseFacet.pauseDiamond();
 
         // try to get a list of all registered facets via DiamondLoupe
-        vm.expectRevert(FunctionDoesNotExist.selector);
+        vm.expectRevert(DiamondIsPaused.selector);
         DiamondLoupeFacet(address(diamond)).facets();
     }
 
@@ -83,7 +80,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         emergencyPauseFacet.pauseDiamond();
 
         // try to get a list of all registered facets via DiamondLoupe
-        vm.expectRevert(FunctionDoesNotExist.selector);
+        vm.expectRevert(DiamondIsPaused.selector);
         DiamondLoupeFacet(address(diamond)).facets();
     }
 
@@ -104,7 +101,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         test_PauserWalletCanPauseDiamond();
 
         // make sure it's paused
-        vm.expectRevert(FunctionDoesNotExist.selector);
+        vm.expectRevert(DiamondIsPaused.selector);
         IDiamondLoupe.Facet[] memory allFacets = DiamondLoupeFacet(
             address(diamond)
         ).facets();
@@ -128,7 +125,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         test_PauserWalletCanPauseDiamond();
 
         // make sure it's paused
-        vm.expectRevert(FunctionDoesNotExist.selector);
+        vm.expectRevert(DiamondIsPaused.selector);
         IDiamondLoupe.Facet[] memory allFacets = DiamondLoupeFacet(
             address(diamond)
         ).facets();
@@ -142,7 +139,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         emergencyPauseFacet.unpauseDiamond(blacklist);
 
         // make sure diamond is still paused
-        vm.expectRevert(FunctionDoesNotExist.selector);
+        vm.expectRevert(DiamondIsPaused.selector);
         allFacets = DiamondLoupeFacet(address(diamond)).facets();
     }
 
