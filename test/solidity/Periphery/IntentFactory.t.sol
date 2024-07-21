@@ -304,7 +304,7 @@ contract IntentFactoryTest is Test {
     }
 
     function test_can_deposit_and_withdraw_all() public {
-        tokenA.mint(alice, 1000);
+        tokenA.mint(alice, 2000);
         bytes32 intentId = keccak256("intentId");
         // Compute the address of the intent
         address intentClone = factory.getIntentAddress(
@@ -335,8 +335,14 @@ contract IntentFactoryTest is Test {
             }),
             tokens
         );
+
+        vm.prank(alice);
+        tokenA.transfer(intentClone, 1000);
+
+        Intent(payable(intentClone)).withdrawAll(tokens);
+
         // assertions
-        assertEq(tokenA.balanceOf(alice), 1000);
+        assertEq(tokenA.balanceOf(alice), 2000);
         assertEq(tokenA.balanceOf(intentClone), 0);
         assertEq(intentClone.balance, 0);
     }

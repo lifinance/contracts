@@ -128,9 +128,6 @@ contract Intent {
     /// @notice Withdraws all the tokens.
     /// @param tokens The tokens to withdraw.
     function withdrawAll(address[] calldata tokens) external {
-        if (msg.sender != config.factory) {
-            revert Unauthorized();
-        }
         for (uint256 i = 0; i < tokens.length; ) {
             if (tokens[i] == address(0)) {
                 SafeTransferLib.safeTransferAllETH(config.receiver);
