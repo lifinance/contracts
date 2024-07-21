@@ -106,6 +106,86 @@ contract IntentFactoryTest is Test {
         assertEq(tokenA.balanceOf(intentClone), 0);
     }
 
+    function test_fails_to_execute_after_executed() public {
+        tokenA.mint(alice, 2000);
+        bytes32 intentId = keccak256("intentId");
+
+        // Compute the address of the intent
+        address intentClone = factory.getIntentAddress(
+            IIntent.InitData({
+                intentId: intentId,
+                receiver: alice,
+                tokenOut: address(tokenB),
+                amountOutMin: 100,
+                deadline: block.timestamp
+            })
+        );
+
+        // Send tokens to the precomputed address
+        vm.prank(alice);
+        tokenA.transfer(intentClone, 1000);
+
+        IIntent.Call[] memory calls = new IIntent.Call[](2);
+
+        // get approve calldata
+        bytes memory approveCalldata = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(amm),
+            1000
+        );
+        calls[0] = IIntent.Call({
+            to: address(tokenA),
+            value: 0,
+            data: approveCalldata
+        });
+
+        // get swap calldata
+        bytes memory swapCalldata = abi.encodeWithSignature(
+            "swap(address,uint256,address,uint256)",
+            address(tokenA),
+            1000,
+            address(tokenB),
+            100
+        );
+        calls[1] = IIntent.Call({
+            to: address(amm),
+            value: 0,
+            data: swapCalldata
+        });
+
+        vm.expectEmit();
+        emit IntentExecuted(intentId, alice, address(tokenB), 100);
+
+        // execute the intent
+        factory.deployAndExecuteIntent(
+            IIntent.InitData({
+                intentId: intentId,
+                receiver: alice,
+                tokenOut: address(tokenB),
+                amountOutMin: 100,
+                deadline: block.timestamp
+            }),
+            calls
+        );
+
+        vm.prank(alice);
+        tokenA.transfer(intentClone, 1000);
+
+        vm.expectRevert();
+
+        // execute the intent
+        factory.deployAndExecuteIntent(
+            IIntent.InitData({
+                intentId: intentId,
+                receiver: alice,
+                tokenOut: address(tokenB),
+                amountOutMin: 100,
+                deadline: block.timestamp
+            }),
+            calls
+        );
+    }
+
     function test_fail_when_min_amount_not_received() public {
         tokenA.mint(alice, 1000);
         bytes32 intentId = keccak256("intentId");
