@@ -2882,7 +2882,7 @@ function getCreate3FactoryAddress() {
 
   echo $CREATE3_FACTORY
 }
-  
+
 
 function printDeploymentsStatus() {
   # read function arguments into variables
@@ -3296,6 +3296,35 @@ function compareAddresses() {
     return 1
   fi
 }
+function sendMessageToDiscord() {
+  # read function arguments into variable
+  local MESSAGE=$1
+
+  # Define your webhook URL (paste the copied URL here)
+  DISCORD__WARNING_WEBHOOK_URL="https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+
+  # Send the message
+  curl -H "Content-Type: application/json" \
+     -X POST \
+     -d "{\"content\": \"$MESSAGE\"}" \
+     $WEBHOOK_URL
+
+}
+
+function getUserInfo() {
+  # log local username
+  local USERNAME=$(whoami)
+
+  # log Github email address
+  EMAIL=$(git config --global user.email)
+  if [ -z "$EMAIL" ]; then
+      EMAIL=$(git config --local user.email)
+  fi
+
+  # return collected info
+  echo "Username: $USERNAME, Github email: $EMAIL"
+
+}
 # <<<<<< miscellaneous
 
 # >>>>>> helpers to set/update deployment files/logs/etc
@@ -3652,3 +3681,5 @@ function test_tmp() {
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
   verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 }
+
+getUserInfo
