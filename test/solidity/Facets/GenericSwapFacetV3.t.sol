@@ -11,6 +11,8 @@ import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond } from "../utils/
 
 // Stub GenericSwapFacet Contract
 contract TestGenericSwapFacetV3 is GenericSwapFacetV3, GenericSwapFacet {
+    constructor(address _nativeAddress) GenericSwapFacetV3(_nativeAddress) {}
+
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
     }
@@ -1902,7 +1904,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         // get swapData
         (
             LibSwap.SwapData[] memory swapData,
-            uint256 amountIn,
+            ,
             uint256 minAmountOut
         ) = _produceSwapDataMultiswapERC20FeeAndSwapToNative(
                 address(genericSwapFacetV3)
