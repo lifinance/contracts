@@ -51,14 +51,18 @@ contract IntentFactory is TransferrableOwnership {
     /// @param tokens The tokens to withdraw.
     function deployAndWithdrawAll(
         IIntent.InitData calldata _initData,
-        address[] calldata tokens
+        address[] calldata tokens,
+        address payable receiver
     ) external {
+        if (msg.sender != _initData.owner) {
+            revert Unauthorized();
+        }
         bytes32 salt = keccak256(abi.encode(_initData));
         address payable clone = payable(
             LibClone.cloneDeterministic(implementation, salt)
         );
         Intent(clone).init(_initData);
-        Intent(clone).withdrawAll(tokens);
+        Intent(clone).withdrawAll(tokens, receiver);
     }
 
     /// @notice Predicts the address of the intent.

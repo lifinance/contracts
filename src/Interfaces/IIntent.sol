@@ -10,6 +10,7 @@ interface IIntent {
 
     struct InitData {
         bytes32 intentId;
+        address owner;
         address receiver;
         address tokenOut;
         uint256 amountOutMin;

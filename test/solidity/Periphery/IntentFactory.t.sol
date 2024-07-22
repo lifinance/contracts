@@ -15,6 +15,7 @@ contract IntentFactoryTest is Test {
     TestToken public tokenA;
     TestToken public tokenB;
     address public alice;
+    address public receiver;
 
     event IntentExecuted(
         bytes32 indexed intentId,
@@ -29,6 +30,7 @@ contract IntentFactoryTest is Test {
         tokenA = new TestToken("TokenA", "TKNA", 18);
         tokenB = new TestToken("TokenB", "TKNB", 18);
         alice = makeAddr("alice");
+        receiver = makeAddr("receiver");
     }
 
     function deploy() public returns (Intent, IntentFactory) {
@@ -45,7 +47,8 @@ contract IntentFactoryTest is Test {
         address intentClone = factory.getIntentAddress(
             IIntent.InitData({
                 intentId: intentId,
-                receiver: alice,
+                owner: alice,
+                receiver: receiver,
                 tokenOut: address(tokenB),
                 amountOutMin: 100,
                 deadline: block.timestamp
@@ -85,13 +88,14 @@ contract IntentFactoryTest is Test {
         });
 
         vm.expectEmit();
-        emit IntentExecuted(intentId, alice, address(tokenB), 100);
+        emit IntentExecuted(intentId, receiver, address(tokenB), 100);
 
         // execute the intent
         factory.deployAndExecuteIntent(
             IIntent.InitData({
                 intentId: intentId,
-                receiver: alice,
+                owner: alice,
+                receiver: receiver,
                 tokenOut: address(tokenB),
                 amountOutMin: 100,
                 deadline: block.timestamp
@@ -100,7 +104,7 @@ contract IntentFactoryTest is Test {
         );
 
         // assertions
-        assertEq(tokenB.balanceOf(alice), 100);
+        assertEq(tokenB.balanceOf(receiver), 100);
         assertEq(tokenA.balanceOf(alice), 0);
         assertEq(tokenB.balanceOf(intentClone), 0);
         assertEq(tokenA.balanceOf(intentClone), 0);
@@ -114,7 +118,8 @@ contract IntentFactoryTest is Test {
         address intentClone = factory.getIntentAddress(
             IIntent.InitData({
                 intentId: intentId,
-                receiver: alice,
+                owner: alice,
+                receiver: receiver,
                 tokenOut: address(tokenB),
                 amountOutMin: 100,
                 deadline: block.timestamp
@@ -154,13 +159,14 @@ contract IntentFactoryTest is Test {
         });
 
         vm.expectEmit();
-        emit IntentExecuted(intentId, alice, address(tokenB), 100);
+        emit IntentExecuted(intentId, receiver, address(tokenB), 100);
 
         // execute the intent
         factory.deployAndExecuteIntent(
             IIntent.InitData({
                 intentId: intentId,
-                receiver: alice,
+                owner: alice,
+                receiver: receiver,
                 tokenOut: address(tokenB),
                 amountOutMin: 100,
                 deadline: block.timestamp
@@ -177,7 +183,8 @@ contract IntentFactoryTest is Test {
         factory.deployAndExecuteIntent(
             IIntent.InitData({
                 intentId: intentId,
-                receiver: alice,
+                owner: alice,
+                receiver: receiver,
                 tokenOut: address(tokenB),
                 amountOutMin: 100,
                 deadline: block.timestamp
@@ -194,7 +201,8 @@ contract IntentFactoryTest is Test {
         address intentClone = factory.getIntentAddress(
             IIntent.InitData({
                 intentId: intentId,
-                receiver: alice,
+                owner: alice,
+                receiver: receiver,
                 tokenOut: address(tokenB),
                 amountOutMin: 100,
                 deadline: block.timestamp
@@ -238,7 +246,8 @@ contract IntentFactoryTest is Test {
         factory.deployAndExecuteIntent(
             IIntent.InitData({
                 intentId: intentId,
-                receiver: alice,
+                owner: alice,
+                receiver: receiver,
                 tokenOut: address(tokenB),
                 amountOutMin: 100,
                 deadline: block.timestamp
@@ -254,7 +263,8 @@ contract IntentFactoryTest is Test {
         address intentClone = factory.getIntentAddress(
             IIntent.InitData({
                 intentId: intentId,
-                receiver: alice,
+                owner: alice,
+                receiver: receiver,
                 tokenOut: address(tokenB),
                 amountOutMin: 100,
                 deadline: block.timestamp
@@ -283,13 +293,14 @@ contract IntentFactoryTest is Test {
         });
 
         vm.expectEmit();
-        emit IntentExecuted(intentId, alice, address(tokenB), 100);
+        emit IntentExecuted(intentId, receiver, address(tokenB), 100);
 
         // execute the intent
         factory.deployAndExecuteIntent(
             IIntent.InitData({
                 intentId: intentId,
-                receiver: alice,
+                owner: alice,
+                receiver: receiver,
                 tokenOut: address(tokenB),
                 amountOutMin: 100,
                 deadline: block.timestamp
@@ -298,7 +309,7 @@ contract IntentFactoryTest is Test {
         );
 
         // assertions
-        assertEq(tokenB.balanceOf(alice), 100);
+        assertEq(tokenB.balanceOf(receiver), 100);
         assertEq(tokenB.balanceOf(intentClone), 0);
         assertEq(intentClone.balance, 0);
     }
@@ -310,36 +321,41 @@ contract IntentFactoryTest is Test {
         address intentClone = factory.getIntentAddress(
             IIntent.InitData({
                 intentId: intentId,
-                receiver: alice,
+                owner: alice,
+                receiver: receiver,
                 tokenOut: address(tokenB),
                 amountOutMin: 100,
                 deadline: block.timestamp
             })
         );
         // Send tokens to the precomputed address
-        vm.prank(alice);
+        vm.startPrank(alice);
         tokenA.transfer(intentClone, 1000);
         (bool ok, ) = intentClone.call{ value: 1 ether }("");
         ok;
-        // execute the intent
+        // Deploy and withdraw all tokens
         address[] memory tokens = new address[](2);
         tokens[0] = address(tokenA);
         tokens[1] = address(0);
         factory.deployAndWithdrawAll(
             IIntent.InitData({
                 intentId: intentId,
-                receiver: alice,
+                owner: alice,
+                receiver: receiver,
                 tokenOut: address(tokenB),
                 amountOutMin: 100,
                 deadline: block.timestamp
             }),
-            tokens
+            tokens,
+            payable(alice)
         );
 
-        vm.prank(alice);
+        // Send more tokens
         tokenA.transfer(intentClone, 1000);
 
-        Intent(payable(intentClone)).withdrawAll(tokens);
+        // Withdraw again
+        Intent(payable(intentClone)).withdrawAll(tokens, payable(alice));
+        vm.stopPrank();
 
         // assertions
         assertEq(tokenA.balanceOf(alice), 2000);

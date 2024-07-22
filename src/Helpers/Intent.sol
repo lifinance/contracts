@@ -19,6 +19,7 @@ contract Intent {
     struct IntentConfig {
         bytes32 intentId;
         bytes32 salt;
+        address owner;
         address receiver;
         address factory;
         address tokenOut;
@@ -69,6 +70,7 @@ contract Intent {
         }
 
         config.intentId = _initData.intentId;
+        config.owner = _initData.owner;
         config.receiver = _initData.receiver;
         config.tokenOut = _initData.tokenOut;
         config.amountOutMin = _initData.amountOutMin;
@@ -127,16 +129,22 @@ contract Intent {
 
     /// @notice Withdraws all the tokens.
     /// @param tokens The tokens to withdraw.
-    function withdrawAll(address[] calldata tokens) external {
+    function withdrawAll(
+        address[] calldata tokens,
+        address payable receiver
+    ) external {
+        if (msg.sender != config.factory && msg.sender != config.owner) {
+            revert Unauthorized();
+        }
         for (uint256 i = 0; i < tokens.length; ) {
             if (tokens[i] == address(0)) {
-                SafeTransferLib.safeTransferAllETH(config.receiver);
+                SafeTransferLib.safeTransferAllETH(receiver);
                 unchecked {
                     ++i;
                 }
                 continue;
             }
-            SafeTransferLib.safeTransferAll(tokens[i], config.receiver);
+            SafeTransferLib.safeTransferAll(tokens[i], receiver);
             unchecked {
                 ++i;
             }
