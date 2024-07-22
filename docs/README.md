@@ -26,7 +26,6 @@
 - [Optimism Bridge Facet](./OptimismBridgeFacet.md)
 - [Periphery Registry Facet](./PeripheryRegistryFacet.md)
 - [Polygon Bridge Facet](./PolygonBridgeFacet.md)
-- [Ronin Bridge Facet](./RoninBridgeFacet.md)
 - [Squid Facet](./SquidFacet.md)
 - [Standardized Call Facet](./StandardizedCallFacet.md)
 - [Stargate Facet](./StargateFacet.md)
@@ -56,3 +55,4 @@
 - [FeeCollector](./FeeCollector.md)
 - [Receiver](./Receiver.md)
 - [RelayerCelerIM](./RelayerCelerIM.md)
+- [IntentFactory](./IntentFactory.md)
