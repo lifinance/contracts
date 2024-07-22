@@ -362,4 +362,77 @@ contract IntentFactoryTest is Test {
         assertEq(tokenA.balanceOf(intentClone), 0);
         assertEq(intentClone.balance, 0);
     }
+
+    function test_can_withdraw_after_intent_is_executed() public {
+        tokenA.mint(alice, 2000);
+        bytes32 intentId = keccak256("intentId");
+
+        // Compute the address of the intent
+        address intentClone = factory.getIntentAddress(
+            IIntent.InitData({
+                intentId: intentId,
+                owner: alice,
+                receiver: receiver,
+                tokenOut: address(tokenB),
+                amountOutMin: 100,
+                deadline: block.timestamp
+            })
+        );
+
+        // Send tokens to the precomputed address
+        vm.prank(alice);
+        tokenA.transfer(intentClone, 1000);
+
+        IIntent.Call[] memory calls = new IIntent.Call[](2);
+
+        // get approve calldata
+        bytes memory approveCalldata = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(amm),
+            1000
+        );
+        calls[0] = IIntent.Call({
+            to: address(tokenA),
+            value: 0,
+            data: approveCalldata
+        });
+
+        // get swap calldata
+        bytes memory swapCalldata = abi.encodeWithSignature(
+            "swap(address,uint256,address,uint256)",
+            address(tokenA),
+            1000,
+            address(tokenB),
+            100
+        );
+        calls[1] = IIntent.Call({
+            to: address(amm),
+            value: 0,
+            data: swapCalldata
+        });
+
+        vm.expectEmit();
+        emit IntentExecuted(intentId, receiver, address(tokenB), 100);
+
+        // execute the intent
+        factory.deployAndExecuteIntent(
+            IIntent.InitData({
+                intentId: intentId,
+                owner: alice,
+                receiver: receiver,
+                tokenOut: address(tokenB),
+                amountOutMin: 100,
+                deadline: block.timestamp
+            }),
+            calls
+        );
+
+        vm.startPrank(alice);
+        tokenA.transfer(intentClone, 1000);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(tokenA);
+
+        Intent(payable(intentClone)).withdrawAll(tokens, payable(alice));
+        vm.stopPrank();
+    }
 }
