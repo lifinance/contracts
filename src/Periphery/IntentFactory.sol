@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { LibClone } from "solady/utils/LibClone.sol";
 import { IIntent } from "../Interfaces/IIntent.sol";
-import { Intent } from "../Helpers/Intent.sol";
+import { SwapIntentHandler } from "../Helpers/SwapIntentHandler.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 
 /// @title Intent Factory
@@ -22,7 +22,7 @@ contract IntentFactory is TransferrableOwnership {
     /// Constructor ///
 
     constructor(address _owner) TransferrableOwnership(_owner) {
-        implementation = payable(address(new Intent()));
+        implementation = payable(address(new SwapIntentHandler()));
     }
 
     /// External Functions ///
@@ -42,8 +42,8 @@ contract IntentFactory is TransferrableOwnership {
         address payable clone = payable(
             LibClone.cloneDeterministic(implementation, salt)
         );
-        Intent(clone).init(_initData);
-        Intent(clone).execute(_calls);
+        SwapIntentHandler(clone).init(_initData);
+        SwapIntentHandler(clone).execute(_calls);
     }
 
     /// @notice Deploys a new intent and withdraws all the tokens.
@@ -61,8 +61,8 @@ contract IntentFactory is TransferrableOwnership {
         address payable clone = payable(
             LibClone.cloneDeterministic(implementation, salt)
         );
-        Intent(clone).init(_initData);
-        Intent(clone).withdrawAll(tokens, receiver);
+        SwapIntentHandler(clone).init(_initData);
+        SwapIntentHandler(clone).withdrawAll(tokens, receiver);
     }
 
     /// @notice Predicts the address of the intent.

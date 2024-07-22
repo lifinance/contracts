@@ -13,7 +13,7 @@ interface IERC20 {
 /// @author LI.FI (https://li.fi)
 /// @notice Intent contract that can execute arbitrary calls.
 /// @custom:version 1.0.0
-contract Intent {
+contract SwapIntentHandler {
     /// Storage ///
 
     struct IntentConfig {

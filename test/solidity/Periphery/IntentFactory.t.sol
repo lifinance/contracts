@@ -2,14 +2,14 @@
 pragma solidity ^0.8.17;
 
 import { Test, console } from "forge-std/Test.sol";
-import { Intent } from "lifi/Helpers/Intent.sol";
+import { SwapIntentHandler } from "lifi/Helpers/SwapIntentHandler.sol";
 import { IIntent } from "lifi/Interfaces/IIntent.sol";
 import { IntentFactory } from "lifi/Periphery/IntentFactory.sol";
 import { TestToken } from "../utils/TestToken.sol";
 import { TestAMM } from "../utils/TestAMM.sol";
 
 contract IntentFactoryTest is Test {
-    Intent public implementation;
+    SwapIntentHandler public implementation;
     IntentFactory public factory;
     TestAMM public amm;
     TestToken public tokenA;
@@ -33,10 +33,10 @@ contract IntentFactoryTest is Test {
         receiver = makeAddr("receiver");
     }
 
-    function deploy() public returns (Intent, IntentFactory) {
+    function deploy() public returns (SwapIntentHandler, IntentFactory) {
         IntentFactory _factory = new IntentFactory(address(this));
         address payable _implementation = payable(_factory.implementation());
-        return (Intent(_implementation), _factory);
+        return (SwapIntentHandler(_implementation), _factory);
     }
 
     function test_can_deposit_and_execute_swap() public {
@@ -354,7 +354,10 @@ contract IntentFactoryTest is Test {
         tokenA.transfer(intentClone, 1000);
 
         // Withdraw again
-        Intent(payable(intentClone)).withdrawAll(tokens, payable(alice));
+        SwapIntentHandler(payable(intentClone)).withdrawAll(
+            tokens,
+            payable(alice)
+        );
         vm.stopPrank();
 
         // assertions
@@ -432,7 +435,10 @@ contract IntentFactoryTest is Test {
         address[] memory tokens = new address[](1);
         tokens[0] = address(tokenA);
 
-        Intent(payable(intentClone)).withdrawAll(tokens, payable(alice));
+        SwapIntentHandler(payable(intentClone)).withdrawAll(
+            tokens,
+            payable(alice)
+        );
         vm.stopPrank();
     }
 }
