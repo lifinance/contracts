@@ -3696,7 +3696,7 @@ function test_tmp() {
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
   ARGS="0x00000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666"
-  RPC_URL="https://bsc-mainnet.nodereal.io/v1/371121cad00f4961a3fc929295ec038c"
+  RPC_URL=$(getRPCUrl "$NETWORK" "$ENVIRONMENT")
   #  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
   #  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
   #    error "ERC20Proxy ownership was not transferred to address(0)"
