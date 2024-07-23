@@ -11,7 +11,7 @@ export const safeApiUrls: Record<string, string> = {
   bsc: 'https://safe-transaction-bsc.safe.global/api',
   celo: 'https://safe-transaction-celo.safe.global/api',
   fantom: 'https://safe-txservice.fantom.network/api',
-  fraxtal: 'https://safe.origin.mainnet.frax.com/txs/api',
+  fraxtal: 'https://transaction-frax.safe.optimism.io/api',
   fuse: 'https://transaction-fuse.safe.fuse.io/api',
   gnosis: 'https://safe-transaction-gnosis-chain.safe.global/api',
   linea: 'https://transaction.safe.linea.build/api',
