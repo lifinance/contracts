@@ -91,11 +91,10 @@
     "polygon": "https://safe-transaction-polygon.safe.global/api",
     "polygonzkevm": "https://safe-transaction-zkevm.safe.global/api",
     "rootstock": "https://transaction.safe.rootstock.io/api",
-    "scroll": "https://transaction.safe.scroll.xyz/api",
+    "scroll": "https://safe-transaction-scroll.safe.global/api",
     "sei": "https://transaction.sei-safe.protofire.io/api",
     "zksync": "https://safe-transaction-zksync.safe.global/api"
   },
-
   "nativeAddress": {
     "mainnet": "0x0000000000000000000000000000000000000000",
     "arbitrum": "0x0000000000000000000000000000000000000000",
