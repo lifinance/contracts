@@ -67,16 +67,6 @@ contract EmergencyPauseFacet {
         if (functionSelectors[0] == DiamondCutFacet.diamondCut.selector)
             revert InvalidCallData();
 
-        // prepare arguments for diamondCut
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
-        cut[0] = (
-            IDiamondCut.FacetCut({
-                facetAddress: _facetAddress,
-                action: IDiamondCut.FacetCutAction.Remove,
-                functionSelectors: functionSelectors
-            })
-        );
-
         // remove facet
         LibDiamond.removeFunctions(address(0), functionSelectors);
 
