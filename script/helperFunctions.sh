@@ -2882,7 +2882,7 @@ function getCreate3FactoryAddress() {
 
   echo $CREATE3_FACTORY
 }
-  
+
 
 function printDeploymentsStatus() {
   # read function arguments into variables
@@ -3236,7 +3236,7 @@ function isVersionTag() {
 }
 function deployCreate3FactoryToAnvil() {
   # deploy create3Factory
-  RAW_RETURN_DATA=$(PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url http://localhost:8545 --broadcast --silent)
+  RAW_RETURN_DATA=$(PRIVATE_KEY=$PRIVATE_KEY_ANVIL forge script lib/create3-factory/script/Deploy.s.sol --fork-url "$ETH_NODE_URI_LOCALANVIL" --broadcast --silent)
 
   # extract address of deployed factory contract
   ADDRESS=$(echo "$RAW_RETURN_DATA" | grep -o -E 'Contract Address: 0x[a-fA-F0-9]{40}' | grep -o -E '0x[a-fA-F0-9]{40}')
@@ -3642,7 +3642,7 @@ function test_tmp() {
   ENVIRONMENT="production"
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
-  ARGS="0x000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666"
+  ARGS="0x"
 
   #  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
   #  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
