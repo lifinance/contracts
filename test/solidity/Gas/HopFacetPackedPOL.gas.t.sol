@@ -73,7 +73,7 @@ pragma solidity 0.8.17;
 //         fork();
 
 //         /// Perpare HopFacetPacked
-//         diamond = createDiamond();
+//         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
 //         hopFacetPacked = new HopFacetPacked();
 //         usdc = ERC20(USDC_ADDRESS);
 //         hop = IHopBridge(HOP_USDC_BRIDGE);

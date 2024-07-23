@@ -69,13 +69,13 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0xA269cb81E6bBB86683558e449cb1bAFFdb155Bfc": {
-        "Name": "",
-        "Version": ""
-      },
       "0xE871874D8AC30E8aCD0eC67529b4a5dDD73Bf0d6": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
+      },
+      "0x48BF2f96E4fEdEd569595BB1e015A747c2B35EEa": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

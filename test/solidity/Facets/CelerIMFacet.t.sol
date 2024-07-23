@@ -216,7 +216,7 @@ contract CelerIMFacetTest is TestBaseFacet {
 
         setDefaultSwapDataSingleDAItoUSDC();
         address[] memory path = new address[](2);
-        path[0] = ADDRESS_WETH;
+        path[0] = ADDRESS_WRAPPED_NATIVE;
         path[1] = ADDRESS_USDC;
 
         uint256 amountOut = defaultUSDCAmount;
@@ -375,7 +375,7 @@ contract CelerIMFacetTest is TestBaseFacet {
         // reference tx: https://etherscan.io/tx/0x254df9e7b55e1c2fa2eee9ebd772f13eeb235fa8852d2fbd04ca3855e8b8435c
 
         // adjust cBridgeData
-        bridgeData.sendingAssetId = ADDRESS_WETH;
+        bridgeData.sendingAssetId = ADDRESS_WRAPPED_NATIVE;
         bridgeData.minAmount = defaultDAIAmount;
 
         // adjust cBridgeData
@@ -389,7 +389,7 @@ contract CelerIMFacetTest is TestBaseFacet {
         emit Deposited(
             0x4d1740ad079e2cae12e52778c379c75aa39ea6fc3e45ab1263966bd3ea6c031c,
             address(relayer),
-            ADDRESS_WETH,
+            ADDRESS_WRAPPED_NATIVE,
             bridgeData.minAmount,
             uint64(bridgeData.destinationChainId),
             USER_RECEIVER,
@@ -419,7 +419,7 @@ contract CelerIMFacetTest is TestBaseFacet {
         emit Deposited(
             0x9e3e2a8aae04ccdd70d83859e3914bf003eef7f022f3259194af9bb551a48cd3,
             address(relayer),
-            ADDRESS_WETH,
+            ADDRESS_WRAPPED_NATIVE,
             bridgeData.minAmount,
             uint64(bridgeData.destinationChainId),
             USER_RECEIVER,

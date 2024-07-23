@@ -1,15 +1,12 @@
 // // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import "ds-test/test.sol";
 import { IHopBridge, IL2AmmWrapper } from "lifi/Interfaces/IHopBridge.sol";
-import { Test } from "forge-std/Test.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { console } from "../utils/Console.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
+import { TestBase, console, ILiFi } from "../utils/TestBase.sol";
 
 contract CallForwarder {
     function callDiamond(
@@ -26,7 +23,7 @@ contract CallForwarder {
     }
 }
 
-contract HopFacetPackedL2Test is Test, DiamondTest {
+contract HopFacetPackedL2Test is TestBase {
     using SafeTransferLib for ERC20;
 
     address internal constant HOP_USDC_BRIDGE =
@@ -51,9 +48,6 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
         0xCB0a4177E0A60247C0ad18Be87f8eDfF6DD30283;
 
     IHopBridge internal hop;
-    ERC20 internal usdc;
-    ERC20 internal usdt;
-    LiFiDiamond internal diamond;
     HopFacetPacked internal hopFacetPacked;
     HopFacetPacked internal standAlone;
     CallForwarder internal callForwarder;
@@ -78,21 +72,14 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
     uint256 amountOutMinNative;
     bytes packedNative;
 
-    function fork() internal {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_ARBITRUM");
-        uint256 blockNumber = 58467500;
-        vm.createSelectFork(rpcUrl, blockNumber);
-    }
-
     function setUp() public {
-        fork();
+        customBlockNumberForForking = 58467500;
+        customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
+        initTestBase();
 
         /// Perpare HopFacetPacked
-        diamond = createDiamond();
         hopFacetPacked = new HopFacetPacked(address(this), NATIVE_AMM_WRAPPER);
         standAlone = new HopFacetPacked(address(this), NATIVE_AMM_WRAPPER);
-        usdc = ERC20(USDC_ADDRESS);
-        usdt = ERC20(USDT_ADDRESS);
         hop = IHopBridge(HOP_USDC_BRIDGE);
         callForwarder = new CallForwarder();
 
@@ -233,6 +220,9 @@ contract HopFacetPackedL2Test is Test, DiamondTest {
                 deadline,
                 USDT_AMM_WRAPPER
             );
+
+        // set facet address in TestBase
+        setFacetAddressInTestBase(address(hopFacetPacked), "HopFacetPackedL2");
     }
 
     // L2 Native

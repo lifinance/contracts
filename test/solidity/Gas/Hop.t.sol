@@ -1,39 +1,24 @@
 pragma solidity 0.8.17;
 
-import "ds-test/test.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
-import { Test } from "forge-std/Test.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { console } from "../utils/Console.sol";
+import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond, ILiFi, ERC20 } from "../utils/TestBase.sol";
 
-contract HopGasTest is Test, DiamondTest {
+contract HopGasTest is TestBase {
     address internal constant HOP_USDC_BRIDGE =
         0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a;
-    address internal constant USDC_ADDRESS =
-        0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant WHALE =
         0x72A53cDBBcc1b9efa39c834A540550e23463AAcB;
 
     IHopBridge internal hop;
-    ERC20 internal usdc;
-    LiFiDiamond internal diamond;
     HopFacet internal hopFacet;
 
-    function fork() internal {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = 14847528;
-        vm.createSelectFork(rpcUrl, blockNumber);
-    }
-
     function setUp() public {
-        fork();
+        // set custom block number for forking
+        customBlockNumberForForking = 14847528;
+        initTestBase();
 
-        diamond = createDiamond();
         hopFacet = new HopFacet();
-        usdc = ERC20(USDC_ADDRESS);
         hop = IHopBridge(HOP_USDC_BRIDGE);
 
         bytes4[] memory functionSelectors = new bytes4[](2);
@@ -44,11 +29,14 @@ contract HopGasTest is Test, DiamondTest {
         hopFacet = HopFacet(address(diamond));
 
         HopFacet.Config[] memory config = new HopFacet.Config[](1);
-        config[0] = HopFacet.Config(USDC_ADDRESS, HOP_USDC_BRIDGE);
+        config[0] = HopFacet.Config(ADDRESS_USDC, HOP_USDC_BRIDGE);
         hopFacet.initHop(config);
 
         string[] memory tokens = new string[](1);
         tokens[0] = "USDC";
+
+        // set facet address in TestBase
+        setFacetAddressInTestBase(address(hopFacet), "HopFacet");
     }
 
     function testDirectBridge() public {
@@ -80,7 +68,7 @@ contract HopGasTest is Test, DiamondTest {
             "hop",
             "",
             address(0),
-            USDC_ADDRESS,
+            ADDRESS_USDC,
             WHALE,
             amount,
             137,

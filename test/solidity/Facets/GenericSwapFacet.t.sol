@@ -1,15 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
-import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
+import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond, ERC20 } from "../utils/TestBase.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGenericSwapFacet is GenericSwapFacet {
@@ -22,55 +16,23 @@ contract TestGenericSwapFacet is GenericSwapFacet {
     }
 }
 
-contract GenericSwapFacetTest is DSTest, DiamondTest {
-    event LiFiGenericSwapCompleted(
-        bytes32 indexed transactionId,
-        string integrator,
-        string referrer,
-        address receiver,
-        address fromAssetId,
-        address toAssetId,
-        uint256 fromAmount,
-        uint256 toAmount
-    );
-
+contract GenericSwapFacetTest is TestBase {
     // These values are for Mainnet
-    address internal constant USDC_ADDRESS =
-        0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address internal constant WETH_ADDRESS =
-        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address internal constant DAI_ADDRESS =
-        0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address internal constant USDC_HOLDER =
         0xee5B5B923fFcE93A870B3104b7CA09c3db80047A;
     address internal constant SOME_WALLET =
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
-    address internal constant UNISWAP_V2_ROUTER =
-        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
 
     // -----
 
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
-    LiFiDiamond internal diamond;
     TestGenericSwapFacet internal genericSwapFacet;
-    ERC20 internal usdc;
-    ERC20 internal dai;
-    UniswapV2Router02 internal uniswap;
-
-    function fork() internal {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = 15588208;
-        vm.createSelectFork(rpcUrl, blockNumber);
-    }
 
     function setUp() public {
-        fork();
+        customBlockNumberForForking = 15588208;
+        initTestBase();
 
-        diamond = createDiamond();
+        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         genericSwapFacet = new TestGenericSwapFacet();
-        usdc = ERC20(USDC_ADDRESS);
-        dai = ERC20(DAI_ADDRESS);
-        uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
 
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = genericSwapFacet.swapTokensGeneric.selector;
@@ -86,6 +48,12 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         genericSwapFacet.setFunctionApprovalBySignature(
             uniswap.swapExactTokensForTokens.selector
         );
+
+        // set facet address in TestBase
+        setFacetAddressInTestBase(
+            address(genericSwapFacet),
+            "GenericSwapFacet"
+        );
     }
 
     function testCanSwapERC20() public {
@@ -97,8 +65,8 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
         // Swap USDC to DAI
         address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = DAI_ADDRESS;
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_DAI;
 
         uint256 amountOut = 10 * 10 ** dai.decimals();
 
@@ -109,8 +77,8 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         swapData[0] = LibSwap.SwapData(
             address(uniswap),
             address(uniswap),
-            USDC_ADDRESS,
-            DAI_ADDRESS,
+            ADDRESS_USDC,
+            ADDRESS_DAI,
             amountIn,
             abi.encodeWithSelector(
                 uniswap.swapExactTokensForTokens.selector,
@@ -129,8 +97,8 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            DAI_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // fromAssetId,
+            ADDRESS_DAI, // toAssetId,
             amountIn, // fromAmount,
             10000000166486371895 // toAmount (with liquidity in that selected block)
         );
@@ -153,8 +121,8 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
         // Swap1: USDC to DAI
         address[] memory path = new address[](2);
-        path[0] = USDC_ADDRESS;
-        path[1] = DAI_ADDRESS;
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_DAI;
 
         uint256 amountInUSDC = 10 * 10 ** usdc.decimals();
 
@@ -167,8 +135,8 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         swapData[0] = LibSwap.SwapData(
             address(uniswap),
             address(uniswap),
-            USDC_ADDRESS,
-            DAI_ADDRESS,
+            ADDRESS_USDC,
+            ADDRESS_DAI,
             amountInUSDC,
             abi.encodeWithSelector(
                 uniswap.swapExactTokensForTokens.selector,
@@ -183,8 +151,8 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
 
         // Swap2: DAI to WETH
         path = new address[](2);
-        path[0] = DAI_ADDRESS;
-        path[1] = WETH_ADDRESS;
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
 
         // Calculate required DAI input amount
         amounts = uniswap.getAmountsOut(swappedAmountDAI, path);
@@ -193,8 +161,8 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
         swapData[1] = LibSwap.SwapData(
             address(uniswap),
             address(uniswap),
-            DAI_ADDRESS,
-            WETH_ADDRESS,
+            ADDRESS_DAI,
+            ADDRESS_WRAPPED_NATIVE,
             swappedAmountDAI,
             abi.encodeWithSelector(
                 uniswap.swapExactTokensForTokens.selector,
@@ -217,8 +185,8 @@ contract GenericSwapFacetTest is DSTest, DiamondTest {
             "integrator", // integrator,
             "referrer", // referrer,
             SOME_WALLET, // receiver,
-            USDC_ADDRESS, // fromAssetId,
-            WETH_ADDRESS, // toAssetId,
+            ADDRESS_USDC, // fromAssetId,
+            ADDRESS_WRAPPED_NATIVE, // toAssetId,
             amountInUSDC, // fromAmount,
             expectedAmountOut // toAmount (with liquidity in that selected block)
         );
