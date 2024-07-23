@@ -2,6 +2,7 @@
 pragma solidity 0.8.17;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { LibDiamondLoupe } from "../Libraries/LibDiamondLoupe.sol";
 import { UnAuthorized, InvalidCallData, DiamondIsPaused } from "../Errors/GenericErrors.sol";
 import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
@@ -57,8 +58,10 @@ contract EmergencyPauseFacet {
         address _facetAddress
     ) external OnlyPauserWalletOrOwner(msg.sender) {
         // get function selectors for this facet
-        bytes4[] memory functionSelectors = DiamondLoupeFacet(address(this))
-            .facetFunctionSelectors(_facetAddress);
+        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
+        bytes4[] memory functionSelectors = ds
+            .facetFunctionSelectors[_facetAddress]
+            .functionSelectors;
 
         // do not continue if no registered function selectors were found
         if (functionSelectors.length == 0) revert FacetIsNotRegistered();
@@ -132,14 +135,11 @@ contract EmergencyPauseFacet {
         // It would be easier to not reinstate these facets in the first place but
         //  a) that would leave their function selectors associated with address of EmergencyPauseFacet (=> throws 'DiamondIsPaused() error when called)
         //  b) it consumes a lot of gas to check every facet address if it's part of the blacklist
-        // go through all blacklisted facets
         for (uint256 i; i < _blacklist.length; ) {
             // re-add facet and its selectors to diamond
             LibDiamond.removeFunctions(
                 address(0),
-                DiamondLoupeFacet(address(this)).facetFunctionSelectors(
-                    _blacklist[i]
-                )
+                LibDiamondLoupe.facetFunctionSelectors(_blacklist[i])
             );
 
             // gas-efficient way to increase loop counter
@@ -187,9 +187,7 @@ contract EmergencyPauseFacet {
         returns (IDiamondLoupe.Facet[] memory toBeRemoved)
     {
         // get a list of all registered facet addresses
-        IDiamondLoupe.Facet[] memory allFacets = DiamondLoupeFacet(
-            address(this)
-        ).facets();
+        IDiamondLoupe.Facet[] memory allFacets = LibDiamondLoupe.facets();
 
         // initiate return variable with allFacets length - 1 (since we will not remove the EmergencyPauseFacet)
         delete toBeRemoved;
