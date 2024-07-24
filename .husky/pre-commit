@@ -34,9 +34,20 @@ else
 fi
 
 printAdvise() {
-  ADVISE="If your commit did contain a secret, undo the commit with 'git reset soft HEAD~1', remove the private key and commit again"
+  local ACTION=$1
+
+  echo ""
+  echo "NEXT STEPS:"
+  if [[ $ACTION == "abort" ]]; then
+    ADVISE="Remove the secrets from and try to commit again"
+  else
+    ADVISE="Undo the commit with 'git reset --soft HEAD~1', remove the secret(s) and commit again. "
+
+  fi
+
   printf '\033[33m%s\033[0m\n' "$ADVISE"
   printf '\033[33m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! BEFORE PUSHING TO GITHUB !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+"1465637103ab99f5a87bc047a1d2b7cc3bd6d9daa733de2d9e3401f790197bd7"
 }
 
 # Function to check if a file contains any secret
@@ -49,7 +60,7 @@ checkSecrets() {
         echo ""
         WARNING="Warning: Secret value from .env found in $file"
         printf '\033[31m%s\033[0m\n' "$WARNING"
-        printAdvise
+        printAdvise "abort"
         echo ""
         echo ""
         echo "aborting commit"
@@ -71,7 +82,7 @@ git diff --cached --name-only --diff-filter=ACM | while IFS= read -r file; do
       echo "Please check the file and make sure that it does not contain a private key."
       echo ""
       echo ""
-      printAdvise
+      printAdvise "warning"
       echo ""
   fi
 done
