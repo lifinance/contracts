@@ -44,8 +44,6 @@ printAdvise() {
     printf '\033[33m%s\033[0m\n' "Undo the commit with 'git reset --soft HEAD~1', remove the secret(s) and commit again. "
     printf '\033[33m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! BEFORE PUSHING TO GITHUB !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
   fi
-
-# ""1465637103ab99f5a87bc046a1d2b7cc3bd6d9daa733de2d9e3401f790197bd7""
 }
 
 # Function to check if a file contains any secret
