@@ -45,7 +45,7 @@ printAdvise() {
     printf '\033[33m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! BEFORE PUSHING TO GITHUB !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
   fi
 
-# "1465637103ab99f5a87bc046a1d2b7cc3bd6d9daa733de2d9e3401f790197bd7"
+# ""1465637103ab99f5a87bc047a1d2b7cc3bd6d9daa733de2d9e3401f790197bd7""
 }
 
 # Function to check if a file contains any secret
@@ -56,7 +56,7 @@ checkSecrets() {
     value=$(echo "$secret" | cut -d '=' -f 2-)
     if grep -nH "$value" "$file"; then
         echo ""
-        WARNING="Warning: Secret value from .env found in file $file. This code cannot be committed."
+        WARNING="Warning: Secret value from .env found. This code cannot be committed."
         printf '\033[31m%s\033[0m\n' "$WARNING"
         printAdvise "abort"
         echo ""
@@ -76,9 +76,9 @@ git diff --cached --name-only --diff-filter=ACM | while IFS= read -r file; do
   # Check for potential Ethereum private keys
   if grep -E -nH "$ETH_PRIVATE_KEY_PATTERN" "$file"; then
       echo ""
-      WARNING="Warning: Potential Ethereum private key found in file $file"
+      WARNING="Warning: Potential Ethereum private key found"
       printf '\033[31m%s\033[0m\n' "$WARNING"
-      echo "Please check the file and make sure that it does not contain a private key."
+      echo "Please check these values carefully and make sure that they are not private keys."
       echo ""
       echo ""
       printAdvise "warning"
