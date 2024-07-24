@@ -3756,4 +3756,4 @@ function test_tmp() {
   transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
 }
 
-test_tmp
+# test_tmp
