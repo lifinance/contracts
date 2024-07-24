@@ -45,7 +45,7 @@ printAdvise() {
     printf '\033[33m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! BEFORE PUSHING TO GITHUB !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
   fi
 
-# ""1465637103ab99f5a87bc047a1d2b7cc3bd6d9daa733de2d9e3401f790197bd7""
+# ""1465637103ab99f5a87bc046a1d2b7cc3bd6d9daa733de2d9e3401f790197bd7""
 }
 
 # Function to check if a file contains any secret
