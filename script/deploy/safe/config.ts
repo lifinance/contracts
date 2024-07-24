@@ -1,3 +1,5 @@
+import { ContractNetworksConfig } from '@safe-global/protocol-kit'
+
 export const safeApiUrls: Record<string, string> = {
   mainnet: 'https://safe-transaction-mainnet.safe.global/api',
   arbitrum: 'https://safe-transaction-arbitrum.safe.global/api',
@@ -9,7 +11,7 @@ export const safeApiUrls: Record<string, string> = {
   bsc: 'https://safe-transaction-bsc.safe.global/api',
   celo: 'https://safe-transaction-celo.safe.global/api',
   fantom: 'https://safe-txservice.fantom.network/api',
-  fraxtal: 'https://safe.origin.mainnet.frax.com/txs/api',
+  fraxtal: 'https://transaction-frax.safe.optimism.io/api',
   fuse: 'https://transaction-fuse.safe.fuse.io/api',
   gnosis: 'https://safe-transaction-gnosis-chain.safe.global/api',
   linea: 'https://transaction.safe.linea.build/api',
@@ -22,7 +24,7 @@ export const safeApiUrls: Record<string, string> = {
   polygon: 'https://safe-transaction-polygon.safe.global/api',
   polygonzkevm: 'https://safe-transaction-zkevm.safe.global/api',
   rootstock: 'https://transaction.safe.rootstock.io/api',
-  scroll: 'https://transaction.safe.scroll.xyz/api',
+  scroll: 'https://safe-transaction-scroll.safe.global/api',
   sei: 'https://transaction.sei-safe.protofire.io/api',
   zksync: 'https://safe-transaction-zksync.safe.global/api',
 }
@@ -59,4 +61,37 @@ export const safeAddresses: Record<string, string> = {
 export const chainNameMappings: Record<string, string> = {
   zksync: 'zkSync',
   polygonzkevm: 'polygonZkEvm',
+}
+
+export const getSafeUtilityContracts = (chainId: number) => {
+  let contractNetworks: ContractNetworksConfig
+  if (chainId === 324) {
+    // zkSync
+    contractNetworks = {
+      [chainId.toString()]: {
+        multiSendAddress: '0x0dFcccB95225ffB03c6FBB2559B530C2B7C8A912',
+        safeProxyFactoryAddress: '0xDAec33641865E4651fB43181C6DB6f7232Ee91c2',
+        safeSingletonAddress: '0xB00ce5CCcdEf57e539ddcEd01DF43a13855d9910',
+        multiSendCallOnlyAddress: '0xf220D3b4DFb23C4ade8C88E526C1353AbAcbC38F',
+        fallbackHandlerAddress: '0x2f870a80647BbC554F3a0EBD093f11B4d2a7492A',
+        signMessageLibAddress: '0x357147caf9C0cCa67DfA0CF5369318d8193c8407',
+        createCallAddress: '0xcB8e5E438c5c2b45FbE17B02Ca9aF91509a8ad56',
+        simulateTxAccessorAddress: '0x4191E2e12E8BC5002424CE0c51f9947b02675a44',
+      },
+    }
+  } else {
+    contractNetworks = {
+      [chainId.toString()]: {
+        multiSendAddress: '0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526',
+        safeProxyFactoryAddress: '0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67',
+        safeSingletonAddress: '0x41675C099F32341bf84BFc5382aF534df5C7461a',
+        multiSendCallOnlyAddress: '0x9641d764fc13c8B624c04430C7356C1C7C8102e2',
+        fallbackHandlerAddress: '0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99',
+        signMessageLibAddress: '0xd53cd0aB83D845Ac265BE939c57F53AD838012c9',
+        createCallAddress: '0x9b35Af71d77eaf8d7e40252370304687390A1A52',
+        simulateTxAccessorAddress: '0x3d4BA2E0884aa488718476ca2FB8Efc291A46199',
+      },
+    }
+  }
+  return contractNetworks
 }

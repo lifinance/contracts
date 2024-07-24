@@ -27,7 +27,7 @@ ETH_PRIVATE_KEY_PATTERN="[a-fA-F0-9]{64}"
 
 # Load secrets from .env file
 if [ -f ".env" ]; then
-  ENV_SECRETS=$(grep -v '^#' .env | grep -v '^\s*$' | cut -d '=' -f 2- | sed 's/ *#.*//')
+  ENV_SECRETS=$(grep -v '^#' .env | sed 's/#.*//' | grep -v '^\s*$' | sed 's/ *$//')
 else
   echo ".env file not found"
   ENV_SECRETS=""
@@ -38,23 +38,33 @@ printAdvise() {
 
   echo ""
   printf '\033[33m%s\033[0m\n' "NEXT STEPS"
-  if [[ $ACTION == "abort" ]]; then
+  if [ $ACTION == "abort" ]; then
     printf '\033[33m%s\033[0m\n' "Remove the secrets and try to commit again"
   else
     printf '\033[33m%s\033[0m\n' "Undo the commit with 'git reset --soft HEAD~1', remove the secret(s) and commit again. "
     printf '\033[33m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! BEFORE PUSHING TO GITHUB !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
   fi
 }
-
+#"1465637103ab99f5a87bc047a1d2b7cc3bd6d9daa733de2d9e3401f790197bd7"
 # Function to check if a file contains any secret
 checkSecrets() {
   local file=$1
   for secret in $ENV_SECRETS; do
     # Extract the value part of the secret
-    value=$(echo "$secret" | cut -d '=' -f 2-)
-    if grep -nH "$value" "$file"; then
+    local VALUE=$(echo "$secret" | cut -d '=' -f 2- | sed -e 's/^["'\''"]*//' -e 's/["'\''"]*$//')
+    local KEY=$(echo "$secret" | cut -d '=' -f 1)
+
+    # skip empty values
+    if [[ -z "$VALUE" ]]; then
+      echo "empty value"
+      continue
+    fi
+
+    echo "now checking $KEY=$VALUE"
+
+    if grep -nH "$VALUE" "$file"; then
         echo ""
-        WARNING="Warning: Secret value from .env found. This code cannot be committed."
+        WARNING="Warning: Secret value from .env found (key: $KEY). This code cannot be committed."
         printf '\033[31m%s\033[0m\n' "$WARNING"
         printAdvise "abort"
         echo ""

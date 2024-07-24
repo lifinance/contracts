@@ -9,7 +9,12 @@ import {
   type SafeTransactionDataPartial,
 } from '@safe-global/safe-core-sdk-types'
 import * as chains from 'viem/chains'
-import { chainNameMappings, safeAddresses, safeApiUrls } from './config'
+import {
+  chainNameMappings,
+  getSafeUtilityContracts,
+  safeAddresses,
+  safeApiUrls,
+} from './config'
 
 const chainMap: Record<string, Chain> = {}
 for (const [k, v] of Object.entries(chains)) {
@@ -73,6 +78,7 @@ const main = defineCommand({
     const protocolKit = await Safe.create({
       ethAdapter,
       safeAddress: safeAddress,
+      contractNetworks: getSafeUtilityContracts(chain.id),
     })
 
     const nextNonce = await safeService.getNextNonce(safeAddress)

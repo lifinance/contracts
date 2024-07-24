@@ -6,7 +6,12 @@ import SafeApiKit from '@safe-global/api-kit'
 import { ethers } from 'ethers6'
 import consola from 'consola'
 import * as chains from 'viem/chains'
-import { chainNameMappings, safeAddresses, safeApiUrls } from './config'
+import {
+  chainNameMappings,
+  getSafeUtilityContracts,
+  safeAddresses,
+  safeApiUrls,
+} from './config'
 
 const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
 
@@ -91,6 +96,7 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
   const protocolKit = await Safe.create({
     ethAdapter,
     safeAddress: safeAddress,
+    contractNetworks: getSafeUtilityContracts(chain.id),
   })
 
   const allTx = await retry(() =>
