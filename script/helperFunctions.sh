@@ -2882,7 +2882,108 @@ function getCreate3FactoryAddress() {
 
   echo $CREATE3_FACTORY
 }
-  
+
+function convertToBcInt() {
+  echo "$1" | tr -d '\n' | bc
+}
+
+
+
+transferContractOwnership() {
+    local PRIV_KEY_OLD_OWNER="$1"
+    local PRIV_KEY_NEW_OWNER="$2"
+    local CONTRACT_ADDRESS="$3"
+    local NETWORK="$4"
+
+    # Define minimum native balance
+    local MIN_NATIVE_BALANCE=$(convertToBcInt "100000000000000") # 100,000 Gwei
+    local NATIVE_TRANSFER_GAS_STIPEND=$(convertToBcInt "21000000000000") # 21,000 Gwei
+    local MIN_NATIVE_BALANCE_DOUBLE=$(convertToBcInt "$MIN_NATIVE_BALANCE * 2")
+    echo "MIN_NATIVE_BALANCE: $MIN_NATIVE_BALANCE"
+    echo "MIN_NATIVE_BALANCE_DOUBLE: $MIN_NATIVE_BALANCE_DOUBLE"
+
+    local RPC_URL=$(getRPCUrl "$NETWORK")
+
+    # Get address of old and new owner
+    local ADDRESS_OLD_OWNER=$(cast wallet address --private-key "$PRIV_KEY_OLD_OWNER")
+    local ADDRESS_NEW_OWNER=$(cast wallet address --private-key "$PRIV_KEY_NEW_OWNER")
+    echo "Transferring ownership of contract $CONTRACT_ADDRESS on $NETWORK from $ADDRESS_OLD_OWNER to $ADDRESS_NEW_OWNER now"
+
+    # make sure OLD_OWNER is actually contract owner
+    local CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
+    if [[ "$CURRENT_OWNER" -ne "$ADDRESS_OLD_OWNER" ]]; then
+      error "Current contract owner ($CURRENT_OWNER) does not match with private key of old owner provided ($ADDRESS_OLD_OWNER)"
+      return 1
+    fi
+
+    # Check native funds of old owner wallet
+    local NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
+    local NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
+
+    echo "native balance old owner: $NATIVE_BALANCE_OLD"
+    echo "native balance new owner: $NATIVE_BALANCE_NEW"
+
+    # make sure that sufficient native balances are available on both wallets
+    if (( $(echo "$NATIVE_BALANCE_OLD < $MIN_NATIVE_BALANCE" | bc -l) )); then
+        echo "old balance is low"
+        if (( $(echo "$NATIVE_BALANCE_NEW < $MIN_NATIVE_BALANCE_DOUBLE" | bc -l) )); then
+            echo "balance of new owner wallet is too low. Cannot continue"
+            return 1
+        else
+            echo "sending "$MIN_NATIVE_BALANCE" native tokens from new ("$ADDRESS_NEW_OWNER") to old wallet ("$ADDRESS_OLD_OWNER") now"
+            # Send some funds from new to old wallet
+            cast send "$ADDRESS_OLD_OWNER" --value "$MIN_NATIVE_BALANCE" --private-key "$PRIV_KEY_NEW_OWNER" --rpc-url "$RPC_URL"
+
+            NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
+            NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
+            echo ""
+            echo "native balance old owner: $NATIVE_BALANCE_OLD"
+            echo "native balance new owner: $NATIVE_BALANCE_NEW"
+        fi
+    fi
+
+    # # transfer ownership to new owner
+    echo ""
+    echo "[info] calling transferOwnership() function from old owner wallet now"
+    cast send "$CONTRACT_ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key $PRIV_KEY_OLD_OWNER --rpc-url "$RPC_URL"
+    echo ""
+
+    # # accept ownership transfer
+    echo ""
+    echo "[info] calling confirmOwnershipTransfer() function from new owner wallet now"
+    cast send "$CONTRACT_ADDRESS" "confirmOwnershipTransfer()" --private-key $PRIV_KEY_NEW_OWNER --rpc-url "$RPC_URL"
+    echo ""
+    echo ""
+
+    # send remaining native tokens from old owner wallet to new owner wallet
+    NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
+    SENDABLE_BALANCE=$(convertToBcInt "$NATIVE_BALANCE_OLD - $NATIVE_TRANSFER_GAS_STIPEND")
+    if [[ $SENDABLE_BALANCE -gt 0 ]]; then
+      echo ""
+      echo "sending "$SENDABLE_BALANCE" native tokens from old ("$ADDRESS_OLD_OWNER") to new wallet ("$ADDRESS_NEW_OWNER") now"
+      cast send "$ADDRESS_NEW_OWNER" --value "$SENDABLE_BALANCE" --private-key "$PRIV_KEY_OLD_OWNER" --rpc-url "$RPC_URL"
+    else
+      echo "remaining native balance in old wallet is too low to send back to new wallet"
+    fi
+
+    # check balances
+    NATIVE_BALANCE_OLD=$(convertToBcInt "$(cast balance "$ADDRESS_OLD_OWNER" --rpc-url "$RPC_URL")")
+    NATIVE_BALANCE_NEW=$(convertToBcInt "$(cast balance "$ADDRESS_NEW_OWNER" --rpc-url "$RPC_URL")")
+    echo ""
+    echo "native balance old owner: $NATIVE_BALANCE_OLD"
+    echo "native balance new owner: $NATIVE_BALANCE_NEW"
+
+    # make sure NEW OWNER is actually contract owner
+    CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
+    if [[ "$CURRENT_OWNER" -ne "$ADDRESS_NEW_OWNER" ]]; then
+      error "Current contract owner ($CURRENT_OWNER) does not match with new owner address ($ADDRESS_NEW_OWNER). Ownership transfer failed"
+      return 1
+    else
+      echo "Ownership transfer executed successfully"
+      return 0
+    fi
+}
+
 
 function printDeploymentsStatus() {
   # read function arguments into variables
@@ -3636,9 +3737,9 @@ function test_getContractNameFromDeploymentLogs() {
 
 function test_tmp() {
 
-  CONTRACT="SquidFacet"
-  NETWORK="avalanche"
-  ADDRESS="0x9951B2384a36a439C2afAfFf12c43F88Babde7c1"
+  CONTRACT="LiFiDiamond"
+  NETWORK="bsc"
+  ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F"
   ENVIRONMENT="production"
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
@@ -3650,5 +3751,9 @@ function test_tmp() {
   #    exit 1
   #  fi
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
-  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
+  # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
+
+  transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
 }
+
+test_tmp
