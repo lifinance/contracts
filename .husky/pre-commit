@@ -37,17 +37,15 @@ printAdvise() {
   local ACTION=$1
 
   echo ""
-  echo "NEXT STEPS:"
+  printf '\033[33m%s\033[0m\n' "NEXT STEPS"
   if [[ $ACTION == "abort" ]]; then
-    ADVISE="Remove the secrets from and try to commit again"
+    printf '\033[33m%s\033[0m\n' "Remove the secrets and try to commit again"
   else
-    ADVISE="Undo the commit with 'git reset --soft HEAD~1', remove the secret(s) and commit again. "
-
+    printf '\033[33m%s\033[0m\n' "Undo the commit with 'git reset --soft HEAD~1', remove the secret(s) and commit again. "
+    printf '\033[33m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! BEFORE PUSHING TO GITHUB !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
   fi
 
-  printf '\033[33m%s\033[0m\n' "$ADVISE"
-  printf '\033[33m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! BEFORE PUSHING TO GITHUB !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-"1465637103ab99f5a87bc047a1d2b7cc3bd6d9daa733de2d9e3401f790197bd7"
+# "1465637103ab99f5a87bc046a1d2b7cc3bd6d9daa733de2d9e3401f790197bd7"
 }
 
 # Function to check if a file contains any secret
@@ -56,14 +54,15 @@ checkSecrets() {
   for secret in $ENV_SECRETS; do
     # Extract the value part of the secret
     value=$(echo "$secret" | cut -d '=' -f 2-)
-    if grep "$value" "$file"; then
+    if grep -n -H "$value" "$file"; then
         echo ""
-        WARNING="Warning: Secret value from .env found in $file"
+        WARNING="Warning: Secret value from .env found in file $file. This code cannot be committed."
         printf '\033[31m%s\033[0m\n' "$WARNING"
         printAdvise "abort"
         echo ""
         echo ""
-        echo "aborting commit"
+        echo "aborting commit now"
+        echo ""
         exit 1
     fi
   done
@@ -77,7 +76,7 @@ git diff --cached --name-only --diff-filter=ACM | while IFS= read -r file; do
   # Check for potential Ethereum private keys
   if grep -E "$ETH_PRIVATE_KEY_PATTERN" "$file"; then
       echo ""
-      WARNING="Warning: Potential Ethereum private key found in $file"
+      WARNING="Warning: Potential Ethereum private key found in file $file"
       printf '\033[31m%s\033[0m\n' "$WARNING"
       echo "Please check the file and make sure that it does not contain a private key."
       echo ""
