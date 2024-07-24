@@ -74,7 +74,7 @@ git diff --cached --name-only --diff-filter=ACM | while IFS= read -r file; do
   checkSecrets "$file"
 
   # Check for potential Ethereum private keys
-  if grep -E "$ETH_PRIVATE_KEY_PATTERN" "$file"; then
+  if grep -E -nH "$ETH_PRIVATE_KEY_PATTERN" "$file"; then
       echo ""
       WARNING="Warning: Potential Ethereum private key found in file $file"
       printf '\033[31m%s\033[0m\n' "$WARNING"
