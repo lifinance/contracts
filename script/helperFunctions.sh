@@ -2888,7 +2888,10 @@ function convertToBcInt() {
 }
 
 
-
+# transfers ownership of the given contract from old wallet to new wallet (e.g. new tester wallet)
+# will fail if old wallet is not owner
+# will transfer native funds from new owner to old owner, if old wallet has insufficient funds
+# will send all remaining native funds from old owner to new owner after ownership transfer
 transferContractOwnership() {
     local PRIV_KEY_OLD_OWNER="$1"
     local PRIV_KEY_NEW_OWNER="$2"
@@ -2899,8 +2902,6 @@ transferContractOwnership() {
     local MIN_NATIVE_BALANCE=$(convertToBcInt "100000000000000") # 100,000 Gwei
     local NATIVE_TRANSFER_GAS_STIPEND=$(convertToBcInt "21000000000000") # 21,000 Gwei
     local MIN_NATIVE_BALANCE_DOUBLE=$(convertToBcInt "$MIN_NATIVE_BALANCE * 2")
-    echo "MIN_NATIVE_BALANCE: $MIN_NATIVE_BALANCE"
-    echo "MIN_NATIVE_BALANCE_DOUBLE: $MIN_NATIVE_BALANCE_DOUBLE"
 
     local RPC_URL=$(getRPCUrl "$NETWORK")
 
@@ -2975,6 +2976,7 @@ transferContractOwnership() {
 
     # make sure NEW OWNER is actually contract owner
     CURRENT_OWNER=$(cast call "$CONTRACT_ADDRESS" "owner() returns (address)" --rpc-url "$RPC_URL")
+    echo ""
     if [[ "$CURRENT_OWNER" -ne "$ADDRESS_NEW_OWNER" ]]; then
       error "Current contract owner ($CURRENT_OWNER) does not match with new owner address ($ADDRESS_NEW_OWNER). Ownership transfer failed"
       return 1
