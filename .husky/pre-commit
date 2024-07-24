@@ -41,26 +41,25 @@ printAdvise() {
   if [ $ACTION == "abort" ]; then
     printf '\033[33m%s\033[0m\n' "Remove the secrets and try to commit again"
   else
-    printf '\033[33m%s\033[0m\n' "Undo the commit with 'git reset --soft HEAD~1', remove the secret(s) and commit again. "
+    printf '\033[33m%s\033[0m\n' "Check each match carefully and make sure that no sensitive information is being committed"
+    printf '\033[33m%s\033[0m\n' "If it did happen, undo the commit with 'git reset --soft HEAD~1', remove the secret(s) and commit again. "
     printf '\033[33m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! BEFORE PUSHING TO GITHUB !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
   fi
 }
-#"1465637103ab99f5a87bc047a1d2b7cc3bd6d9daa733de2d9e3401f790197bd7"
+#"1465637103ab99f5a87bc047a2d2b7cc3bd6d9daa733de2d9e3401f790197bd7"
+
 # Function to check if a file contains any secret
 checkSecrets() {
   local file=$1
   for secret in $ENV_SECRETS; do
-    # Extract the value part of the secret
+    # Extract key and value of the secret and remove quotation marks
     local VALUE=$(echo "$secret" | cut -d '=' -f 2- | sed -e 's/^["'\''"]*//' -e 's/["'\''"]*$//')
     local KEY=$(echo "$secret" | cut -d '=' -f 1)
 
     # skip empty values
     if [[ -z "$VALUE" ]]; then
-      echo "empty value"
       continue
     fi
-
-    echo "now checking $KEY=$VALUE"
 
     if grep -nH "$VALUE" "$file"; then
         echo ""
