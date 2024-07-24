@@ -1,4 +1,96 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
+echo ""
 
+echo "Running 'forge build' now"
+forge build
+
+# If the build fails, abort the commit
+if [ $? -ne 0 ]; then
+  echo "\nForge build failed. Aborting commit.\n"
+  exit 1
+fi
+
+echo ""
+echo ""
+echo "Running 'yarn lint-staged' now:"
 yarn lint-staged
+
+echo ""
+echo ""
+echo "now checking for .env secrets and private keys accidentally being committed to Github"
+echo "(any 64-byte hex string will be identified as potential private key)"
+echo ""
+
+# Regex pattern to identify potential Ethereum private keys (64 hexadecimal characters)
+ETH_PRIVATE_KEY_PATTERN="[a-fA-F0-9]{64}"
+
+# Load secrets from .env file
+if [ -f ".env" ]; then
+  ENV_SECRETS=$(grep -v '^#' .env | sed 's/#.*//' | grep -v '^\s*$' | sed 's/ *$//')
+else
+  echo ".env file not found"
+  ENV_SECRETS=""
+fi
+
+printAdvise() {
+  local ACTION=$1
+
+  echo ""
+  printf '\033[33m%s\033[0m\n' "NEXT STEPS"
+  if [ $ACTION == "abort" ]; then
+    printf '\033[33m%s\033[0m\n' "Remove the secrets and try to commit again"
+  else
+    printf '\033[33m%s\033[0m\n' "Check each match carefully and make sure that no sensitive information is being committed"
+    printf '\033[33m%s\033[0m\n' "If it did happen, undo the commit with 'git reset --soft HEAD~1', remove the secret(s) and commit again. "
+    printf '\033[33m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! BEFORE PUSHING TO GITHUB !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  fi
+}
+
+# Function to check if a file contains any secret
+checkSecrets() {
+  local file=$1
+  for secret in $ENV_SECRETS; do
+    # Extract key and value of the secret and remove quotation marks
+    local VALUE=$(echo "$secret" | cut -d '=' -f 2- | sed -e 's/^["'\''"]*//' -e 's/["'\''"]*$//')
+    local KEY=$(echo "$secret" | cut -d '=' -f 1)
+
+    # skip empty values
+    if [[ -z "$VALUE" ]]; then
+      continue
+    fi
+
+    if grep -nH "$VALUE" "$file"; then
+        echo ""
+        WARNING="Warning: Secret value from .env found (key: $KEY). This code cannot be committed."
+        printf '\033[31m%s\033[0m\n' "$WARNING"
+        printAdvise "abort"
+        echo ""
+        echo ""
+        echo "aborting commit now"
+        echo ""
+        exit 1
+    fi
+  done
+}
+
+# Check for private keys and secrets in all added or modified files
+git diff --cached --name-only --diff-filter=ACM | while IFS= read -r file; do
+  # Check for secrets from .env file
+  checkSecrets "$file"
+
+  # Check for potential Ethereum private keys
+  if grep -E -nH "$ETH_PRIVATE_KEY_PATTERN" "$file"; then
+      echo ""
+      WARNING="Warning: Potential Ethereum private key found"
+      printf '\033[31m%s\033[0m\n' "$WARNING"
+      echo "Please check these values carefully and make sure that they are not private keys."
+      echo ""
+      echo ""
+      printAdvise "warning"
+      echo ""
+  fi
+done
+
+exit 0
+
