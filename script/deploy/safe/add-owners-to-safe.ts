@@ -78,6 +78,7 @@ const main = defineCommand({
     const owners = String(args.owners).split(',')
 
     let nextNonce = await safeService.getNextNonce(safeAddress)
+    const info = safeService.getSafeInfo(safeAddress)
     for (const o of owners) {
       const owner = getAddress(o)
       const existingOwners = await protocolKit.getOwners()
@@ -89,7 +90,7 @@ const main = defineCommand({
       const safeTransaction = await protocolKit.createAddOwnerTx(
         {
           ownerAddress: owner,
-          threshold: 1,
+          threshold: (await info).threshold,
         },
         {
           nonce: nextNonce,
