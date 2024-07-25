@@ -19,6 +19,7 @@ function handleNetwork() {
   echo ""
   echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start network $1 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
   local NETWORK=$1
+  local PAUSER_WALLET_ADDRESS=$2
 
 
   # skip any non-prod networks
@@ -60,12 +61,11 @@ function handleNetwork() {
   echo "NETWORK=$NETWORK"
   echo "RPC_URL=$RPC_URL"
   echo "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+  echo "PAUSER_WALLET_ADDRESS=$PAUSER_WALLET_ADDRESS"
   echo ""
 
   # make sure pauserWallet is registered in this diamond and matches with the private key of the pauser wallet
   DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
-  echo "DIAMOND_PAUSER_WALLET from diamond=$DIAMOND_PAUSER_WALLET"
-  echo "DIAMOND_PAUSER_WALLET from privKey=$DEPLOYER"
 
   # compare addresses in lowercase format
   if [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" == "$(echo "$DEPLOYER" | tr '[:upper:]' '[:lower:]')" ]]; then
@@ -126,12 +126,12 @@ function main {
 
 
 
-  DEPLOYER=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
-  echo "DEPLOYER_ADDRESS1: $DEPLOYER"
+  PAUSER_WALLET_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
+  echo "PAUSER_WALLET_ADDRESS1: $PAUSER_WALLET_ADDRESS"
 
   # go through all networks and start background tasks for each network (to execute in parallel)
   for NETWORK in "${NETWORKS[@]}"; do
-      handleNetwork "$NETWORK" "$DEPLOYER_ADDRESS"
+      handleNetwork "$NETWORK" "$PAUSER_WALLET_ADDRESS"
   done
 
   #   # Wait for all background jobs to finish
