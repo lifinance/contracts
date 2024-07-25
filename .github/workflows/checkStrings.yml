@@ -22,9 +22,13 @@ jobs:
       - name: Check strings in diff
         run: |
           git diff origin/main...HEAD > diff.txt
-          if grep -q -F -f check_strings.txt diff.txt; then
-            echo "Found forbidden strings in the diff"
+          matches=$(grep -n -H -F -f check_strings.txt diff.txt)
+          if [ -n "$matches" ]; then
+            echo "Found forbidden strings in the diff:"
+            echo "$matches"
             exit 1
           else
             echo "No forbidden strings found"
+          fi
+        shell: bash
         working-directory: ${{ github.workspace }}
