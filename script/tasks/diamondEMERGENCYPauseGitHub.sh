@@ -14,7 +14,6 @@ function handleNetwork() {
   local NETWORK=$1
   local ACTION=$2
   local FACET_CONTRACT_NAME=$3
-  local BLACKLIST=$4 # a list of facet addresses that should not be reactivated when unpausing the diamond
 
   # get RPC URL for given network
   RPC_URL=$(getRPCUrl "$NETWORK")
@@ -34,7 +33,6 @@ function handleNetwork() {
   echoDebug "RPC_URL=$RPC_URL"
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echoDebug "FACET_CONTRACT_NAME=$FACET_CONTRACT_NAME"
-  echoDebug "BLACKLIST=$BLACKLIST"
   echo ""
 
   # execute the requested action
