@@ -30,17 +30,23 @@ jobs:
       - name: Debug - Print current directory
         run: pwd
 
-      - name: Debug - Check file existence
+      - name: Debug - Check diamondEmergencyPause existence
+        run: |
+          if [ -f script/tasks/diamondEmergencyPause.sh ]; then
+            echo "diamondEmergencyPause exists"
+          else
+            echo "diamondEmergencyPause does not exist"
+          fi
+      - name: Debug - Check diamondEmergencyPause2 existence
         run: |
           if [ -f script/tasks/diamondEmergencyPause2.sh ]; then
-            echo "File exists"
+            echo "diamondEmergencyPause2 exists"
           else
-            echo "File does not exist"
+            echo "diamondEmergencyPause2 does not exist"
           fi
 
       - name: Run diamondEMERGENCYPause script
         run: |
-          chmod +x script/tasks/diamondEmergencyPause2.sh
           ./script/tasks/diamondEmergencyPause2.sh
         env:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_SECRET }}
