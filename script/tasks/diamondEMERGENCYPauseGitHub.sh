@@ -15,6 +15,20 @@ function handleNetwork() {
   local ACTION=$2
   local FACET_CONTRACT_NAME=$3
 
+  if [[ $NETWORK == "bsc-testnet" ]]; then
+    echo "skipping bsc-testnet"
+    return 0
+  fi
+
+  if [[ $NETWORK == "localanvil" ]]; then
+    echo "skipping localanvil"
+    return 0
+  fi
+  if [[ $NETWORK == "sepolia" ]]; then
+    echo "skipping localanvil"
+    return 0
+  fi
+
   # get RPC URL for given network
   RPC_URL=$(getRPCUrl "$NETWORK")
 
