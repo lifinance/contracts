@@ -36,7 +36,9 @@ function handleNetwork() {
   RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
 
   # ensure PauserWallet has positive balance
+  echo "[network: $NETWORK] checking balance of pauser wallet"
   BALANCE_PAUSER_WALLET=$(cast balance "$DIAMOND_PAUSER_WALLET" --rpc-url "$RPC_URL")
+  echo "balance pauser wallet: $BALANCE_PAUSER_WALLET"
   if [[ "$BALANCE_PAUSER_WALLET" == 0 ]]; then
     error "[network: $NETWORK] PauserWallet has no balance. Cannot continue"
     echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
@@ -44,6 +46,7 @@ function handleNetwork() {
   fi
 
 
+  echo "[network: $NETWORK] getting RPC_URL from Github secrets"
   # Use eval to read the environment variable named like the RPC_KEY (our normal syntax like 'RPC_URL=${!RPC_URL}' doesnt work on Github)
   eval "RPC_URL=\$$(echo "$RPC_KEY" | tr '-' '_')"
 
@@ -55,6 +58,7 @@ function handleNetwork() {
   fi
 
   # get diamond address for this network
+  echo "[network: $NETWORK] getting diamond address from deploy log files"
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
   DIAMOND_ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F"  # TODO: remove <<<<<<<<<---------------------------
   if [[ $? -ne 0 ]]; then
@@ -66,6 +70,7 @@ function handleNetwork() {
   # DIAMOND_ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F" # TODO <<<<<----- REMOVE
   # echo "[$NETWORK] manually overwritten diamond address to staging diamond to check if it works: $DIAMOND_ADDRESS"  # TODO <<<<<----- REMOVE
 
+  echo "[network: $NETWORK] matching registered pauser wallet in diamond with private key supplied"
   # make sure pauserWallet is registered in this diamond and matches with the private key of the pauser wallet
   DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
 
