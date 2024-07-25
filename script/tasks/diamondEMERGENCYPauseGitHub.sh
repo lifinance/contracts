@@ -30,14 +30,14 @@ function handleNetwork() {
   esac
 
   # convert the provided private key of the pauser wallet (from github) to an address
-  PAUSER_WALLET_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
+  PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
 
   # get RPC URL for given network
   RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
 
   # ensure PauserWallet has positive balance
   echo "[network: $NETWORK] checking balance of pauser wallet"
-  BALANCE_PAUSER_WALLET=$(cast balance "$DIAMOND_PAUSER_WALLET" --rpc-url "$RPC_URL")
+  BALANCE_PAUSER_WALLET=$(cast balance "$PRIV_KEY_ADDRESS" --rpc-url "$RPC_URL")
   echo "balance pauser wallet: $BALANCE_PAUSER_WALLET"
   if [[ "$BALANCE_PAUSER_WALLET" == 0 ]]; then
     error "[network: $NETWORK] PauserWallet has no balance. Cannot continue"
@@ -75,8 +75,8 @@ function handleNetwork() {
   DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
 
   # compare addresses in lowercase format
-  if [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" != "$(echo "$PAUSER_WALLET_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
-    error "[network: $NETWORK] The private key in PRIVATE_KEY_PAUSER_WALLET (address: $PAUSER_WALLET_ADDRESS) on Github does not match with the registered PauserWallet in the diamond ($DIAMOND_PAUSER_WALLET)"
+  if [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" != "$(echo "$PRIV_KEY_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
+    error "[network: $NETWORK] The private key in PRIVATE_KEY_PAUSER_WALLET (address: $PRIV_KEY_ADDRESS) on Github does not match with the registered PauserWallet in the diamond ($DIAMOND_PAUSER_WALLET)"
     echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
     return 1
   fi
@@ -85,7 +85,7 @@ function handleNetwork() {
   local ATTEMPTS=1
   while [ $ATTEMPTS -le $MAX_ATTEMPTS ]; do
     echo ""
-    echo "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $PAUSER_WALLET_ADDRESS (attempt: $ATTEMPTS)"
+    echo "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $PRIV_KEY_ADDRESS (attempt: $ATTEMPTS)"
     cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy
 
     # check the return code of the last call
@@ -133,9 +133,9 @@ function main {
     # NETWORKS+=("mainnet")
     NETWORKS+=("polygon" "bsc")
 
-  # PAUSER_WALLET_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
-  PAUSER_WALLET_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
-  echo "PAUSER_WALLET_ADDRESS1: $PAUSER_WALLET_ADDRESS"
+  # PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
+  PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
+  echo "PRIV_KEY_ADDRESS1: $PRIV_KEY_ADDRESS"
 
   # go through all networks and start background tasks for each network (to execute in parallel)
   for NETWORK in "${NETWORKS[@]}"; do
@@ -188,13 +188,13 @@ function main {
   # if [[ "$PRIVATE_KEY_PAUSER_WALLET" == "TEST_SECRET_VALUE" ]]; then
   #   echo "TEST_SECRET_VALUE found"
   # else
-  #   PAUSER_WALLET_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
+  #   PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
   # fi
 
   # echo "trying to print pauser wallet key now"
   # echo "PRIVATE_KEY_PAUSER_WALLET: $PRIVATE_KEY_PAUSER_WALLET"
-  # PAUSER_WALLET_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
-  # echo "PAUSER_WALLET_ADDRESS: $PAUSER_WALLET_ADDRESS"
+  # PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
+  # echo "PRIV_KEY_ADDRESS: $PRIV_KEY_ADDRESS"
 
 
 
