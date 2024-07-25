@@ -47,8 +47,16 @@ function handleNetwork() {
   # Use eval to read the environment variable named like the RPC_KEY (our normal syntax like 'RPC_URL=${!RPC_URL}' doesnt work on Github)
   eval "RPC_URL=\$$(echo "$RPC_KEY" | tr '-' '_')"
 
+  # make sure RPC_URL is available
+  if [[ -z "$RPC_URL" ]]; then
+    error "[network: $NETWORK] could not find RPC_URL for this network in Github secrets (key: $RPC_KEY). Cannot continue.
+    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+    return 1
+  fi
+
   # get diamond address for this network
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
+  DIAMOND_ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F"  # TODO: remove <<<<<<<<<---------------------------
   if [[ $? -ne 0 ]]; then
     error "[network: $NETWORK] could not find diamond address in PROD deploy log. Cannot continue for this network."
     return 1
@@ -63,7 +71,7 @@ function handleNetwork() {
 
   # compare addresses in lowercase format
   if [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" != "$(echo "$PAUSER_WALLET_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
-    error "[network: $NETWORK] The private key in PRIVATE_KEY_PAUSER_WALLET (address: $PAUSER_WALLET_ADDRESS)on Github does not match with the registered PauserWallet in the diamond ()"
+    error "[network: $NETWORK] The private key in PRIVATE_KEY_PAUSER_WALLET (address: $PAUSER_WALLET_ADDRESS) on Github does not match with the registered PauserWallet in the diamond ($DIAMOND_PAUSER_WALLET)"
     echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
     return 1
   fi
