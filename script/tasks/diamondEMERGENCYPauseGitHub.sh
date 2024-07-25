@@ -11,7 +11,7 @@ source ./script/helperFunctions.sh
 
 
 # the number of attempts the script will max try to execute the pause transaction
-MAX_ATTEMPTS=1
+MAX_ATTEMPTS=5
 
 function pauseDiamond() {
     local DIAMOND_ADDRESS=$1
@@ -89,9 +89,7 @@ function handleNetwork() {
   local ATTEMPTS=1
   while [ $ATTEMPTS -le $MAX_ATTEMPTS ]; do
     echo "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $PAUSER_WALLET_ADDRESS (attempt: $ATTEMPTS)"
-    CALLDATA=$(cast calldata "pauseDiamond()")
     BALANCE_PAUSER_WALLET=$(cast balance "$DIAMOND_PAUSER_WALLET" --rpc-url "$RPC_URL")
-    echo "Calldata: $CALLDATA"
     echo "BALANCE_PAUSER_WALLET: $BALANCE_PAUSER_WALLET"
     # RESULT=$(cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" >/dev/null)
     RESULT=$(pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL")
