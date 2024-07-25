@@ -44,6 +44,9 @@ function handleNetwork() {
   # echo "Value: $RPC_URL"
 
   echo "[$NETWORK] RPC_URL: $RPC_URL"
+  echo "Uncut? >> $RPC_URL" | cut -c1-25
+
+
 
   # get diamond address for this network
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
