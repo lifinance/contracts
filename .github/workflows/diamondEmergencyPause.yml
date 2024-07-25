@@ -27,8 +27,8 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Install Solidity Libs
-        run: forge install
+      # - name: Install Solidity Libs
+      #   run: forge install
 
       - name: Run diamondEMERGENCYPause script
         run: |
