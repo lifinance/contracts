@@ -38,7 +38,7 @@ function handleNetwork() {
   # get RPC URL for given network
   RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
   # RPC_KEY_VAR_NAME=$(echo "$RPC_KEY" | tr '-' '_')  # Replace dashes with underscores in the variable name
-  eval "RPC_URL=\$$RPC_KEY_VAR_NAME"           # Use eval to get the value
+  eval "RPC_URL=\$$(echo "$RPC_KEY" | tr '-' '_')"           # Use eval to get the value
   # echo "RPC_KEY: $RPC_KEY"
   # echo "Value: $RPC_URL"
 
