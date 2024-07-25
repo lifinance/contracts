@@ -81,7 +81,7 @@ function handleNetwork() {
   while [ $ATTEMPTS -le $MAX_ATTEMPTS ]; do
     echo "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $PAUSER_WALLET_ADDRESS (attempt: $ATTEMPTS)"
     CALLDATA=$(cast calldata "pauseDiamond()")
-    BALANCE_PAUSER_WALLET=$(cast balance "$DIAMOND_PAUSER_WALLET")
+    BALANCE_PAUSER_WALLET=$(cast balance "$DIAMOND_PAUSER_WALLET" --rpc-url "$RPC_URL")
     echo "Calldata: $CALLDATA"
     echo "BALANCE_PAUSER_WALLET: $BALANCE_PAUSER_WALLET"
     # $(cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" >/dev/null)
