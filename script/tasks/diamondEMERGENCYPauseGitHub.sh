@@ -66,6 +66,7 @@ function handleNetwork() {
   fi
 
   echo "[network: $NETWORK] matching registered pauser wallet $PRIV_KEY_ADDRESS in diamond ($DIAMOND_ADDRESS) with private key supplied"
+  # this fails currently since the EmergencyPauseFacet is not yet deployed to all diamonds
   DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
 
   # compare addresses in lowercase format
@@ -137,24 +138,12 @@ function main {
       handleNetwork "$NETWORK" "$PRIVATE_KEY_PAUSER_WALLET" &
   done
 
-  echo "HERE"
-
-    # Wait for all background jobs to finish
+  # Wait for all background jobs to finish
   wait
-
-  echo "THERE"
   # Check exit status of each background job
   for JOB in $(jobs -p); do
     wait $JOB || RETURN=1
   done
-
-  echo "endeeeeeeeee"
-    # End script according to return status
-  if [ "$RETURN" == 1 ]; then
-      exit 1
-  else
-    return 0
-  fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< script diamondEMERGENCYPause completed"
 }
