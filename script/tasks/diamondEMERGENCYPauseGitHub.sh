@@ -13,6 +13,15 @@ source ./script/helperFunctions.sh
 # the number of attempts the script will max try to execute the pause transaction
 MAX_ATTEMPTS=1
 
+function pauseDiamond() {
+    local DIAMOND_ADDRESS=$1
+  local PRIVATE_KEY_PAUSER_WALLET=$2
+  local RPC_URL=$3
+
+      RESULT=$(cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" >/dev/null)
+
+}
+
 
 # Define function to handle each network operation
 function handleNetwork() {
@@ -84,9 +93,10 @@ function handleNetwork() {
     BALANCE_PAUSER_WALLET=$(cast balance "$DIAMOND_PAUSER_WALLET" --rpc-url "$RPC_URL")
     echo "Calldata: $CALLDATA"
     echo "BALANCE_PAUSER_WALLET: $BALANCE_PAUSER_WALLET"
-    RESULT=$(cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" >/dev/null)
+    # RESULT=$(cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" >/dev/null)
+    pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL"
     RETURN_VALUE=$?
-    echo
+    echo "Return value: $RETURN_VALUE"
     # cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --gas-limit 800000 >/dev/null
 
     # check the return code of the last call
