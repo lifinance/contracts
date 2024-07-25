@@ -94,7 +94,7 @@ function handleNetwork() {
     echo "Calldata: $CALLDATA"
     echo "BALANCE_PAUSER_WALLET: $BALANCE_PAUSER_WALLET"
     # RESULT=$(cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" >/dev/null)
-    pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL"
+    RESULT=$(pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL")
     RETURN_VALUE=$?
     echo "Return value: $RETURN_VALUE"
     # cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --gas-limit 800000 >/dev/null
