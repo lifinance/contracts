@@ -12,30 +12,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Install GitHub CLI
-        run: sudo apt-get install gh -y
+      - name: Get team members
+        id: get-team-members
+        uses: paritytech/list-team-members@main
+        with:
+          ACCESS_TOKEN: ${{ GITHUB.TOKEN }}
+          organization: lifinance
+          team: diamondpauser
 
-      - name: Get team members and check authorization
+      - name: Set team members output to environment variable
+        run: echo "TEAM_MEMBERS=${{ steps.get-team-members.outputs.members }}" >> $GITHUB_ENV
+
+      - name: Check if action was triggered by a member of Github "DiamondPauser" group
         id: authenticate
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TEAM_NAME="diamondpauser"
-          ORG_NAME="lifinance"
           USER=${{ github.actor }}
-
-          # Get the team members
-          TEAM_MEMBERS=$(gh api --paginate -X GET /orgs/$ORG_NAME/teams/$TEAM_NAME/members | jq -r '.[].login')
-
-          echo "TEAM_MEMBERS=$TEAM_MEMBERS" >> $GITHUB_ENV
+          TEAM_MEMBERS=${{ steps.get-team-members.outputs.members }}
 
           echo "TEAM_MEMBERS: $TEAM_MEMBERS"
 
-          # Check if the user is in the team members
+          if [[ -z "$GITHUB.TOKEN" ]]; then
+            echo "GITHUB.TOKEN is empty"
+          fi
+
+          if [[ -z "$github.token" ]]; then
+            echo "github.token is empty"
+          fi
+
           if echo "$TEAM_MEMBERS" | grep -q "$USER"; then
-            echo "User $USER is a member of team $TEAM_NAME and authorized to execute this action."
+            echo "User $USER is a member of team diamondpauser and authorized to execute this action."
           else
-            echo "You ($USER) are not authorized to execute this action. Please ask any of these people to execute the action: https://github.com/orgs/$ORG_NAME/teams/$TEAM_NAME/members"
+            echo "You ($USER) are not authorized to execute this action. Please ask any of these people to execute the action: https://github.com/orgs/lifinance/teams/diamondpauser/members"
             exit 1
           fi
         shell: bash
