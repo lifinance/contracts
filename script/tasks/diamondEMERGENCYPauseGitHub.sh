@@ -31,8 +31,12 @@ function handleNetwork() {
 
   # get RPC URL for given network
   RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  # RPC_URL="$ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  RPC_KEY_VAR_NAME=$(echo "$RPC_KEY" | tr '-' '_')  # Replace dashes with underscores in the variable name
+  eval "RPC_KEY_VALUE=\$$RPC_KEY_VAR_NAME"           # Use eval to get the value
+  echo "RPC_KEY: $RPC_KEY"
+  echo "Value: $RPC_KEY_VALUE"
 
-  RPC_URL="$ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
   echo "[$NETWORK] RPC_URL: $RPC_URL"
 
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
@@ -53,8 +57,7 @@ function handleNetwork() {
   echo "FACET_CONTRACT_NAME=$FACET_CONTRACT_NAME"
   echo ""
 
-  DEPLOYER=$(cast wallet address "$TEST_PRIV_KEY_SECRET")
-  echo "[$NETWORK] DEPLOYER_ADDRESS: $DEPLOYER_ADDRESS"
+
 
 
 
@@ -126,9 +129,14 @@ function main {
   # send message to DISCORD
   # TODO <<<<<<<<------------------------------------------------------------------------
 
+
+
+  DEPLOYER=$(cast wallet address "$TEST_PRIV_KEY_SECRET")
+  echo "DEPLOYER_ADDRESS: $DEPLOYER_ADDRESS"
+
   # go through all networks and start background tasks for each network (to execute in parallel)
   for NETWORK in "${NETWORKS[@]}"; do
-      handleNetwork "$NETWORK"
+      handleNetwork "$NETWORK" "$DEPLOYER_ADDRESS"
   done
 
   #   # Wait for all background jobs to finish
