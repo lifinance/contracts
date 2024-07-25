@@ -1,4 +1,4 @@
-name: Diamond Emergency Pause
+name: Pause PRODUCTION diamond (CAREFUL)
 
 on:
   push:
@@ -8,33 +8,33 @@ jobs:
   diamond-emergency-pause:
     runs-on: ubuntu-latest
 
+    # steps:
+    #   - name: Check user permissions
+    #     id: check_user
+    #     run: |
+    #       ALLOWED_USERS=("0xDEnYO" "maxklenk" "ezynda3")
+    #       if [[ ! " ${ALLOWED_USERS[@]} " =~ " ${{ github.actor }} " ]]; then
+    #         echo "User ${{ github.actor }} is not allowed to run this workflow."
+    #         exit 1
+    #       fi
+    #     shell: bash
+
     steps:
-      - name: Check user permissions
-        id: check_user
+      - name: Check if action was triggered by a member of Github "DiamondPauser" group
+        id: authenticate
         run: |
-          ALLOWED_USERS=("0xDEnYO" "maxklenk" "ezynda3")
-          if [[ ! " ${ALLOWED_USERS[@]} " =~ " ${{ github.actor }} " ]]; then
-            echo "User ${{ github.actor }} is not allowed to run this workflow."
+          TEAM_NAME="DiamondPauser"
+          ORG_NAME="lifinance"
+          USER=${{ github.actor }}
+          RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/orgs/$ORG_NAME/teams/$TEAM_NAME/memberships/$USER")
+
+          if echo "$RESPONSE" | grep -q '"state": "active"'; then
+            echo "User $USER is a member of team $TEAM_NAME."
+          else
+            echo "User $USER is not a member of team $TEAM_NAME."
             exit 1
           fi
         shell: bash
-
-      # steps:
-      #   - name: Check team membership
-      #     id: check_team
-      #     run: |
-      #       TEAM_NAME="DiamondPauser"
-      #       ORG_NAME="lifinance"
-      #       USER=${{ github.actor }}
-      #       RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/orgs/$ORG_NAME/teams/$TEAM_NAME/memberships/$USER")
-
-      #       if echo "$RESPONSE" | grep -q '"state": "active"'; then
-      #         echo "User $USER is a member of team $TEAM_NAME."
-      #       else
-      #         echo "User $USER is not a member of team $TEAM_NAME."
-      #         exit 1
-      #       fi
-      #     shell: bash
 
       - name: Checkout repository
         uses: actions/checkout@v2
