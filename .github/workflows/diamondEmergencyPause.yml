@@ -16,7 +16,7 @@ jobs:
         id: get-team-members
         uses: garnertb/get-team-members@v1
         with:
-          token: ${{ secrets.github.token }}
+          token: ${{ GITHUB.TOKEN }}
           org: lifinance
           team_slug: diamondpauser
 
@@ -27,6 +27,14 @@ jobs:
           TEAM_MEMBERS=${{ steps.get-team-members.outputs.members }}
 
           echo "TEAM_MEMBERS: $TEAM_MEMBERS"
+
+          if [[ -z "$GITHUB.TOKEN" ]]; then
+            echo "GITHUB.TOKEN is empty"
+          fi
+
+          if [[ -z "$github.token" ]]; then
+            echo "github.token is empty"
+          fi
 
           if echo "$TEAM_MEMBERS" | grep -q "$USER"; then
             echo "User $USER is a member of team diamondpauser and authorized to execute this action."
