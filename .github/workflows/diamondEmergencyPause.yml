@@ -1,0 +1,30 @@
+name: Diamond Emergency Pause
+
+on:
+  workflow_dispatch: # Allows manual trigger of the workflow
+
+jobs:
+  diamond-emergency-pause:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check user permissions
+        id: check_user
+        run: |
+          ALLOWED_USERS=("0xDEnYO" "maxklenk" "ezynda3")
+          if [[ ! " ${ALLOWED_USERS[@]} " =~ " ${{ github.actor }} " ]]; then
+            echo "User ${{ github.actor }} is not allowed to run this workflow."
+            exit 1
+          fi
+        shell: bash
+
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Run diamondEMERGENCYPause script
+        run: |
+          chmod +x script/tasks/diamondEmergencyPause2.sh
+          ./script/tasks/diamondEmergencyPause2.sh
+        env:
+          # List all the secrets you need to pass to the script
+          PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_SECRET }}
