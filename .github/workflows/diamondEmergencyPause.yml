@@ -1,5 +1,4 @@
 name: Pause PRODUCTION diamond (CAREFUL)
-
 on:
   workflow_dispatch:
     inputs:
