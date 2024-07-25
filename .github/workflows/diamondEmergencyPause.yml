@@ -1,6 +1,7 @@
 name: Diamond Emergency Pause
 
 on:
+  push:
   workflow_dispatch: # Allows manual trigger of the workflow
 
 jobs:
