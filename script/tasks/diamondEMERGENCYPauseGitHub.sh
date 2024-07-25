@@ -32,7 +32,9 @@ function handleNetwork() {
   echo "now starting with network $NETWORK"
 
   # get RPC URL for given network
-  RPC_URL=$(getRPCUrl "$NETWORK")
+  RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+
+  RPC_URL="$RPC_KEY"
   echo "[$NETWORK] RPC_URL: $RPC_URL"
 
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
@@ -53,7 +55,7 @@ function handleNetwork() {
   echoDebug "FACET_CONTRACT_NAME=$FACET_CONTRACT_NAME"
   echo ""
 
-  DEPLOYER=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
+  DEPLOYER=$(cast wallet address "$TEST_PRIV_KEY_SECRET")
   echo "[$NETWORK] DEPLOYER_ADDRESS: $DEPLOYER_ADDRESS"
 
 
