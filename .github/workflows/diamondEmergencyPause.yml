@@ -8,47 +8,33 @@ jobs:
   diamond-emergency-pause:
     runs-on: ubuntu-latest
 
-    # steps:
-    #   - name: Check user permissions
-    #     id: check_user
-    #     run: |
-    #       ALLOWED_USERS=("0xDEnYO" "maxklenk" "ezynda3")
-    #       if [[ ! " ${ALLOWED_USERS[@]} " =~ " ${{ github.actor }} " ]]; then
-    #         echo "User ${{ github.actor }} is not allowed to run this workflow."
-    #         exit 1
-    #       fi
-    #     shell: bash
-
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Get team members
+        id: get-team-members
+        uses: garnertb/get-team-members@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          org: lifinance
+          team_slug: diamondpauser
+
       - name: Check if action was triggered by a member of Github "DiamondPauser" group
         id: authenticate
         run: |
-          TEAM_NAME="diamondpauser"
-          ORG_NAME="lifinance"
           USER=${{ github.actor }}
-          API_URL="https://api.github.com/orgs/$ORG_NAME/teams/$TEAM_NAME/memberships/$USER"
+          TEAM_MEMBERS=${{ steps.get-team-members.outputs.members }}
 
-          echo "API_URL: $API_URL"
-          RESPONSE=$(curl -s \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "$API_URL")
+          echo "TEAM_MEMBERS: $TEAM_MEMBERS"
 
-          echo "RESPONSE: $RESPONSE"
-
-          if echo "$RESPONSE" | grep -q '"state": "active"'; then
-            echo "User $USER is a member of team $TEAM_NAME and authorized to execute this action."
+          if echo "$TEAM_MEMBERS" | grep -q "$USER"; then
+            echo "User $USER is a member of team diamondpauser and authorized to execute this action."
           else
-            echo "You ($USER) are not authorized to execute this action. Please ask any of these people to execute the action: https://github.com/orgs/$ORG_NAME/teams/$TEAM_NAME/members"
+            echo "You ($USER) are not authorized to execute this action. Please ask any of these people to execute the action: https://github.com/orgs/lifinance/teams/diamondpauser/members"
             exit 1
           fi
         shell: bash
-
-      - name: Checkout repository
-        uses: actions/checkout@v2
-        with:
-          ref: EmergencyPauseGithubAction # Ensure you are checking out the correct branch
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
