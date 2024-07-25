@@ -50,7 +50,9 @@ function handleNetwork() {
     error "[network: $NETWORK] could not find diamond address in PROD deploy log. Cannot continue for this network."
     return 1
   fi
-  echo "[$NETWORK] DIAMOND_ADDRESS: $DEPLOYER"
+  echo "[$NETWORK] DIAMOND_ADDRESS found from log: $DIAMOND_ADDRESS"
+  DIAMOND_ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F#" # TODO <<<<<----- REMOVE
+  echo "[$NETWORK] manually overwritten diamond address to staging diamond to check if it works: $DIAMOND_ADDRESS"  # TODO <<<<<----- REMOVE
 
   # logging for debug purposes
   echo ""
@@ -110,7 +112,7 @@ function main {
   # while IFS= read -r line; do
   #   NETWORKS+=("$line")
   # done <"./networks"
-    NETWORKS+=("mainnet")
+    # NETWORKS+=("mainnet")
     NETWORKS+=("polygon")
 
   # send message to DISCORD
