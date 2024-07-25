@@ -72,7 +72,7 @@ jobs:
 
           # PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIVATE_KEY_PAUSER_WALLET }}
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_PRIV_KEY_SECRET }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ GITHUB.TOKEN }}
 
       # - name: Send Discord message
       #   uses: Ilshidur/action-discord@0.3.2
