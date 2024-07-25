@@ -49,7 +49,7 @@ function handleNetwork() {
   # ensure PauserWallet has positive balance
   echo "[network: $NETWORK] checking balance of pauser wallet ($PRIV_KEY_ADDRESS)"
   BALANCE_PAUSER_WALLET=$(cast balance "$PRIV_KEY_ADDRESS" --rpc-url "$RPC_URL")
-  echo "balance pauser wallet: $BALANCE_PAUSER_WALLET"
+  echo "[network: $NETWORK] balance pauser wallet: $BALANCE_PAUSER_WALLET"
   if [[ "$BALANCE_PAUSER_WALLET" == 0 ]]; then
     error "[network: $NETWORK] PauserWallet has no balance. Cannot continue"
     echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
@@ -59,13 +59,13 @@ function handleNetwork() {
   # get diamond address for this network
   echo "[network: $NETWORK] getting diamond address from deploy log files"
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
-  DIAMOND_ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F"  # TODO: remove <<<<<<<<<---------------------------
+  # DIAMOND_ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F"  # TODO: remove <<<<<<<<<---------------------------
   if [[ $? -ne 0 ]]; then
     error "[network: $NETWORK] could not find diamond address in PROD deploy log. Cannot continue for this network."
     return 1
   fi
 
-  echo "[network: $NETWORK] matching registered pauser wallet in diamond with private key supplied"
+  echo "[network: $NETWORK] matching registered pauser wallet $PRIV_KEY_ADDRESS in diamond ($DIAMOND_ADDRESS) with private key supplied"
   DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
 
   # compare addresses in lowercase format
@@ -123,7 +123,7 @@ function main {
   while IFS= read -r line; do
     NETWORKS+=("$line")
   done <"./networks"
-  NETWORKS=("bsc" "polygon")
+  # NETWORKS=("bsc" "polygon")
 
   echo "networks found: $networks"
 
@@ -133,7 +133,7 @@ function main {
 
   # go through all networks and start background tasks for each network (to execute in parallel)
   for NETWORK in "${NETWORKS[@]}"; do
-      handleNetwork "$NETWORK" "$PRIVATE_KEY_PAUSER_WALLET"
+      handleNetwork "$NETWORK" "$PRIVATE_KEY_PAUSER_WALLET" &
   done
 
   #   # Wait for all background jobs to finish
