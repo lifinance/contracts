@@ -120,7 +120,8 @@ function main {
     # NETWORKS+=("mainnet")
     NETWORKS+=("polygon" "bsc")
 
-  PAUSER_WALLET_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
+  # PAUSER_WALLET_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
+  PAUSER_WALLET_ADDRESS=$(cast wallet address "$TEST_PRIV_KEY_SECRET")
   echo "PAUSER_WALLET_ADDRESS1: $PAUSER_WALLET_ADDRESS"
 
   # go through all networks and start background tasks for each network (to execute in parallel)
