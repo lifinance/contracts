@@ -42,7 +42,7 @@ function handleNetwork() {
   echo "[$NETWORK] RPC_URL: $RPC_URL"
 
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
-  echo "[$NETWORK] DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
+  echo "[$NETWORK] DIAMOND_ADDRESS: $DEPLOYER"
 
   if [[ $? -ne 0 ]]; then
     error "[network: $NETWORK] could not find diamond address in PROD deploy log. Cannot continue for this network."
@@ -134,7 +134,7 @@ function main {
 
 
   DEPLOYER=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
-  echo "DEPLOYER_ADDRESS1: $DEPLOYER_ADDRESS"
+  echo "DEPLOYER_ADDRESS1: $DEPLOYER"
 
   # go through all networks and start background tasks for each network (to execute in parallel)
   for NETWORK in "${NETWORKS[@]}"; do
