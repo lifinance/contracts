@@ -101,7 +101,7 @@ function handleNetwork() {
   #try to call the diamond
   echo "trying to call the diamond now to see if its paused:"
   OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() external returns (address)" --rpc-url "$RPC_URL")
-  echo "OWNER: $OWNER
+  echo "OWNER: $OWNER"
 
   echo "[network: $NETWORK] successfully executed"
   echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
