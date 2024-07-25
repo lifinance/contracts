@@ -1,6 +1,8 @@
 name: Pause PRODUCTION diamond (CAREFUL)
 
 on:
+  push:
+    branches: -""
   workflow_dispatch:
 
 jobs:
