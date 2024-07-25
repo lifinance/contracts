@@ -15,9 +15,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch all history for all branches and tags
 
-      - name: Fetch the main branch
-        run: git fetch origin main
+      - name: Fetch all branches
+        run: git fetch --all
 
       - name: Check strings in diff
         run: |
@@ -30,5 +32,5 @@ jobs:
           else
             echo "No forbidden strings found"
           fi
-        shell: bash
+        shell: /usr/bin/bash --noprofile --norc -e -o pipefail
         working-directory: ${{ github.workspace }}
