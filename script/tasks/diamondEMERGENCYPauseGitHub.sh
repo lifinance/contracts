@@ -10,7 +10,7 @@ source ./script/helperFunctions.sh
 
 
 # the number of attempts the script will max try to execute the pause transaction
-MAX_ATTEMPTS=50
+MAX_ATTEMPTS=10
 
 
 # Define function to handle each network operation
@@ -18,7 +18,7 @@ function handleNetwork() {
   echo ""
   echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start network $1 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
   local NETWORK=$1
-  local PAUSER_WALLET_ADDRESS=$2
+  local PRIVATE_KEY=$2
 
 
   # skip any non-prod networks
@@ -126,7 +126,7 @@ function main {
 
   # go through all networks and start background tasks for each network (to execute in parallel)
   for NETWORK in "${NETWORKS[@]}"; do
-      handleNetwork "$NETWORK" "$PAUSER_WALLET_ADDRESS"
+      handleNetwork "$NETWORK" "$TEST_PRIV_KEY_SECRET"
   done
 
   #   # Wait for all background jobs to finish
