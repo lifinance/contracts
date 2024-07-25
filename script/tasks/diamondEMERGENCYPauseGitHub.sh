@@ -46,15 +46,9 @@ function handleNetwork() {
 
   # get RPC URL for given network
   RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
-  # RPC_KEY_VAR_NAME=$(echo "$RPC_KEY" | tr '-' '_')  # Replace dashes with underscores in the variable name
-  eval "RPC_URL=\$$(echo "$RPC_KEY" | tr '-' '_')"           # Use eval to get the value
-  # echo "RPC_KEY: $RPC_KEY"
-  # echo "Value: $RPC_URL"
 
-  echo "[$NETWORK] RPC_URL: $RPC_URL"
-  echo "Uncut? >> $RPC_URL" | cut -c1-35
-
-
+   # Use eval to read the environment variable named like the RPC_KEY (our normal syntax like 'RPC_URL=${!RPC_URL}' doesnt work on Github)
+  eval "RPC_URL=\$$(echo "$RPC_KEY" | tr '-' '_')"
 
   # get diamond address for this network
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
@@ -92,7 +86,8 @@ function handleNetwork() {
     BALANCE_PAUSER_WALLET=$(cast balance "$DIAMOND_PAUSER_WALLET" --rpc-url "$RPC_URL")
     echo "BALANCE_PAUSER_WALLET: $BALANCE_PAUSER_WALLET"
     # RESULT=$(cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" >/dev/null)
-    RESULT=$(pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL")
+    # RESULT=$(pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL")
+    pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL"
     RETURN_VALUE=$?
     echo "Return value: $RETURN_VALUE"
     # cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --gas-limit 800000 >/dev/null
