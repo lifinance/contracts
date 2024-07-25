@@ -37,4 +37,5 @@ jobs:
           TEST_SECRET: ${{ secrets.TEST_SECRET }}
           ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
           ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
+          ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_PRIV_KEY_SECRET }}

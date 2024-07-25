@@ -136,7 +136,7 @@ function main {
   #   NETWORKS+=("$line")
   # done <"./networks"
     # NETWORKS+=("mainnet")
-    NETWORKS+=("polygon", "bsc")
+    NETWORKS+=("polygon" "bsc")
 
   # send message to DISCORD
   # TODO <<<<<<<<------------------------------------------------------------------------
