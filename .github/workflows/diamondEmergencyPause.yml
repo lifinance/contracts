@@ -21,11 +21,15 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v2
+        with:
+          ref: EmergencyPauseGithubAction
+
+      - name: Debug - List files
+        run: ls -R
 
       - name: Run diamondEMERGENCYPause script
         run: |
           chmod +x script/tasks/diamondEmergencyPause2.sh
           ./script/tasks/diamondEmergencyPause2.sh
         env:
-          # List all the secrets you need to pass to the script
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_SECRET }}
