@@ -3689,7 +3689,7 @@ function test_getContractNameFromDeploymentLogs() {
 function test_tmp() {
 
   CONTRACT="SquidFacet"
-  NETWORK="avalanche"
+  NETWORK="bsc"
   ADDRESS="0x9951B2384a36a439C2afAfFf12c43F88Babde7c1"
   ENVIRONMENT="production"
   VERSION="2.0.0"
@@ -3703,5 +3703,9 @@ function test_tmp() {
   #  fi
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
   # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
+
+  # echo "RPC_URL: $RPC_URL"
+  # DIAMOND_PAUSER_WALLET=$(cast call "0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
+  # echo "PAUSER_WALLET: $DIAMOND_PAUSER_WALLET"
 }
 # test_tmp

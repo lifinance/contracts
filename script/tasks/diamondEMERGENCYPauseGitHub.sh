@@ -64,7 +64,8 @@ function handleNetwork() {
 
   # make sure pauserWallet is registered in this diamond and matches with the private key of the pauser wallet
   DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
-  echo "DIAMOND_PAUSER_WALLET=$DIAMOND_PAUSER_WALLET"
+  echo "DIAMOND_PAUSER_WALLET from diamond=$DIAMOND_PAUSER_WALLET"
+  echo "DIAMOND_PAUSER_WALLET from privKey=$DEPLOYER"
 
   # compare addresses in lowercase format
   if [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" == "$(echo "$DEPLOYER" | tr '[:upper:]' '[:lower:]')" ]]; then
@@ -96,6 +97,11 @@ function handleNetwork() {
     error "[network: $NETWORK] failed to $ACTION on network $NETWORK (diamond address: $DIAMOND_ADDRESS)"
     return 1
   fi
+
+  #try to call the diamond
+  echo "trying to call the diamond now to see if its paused:"
+  OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() external returns (address)" --rpc-url "$RPC_URL")
+  echo "OWNER: $OWNER
 
   echo "[network: $NETWORK] successfully executed"
   echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
