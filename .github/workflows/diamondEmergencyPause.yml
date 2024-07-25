@@ -45,4 +45,4 @@ jobs:
         with:
           args: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}

@@ -47,6 +47,15 @@ function handleNetwork() {
   # get RPC URL for given network
   RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
 
+  # ensure PauserWallet has positive balance
+  BALANCE_PAUSER_WALLET=$(cast balance "$DIAMOND_PAUSER_WALLET" --rpc-url "$RPC_URL")
+  if [[ "$BALANCE_PAUSER_WALLET" == 0 ]]; then
+    error "[network: $NETWORK] PauserWallet has no balance. Cannot continue"
+    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+    return 1
+  fi
+
+
    # Use eval to read the environment variable named like the RPC_KEY (our normal syntax like 'RPC_URL=${!RPC_URL}' doesnt work on Github)
   eval "RPC_URL=\$$(echo "$RPC_KEY" | tr '-' '_')"
 
@@ -84,13 +93,7 @@ function handleNetwork() {
   while [ $ATTEMPTS -le $MAX_ATTEMPTS ]; do
     echo ""
     echo "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $PAUSER_WALLET_ADDRESS (attempt: $ATTEMPTS)"
-    BALANCE_PAUSER_WALLET=$(cast balance "$DIAMOND_PAUSER_WALLET" --rpc-url "$RPC_URL")
-    # echo "BALANCE_PAUSER_WALLET: $BALANCE_PAUSER_WALLET"
-    # RESULT=$(cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" >/dev/null)
-    # RESULT=$(pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL")
-    # pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL"
     cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy
-    # cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --gas-limit 800000 >/dev/null
 
     # check the return code of the last call
     if [ $? -eq 0 ]; then
@@ -109,7 +112,7 @@ function handleNetwork() {
   fi
 
   #try to call the diamond
-  echo "trying to call the diamond now to see if its paused:"
+  echo "trying to call the diamond now to see if its actually paused:"
   OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() external returns (address)" --rpc-url "$RPC_URL")
 
   # check if last call was successful and throw error if it was (it should not be as we expect the diamond to be paused)
