@@ -9,11 +9,17 @@
 # load config & helper functions
 source ./script/helperFunctions.sh
 
+
+# the number of attempts the script will max try to execute the pause transaction
+MAX_ATTEMPTS=1
+
+
 # Define function to handle each network operation
 function handleNetwork() {
   echo ""
   echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start network $1 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
   local NETWORK=$1
+
 
   # skip any non-prod networks
   case "$NETWORK" in
@@ -55,42 +61,23 @@ function handleNetwork() {
   echo ""
 
   # make sure pauserWallet is registered in this diamond and matches with the private key of the pauser wallet
+  DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
+  echo "DIAMOND_PAUSER_WALLET=$DIAMOND_PAUSER_WALLET"
+
+  if [[ "$DIAMOND_PAUSER_WALLET" == "$DEPLOYER" ]];
+    echo "pauser wallets equal"
+  else
+    echo "pauser wallets not equal"
+  fi
 
   # pause the diamond
 
 
   # execute the requested action
   local ATTEMPTS=1
-  while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+  while [ $ATTEMPTS -le $MAX_ATTEMPTS ]; do
     echoDebug "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $DEPLOYER"
-    cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy >/dev/null
-
-
-    echo "[info] trying to pause the diamond now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
-
-    # if a facet address is given, remove that facet, otherwise pause the diamond
-    if [ -z "$FACET_CONTRACT_NAME"  ]; then
-      if [ "$ACTION" == "pause the diamond contract entirely" ]; then
-
-      else
-        echoDebug "[network: $NETWORK] proposing an unpause transaction to diamond owner multisig now"
-
-        local CALLDATA=$(cast calldata "unpauseDiamond(address[])" "$BLACKLIST")
-        ts-node script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl $RPC_URL --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
-      fi
-    else
-      echoDebug "[network: $NETWORK] removing $FACET_CONTRACT_NAME now"
-
-      # get facet address
-      FACET_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "$FACET_CONTRACT_NAME")
-
-      if [[ $? -ne 0 ]]; then
-        error "[network: $NETWORK] could not find address for facet $FACET_CONTRACT_NAME in PROD deploy log. Cannot continue for this network."
-        return 1
-      fi
-
-      cast send "$DIAMOND_ADDRESS" "removeFacet(address)" "$FACET_ADDRESS" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy
-    fi
+    # cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy
 
     # check the return code of the last call
     if [ $? -eq 0 ]; then
@@ -102,14 +89,13 @@ function handleNetwork() {
   done
 
   # check if call was executed successfully or used all ATTEMPTS
-  if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
+  if [ $ATTEMPTS -gt "$MAX_ATTEMPTS" ]; then
     error "[network: $NETWORK] failed to $ACTION on network $NETWORK (diamond address: $DIAMOND_ADDRESS)"
     return 1
   fi
 
-  # success "[network: $NETWORK] successfully executed action '$ACTION'"
-  # echo ""
-    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+  echo "[network: $NETWORK] successfully executed action '$ACTION'"
+  echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
   return 0
 
 }
