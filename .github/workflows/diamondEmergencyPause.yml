@@ -24,6 +24,9 @@ jobs:
         with:
           ref: EmergencyPauseGithubAction # Ensure you are checking out the correct branch
 
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
       # - name: Debug - List all files
       #   run: find . -type f | sort
 
