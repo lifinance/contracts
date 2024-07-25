@@ -8,7 +8,6 @@ source .env
 source script/config.sh
 
 
-
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 RED='\033[0;31m'   # Red color
 GREEN='\033[0;32m' # Green color
