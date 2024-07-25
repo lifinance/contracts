@@ -1,6 +1,5 @@
-name: Pause PRODUCTION diamond (CAREFUL)
+name: Pause PRODUCTION diamond (EMERGENCY ONLY)
 on:
-  push:
   workflow_dispatch:
     # inputs:
     #   testInput:
