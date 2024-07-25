@@ -22,10 +22,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
-          ref: EmergencyPauseGithubAction
+          ref: main # Ensure you are checking out the correct branch
 
       - name: Debug - List files
         run: ls -R
+
+      - name: Debug - Print current directory
+        run: pwd
+
+      - name: Debug - Check file existence
+        run: |
+          if [ -f script/tasks/diamondEmergencyPause2.sh ]; then
+            echo "File exists"
+          else
+            echo "File does not exist"
+          fi
 
       - name: Run diamondEMERGENCYPause script
         run: |
