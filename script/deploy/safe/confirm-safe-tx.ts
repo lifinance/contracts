@@ -15,35 +15,39 @@ import {
 
 const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
 
-// Keep a list here instead of referencing on to allow to easily comment out some chains
-const defaultNetworks = [
-  'mainnet',
-  'arbitrum',
-  'aurora',
-  'avalanche',
-  'base',
-  'blast',
-  'boba',
-  'bsc',
-  'celo',
-  'fantom',
-  'fraxtal',
-  'fuse',
-  'gnosis',
-  'linea',
-  'mantle',
-  'metis',
-  'mode',
-  'moonbeam',
-  'moonriver',
-  'optimism',
-  'polygon',
-  'polygonzkevm',
-  'rootstock',
-  'scroll',
-  'sei',
-  'zksync',
+const allNetworks = Object.keys(safeAddresses)
+// In order to skip specific networks simple comment them in
+const skipNetworks: string[] = [
+  // 'mainnet',
+  // 'arbitrum',
+  // 'aurora',
+  // 'avalanche',
+  // 'base',
+  // 'blast',
+  // 'boba',
+  // 'bsc',
+  // 'celo',
+  // 'fantom',
+  // 'fraxtal',
+  // 'fuse',
+  // 'gnosis',
+  // 'linea',
+  // 'mantle',
+  // 'metis',
+  // 'mode',
+  // 'moonbeam',
+  // 'moonriver',
+  // 'optimism',
+  // 'polygon',
+  // 'polygonzkevm',
+  // 'rootstock',
+  // 'scroll',
+  // 'sei',
+  // 'zksync',
 ]
+const defaultNetworks = allNetworks.filter(
+  (network) => !skipNetworks.includes(network)
+)
 
 const storedResponses: Record<string, string> = {}
 
