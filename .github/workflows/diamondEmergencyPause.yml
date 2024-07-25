@@ -1,15 +1,8 @@
 name: Pause PRODUCTION diamond (CAREFUL)
 on:
-  push:
-  workflow_dispatch:
-    # inputs:
-    #   testInput:
-    #     description: 'Input'
-    #     type: choice
-    #     required: true
-    #     options:
-    #       - option1
-    #       - option2
+  schedule:
+    - cron: '0 0 * * *' # run once a day
+  workflow_dispatch: # enables manual trigger
 
 jobs:
   diamond-emergency-pause:
