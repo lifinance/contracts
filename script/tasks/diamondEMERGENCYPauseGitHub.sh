@@ -64,7 +64,7 @@ function handleNetwork() {
   DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
   echo "DIAMOND_PAUSER_WALLET=$DIAMOND_PAUSER_WALLET"
 
-  if [[ "$DIAMOND_PAUSER_WALLET" == "$DEPLOYER" ]];
+  if [[ "$DIAMOND_PAUSER_WALLET" == "$DEPLOYER" ]]; then
     echo "pauser wallets equal"
   else
     echo "pauser wallets not equal"
