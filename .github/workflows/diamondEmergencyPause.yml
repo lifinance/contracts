@@ -21,7 +21,11 @@ jobs:
           team: diamondpauser
 
       - name: Set team members output to environment variable
-        run: echo "TEAM_MEMBERS=${{ steps.get-team-members.outputs.members }}" >> $GITHUB_ENV
+        run: |
+          echo "members: $members"
+          echo "MEMBERS: $MEMBERS"
+          echo "TEAM_MEMBERS: $TEAM_MEMBERS"
+          echo "TEAM_MEMBERS=${{ steps.get-team-members.outputs.members }}" >> $GITHUB_ENV
 
       - name: Check if action was triggered by a member of Github "DiamondPauser" group
         id: authenticate
