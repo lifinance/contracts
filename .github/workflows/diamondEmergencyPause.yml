@@ -22,7 +22,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
-          ref: main # Ensure you are checking out the correct branch
+          ref: EmergencyPauseGithubAction # Ensure you are checking out the correct branch
 
       - name: Debug - List files
         run: ls -R
