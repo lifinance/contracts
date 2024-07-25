@@ -65,12 +65,7 @@ function handleNetwork() {
     return 1
   fi
 
-  # echo "[$NETWORK] DIAMOND_ADDRESS found from log: $DIAMOND_ADDRESS"
-  # DIAMOND_ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F" # TODO <<<<<----- REMOVE
-  # echo "[$NETWORK] manually overwritten diamond address to staging diamond to check if it works: $DIAMOND_ADDRESS"  # TODO <<<<<----- REMOVE
-
   echo "[network: $NETWORK] matching registered pauser wallet in diamond with private key supplied"
-  # make sure pauserWallet is registered in this diamond and matches with the private key of the pauser wallet
   DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
 
   # compare addresses in lowercase format
@@ -117,7 +112,6 @@ function handleNetwork() {
   success "[network: $NETWORK] diamond ($DIAMOND_ADDRESS) successfully paused"
   echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
   return 0
-
 }
 
 
@@ -126,15 +120,16 @@ function main {
   local NETWORKS=()
 
   # loop through networks list and add each network to ARRAY that is not excluded
-  # while IFS= read -r line; do
-  #   NETWORKS+=("$line")
-  # done <"./networks"
-    # NETWORKS+=("mainnet")
-    NETWORKS+=("polygon" "bsc")
+  while IFS= read -r line; do
+    NETWORKS+=("$line")
+  done <"./networks"
+  NETWORKS=("bsc" "polygon")
 
-  # PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
+  echo "networks found: $networks"
+
   PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
-  echo "PRIV_KEY_ADDRESS1: $PRIV_KEY_ADDRESS"
+  echo "Address PauserWallet: $PRIV_KEY_ADDRESS"
+
 
   # go through all networks and start background tasks for each network (to execute in parallel)
   for NETWORK in "${NETWORKS[@]}"; do
@@ -150,53 +145,8 @@ function main {
   #   wait $JOB || let "RETURN=1"
   # done
 
-  # end script according to return status
-  if [ "$RETURN" == 1 ]; then
-    if [[ -z "$EXIT_ON_ERROR" ]]; then
-      return 1
-    else
-      exit 1
-    fi
-  else
-    return 0
-  fi
-
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< script diamondEMERGENCYPause completed"
 }
-
-  # # read function arguments into variables
-  # local NETWORK="$1"
-  # local DIAMOND_CONTRACT_NAME="$3"
-  # local EXIT_ON_ERROR="$4"
-  # local ENVIRONMENT="production" # this script is only meant to be used on PROD diamond
-
-  #   # get file suffix based on value in variable ENVIRONMENT
-  # local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
-
-
-
-  # echo "TEST_SECRET: $TEST_SECRET"
-  # echo "DIAMOND_CONTRACT_NAME: $DIAMOND_CONTRACT_NAME"
-  # echo "EXIT_ON_ERROR: $EXIT_ON_ERROR"
-  # echo "ENVIRONMENT: $ENVIRONMENT"
-  # echo "FILE_SUFFIX: $FILE_SUFFIX"
-  # DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "mainnet" "production" "LiFiDiamond")
-
-  # echo "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
-
-  # if [[ "$PRIVATE_KEY_PAUSER_WALLET" == "TEST_SECRET_VALUE" ]]; then
-  #   echo "TEST_SECRET_VALUE found"
-  # else
-  #   PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
-  # fi
-
-  # echo "trying to print pauser wallet key now"
-  # echo "PRIVATE_KEY_PAUSER_WALLET: $PRIVATE_KEY_PAUSER_WALLET"
-  # PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
-  # echo "PRIV_KEY_ADDRESS: $PRIV_KEY_ADDRESS"
-
-
-
 
 # call main function with all parameters the script was called with
 main "$@"
