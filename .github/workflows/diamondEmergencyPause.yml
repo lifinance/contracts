@@ -30,14 +30,22 @@ jobs:
       - name: Debug - Print current directory
         run: pwd
 
-      - name: Debug - Check diamondEmergencyPause existence
+      - name: Debug - Check script/tasks/diamondEmergencyPause.sh existence
+        run: |
+          if [ -f script/tasks/diamondEmergencyPause.sh ]; then
+            echo "diamondEmergencyPause exists"
+          else
+            echo "diamondEmergencyPause does not exist"
+          fi
+
+      - name: Debug - Check ./script/tasks/diamondEmergencyPause.sh existence
         run: |
           if [ -f ./script/tasks/diamondEmergencyPause.sh ]; then
             echo "diamondEmergencyPause exists"
           else
             echo "diamondEmergencyPause does not exist"
           fi
-      - name: Debug - Check diamondEmergencyPause2 existence
+      - name: Debug - Check ../script/tasks/diamondEmergencyPause2.sh existence
         run: |
           if [ -f ../script/tasks/diamondEmergencyPause2.sh ]; then
             echo "diamondEmergencyPause2 exists"
