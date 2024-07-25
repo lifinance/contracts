@@ -34,7 +34,7 @@ function handleNetwork() {
   # get RPC URL for given network
   RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
 
-  RPC_URL="$RPC_KEY"
+  RPC_URL="${!RPC_KEY}"
   echo "[$NETWORK] RPC_URL: $RPC_URL"
 
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
