@@ -25,9 +25,11 @@ function handleNetwork() {
     return 0
   fi
   if [[ $NETWORK == "sepolia" ]]; then
-    echo "skipping localanvil"
+    echo "skipping sepolia"
     return 0
   fi
+
+  echo "now starting with network $NETWORK"
 
   # get RPC URL for given network
   RPC_URL=$(getRPCUrl "$NETWORK")
@@ -118,7 +120,7 @@ function main {
 
   # go through all networks and start background tasks for each network (to execute in parallel)
   for NETWORK in "${NETWORKS[@]}"; do
-      handleNetwork "$NETWORK" "$ACTION" "$FACET_CONTRACT_NAME" "$BLACKLIST" &
+      handleNetwork "$NETWORK" "$ACTION" "$FACET_CONTRACT_NAME" "$BLACKLIST"
   done
 
     # Wait for all background jobs to finish
