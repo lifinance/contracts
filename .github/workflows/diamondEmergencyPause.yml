@@ -16,7 +16,7 @@ jobs:
         id: get-team-members
         uses: garnertb/get-team-members@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.github.token }}
           org: lifinance
           team_slug: diamondpauser
 
