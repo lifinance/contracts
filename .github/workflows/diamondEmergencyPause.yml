@@ -32,14 +32,14 @@ jobs:
 
       - name: Debug - Check diamondEmergencyPause existence
         run: |
-          if [ -f script/tasks/diamondEmergencyPause.sh ]; then
+          if [ -f ./script/tasks/diamondEmergencyPause.sh ]; then
             echo "diamondEmergencyPause exists"
           else
             echo "diamondEmergencyPause does not exist"
           fi
       - name: Debug - Check diamondEmergencyPause2 existence
         run: |
-          if [ -f script/tasks/diamondEmergencyPause2.sh ]; then
+          if [ -f ../script/tasks/diamondEmergencyPause2.sh ]; then
             echo "diamondEmergencyPause2 exists"
           else
             echo "diamondEmergencyPause2 does not exist"
