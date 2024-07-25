@@ -24,46 +24,46 @@ jobs:
         with:
           ref: EmergencyPauseGithubAction # Ensure you are checking out the correct branch
 
-      - name: Debug - List all files
-        run: find . -type f | sort
+      # - name: Debug - List all files
+      #   run: find . -type f | sort
 
       # - name: Debug - Print current directory
       #   run: pwd
 
-      - name: Debug - Check ./script/tasks/diamondEMERGENCYPause2.sh existence
-        run: |
-          if [ -f ./script/tasks/diamondEMERGENCYPause2.sh ]; then
-            echo "./script/tasks/diamondEMERGENCYPause2.sh exists"
-          else
-            echo "./script/tasks/diamondEMERGENCYPause2.sh does not exist"
-          fi
+      # - name: Debug - Check  existence
+      #   run: |
+      #     if [ -f ./script/tasks/diamondEMERGENCYPause2.sh ]; then
+      #       echo "./script/tasks/diamondEMERGENCYPause2.sh exists"
+      #     else
+      #       echo "./script/tasks/diamondEMERGENCYPause2.sh does not exist"
+      #     fi
 
-      - name: Debug - Check script/tasks/diamondEmergencyPause.sh existence
-        run: |
-          if [ -f script/tasks/diamondEmergencyPause.sh ]; then
-            echo "diamondEmergencyPause exists"
-          else
-            echo "diamondEmergencyPause does not exist"
-          fi
+      # - name: Debug - Check script/tasks/diamondEmergencyPause.sh existence
+      #   run: |
+      #     if [ -f script/tasks/diamondEmergencyPause.sh ]; then
+      #       echo "diamondEmergencyPause exists"
+      #     else
+      #       echo "diamondEmergencyPause does not exist"
+      #     fi
 
-      - name: Debug - Check ./script/tasks/diamondEmergencyPause.sh existence
-        run: |
-          if [ -f ./script/tasks/diamondEmergencyPause.sh ]; then
-            echo "diamondEmergencyPause exists"
-          else
-            echo "diamondEmergencyPause does not exist"
-          fi
+      # - name: Debug - Check ./script/tasks/diamondEmergencyPause.sh existence
+      #   run: |
+      #     if [ -f ./script/tasks/diamondEmergencyPause.sh ]; then
+      #       echo "diamondEmergencyPause exists"
+      #     else
+      #       echo "diamondEmergencyPause does not exist"
+      #     fi
 
-      - name: Debug - Check ../script/tasks/diamondEmergencyPause2.sh existence
-        run: |
-          if [ -f ../script/tasks/diamondEmergencyPause2.sh ]; then
-            echo "diamondEmergencyPause2 exists"
-          else
-            echo "diamondEmergencyPause2 does not exist"
-          fi
+      # - name: Debug - Check ../script/tasks/diamondEmergencyPause2.sh existence
+      #   run: |
+      #     if [ -f ../script/tasks/diamondEmergencyPause2.sh ]; then
+      #       echo "diamondEmergencyPause2 exists"
+      #     else
+      #       echo "diamondEmergencyPause2 does not exist"
+      #     fi
 
       - name: Run diamondEMERGENCYPause script
         run: |
-          ./script/tasks/diamondEmergencyPause2.sh
+          ./script/tasks/diamondEMERGENCYPause2.sh
         env:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_SECRET }}
