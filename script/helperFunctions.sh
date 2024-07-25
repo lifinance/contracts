@@ -3709,10 +3709,5 @@ function test_tmp() {
   # echo "PAUSER_WALLET: $DIAMOND_PAUSER_WALLET"
   # cast send "0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F" "unpauseDiamond(address[])" "[]" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" --legacy
 
-  curl -s \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/orgs/lifinance/teams/diamondpauser/members"
 }
-test_tmp
+# test_tmp
