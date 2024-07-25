@@ -1,8 +1,7 @@
 name: Pause PRODUCTION diamond (CAREFUL)
 
 on:
-  push:
-  workflow_dispatch: # Allows manual trigger of the workflow
+  workflow_dispatch: # Allows (only) manual trigger of the workflow
 
 jobs:
   diamond-emergency-pause:
@@ -61,9 +60,9 @@ jobs:
           ETH_NODE_URI_ZKSYNC: ${{ secrets.ETH_NODE_URI_ZKSYNC }}
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_PRIV_KEY_SECRET }}
 
-      # - name: Send Discord message
-      #   uses: Ilshidur/action-discord@0.3.2
-      #   with:
-      #     args: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
-      #   env:
-      #     DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
+      - name: Send Discord message
+        uses: Ilshidur/action-discord@0.3.2
+        with:
+          args: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
