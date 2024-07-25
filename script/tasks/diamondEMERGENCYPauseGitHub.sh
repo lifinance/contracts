@@ -82,6 +82,7 @@ function handleNetwork() {
   # pause the diamond
   local ATTEMPTS=1
   while [ $ATTEMPTS -le $MAX_ATTEMPTS ]; do
+    echo ""
     echo "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $PAUSER_WALLET_ADDRESS (attempt: $ATTEMPTS)"
     BALANCE_PAUSER_WALLET=$(cast balance "$DIAMOND_PAUSER_WALLET" --rpc-url "$RPC_URL")
     echo "BALANCE_PAUSER_WALLET: $BALANCE_PAUSER_WALLET"
@@ -104,13 +105,20 @@ function handleNetwork() {
   # check if call was executed successfully or used all ATTEMPTS
   if [ $ATTEMPTS -gt "$MAX_ATTEMPTS" ]; then
     error "[network: $NETWORK] failed to pause diamond ($DIAMOND_ADDRESS)"
+    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
     return 1
   fi
 
   #try to call the diamond
   echo "trying to call the diamond now to see if its paused:"
   OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() external returns (address)" --rpc-url "$RPC_URL")
-  echo "OWNER: $OWNER"
+
+  # check if last call was successful and throw error if it was (it should not be as we expect the diamond to be paused)
+  if [ $? -eq 0 ]; then
+    echo "[network: $NETWORK] final pause check failed - please check if the diamond ($DIAMOND_ADDRESS) is paused indeed"
+    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+    return 1
+  fi
 
   echo "[network: $NETWORK] successfully executed"
   echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
