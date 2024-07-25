@@ -77,13 +77,10 @@ function handleNetwork() {
   fi
 
   # pause the diamond
-
-
-  # execute the requested action
   local ATTEMPTS=1
   while [ $ATTEMPTS -le $MAX_ATTEMPTS ]; do
     echoDebug "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $DEPLOYER"
-    # cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy
+    cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy
 
     # check the return code of the last call
     if [ $? -eq 0 ]; then
@@ -96,7 +93,7 @@ function handleNetwork() {
 
   # check if call was executed successfully or used all ATTEMPTS
   if [ $ATTEMPTS -gt "$MAX_ATTEMPTS" ]; then
-    error "[network: $NETWORK] failed to $ACTION on network $NETWORK (diamond address: $DIAMOND_ADDRESS)"
+    error "[network: $NETWORK] failed to pause diamond ($DIAMOND_ADDRESS)"
     return 1
   fi
 
