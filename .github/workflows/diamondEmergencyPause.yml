@@ -26,7 +26,7 @@ jobs:
           TEAM_NAME="diamondpauser"
           ORG_NAME="lifinance"
           USER=${{ github.actor }}
-          RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/orgs/$ORG_NAME/teams/$TEAM_NAME/memberships/$USER")
+          RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/orgs/lifinance/teams/diamondpauser/memberships/${{ github.actor }}")
 
           echo "RESPONSE: $RESPONSE"
 
