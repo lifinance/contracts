@@ -27,6 +27,9 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Install Solidity Libs
+        run: forge install
+
       # - name: Debug - List all files
       #   run: find . -type f | sort
 

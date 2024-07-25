@@ -30,7 +30,7 @@ function main {
   echo "EXIT_ON_ERROR: $EXIT_ON_ERROR"
   echo "ENVIRONMENT: $ENVIRONMENT"
   echo "FILE_SUFFIX: $FILE_SUFFIX"
-  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "mainnet" "production" "LiFiDiamond")
 
   echo "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
 
