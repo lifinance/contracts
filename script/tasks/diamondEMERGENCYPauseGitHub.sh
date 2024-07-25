@@ -28,6 +28,8 @@ function handleNetwork() {
   fi
 
   echo "now starting with network $NETWORK"
+    DEPLOYER=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
+  echo "DEPLOYER_ADDRESS1: $DEPLOYER_ADDRESS"
 
   # get RPC URL for given network
   RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
@@ -131,7 +133,7 @@ function main {
 
 
 
-  DEPLOYER=$(cast wallet address "$TEST_PRIV_KEY_SECRET")
+  DEPLOYER=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
   echo "DEPLOYER_ADDRESS1: $DEPLOYER_ADDRESS"
 
   # go through all networks and start background tasks for each network (to execute in parallel)
