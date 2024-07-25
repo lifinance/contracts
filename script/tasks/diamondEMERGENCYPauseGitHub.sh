@@ -35,17 +35,6 @@ function handleNetwork() {
   # get RPC URL for given network
   RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
 
-  # ensure PauserWallet has positive balance
-  echo "[network: $NETWORK] checking balance of pauser wallet"
-  BALANCE_PAUSER_WALLET=$(cast balance "$PRIV_KEY_ADDRESS" --rpc-url "$RPC_URL")
-  echo "balance pauser wallet: $BALANCE_PAUSER_WALLET"
-  if [[ "$BALANCE_PAUSER_WALLET" == 0 ]]; then
-    error "[network: $NETWORK] PauserWallet has no balance. Cannot continue"
-    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
-    return 1
-  fi
-
-
   echo "[network: $NETWORK] getting RPC_URL from Github secrets"
   # Use eval to read the environment variable named like the RPC_KEY (our normal syntax like 'RPC_URL=${!RPC_URL}' doesnt work on Github)
   eval "RPC_URL=\$$(echo "$RPC_KEY" | tr '-' '_')"
@@ -53,6 +42,16 @@ function handleNetwork() {
   # make sure RPC_URL is available
   if [[ -z "$RPC_URL" ]]; then
     error "[network: $NETWORK] could not find RPC_URL for this network in Github secrets (key: $RPC_KEY). Cannot continue."
+    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+    return 1
+  fi
+
+  # ensure PauserWallet has positive balance
+  echo "[network: $NETWORK] checking balance of pauser wallet ($PRIV_KEY_ADDRESS)"
+  BALANCE_PAUSER_WALLET=$(cast balance "$PRIV_KEY_ADDRESS" --rpc-url "$RPC_URL")
+  echo "balance pauser wallet: $BALANCE_PAUSER_WALLET"
+  if [[ "$BALANCE_PAUSER_WALLET" == 0 ]]; then
+    error "[network: $NETWORK] PauserWallet has no balance. Cannot continue"
     echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
     return 1
   fi
