@@ -1,9 +1,15 @@
 name: Pause PRODUCTION diamond (CAREFUL)
 
 on:
-  push:
-    #branches: -""
   workflow_dispatch:
+    inputs:
+      testInput:
+        description: 'Input'
+        type: choice
+        required: true
+        options:
+          - option1
+          - option2
 
 jobs:
   diamond-emergency-pause:

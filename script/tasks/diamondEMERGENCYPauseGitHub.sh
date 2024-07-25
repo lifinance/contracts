@@ -8,10 +8,8 @@
 # load helper functions
 source ./script/helperFunctions.sh
 
-
 # the number of attempts the script will max try to execute the pause transaction
 MAX_ATTEMPTS=10
-
 
 # Define function to handle each network operation
 function handleNetwork() {
@@ -116,7 +114,6 @@ function handleNetwork() {
   return 0
 }
 
-
 function main {
   # create array with network/s for which the script should be executed
   local NETWORKS=()
@@ -131,7 +128,8 @@ function main {
 
   PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
   echo "Address PauserWallet: $PRIV_KEY_ADDRESS"
-
+  echo "Networks will be executed in parallel, therefore the log might appear messy."
+  echo "Watch out for red and green colored entries as they mark endpoints of a network thread"
 
   # go through all networks and start background tasks for each network (to execute in parallel)
   RETURN=0
