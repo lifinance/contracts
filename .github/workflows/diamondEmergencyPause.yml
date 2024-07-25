@@ -23,7 +23,7 @@ jobs:
       - name: Check if action was triggered by a member of Github "DiamondPauser" group
         id: authenticate
         run: |
-          TEAM_NAME="DiamondPauser"
+          TEAM_NAME="diamondpauser"
           ORG_NAME="lifinance"
           USER=${{ github.actor }}
           RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/orgs/$ORG_NAME/teams/$TEAM_NAME/memberships/$USER")
