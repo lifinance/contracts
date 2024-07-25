@@ -80,7 +80,7 @@ function handleNetwork() {
   local ATTEMPTS=1
   while [ $ATTEMPTS -le $MAX_ATTEMPTS ]; do
     echo "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $PAUSER_WALLET_ADDRESS (attempt: $ATTEMPTS)"
-    cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy
+    cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy >/dev/null
 
     # check the return code of the last call
     if [ $? -eq 0 ]; then
