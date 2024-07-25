@@ -65,7 +65,7 @@ function handleNetwork() {
   echo ""
 
   # make sure pauserWallet is registered in this diamond and matches with the private key of the pauser wallet
-  DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
+  DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet()" --rpc-url "$RPC_URL")
 
   # compare addresses in lowercase format
   if [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" == "$(echo "$DEPLOYER" | tr '[:upper:]' '[:lower:]')" ]]; then
