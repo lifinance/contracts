@@ -24,11 +24,11 @@ jobs:
         with:
           ref: EmergencyPauseGithubAction # Ensure you are checking out the correct branch
 
-      - name: Debug - List files
-        run: ls -R
+      - name: Debug - List all files
+        run: find . -type f | sort
 
-      - name: Debug - Print current directory
-        run: pwd
+      # - name: Debug - Print current directory
+      #   run: pwd
 
       - name: Debug - Check script/tasks/diamondEmergencyPause.sh existence
         run: |
@@ -45,6 +45,7 @@ jobs:
           else
             echo "diamondEmergencyPause does not exist"
           fi
+
       - name: Debug - Check ../script/tasks/diamondEmergencyPause2.sh existence
         run: |
           if [ -f ../script/tasks/diamondEmergencyPause2.sh ]; then
