@@ -9,11 +9,10 @@
 function main {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script diamondEMERGENCYPause now...."
-  # load env variables
-  source .env
+
 
   # load config & helper functions
-  source script/helperFunctions.sh
+  source ./script/helperFunctions.sh
 
   # read function arguments into variables
   local NETWORK="$1"
@@ -26,7 +25,7 @@ function main {
 
 
 
-  echo "NETWORK: $NETWORK"
+  echo "TEST_SECRET: $TEST_SECRET"
   echo "DIAMOND_CONTRACT_NAME: $DIAMOND_CONTRACT_NAME"
   echo "EXIT_ON_ERROR: $EXIT_ON_ERROR"
   echo "ENVIRONMENT: $ENVIRONMENT"
@@ -43,7 +42,8 @@ function main {
 
   echo "trying to print pauser wallet key now"
   echo "PRIVATE_KEY_PAUSER_WALLET: $PRIVATE_KEY_PAUSER_WALLET"
-  echo "$PRIVATE_KEY_PAUSER_WALLET: $$PRIVATE_KEY_PAUSER_WALLET"
+  PAUSER_WALLET_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
+  echo "PAUSER_WALLET_ADDRESS: $PAUSER_WALLET_ADDRESS"
 
 
 }

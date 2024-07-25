@@ -66,4 +66,5 @@ jobs:
         run: |
           ./script/tasks/diamondEMERGENCYPause2.sh
         env:
-          PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_SECRET }}
+          TEST_SECRET: ${{ secrets.TEST_SECRET }}
+          PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_PRIV_KEY_SECRET }}
