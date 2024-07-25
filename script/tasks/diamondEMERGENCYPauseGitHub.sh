@@ -132,7 +132,7 @@ function main {
 
 
   DEPLOYER=$(cast wallet address "$TEST_PRIV_KEY_SECRET")
-  echo "DEPLOYER_ADDRESS: $DEPLOYER_ADDRESS"
+  echo "DEPLOYER_ADDRESS1: $DEPLOYER_ADDRESS"
 
   # go through all networks and start background tasks for each network (to execute in parallel)
   for NETWORK in "${NETWORKS[@]}"; do
