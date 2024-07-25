@@ -132,7 +132,7 @@ function main {
 
 
   # go through all networks and start background tasks for each network (to execute in parallel)
-  RETURN=1
+  RETURN=0
   for NETWORK in "${NETWORKS[@]}"; do
       handleNetwork "$NETWORK" "$PRIVATE_KEY_PAUSER_WALLET" &
   done
@@ -144,12 +144,19 @@ function main {
 
   echo "THERE"
   # Check exit status of each background job
-  for JOB in `jobs -p`
-  do
-    wait $JOB || let "RETURN=1"
+  for JOB in $(jobs -p); do
+    wait $JOB || RETURN=1
   done
 
   echo "endeeeeeeeee"
+    # End script according to return status
+  if [ "$RETURN" == 1 ]; then
+      exit 1
+    fi
+  else
+    return 0
+  fi
+
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< script diamondEMERGENCYPause completed"
 }
 
