@@ -1,6 +1,7 @@
 name: Pause PRODUCTION diamond (CAREFUL)
 
 on:
+  push:
   workflow_dispatch: # Allows (only) manual trigger of the workflow
 
 jobs:
@@ -11,7 +12,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Check user permissions
+      - name: Authenticate user
         id: check_user
         run: |
           ALLOWED_USERS=("0xDEnYO" "maxklenk" "ezynda3")
@@ -28,7 +29,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Run diamondEMERGENCYPause script
+      - name: Pause Diamond
         run: |
           ./script/tasks/diamondEMERGENCYPauseGitHub.sh
         env:
