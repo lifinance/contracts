@@ -75,7 +75,8 @@ jobs:
           ETH_NODE_URI_SEI: ${{ secrets.ETH_NODE_URI_SEI }}
           ETH_NODE_URI_ZKSYNC: ${{ secrets.ETH_NODE_URI_ZKSYNC }}
 
-          PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIVATE_KEY_PAUSER_WALLET }}
+          # PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIVATE_KEY_PAUSER_WALLET }}
+          PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_PRIV_KEY_SECRET }}
 
       # - name: Send Discord message
       #   uses: Ilshidur/action-discord@0.3.2
