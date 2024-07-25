@@ -85,7 +85,7 @@ function handleNetwork() {
     echo ""
     echo "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $PAUSER_WALLET_ADDRESS (attempt: $ATTEMPTS)"
     BALANCE_PAUSER_WALLET=$(cast balance "$DIAMOND_PAUSER_WALLET" --rpc-url "$RPC_URL")
-    echo "BALANCE_PAUSER_WALLET: $BALANCE_PAUSER_WALLET"
+    # echo "BALANCE_PAUSER_WALLET: $BALANCE_PAUSER_WALLET"
     # RESULT=$(cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" >/dev/null)
     # RESULT=$(pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL")
     pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL"
@@ -136,7 +136,7 @@ function main {
   #   NETWORKS+=("$line")
   # done <"./networks"
     # NETWORKS+=("mainnet")
-    NETWORKS+=("polygon")
+    NETWORKS+=("polygon", "bsc")
 
   # send message to DISCORD
   # TODO <<<<<<<<------------------------------------------------------------------------
