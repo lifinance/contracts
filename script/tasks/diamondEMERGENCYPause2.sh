@@ -6,7 +6,7 @@
 # - replace pauserWallet address in global config
 # - how can we make sure that the user log info is being sent to Discord (webhook URL must be in config.sh which most people wont have set up)
 
-function diamondEMERGENCYPause {
+function main {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script diamondEMERGENCYPause now...."
   # load env variables
@@ -48,4 +48,5 @@ function diamondEMERGENCYPause {
 
 }
 
+main "$@"
 
