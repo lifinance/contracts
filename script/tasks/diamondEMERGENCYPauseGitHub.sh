@@ -5,22 +5,12 @@
 # for all other actions the diamondEMERGENCYPause.sh script should be called
 # via scriptMaster.sh in local CLI for more flexibility
 
-
-# load config & helper functions
+# load helper functions
 source ./script/helperFunctions.sh
 
 
 # the number of attempts the script will max try to execute the pause transaction
-MAX_ATTEMPTS=5
-
-function pauseDiamond() {
-    local DIAMOND_ADDRESS=$1
-  local PRIVATE_KEY_PAUSER_WALLET=$2
-  local RPC_URL=$3
-
-      RESULT=$(cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" >/dev/null)
-
-}
+MAX_ATTEMPTS=50
 
 
 # Define function to handle each network operation
@@ -34,15 +24,13 @@ function handleNetwork() {
   # skip any non-prod networks
   case "$NETWORK" in
     "bsc-testnet" | "localanvil" | "sepolia" | "mumbai" | "lineatest")
-      echo "skipping $NETWORK"
+      echo "skipping $NETWORK (Testnet)"
       return 0
       ;;
   esac
 
-
-  echo "now starting with network $NETWORK"
-  DEPLOYER=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
-  echo "DEPLOYER_ADDRESS1: $DEPLOYER"
+  # convert the provided private key of the pauser wallet (from github) to an address
+  PAUSER_WALLET_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
 
   # get RPC URL for given network
   RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
@@ -56,7 +44,7 @@ function handleNetwork() {
   fi
 
 
-   # Use eval to read the environment variable named like the RPC_KEY (our normal syntax like 'RPC_URL=${!RPC_URL}' doesnt work on Github)
+  # Use eval to read the environment variable named like the RPC_KEY (our normal syntax like 'RPC_URL=${!RPC_URL}' doesnt work on Github)
   eval "RPC_URL=\$$(echo "$RPC_KEY" | tr '-' '_')"
 
   # get diamond address for this network
@@ -65,30 +53,22 @@ function handleNetwork() {
     error "[network: $NETWORK] could not find diamond address in PROD deploy log. Cannot continue for this network."
     return 1
   fi
-  echo "[$NETWORK] DIAMOND_ADDRESS found from log: $DIAMOND_ADDRESS"
-  DIAMOND_ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F" # TODO <<<<<----- REMOVE
-  echo "[$NETWORK] manually overwritten diamond address to staging diamond to check if it works: $DIAMOND_ADDRESS"  # TODO <<<<<----- REMOVE
 
-  # logging for debug purposes
-  echo ""
-  echo "in function handleNetwork"
-  echo "NETWORK=$NETWORK"
-  echo "RPC_URL=$RPC_URL"
-  echo "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-  echo "PAUSER_WALLET_ADDRESS=$PAUSER_WALLET_ADDRESS"
-  echo ""
+  # echo "[$NETWORK] DIAMOND_ADDRESS found from log: $DIAMOND_ADDRESS"
+  # DIAMOND_ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F" # TODO <<<<<----- REMOVE
+  # echo "[$NETWORK] manually overwritten diamond address to staging diamond to check if it works: $DIAMOND_ADDRESS"  # TODO <<<<<----- REMOVE
 
   # make sure pauserWallet is registered in this diamond and matches with the private key of the pauser wallet
   DIAMOND_PAUSER_WALLET=$(cast call "$DIAMOND_ADDRESS" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
 
   # compare addresses in lowercase format
-  if [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" == "$(echo "$DEPLOYER" | tr '[:upper:]' '[:lower:]')" ]]; then
-    echo "pauser wallets equal"
-  else
-    echo "pauser wallets not equal"
+  if [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" != "$(echo "$PAUSER_WALLET_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
+    error "[network: $NETWORK] The private key in PRIVATE_KEY_PAUSER_WALLET (address: $PAUSER_WALLET_ADDRESS)on Github does not match with the registered PauserWallet in the diamond ()"
+    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+    return 1
   fi
 
-  # pause the diamond
+  # repeatedly try to pause the diamond until it's done (or attempts are exhausted)
   local ATTEMPTS=1
   while [ $ATTEMPTS -le $MAX_ATTEMPTS ]; do
     echo ""
@@ -100,29 +80,29 @@ function handleNetwork() {
       break # exit the loop if the operation was successful
     fi
 
-    ATTEMPTS=$((ATTEMPTS + 1)) # increment ATTEMPTS
-    sleep 1                    # wait for 1 second before trying the operation again
+    ATTEMPTS=$((ATTEMPTS + 1)) # increment attempts
+    sleep 3                    # wait for 3 seconds before trying the operation again
   done
 
-  # check if call was executed successfully or used all ATTEMPTS
+  # check if call was executed successfully or used all attempts
   if [ $ATTEMPTS -gt "$MAX_ATTEMPTS" ]; then
     error "[network: $NETWORK] failed to pause diamond ($DIAMOND_ADDRESS)"
     echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
     return 1
   fi
 
-  #try to call the diamond
-  echo "trying to call the diamond now to see if its actually paused:"
+  # try to call the diamond
+  echo "trying to call the diamond now to see if it's actually paused:"
   OWNER=$(cast call "$DIAMOND_ADDRESS" "owner() external returns (address)" --rpc-url "$RPC_URL")
 
-  # check if last call was successful and throw error if it was (it should not be as we expect the diamond to be paused)
+  # check if last call was successful and throw error if it was (it should not be successful, we expect the diamond to be paused now)
   if [ $? -eq 0 ]; then
-    error "[network: $NETWORK] final pause check failed - please check if the diamond ($DIAMOND_ADDRESS) is paused indeed"
+    error "[network: $NETWORK] final pause check failed - please check the status of diamond ($DIAMOND_ADDRESS) manually"
     echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
     return 1
   fi
 
-  success "[network: $NETWORK] successfully executed"
+  success "[network: $NETWORK] diamond ($DIAMOND_ADDRESS) successfully paused"
   echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
   return 0
 
