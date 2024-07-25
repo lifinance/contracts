@@ -3707,5 +3707,7 @@ function test_tmp() {
   # echo "RPC_URL: $RPC_URL"
   # DIAMOND_PAUSER_WALLET=$(cast call "0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F" "pauserWallet() external returns (address)" --rpc-url "$RPC_URL")
   # echo "PAUSER_WALLET: $DIAMOND_PAUSER_WALLET"
+  cast send "0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F" "unpauseDiamond(address[])" "[]" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" --legacy
+
 }
 # test_tmp
