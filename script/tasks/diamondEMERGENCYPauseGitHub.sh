@@ -12,8 +12,6 @@ source ./script/helperFunctions.sh
 # Define function to handle each network operation
 function handleNetwork() {
   local NETWORK=$1
-  local ACTION=$2
-  local FACET_CONTRACT_NAME=$3
 
   if [[ $NETWORK == "bsc-testnet" ]]; then
     echo "skipping bsc-testnet"
@@ -47,12 +45,12 @@ function handleNetwork() {
 
   # logging for debug purposes
   echo ""
-  echoDebug "in function handleNetwork"
-  echoDebug "NETWORK=$NETWORK"
-  echoDebug "ACTION=$ACTION"
-  echoDebug "RPC_URL=$RPC_URL"
-  echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-  echoDebug "FACET_CONTRACT_NAME=$FACET_CONTRACT_NAME"
+  echo "in function handleNetwork"
+  echo "NETWORK=$NETWORK"
+  echo "ACTION=$ACTION"
+  echo "RPC_URL=$RPC_URL"
+  echo "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+  echo "FACET_CONTRACT_NAME=$FACET_CONTRACT_NAME"
   echo ""
 
   DEPLOYER=$(cast wallet address "$TEST_PRIV_KEY_SECRET")
@@ -110,7 +108,7 @@ function handleNetwork() {
 
   # success "[network: $NETWORK] successfully executed action '$ACTION'"
   # echo ""
-  # return 0
+  return 0
 }
 
 
@@ -130,7 +128,7 @@ function main {
 
   # go through all networks and start background tasks for each network (to execute in parallel)
   for NETWORK in "${NETWORKS[@]}"; do
-      handleNetwork "$NETWORK" "$ACTION" "$FACET_CONTRACT_NAME" "$BLACKLIST"
+      handleNetwork "$NETWORK"
   done
 
   #   # Wait for all background jobs to finish
