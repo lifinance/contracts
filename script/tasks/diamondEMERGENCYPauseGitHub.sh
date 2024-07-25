@@ -125,7 +125,7 @@ function main {
   done <"./networks"
   # NETWORKS=("bsc" "polygon")
 
-  echo "networks found: $networks"
+  echo "networks found: $NETWORKS"
 
   PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
   echo "Address PauserWallet: $PRIV_KEY_ADDRESS"
@@ -152,7 +152,6 @@ function main {
     # End script according to return status
   if [ "$RETURN" == 1 ]; then
       exit 1
-    fi
   else
     return 0
   fi
