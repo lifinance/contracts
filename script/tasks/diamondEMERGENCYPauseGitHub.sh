@@ -88,13 +88,12 @@ function handleNetwork() {
     # echo "BALANCE_PAUSER_WALLET: $BALANCE_PAUSER_WALLET"
     # RESULT=$(cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" >/dev/null)
     # RESULT=$(pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL")
-    pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL"
-    RETURN_VALUE=$?
-    echo "Return value: $RETURN_VALUE"
+    # pauseDiamond "$DIAMOND_ADDRESS" "$PRIVATE_KEY_PAUSER_WALLET" "$RPC_URL"
+    cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --legacy
     # cast send "$DIAMOND_ADDRESS" "pauseDiamond()" --private-key "$PRIVATE_KEY_PAUSER_WALLET" --rpc-url "$RPC_URL" --gas-limit 800000 >/dev/null
 
     # check the return code of the last call
-    if [ $RETURN_VALUE -eq 0 ]; then
+    if [ $? -eq 0 ]; then
       break # exit the loop if the operation was successful
     fi
 
@@ -115,12 +114,12 @@ function handleNetwork() {
 
   # check if last call was successful and throw error if it was (it should not be as we expect the diamond to be paused)
   if [ $? -eq 0 ]; then
-    echo "[network: $NETWORK] final pause check failed - please check if the diamond ($DIAMOND_ADDRESS) is paused indeed"
+    error "[network: $NETWORK] final pause check failed - please check if the diamond ($DIAMOND_ADDRESS) is paused indeed"
     echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
     return 1
   fi
 
-  echo "[network: $NETWORK] successfully executed"
+  success "[network: $NETWORK] successfully executed"
   echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
   return 0
 
@@ -137,11 +136,6 @@ function main {
   # done <"./networks"
     # NETWORKS+=("mainnet")
     NETWORKS+=("polygon" "bsc")
-
-  # send message to DISCORD
-  # TODO <<<<<<<<------------------------------------------------------------------------
-
-
 
   PAUSER_WALLET_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
   echo "PAUSER_WALLET_ADDRESS1: $PAUSER_WALLET_ADDRESS"
