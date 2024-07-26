@@ -66,7 +66,8 @@
     "0x65f6F29D3eb871254d71A79CC4F74dB3AAF3b86e",
     "0x24767E3A1cb07ee500BA9A5621F2B608440Ca270",
     "0x81Dbb716aA13869323974A1766120D0854188e3e",
-    "0x11F1022cA6AdEF6400e5677528a80d49a069C00c"
+    "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+    "0x498E8fF83B503aDe5e905719D27b2f11B605b45A"
   ],
   "safeApiUrls": {
     "mainnet": "https://safe-transaction-mainnet.safe.global/api",
@@ -79,7 +80,7 @@
     "bsc": "https://safe-transaction-bsc.safe.global/api",
     "celo": "https://safe-transaction-celo.safe.global/api",
     "fantom": "https://safe-txservice.fantom.network/api",
-    "fraxtal": "https://safe.origin.mainnet.frax.com/txs/api",
+    "fraxtal": "https://transaction-frax.safe.optimism.io/api",
     "fuse": "https://transaction-fuse.safe.fuse.io/api",
     "gnosis": "https://safe-transaction-gnosis-chain.safe.global/api",
     "linea": "https://transaction.safe.linea.build/api",
@@ -92,11 +93,10 @@
     "polygon": "https://safe-transaction-polygon.safe.global/api",
     "polygonzkevm": "https://safe-transaction-zkevm.safe.global/api",
     "rootstock": "https://transaction.safe.rootstock.io/api",
-    "scroll": "https://transaction.safe.scroll.xyz/api",
+    "scroll": "https://safe-transaction-scroll.safe.global/api",
     "sei": "https://transaction.sei-safe.protofire.io/api",
     "zksync": "https://safe-transaction-zksync.safe.global/api"
   },
-
   "nativeAddress": {
     "mainnet": "0x0000000000000000000000000000000000000000",
     "arbitrum": "0x0000000000000000000000000000000000000000",
