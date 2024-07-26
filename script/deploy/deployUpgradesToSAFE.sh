@@ -13,7 +13,6 @@ deployUpgradesToSAFE() {
     USE_MUTABLE_DIAMOND=true
   else
     USE_MUTABLE_DIAMOND=false
-
   fi
   echo "Preparing upgrade proposal for" $DIAMOND_CONTRACT_NAME
   # Get list of Update scripts from ./script/deploy/facets where file name starts with "Update" and ends in ".sol" strip path, the worf "Update" and ".s.sol" from the file name
@@ -21,6 +20,11 @@ deployUpgradesToSAFE() {
 
   SCRIPTS=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Update' | sed 's/Update//g' | gum choose --no-limit)
 
+  GIT_BRANCH=$(git branch --show-current)
+  echo $GIT_BRANCH
+  RESULT=$(ts-node script/deploy/github/verify-approvals.ts --branch $GIT_BRANCH)
+  echo $RESULT
+  exit
   # Loop through each script and call "forge script" to get the cut calldata
   declare -a CUTS
   for script in $SCRIPTS; do
