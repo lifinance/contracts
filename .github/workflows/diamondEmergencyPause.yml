@@ -1,5 +1,7 @@
 name: Pause PRODUCTION diamond (CAREFUL)
+
 on:
+  push:
   workflow_dispatch:
     inputs:
       Warning:
@@ -13,19 +15,39 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Authenticate user
-        id: check_user
+      # Keeping this code for now until team member authentication has been tested successfully
+      # - name: Authenticate user
+      #   id: check_user
+      #   run: |
+      #     ALLOWED_USERS=("0xDEnYO" "maxklenk" "ezynda3")
+      #     USER=${{ github.actor }}
+      #     if [[ ! " ${ALLOWED_USERS[@]} " =~ " $USER " ]]; then
+      #       echo "User $USER is not allowed to run this workflow. Only the following users are:"
+      #       echo "$ALLOWED_USERS"
+      #       exit 1
+      #     else
+      #       echo "User $USER is allowed to run this workflow."
+      #     fi
+      #   shell: bash
+
+      - name: Authenticate git user (check membership in 'DiamondPauser' group)
+        id: authenticate-user
+        uses: tspascoal/get-user-teams-membership@v3
+        with:
+          username: ${{ github.actor }}
+          organization: lifinance
+          team: diamondpauser
+          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
+
+      - name: Check team membership
         run: |
-          ALLOWED_USERS=("0xDEnYO" "maxklenk" "ezynda3")
-          USER=${{ github.actor }}
-          if [[ ! " ${ALLOWED_USERS[@]} " =~ " $USER " ]]; then
-            echo "User $USER is not allowed to run this workflow. Only the following users are:"
-            echo "$ALLOWED_USERS"
+          if [[ "${{ steps.authenticate-user.outputs.isTeamMember }}" != "true" ]]; then
+            echo "User ${{ github.actor }} is not a member of the DiamondPauser team. Please ask one of the team members to execute this action:"
+            echo "https://github.com/orgs/lifinance/teams/diamondpauser/members"
             exit 1
           else
-            echo "User $USER is allowed to run this workflow."
+            echo "User is a member of the DiamondPauser team and may execute this action"
           fi
-        shell: bash
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
