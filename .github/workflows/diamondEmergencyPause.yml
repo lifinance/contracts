@@ -1,15 +1,10 @@
 name: Pause PRODUCTION diamond (CAREFUL)
 on:
-  push:
   workflow_dispatch:
-    # inputs:
-    #   testInput:
-    #     description: 'Input'
-    #     type: choice
-    #     required: true
-    #     options:
-    #       - option1
-    #       - option2
+    inputs:
+      Warning:
+        description: 'By clicking the next button you are pausing all PROD diamonds. Please proceed with caution'
+        required: false
 
 jobs:
   diamond-emergency-pause:
@@ -18,58 +13,58 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # - name: Authenticate user
-      #   id: check_user
-      #   run: |
-      #     ALLOWED_USERS=("0xDEnYO" "maxklenk" "ezynda3")
-      #     USER=${{ github.actor }}
-      #     if [[ ! " ${ALLOWED_USERS[@]} " =~ " $USER " ]]; then
-      #       echo "User $USER is not allowed to run this workflow. Only the following users are:"
-      #       echo "$ALLOWED_USERS"
-      #       exit 1
-      #     else
-      #       echo "User $USER is allowed to run this workflow."
-      #     fi
-      #   shell: bash
+      - name: Authenticate user
+        id: check_user
+        run: |
+          ALLOWED_USERS=("0xDEnYO" "maxklenk" "ezynda3")
+          USER=${{ github.actor }}
+          if [[ ! " ${ALLOWED_USERS[@]} " =~ " $USER " ]]; then
+            echo "User $USER is not allowed to run this workflow. Only the following users are:"
+            echo "$ALLOWED_USERS"
+            exit 1
+          else
+            echo "User $USER is allowed to run this workflow."
+          fi
+        shell: bash
 
-      # - name: Install Foundry
-      #   uses: foundry-rs/foundry-toolchain@v1
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
 
-      # - name: Pause Diamond
-      #   run: |
-      #     ./script/tasks/diamondEMERGENCYPauseGitHub.sh
-      #   env:
-      #     ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
-      #     ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
-      #     ETH_NODE_URI_AURORA: ${{ secrets.ETH_NODE_URI_AURORA }}
-      #     ETH_NODE_URI_AVALANCHE: ${{ secrets.ETH_NODE_URI_AVALANCHE }}
-      #     ETH_NODE_URI_BASE: ${{ secrets.ETH_NODE_URI_BASE }}
-      #     ETH_NODE_URI_BLAST: ${{ secrets.ETH_NODE_URI_BLAST }}
-      #     ETH_NODE_URI_BOBA: ${{ secrets.ETH_NODE_URI_BOBA }}
-      #     ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
-      #     ETH_NODE_URI_CELO: ${{ secrets.ETH_NODE_URI_CELO }}
-      #     ETH_NODE_URI_FANTOM: ${{ secrets.ETH_NODE_URI_FANTOM }}
-      #     ETH_NODE_URI_FRAXTAL: ${{ secrets.ETH_NODE_URI_FRAXTAL }}
-      #     ETH_NODE_URI_FUSE: ${{ secrets.ETH_NODE_URI_FUSE }}
-      #     ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
-      #     ETH_NODE_URI_LINEA: ${{ secrets.ETH_NODE_URI_LINEA }}
-      #     ETH_NODE_URI_MANTLE: ${{ secrets.ETH_NODE_URI_MANTLE }}
-      #     ETH_NODE_URI_METIS: ${{ secrets.ETH_NODE_URI_METIS }}
-      #     ETH_NODE_URI_MODE: ${{ secrets.ETH_NODE_URI_MODE }}
-      #     ETH_NODE_URI_MOONBEAM: ${{ secrets.ETH_NODE_URI_MOONBEAM }}
-      #     ETH_NODE_URI_MOONRIVER: ${{ secrets.ETH_NODE_URI_MOONRIVER }}
-      #     ETH_NODE_URI_OPTIMISM: ${{ secrets.ETH_NODE_URI_OPTIMISM }}
-      #     ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
-      #     ETH_NODE_URI_POLYGONZKEVM: ${{ secrets.ETH_NODE_URI_POLYGONZKEVM }}
-      #     ETH_NODE_URI_ROOTSTOCK: ${{ secrets.ETH_NODE_URI_ROOTSTOCK }}
-      #     ETH_NODE_URI_SCROLL: ${{ secrets.ETH_NODE_URI_SCROLL }}
-      #     ETH_NODE_URI_SEI: ${{ secrets.ETH_NODE_URI_SEI }}
-      #     ETH_NODE_URI_ZKSYNC: ${{ secrets.ETH_NODE_URI_ZKSYNC }}
-      #     PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_PRIV_KEY_SECRET }}
+      - name: Pause Diamond
+        run: |
+          ./script/tasks/diamondEMERGENCYPauseGitHub.sh
+        env:
+          ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
+          ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
+          ETH_NODE_URI_AURORA: ${{ secrets.ETH_NODE_URI_AURORA }}
+          ETH_NODE_URI_AVALANCHE: ${{ secrets.ETH_NODE_URI_AVALANCHE }}
+          ETH_NODE_URI_BASE: ${{ secrets.ETH_NODE_URI_BASE }}
+          ETH_NODE_URI_BLAST: ${{ secrets.ETH_NODE_URI_BLAST }}
+          ETH_NODE_URI_BOBA: ${{ secrets.ETH_NODE_URI_BOBA }}
+          ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
+          ETH_NODE_URI_CELO: ${{ secrets.ETH_NODE_URI_CELO }}
+          ETH_NODE_URI_FANTOM: ${{ secrets.ETH_NODE_URI_FANTOM }}
+          ETH_NODE_URI_FRAXTAL: ${{ secrets.ETH_NODE_URI_FRAXTAL }}
+          ETH_NODE_URI_FUSE: ${{ secrets.ETH_NODE_URI_FUSE }}
+          ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
+          ETH_NODE_URI_LINEA: ${{ secrets.ETH_NODE_URI_LINEA }}
+          ETH_NODE_URI_MANTLE: ${{ secrets.ETH_NODE_URI_MANTLE }}
+          ETH_NODE_URI_METIS: ${{ secrets.ETH_NODE_URI_METIS }}
+          ETH_NODE_URI_MODE: ${{ secrets.ETH_NODE_URI_MODE }}
+          ETH_NODE_URI_MOONBEAM: ${{ secrets.ETH_NODE_URI_MOONBEAM }}
+          ETH_NODE_URI_MOONRIVER: ${{ secrets.ETH_NODE_URI_MOONRIVER }}
+          ETH_NODE_URI_OPTIMISM: ${{ secrets.ETH_NODE_URI_OPTIMISM }}
+          ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
+          ETH_NODE_URI_POLYGONZKEVM: ${{ secrets.ETH_NODE_URI_POLYGONZKEVM }}
+          ETH_NODE_URI_ROOTSTOCK: ${{ secrets.ETH_NODE_URI_ROOTSTOCK }}
+          ETH_NODE_URI_SCROLL: ${{ secrets.ETH_NODE_URI_SCROLL }}
+          ETH_NODE_URI_SEI: ${{ secrets.ETH_NODE_URI_SEI }}
+          ETH_NODE_URI_ZKSYNC: ${{ secrets.ETH_NODE_URI_ZKSYNC }}
+          PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_PRIV_KEY_SECRET }}
 
-      # - name: Send Discord message
-      #   uses: Ilshidur/action-discord@0.3.2
-      #   with:
-      #     args: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
-      #   env:
-      #     DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
+      - name: Send Discord message
+        uses: Ilshidur/action-discord@0.3.2
+        with:
+          args: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
