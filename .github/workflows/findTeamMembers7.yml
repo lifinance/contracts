@@ -1,5 +1,6 @@
 name: Check user for team affiliation
 on:
+  push:
   pull_request:
     branches:
       - develop

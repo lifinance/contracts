@@ -1,22 +1,22 @@
-name: Find Team Members 6
-
+name: Check user for team affiliation
 on:
-  push:
-  workflow_dispatch:
-
+  pull_request:
+    branches:
+      - develop
 jobs:
-  check_membership:
+  check-user:
+    name: Team affiliation
     runs-on: ubuntu-latest
     steps:
-      - name: Check if actor is a member of team
-        id: membership_check
-        uses: kapost/kap-gh-team@v1
+      - name: Check user for team affiliation
+        uses: tspascoal/get-user-teams-membership@v2
+        id: teamAffiliation
         with:
-          access_token: ${{ github.token }}
-          organization: yourorg
-          team: yourteam
-          user: ${{ github.actor }}
-
-      - name: Fail workflow if not a team member
-        if: ${{ steps.membership_check.outputs.success == 'false' }}
-        run: exit 1
+          GITHUB_TOKEN: ${{ github.token }}
+          username: ${{ github.actor }}
+          team: your-team-name
+      - name: Stop workflow if user is no member
+        if: ${{ steps.teamAffiliation.outputs.isTeamMember == false }}
+        run: |
+          echo "You have no rights to trigger this job."
+          exit 1
