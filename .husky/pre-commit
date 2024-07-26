@@ -18,8 +18,10 @@ yarn lint-staged
 echo ""
 echo ""
 echo "now checking for .env secrets and private keys accidentally being committed to Github"
-echo " > any 64-byte hex string will be identified as potential private key)"
-echo " > disable false positive matches with comment 'pre-commit-checker: not a secret' in same line or line above"
+echo " > any 64-byte hex string will be identified as potential private key"
+echo " > disable false positive matches by commenting '[pre-commit-checker: not a secret]' in same line or line above"
+echo " > execution might take a while depending on the size of your git diff "
+echo " > logs will only be shown once task is completed"
 echo ""
 
 DISABLE_WITH_COMMENT="pre-commit-checker: not a secret"
@@ -155,6 +157,21 @@ processGitDiff() {
   git diff --cached --name-only --diff-filter=ACM | while IFS= read -r FILE; do
     # Skip the deploy log file as this is auto generated and contains tons of false positives
     if [ "$FILE" = "deployments/_deployments_log_file.json" ]; then
+      continue
+    fi
+
+    #skip libraries
+    if [[ "$FILE" == "lib/"* ]]; then
+      continue
+    fi
+
+    #skip yarn.lock
+    if [[ $FILE == "yarn.lock" ]]; then
+      continue
+    fi
+
+    #skip .yarn files (releases etc.)
+    if [[ $FILE == ".yarn/"* ]]; then
       continue
     fi
 
