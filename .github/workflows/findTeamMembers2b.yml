@@ -1,0 +1,22 @@
+name: Find team members 2
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  find-members:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Member List
+        id: list-members
+        uses: RITct/members-list-action@main
+        with:
+          org-name: lifinance
+          file-path: 'members.json'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_TOKENn }}
