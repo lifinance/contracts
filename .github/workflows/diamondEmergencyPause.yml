@@ -1,6 +1,7 @@
 name: Pause PRODUCTION diamond (CAREFUL)
 
 on:
+  push:
   workflow_dispatch:
     inputs:
       Warning:
@@ -14,7 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Commented out single user authentication
+      # Keeping this code for now until team member authentication has been tested successfully
       # - name: Authenticate user
       #   id: check_user
       #   run: |
