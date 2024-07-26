@@ -1,0 +1,21 @@
+name: Find Team Members 6
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check_membership:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if actor is a member of team
+        id: membership_check
+        uses: kapost/kap-gh-team@v1
+        with:
+          access_token: ${{ github.token }}
+          organization: yourorg
+          team: yourteam
+          user: ${{ github.actor }}
+
+      - name: Fail workflow if not a team member
+        if: ${{ steps.membership_check.outputs.success == 'false' }}
+        run: exit 1

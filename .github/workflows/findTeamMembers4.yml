@@ -20,4 +20,4 @@ jobs:
 
       - name: Print whether member exists
         run: |
-          echo "Does member exists: ${{ steps.check-member.outputs.exists-in-team }}"
+          echo "Does member exist: ${{ steps.check-member.outputs.exists-in-team }}"
