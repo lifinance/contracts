@@ -613,6 +613,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xb3a64C21bb4A6d95721E63185d71B637Db46d848",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 13:59:50",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "09072024",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -1238,6 +1252,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xcB5bFB1064165892F218d0CaA0919bf0F418Ed06",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:00:03",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "09072024",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -1867,6 +1895,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC238f399d64db3f5FBdea1A380e065574e61Bf4D",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:00:17",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "09072024",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -2714,6 +2756,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xB17352b0D5CAFf41e546Bc4A6E3d7ccFB2EABD89",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:00:28",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "09072024",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "AccessManagerFacet": {
@@ -3310,6 +3366,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x607fb33A9fED5fd6C91EfAdE89cDbb3f8d9E4AD2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:00:39",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "09072024",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "WithdrawFacet": {
@@ -3891,6 +3961,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xFe161dbB148B9c4bb64eaa41D641f52aAD1CC768",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:00:52",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "09072024",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -4505,6 +4589,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xa9816631c8fFa11235F13b3a2080c90074513F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:01:05",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "09072024",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -5095,6 +5193,20 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000c00507d91cd2d4ebb8694e553ba70cf416c0779c",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:02:30",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000b3a64c21bb4a6d95721e63185d71b637db46d848",
+            "SALT": "09072024",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -6628,6 +6740,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x931A35b30cB0d51aEe08eD1b2589b81273922D20",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:01:19",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "09072024",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "HopFacetOptimized": {
@@ -7888,6 +8014,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "gravity": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xa7e910fED3A35C08D30B5B2BCA48b0d59af87c38",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:01:47",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "09072024",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -9652,6 +9792,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x4307ca7Eca98daF86D4f65b4367B273C628A39B7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:22:23",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "Executor": {
@@ -10422,6 +10576,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xCdE9376F284d5CA9aaec69dD4D0761278b4ae034",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:22:55",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000004307ca7eca98daf86d4f65b4367b273c628a39b7",
+            "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -11002,6 +11170,20 @@
             "TIMESTAMP": "2024-06-21 09:24:39",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x79540403cdE176Ca5f1fb95bE84A7ec91fFDEF76",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:23:27",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "09072024",
             "VERIFIED": "true"
           }
         ]
@@ -12112,6 +12294,20 @@
             "TIMESTAMP": "2024-06-21 09:25:52",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006d425eab1eb6e002bf40c44e5d9ff7fc6a38824a00000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "gravity": {
+      "production": {
+        "2.0.2": [
+          {
+            "ADDRESS": "0x2DeB3bFa2b19024A0c1Ba299b6b79276f1F77b14",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:34:37",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000cde9376f284d5ca9aaec69dd4d0761278b4ae03400000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "09072024",
             "VERIFIED": "true"
           }
         ]
@@ -17274,6 +17470,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0xCD55f445f60ffF0a43F389CAEe34291d8E4112c3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:02:00",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "09072024",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "CalldataVerificationFacet": {
@@ -17845,6 +18055,20 @@
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "gravity": {
+      "production": {
+        "1.1.1": [
+          {
+            "ADDRESS": "0x213ba9103f3d105763Cbd0aD37dbcDa9A0944484",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:02:17",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "09072024",
+            "VERIFIED": "false"
           }
         ]
       }
@@ -18587,6 +18811,20 @@
             "TIMESTAMP": "2024-06-21 09:25:18",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
             "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "gravity": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x134f525AC05E4724e55C363A9C4FA35ceB13F88d",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:24:00",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
+            "SALT": "09072024",
             "VERIFIED": "true"
           }
         ]
@@ -19623,6 +19861,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x7fA60f4A59Dd8285C5Fcd8fd2A92A2Ca45ef8a0C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:25:36",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000bb859e225ac8fb6be1c7e38d87b767e95fef0ebd",
+            "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasRebateDistributor": {
@@ -20159,6 +20411,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x83037e2fF2B3Ea09fED5A6e8150bf9899673f33A",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:01:34",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "09072024",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "StargateFacetV2": {
@@ -20355,6 +20621,20 @@
           }
         ]
       }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xad09520Af186Ae931b668c2B9620A087fBfE127c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:32:12",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009c2dc7377717603eb92b2655c5f2e7997a4945bd",
+            "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "ReceiverStargateV2": {
@@ -20547,6 +20827,20 @@
             "TIMESTAMP": "2024-07-01 07:47:16",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000006d425eab1eb6e002bf40c44e5d9ff7fc6a38824a0000000000000000000000001502fa4be69d526124d453619276faccab275d3d0000000000000000000000001a44076050125825900e736c501f859c50fe728c00000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6A3d6652fb7be72200a47313C092342218aAeb72",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-26 14:33:43",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000cde9376f284d5ca9aaec69dd4d0761278b4ae0340000000000000000000000009c2dc7377717603eb92b2655c5f2e7997a4945bd0000000000000000000000001a44076050125825900e736c501f859c50fe728c00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "09072024",
             "VERIFIED": "true"
           }
         ]
