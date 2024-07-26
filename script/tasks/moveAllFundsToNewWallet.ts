@@ -14,7 +14,12 @@ import {
 } from 'viem'
 import * as chains from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
-import { getAllNetworks, node_url } from '../../utils/network'
+import {
+  chainNameMappings,
+  getAllNetworks,
+  getViemChainForNetworkName,
+  node_url,
+} from '../../utils/network'
 import axios from 'axios'
 import { mainnet } from 'viem/chains'
 import { erc20 } from '@uma/sdk/dist/types/clients'
@@ -86,11 +91,6 @@ type MultiCall = Contract & {
   functionName: string
   args?: any[]
   client?: any
-}
-
-export const chainNameMappings: Record<string, string> = {
-  zksync: 'zkSync',
-  polygonzkevm: 'polygonZkEvm',
 }
 
 // will contain a list of all tokens
@@ -313,8 +313,7 @@ const performTaskOnNetwork = async (
   newWallet: HexString
 ): Promise<void> => {
   // get the (viem) chain for this network
-  const chainName = chainNameMappings[network] || network
-  const chain: Chain = chainMap[chainName]
+  const chain = getViemChainForNetworkName(network)
   console.log(`[${chain.name}] in performTaskOnNetwork`)
 
   // get RPC URL

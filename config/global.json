@@ -6,6 +6,7 @@
   },
   "refundWallet": "0x156CeBba59DEB2cB23742F70dCb0a11cC775591F",
   "withdrawWallet": "0x08647cc950813966142A416D40C382e2c5DB73bB",
+  "pauserWallet": "0x3b6211981d47Fb6375E0125A6a401830616f7906",
   "lifuelRebalanceWallet": "0xC71284231A726A18ac85c94D75f9fe17A185BeAF",
   "deployerWallet": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
   "approvedSigsForRefundWallet": [
