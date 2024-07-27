@@ -1,24 +1,15 @@
 import { defineCommand, runMain } from 'citty'
-import { parseAbi } from 'viem'
-import * as chains from 'viem/chains'
+import { createPublicClient, createWalletClient, http, parseAbi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
-import globalConfig from '../../config/global.json'
 import { getAllNetworks, getViemChainForNetworkName } from '../../utils/network'
 import gasZipChainIds from '../resources/gasZipChainIds.json'
 import { BigNumber, BigNumberish } from 'ethers'
-import { getGasPrice } from 'viem/actions'
 import axios from 'axios'
+import { mainnet } from 'viem/chains'
+import { network } from 'hardhat'
 
-const MAX_BATCH_SIZE_MULTICALLS = 500 // the max amount of multicalls we do in one call
-const MIN_USD_THRESHOLD_BALANCE_TRANSFER = 5 // balances must be worth more than 5 USD, otherwise we leave them
-const ADDRESS_USDC_ETH = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
-const ADDRESS_WETH_ETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
-const ADDRESS_MULTICALL3_ETH = '0xcA11bde05977b3631167028862bE2a173976CA11'
-const BALANCE_OF_ABI = parseAbi([
-  'function balanceOf(address) external view returns (uint256)',
-])
-
+const GAS_ZIP_ROUTER_MAINNET = '0x9e22ebec84c7e4c4bd6d4ae7ff6f4d436d6d8390'
 const testnets = [
   'bsc-testnet',
   'lineatest',
@@ -38,10 +29,13 @@ type GasZipChainIds = {
   }
 }
 
-// this script assumes to be run on mainnet
+// this script is designed to be executed on mainnet (only)
 // it will get a list of all networks we support (minus testnets) and send an equal USD
-// amount of native tokens to each of these networks
-// afterwards it will check balances on each network
+// amount worth of native tokens to each of these target networks using Gas.zip protocol
+
+// call this script
+// ts-node ./script/tasks/fundNewWalletOnAllChains.ts --privKeyFundingWallet "$PRIVATE_KEY" --receivingWallet "$PAUSER_WALLET" --doNotFundChains "[97,80001]" --fundAmountUSD "5"
+
 const main = defineCommand({
   meta: {
     name: 'fund-new-wallet-on-all-chains',
@@ -51,10 +45,10 @@ const main = defineCommand({
   args: {
     privKeyFundingWallet: {
       type: 'string',
-      description: 'Private key of the source wallet',
+      description: 'Private key of the funding wallet',
       required: true,
     },
-    newWallet: {
+    receivingWallet: {
       type: 'string',
       description: 'Address of the receiving wallet',
       required: true,
@@ -71,17 +65,33 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const { privKeyFundingWallet, newWallet, doNotFundChains, fundAmountUSD } =
-      args
-    const fundingWalletAddress = privateKeyToAccount(
+    const {
+      privKeyFundingWallet,
+      receivingWallet,
+      doNotFundChains,
+      fundAmountUSD,
+    } = args
+    const fundingWallet = privateKeyToAccount(
       `0x${privKeyFundingWallet}` as HexString
     )
 
-    console.log(`fundingWalletAddress: ${fundingWalletAddress.address}`)
-    console.log(`newWallet: ${newWallet}`)
-    console.log(`pauserWallet: ${globalConfig.pauserWallet}`)
+    console.log(`fundingWalletAddress: ${fundingWallet.address}`)
+    console.log(`receivingWallet: ${receivingWallet}`)
     console.log(`doNotFundChains: ${doNotFundChains}`)
     console.log(`fundAmountUSD: ${fundAmountUSD}`)
+
+    // get viem public client to read from blockchain
+    const publicClient = createPublicClient({
+      chain: mainnet,
+      transport: http(),
+    })
+
+    // create wallet client to write to chain
+    const walletClient = createWalletClient({
+      chain: mainnet,
+      transport: http(),
+      account: fundingWallet,
+    })
 
     // get a list of all target networks
     const networks = getAllTargetNetworks()
@@ -89,9 +99,10 @@ const main = defineCommand({
 
     // calculate total amount USD needed (fundAmount * networks)
     const amountUSDPerNetwork = BigNumber.from(fundAmountUSD)
-
     const amountRequiredUSD = amountUSDPerNetwork.mul(networks.length)
-    console.log(`USD amount required: $ ${amountRequiredUSD.toString()}`)
+    console.log(
+      `USD amount required to fund all networks: $ ${amountRequiredUSD.toString()}`
+    )
 
     // get current native price and calculate nativeAmount required
     const ethPrice = Math.round(await getEthPrice())
@@ -102,20 +113,51 @@ const main = defineCommand({
       ethPrice,
       10
     )
-    console.log(`native amount required: ${amountRequiredNative.toString()}`)
+    console.log(
+      `Native amount required to fund all networks: ${amountRequiredNative.toString()}`
+    )
 
-    // check if balance fundingWallet sufficient
-    // const balance =
+    // get fundingWallet's native balance
+    const nativeBalance = BigNumber.from(
+      await publicClient.getBalance({
+        address: fundingWallet.address,
+      })
+    )
+
+    // make sure that balance is sufficient
+    if (nativeBalance.lt(amountRequiredNative))
+      throw new Error(
+        `Native balance of funding wallet is insufficient (required: ${amountRequiredNative}, available: ${nativeBalance}`
+      )
+    else
+      console.log(
+        'Funding wallet native balance is sufficient for this action: \nbalance: ${nativeBalance}, \nrequired: ${amountRequiredNative}'
+      )
+
+    // get an array with target chainIds
+    const chainIds = networks.map((network) => network.id)
+    console.log(`ChainIds: [${chainIds}]`)
 
     // prepare calldata (get list of gasZip chainIds and combine them)
-    // const chainsBN = [51, 52, 56, 16].reduce(
-    //   (p, c) => (p << BigInt(8)) + BigInt(c),
-    //   BigInt(0)
-    // )
+    const chainsBN = chainIds.reduce(
+      (p, c) => (p << BigInt(8)) + BigInt(c),
+      BigInt(0)
+    )
 
-    // wait a little
+    // simulate transaction
+    const result = await publicClient.simulateContract({
+      account: fundingWallet,
+      address: GAS_ZIP_ROUTER_MAINNET,
+      abi: parseAbi(['function deposit(uint256,address) external payable']),
+      functionName: 'deposit',
+      value: amountRequiredNative.toBigInt(),
+      args: [chainsBN, receivingWallet as HexString],
+    })
+    console.dir(result, { depth: null, colors: true })
 
-    // check balances in all networks
+    // execute transaction
+    const txHash = await walletClient.writeContract(result.request)
+    console.log(`Transaction successfully submitted: ${txHash}`)
   },
 })
 
@@ -124,15 +166,14 @@ const getNativeAmountRequired = (
   divisor: BigNumberish,
   precision: number
 ): BigNumber => {
+  if (precision > 10) throw new Error('max precision is 10 decimals')
   // calculate division result with precision
   const multiplier = BigNumber.from(10).pow(precision)
   const decimalResult = BigNumber.from(dividend).mul(multiplier).div(divisor)
 
-  // adjust the scale to 10 ** 8
-  const scaleFactor = BigNumber.from(10).pow(8)
-  const nativeAmount = decimalResult.mul(scaleFactor).div(multiplier)
-
-  console.log(`nativeAmount: ${nativeAmount.toString()}`)
+  // adjust the amount to 10 ** 18
+  const scaleFactor = BigNumber.from(10).pow(18 - precision)
+  const nativeAmount = decimalResult.mul(scaleFactor)
 
   return nativeAmount
 }
@@ -156,18 +197,12 @@ const getAllTargetNetworks = () => {
   // get a list of all target networks
   const allNetworks = getAllNetworks()
 
-  console.log(`-------------------------------------------`)
-  console.log(`\n\nallNetworks(${allNetworks.length}):`)
-  console.log(`${JSON.stringify(allNetworks, null, 2)}`)
-
   // remove testnets
   const allProdNetworks = allNetworks.filter(
     (network) => !testnets.includes(network)
   )
-  console.log(`-------------------------------------------`)
-  console.log(`\n\nallProdNetworks (${allProdNetworks.length}):`)
-  console.log(`${JSON.stringify(allProdNetworks, null, 2)}`)
 
+  // get an array with Viem networks
   const allViemNetworks = allProdNetworks.map((network) => {
     const chain = getViemChainForNetworkName(network)
     return {
@@ -176,36 +211,29 @@ const getAllTargetNetworks = () => {
     }
   })
 
-  console.log(`-------------------------------------------`)
-  console.log(`\n\nallViemNetworks(${allViemNetworks.length}):`)
-  // console.log(`${JSON.stringify(allViemNetworks, null, 2)}`)
-
   // identify networks that gasZip does not support
   const gasZipChainIdsTyped: GasZipChainIds = gasZipChainIds
   const unsupportedNetworks = allViemNetworks.filter(
     (network) => !gasZipChainIdsTyped[network.id.toString()]
   )
-  console.log(`-------------------------------------------`)
-  console.log(`\n\nunsupportedNetworks(${unsupportedNetworks.length}):`)
-  console.log(
-    `${JSON.stringify(
-      unsupportedNetworks.map((network) => `${network.name}:${network.id}`),
-      null,
-      2
-    )}`
-  )
+
+  if (unsupportedNetworks.length > 0)
+    console.log(
+      `Viem does not support ${
+        unsupportedNetworks.length
+      } of our networks: [${unsupportedNetworks.map((network) => network.id)}]`
+    )
 
   // identify networks that gasZip does not support
-  const targetNetworks = allProdNetworks
-    .map((network) => getViemChainForNetworkName(network))
-    .filter((network) => network)
-  // .filter((network) => null)
-
-  console.log(`-------------------------------------------`)
-  console.log(`\n\ntargetNetworks:(${targetNetworks.length})`)
-  // console.log(`${JSON.stringify(targetNetworks, null, 2)}`)
+  const targetNetworks = allViemNetworks.filter(
+    (network) => gasZipChainIdsTyped[network.id.toString()]
+  )
 
   return targetNetworks
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 runMain(main)

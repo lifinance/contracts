@@ -3746,6 +3746,7 @@ function test_tmp() {
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
   ARGS="0x"
+  PAUSER_WALLET="0x3b6211981d47Fb6375E0125A6a401830616f7906"
 
   #  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
   #  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
@@ -3756,8 +3757,6 @@ function test_tmp() {
   # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 
   # transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
-  ts-node ./script/tasks/fundNewWalletOnAllChains.ts --privKeyFundingWallet "$PRIVATE_KEY" --newWallet "$PAUSER_WALLET" --doNotFundChains "[97,80001]" --fundAmountUSD "5"
-
 }
 
-test_tmp
+# test_tmp
