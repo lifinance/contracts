@@ -3746,7 +3746,6 @@ function test_tmp() {
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
   ARGS="0x"
-  PAUSER_WALLET="0x3b6211981d47Fb6375E0125A6a401830616f7906"
 
   #  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
   #  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
@@ -3756,7 +3755,7 @@ function test_tmp() {
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
   # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 
-  # transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
+  transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
 }
 
 # test_tmp
