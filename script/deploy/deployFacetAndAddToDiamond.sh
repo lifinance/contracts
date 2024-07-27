@@ -131,7 +131,7 @@ function deployFacetAndAddToDiamond() {
   #-----------------------------------------------------------
   # special handling for CelerIMFacet
   # add RelayerCelerIM as periphery to diamond
-  if [[ "$CONTRACT" == *"CelerIMFacet"* ]]; then
+  if [[ "$FACET_CONTRACT_NAME" == *"CelerIMFacet"* ]]; then
     diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" false false "RelayerCelerIM"
   fi
   #-----------------------------------------------------------
