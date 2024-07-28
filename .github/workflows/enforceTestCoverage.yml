@@ -5,6 +5,7 @@ on:
 jobs:
   enforceTestCoverage:
     runs-on: ubuntu-latest
+
     permissions:
       pull-requests: write
       contents: read
@@ -41,20 +42,21 @@ jobs:
             echo "${GIT_TOKEN:0:10}"
           fi
 
-      - name: Generate coverage report
-        run: |
-          # npm install
-          forge coverage --report lcov && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage
+      # - name: Generate coverage report
+      #   run: |
+      # npm install
+      # forge coverage --report lcov && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+      # && genhtml lcov-filtered.info --branch-coverage --output-dir coverage
       #     forge clean && forge build
-      # - name: Report code coverage
-      #   uses: zgosalvez/github-actions-report-lcov@v3
 
-      #   with:
-      #     coverage-files: lcov-filtered.info
-      #     minimum-coverage: 80
-      #     artifact-name: code-coverage-report
-      #     github-token: $GIT_TOKEN
-      #     working-directory: ./
+      - name: Report code coverage
+        uses: zgosalvez/github-actions-report-lcov@v3
+        with:
+          coverage-files: lcov-filtered.info
+          minimum-coverage: 80
+          artifact-name: code-coverage-report
+          github-token: $GIT_TOKEN
+          working-directory: ./
 
       # - name: Publish Code Coverage Results
       #   uses: actions/upload-artifact@v4

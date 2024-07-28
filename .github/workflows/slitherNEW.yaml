@@ -1,7 +1,6 @@
 name: Slither2
 on:
   push:
-  pull_request:
 
 jobs:
   analyze:
@@ -20,6 +19,7 @@ jobs:
           node-version: 20
           sarif: results.sarif
           fail-on: none
+          target: 'src/'
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v3
