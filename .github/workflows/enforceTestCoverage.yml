@@ -12,6 +12,7 @@ jobs:
       ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
+      GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
     steps:
       - uses: actions/checkout@v2
 
@@ -27,13 +28,13 @@ jobs:
 
       - name: Generate coverage report
         run: |
-          forge coverage --report lcov
+          forge coverage --report lcov && ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
 
       - name: Report code coverage
         uses: zgosalvez/github-actions-report-lcov@v1
         with:
-          coverage-files: lcov.info
+          coverage-files: lcov-filtered.info
           minimum-coverage: ${{ secrets.MIN_TEST_COVERAGE}}
           artifact-name: code-coverage-report
-          github-token: ${{ secrets.GIT_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: ./
