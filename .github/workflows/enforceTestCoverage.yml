@@ -26,6 +26,9 @@ jobs:
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git submodule update --init --recursive
 
+      - name: Setup LCOV
+        uses: hrishikesh-kadam/setup-lcov@v1
+
       - name: Generate coverage report
         run: |
           forge clean && forge build
@@ -37,4 +40,4 @@ jobs:
           minimum-coverage: ${{ secrets.MIN_TEST_COVERAGE}}
           artifact-name: code-coverage-report
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: ./
+          working-directory: ./src/
