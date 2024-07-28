@@ -45,18 +45,18 @@ jobs:
       #   run: |
       #     forge clean && forge build
       #     forge coverage --report lcov && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
-      - name: Report code coverage
-        uses: zgosalvez/github-actions-report-lcov@v3
+      # - name: Report code coverage
+      #   uses: zgosalvez/github-actions-report-lcov@v3
 
-        with:
-          coverage-files: lcov-filtered.info
-          minimum-coverage: 80
-          artifact-name: code-coverage-report
-          github-token: $GIT_TOKEN
-          working-directory: ./
+      #   with:
+      #     coverage-files: lcov-filtered.info
+      #     minimum-coverage: 80
+      #     artifact-name: code-coverage-report
+      #     github-token: $GIT_TOKEN
+      #     working-directory: ./
 
       - name: Publish Code Coverage Results
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: code-coverage-report
           path: coverage/
