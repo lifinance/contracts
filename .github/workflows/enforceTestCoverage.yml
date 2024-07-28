@@ -46,7 +46,7 @@ jobs:
       #     forge clean && forge build
       #     forge coverage --report lcov && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
       - name: Report code coverage
-        uses: zgosalvez/github-actions-report-lcov@v1
+        uses: zgosalvez/github-actions-report-lcov@v3
 
         with:
           coverage-files: lcov-filtered.info
