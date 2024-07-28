@@ -54,3 +54,9 @@ jobs:
           artifact-name: code-coverage-report
           github-token: $GIT_TOKEN
           working-directory: ./
+
+      - name: Publish Code Coverage Results
+        uses: actions/upload-artifact@v2
+        with:
+          name: code-coverage-report
+          path: coverage/
