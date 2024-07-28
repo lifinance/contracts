@@ -43,6 +43,7 @@ jobs:
 
       - name: Generate coverage report
         run: |
+          # npm install
           forge coverage --report lcov && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage
       #     forge clean && forge build
       # - name: Report code coverage
@@ -55,8 +56,8 @@ jobs:
       #     github-token: $GIT_TOKEN
       #     working-directory: ./
 
-      - name: Publish Code Coverage Results
-        uses: actions/upload-artifact@v4
-        with:
-          name: code-coverage-report
-          path: coverage/
+      # - name: Publish Code Coverage Results
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: code-coverage-report
+      #     path: coverage/
