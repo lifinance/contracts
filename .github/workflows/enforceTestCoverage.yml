@@ -32,12 +32,22 @@ jobs:
       - name: Setup LCOV
         uses: hrishikesh-kadam/setup-lcov@v1
 
+      - name: check git token
+        run: |
+          if [[ -z "$GIT_TOKEN"  ]]; then
+            echo "token is empty"
+            exit 1
+          else
+            echo "${GIT_TOKEN:0:10}"
+          fi
+
       # - name: Generate coverage report
       #   run: |
       #     forge clean && forge build
       #     forge coverage --report lcov && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
       - name: Report code coverage
         uses: zgosalvez/github-actions-report-lcov@v1
+
         with:
           coverage-files: lcov-filtered.info
           minimum-coverage: 80
