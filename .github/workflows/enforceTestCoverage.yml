@@ -5,6 +5,9 @@ on:
 jobs:
   enforceTestCoverage:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
     env:
       ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
       ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
@@ -12,6 +15,7 @@ jobs:
       ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
+      GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
     steps:
       - uses: actions/checkout@v2
 
@@ -38,5 +42,7 @@ jobs:
           coverage-files: lcov-filtered.info
           minimum-coverage: 80
           artifact-name: code-coverage-report
-          github-token: ${{ secrets.GIT_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # github-token: ${{ secrets.GIT_TOKEN }}
+          # github-token: $GIT_TOKEN
           working-directory: ./
