@@ -43,7 +43,7 @@ jobs:
 
       - name: Generate coverage report
         run: |
-          forge coverage --report lcov && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+          forge coverage --report lcov && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage
       #     forge clean && forge build
       # - name: Report code coverage
       #   uses: zgosalvez/github-actions-report-lcov@v3
