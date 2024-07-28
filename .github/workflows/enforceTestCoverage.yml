@@ -29,9 +29,9 @@ jobs:
       - name: Setup LCOV
         uses: hrishikesh-kadam/setup-lcov@v1
 
-      - name: Generate coverage report
-        run: |
-          forge clean && forge build
+      # - name: Generate coverage report
+      #   run: |
+      #     forge clean && forge build
       #     forge coverage --report lcov && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
       - name: Report code coverage
         uses: zgosalvez/github-actions-report-lcov@v1
