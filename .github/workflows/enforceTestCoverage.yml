@@ -1,0 +1,32 @@
+name:
+on:
+  workflow_dispatch:
+
+jobs:
+  enforceTestCoverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1.0.10
+        with:
+          version: nightly
+
+      - name: Install submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --recursive
+
+      - name: Generate coverage report
+        run: |
+          forge coverage --report lcov
+
+      - name: Report code coverage
+        uses: zgosalvez/github-actions-report-lcov@v1
+        with:
+          coverage-files: lcov.info
+          minimum-coverage: ${{ secrets.MIN_TEST_COVERAGE}}
+          artifact-name: code-coverage-report
+          github-token: ${{ secrets.GIT_TOKEN }}
+          working-directory: ./
