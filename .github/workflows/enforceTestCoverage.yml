@@ -1,10 +1,17 @@
-name:
+name: Enforce Test Coverage
 on:
   push:
 
 jobs:
   enforceTestCoverage:
     runs-on: ubuntu-latest
+    env:
+      ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
+      ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
+      ETH_NODE_URI_GOERLI: ${{ secrets.ETH_NODE_URI_GOERLI }}
+      ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
+      ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
+      ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
     steps:
       - uses: actions/checkout@v2
 
