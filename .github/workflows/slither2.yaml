@@ -19,15 +19,13 @@ jobs:
       # - name: Verify Foundry Installation
       #   run: forge --version
       - name: Run Slither
-        uses: crytic/slither-action@v0.4.0
+        uses: crytic/slither-action@dev-install-foundry
         id: slither
         with:
           node-version: 20
           sarif: results.sarif
           fail-on: none
           target: 'src/'
-        env:
-          PATH: ${{ runner.tool_cache }}/foundry/bin:$PATH:${{ env.PATH }}
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v3
