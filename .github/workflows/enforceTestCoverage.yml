@@ -46,7 +46,7 @@ jobs:
           npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
           echo "Coverage report filtered"
 
-      - name: Generate Coverage Report
+      - name: Generate Coverage Summary
         run: |
           # Path to the lcov info file
           LCOV_FILE="lcov-filtered.info"
@@ -117,8 +117,9 @@ jobs:
           echo "LINE_COVERAGE_REPORT=$LINE_COVERAGE_REPORT" >> $GITHUB_ENV
           echo "FUNCTION_COVERAGE_REPORT=$FUNCTION_COVERAGE_REPORT" >> $GITHUB_ENV
           echo "BRANCH_COVERAGE_REPORT=$BRANCH_COVERAGE_REPORT" >> $GITHUB_ENV
+          echo "RESULT=$RESULT" >> $GITHUB_ENV
 
-      - name: Comment Coverage Values on PR
+      - name: Comment with Coverage Summary in PR
         uses: mshick/add-pr-comment@v2
         with:
           message: |
@@ -126,3 +127,4 @@ jobs:
             ${{ env.LINE_COVERAGE_REPORT }}
             ${{ env.FUNCTION_COVERAGE_REPORT }}
             ${{ env.BRANCH_COVERAGE_REPORT }}
+            ${{ env.RESULT }}

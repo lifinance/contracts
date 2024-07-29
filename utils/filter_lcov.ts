@@ -1,5 +1,5 @@
-import * as readline from 'readline'
 import * as fs from 'fs'
+import * as readline from 'readline'
 
 // this script helps to produce a clean (test) coverage report for our Solidity contracts
 // forge coverage usually checks coverage for all contracts (including test and script contracts)
