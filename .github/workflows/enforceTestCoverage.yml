@@ -100,24 +100,24 @@ jobs:
 
           # Check against minimum threshold
           if (( $(echo "$LINE_COVERAGE_PERCENTAGE >= $MIN_TEST_COVERAGE" | bc -l) )); then
-            RESULT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is above min threshold ($MIN_TEST_COVERAGE%). Check passed."
+            RESULT_COVERAGE_REPORT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is above min threshold ($MIN_TEST_COVERAGE%). Check passed."
           else
-            RESULT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is below min threshold ($MIN_TEST_COVERAGE%). Check failed."
-            echo $RESULT
+            RESULT_COVERAGE_REPORT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is below min threshold ($MIN_TEST_COVERAGE%). Check failed."
+            echo $RESULT_COVERAGE_REPORT
             exit 1
           fi
 
-          # Output results
+          # Output result_COVERAGE_REPORTs
           echo "$LINE_COVERAGE_REPORT"
           echo "$FUNCTION_COVERAGE_REPORT"
           echo "$BRANCH_COVERAGE_REPORT"
-          echo "$RESULT"
+          echo "$RESULT_COVERAGE_REPORT"
 
           # Store in GitHub environment variables
           echo "LINE_COVERAGE_REPORT=$LINE_COVERAGE_REPORT" >> $GITHUB_ENV
           echo "FUNCTION_COVERAGE_REPORT=$FUNCTION_COVERAGE_REPORT" >> $GITHUB_ENV
           echo "BRANCH_COVERAGE_REPORT=$BRANCH_COVERAGE_REPORT" >> $GITHUB_ENV
-          echo "RESULT=$RESULT" >> $GITHUB_ENV
+          echo "RESULT_COVERAGE_REPORT=$RESULT_COVERAGE_REPORT" >> $GITHUB_ENV
 
       - name: Comment with Coverage Summary in PR
         uses: mshick/add-pr-comment@v2
@@ -127,4 +127,4 @@ jobs:
             ${{ env.LINE_COVERAGE_REPORT }}
             ${{ env.FUNCTION_COVERAGE_REPORT }}
             ${{ env.BRANCH_COVERAGE_REPORT }}
-            ${{ env.RESULT }}
+            ${{ env.RESULT_COVERAGE_REPORT }}
