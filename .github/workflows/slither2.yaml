@@ -1,6 +1,5 @@
 name: Slither2
 on:
-  push:
   pull_request:
 jobs:
   analyze:
@@ -33,16 +32,26 @@ jobs:
           fail-on: none
           slither-args: --checklist --markdown-root ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/
 
+      - name: Save slither2 Output
+        run: echo "${{ steps.slither2.outputs.stdout }}" > slither_output.txt
+
       - name: Create/update checklist as PR Comment
         uses: actions/github-script@v7
         env:
           REPORT: ${{ steps.slither2.outputs.stdout }}
         with:
           script: |
-            const script = require('.github/scripts/comment')
-            const header = '# Slither report'
-            const body = process.env.REPORT
-            await script({ github, context, header, body })
+            const fs = require('fs');
+            const path = './slither_output.txt';
+            const report = fs.readFileSync(path, 'utf8');
+            const header = '# Slither report';
+            const body = report;
+            const { github, context } = require('@actions/github-script');
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: `${header}\n${body}`
+            });
 
       # - name: Run Slither
       #   uses: crytic/slither-action@dev-install-foundry
