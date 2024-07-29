@@ -17,6 +17,7 @@ jobs:
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
       GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+      MIN_TEST_COVERAGE: 80 # 80 percent for now, will be increased to 100% gradually
     steps:
       - uses: actions/checkout@v3
 
@@ -79,20 +80,18 @@ jobs:
               esac
           done < "$LCOV_FILE"
 
-          # Calculate percentages
-          line_coverage_percentage=$(echo "scale=2; $total_lines_hit / $total_lines_found * 100" | bc)
-          function_coverage_percentage=$(echo "scale=2; $total_functions_hit / $total_functions_found * 100" | bc)
-          branch_coverage_percentage=$(echo "scale=2; $total_branches_hit / $total_branches_found * 100" | bc)
+          # Calculate percentages with higher precision
+          line_coverage_percentage=$(echo "scale=4; $total_lines_hit / $total_lines_found * 100" | bc)
+          function_coverage_percentage=$(echo "scale=4; $total_functions_hit / $total_functions_found * 100" | bc)
 
-          # Output results
-          echo "Line Coverage: $line_coverage_percentage%"
-          echo "Function Coverage: $function_coverage_percentage%"
-          echo "Branch Coverage: $branch_coverage_percentage%"
-
-          # Optionally, set the output for GitHub Actions
-          echo "line_coverage=$line_coverage_percentage" >> $GITHUB_ENV
-          echo "function_coverage=$function_coverage_percentage" >> $GITHUB_ENV
-          echo "branch_coverage=$branch_coverage_percentage" >> $GITHUB_ENV
+          # fail if line coverage is less than min value
+          if [[ $LINE_COVERAGE -gt $MIN_TEST_COVERAGE ]]; then
+            echo "Test coverage ($LINE_COVERAGE%) is above min threshold ($MIN_TEST_COVERAGE)"
+          else
+            echo "Test coverage ($LINE_COVERAGE%) is below min threshold ($MIN_TEST_COVERAGE)."
+            echo "Check failed"
+            exit 1
+          fi
 
       # - name: Generate coverage report
       #   run: |
