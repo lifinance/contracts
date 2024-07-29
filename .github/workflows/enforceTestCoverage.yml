@@ -33,6 +33,7 @@ jobs:
 
       - name: Generate coverage report
         run: |
+          npm install
           forge coverage --report lcov --force && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
           rm lcov.info
 
