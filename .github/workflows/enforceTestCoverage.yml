@@ -41,9 +41,12 @@ jobs:
 
       - name: Generate Coverage Report
         run: |
-          forge coverage --report lcov --force && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+          forge coverage --report lcov --force
+          echo "Filtering coverage report to only contain coverage info about src/ folder now"
+          npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+          echo "Coverage report filtered"
 
-      - name: Extract Total Test Coverage
+      - name: Generate Coverage Report
         run: |
           # Path to the lcov info file
           LCOV_FILE="lcov-filtered.info"
@@ -113,7 +116,7 @@ jobs:
           # Store in GitHub environment variables
           echo "LINE_COVERAGE_REPORT=$LINE_COVERAGE_REPORT" >> $GITHUB_ENV
           echo "FUNCTION_COVERAGE_REPORT=$FUNCTION_COVERAGE_REPORT" >> $GITHUB_ENV
-          echo "BRANCH_COVERAGE_REPORT=$BRANCH_COVERAGE_REPORT" >> $GITHUB_ENV
+          echo "$BRANCH_COVERAGE_REPORT" >> $GITHUB_ENV
 
       - name: Comment Coverage Values on PR
         uses: mshick/add-pr-comment@v2
