@@ -16,8 +16,8 @@ jobs:
         with:
           version: nightly
 
-      - name: Verify Foundry Installation
-        run: forge --version
+      # - name: Verify Foundry Installation
+      #   run: forge --version
 
       - name: Run Slither
         uses: crytic/slither-action@v0.4.0
@@ -27,6 +27,8 @@ jobs:
           sarif: results.sarif
           fail-on: none
           target: 'src/'
+        env:
+          PATH: ${{ runner.tool_cache }}/foundry/bin:$PATH
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v3
