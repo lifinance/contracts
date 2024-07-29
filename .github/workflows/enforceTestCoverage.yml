@@ -3,7 +3,7 @@ on:
   push:
 
 jobs:
-  ENFORCE_TEST_COVERAGE:
+  enforce-coverage:
     runs-on: ubuntu-latest
 
     permissions:
@@ -116,7 +116,7 @@ jobs:
           # Store in GitHub environment variables
           echo "LINE_COVERAGE_REPORT=$LINE_COVERAGE_REPORT" >> $GITHUB_ENV
           echo "FUNCTION_COVERAGE_REPORT=$FUNCTION_COVERAGE_REPORT" >> $GITHUB_ENV
-          echo "$BRANCH_COVERAGE_REPORT" >> $GITHUB_ENV
+          echo "BRANCH_COVERAGE_REPORT=$BRANCH_COVERAGE_REPORT" >> $GITHUB_ENV
 
       - name: Comment Coverage Values on PR
         uses: mshick/add-pr-comment@v2
