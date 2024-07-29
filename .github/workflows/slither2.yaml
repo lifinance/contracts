@@ -38,20 +38,38 @@ jobs:
       - name: Create/update checklist as PR Comment
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             const path = './slither_output.txt';
             const report = fs.readFileSync(path, 'utf8');
-            const header = '# Slither report';
-            const body = report;
-            const scriptObject = require('@actions/github-script');
-            const githubTmp = ${{ github }}
-            const contextTmp = scriptObject.context
-            await githubTmp.rest.issues.createComment({
-              ...contextTmp.repo,
-              issue_number: contextTmp.issue.number,
-              body: `${header}\n${body}`
+            const header = '# Slither report\n';
+            const body = header + report;
+            const issue_number = context.payload.pull_request.number;
+
+            const comments = await ${{github}}.rest.issues.listComments({
+              owner: ${{github}}.repo.owner,
+              repo: ${{github}}.repo.repo,
+              issue_number
             });
+
+            const comment = comments.data.find(comment => comment.user.login === 'github-actions[bot]');
+
+            if (comment) {
+              await ${{github}}.rest.issues.updateComment({
+                owner: ${{github}}.repo.owner,
+                repo: ${{github}}.repo.repo,
+                comment_id: comment.id,
+                body
+              });
+            } else {
+              await ${{github}}.rest.issues.createComment({
+                owner: ${{github}}.repo.owner,
+                repo: ${{github}}.repo.repo,
+                issue_number,
+                body
+              });
+            }
 
       # - name: Run Slither
       #   uses: crytic/slither-action@dev-install-foundry
