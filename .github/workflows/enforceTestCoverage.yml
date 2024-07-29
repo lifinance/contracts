@@ -85,10 +85,20 @@ jobs:
           function_coverage_percentage=$(echo "scale=4; $total_functions_hit / $total_functions_found * 100" | bc)
           branch_coverage_percentage=$(echo "scale=4; $total_branches_hit / $total_branches_found * 100" | bc)
 
+          # Format results
+          line_coverage_report="Line Coverage: $line_coverage_percentage% ($total_lines_hit / $total_lines_found lines)"
+          function_coverage_report="Function Coverage: $function_coverage_percentage% ($total_functions_hit / $total_functions_found functions)"
+          branch_coverage_report="Branch Coverage: $branch_coverage_percentage% ($total_branches_hit / $total_branches_found branches)"
+
           # Output results
-          echo "Line Coverage: $line_coverage_percentage%"
-          echo "Function Coverage: $function_coverage_percentage%"
-          echo "Branch Coverage: $branch_coverage_percentage%"
+          echo "$line_coverage_report"
+          echo "$function_coverage_report"
+          echo "$branch_coverage_report"
+
+          # Store in GitHub environment variables
+          echo "LINE_COVERAGE_REPORT=$line_coverage_report" >> $GITHUB_ENV
+          echo "FUNCTION_COVERAGE_REPORT=$function_coverage_report" >> $GITHUB_ENV
+          echo "BRANCH_COVERAGE_REPORT=$branch_coverage_report" >> $GITHUB_ENV
 
           # Check against minimum threshold
           MIN_TEST_COVERAGE=80
@@ -105,9 +115,10 @@ jobs:
         uses: mshick/add-pr-comment@v2
         with:
           message: |
-            TEST COVERAGE:
-            Line Coverage    : $LINE_COVERAGE
-            Function Coverage: $FUNCTION_COVERAGE
+            ## Test Coverage Report
+            ${{ env.LINE_COVERAGE_REPORT }}
+            ${{ env.FUNCTION_COVERAGE_REPORT }}
+            ${{ env.BRANCH_COVERAGE_REPORT }}
 
       # - name: Generate coverage report
       #   run: |
