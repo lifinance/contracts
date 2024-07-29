@@ -16,7 +16,6 @@ jobs:
         id: slither
         uses: crytic/slither-action@v0.4.0
         with:
-          ignore-compile: true
           node-version: 20
           sarif: results.sarif
           fail-on: none
