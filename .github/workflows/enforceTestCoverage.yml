@@ -17,7 +17,7 @@ jobs:
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
       GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
-      MIN_TEST_COVERAGE: 80 # 80 percent for now, will be increased to 100% gradually
+      MIN_TEST_COVERAGE: 85 # 80 percent for now, will be increased to 100% gradually
     steps:
       - uses: actions/checkout@v3
 
@@ -45,11 +45,8 @@ jobs:
 
       - name: Extract total test coverage
         run: |
-          echo "A"
           # Path to the lcov info file
-          echo "B"
           LCOV_FILE="lcov-filtered.info"
-          echo "C"
 
           # Initialize counters
           total_lines_found=0
