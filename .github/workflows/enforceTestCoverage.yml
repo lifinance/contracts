@@ -128,3 +128,4 @@ jobs:
             ${{ env.FUNCTION_COVERAGE_REPORT }}
             ${{ env.BRANCH_COVERAGE_REPORT }}
             ${{ env.RESULT_COVERAGE_REPORT }}
+          update-only: true
