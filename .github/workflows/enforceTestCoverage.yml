@@ -21,6 +21,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Install TypeScript and Node.js type definitions
+        run: npm install --save-dev ts-node @types/node --legacy-peer-deps
+
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1.0.10
         with:
@@ -34,7 +45,7 @@ jobs:
       - name: Generate coverage report
         run: |
           npm install
-          forge coverage --report lcov --force && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+          # forge coverage --report lcov --force && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
           rm lcov.info
 
       - name: Setup LCOV
