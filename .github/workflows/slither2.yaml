@@ -11,18 +11,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run Slither
-        id: slither
-        uses: crytic/slither-action@v0.4.0
-        with:
-          node-version: 20
-          sarif: results.sarif
-          fail-on: none
+      # - name: Run Slither
+      #   id: slither
+      #   uses: crytic/slither-action@v0.4.0
+      #   with:
+      #     node-version: 20
+      #     sarif: results.sarif
+      #     fail-on: none
 
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: ${{ steps.slither.outputs.sarif }}
+      # - name: Upload SARIF file
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: ${{ steps.slither.outputs.sarif }}
 
       - name: Create Markdown Report / Checklist
         uses: crytic/slither-action@v0.4.0
@@ -37,8 +37,6 @@ jobs:
 
       - name: Create/update checklist as PR Comment
         uses: actions/github-script@v7
-        env:
-          REPORT: ${{ steps.slither2.outputs.stdout }}
         with:
           script: |
             const fs = require('fs');
