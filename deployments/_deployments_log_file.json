@@ -623,7 +623,7 @@
             "TIMESTAMP": "2024-07-26 13:59:50",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1265,7 +1265,7 @@
             "TIMESTAMP": "2024-07-26 14:00:03",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1908,7 +1908,7 @@
             "TIMESTAMP": "2024-07-26 14:00:17",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2766,7 +2766,7 @@
             "TIMESTAMP": "2024-07-26 14:00:28",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -3376,7 +3376,7 @@
             "TIMESTAMP": "2024-07-26 14:00:39",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -3974,7 +3974,7 @@
             "TIMESTAMP": "2024-07-26 14:00:52",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -4599,7 +4599,7 @@
             "TIMESTAMP": "2024-07-26 14:01:05",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5206,7 +5206,7 @@
             "TIMESTAMP": "2024-07-26 14:02:30",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000b3a64c21bb4a6d95721e63185d71b637db46d848",
             "SALT": "09072024",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6750,7 +6750,7 @@
             "TIMESTAMP": "2024-07-26 14:01:19",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -8027,7 +8027,7 @@
             "TIMESTAMP": "2024-07-26 14:01:47",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -20421,7 +20421,7 @@
             "TIMESTAMP": "2024-07-26 14:01:34",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "09072024",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
