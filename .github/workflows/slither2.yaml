@@ -16,38 +16,50 @@ jobs:
         with:
           version: nightly
 
-      # - name: Verify Foundry Installation
-      #   run: forge --version
+      - name: Build project (with specific slither parameters)
+        run: forge build --extra-output abi --extra-output userdoc --extra-output devdoc --extra-output evm.methodIdentifiers --force
+
       - name: Run Slither
-        uses: crytic/slither-action@dev-install-foundry
-        id: slither
+        uses: crytic/slither-action@v0.4.0
         with:
+          ignore-compile: true
           node-version: 20
           sarif: results.sarif
           fail-on: none
           target: 'src/'
 
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: ${{ steps.slither.outputs.sarif }}
+      # - name: Verify Foundry Installation
+      #   run: forge --version
+      # - name: Run Slither
+      #   uses: crytic/slither-action@dev-install-foundry
+      #   id: slither
+      #   with:
+      #     node-version: 20
+      #     sarif: results.sarif
+      #     fail-on: none
+      #     target: 'src/'
 
-      - name: Create Markdown Report / Checklist
-        uses: crytic/slither-action@v0.4.0
-        id: slither2
-        with:
-          node-version: 20
-          fail-on: none
-          slither-args: --checklist --markdown-root ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/
+      # - name: Upload SARIF file
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: ${{ steps.slither.outputs.sarif }}
 
-      - name: Create/update checklist as PR Comment
-        uses: actions/github-script@v7
-        if: github.event_name == 'pull_request'
-        env:
-          REPORT: ${{ steps.slither.outputs.stdout }}
-        with:
-          script: |
-            const script = require('.github/scripts/comment')
-            const header = '# Slither report'
-            const body = process.env.REPORT
-            await script({ github, context, header, body })
+      # - name: Create Markdown Report / Checklist
+      #   uses: crytic/slither-action@v0.4.0
+      #   id: slither2
+      #   with:
+      #     node-version: 20
+      #     fail-on: none
+      #     slither-args: --checklist --markdown-root ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/
+
+      # - name: Create/update checklist as PR Comment
+      #   uses: actions/github-script@v7
+      #   if: github.event_name == 'pull_request'
+      #   env:
+      #     REPORT: ${{ steps.slither.outputs.stdout }}
+      #   with:
+      #     script: |
+      #       const script = require('.github/scripts/comment')
+      #       const header = '# Slither report'
+      #       const body = process.env.REPORT
+      #       await script({ github, context, header, body })
