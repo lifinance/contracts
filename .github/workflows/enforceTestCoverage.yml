@@ -3,7 +3,7 @@ on:
   push:
 
 jobs:
-  enforceTestCoverage:
+  ENFORCE_TEST_COVERAGE:
     runs-on: ubuntu-latest
 
     permissions:
@@ -34,90 +34,88 @@ jobs:
         with:
           version: nightly
 
-      - name: Install submodules
+      - name: Install Git Submodules
         run: |
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git submodule update --init --recursive
 
-      - name: Generate coverage report
+      - name: Generate Coverage Report
         run: |
-          # forge coverage --report lcov --force && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+          forge coverage --report lcov --force && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
 
-      - name: Setup LCOV
-        uses: hrishikesh-kadam/setup-lcov@v1
-
-      - name: Extract total test coverage
+      - name: Extract Total Test Coverage
         run: |
           # Path to the lcov info file
           LCOV_FILE="lcov-filtered.info"
 
           # Initialize counters
-          total_lines_found=0
-          total_lines_hit=0
-          total_functions_found=0
-          total_functions_hit=0
-          total_branches_found=0
-          total_branches_hit=0
+          TOTAL_LINES_FOUND=0
+          TOTAL_LINES_HIT=0
+          TOTAL_FUNCTIONS_FOUND=0
+          TOTAL_FUNCTIONS_HIT=0
+          TOTAL_BRANCHES_FOUND=0
+          TOTAL_BRANCHES_HIT=0
 
           # Read through the lcov file
           while IFS= read -r line; do
               case $line in
                   LF:*)
-                      total_lines_found=$((total_lines_found + ${line#LF:}))
+                      TOTAL_LINES_FOUND=$((TOTAL_LINES_FOUND + ${line#LF:}))
                       ;;
                   LH:*)
-                      total_lines_hit=$((total_lines_hit + ${line#LH:}))
+                      TOTAL_LINES_HIT=$((TOTAL_LINES_HIT + ${line#LH:}))
                       ;;
                   FNF:*)
-                      total_functions_found=$((total_functions_found + ${line#FNF:}))
+                      TOTAL_FUNCTIONS_FOUND=$((TOTAL_FUNCTIONS_FOUND + ${line#FNF:}))
                       ;;
                   FNH:*)
-                      total_functions_hit=$((total_functions_hit + ${line#FNH:}))
+                      TOTAL_FUNCTIONS_HIT=$((TOTAL_FUNCTIONS_HIT + ${line#FNH:}))
                       ;;
                   BRF:*)
-                      total_branches_found=$((total_branches_found + ${line#BRF:}))
+                      TOTAL_BRANCHES_FOUND=$((TOTAL_BRANCHES_FOUND + ${line#BRF:}))
                       ;;
                   BRH:*)
-                      total_branches_hit=$((total_branches_hit + ${line#BRH:}))
+                      TOTAL_BRANCHES_HIT=$((TOTAL_BRANCHES_HIT + ${line#BRH:}))
                       ;;
               esac
           done < "$LCOV_FILE"
 
           # Calculate percentages with high precision
-          line_coverage_percentage=$(echo "scale=4; $total_lines_hit / $total_lines_found * 100" | bc)
-          function_coverage_percentage=$(echo "scale=4; $total_functions_hit / $total_functions_found * 100" | bc)
-          branch_coverage_percentage=$(echo "scale=4; $total_branches_hit / $total_branches_found * 100" | bc)
+          LINE_COVERAGE_PERCENTAGE=$(echo "scale=4; $TOTAL_LINES_HIT / $TOTAL_LINES_FOUND * 100" | bc)
+          FUNCTION_COVERAGE_PERCENTAGE=$(echo "scale=4; $TOTAL_FUNCTIONS_HIT / $TOTAL_FUNCTIONS_FOUND * 100" | bc)
+          BRANCH_COVERAGE_PERCENTAGE=$(echo "scale=4; $TOTAL_BRANCHES_HIT / $TOTAL_BRANCHES_FOUND * 100" | bc)
 
           # Format results with two decimal places and alignment
-          line_coverage_percentage=$(printf "%.2f" "$line_coverage_percentage")
-          function_coverage_percentage=$(printf "%.2f" "$function_coverage_percentage")
-          branch_coverage_percentage=$(printf "%.2f" "$branch_coverage_percentage")
+          LINE_COVERAGE_PERCENTAGE=$(printf "%.2f" "$LINE_COVERAGE_PERCENTAGE")
+          FUNCTION_COVERAGE_PERCENTAGE=$(printf "%.2f" "$FUNCTION_COVERAGE_PERCENTAGE")
+          BRANCH_COVERAGE_PERCENTAGE=$(printf "%.2f" "$BRANCH_COVERAGE_PERCENTAGE")
 
           # Prepare aligned output
-          line_coverage_report=$(printf "Line Coverage:      %6s%% (%4d / %4d lines)" "$line_coverage_percentage" "$total_lines_hit" "$total_lines_found")
-          function_coverage_report=$(printf "Function Coverage:  %6s%% (%4d / %4d functions)" "$function_coverage_percentage" "$total_functions_hit" "$total_functions_found")
-          branch_coverage_report=$(printf "Branch Coverage:    %6s%% (%4d / %4d branches)" "$branch_coverage_percentage" "$total_branches_hit" "$total_branches_found")
-
-          # Output results
-          echo "$line_coverage_report"
-          echo "$function_coverage_report"
-          echo "$branch_coverage_report"
-
-          # Store in GitHub environment variables
-          echo "LINE_COVERAGE_REPORT=$line_coverage_report" >> $GITHUB_ENV
-          echo "FUNCTION_COVERAGE_REPORT=$function_coverage_report" >> $GITHUB_ENV
-          echo "BRANCH_COVERAGE_REPORT=$branch_coverage_report" >> $GITHUB_ENV
+          LINE_COVERAGE_REPORT=$(printf "Line Coverage:      %6s%% (%4d / %4d lines)" "$LINE_COVERAGE_PERCENTAGE" "$TOTAL_LINES_HIT" "$TOTAL_LINES_FOUND")
+          FUNCTION_COVERAGE_REPORT=$(printf "Function Coverage:  %6s%% (%4d / %4d functions)" "$FUNCTION_COVERAGE_PERCENTAGE" "$TOTAL_FUNCTIONS_HIT" "$TOTAL_FUNCTIONS_FOUND")
+          BRANCH_COVERAGE_REPORT=$(printf "Branch Coverage:    %6s%% (%4d / %4d branches)" "$BRANCH_COVERAGE_PERCENTAGE" "$TOTAL_BRANCHES_HIT" "$TOTAL_BRANCHES_FOUND")
 
           # Check against minimum threshold
-          if (( $(echo "$line_coverage_percentage >= $MIN_TEST_COVERAGE" | bc -l) )); then
-              echo "Test coverage ($line_coverage_percentage%) is above min threshold ($MIN_TEST_COVERAGE%)."
+          if (( $(echo "$LINE_COVERAGE_PERCENTAGE >= $MIN_TEST_COVERAGE" | bc -l) )); then
+            RESULT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is above min threshold ($MIN_TEST_COVERAGE%). Check passed."
           else
-              echo "Test coverage ($line_coverage_percentage%) is below min threshold ($MIN_TEST_COVERAGE%)."
-              echo "Check failed"
-              exit 1
+            RESULT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is below min threshold ($MIN_TEST_COVERAGE%). Check failed."
+            echo $RESULT
+            exit 1
           fi
 
-      - name: Comment coverage values on PR
+          # Output results
+          echo "$LINE_COVERAGE_REPORT"
+          echo "$FUNCTION_COVERAGE_REPORT"
+          echo "$BRANCH_COVERAGE_REPORT"
+          echo "$RESULT"
+
+          # Store in GitHub environment variables
+          echo "LINE_COVERAGE_REPORT=$LINE_COVERAGE_REPORT" >> $GITHUB_ENV
+          echo "FUNCTION_COVERAGE_REPORT=$FUNCTION_COVERAGE_REPORT" >> $GITHUB_ENV
+          echo "BRANCH_COVERAGE_REPORT=$BRANCH_COVERAGE_REPORT" >> $GITHUB_ENV
+
+      - name: Comment Coverage Values on PR
         uses: mshick/add-pr-comment@v2
         with:
           message: |
