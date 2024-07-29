@@ -17,16 +17,16 @@ jobs:
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
       GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
-      MIN_TEST_COVERAGE: 8 # 80 percent for now, will be increased to 100% gradually
+      MIN_TEST_COVERAGE: 80 # 80 percent for now, will be increased to 100% gradually
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install TypeScript and Node.js type definitions
+      - name: Install Dependencies
         run: npm install --save-dev ts-node @types/node --legacy-peer-deps
 
       - name: Install Foundry
@@ -41,7 +41,6 @@ jobs:
 
       - name: Generate coverage report
         run: |
-          npm install
           # forge coverage --report lcov --force && npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
           rm lcov.info
 
