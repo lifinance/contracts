@@ -26,8 +26,8 @@ jobs:
           sarif: results.sarif
           fail-on: none
           target: 'src/'
-        # env:
-        #   PATH: ${{ runner.tool_cache }}/foundry/bin:$PATH
+        env:
+          PATH: ${{ runner.tool_cache }}/foundry/bin:$PATH:${{ env.PATH }}
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v3
