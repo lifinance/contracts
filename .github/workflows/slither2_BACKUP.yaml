@@ -12,14 +12,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Slither
-        uses: crytic/slither-action@v0.4.0
+        uses: crytic/slither-action@v0.3.0
         id: slither
         with:
           node-version: 20
           sarif: results.sarif
           fail-on: none
-          target: 'src/'
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: ${{ steps.slither.outputs.sarif }}
+
+      # - name: Upload SARIF file
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: ${{ steps.slither.outputs.sarif }}
