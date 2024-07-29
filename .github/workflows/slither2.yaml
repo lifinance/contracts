@@ -44,9 +44,9 @@ jobs:
             const report = fs.readFileSync(path, 'utf8');
             const header = '# Slither report';
             const body = report;
-            const import = require('@actions/github-script');
+            const scriptObject = require('@actions/github-script');
             const githubTmp = ${{ github }}
-            const contextTmp = import.context
+            const contextTmp = scriptObject.context
             await githubTmp.rest.issues.createComment({
               ...contextTmp.repo,
               issue_number: contextTmp.issue.number,
