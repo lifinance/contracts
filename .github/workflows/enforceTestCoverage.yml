@@ -42,6 +42,58 @@ jobs:
             echo "${GIT_TOKEN:0:10}"
           fi
 
+      - name: Extract total test coverage
+        run: |
+          # Path to the lcov info file
+          LCOV_FILE="lcov-filtered.info"
+
+          # Initialize counters
+          total_lines_found=0
+          total_lines_hit=0
+          total_functions_found=0
+          total_functions_hit=0
+          total_branches_found=0
+          total_branches_hit=0
+
+          # Read through the lcov file
+          while IFS= read -r line; do
+              case $line in
+                  LF:*)
+                      total_lines_found=$((total_lines_found + ${line#LF:}))
+                      ;;
+                  LH:*)
+                      total_lines_hit=$((total_lines_hit + ${line#LH:}))
+                      ;;
+                  FNF:*)
+                      total_functions_found=$((total_functions_found + ${line#FNF:}))
+                      ;;
+                  FNH:*)
+                      total_functions_hit=$((total_functions_hit + ${line#FNH:}))
+                      ;;
+                  BRF:*)
+                      total_branches_found=$((total_branches_found + ${line#BRF:}))
+                      ;;
+                  BRH:*)
+                      total_branches_hit=$((total_branches_hit + ${line#BRH:}))
+                      ;;
+              esac
+          done < "$LCOV_FILE"
+
+          # Calculate percentages
+          line_coverage_percentage=$(echo "scale=2; $total_lines_hit / $total_lines_found * 100" | bc)
+          function_coverage_percentage=$(echo "scale=2; $total_functions_hit / $total_functions_found * 100" | bc)
+          branch_coverage_percentage=$(echo "scale=2; $total_branches_hit / $total_branches_found * 100" | bc)
+
+          # Output results
+          echo "Line Coverage: $line_coverage_percentage%"
+          echo "Function Coverage: $function_coverage_percentage%"
+          echo "Branch Coverage: $branch_coverage_percentage%"
+
+          # Optionally, set the output for GitHub Actions
+          echo "line_coverage=$line_coverage_percentage" >> $GITHUB_ENV
+          echo "function_coverage=$function_coverage_percentage" >> $GITHUB_ENV
+          echo "branch_coverage=$branch_coverage_percentage" >> $GITHUB_ENV
+
       # - name: Generate coverage report
       #   run: |
       # npm install
