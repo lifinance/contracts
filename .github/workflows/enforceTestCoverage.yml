@@ -80,15 +80,20 @@ jobs:
               esac
           done < "$LCOV_FILE"
 
-          # Calculate percentages with higher precision
+          # Calculate percentages with high precision
           line_coverage_percentage=$(echo "scale=4; $total_lines_hit / $total_lines_found * 100" | bc)
           function_coverage_percentage=$(echo "scale=4; $total_functions_hit / $total_functions_found * 100" | bc)
           branch_coverage_percentage=$(echo "scale=4; $total_branches_hit / $total_branches_found * 100" | bc)
 
-          # Format results
-          line_coverage_report="Line Coverage: $line_coverage_percentage% ($total_lines_hit / $total_lines_found lines)"
-          function_coverage_report="Function Coverage: $function_coverage_percentage% ($total_functions_hit / $total_functions_found functions)"
-          branch_coverage_report="Branch Coverage: $branch_coverage_percentage% ($total_branches_hit / $total_branches_found branches)"
+          # Format results with two decimal places and alignment
+          line_coverage_percentage=$(printf "%.2f" "$line_coverage_percentage")
+          function_coverage_percentage=$(printf "%.2f" "$function_coverage_percentage")
+          branch_coverage_percentage=$(printf "%.2f" "$branch_coverage_percentage")
+
+          # Prepare aligned output
+          line_coverage_report=$(printf "Line Coverage:      %6s%% (%4d / %4d lines)" "$line_coverage_percentage" "$total_lines_hit" "$total_lines_found")
+          function_coverage_report=$(printf "Function Coverage:  %6s%% (%4d / %4d functions)" "$function_coverage_percentage" "$total_functions_hit" "$total_functions_found")
+          branch_coverage_report=$(printf "Branch Coverage:    %6s%% (%4d / %4d branches)" "$branch_coverage_percentage" "$total_branches_hit" "$total_branches_found")
 
           # Output results
           echo "$line_coverage_report"
@@ -101,8 +106,6 @@ jobs:
           echo "BRANCH_COVERAGE_REPORT=$branch_coverage_report" >> $GITHUB_ENV
 
           # Check against minimum threshold
-          MIN_TEST_COVERAGE=80
-
           if (( $(echo "$line_coverage_percentage >= $MIN_TEST_COVERAGE" | bc -l) )); then
               echo "Test coverage ($line_coverage_percentage%) is above min threshold ($MIN_TEST_COVERAGE%)."
           else
