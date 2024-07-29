@@ -1,0 +1,131 @@
+name: Enforce Test Coverage
+on:
+  push:
+
+jobs:
+  enforce-coverage:
+    runs-on: ubuntu-latest
+
+    permissions:
+      pull-requests: write
+      contents: read
+    env:
+      ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
+      ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
+      ETH_NODE_URI_GOERLI: ${{ secrets.ETH_NODE_URI_GOERLI }}
+      ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
+      ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
+      ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
+      GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+      MIN_TEST_COVERAGE: 80 # 80 percent for now, will be increased to 100% gradually
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: npm install --save-dev ts-node @types/node --legacy-peer-deps
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1.0.10
+        with:
+          version: nightly
+
+      - name: Install Git Submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --recursive
+
+      - name: Generate Coverage Report
+        run: |
+          forge coverage --report lcov --force
+          echo "Filtering coverage report to only contain coverage info about src/ folder now"
+          npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+          echo "Coverage report filtered"
+
+      - name: Generate Coverage Summary
+        run: |
+          # Path to the lcov info file
+          LCOV_FILE="lcov-filtered.info"
+
+          # Initialize counters
+          TOTAL_LINES_FOUND=0
+          TOTAL_LINES_HIT=0
+          TOTAL_FUNCTIONS_FOUND=0
+          TOTAL_FUNCTIONS_HIT=0
+          TOTAL_BRANCHES_FOUND=0
+          TOTAL_BRANCHES_HIT=0
+
+          # Read through the lcov file
+          while IFS= read -r line; do
+              case $line in
+                  LF:*)
+                      TOTAL_LINES_FOUND=$((TOTAL_LINES_FOUND + ${line#LF:}))
+                      ;;
+                  LH:*)
+                      TOTAL_LINES_HIT=$((TOTAL_LINES_HIT + ${line#LH:}))
+                      ;;
+                  FNF:*)
+                      TOTAL_FUNCTIONS_FOUND=$((TOTAL_FUNCTIONS_FOUND + ${line#FNF:}))
+                      ;;
+                  FNH:*)
+                      TOTAL_FUNCTIONS_HIT=$((TOTAL_FUNCTIONS_HIT + ${line#FNH:}))
+                      ;;
+                  BRF:*)
+                      TOTAL_BRANCHES_FOUND=$((TOTAL_BRANCHES_FOUND + ${line#BRF:}))
+                      ;;
+                  BRH:*)
+                      TOTAL_BRANCHES_HIT=$((TOTAL_BRANCHES_HIT + ${line#BRH:}))
+                      ;;
+              esac
+          done < "$LCOV_FILE"
+
+          # Calculate percentages with high precision
+          LINE_COVERAGE_PERCENTAGE=$(echo "scale=4; $TOTAL_LINES_HIT / $TOTAL_LINES_FOUND * 100" | bc)
+          FUNCTION_COVERAGE_PERCENTAGE=$(echo "scale=4; $TOTAL_FUNCTIONS_HIT / $TOTAL_FUNCTIONS_FOUND * 100" | bc)
+          BRANCH_COVERAGE_PERCENTAGE=$(echo "scale=4; $TOTAL_BRANCHES_HIT / $TOTAL_BRANCHES_FOUND * 100" | bc)
+
+          # Format results with two decimal places and alignment
+          LINE_COVERAGE_PERCENTAGE=$(printf "%.2f" "$LINE_COVERAGE_PERCENTAGE")
+          FUNCTION_COVERAGE_PERCENTAGE=$(printf "%.2f" "$FUNCTION_COVERAGE_PERCENTAGE")
+          BRANCH_COVERAGE_PERCENTAGE=$(printf "%.2f" "$BRANCH_COVERAGE_PERCENTAGE")
+
+          # Prepare aligned output
+          LINE_COVERAGE_REPORT=$(printf "Line Coverage:      %6s%% (%4d / %4d lines)" "$LINE_COVERAGE_PERCENTAGE" "$TOTAL_LINES_HIT" "$TOTAL_LINES_FOUND")
+          FUNCTION_COVERAGE_REPORT=$(printf "Function Coverage:  %6s%% (%4d / %4d functions)" "$FUNCTION_COVERAGE_PERCENTAGE" "$TOTAL_FUNCTIONS_HIT" "$TOTAL_FUNCTIONS_FOUND")
+          BRANCH_COVERAGE_REPORT=$(printf "Branch Coverage:    %6s%% (%4d / %4d branches)" "$BRANCH_COVERAGE_PERCENTAGE" "$TOTAL_BRANCHES_HIT" "$TOTAL_BRANCHES_FOUND")
+
+          # Check against minimum threshold
+          if (( $(echo "$LINE_COVERAGE_PERCENTAGE >= $MIN_TEST_COVERAGE" | bc -l) )); then
+            RESULT_COVERAGE_REPORT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is above min threshold ($MIN_TEST_COVERAGE%). Check passed."
+          else
+            RESULT_COVERAGE_REPORT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is below min threshold ($MIN_TEST_COVERAGE%). Check failed."
+            echo $RESULT_COVERAGE_REPORT
+            exit 1
+          fi
+
+          # Output result_COVERAGE_REPORTs
+          echo "$LINE_COVERAGE_REPORT"
+          echo "$FUNCTION_COVERAGE_REPORT"
+          echo "$BRANCH_COVERAGE_REPORT"
+          echo "$RESULT_COVERAGE_REPORT"
+
+          # Store in GitHub environment variables
+          echo "LINE_COVERAGE_REPORT=$LINE_COVERAGE_REPORT" >> $GITHUB_ENV
+          echo "FUNCTION_COVERAGE_REPORT=$FUNCTION_COVERAGE_REPORT" >> $GITHUB_ENV
+          echo "BRANCH_COVERAGE_REPORT=$BRANCH_COVERAGE_REPORT" >> $GITHUB_ENV
+          echo "RESULT_COVERAGE_REPORT=$RESULT_COVERAGE_REPORT" >> $GITHUB_ENV
+
+      - name: Comment with Coverage Summary in PR
+        uses: mshick/add-pr-comment@v2
+        with:
+          message: |
+            ## Test Coverage Report
+            ${{ env.LINE_COVERAGE_REPORT }}
+            ${{ env.FUNCTION_COVERAGE_REPORT }}
+            ${{ env.BRANCH_COVERAGE_REPORT }}
+            ${{ env.RESULT_COVERAGE_REPORT }}
+          update-only: true
