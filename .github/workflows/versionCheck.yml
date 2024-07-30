@@ -28,7 +28,7 @@ jobs:
           echo "FILES=$FILES"  # For debugging
           echo "$FILES" > modified_files.txt  # Write filenames to a temporary file
 
-      - name: Check version tags and post reminders
+      - name: Check version tags and update PR title
         id: check_versions
         run: |
           BASE_REF="${{ github.event.pull_request.base.ref }}"
@@ -51,10 +51,12 @@ jobs:
               else
                 # Check if version tag was updated in this PR
                 if git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -qE '^@@.*\+/// @custom:version'; then
+                  # version was updated
                   CONTRACT_NAME=$(basename "$FILE" .sol)
                   NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
                   UPDATED_CONTRACTS+=("$CONTRACT_NAME $NEW_VERSION")
                 else
+                  # version was not updated
                   MISSING_VERSION_UPDATE+=("$FILE")
                 fi
               fi
@@ -64,42 +66,66 @@ jobs:
           # Output the results
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
             echo "Files missing version tags: ${MISSING_VERSION_TAG[*]}"
-            # exit 1
+            exit 1
           fi
 
           if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
             echo "Files with version tags not updated: ${MISSING_VERSION_UPDATE[*]}"
-            # exit 1
+            exit 1
           fi
 
           if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
             echo "Updated contracts and versions: ${UPDATED_CONTRACTS[*]}"
+            UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
+            echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
           fi
 
-      - name: Post reminder comment
-        if: steps.check_versions.outputs.MISSING_VERSION_UPDATE
+      - name: Update PR title with updated version info
+        if: ${{env.UPDATED_CONTRACTS}}
         uses: actions/github-script@v5
         with:
           script: |
-            const MISSING_VERSION_FILES = '${{ steps.check_versions.outputs.MISSING_VERSION_UPDATE }}'.split(',');
-            const body = `The following files have version tags that were not updated: ${MISSING_VERSION_FILES.join(', ')}. Please update the version tags.`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
+            const updatedContracts = ${{env.UPDATED_CONTRACTS}}
+            const updatedContracts = updatedContracts.split(',');
+            let prTitle = context.payload.pull_request.title;
+
+            updatedContracts.forEach(contract => {
+              if (!prTitle.includes(contract.trim())) {
+                prTitle += ` (${contract.trim()})`;
+              }
             });
 
-      - name: Post version updates comment
-        if: success()
-        uses: actions/github-script@v5
-        with:
-          script: |
-            const UPDATED_CONTRACTS = '${{ steps.check_versions.outputs.UPDATED_CONTRACTS }}'.split(',');
-            const body = `The following contracts have been updated with new versions: ${UPDATED_CONTRACTS.join(', ')}.`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            github.rest.pulls.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: body
+              pull_number: context.issue.number,
+              title: prTitle
             });
+
+      # - name: Post reminder comment
+      #   if: steps.check_versions.outputs.MISSING_VERSION_UPDATE
+      #   uses: actions/github-script@v5
+      #   with:
+      #     script: |
+      #       const MISSING_VERSION_FILES = '${{ steps.check_versions.outputs.MISSING_VERSION_UPDATE }}'.split(',');
+      #       const body = `The following files have version tags that were not updated: ${MISSING_VERSION_FILES.join(', ')}. Please update the version tags.`;
+      #       github.rest.issues.createComment({
+      #         issue_number: context.issue.number,
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         body: body
+      #       });
+
+      # - name: Post version updates comment
+      #   if: success()
+      #   uses: actions/github-script@v5
+      #   with:
+      #     script: |
+      #       const UPDATED_CONTRACTS = '${{ steps.check_versions.outputs.UPDATED_CONTRACTS }}'.split(',');
+      #       const body = `The following contracts have been updated with new versions: ${UPDATED_CONTRACTS.join(', ')}.`;
+      #       github.rest.issues.createComment({
+      #         issue_number: context.issue.number,
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         body: body
+      #       });
