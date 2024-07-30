@@ -39,10 +39,8 @@ jobs:
           while IFS= read -r FILE; do
             if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
               FACETS="$FACETS $FILE"
-              echo "C"
             elif echo "$FILE" | grep -E '^src/Periphery/.*\.sol$'; then
               PERIPHERY="$PERIPHERY $FILE"
-              echo "D"
             fi
           done <<< "$FILES"
 
@@ -57,43 +55,35 @@ jobs:
           echo "$FACETS" > modified_facets.txt
           echo "$PERIPHERY" > modified_periphery.txt
 
+          echo "modified files identified, analyzed and written to tmp files for subsequent actions"
+
       - name: Check version tags and post reminders
         id: check_versions
         run: |
-          echo "A"
           FILES=$(cat modified_files.txt)  # Read filenames from the temporary file
           FACETS=$(cat modified_facets.txt)  # Read filenames from the temporary file
           PERIPHERY=$(cat modified_periphery.txt)  # Read filenames from the temporary file
-          echo "B"
           echo "FILES=$FILES"
           echo "FACETS=$FACETS"
           echo "PERIPHERY=$PERIPHERY"
 
-
-          # Initialize empty variables
-          FACETS=""
-          PERIPHERY=""
-
-          # Process each file separately
-          while IFS= read -r FILE; do
-            if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
-              FACETS="$FACETS $FILE"
-              echo "C"
-            elif echo "$FILE" | grep -E '^src/Periphery/.*\.sol$'; then
-              PERIPHERY="$PERIPHERY $FILE"
-              echo "D"
-            fi
-          done <<< "$FILES"
-          echo "E"
-          # PERIPHERY=$(echo "$FILES" | grep -E '^src/Periphery/.*\.sol$')
-
-          echo "FACETS found: $FACETS"
-          echo "PERIPHERY found: $PERIPHERY"
-
+          # make sure data was read correctly from files
           if [[ -z "$FACETS" && -z "$PERIPHERY" ]]; then
             echo "No facets or periphery contracts found in files modified/added by this PR"
             exit 0
           fi
+
+          # merge files
+          MERGED_CONTENT=$(cat modified_facets.txt modified_periphery.txt)
+
+
+
+
+
+          # go through all facets and periphery and ...
+          while IFS= read -r FILE; do
+            echo "FILE: $FILE"
+          done <<< "$MERGED_CONTENT"
 
       - name: Post reminder comment
         if: steps.check_versions.outputs.MISSING_VERSIONS
