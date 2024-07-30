@@ -28,6 +28,7 @@ jobs:
           path: |
             ~/.foundry/cache
             ~/.foundry/bin
+            ~/.cache/foundry
           key: ${{ runner.os }}-foundry-${{ hashFiles('**/foundry.toml') }}
           restore-keys: |
             ${{ runner.os }}-foundry-
@@ -43,15 +44,17 @@ jobs:
       - name: Verify Foundry Installation
         run: |
           echo "Foundry binary path"
-          which foundry
+          which foundry || echo "Foundry not found in PATH"
           echo "Home directory content"
           ls -la /home/runner/
           echo "Listing ~/.foundry"
           ls -la ~/.foundry/
           echo "Listing ~/.foundry/cache"
-          ls -la ~/.foundry/cache
+          ls -la ~/.foundry/cache || echo "~/.foundry/cache not found"
           echo "Listing ~/.foundry/bin"
-          ls -la ~/.foundry/bin
+          ls -la ~/.foundry/bin || echo "~/.foundry/bin not found"
+          echo "Listing ~/.cache/foundry"
+          ls -la ~/.cache/foundry || echo "~/.cache/foundry not found"
 
       - name: Install Solidity Libs
         run: forge install
