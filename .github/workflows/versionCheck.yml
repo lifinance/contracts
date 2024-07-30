@@ -2,8 +2,8 @@ name: Version Check
 
 on:
   push:
-  pull_request:
-    types: [opened, edited, synchronize]
+  # pull_request:
+  #   types: [opened, edited, synchronize]
 
 jobs:
   check-version:
@@ -22,7 +22,7 @@ jobs:
       - name: Check version tags and post reminders
         id: check_versions
         run: |
-          FILES="${{ steps.modified_files.outputs.files }}"
+          FILES="${{ steps.modified_files.outputs.FILES }}"
           FACETS=$(echo "$FILES" | grep -E '^src/Facets/.*\.sol$')
           PERIPHERY=$(echo "$FILES" | grep -E '^src/Periphery/.*\.sol$')
 
