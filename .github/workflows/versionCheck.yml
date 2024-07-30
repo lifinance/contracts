@@ -95,12 +95,12 @@ jobs:
               echo "File $FILENAME does have a version tag"
               # Check if version tag was updated in this PR
               DIFF_OUTPUT=$(git diff origin/${BASE_REF} HEAD "$FILE")
-              echo "Diff output: $DIFF_OUTPUT"
+              # echo "Diff output: $DIFF_OUTPUT"
               if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
                 echo "Version was updated in $FILENAME"
                 CONTRACT_NAME=$(basename "$FILE" .sol)
                 NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
-                TARGET_STRING="${CONTRACT_NAME}v${NEW_VERSION}"
+                TARGET_STRING="${CONTRACT_NAME} v${NEW_VERSION}"
                 UPDATED_CONTRACTS+=("$TARGET_STRING")
               else
                 echo "Version was not updated in $FILENAME"
@@ -122,6 +122,9 @@ jobs:
           if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
             echo "Updated contracts and versions: ${UPDATED_CONTRACTS[*]}"
             UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
+
+            echo "UPDATED_CONTRACTS_STR: $UPDATED_CONTRACTS_STR"
+
             echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
           fi
 
@@ -150,15 +153,15 @@ jobs:
           echo "Final PR Title: $PR_TITLE_UPDATED"
           echo "PR_TITLE=$PR_TITLE_UPDATED" >> $GITHUB_ENV
 
-      - name: Update the PR title on GitHub
-        uses: actions/github-script@v5
-        with:
-          script: |
-            const { execSync } = require('child_process');
-            const prTitle = process.env.PR_TITLE;
-            github.rest.pulls.update({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              title: prTitle
-            });
+      # - name: Update the PR title on GitHub
+      #   uses: actions/github-script@v5
+      #   with:
+      #     script: |
+      #       const { execSync } = require('child_process');
+      #       const prTitle = process.env.PR_TITLE;
+      #       github.rest.pulls.update({
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         pull_number: context.issue.number,
+      #         title: prTitle
+      #       });
