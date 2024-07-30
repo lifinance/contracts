@@ -24,20 +24,20 @@ jobs:
         run: |
           FILES="${{ steps.modified_files.outputs.files }}"
           FACETS=$(echo "$FILES" | grep -E '^src/Facets/.*\.sol$')
-          periphery=$(echo "$FILES" | grep -E '^src/Periphery/.*\.sol$')
+          PERIPHERY=$(echo "$FILES" | grep -E '^src/Periphery/.*\.sol$')
 
           echo "Facets found: $FACETS"
           echo "Periphery found: $PERIPHERY"
 
-          missing_version_updates=()
-          updated_files=()
+          MISSING_VERSION_UPDATES=()
+          UPDATED_FILES=()
 
           check_version() {
             file=$1
             if ! git diff -U0 origin/${{ github.event.pull_request.base.ref }}...${{ github.sha }} "$file" | grep -E '^@@.*@custom:version'; then
-              missing_version_updates+=("$file")
+              MISSING_VERSION_UPDATES+=("$file")
             else
-              updated_files+=("$file")
+              UPDATED_FILES+=("$file")
             fi
           }
 
@@ -49,14 +49,14 @@ jobs:
             check_version "$file"
           done
 
-          if [ ${#missing_version_updates[@]} -ne 0 ]; then
-            # echo "::set-output name=missing_versions::$(IFS=,; echo "${missing_version_updates[*]}")"
-            echo MISSING_VERSIONS=$(IFS=,; echo "${missing_version_updates[*]}")" >> GITHUB_ENV
+          if [ ${#MISSING_VERSION_UPDATES[@]} -ne 0 ]; then
+            # echo "::set-output name=missing_versions::$(IFS=,; echo "${MISSING_VERSION_UPDATES[*]}")"
+            echo MISSING_VERSIONS=$(IFS=,; echo "${MISSING_VERSION_UPDATES[*]}")" >> GITHUB_ENV
             fi
 
-            if [ ${#updated_files[@]} -ne 0 ]; then
-            # echo "::set-output name=updated_files::$(IFS=,; echo "${updated_files[*]}")"
-            echo UPDATED_FILES=$(IFS=,; echo "$(IFS=,; echo "${updated_files[*]}")" >> GITHUB_ENV
+            if [ ${#UPDATED_FILES[@]} -ne 0 ]; then
+            # echo "::set-output name=UPDATED_FILES::$(IFS=,; echo "${UPDATED_FILES[*]}")"
+            echo UPDATED_FILES=$(IFS=,; echo "$(IFS=,; echo "${UPDATED_FILES[*]}")" >> GITHUB_ENV
           fi
 
       - name: Post reminder comment
