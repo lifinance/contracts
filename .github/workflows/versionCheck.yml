@@ -18,9 +18,10 @@ jobs:
         run: |
           BASE_REF="${{ github.event.pull_request.base.ref }}"
           SHA="${{ github.sha }}"
-          FILES=$(git diff --name-only origin/${BASE_REF}...${SHA})
           echo "BASE_REF: $BASE_REF"
+          echo "SHA: $SHA"
           echo "FILES: $FILES"
+          FILES=$(git diff --name-only origin/${BASE_REF}...${SHA})
           echo "FILES=$FILES" >> $GITHUB_ENV
 
       - name: Check version tags and post reminders
