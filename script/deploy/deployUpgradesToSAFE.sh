@@ -22,7 +22,7 @@ deployUpgradesToSAFE() {
 
   GIT_BRANCH=$(git branch --show-current)
   echo $GIT_BRANCH
-  RESULT=$(ts-node script/deploy/github/verify-approvals.ts --branch $GIT_BRANCH)
+  RESULT=$(yarn tsx script/deploy/github/verify-approvals.ts --branch $GIT_BRANCH --token $GH_TOKEN)
   echo $RESULT
   exit
   # Loop through each script and call "forge script" to get the cut calldata
