@@ -64,7 +64,8 @@ jobs:
           while IFS= read -r FILE; do
             if [[ "$FILE" == *.sol ]]; then
               VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
-              echo "File: $FILE   ||  Version: $VERSION_TAG"
+              VERSION=$(grep -E '^/// @custom:version' <filename> | sed -E 's/^.*/// @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/')
+              echo "File: $FILE   ||  Version: $VERSION_TAG   || Version: $VERSION"
               if [[ -n "$VERSION_TAG" ]] && ! git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -qE '^@@.*\+/// @custom:version'; then
                 MISSING_VERSION_UPDATE+=("$FILE")
               fi
