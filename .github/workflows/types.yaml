@@ -18,7 +18,7 @@ jobs:
         with:
           ref: ${{ env.BRANCH_NAME }}
 
-      - name: Debug - Print Foundry.toml hash
+      - name: Debug Print Foundry.toml hash
         run: sha256sum foundry.toml
 
       - name: Set up cache for Foundry
@@ -32,7 +32,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-foundry-
 
-      - name: Debug -Verify Cache Hit
+      - name: Verify Cache Hit
         run: |
           echo "Cache hit: ${{ steps.foundry-cache.outputs.cache-hit }}"
 
@@ -40,11 +40,17 @@ jobs:
         if: steps.foundry-cache.outputs.cache-hit != 'true'
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Debug - List Foundry Directories
+      - name: Verify Foundry Installation
         run: |
-          echo "Listing ~/.foundry/cache:"
+          echo "Foundry binary path"
+          which foundry
+          echo "Home directory content"
+          ls -la /home/runner/
+          echo "Listing ~/.foundry"
+          ls -la ~/.foundry/
+          echo "Listing ~/.foundry/cache"
           ls -la ~/.foundry/cache
-          echo "Listing ~/.foundry/bin:"
+          echo "Listing ~/.foundry/bin"
           ls -la ~/.foundry/bin
 
       - name: Install Solidity Libs
@@ -134,7 +140,7 @@ jobs:
           git add src/*
           git add dist/*
           git add package.json
-          git commit -m 'actions: new contracts version ${{ steps.bump_version.outputs.next-version }}'
+          git commit -m 'actions new contracts version ${{ steps.bump_version.outputs.next-version }}'
 
           # Sanitize the commit message by removing single quotes
           COMMIT_MSG=$(echo "${{ env.MESSAGE }}" | sed "s/'//g")
