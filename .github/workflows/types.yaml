@@ -14,9 +14,17 @@ jobs:
 
     steps:
       - name: Checkout contracts repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.BRANCH_NAME }}
+
+      - name: Set up cache for Foundry
+        uses: actions/cache@v3
+        with:
+          path: ~/.foundry/cache
+          key: ${{ runner.os }}-foundry-${{ hashFiles('**/foundry.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-foundry-
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
