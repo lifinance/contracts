@@ -81,11 +81,14 @@ jobs:
       - name: Update PR title with updated version info
         if: ${{env.UPDATED_CONTRACTS}}
         uses: actions/github-script@v5
+        env:
+          PR_TITLE: ${{github.event.pull_request.title}}
         with:
           script: |
+            echo "PR_TITLE: $PR_TITLE"
             const updatedContracts = ${{env.UPDATED_CONTRACTS}}
             const updatedContracts = updatedContracts.split(',');
-            let prTitle = context.payload.pull_request.title;
+            let prTitle = $PR_TITLE;
 
             updatedContracts.forEach(contract => {
               if (!prTitle.includes(contract.trim())) {
