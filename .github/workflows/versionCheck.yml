@@ -55,8 +55,8 @@ jobs:
           fi
 
           # Write filenames to temporary files (using variables here was causing issues due to the file names)
-          #echo "$FILES" > modified_files.txt
-          echo "$CONTRACTS" > modified_contracts.txt
+          echo -e "$FILES" > modified_files.txt
+          echo -e "$CONTRACTS" > modified_contracts.txt
 
       - name: Check version tags and update PR title
         id: check_versions
@@ -64,81 +64,62 @@ jobs:
           BASE_REF="${{ github.event.pull_request.base.ref }}"
 
           # Read tmp files into variables
-          # FILES=$(cat modified_files.txt)
-          # echo "FILES=$FILES"
+          FILES=$(cat modified_files.txt)
+          echo "FILES=$FILES"
           CONTRACTS=$(cat modified_contracts.txt)
-          echo "CONTRACTS=$CONTRACTS"
+          echo -e "CONTRACTS=$CONTRACTS"
 
           # Initialize variables
           MISSING_VERSION_TAG=()
           MISSING_VERSION_UPDATE=()
           UPDATED_CONTRACTS=()
 
-
+          echo "--------------------"
 
           # Process each file separately
           while IFS= read -r FILE; do
-          echo "--------------------"
-          VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
-          VERSION=$(grep -E '^/// @custom:version' "$FILE" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
+            echo "Now checking contract: $FILE"
+            VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
+            VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
 
-          echo "now checking contract: $FILE , Version: $VERSION, Version_Tag: $VERSION_TAG"
+            echo "Version: $VERSION, Version_Tag: $VERSION_TAG"
 
             # Check if version tag exists
             if [[ -z "$VERSION_TAG" ]]; then
-              echo "file $FILE does not have a version tag at all"
+              echo "File $FILE does not have a version tag at all"
               MISSING_VERSION_TAG+=("$FILE")
             else
-              echo "file $FILE does have a version tag"
-
+              echo "File $FILE does have a version tag"
               # Check if version tag was updated in this PR
-              if git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -qE '^@@.*\+/// @custom:version'; then
-                echo "version in file $FILE was updated to $VERSION in this PR"
+              DIFF_OUTPUT=$(git diff origin/${BASE_REF} HEAD "$FILE")
+              echo "Diff output: $DIFF_OUTPUT"
+              if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
+                echo "Version was updated in $FILE"
                 CONTRACT_NAME=$(basename "$FILE" .sol)
                 NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
                 UPDATED_CONTRACTS+=("$CONTRACT_NAME v$NEW_VERSION")
               else
-                echo "version was not updated"
+                echo "Version was not updated in $FILE"
+                MISSING_VERSION_UPDATE+=("$FILE")
               fi
             fi
+            echo "--------------------"
           done <<< "$CONTRACTS"
 
-          # # Check for missing version updates
-          # while IFS= read -r FILE; do
-          #   if [[ "$FILE" == *.sol ]]; then
-          #     # extract the version from the contract
-          #     VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
-          #     VERSION=$(grep -E '^/// @custom:version' <filename> | sed -E 's/^.*/// @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
-          #     echo "File: $FILE   ,  Version: $VERSION_TAG   , Version: $VERSION"
+          # Output the results
+          if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
+            echo "Files missing version tags: ${MISSING_VERSION_TAG[*]}"
+          fi
 
-          #     # make sure version was extracted successfully
-          #     if [[ -z "$VERSION" ]];
-          #       echo "Could not extract contract version from contract $FILE. Please check if the contract is OK, otherwise there is a problem in this Github action"
-          #       exit 1
-          #     fi
+          if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
+            echo "Files with version tags not updated: ${MISSING_VERSION_UPDATE[*]}"
+          fi
 
-          #     # if version is available but was not updated
-
-          #     if [[ -n "$VERSION_TAG" ]] && ! git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -qE '^@@.*\+/// @custom:version'; then
-          #       MISSING_VERSION_UPDATE+=("$FILE")
-          #     fi
-          #   fi
-          # done <<< "$FILES"
-
-          # # Output the results
-          # if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
-          #   echo "Files missing version tags: ${MISSING_VERSION_TAG[*]}"
-          # fi
-
-          # if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
-          #   echo "Files with version tags not updated: ${MISSING_VERSION_UPDATE[*]}"
-          # fi
-
-          # if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
-          #   echo "Updated contracts and versions: ${UPDATED_CONTRACTS[*]}"
-          #   UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
-          #   echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
-          # fi
+          if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
+            echo "Updated contracts and versions: ${UPDATED_CONTRACTS[*]}"
+            UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
+            echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
+          fi
 
       - name: Update PR title with updated version info
         uses: actions/github-script@v5
@@ -146,11 +127,10 @@ jobs:
           PR_TITLE: ${{github.event.pull_request.title}}
         with:
           script: |
-            echo "PR_TITLE: $PR_TITLE"
-            const updatedContracts = ${{env.UPDATED_CONTRACTS}}
-            const updatedContracts = updatedContracts.split(',');
-            echo "updatedContracts: $updatedContracts"
-            let prTitle = $PR_TITLE;
+            console.log("PR_TITLE:", process.env.PR_TITLE);
+            const updatedContracts = process.env.UPDATED_CONTRACTS.split(',');
+            console.log("updatedContracts:", updatedContracts);
+            let prTitle = process.env.PR_TITLE;
 
             updatedContracts.forEach(contract => {
               if (!prTitle.includes(contract.trim())) {
