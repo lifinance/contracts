@@ -21,20 +21,53 @@ jobs:
         id: modified_files
         run: |
           BASE_REF="${{ github.event.pull_request.base.ref }}"
-          SHA="${{ github.sha }}"
-          echo "BASE_REF: $BASE_REF"
-          echo "SHA: $SHA"
+
+          # get all files modified by this PR
           FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
-          echo "FILES=$FILES"  # For debugging
-          echo "$FILES" > modified_files.txt  # Write filenames to a temporary file
+
+          # make sure that modified files of this PR are available
+          if [[ -z $FILES ]]; then
+            echo "No files found. This should not happen. Please check the code of the Github action"
+            exit 1
+          fi
+
+          # Initialize empty variables
+          FACETS=""
+          PERIPHERY=""
+
+          # go through all file names and identify facet & periphery contracts
+          while IFS= read -r FILE; do
+            if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
+              FACETS="$FACETS $FILE"
+              echo "C"
+            elif echo "$FILE" | grep -E '^src/Periphery/.*\.sol$'; then
+              PERIPHERY="$PERIPHERY $FILE"
+              echo "D"
+            fi
+          done <<< "$FILES"
+
+          # if none found, exit here as there is nothing to do
+          if [[ -z "$FACETS" && -z "$PERIPHERY" ]]; then
+            echo "No facets or periphery contracts found in files modified/added by this PR"
+            exit 0
+          fi
+
+          # Write filenames to temporary files (using variables was causing issues)
+          echo "$FILES" > modified_files.txt
+          echo "$FACETS" > modified_facets.txt
+          echo "$PERIPHERY" > modified_periphery.txt
 
       - name: Check version tags and post reminders
         id: check_versions
         run: |
           echo "A"
           FILES=$(cat modified_files.txt)  # Read filenames from the temporary file
+          FACETS=$(cat modified_facets.txt)  # Read filenames from the temporary file
+          PERIPHERY=$(cat modified_periphery.txt)  # Read filenames from the temporary file
           echo "B"
           echo "FILES=$FILES"
+          echo "FACETS=$FACETS"
+          echo "PERIPHERY=$PERIPHERY"
 
 
           # Initialize empty variables
