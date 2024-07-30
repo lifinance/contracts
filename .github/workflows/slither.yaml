@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.1.1
-      - uses: crytic/slither-action@v0.3.0
+      - uses: crytic/slither-action@v0.4.0
         with:
           node-version: 20
         continue-on-error: true
