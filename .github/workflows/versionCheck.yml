@@ -35,7 +35,9 @@ jobs:
           echo "A"
           FILES="${{ env.FILES }}"
           echo "B"
+          FILES2="${{ github.job.modified_files.outputs.FILES }}"
           echo "FILES=$FILES"
+          echo "FILES2=$FILES2"
           FACETS=$(echo "$FILES" | grep -E '^src/Facets/.*\.sol$')
           echo "C"
           PERIPHERY=$(echo "$FILES" | grep -E '^src/Periphery/.*\.sol$')
