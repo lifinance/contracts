@@ -12,10 +12,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Fetch all history for all branches
 
-      - name: Fetch all branches
-        run: git fetch --all
+      - name: Fetch base branch
+        run: git fetch origin +refs/heads/${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
 
       - name: Get list of modified files
         id: modified_files
@@ -24,15 +24,16 @@ jobs:
           SHA="${{ github.sha }}"
           echo "BASE_REF: $BASE_REF"
           echo "SHA: $SHA"
-          FILES=$(git diff --name-only origin/${BASE_REF})
-          # echo "FILES=$FILES" >> $GITHUB_ENV
+          FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
+          echo "FILES=$FILES"  # For debugging
+          # Use printf to properly handle multiline environment variables
           printf "FILES<<EOF\n%s\nEOF\n" "$FILES" >> $GITHUB_ENV
 
       - name: Check version tags and post reminders
         id: check_versions
         run: |
           echo "A"
-          FILES=${{ env.FILES }}
+          FILES="${{ env.FILES }}"
           echo "B"
           echo "FILES=$FILES"
           FACETS=$(echo "$FILES" | grep -E '^src/Facets/.*\.sol$')
@@ -47,36 +48,8 @@ jobs:
             echo "No facets or periphery contracts found in files modified/added by this PR"
             exit 0
           fi
-
-          MISSING_VERSION_UPDATES=()
-          UPDATED_FILES=()
-
-          CHECK_VERSION() {
-            FILE=$1
-            if ! git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -E '^@@.*@custom:version'; then
-              MISSING_VERSION_UPDATES+=("$FILE")
-            else
-              UPDATED_FILES+=("$FILE")
-            fi
-          }
-
-          for FILE in $FACETS; do
-            CHECK_VERSION "$FILE"
-          done
-
-          for FILE in $PERIPHERY; do
-            CHECK_VERSION "$FILE"
-          done
-
-          if [ ${#MISSING_VERSION_UPDATES[@]} -ne 0 ]; then
-            echo "MISSING_VERSIONS=$(IFS=,; echo "${MISSING_VERSION_UPDATES[*]}")" >> $GITHUB_ENV
-            echo "MISSING_VERSIONS=${MISSING_VERSION_UPDATES[*]}"
-          fi
-
-          if [ ${#UPDATED_FILES[@]} -ne 0 ]; then
-            echo "UPDATED_FILES=$(IFS=,; echo "${UPDATED_FILES[*]}")" >> $GITHUB_ENV
-            echo "UPDATED_FILES=${UPDATED_FILES[*]}"
-          fi
+        env:
+          FILES: ${{ steps.modified_files.outputs.FILES }}
 
       - name: Post reminder comment
         if: steps.check_versions.outputs.MISSING_VERSIONS
