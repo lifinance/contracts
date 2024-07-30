@@ -10,7 +10,9 @@ import { DexManagerFacet } from "lifi/Facets/DexManagerFacet.sol";
 contract Foo {}
 
 contract DexManagerFacetTest is DSTest, DiamondTest {
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
+    address internal constant USER_PAUSER = address(0xdeadbeef);
+    address internal constant USER_DIAMOND_OWNER = address(0x123456);
+
     LiFiDiamond internal diamond;
     DexManagerFacet internal dexMgr;
     Foo internal c1;
@@ -18,7 +20,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
     Foo internal c3;
 
     function setUp() public {
-        diamond = createDiamond();
+        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         dexMgr = new DexManagerFacet();
         c1 = new Foo();
         c2 = new Foo();
@@ -41,6 +43,7 @@ contract DexManagerFacetTest is DSTest, DiamondTest {
         addFacet(diamond, address(dexMgr), functionSelectors);
 
         dexMgr = DexManagerFacet(address(diamond));
+        vm.startPrank(USER_DIAMOND_OWNER);
     }
 
     function testCanAddDEX() public {

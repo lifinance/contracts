@@ -1,16 +1,12 @@
 // // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import "ds-test/test.sol";
-import { TestBase } from "../utils/TestBase.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
-import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { console } from "../utils/Console.sol";
+import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
 
 contract MockLiquidityBridge is TestBase {
     function mockWithdraw(uint256 _amount) external {
@@ -20,22 +16,15 @@ contract MockLiquidityBridge is TestBase {
     }
 }
 
-contract CBridgeFacetPackedTest is Test, DiamondTest {
+contract CBridgeFacetPackedTest is TestBase {
     address internal constant CBRIDGE_ROUTER =
         0x1619DE6B6B20eD217a58d00f37B9d47C7663feca;
-    address internal constant USDT_ADDRESS =
-        0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8;
-    address internal constant USDC_ADDRESS =
-        0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
     address internal constant WHALE =
         0xF3F094484eC6901FfC9681bCb808B96bAFd0b8a8; // usdt + ETH
     address internal constant RECEIVER =
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
 
     ICBridge internal cbridge;
-    ERC20 internal usdt;
-    ERC20 internal usdc;
-    LiFiDiamond internal diamond;
     CBridgeFacetPacked internal cBridgeFacetPacked;
     CBridgeFacetPacked internal standAlone;
 
@@ -53,24 +42,18 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
     uint256 amountUSDC;
     bytes packedUSDC;
 
-    function fork() internal {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_ARBITRUM");
-        uint256 blockNumber = 58467500;
-        vm.createSelectFork(rpcUrl, blockNumber);
-    }
-
     function setUp() public {
-        fork();
+        customBlockNumberForForking = 58467500;
+        customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
+        initTestBase();
 
         /// Perpare CBridgeFacetPacked
-        diamond = createDiamond();
+        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         cbridge = ICBridge(CBRIDGE_ROUTER);
         cBridgeFacetPacked = new CBridgeFacetPacked(cbridge, address(this));
         standAlone = new CBridgeFacetPacked(cbridge, address(this));
-        usdt = ERC20(USDT_ADDRESS);
-        usdc = ERC20(USDC_ADDRESS);
 
-        deal(USDC_ADDRESS, address(WHALE), 100000 * 10 ** usdc.decimals());
+        deal(ADDRESS_USDC, address(WHALE), 100000 * 10 ** usdc.decimals());
 
         bytes4[] memory functionSelectors = new bytes4[](9);
         functionSelectors[0] = cBridgeFacetPacked
@@ -125,7 +108,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
                 transactionId,
                 RECEIVER,
                 destinationChainId,
-                USDT_ADDRESS,
+                ADDRESS_USDT,
                 amountUSDT,
                 nonce,
                 maxSlippage
@@ -138,7 +121,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
                 transactionId,
                 RECEIVER,
                 destinationChainId,
-                USDC_ADDRESS,
+                ADDRESS_USDC,
                 amountUSDC,
                 nonce,
                 maxSlippage
@@ -146,13 +129,19 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
 
         // Prepare approvals
         address[] memory tokens = new address[](2);
-        tokens[0] = USDT_ADDRESS;
-        tokens[1] = USDC_ADDRESS;
+        tokens[0] = ADDRESS_USDT;
+        tokens[1] = ADDRESS_USDC;
         vm.startPrank(address(cBridgeFacetPacked));
         usdt.approve(CBRIDGE_ROUTER, type(uint256).max);
         usdc.approve(CBRIDGE_ROUTER, type(uint256).max);
         vm.stopPrank();
         standAlone.setApprovalForBridge(tokens);
+
+        // set facet address in TestBase
+        setFacetAddressInTestBase(
+            address(cBridgeFacetPacked),
+            "CBridgeFacetPacked"
+        );
     }
 
     function testStartBridgeTokensViaCBridgeNativePacked() public {
@@ -220,7 +209,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
             transactionId,
             RECEIVER,
             uint64(destinationChainId),
-            USDT_ADDRESS,
+            ADDRESS_USDT,
             amountUSDT,
             nonce,
             maxSlippage
@@ -257,7 +246,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
             transactionId,
             RECEIVER,
             uint64(destinationChainId),
-            USDC_ADDRESS,
+            ADDRESS_USDC,
             amountUSDC,
             nonce,
             maxSlippage
@@ -312,7 +301,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
             transactionId,
             RECEIVER,
             uint64(type(uint32).max),
-            USDT_ADDRESS,
+            ADDRESS_USDT,
             amountUSDT,
             nonce,
             maxSlippage
@@ -323,7 +312,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
             transactionId,
             RECEIVER,
             uint64(type(uint32).max) + 1,
-            USDT_ADDRESS,
+            ADDRESS_USDT,
             amountUSDT,
             nonce,
             maxSlippage
@@ -335,7 +324,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
             transactionId,
             RECEIVER,
             137,
-            USDT_ADDRESS,
+            ADDRESS_USDT,
             uint256(type(uint128).max),
             nonce,
             maxSlippage
@@ -346,7 +335,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
             transactionId,
             RECEIVER,
             137,
-            USDT_ADDRESS,
+            ADDRESS_USDT,
             uint256(type(uint128).max) + 1,
             nonce,
             maxSlippage
@@ -358,7 +347,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
             transactionId,
             RECEIVER,
             137,
-            USDT_ADDRESS,
+            ADDRESS_USDT,
             amountUSDT,
             uint64(type(uint32).max),
             maxSlippage
@@ -369,7 +358,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
             transactionId,
             RECEIVER,
             137,
-            USDT_ADDRESS,
+            ADDRESS_USDT,
             amountUSDT,
             uint64(type(uint32).max) + 1,
             maxSlippage
@@ -421,7 +410,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
                 transactionId,
                 RECEIVER,
                 destinationChainId,
-                USDT_ADDRESS,
+                ADDRESS_USDT,
                 amountUSDT,
                 nonce,
                 maxSlippage
@@ -449,7 +438,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
         );
         assertEq(
             decodedBridgeData.sendingAssetId,
-            USDT_ADDRESS,
+            ADDRESS_USDT,
             "sendingAssetId does not match"
         );
         assertEq(

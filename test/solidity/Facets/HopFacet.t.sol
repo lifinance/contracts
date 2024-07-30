@@ -147,7 +147,7 @@ contract HopFacetTest is TestBaseFacet {
 
         setDefaultSwapDataSingleDAItoUSDC();
         address[] memory path = new address[](2);
-        path[0] = ADDRESS_WETH;
+        path[0] = ADDRESS_WRAPPED_NATIVE;
         path[1] = ADDRESS_USDC;
 
         uint256 amountOut = defaultUSDCAmount;
@@ -228,8 +228,8 @@ contract HopFacetTest is TestBaseFacet {
     }
 
     function test_OwnerCanInitializeFacet() public {
+        LiFiDiamond diamond2 = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         vm.startPrank(USER_DIAMOND_OWNER);
-        LiFiDiamond diamond2 = createDiamond();
 
         TestHopFacet hopFacet2 = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](6);
@@ -272,7 +272,7 @@ contract HopFacetTest is TestBaseFacet {
         ERC20 usdcPoly = ERC20(ADDRESS_USDC_POLYGON); // USDC on Polygon
 
         // re-deploy diamond and facet
-        diamond = createDiamond();
+        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         TestHopFacet hopFacet2 = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = hopFacet2.startBridgeTokensViaHop.selector;

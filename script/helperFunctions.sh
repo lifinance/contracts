@@ -2047,7 +2047,7 @@ function checkFailure() {
 # >>>>> output to console
 function echoDebug() {
   # read function arguments into variables
-  MESSAGE=$1
+  local MESSAGE=$1
 
   # write message to console if debug flag is set to true
   if [[ $DEBUG == "true" ]]; then
@@ -2059,6 +2059,9 @@ function error() {
 }
 function warning() {
   printf '\033[33m[warning] %s\033[0m\n' "$1"
+}
+function success() {
+  printf '\033[0;32m[success] %s\033[0m\n' "$1"
 }
 # <<<<< output to console
 
@@ -3403,6 +3406,56 @@ function compareAddresses() {
     return 1
   fi
 }
+function sendMessageToDiscordSmartContractsChannel() {
+  # read function arguments into variable
+  local MESSAGE=$1
+
+  if [ -z "$DISCORD_WARNING_WEBHOOK_URL" ]; then
+    echo ""
+    warning "Discord webhook URL for dev-smartcontracts is missing. Cannot send log message."
+    echo ""
+    return 1
+  fi
+
+  echo ""
+  echoDebug "sending the following message to Discord webhook ('dev-smartcontracts' channel):"
+  echoDebug "$MESSAGE"
+  echo ""
+
+  # Send the message
+  curl -H "Content-Type: application/json" \
+     -X POST \
+     -d "{\"content\": \"$MESSAGE\"}" \
+     $DISCORD_WARNING_WEBHOOK_URL
+
+  echoDebug "Log message sent to Discord"
+
+  return 0
+
+
+}
+
+function getUserInfo() {
+  # log local username
+  local USERNAME=$(whoami)
+
+  # log Github email address
+  EMAIL=$(git config --global user.email)
+  if [ -z "$EMAIL" ]; then
+      EMAIL=$(git config --local user.email)
+  fi
+
+  # return collected info
+  echo "Username: $USERNAME, Github email: $EMAIL"
+
+}
+function cleanupBackgroundJobs() {
+  echo "Cleaning up..."
+  # Kill all background jobs
+  pkill -P $$
+  echo "All background jobs killed. Script execution aborted."
+  exit 1
+}
 # <<<<<< miscellaneous
 
 # >>>>>> helpers to set/update deployment files/logs/etc
@@ -3749,8 +3802,8 @@ function test_tmp() {
   ENVIRONMENT="production"
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
-  ARGS="0x"
-
+  ARGS="0x00000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666"
+  RPC_URL=$(getRPCUrl "$NETWORK" "$ENVIRONMENT")
   #  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
   #  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
   #    error "ERC20Proxy ownership was not transferred to address(0)"
@@ -3759,7 +3812,5 @@ function test_tmp() {
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
   # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 
-  transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
+  # transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
 }
-
-# test_tmp

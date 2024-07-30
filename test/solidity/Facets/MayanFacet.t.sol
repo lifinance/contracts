@@ -146,7 +146,7 @@ contract MayanFacetTest is TestBaseFacet {
         // prepare swap data
         address[] memory path = new address[](2);
         path[0] = ADDRESS_USDC;
-        path[1] = ADDRESS_WETH;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
 
         uint256 amountOut = defaultNativeAmount;
 
@@ -223,7 +223,7 @@ contract MayanFacetTest is TestBaseFacet {
         // prepare swap data
         address[] memory path = new address[](2);
 
-        path[0] = ADDRESS_WETH;
+        path[0] = ADDRESS_WRAPPED_NATIVE;
         path[1] = ADDRESS_USDC;
 
         uint256 amountOut = defaultUSDCAmount;
@@ -314,9 +314,10 @@ contract MayanFacetTest is TestBaseFacet {
         customRpcUrlForForking = "ETH_NODE_URI_BSC";
         customBlockNumberForForking = 39980051;
         ADDRESS_USDC = 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d;
+        ADDRESS_USDT = 0x55d398326f99059fF775485246999027B3197955;
         ADDRESS_DAI = 0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3;
         ADDRESS_UNISWAP = 0x10ED43C718714eb63d5aA57B78B54704E256024E;
-        ADDRESS_WETH = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c;
+        ADDRESS_WRAPPED_NATIVE = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c;
         vm.label(DEV_WALLET, "DEV_WALLET");
         initTestBase();
         setupMayan();
@@ -324,7 +325,11 @@ contract MayanFacetTest is TestBaseFacet {
         // transfer initial DAI/USDC/WETH balance to USER_SENDER
         deal(ADDRESS_USDC, DEV_WALLET, 100_000 * 10 ** usdc.decimals());
         deal(ADDRESS_DAI, DEV_WALLET, 100_000 * 10 ** dai.decimals());
-        deal(ADDRESS_WETH, DEV_WALLET, 100_000 * 10 ** weth.decimals());
+        deal(
+            ADDRESS_WRAPPED_NATIVE,
+            DEV_WALLET,
+            100_000 * 10 ** weth.decimals()
+        );
 
         // fund USER_SENDER with 1000 ether
         vm.deal(DEV_WALLET, 1000 ether);

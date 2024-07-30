@@ -1,6 +1,10 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0x6DCDA5EEb0eb10D61eB9AAF93C3B89704955dA42": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.0"
+      },
       "0x06045F5FA6EA7c6AcEb104b55BcD6C3dE3a08831": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"

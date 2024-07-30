@@ -182,7 +182,7 @@ contract ReceiverStargateV2Test is TestBase {
         // https://stargateprotocol.gitbook.io/stargate/v/v2-developer-docs/integrate-with-stargate/composability#receive
         (bytes memory composeMsg, ) = _getValidLzComposeCalldata(
             ADDRESS_USDC,
-            ADDRESS_WETH
+            ADDRESS_WRAPPED_NATIVE
         );
 
         // call from deployer of ReceiverStargateV2
@@ -232,7 +232,7 @@ contract ReceiverStargateV2Test is TestBase {
 
         (bytes memory composeMsg, ) = _getValidLzComposeCalldata(
             ADDRESS_USDC,
-            ADDRESS_WETH
+            ADDRESS_WRAPPED_NATIVE
         );
 
         vm.startPrank(STARGATE_NATIVE_POOL_MAINNET);

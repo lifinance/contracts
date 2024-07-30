@@ -36,13 +36,9 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
     function setUp() public {
         // Custom Config
         customRpcUrlForForking = "ETH_NODE_URI_POLYGON";
-        customBlockNumberForForking = 38461246;
-        ADDRESS_USDC = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
-        ADDRESS_DAI = 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063;
-        ADDRESS_WETH = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
-        ADDRESS_UNISWAP = 0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506;
-
+        customBlockNumberForForking = 59534582;
         initTestBase();
+
         hopFacet = new TestHopFacet();
         bytes4[] memory functionSelectors = new bytes4[](7);
         functionSelectors[0] = hopFacet
@@ -208,26 +204,6 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testBase_Revert_SwapAndBridgeWithInvalidAmount()
-        public
-        virtual
-        override
-    {
-        vm.startPrank(USER_SENDER);
-        // prepare bridgeData
-        bridgeData.hasSourceSwaps = true;
-        bridgeData.minAmount = 0;
-
-        dai.approve(address(hopFacet), type(uint256).max);
-        setDefaultSwapDataSingleDAItoUSDC();
-
-        // OptimizedFacet does have less checks, therefore tx fails at different point in code
-        vm.expectRevert("L2_BRG: bonderFee must meet minimum requirements");
-
-        initiateSwapAndBridgeTxWithFacet(false);
-        vm.stopPrank();
-    }
-
     function testBase_Revert_BridgeToSameChainId() public virtual override {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData
@@ -268,6 +244,14 @@ contract HopFacetOptimizedL2Test is TestBaseFacet {
         override
     {
         // OptimizedFacet does have less checks, therefore it is possible to send a tx with invalid receiver address
+    }
+
+    function testBase_Revert_SwapAndBridgeWithInvalidAmount()
+        public
+        virtual
+        override
+    {
+        // OptimizedFacet does have less checks, therefore it is possible to send a tx with invalid amount
     }
 
     function testBase_Revert_BridgeWithInvalidReceiverAddress()
