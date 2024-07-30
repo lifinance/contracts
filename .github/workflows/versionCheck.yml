@@ -119,12 +119,10 @@ jobs:
             echo "Files with version tags not updated: ${MISSING_VERSION_UPDATE[*]}"
           fi
 
+          # if there are any contracts that were (correctly) updated, add them to an array (so we can check the PR title after)
           if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
             echo "Updated contracts and versions: ${UPDATED_CONTRACTS[*]}"
             UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
-
-            echo "UPDATED_CONTRACTS_STR: $UPDATED_CONTRACTS_STR"
-
             echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
           fi
 
@@ -132,9 +130,12 @@ jobs:
         env:
           PR_TITLE: ${{github.event.pull_request.title}}
           UPDATED_CONTRACTS: ${{ steps.check_versions.outputs.UPDATED_CONTRACTS }}
+          UPDATED_CONTRACTS_STR: ${{ steps.check_versions.outputs.UPDATED_CONTRACTS_STR }}
         run: |
           echo "PR_TITLE: $PR_TITLE"
           echo "UPDATED_CONTRACTS: $UPDATED_CONTRACTS"
+          echo "UPDATED_CONTRACTS_STR: $UPDATED_CONTRACTS_STR"
+          echo "UPDATED_CONTRACTS_STR: ${{env.UPDATED_CONTRACTS_STR}}"
 
           # Initialize PR title
           PR_TITLE_UPDATED="$PR_TITLE"
