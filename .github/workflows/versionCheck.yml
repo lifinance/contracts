@@ -54,11 +54,18 @@ jobs:
                   # version was updated
                   CONTRACT_NAME=$(basename "$FILE" .sol)
                   NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
-                  UPDATED_CONTRACTS+=("$CONTRACT_NAME $NEW_VERSION")
-                else
-                  # version was not updated
-                  MISSING_VERSION_UPDATE+=("$FILE")
+                  UPDATED_CONTRACTS+=("$CONTRACT_NAME v$NEW_VERSION")
                 fi
+              fi
+            fi
+          done <<< "$FILES"
+
+          # Check for missing version updates
+          while IFS= read -r FILE; do
+            if [[ "$FILE" == *.sol ]]; then
+              VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
+              if [[ -n "$VERSION_TAG" ]] && ! git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -qE '^@@.*\+/// @custom:version'; then
+                MISSING_VERSION_UPDATE+=("$FILE")
               fi
             fi
           done <<< "$FILES"
