@@ -135,8 +135,8 @@ jobs:
           echo "PR_TITLE: $PR_TITLE"
           echo "UPDATED_CONTRACTS: $UPDATED_CONTRACTS"
           echo "UPDATED_CONTRACTS_STR: $UPDATED_CONTRACTS_STR"
-          echo "UPDATED_CONTRACTS_STR: $UPDATED_CONTRACTS_STR"
-          echo "UPDATED_CONTRACTS_STR: ${{github.UPDATED_CONTRACTS_STR}}"
+          echo "UPDATED_CONTRACTS_STR: ${{ env.UPDATED_CONTRACTS_STR }}"
+          echo "UPDATED_CONTRACTS_STR: ${{ github.UPDATED_CONTRACTS_STR }}"
 
           # Initialize PR title
           PR_TITLE_UPDATED="$PR_TITLE"
