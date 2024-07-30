@@ -19,6 +19,7 @@ jobs:
           ref: ${{ env.BRANCH_NAME }}
 
       - name: Print Foundry.toml Hash
+        id: foundry_hash
         run: |
           foundry_hash=$(sha256sum foundry.toml | awk '{ print $1 }')
           echo "Foundry.toml hash: $foundry_hash"
@@ -58,6 +59,11 @@ jobs:
           ls -la ~/.foundry/bin || echo "~/.foundry/bin not found"
           echo "Listing ~/.cache/foundry:"
           ls -la ~/.cache/foundry || echo "~/.cache/foundry not found"
+
+      - name: Debug Foundry Installation
+        run: |
+          echo "Trying to find Foundry installation directory..."
+          find /home/runner/ -type d -name "foundry*"
 
       - name: Install Solidity Libs
         run: forge install
@@ -154,4 +160,5 @@ jobs:
           git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ env.MESSAGE }}"
           git push origin tag v${{ steps.bump_version.outputs.next-version }}
           if [[ "$BRANCH_NAME" == "main" ]]; then
-            git
+            git push -u origin $BRANCH_NAME
+          fi
