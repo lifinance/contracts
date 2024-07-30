@@ -24,10 +24,11 @@ jobs:
           SHA="${{ github.sha }}"
           echo "BASE_REF: $BASE_REF"
           echo "SHA: $SHA"
-          # FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
           FILES="src/Facets/AllBridgeFacet.sol"
           echo "FILES=$FILES" >> $GITHUB_ENV
           echo "FILES=$FILES"
+          FILES2=$(git diff --name-only origin/${BASE_REF})
+          echo "FILES2=$FILES2"
 
       - name: Check version tags and post reminders
         id: check_versions
