@@ -107,7 +107,7 @@ jobs:
 
                 # check if PR title contains string (`${contractName} v${VERSION}`)
                 CONTRACT_NAME=$(basename "$FILE" .sol)
-                TARGET_STRING=$CONTRACT_NAME"v"$VERSION
+                TARGET_STRING="${CONTRACT_NAME}v${VERSION}"
 
                 echo "TARGET_STRING: $TARGET_STRING"
 
