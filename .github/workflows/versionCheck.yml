@@ -24,13 +24,14 @@ jobs:
           SHA="${{ github.sha }}"
           echo "BASE_REF: $BASE_REF"
           echo "SHA: $SHA"
-          FILES=$(git diff --name-only origin/main HEAD)
+          FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
           echo "FILES=$FILES" >> $GITHUB_ENV
+          echo "FILES=$FILES"
 
       - name: Check version tags and post reminders
         id: check_versions
         run: |
-          FILES="${{ steps.modified_files.outputs.FILES }}"
+          FILES="${{ env.FILES }}"
           FACETS=$(echo "$FILES" | grep -E '^src/Facets/.*\.sol$')
           PERIPHERY=$(echo "$FILES" | grep -E '^src/Periphery/.*\.sol$')
 
@@ -42,7 +43,7 @@ jobs:
 
           CHECK_VERSION() {
             FILE=$1
-            if ! git diff -U0 origin/${{ github.event.pull_request.base.ref }}...${{ github.sha }} "$FILE" | grep -E '^@@.*@CUSTOM:VERSION'; then
+            if ! git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -E '^@@.*@custom:version'; then
               MISSING_VERSION_UPDATES+=("$FILE")
             else
               UPDATED_FILES+=("$FILE")
@@ -58,11 +59,13 @@ jobs:
           done
 
           if [ ${#MISSING_VERSION_UPDATES[@]} -ne 0 ]; then
-            echo "MISSING_VERSIONS=$(IFS=,; echo "${MISSING_VERSION_UPDATES[*]}")" >> GITHUB_ENV
+            echo "MISSING_VERSIONS=$(IFS=,; echo "${MISSING_VERSION_UPDATES[*]}")" >> $GITHUB_ENV
+            echo "MISSING_VERSIONS=${MISSING_VERSION_UPDATES[*]}"
           fi
 
           if [ ${#UPDATED_FILES[@]} -ne 0 ]; then
-            echo "UPDATED_FILES=$(IFS=,; echo "${UPDATED_FILES[*]}")" >> GITHUB_ENV
+            echo "UPDATED_FILES=$(IFS=,; echo "${UPDATED_FILES[*]}")" >> $GITHUB_ENV
+            echo "UPDATED_FILES=${UPDATED_FILES[*]}"
           fi
 
       - name: Post reminder comment
