@@ -78,7 +78,7 @@ jobs:
         uses: actions/github-script@v5
         with:
           script: |
-            const updatedFiles = '${{ steps.check_versions.outputs.updated_files }}'.split(',');
+            const updatedFiles = '${{ steps.check_versions.outputs.UPDATED_FILES }}'.split(',');
             let prTitle = context.payload.pull_request.title;
 
             for (const file of updatedFiles) {
