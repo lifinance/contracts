@@ -83,7 +83,7 @@ jobs:
             VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
             VERSION=$(grep -E '^/// @custom:version' <filename> | sed -E 's/^.*/// @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
 
-            echo "now checking contract: $FILE || Version: $VERSION"
+            echo "now checking contract: $FILE , Version: $VERSION"
 
             # Check if version tag exists
             if [[ -z "$VERSION_TAG" ]]; then
@@ -107,7 +107,7 @@ jobs:
           #     # extract the version from the contract
           #     VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
           #     VERSION=$(grep -E '^/// @custom:version' <filename> | sed -E 's/^.*/// @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
-          #     echo "File: $FILE   ||  Version: $VERSION_TAG   || Version: $VERSION"
+          #     echo "File: $FILE   ,  Version: $VERSION_TAG   , Version: $VERSION"
 
           #     # make sure version was extracted successfully
           #     if [[ -z "$VERSION" ]];
