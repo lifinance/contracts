@@ -79,7 +79,6 @@ jobs:
           fi
 
       - name: Update PR title with updated version info
-        if: ${{env.UPDATED_CONTRACTS}}
         uses: actions/github-script@v5
         env:
           PR_TITLE: ${{github.event.pull_request.title}}
