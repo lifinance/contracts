@@ -16,7 +16,12 @@ jobs:
       - name: Get list of modified files
         id: modified_files
         run: |
-          echo "FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...${{ github.sha }})" >> GITHUB_ENV
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          SHA="${{ github.sha }}"
+          FILES=$(git diff --name-only origin/${BASE_REF}...${SHA})
+          echo "BASE_REF: $BASE_REF"
+          echo "FILES: $FILES"
+          echo "FILES=$FILES" >> $GITHUB_ENV
 
       - name: Check version tags and post reminders
         id: check_versions
