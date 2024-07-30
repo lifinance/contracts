@@ -91,8 +91,8 @@ jobs:
             else
               echo "File $FILE does have a version tag"
               # Check if version tag was updated in this PR
-              DIFF_OUTPUT=$(git diff origin/${BASE_REF} HEAD "$FILE")
-              echo "Diff output: $DIFF_OUTPUT"
+              DIFF_OUTPUT=$(git diff -U0 origin/${BASE_REF} HEAD "$FILE")
+              # echo "Diff output: $DIFF_OUTPUT"
               if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
                 echo "Version was updated in $FILE"
                 CONTRACT_NAME=$(basename "$FILE" .sol)
