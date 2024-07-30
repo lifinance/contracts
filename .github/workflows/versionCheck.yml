@@ -81,7 +81,7 @@ jobs:
           while IFS= read -r FILE; do
             echo "now checking contract: $FILE"
             VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
-            VERSION=$(grep -E '^/// @custom:version' <filename> | sed -E 's/^.*/// @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
+            VERSION=$(grep -E '^/// @custom:version' $FILE | sed -E 's/^.*/// @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
 
             echo "now checking contract: $FILE , Version: $VERSION, Version_Tag: $VERSION_TAG"
 
