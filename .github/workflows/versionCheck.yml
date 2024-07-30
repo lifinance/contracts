@@ -86,13 +86,13 @@ jobs:
 
             # Check if version tag exists
             if [[ -z "$VERSION_TAG" ]]; then
-              echo "file $FILE does not have a version tag"
+              echo "file $FILE does not have a version tag at all"
               MISSING_VERSION_TAG+=("$FILE")
             else
-              echo "this path"
+              echo "file $FILE does have a version tag"
+
               # Check if version tag was updated in this PR
               if git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -qE '^@@.*\+/// @custom:version'; then
-                echo "version was updated"
                 echo "version in file $FILE was updated to $VERSION in this PR"
                 CONTRACT_NAME=$(basename "$FILE" .sol)
                 NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
