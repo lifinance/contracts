@@ -20,7 +20,7 @@ jobs:
           echo "BASE_REF: $BASE_REF"
           echo "SHA: $SHA"
           echo "FILES: $FILES"
-          FILES=$(git diff --name-only origin/${BASE_REF}...${SHA})
+          FILES=$(git diff --name-only origin/main HEAD)
           echo "FILES=$FILES" >> $GITHUB_ENV
 
       - name: Check version tags and post reminders
