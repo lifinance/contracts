@@ -21,77 +21,67 @@ jobs:
         id: modified_files
         run: |
           BASE_REF="${{ github.event.pull_request.base.ref }}"
-
-          # get all files modified by this PR
+          SHA="${{ github.sha }}"
+          echo "BASE_REF: $BASE_REF"
+          echo "SHA: $SHA"
           FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
-
-          # make sure that modified files of this PR are available
-          if [[ -z $FILES ]]; then
-            echo "No files found. This should not happen. Please check the code of the Github action"
-            exit 1
-          fi
-
-          # Initialize empty variables
-          FACETS=""
-          PERIPHERY=""
-
-          # go through all file names and identify facet & periphery contracts
-          while IFS= read -r FILE; do
-            if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
-              FACETS="$FACETS $FILE"
-            elif echo "$FILE" | grep -E '^src/Periphery/.*\.sol$'; then
-              PERIPHERY="$PERIPHERY $FILE"
-            fi
-          done <<< "$FILES"
-
-          # if none found, exit here as there is nothing to do
-          if [[ -z "$FACETS" && -z "$PERIPHERY" ]]; then
-            echo "No facets or periphery contracts found in files modified/added by this PR"
-            exit 0
-          fi
-
-          # Write filenames to temporary files (using variables was causing issues)
-          echo "$FILES" > modified_files.txt
-          echo "$FACETS" > modified_facets.txt
-          echo "$PERIPHERY" > modified_periphery.txt
-
-          echo "modified files identified, analyzed and written to tmp files for subsequent actions"
+          echo "FILES=$FILES"  # For debugging
+          echo "$FILES" > modified_files.txt  # Write filenames to a temporary file
 
       - name: Check version tags and post reminders
         id: check_versions
         run: |
           FILES=$(cat modified_files.txt)  # Read filenames from the temporary file
-          FACETS=$(cat modified_facets.txt)  # Read filenames from the temporary file
-          PERIPHERY=$(cat modified_periphery.txt)  # Read filenames from the temporary file
           echo "FILES=$FILES"
-          echo "FACETS=$FACETS"
-          echo "PERIPHERY=$PERIPHERY"
 
-          # make sure data was read correctly from files
-          if [[ -z "$FACETS" && -z "$PERIPHERY" ]]; then
-            echo "No facets or periphery contracts found in files modified/added by this PR"
-            exit 0
+          # Initialize variables
+          MISSING_VERSION_TAG=()
+          MISSING_VERSION_UPDATE=()
+          UPDATED_CONTRACTS=()
+
+          # Process each file separately
+          while IFS= read -r FILE; do
+            if [[ "$FILE" == *.sol ]]; then
+              VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
+
+              # Check if version tag exists
+              if [[ -z "$VERSION_TAG" ]]; then
+                MISSING_VERSION_TAG+=("$FILE")
+              else
+                # Check if version tag was updated in this PR
+                if git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -qE '^@@.*\+/// @custom:version'; then
+                  CONTRACT_NAME=$(basename "$FILE" .sol)
+                  NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
+                  UPDATED_CONTRACTS+=("$CONTRACT_NAME $NEW_VERSION")
+                else
+                  MISSING_VERSION_UPDATE+=("$FILE")
+                fi
+              fi
+            fi
+          done <<< "$FILES"
+
+          # Output the results
+          if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
+            echo "Files missing version tags: ${MISSING_VERSION_TAG[*]}"
+            exit 1
           fi
 
-          # merge files
-          MERGED_CONTENT=$(cat modified_facets.txt modified_periphery.txt)
+          if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
+            echo "Files with version tags not updated: ${MISSING_VERSION_UPDATE[*]}"
+            exit 1
+          fi
 
-
-
-
-
-          # go through all facets and periphery and ...
-          while IFS= read -r FILE; do
-            echo "FILE: $FILE"
-          done <<< "$MERGED_CONTENT"
+          if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
+            echo "Updated contracts and versions: ${UPDATED_CONTRACTS[*]}"
+          fi
 
       - name: Post reminder comment
-        if: steps.check_versions.outputs.MISSING_VERSIONS
+        if: steps.check_versions.outputs.MISSING_VERSION_UPDATE
         uses: actions/github-script@v5
         with:
           script: |
-            const MISSING_VERSION_FILES = '${{ steps.check_versions.outputs.MISSING_VERSIONS }}'.split(',');
-            const body = `Did you forget to update the version in file(s): ${MISSING_VERSION_FILES.join(', ')}?`;
+            const MISSING_VERSION_FILES = '${{ steps.check_versions.outputs.MISSING_VERSION_UPDATE }}'.split(',');
+            const body = `The following files have version tags that were not updated: ${MISSING_VERSION_FILES.join(', ')}. Please update the version tags.`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -99,30 +89,16 @@ jobs:
               body: body
             });
 
-      - name: Update PR title with updated version info
-        if: steps.check_versions.outputs.UPDATED_FILES
+      - name: Post version updates comment
+        if: success()
         uses: actions/github-script@v5
         with:
           script: |
-            const UPDATED_FILES = '${{ steps.check_versions.outputs.UPDATED_FILES }}'.split(',');
-            let prTitle = context.payload.pull_request.title;
-
-            for (const file of UPDATED_FILES) {
-              const fileName = file.split('/').pop().replace('.sol', '');
-              const fileContent = require('fs').readFileSync(file, 'utf8');
-              const versionMatch = fileContent.match(/@custom:version\s+([\d.]+)/);
-              if (versionMatch) {
-                const version = versionMatch[1];
-                const versionTag = `${fileName} v${version}`;
-                if (!prTitle.includes(versionTag)) {
-                  prTitle += ` (${versionTag})`;
-                }
-              }
-            }
-
-            github.rest.pulls.update({
+            const UPDATED_CONTRACTS = '${{ steps.check_versions.outputs.UPDATED_CONTRACTS }}'.split(',');
+            const body = `The following contracts have been updated with new versions: ${UPDATED_CONTRACTS.join(', ')}.`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.issue.number,
-              title: prTitle
+              body: body
             });
