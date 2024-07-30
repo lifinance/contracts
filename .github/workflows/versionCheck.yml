@@ -24,11 +24,9 @@ jobs:
           SHA="${{ github.sha }}"
           echo "BASE_REF: $BASE_REF"
           echo "SHA: $SHA"
-          FILES="src/Facets/AllBridgeFacet.sol"
-          echo "FILES=$FILES" >> $GITHUB_ENV
+          FILES=$(git diff --name-only origin/${BASE_REF})
           echo "FILES=$FILES"
-          FILES2=$(git diff --name-only origin/${BASE_REF})
-          echo "FILES2=$FILES2"
+          echo "FILES=$FILES" >> $GITHUB_ENV
 
       - name: Check version tags and post reminders
         id: check_versions
@@ -39,6 +37,11 @@ jobs:
 
           echo "FACETS found: $FACETS"
           echo "PERIPHERY found: $PERIPHERY"
+
+          if [[ -z "$FACETS" && -z "$PERIPHERY" ]]; then
+            echo "No facets or periphery contracts found in files modified/added by this PR"
+            exit 0
+          fi
 
           MISSING_VERSION_UPDATES=()
           UPDATED_FILES=()
