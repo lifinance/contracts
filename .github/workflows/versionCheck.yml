@@ -54,9 +54,12 @@ jobs:
             exit 0
           fi
 
+          echo "AA"
           # Write filenames to temporary files (using variables here was causing issues due to the file names)
           echo "$FILES" > modified_files.txt
+          echo "AB"
           echo "$CONTRACTS" > modified_contracts.txt
+          echo "AC"
 
       - name: Check version tags and update PR title
         id: check_versions
