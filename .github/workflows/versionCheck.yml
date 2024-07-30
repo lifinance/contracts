@@ -35,10 +35,24 @@ jobs:
           FILES=$(cat modified_files.txt)  # Read filenames from the temporary file
           echo "B"
           echo "FILES=$FILES"
-          FACETS=$(echo "$FILES" | grep -E '^src/Facets/.*\.sol$')
-          echo "C"
-          PERIPHERY=$(echo "$FILES" | grep -E '^src/Periphery/.*\.sol$')
-          echo "D"
+
+
+          # Initialize empty variables
+          FACETS=""
+          PERIPHERY=""
+
+          # Process each file separately
+          while IFS= read -r FILE; do
+            if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
+              FACETS="$FACETS $FILE"
+              echo "C"
+            elif echo "$FILE" | grep -E '^src/Periphery/.*\.sol$'; then
+              PERIPHERY="$PERIPHERY $FILE"
+              echo "D"
+            fi
+          done <<< "$FILES"
+          echo "E"
+          # PERIPHERY=$(echo "$FILES" | grep -E '^src/Periphery/.*\.sol$')
 
           echo "FACETS found: $FACETS"
           echo "PERIPHERY found: $PERIPHERY"
