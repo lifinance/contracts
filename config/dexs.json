@@ -321,6 +321,11 @@
     "0x46b3fdf7b5cde91ac049936bf0bdb12c5d22202e",
     "0x111111125421ca6dc452d289314280a0f8842a65"
   ],
+  "gravity": [
+    "0x79540403cdE176Ca5f1fb95bE84A7ec91fFDEF76",
+    "0x7fA60f4A59Dd8285C5Fcd8fd2A92A2Ca45ef8a0C",
+    "0x134f525AC05E4724e55C363A9C4FA35ceB13F88d"
+  ],
   "fraxtal": [
     "0x7956280Ec4B4d651C4083Ca737a1fa808b5319D8",
     "0x9870F0C91D722B3393383722968269496d919bD8",
@@ -618,7 +623,9 @@
     "0xf91bb752490473b8342a3e964e855b9f9a2a668e"
   ],
   "avalancheFujiTestnet": [],
-  "bscTestnet": ["0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"],
+  "bscTestnet": [
+    "0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"
+  ],
   "localanvil": [],
   "linea": [
     "0xf6C9605c6E231C1547b7a6545d93e7233f97322a",

@@ -95,7 +95,8 @@ const main = defineCommand({
       return (
         !coreFacets.includes(k) &&
         !corePeriphery.includes(k) &&
-        k !== 'LiFiDiamond'
+        k !== 'LiFiDiamond' &&
+        k.endsWith('Facet')
       )
     })
     const dexs = (await import(`../../config/dexs.json`))[
