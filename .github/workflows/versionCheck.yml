@@ -54,12 +54,9 @@ jobs:
             exit 0
           fi
 
-          echo "AA"
           # Write filenames to temporary files (using variables here was causing issues due to the file names)
-          echo "$FILES" > modified_files.txt
-          echo "AB"
+          #echo "$FILES" > modified_files.txt
           echo "$CONTRACTS" > modified_contracts.txt
-          echo "AC"
 
       - name: Check version tags and update PR title
         id: check_versions
@@ -67,8 +64,8 @@ jobs:
           BASE_REF="${{ github.event.pull_request.base.ref }}"
 
           # Read tmp files into variables
-          FILES=$(cat modified_files.txt)
-          echo "FILES=$FILES"
+          # FILES=$(cat modified_files.txt)
+          # echo "FILES=$FILES"
           CONTRACTS=$(cat modified_contracts.txt)
           echo "CONTRACTS=$CONTRACTS"
 
@@ -82,15 +79,21 @@ jobs:
 
           # Process each file separately
           while IFS= read -r FILE; do
+            echo "now checking contract: $FILE"
             VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
+            VERSION=$(grep -E '^/// @custom:version' <filename> | sed -E 's/^.*/// @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
+
+            echo "now checking contract: $FILE || Version: $VERSION"
 
             # Check if version tag exists
             if [[ -z "$VERSION_TAG" ]]; then
+              echo "file $FILE does not have a version tag"
               MISSING_VERSION_TAG+=("$FILE")
             else
               # Check if version tag was updated in this PR
               if git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -qE '^@@.*\+/// @custom:version'; then
                 # version was updated
+                echo "version in file $FILE was updated to $VERSION in this PR"
                 CONTRACT_NAME=$(basename "$FILE" .sol)
                 NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
                 UPDATED_CONTRACTS+=("$CONTRACT_NAME v$NEW_VERSION")
@@ -98,42 +101,42 @@ jobs:
             fi
           done <<< "$CONTRACTS"
 
-          # Check for missing version updates
-          while IFS= read -r FILE; do
-            if [[ "$FILE" == *.sol ]]; then
-              # extract the version from the contract
-              VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
-              VERSION=$(grep -E '^/// @custom:version' <filename> | sed -E 's/^.*/// @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
-              echo "File: $FILE   ||  Version: $VERSION_TAG   || Version: $VERSION"
+          # # Check for missing version updates
+          # while IFS= read -r FILE; do
+          #   if [[ "$FILE" == *.sol ]]; then
+          #     # extract the version from the contract
+          #     VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
+          #     VERSION=$(grep -E '^/// @custom:version' <filename> | sed -E 's/^.*/// @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
+          #     echo "File: $FILE   ||  Version: $VERSION_TAG   || Version: $VERSION"
 
-              # make sure version was extracted successfully
-              if [[ -z "$VERSION" ]];
-                echo "Could not extract contract version from contract $FILE. Please check if the contract is OK, otherwise there is a problem in this Github action"
-                exit 1
-              fi
+          #     # make sure version was extracted successfully
+          #     if [[ -z "$VERSION" ]];
+          #       echo "Could not extract contract version from contract $FILE. Please check if the contract is OK, otherwise there is a problem in this Github action"
+          #       exit 1
+          #     fi
 
-              # if version is available but was not updated
+          #     # if version is available but was not updated
 
-              if [[ -n "$VERSION_TAG" ]] && ! git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -qE '^@@.*\+/// @custom:version'; then
-                MISSING_VERSION_UPDATE+=("$FILE")
-              fi
-            fi
-          done <<< "$FILES"
+          #     if [[ -n "$VERSION_TAG" ]] && ! git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -qE '^@@.*\+/// @custom:version'; then
+          #       MISSING_VERSION_UPDATE+=("$FILE")
+          #     fi
+          #   fi
+          # done <<< "$FILES"
 
-          # Output the results
-          if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
-            echo "Files missing version tags: ${MISSING_VERSION_TAG[*]}"
-          fi
+          # # Output the results
+          # if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
+          #   echo "Files missing version tags: ${MISSING_VERSION_TAG[*]}"
+          # fi
 
-          if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
-            echo "Files with version tags not updated: ${MISSING_VERSION_UPDATE[*]}"
-          fi
+          # if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
+          #   echo "Files with version tags not updated: ${MISSING_VERSION_UPDATE[*]}"
+          # fi
 
-          if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
-            echo "Updated contracts and versions: ${UPDATED_CONTRACTS[*]}"
-            UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
-            echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
-          fi
+          # if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
+          #   echo "Updated contracts and versions: ${UPDATED_CONTRACTS[*]}"
+          #   UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
+          #   echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
+          # fi
 
       - name: Update PR title with updated version info
         uses: actions/github-script@v5
