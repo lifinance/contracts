@@ -21,19 +21,51 @@ jobs:
         id: modified_files
         run: |
           BASE_REF="${{ github.event.pull_request.base.ref }}"
-          SHA="${{ github.sha }}"
-          echo "BASE_REF: $BASE_REF"
-          echo "SHA: $SHA"
+
+          # get all files modified by this PR
           FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
-          echo "FILES=$FILES"  # For debugging
-          echo "$FILES" > modified_files.txt  # Write filenames to a temporary file
+
+          # make sure that modified files of this PR are available
+          if [[ -z $FILES ]]; then
+            echo "No files found. This should not happen. Please check the code of the Github action"
+            exit 1
+          fi
+
+          # Initialize empty variables
+          CONTRACTS=""
+
+          # go through all file names and identify facet, periphery & diamond contracts (other contracts dont have versioning)
+          while IFS= read -r FILE; do
+            if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
+              CONTRACTS="$CONTRACTS $FILE"
+            elif echo "$FILE" | grep -E '^src/Periphery/.*\.sol$'; then
+              CONTRACTS="$CONTRACTS $FILE"
+            fi
+            elif echo "$FILE" | grep -E '^src/.*\.sol$'; then
+              CONTRACTS="$CONTRACTS $FILE"
+            fi
+          done <<< "$FILES"
+
+          # if none found, exit here as there is nothing to do
+          if [[ -z "$CONTRACTS" ]]; then
+            echo "No facets or periphery contracts found in files modified/added by this PR"
+            exit 0
+          fi
+
+          # Write filenames to temporary files (using variables here was causing issues due to the file names)
+          echo "$FILES" > modified_files.txt
+          echo "$CONTRACTS" > modified_contracts.txt
 
       - name: Check version tags and update PR title
         id: check_versions
         run: |
           BASE_REF="${{ github.event.pull_request.base.ref }}"
-          FILES=$(cat modified_files.txt)  # Read filenames from the temporary file
+
+          # Read tmp files into variables
+          FILES=$(cat modified_files.txt)
           echo "FILES=$FILES"
+          CONTRACTS=$(cat modified_contracts.txt)
+          echo "CONTRACTS=$CONTRACTS"
 
           # Initialize variables
           MISSING_VERSION_TAG=()
@@ -42,23 +74,21 @@ jobs:
 
           # Process each file separately
           while IFS= read -r FILE; do
-            if [[ "$FILE" == *.sol ]]; then
-              VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
+            VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
 
-              # Check if version tag exists
-              if [[ -z "$VERSION_TAG" ]]; then
-                MISSING_VERSION_TAG+=("$FILE")
-              else
-                # Check if version tag was updated in this PR
-                if git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -qE '^@@.*\+/// @custom:version'; then
-                  # version was updated
-                  CONTRACT_NAME=$(basename "$FILE" .sol)
-                  NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
-                  UPDATED_CONTRACTS+=("$CONTRACT_NAME v$NEW_VERSION")
-                fi
+            # Check if version tag exists
+            if [[ -z "$VERSION_TAG" ]]; then
+              MISSING_VERSION_TAG+=("$FILE")
+            else
+              # Check if version tag was updated in this PR
+              if git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -qE '^@@.*\+/// @custom:version'; then
+                # version was updated
+                CONTRACT_NAME=$(basename "$FILE" .sol)
+                NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
+                UPDATED_CONTRACTS+=("$CONTRACT_NAME v$NEW_VERSION")
               fi
             fi
-          done <<< "$FILES"
+          done <<< "$CONTRACTS"
 
           # Check for missing version updates
           while IFS= read -r FILE; do
