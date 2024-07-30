@@ -83,13 +83,14 @@ jobs:
             VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
             VERSION=$(grep -E '^/// @custom:version' <filename> | sed -E 's/^.*/// @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
 
-            echo "now checking contract: $FILE , Version: $VERSION"
+            echo "now checking contract: $FILE , Version: $VERSION, Version_Tag: $VERSION_TAG"
 
             # Check if version tag exists
             if [[ -z "$VERSION_TAG" ]]; then
               echo "file $FILE does not have a version tag"
               MISSING_VERSION_TAG+=("$FILE")
             else
+              echo "this path"
               # Check if version tag was updated in this PR
               if git diff -U0 origin/${BASE_REF} HEAD "$FILE" | grep -qE '^@@.*\+/// @custom:version'; then
                 # version was updated
