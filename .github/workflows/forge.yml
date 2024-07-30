@@ -36,7 +36,7 @@ jobs:
       - name: Install Deps
         run: forge install
       - name: Run forge tests
-        uses: Wandalen/wretry.action@v1.3.0
+        uses: Wandalen/wretry.action@v3.5.0
         with:
           command: forge test
           attempt_limit: 10
