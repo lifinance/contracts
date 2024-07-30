@@ -2747,6 +2747,10 @@ function getChainId() {
     echo "250"
     return 0
     ;;
+  "gravity")
+    echo "1625"
+    return 0
+    ;;
   "okx")
     echo "66"
     return 0
