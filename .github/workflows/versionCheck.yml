@@ -40,7 +40,6 @@ jobs:
               CONTRACTS="$CONTRACTS $FILE"
             elif echo "$FILE" | grep -E '^src/Periphery/.*\.sol$'; then
               CONTRACTS="$CONTRACTS $FILE"
-            fi
             elif echo "$FILE" | grep -E '^src/.*\.sol$'; then
               CONTRACTS="$CONTRACTS $FILE"
             fi
