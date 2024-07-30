@@ -18,7 +18,7 @@ jobs:
         with:
           ref: ${{ env.BRANCH_NAME }}
 
-      - name: Debug - Print Foundry.toml hash
+      - name: Debug -- Print Foundry.toml hash
         run: |
           echo "Foundry.toml hash: $(sha256sum foundry.toml)"
 
