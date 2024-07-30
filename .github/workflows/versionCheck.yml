@@ -78,12 +78,11 @@ jobs:
 
           # Process each file separately
           while IFS= read -r FILE; do
-          echo "now checking contract: $FILE"
+          echo "--------------------"
           VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
           VERSION=$(grep -E '^/// @custom:version' "$FILE" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
 
-          echo "--------------------"
-            echo "now checking contract: $FILE , Version: $VERSION, Version_Tag: $VERSION_TAG"
+          echo "now checking contract: $FILE , Version: $VERSION, Version_Tag: $VERSION_TAG"
 
             # Check if version tag exists
             if [[ -z "$VERSION_TAG" ]]; then
