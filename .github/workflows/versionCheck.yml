@@ -30,9 +30,14 @@ jobs:
       - name: Check version tags and post reminders
         id: check_versions
         run: |
+          echo "A"
           FILES="${{ github.steps.modified_files.outputs.FILES }}"
+          echo "B"
+          echo "FILES=$FILES"
           FACETS=$(echo "$FILES" | grep -E '^src/Facets/.*\.sol$')
+          echo "C"
           PERIPHERY=$(echo "$FILES" | grep -E '^src/Periphery/.*\.sol$')
+          echo "D"
 
           echo "FACETS found: $FACETS"
           echo "PERIPHERY found: $PERIPHERY"
