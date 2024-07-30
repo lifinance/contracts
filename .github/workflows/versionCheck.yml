@@ -24,7 +24,8 @@ jobs:
           SHA="${{ github.sha }}"
           echo "BASE_REF: $BASE_REF"
           echo "SHA: $SHA"
-          FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
+          # FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
+          "FILES="src/Facets/AllBridgeFacet.sol""
           echo "FILES=$FILES" >> $GITHUB_ENV
           echo "FILES=$FILES"
 
