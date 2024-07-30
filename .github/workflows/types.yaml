@@ -18,9 +18,8 @@ jobs:
         with:
           ref: ${{ env.BRANCH_NAME }}
 
-      - name: Debug -- Print Foundry.toml hash
-        run: |
-          echo "Foundry.toml hash: $(sha256sum foundry.toml)"
+      - name: Debug - Print Foundry.toml hash
+        run: sha256sum foundry.toml
 
       - name: Set up cache for Foundry
         uses: actions/cache@v3
@@ -33,15 +32,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-foundry-
 
+      - name: Debug -Verify Cache Hit
+        run: |
+          echo "Cache hit: ${{ steps.foundry-cache.outputs.cache-hit }}"
+
       - name: Install Foundry
         if: steps.foundry-cache.outputs.cache-hit != 'true'
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Debug - List Foundry Directories
+        run: |
+          echo "Listing ~/.foundry/cache:"
+          ls -la ~/.foundry/cache
+          echo "Listing ~/.foundry/bin:"
+          ls -la ~/.foundry/bin
+
       - name: Install Solidity Libs
         run: forge install
-
-      - name: Debug - Verify Cache Population
-        run: ls -la ~/.foundry/cache && ls -la ~/.foundry/bin
 
       - name: Setup Node.js
         uses: actions/setup-node@v4.0.0
