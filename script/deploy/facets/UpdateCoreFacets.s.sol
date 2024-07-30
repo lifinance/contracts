@@ -35,7 +35,7 @@ contract DeployScript is UpdateScriptBase {
 
         bytes4[] memory exclude;
 
-        (bool loupeExists, ) = address(loupe).staticcall(
+        (bool loupeExists, ) = address(diamondLoupe).staticcall(
             abi.encodeWithSelector(loupe.facetAddresses.selector)
         );
 
