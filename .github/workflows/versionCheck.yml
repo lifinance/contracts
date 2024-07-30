@@ -55,27 +55,17 @@ jobs:
           fi
 
           # Write filenames to temporary files (using variables here was causing issues due to the file names)
-          echo -e "$FILES" > modified_files.txt # TODO: REMOVE? <<<<<<------------------------------------------------------------------------
+          echo -e "$FILES" > modified_files.txt
           echo -e "$CONTRACTS" > modified_contracts.txt
 
       - name: Check version tags and update PR title
-        env:
-          PR_TITLE: ${{github.event.pull_request.title}}
         id: check_versions
         run: |
           BASE_REF="${{ github.event.pull_request.base.ref }}"
 
-          if [[ -z PR_TITLE ]]; then
-            echo "Could not extract PR title. Cannot continue."
-            exit1
-          fi
-
-          if [[ -z BASE_REF ]]; then
-            echo "Could not get default branch. Cannot continue."
-            exit1
-          fi
-
           # Read tmp files into variables
+          FILES=$(cat modified_files.txt)
+          echo "FILES=$FILES"
           CONTRACTS=$(cat modified_contracts.txt)
           echo -e "CONTRACTS=$CONTRACTS"
 
@@ -84,6 +74,7 @@ jobs:
           MISSING_VERSION_UPDATE=()
           UPDATED_CONTRACTS=()
 
+          echo "--------------------"
 
           # Process each file separately
           while IFS= read -r FILE; do
@@ -91,38 +82,28 @@ jobs:
             VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
             VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
 
-            echo "Version: $VERSION, Version_Tag: $VERSION_TAG"
+            # Extract the filename without extension
+            FILENAME=$(basename "$FILE" .sol)
+
+            echo "File: $FILENAME, Version: $VERSION, Version_Tag: $VERSION_TAG"
 
             # Check if version tag exists
             if [[ -z "$VERSION_TAG" ]]; then
-              echo "File $FILE does not have a version tag at all"
+              echo "File $FILENAME does not have a version tag at all"
               MISSING_VERSION_TAG+=("$FILE")
             else
-              echo "File $FILE does have a version tag"
-
+              echo "File $FILENAME does have a version tag"
               # Check if version tag was updated in this PR
-              DIFF_OUTPUT=$(git diff -U0 origin/${BASE_REF} HEAD "$FILE")
+              DIFF_OUTPUT=$(git diff origin/${BASE_REF} HEAD "$FILE")
+              echo "Diff output: $DIFF_OUTPUT"
               if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
-                echo "Version was updated in $FILE"
-
-                # check if PR title contains string (`${contractName} v${VERSION}`)
+                echo "Version was updated in $FILENAME"
                 CONTRACT_NAME=$(basename "$FILE" .sol)
-                TARGET_STRING="${CONTRACT_NAME}v${VERSION}"
-
-                echo "TARGET_STRING: $TARGET_STRING"
-
-
-
-                if $PR_TITLE.includes($TARGET_STRING); then
-                  echo "PR title contains target string ($TARGET_STRING)"
-                else
-                  echo "PR title does not contain target string ($TARGET_STRING)"
-                fi
-
-
-                # UPDATED_CONTRACTS+=("$CONTRACT_NAME v$NEW_VERSION")
+                NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
+                TARGET_STRING="${CONTRACT_NAME}v${NEW_VERSION}"
+                UPDATED_CONTRACTS+=("$TARGET_STRING")
               else
-                echo "Version was not updated in $FILE"
+                echo "Version was not updated in $FILENAME"
                 MISSING_VERSION_UPDATE+=("$FILE")
               fi
             fi
@@ -145,53 +126,39 @@ jobs:
           fi
 
       - name: Update PR title with updated version info
-        uses: actions/github-script@v5
         env:
           PR_TITLE: ${{github.event.pull_request.title}}
+          UPDATED_CONTRACTS: ${{ steps.check_versions.outputs.UPDATED_CONTRACTS }}
+        run: |
+          echo "PR_TITLE: $PR_TITLE"
+          echo "UPDATED_CONTRACTS: $UPDATED_CONTRACTS"
+
+          # Initialize PR title
+          PR_TITLE_UPDATED="$PR_TITLE"
+
+          # Check if each target string is in the PR title
+          IFS=',' read -ra UPDATED_ARRAY <<< "$UPDATED_CONTRACTS"
+          for TARGET_STRING in "${UPDATED_ARRAY[@]}"; do
+            if [[ "$PR_TITLE_UPDATED" =~ "$TARGET_STRING" ]]; then
+              echo "PR title contains target string ($TARGET_STRING)"
+            else
+              echo "PR title does not contain target string ($TARGET_STRING)"
+              PR_TITLE_UPDATED="$PR_TITLE_UPDATED ($TARGET_STRING)"
+            fi
+          done
+
+          echo "Final PR Title: $PR_TITLE_UPDATED"
+          echo "PR_TITLE=$PR_TITLE_UPDATED" >> $GITHUB_ENV
+
+      - name: Update the PR title on GitHub
+        uses: actions/github-script@v5
         with:
           script: |
-            console.log("PR_TITLE:", process.env.PR_TITLE);
-            const updatedContracts = process.env.UPDATED_CONTRACTS.split(',');
-            console.log("updatedContracts:", updatedContracts);
-            let prTitle = process.env.PR_TITLE;
-
-            updatedContracts.forEach(contract => {
-              if (!prTitle.includes(contract.trim())) {
-                prTitle += ` (${contract.trim()})`;
-              }
-            });
-
+            const { execSync } = require('child_process');
+            const prTitle = process.env.PR_TITLE;
             github.rest.pulls.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number,
               title: prTitle
             });
-
-      # - name: Post reminder comment
-      #   if: steps.check_versions.outputs.MISSING_VERSION_UPDATE
-      #   uses: actions/github-script@v5
-      #   with:
-      #     script: |
-      #       const MISSING_VERSION_FILES = '${{ steps.check_versions.outputs.MISSING_VERSION_UPDATE }}'.split(',');
-      #       const body = `The following files have version tags that were not updated: ${MISSING_VERSION_FILES.join(', ')}. Please update the version tags.`;
-      #       github.rest.issues.createComment({
-      #         issue_number: context.issue.number,
-      #         owner: context.repo.owner,
-      #         repo: context.repo.repo,
-      #         body: body
-      #       });
-
-      # - name: Post version updates comment
-      #   if: success()
-      #   uses: actions/github-script@v5
-      #   with:
-      #     script: |
-      #       const UPDATED_CONTRACTS = '${{ steps.check_versions.outputs.UPDATED_CONTRACTS }}'.split(',');
-      #       const body = `The following contracts have been updated with new versions: ${UPDATED_CONTRACTS.join(', ')}.`;
-      #       github.rest.issues.createComment({
-      #         issue_number: context.issue.number,
-      #         owner: context.repo.owner,
-      #         repo: context.repo.repo,
-      #         body: body
-      #       });
