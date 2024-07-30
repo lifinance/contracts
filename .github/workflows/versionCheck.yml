@@ -26,18 +26,15 @@ jobs:
           echo "SHA: $SHA"
           FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
           echo "FILES=$FILES"  # For debugging
-          # Use printf to properly handle multiline environment variables
-          printf "FILES<<EOF\n%s\nEOF\n" "$FILES" >> $GITHUB_ENV
+          echo "$FILES" > modified_files.txt  # Write filenames to a temporary file
 
       - name: Check version tags and post reminders
         id: check_versions
         run: |
           echo "A"
-          FILES="${{ env.FILES }}"
+          FILES=$(cat modified_files.txt)  # Read filenames from the temporary file
           echo "B"
-          FILES2="${{ github.job.modified_files.outputs.FILES }}"
           echo "FILES=$FILES"
-          echo "FILES2=$FILES2"
           FACETS=$(echo "$FILES" | grep -E '^src/Facets/.*\.sol$')
           echo "C"
           PERIPHERY=$(echo "$FILES" | grep -E '^src/Periphery/.*\.sol$')
@@ -50,8 +47,6 @@ jobs:
             echo "No facets or periphery contracts found in files modified/added by this PR"
             exit 0
           fi
-        env:
-          FILES: ${{ steps.modified_files.outputs.FILES }}
 
       - name: Post reminder comment
         if: steps.check_versions.outputs.MISSING_VERSIONS
