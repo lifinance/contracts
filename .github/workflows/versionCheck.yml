@@ -38,13 +38,13 @@ jobs:
           while IFS= read -r FILE; do
           if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
               # facet found
-              CONTRACTS="$CONTRACTS \n$FILE"
+              CONTRACTS="$CONTRACTS \\n$FILE"
             elif echo "$FILE" | grep -E '^src/Periphery/.*\.sol$'; then
               # periphery found
-              CONTRACTS="$CONTRACTS \n$FILE"
+              CONTRACTS="$CONTRACTS \\n$FILE"
             elif echo "$FILE" | grep -E '^src/.*\.sol$'; then
               # diamond contract found
-              CONTRACTS="$CONTRACTS \n$FILE"
+              CONTRACTS="$CONTRACTS \\n$FILE"
             fi
           done <<< "$FILES"
 
