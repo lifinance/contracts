@@ -18,8 +18,12 @@ jobs:
         with:
           ref: ${{ env.BRANCH_NAME }}
 
-      - name: Debug Print Foundry.toml hash
-        run: sha256sum foundry.toml
+      - name: Print Foundry.toml Hash
+        id: foundry_hash
+        run: |
+          foundry_hash=$(sha256sum foundry.toml | awk '{ print $1 }')
+          echo "Foundry.toml hash: $foundry_hash"
+          echo "::set-output name=foundry_hash::$foundry_hash"
 
       - name: Set up cache for Foundry
         uses: actions/cache@v3
@@ -29,7 +33,7 @@ jobs:
             ~/.foundry/cache
             ~/.foundry/bin
             ~/.cache/foundry
-          key: ${{ runner.os }}-foundry-${{ hashFiles('**/foundry.toml') }}
+          key: ${{ runner.os }}-foundry-${{ steps.foundry_hash.outputs.foundry_hash }}
           restore-keys: |
             ${{ runner.os }}-foundry-
 
@@ -43,17 +47,17 @@ jobs:
 
       - name: Verify Foundry Installation
         run: |
-          echo "Foundry binary path"
+          echo "Foundry binary path:"
           which foundry || echo "Foundry not found in PATH"
-          echo "Home directory content"
+          echo "Home directory content:"
           ls -la /home/runner/
-          echo "Listing ~/.foundry"
+          echo "Listing ~/.foundry:"
           ls -la ~/.foundry/
-          echo "Listing ~/.foundry/cache"
+          echo "Listing ~/.foundry/cache:"
           ls -la ~/.foundry/cache || echo "~/.foundry/cache not found"
-          echo "Listing ~/.foundry/bin"
+          echo "Listing ~/.foundry/bin:"
           ls -la ~/.foundry/bin || echo "~/.foundry/bin not found"
-          echo "Listing ~/.cache/foundry"
+          echo "Listing ~/.cache/foundry:"
           ls -la ~/.cache/foundry || echo "~/.cache/foundry not found"
 
       - name: Install Solidity Libs
