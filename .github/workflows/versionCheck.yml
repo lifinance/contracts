@@ -1,0 +1,102 @@
+name: Version Check
+
+on:
+  push:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Get list of modified files
+        id: modified_files
+        run: |
+          echo "::set-output name=files::$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...${{ github.sha }})"
+          echo "FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...${{ github.sha }})" >> GITHUB_ENV
+
+      - name: Check version tags and post reminders
+        id: check_versions
+        run: |
+          FILES="${{ steps.modified_files.outputs.files }}"
+          FACETS=$(echo "$FILES" | grep -E '^src/Facets/.*\.sol$')
+          periphery=$(echo "$FILES" | grep -E '^src/Periphery/.*\.sol$')
+
+          echo "Facets found: $FACETS"
+          echo "Periphery found: $PERIPHERY"
+
+          missing_version_updates=()
+          updated_files=()
+
+          check_version() {
+            file=$1
+            if ! git diff -U0 origin/${{ github.event.pull_request.base.ref }}...${{ github.sha }} "$file" | grep -E '^@@.*@custom:version'; then
+              missing_version_updates+=("$file")
+            else
+              updated_files+=("$file")
+            fi
+          }
+
+          for file in $FACETS; do
+            check_version "$file"
+          done
+
+          for file in $PERIPHERY; do
+            check_version "$file"
+          done
+
+          if [ ${#missing_version_updates[@]} -ne 0 ]; then
+            # echo "::set-output name=missing_versions::$(IFS=,; echo "${missing_version_updates[*]}")"
+            echo MISSING_VERSIONS=$(IFS=,; echo "${missing_version_updates[*]}")" >> GITHUB_ENV
+            fi
+
+            if [ ${#updated_files[@]} -ne 0 ]; then
+            # echo "::set-output name=updated_files::$(IFS=,; echo "${updated_files[*]}")"
+            echo UPDATED_FILES=$(IFS=,; echo "$(IFS=,; echo "${updated_files[*]}")" >> GITHUB_ENV
+          fi
+
+      - name: Post reminder comment
+        if: steps.check_versions.outputs.missing_versions
+        uses: actions/github-script@v5
+        with:
+          script: |
+            const MISSING_VERSION_FILES = '${{ steps.check_versions.outputs.MISSING_VERSIONS }}'.split(',');
+            const body = `Did you forget to update the version in file(s): ${MISSING_VERSION_FILES.join(', ')}?`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Update PR title with updated version info
+        if: steps.check_versions.outputs.updated_files
+        uses: actions/github-script@v5
+        with:
+          script: |
+            const updatedFiles = '${{ steps.check_versions.outputs.updated_files }}'.split(',');
+            let prTitle = context.payload.pull_request.title;
+
+            for (const file of updatedFiles) {
+              const fileName = file.split('/').pop().replace('.sol', '');
+              const fileContent = require('fs').readFileSync(file, 'utf8');
+              const versionMatch = fileContent.match(/@custom:version\s+([\d.]+)/);
+              if (versionMatch) {
+                const version = versionMatch[1];
+                const versionTag = `${fileName} v${version}`;
+                if (!prTitle.includes(versionTag)) {
+                  prTitle += ` (${versionTag})`;
+                }
+              }
+            }
+
+            github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              title: prTitle
+            });
