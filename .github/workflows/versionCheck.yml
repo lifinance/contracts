@@ -16,7 +16,6 @@ jobs:
       - name: Get list of modified files
         id: modified_files
         run: |
-          # echo "::set-output name=files::$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...${{ github.sha }})"
           echo "FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...${{ github.sha }})" >> GITHUB_ENV
 
       - name: Check version tags and post reminders
@@ -26,41 +25,39 @@ jobs:
           FACETS=$(echo "$FILES" | grep -E '^src/Facets/.*\.sol$')
           PERIPHERY=$(echo "$FILES" | grep -E '^src/Periphery/.*\.sol$')
 
-          echo "Facets found: $FACETS"
-          echo "Periphery found: $PERIPHERY"
+          echo "FACETS found: $FACETS"
+          echo "PERIPHERY found: $PERIPHERY"
 
           MISSING_VERSION_UPDATES=()
           UPDATED_FILES=()
 
-          check_version() {
-            file=$1
-            if ! git diff -U0 origin/${{ github.event.pull_request.base.ref }}...${{ github.sha }} "$file" | grep -E '^@@.*@custom:version'; then
-              MISSING_VERSION_UPDATES+=("$file")
+          CHECK_VERSION() {
+            FILE=$1
+            if ! git diff -U0 origin/${{ github.event.pull_request.base.ref }}...${{ github.sha }} "$FILE" | grep -E '^@@.*@CUSTOM:VERSION'; then
+              MISSING_VERSION_UPDATES+=("$FILE")
             else
-              UPDATED_FILES+=("$file")
+              UPDATED_FILES+=("$FILE")
             fi
           }
 
-          for file in $FACETS; do
-            check_version "$file"
+          for FILE in $FACETS; do
+            CHECK_VERSION "$FILE"
           done
 
-          for file in $PERIPHERY; do
-            check_version "$file"
+          for FILE in $PERIPHERY; do
+            CHECK_VERSION "$FILE"
           done
 
           if [ ${#MISSING_VERSION_UPDATES[@]} -ne 0 ]; then
-            # echo "::set-output name=missing_versions::$(IFS=,; echo "${MISSING_VERSION_UPDATES[*]}")"
-            echo MISSING_VERSIONS=$(IFS=,; echo "${MISSING_VERSION_UPDATES[*]}")" >> GITHUB_ENV
-            fi
+            echo "MISSING_VERSIONS=$(IFS=,; echo "${MISSING_VERSION_UPDATES[*]}")" >> GITHUB_ENV
+          fi
 
-            if [ ${#UPDATED_FILES[@]} -ne 0 ]; then
-            # echo "::set-output name=UPDATED_FILES::$(IFS=,; echo "${UPDATED_FILES[*]}")"
-            echo UPDATED_FILES=$(IFS=,; echo "$(IFS=,; echo "${UPDATED_FILES[*]}")" >> GITHUB_ENV
+          if [ ${#UPDATED_FILES[@]} -ne 0 ]; then
+            echo "UPDATED_FILES=$(IFS=,; echo "${UPDATED_FILES[*]}")" >> GITHUB_ENV
           fi
 
       - name: Post reminder comment
-        if: steps.check_versions.outputs.missing_versions
+        if: steps.check_versions.outputs.MISSING_VERSIONS
         uses: actions/github-script@v5
         with:
           script: |
@@ -74,14 +71,14 @@ jobs:
             });
 
       - name: Update PR title with updated version info
-        if: steps.check_versions.outputs.updated_files
+        if: steps.check_versions.outputs.UPDATED_FILES
         uses: actions/github-script@v5
         with:
           script: |
-            const updatedFiles = '${{ steps.check_versions.outputs.UPDATED_FILES }}'.split(',');
+            const UPDATED_FILES = '${{ steps.check_versions.outputs.UPDATED_FILES }}'.split(',');
             let prTitle = context.payload.pull_request.title;
 
-            for (const file of updatedFiles) {
+            for (const file of UPDATED_FILES) {
               const fileName = file.split('/').pop().replace('.sol', '');
               const fileContent = require('fs').readFileSync(file, 'utf8');
               const versionMatch = fileContent.match(/@custom:version\s+([\d.]+)/);
