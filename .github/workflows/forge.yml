@@ -19,7 +19,7 @@ jobs:
       POLYGON_FORK_NUMBER: ${{ secrets.POLYGON_FORK_NUMBER }}
       FORK_NUMBER_POLYGON: 36004499
     steps:
-      - uses: actions/checkout@v4.1.1
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: actions/setup-node@v4.0.0
