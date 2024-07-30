@@ -86,15 +86,17 @@ jobs:
           echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
 
       - name: Update version
+        env:
+          MESSAGE: ${{ github.event.head_commit.message }}
         id: bump_version
         uses: christian-draeger/increment-semantic-version@1.1.0
         with:
           current-version: '${{ env.LATEST_TAG }}'
-          version-fragment: "${{ env.BRANCH_NAME == 'main' && (contains(github.event.head_commit.message, 'major') && 'major' || contains(github.event.head_commit.message, 'feat') && 'feature' || 'bug') || 'beta' }}"
+          version-fragment: "${{ env.BRANCH_NAME == 'main' && (contains(env.MESSAGE, 'major') && 'major' || contains(env.MESSAGE, 'feat') && 'feature' || 'bug') || 'beta' }}"
 
       - name: Push tag
         env:
-          MESSAGE: ${{github.event.head_commit.message  }}
+          MESSAGE: ${{ github.event.head_commit.message }}
         if: steps.bump_version.outputs.next-version
         run: |
           cd lifi-contract-types
@@ -109,9 +111,9 @@ jobs:
           git commit -m 'actions: new contracts version ${{ steps.bump_version.outputs.next-version }}'
 
           # Sanitize the commit message by removing single quotes
-          COMMIT_MSG=$(echo "${{env.MESSAGE}}" | sed "s/'//g")
+          COMMIT_MSG=$(echo "${{ env.MESSAGE }}" | sed "s/'//g")
 
-          git tag -a v${{ steps.bump_version.outputs.next-version }} -m '${{ github.event.head_commit.message }}'
+          git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ env.MESSAGE }}"
           git push origin tag v${{ steps.bump_version.outputs.next-version }}
           if [[ "$BRANCH_NAME" == "main" ]]; then
             git push -u origin $BRANCH_NAME
