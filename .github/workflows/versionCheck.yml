@@ -55,17 +55,27 @@ jobs:
           fi
 
           # Write filenames to temporary files (using variables here was causing issues due to the file names)
-          echo -e "$FILES" > modified_files.txt
+          echo -e "$FILES" > modified_files.txt # TODO: REMOVE? <<<<<<------------------------------------------------------------------------
           echo -e "$CONTRACTS" > modified_contracts.txt
 
       - name: Check version tags and update PR title
+        env:
+          PR_TITLE: ${{github.event.pull_request.title}}
         id: check_versions
         run: |
           BASE_REF="${{ github.event.pull_request.base.ref }}"
 
+          if [[ -z PR_TITLE ]]; then
+            echo "Could not extract PR title. Cannot continue."
+            exit1
+          fi
+
+          if [[ -z BASE_REF ]]; then
+            echo "Could not get default branch. Cannot continue."
+            exit1
+          fi
+
           # Read tmp files into variables
-          FILES=$(cat modified_files.txt)
-          echo "FILES=$FILES"
           CONTRACTS=$(cat modified_contracts.txt)
           echo -e "CONTRACTS=$CONTRACTS"
 
@@ -74,7 +84,6 @@ jobs:
           MISSING_VERSION_UPDATE=()
           UPDATED_CONTRACTS=()
 
-          echo "--------------------"
 
           # Process each file separately
           while IFS= read -r FILE; do
@@ -90,14 +99,28 @@ jobs:
               MISSING_VERSION_TAG+=("$FILE")
             else
               echo "File $FILE does have a version tag"
+
               # Check if version tag was updated in this PR
               DIFF_OUTPUT=$(git diff -U0 origin/${BASE_REF} HEAD "$FILE")
-              # echo "Diff output: $DIFF_OUTPUT"
               if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
                 echo "Version was updated in $FILE"
+
+                # check if PR title contains string (`${contractName} v${VERSION}`)
                 CONTRACT_NAME=$(basename "$FILE" .sol)
-                NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
-                UPDATED_CONTRACTS+=("$CONTRACT_NAME v$NEW_VERSION")
+                TARGET_STRING=$CONTRACT_NAME"v"$VERSION
+
+                echo "TARGET_STRING: $TARGET_STRING"
+
+
+
+                if $PR_TITLE.includes($TARGET_STRING); then
+                  echo "PR title contains target string ($TARGET_STRING)"
+                else
+                  echo "PR title does not contain target string ($TARGET_STRING)"
+                fi
+
+
+                # UPDATED_CONTRACTS+=("$CONTRACT_NAME v$NEW_VERSION")
               else
                 echo "Version was not updated in $FILE"
                 MISSING_VERSION_UPDATE+=("$FILE")
