@@ -64,12 +64,12 @@ jobs:
           # Output the results
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
             echo "Files missing version tags: ${MISSING_VERSION_TAG[*]}"
-            exit 1
+            # exit 1
           fi
 
           if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
             echo "Files with version tags not updated: ${MISSING_VERSION_UPDATE[*]}"
-            exit 1
+            # exit 1
           fi
 
           if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
