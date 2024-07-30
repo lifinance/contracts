@@ -36,12 +36,15 @@ jobs:
 
           # go through all file names and identify facet, periphery & diamond contracts (other contracts dont have versioning)
           while IFS= read -r FILE; do
-            if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
-              CONTRACTS="$CONTRACTS $FILE"
+          if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
+              # facet found
+              CONTRACTS="$CONTRACTS \n$FILE"
             elif echo "$FILE" | grep -E '^src/Periphery/.*\.sol$'; then
-              CONTRACTS="$CONTRACTS $FILE"
+              # periphery found
+              CONTRACTS="$CONTRACTS \n$FILE"
             elif echo "$FILE" | grep -E '^src/.*\.sol$'; then
-              CONTRACTS="$CONTRACTS $FILE"
+              # diamond contract found
+              CONTRACTS="$CONTRACTS \n$FILE"
             fi
           done <<< "$FILES"
 
@@ -70,6 +73,9 @@ jobs:
           MISSING_VERSION_TAG=()
           MISSING_VERSION_UPDATE=()
           UPDATED_CONTRACTS=()
+
+
+          echo "--------------------"
 
           # Process each file separately
           while IFS= read -r FILE; do
