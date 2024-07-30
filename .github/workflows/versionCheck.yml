@@ -36,15 +36,15 @@ jobs:
 
           # go through all file names and identify facet, periphery & diamond contracts (other contracts dont have versioning)
           while IFS= read -r FILE; do
-          if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
+            if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
               # facet found
-              CONTRACTS="$CONTRACTS \\n$FILE"
+              CONTRACTS="${CONTRACTS}${FILE}"$'\n'
             elif echo "$FILE" | grep -E '^src/Periphery/.*\.sol$'; then
               # periphery found
-              CONTRACTS="$CONTRACTS \\n$FILE"
+              CONTRACTS="${CONTRACTS}${FILE}"$'\n'
             elif echo "$FILE" | grep -E '^src/.*\.sol$'; then
               # diamond contract found
-              CONTRACTS="$CONTRACTS \\n$FILE"
+              CONTRACTS="${CONTRACTS}${FILE}"$'\n'
             fi
           done <<< "$FILES"
 
