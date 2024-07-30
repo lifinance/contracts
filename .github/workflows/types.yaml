@@ -19,11 +19,10 @@ jobs:
           ref: ${{ env.BRANCH_NAME }}
 
       - name: Print Foundry.toml Hash
-        id: foundry_hash
         run: |
           foundry_hash=$(sha256sum foundry.toml | awk '{ print $1 }')
           echo "Foundry.toml hash: $foundry_hash"
-          echo "::set-output name=foundry_hash::$foundry_hash"
+          echo "FOUNDRY_TOML_HASH=$foundry_hash" >> $GITHUB_ENV
 
       - name: Set up cache for Foundry
         uses: actions/cache@v3
@@ -33,7 +32,7 @@ jobs:
             ~/.foundry/cache
             ~/.foundry/bin
             ~/.cache/foundry
-          key: ${{ runner.os }}-foundry-${{ steps.foundry_hash.outputs.foundry_hash }}
+          key: ${{ runner.os }}-foundry-${{ env.FOUNDRY_TOML_HASH }}
           restore-keys: |
             ${{ runner.os }}-foundry-
 
@@ -155,5 +154,4 @@ jobs:
           git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ env.MESSAGE }}"
           git push origin tag v${{ steps.bump_version.outputs.next-version }}
           if [[ "$BRANCH_NAME" == "main" ]]; then
-            git push -u origin $BRANCH_NAME
-          fi
+            git
