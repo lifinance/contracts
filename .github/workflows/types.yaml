@@ -14,56 +14,12 @@ jobs:
 
     steps:
       - name: Checkout contracts repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.BRANCH_NAME }}
 
-      - name: Print Foundry.toml Hash
-        id: foundry_hash
-        run: |
-          foundry_hash=$(sha256sum foundry.toml | awk '{ print $1 }')
-          echo "Foundry.toml hash: $foundry_hash"
-          echo "FOUNDRY_TOML_HASH=$foundry_hash" >> $GITHUB_ENV
-
-      - name: Set up cache for Foundry
-        uses: actions/cache@v3
-        id: foundry-cache
-        with:
-          path: |
-            ~/.foundry/cache
-            ~/.foundry/bin
-            ~/.cache/foundry
-          key: ${{ runner.os }}-foundry-${{ env.FOUNDRY_TOML_HASH }}
-          restore-keys: |
-            ${{ runner.os }}-foundry-
-
-      - name: Verify Cache Hit
-        run: |
-          echo "Cache hit: ${{ steps.foundry-cache.outputs.cache-hit }}"
-
       - name: Install Foundry
-        if: steps.foundry-cache.outputs.cache-hit != 'true'
         uses: foundry-rs/foundry-toolchain@v1
-
-      - name: Verify Foundry Installation
-        run: |
-          echo "Foundry binary path:"
-          which foundry || echo "Foundry not found in PATH"
-          echo "Home directory content:"
-          ls -la /home/runner/
-          echo "Listing ~/.foundry:"
-          ls -la ~/.foundry/
-          echo "Listing ~/.foundry/cache:"
-          ls -la ~/.foundry/cache || echo "~/.foundry/cache not found"
-          echo "Listing ~/.foundry/bin:"
-          ls -la ~/.foundry/bin || echo "~/.foundry/bin not found"
-          echo "Listing ~/.cache/foundry:"
-          ls -la ~/.cache/foundry || echo "~/.cache/foundry not found"
-
-      - name: Debug Foundry Installation
-        run: |
-          echo "Trying to find Foundry installation directory..."
-          find /home/runner/ -type d -name "foundry*"
 
       - name: Install Solidity Libs
         run: forge install
@@ -83,7 +39,7 @@ jobs:
         run: yarn typechain
 
       - name: Checkout lifi-contract-types repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: lifinance/lifi-contract-types
           path: lifi-contract-types
@@ -152,7 +108,7 @@ jobs:
           git add src/*
           git add dist/*
           git add package.json
-          git commit -m 'actions new contracts version ${{ steps.bump_version.outputs.next-version }}'
+          git commit -m 'actions: new contracts version ${{ steps.bump_version.outputs.next-version }}'
 
           # Sanitize the commit message by removing single quotes
           COMMIT_MSG=$(echo "${{ env.MESSAGE }}" | sed "s/'//g")
