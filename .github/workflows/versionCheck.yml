@@ -31,6 +31,7 @@ jobs:
       - name: Check version tags and post reminders
         id: check_versions
         run: |
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
           FILES=$(cat modified_files.txt)  # Read filenames from the temporary file
           echo "FILES=$FILES"
 
