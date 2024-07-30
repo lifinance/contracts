@@ -31,7 +31,7 @@ jobs:
         id: check_versions
         run: |
           echo "A"
-          FILES="${{ github.steps.modified_files.outputs.FILES }}"
+          FILES=${{ github.steps.modified_files.outputs.FILES }}
           echo "B"
           echo "FILES=$FILES"
           FACETS=$(echo "$FILES" | grep -E '^src/Facets/.*\.sol$')
