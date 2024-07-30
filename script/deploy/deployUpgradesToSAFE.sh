@@ -26,7 +26,12 @@ deployUpgradesToSAFE() {
   fi
 
   GIT_BRANCH=$(git branch --show-current)
-  VERIFIED=$(yarn --silent tsx script/deploy/github/verify-approvals.ts --branch "$GIT_BRANCH" --token "$GH_TOKEN" --facets "$SCRIPTS")
+  if [[ $GIT_BRANCH == "main" ]]; then
+    # We can assume code in the main branch has been pre-approved and audited
+    VERIFIED="OK"
+  else
+    VERIFIED=$(yarn --silent tsx script/deploy/github/verify-approvals.ts --branch "$GIT_BRANCH" --token "$GH_TOKEN" --facets "$SCRIPTS")
+  fi
   
   if [[ $VERIFIED == "OK" ]]; then
     echo "PR has been approved. Continuing..."
