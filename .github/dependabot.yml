@@ -1,0 +1,11 @@
+# This file ensures that we get informed when dependencies of actions (e.g. other actions) are outdated and can be updated
+# Dependabot will even create a PR and update the files automatically
+# More info here: https://docs.github.com/en/code-security/dependabot/working-with-dependabot/keeping-your-actions-up-to-date-with-dependabot
+
+version: 2
+updates:
+  - package-ecosystem: 'github-actions'
+    directory: '/' # will check in ./.github/workflows with this setting
+    schedule:
+      # Check for updates to GitHub Actions every week
+      interval: 'weekly'
