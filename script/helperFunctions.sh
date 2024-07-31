@@ -2871,6 +2871,10 @@ function getChainId() {
     echo "1329"
     return 0
     ;;
+  "immutablezkevm")
+    echo "13371"
+    return 0
+    ;;
   *)
     return 1
     ;;
