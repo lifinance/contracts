@@ -87,6 +87,8 @@ contract ReceiverStargateV2Test is TestBase {
         assertEq(USER_RECEIVER.balance, initialBalance + 1 ether);
     }
 
+    // DANIELSUCHT
+
     function test_PullTokenWillRevertIfExternalCallFails() public {
         vm.deal(address(receiver), 1 ether);
 

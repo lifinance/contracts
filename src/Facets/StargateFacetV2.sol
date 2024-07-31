@@ -65,6 +65,20 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData, _stargateData);
     }
 
+    function testFunction(
+        ILiFi.BridgeData calldata _bridgeData,
+        StargateData calldata _stargateData
+    )
+        external
+        payable
+        nonReentrant
+        refundExcessNative(payable(msg.sender))
+        doesNotContainSourceSwaps(_bridgeData)
+        validateBridgeData(_bridgeData)
+    {
+        _bridgeData.sendingAssetId.call("");
+    }
+
     /// @notice Performs a swap before bridging via Stargate Bridge
     /// @param _bridgeData Data used purely for tracking and analytics
     /// @param _swapData An array of swap related data for performing swaps before bridging

@@ -1,0 +1,36 @@
+name: Check Strings in Diff
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-strings:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch all history for all branches and tags
+
+      - name: Fetch all branches
+        run: git fetch --all
+
+      - name: Check strings in diff
+        run: |
+          git diff origin/main...HEAD > diff.txt
+          matches=$(grep -n -H -F -f check_strings.txt diff.txt)
+          if [ -n "$matches" ]; then
+            echo "Found forbidden strings in the diff:"
+            echo "$matches"
+            exit 1
+          else
+            echo "No forbidden strings found"
+          fi
+        shell: /usr/bin/bash --noprofile --norc -e -o pipefail
+        working-directory: ${{ github.workspace }}
