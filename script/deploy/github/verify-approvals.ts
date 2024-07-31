@@ -18,20 +18,76 @@ const main = defineCommand({
       type: 'string',
       description: 'Github access token',
     },
+    facets: {
+      type: 'string',
+      description: 'List of facets that should be part of this PR',
+    },
   },
   async run({ args }) {
-    console.log(await getOpenPRsForBranch(args.branch, args.token))
-    return false
+    // Initialize Octokit
+    const octokit = new Octokit({ auth: args.token })
+
+    const facets = args.facets.split('\n')
+
+    // Fetch PR information
+    const pr = await getOpenPRsForBranch(octokit, args.branch, args.token)
+
+    // Fetch files related to this PR
+    const files = await getFilesInPR(octokit, pr[0].number)
+
+    for (const facet of facets) {
+      if (!files?.includes(`src/Facets/${facet}.sol`)) {
+        console.error(`${facet} is not included in this PR`)
+      }
+    }
+
+    // Get smartcontracts team members
+    const scTeam = await getTeamMembers(octokit, 'smartcontract')
+
+    // Get auditors team members
+    const auditors = await getTeamMembers(octokit, 'auditors')
+
+    if (!scTeam?.length || !auditors?.length) {
+      console.error('Team members not configured correctly')
+    }
+
+    // Get approvals
+    const approvals = await getPRApprovers(octokit, pr[0].number, args.token)
+
+    if (!approvals?.length) {
+      console.error('No approvals')
+    }
+
+    // Check that 1 of each team sc and auditors has approved the PR
+    let scApproved,
+      auditorApproved = false
+    for (const dev of scTeam) {
+      if (approvals?.includes(dev)) {
+        scApproved = true
+        break
+      }
+    }
+    for (const auditor of auditors) {
+      if (approvals?.includes(auditor)) {
+        auditorApproved = true
+        break
+      }
+    }
+    if (!scApproved || !auditorApproved) {
+      console.error('Missing required approvals')
+    }
+
+    process.stdout.write('OK')
   },
 })
 
 runMain(main)
 
-const getOpenPRsForBranch = async (branch: string, token: string) => {
-  const octokit = new Octokit({
-    auth: token,
-  })
-
+const getOpenPRsForBranch = async (
+  octokit: Octokit,
+  branch: string,
+  token: string
+) => {
   let pullRequests: any[] = []
   let page = 1
 
@@ -59,17 +115,15 @@ const getOpenPRsForBranch = async (branch: string, token: string) => {
 }
 
 const getPRApprovers = async (
-  owner: string,
-  repo: string,
-  pr_id: number,
+  octokit: Octokit,
+  pull_number: number,
   token: string
 ) => {
   try {
-    const octokit = new Octokit({ auth: token })
     const { data: reviews } = await octokit.pulls.listReviews({
-      owner,
-      repo,
-      pull_number: pr_id,
+      owner: OWNER,
+      repo: REPO,
+      pull_number: pull_number,
     })
 
     const approvers = reviews
@@ -77,7 +131,36 @@ const getPRApprovers = async (
       .map((review) => review.user?.login)
 
     return approvers
-  } catch (err) {
-    console.error(err)
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+const getFilesInPR = async (octokit: Octokit, pull_number: number) => {
+  try {
+    const result = await octokit.rest.pulls.listFiles({
+      owner: OWNER,
+      repo: REPO,
+      pull_number: pull_number,
+    })
+
+    return result.data
+      .filter((file) => file.status === 'modified' || file.status === 'added')
+      .map((file) => file.filename)
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+const getTeamMembers = async (octokit: Octokit, team: string) => {
+  try {
+    const response = await octokit.teams.listMembersInOrg({
+      org: OWNER,
+      team_slug: team,
+    })
+
+    return response.data.map((t) => t.login) || []
+  } catch (error) {
+    console.error(error)
   }
 }
