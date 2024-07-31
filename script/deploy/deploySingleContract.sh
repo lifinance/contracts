@@ -140,7 +140,6 @@ deploySingleContract() {
   # get CREATE3_FACTORY_ADDRESS
   CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
 
-  echo $CREATE3_FACTORY_ADDRESS  # if selected contract is "LiFiDiamondImmutable" then use an adjusted salt for deployment to prevent clashes due to same bytecode
   if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then
     # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
     BYTECODE="$BYTECODE""ffffffffffffffffffffffffffffffffffffff"
