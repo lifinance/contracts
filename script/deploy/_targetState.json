@@ -978,7 +978,8 @@
         "StargateFacet": "2.2.0",
         "HopFacetOptimized": "2.0.0",
         "AmarokFacetPacked": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1119,7 +1120,8 @@
         "StargateFacet": "2.2.0",
         "HopFacetOptimized": "2.0.0",
         "AmarokFacetPacked": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",

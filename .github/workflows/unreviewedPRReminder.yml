@@ -41,6 +41,11 @@ jobs:
               continue
             fi
 
+            # Continue loop if the PR has the label "WaitForBackend"
+            if echo "$PR_LABELS" | grep -q "WaitForBackend"; then
+              continue
+            fi
+
             # Convert date to Unix timestamp
             PR_CREATED_AT=$(date -d"$PR_CREATED_AT" +%s)
             NOW=$(date +%s)

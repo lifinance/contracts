@@ -1,7 +1,7 @@
 {
   "mainnet": {
     "chainId": 1,
-    "acrossSpokePool": "0x5c7bcd6e7de5423a257d81b442095a1a6ced35c5",
+    "acrossSpokePool": "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5",
     "weth": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
     "tokensToApprove": [
       "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",

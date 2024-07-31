@@ -6,7 +6,7 @@ import { stdJson } from "forge-std/Script.sol";
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
-import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
+import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
@@ -124,9 +124,9 @@ contract DeployScript is UpdateScriptBase {
 
         // create diamondCut action to remove all facet collectors that have been added to the array
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: address(0),
-                action: IDiamondCut.FacetCutAction.Remove,
+                action: LibDiamond.FacetCutAction.Remove,
                 functionSelectors: selectors
             })
         );
