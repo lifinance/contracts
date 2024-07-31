@@ -111,9 +111,9 @@ jobs:
           git commit -m 'actions: new contracts version ${{ steps.bump_version.outputs.next-version }}'
 
           # Sanitize the commit message by removing single quotes
-          COMMIT_MSG=$(echo "${{ env.MESSAGE }}" | sed "s/'//g")
+          COMMIT_MSG=$(echo "$MESSAGE" | sed "s/'//g")
 
-          git tag -a v${{ steps.bump_version.outputs.next-version }} -m "${{ env.MESSAGE }}"
+          git tag -a v${{ steps.bump_version.outputs.next-version }} -m "$MESSAGE"
           git push origin tag v${{ steps.bump_version.outputs.next-version }}
           if [[ "$BRANCH_NAME" == "main" ]]; then
             git push -u origin $BRANCH_NAME
