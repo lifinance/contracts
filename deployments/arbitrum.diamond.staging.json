@@ -116,6 +116,10 @@
       "0x21571D628B0bCBeb954D5933A604eCac35bAF2c7": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0xa137Fe4C41A2E04ca34578DC9023ad45cC194389": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -125,6 +129,7 @@
       "GasRebateDistributor": "",
       "LiFuelFeeCollector": "0x94EA56D8049e93E0308B9c7d1418Baf6A7C68280",
       "Receiver": "0x36E9B2E8A627474683eF3b1E9Df26D2bF04396f3",
+      "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
       "ServiceFeeCollector": "",

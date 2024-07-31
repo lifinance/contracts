@@ -3743,14 +3743,14 @@ function test_getContractNameFromDeploymentLogs() {
 
 function test_tmp() {
 
-  CONTRACT="LiFiDiamond"
+  CONTRACT="AcrossFacetV3"
   NETWORK="optimism"
   # ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F"
   ADDRESS="0xD3b2b0aC0AFdd0d166a495f5E9fca4eCc715a782"
   ENVIRONMENT="production"
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
-  ARGS="0x"
+  ARGS="0x0000000000000000000000006f26bf09b1c792e3228e5467807a900a503c02810000000000000000000000004200000000000000000000000000000000000006"
 
   #  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
   #  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
@@ -3758,7 +3758,7 @@ function test_tmp() {
   #    exit 1
   #  fi
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
-  # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
+  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 
   # transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
   # RESPONSE=$(cast call "$ADDRESS" "owner()" --rpc-url $(getRPCUrl "$NETWORK"))
