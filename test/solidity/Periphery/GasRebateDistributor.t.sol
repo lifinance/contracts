@@ -11,9 +11,9 @@ import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 contract GasRebateDistributorTest is Test {
     using stdJson for string;
     bytes32 public constant MERKLE_ROOT =
-        hex"b1a3e69afbb24ad2239e09935fdec19313f8b4b914e9a0cb8d956dab28464f0b";
+        hex"b1a3e69afbb24ad2239e09935fdec19313f8b4b914e9a0cb8d956dab28464f0b"; // [pre-commit-checker: not a secret]
     bytes32 public constant MERKLE_ROOT_2 =
-        hex"36fe7f7f4ab9cb7c2a36293cbe1d37aca4d8021b6f87ef8b518d34475c891919";
+        hex"36fe7f7f4ab9cb7c2a36293cbe1d37aca4d8021b6f87ef8b518d34475c891919"; // [pre-commit-checker: not a secret]
 
     address public constant ADDRES_USDC_ETH =
         0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -94,7 +94,7 @@ contract GasRebateDistributorTest is Test {
         merkleProof = new bytes32[](1);
         merkleProof[
             0
-        ] = hex"8b795aba0c0dd676e6e109be0785907973939d81e185eebcf81ec130feda059e";
+        ] = hex"8b795aba0c0dd676e6e109be0785907973939d81e185eebcf81ec130feda059e"; // [pre-commit-checker: not a secret]
     }
 
     /// Tests for function claim() ///
@@ -138,7 +138,7 @@ contract GasRebateDistributorTest is Test {
         bytes32[] memory merkleProof = _getValidMerkleProofClaimer1();
         merkleProof[
             0
-        ] = hex"fa4a9a72daea98757e27bd57e7ef6bca5177b8adddc97b6c8de1cbd20ad6059f"; // valid proof to claim 2.5 USDT
+        ] = hex"fa4a9a72daea98757e27bd57e7ef6bca5177b8adddc97b6c8de1cbd20ad6059f"; // valid proof to claim 2.5 USDT  // [pre-commit-checker: not a secret]
 
         // call distributor contract
         distributor.claim(claimAmount, merkleProof);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
+import { UpdateScriptBase, console } from "./utils/UpdateScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet, IDiamondLoupe } from "lifi/Facets/DiamondLoupeFacet.sol";
@@ -28,6 +28,7 @@ contract DeployScript is UpdateScriptBase {
         address peripheryRgs = json.readAddress(".PeripheryRegistryFacet");
         address liFuelAddress = json.readAddress(".LIFuelFacet");
         address genSwapAddress = json.readAddress(".GenericSwapFacet");
+        address genSwapV3Address = json.readAddress(".GenericSwapFacetV3");
         address standCallAddress = json.readAddress(".StandardizedCallFacet");
         address calldVerifAddress = json.readAddress(
             ".CalldataVerificationFacet"
@@ -35,9 +36,14 @@ contract DeployScript is UpdateScriptBase {
 
         bytes4[] memory exclude;
 
-        (bool loupeExists, ) = address(loupe).staticcall(
-            abi.encodeWithSelector(loupe.facetAddresses.selector)
-        );
+        // check if the loupe was already added to the diamond
+        bool loupeExists;
+        try loupe.facetAddresses() returns (address[] memory) {
+            // if call was successful, loupe exists on diamond already
+            loupeExists = true;
+        } catch {
+            // no need to do anything, just making sure that the flow continues in both cases with try/catch
+        }
 
         // Diamond Loupe
         bytes4[] memory selectors = getSelectors("DiamondLoupeFacet", exclude);
@@ -50,6 +56,9 @@ contract DeployScript is UpdateScriptBase {
             }
             vm.stopBroadcast();
         }
+
+        // reset diamond cut variable to remove diamondLoupe information
+        delete cut;
 
         // Ownership Facet
         selectors = getSelectors("OwnershipFacet", exclude);
@@ -107,6 +116,14 @@ contract DeployScript is UpdateScriptBase {
             buildInitialCut(selectors, genSwapAddress);
         }
 
+        // GenericSwapFacetV3
+        selectors = getSelectors("GenericSwapFacetV3", exclude);
+        if (loupeExists) {
+            buildDiamondCut(selectors, genSwapV3Address);
+        } else {
+            buildInitialCut(selectors, genSwapV3Address);
+        }
+
         // StandardizedCallFacet
         selectors = getSelectors("StandardizedCallFacet", exclude);
         if (loupeExists) {
@@ -140,8 +157,9 @@ contract DeployScript is UpdateScriptBase {
         if (cut.length > 0) {
             cutter.diamondCut(cut, address(0), "");
         }
-        facets = loupe.facetAddresses();
 
         vm.stopBroadcast();
+
+        facets = loupe.facetAddresses();
     }
 }

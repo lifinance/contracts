@@ -47,6 +47,9 @@ function diamondSyncSigs {
     NETWORKS=($NETWORK)
   fi
 
+    # get diamond address from deployments script
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+
   # logging for debug purposes
   echo ""
   echoDebug "in function syncSIGs"
@@ -71,7 +74,7 @@ function diamondSyncSigs {
       # ensure that gas price is below maximum threshold (for mainnet only)
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-      ts-node ./script/tasks/diamondSyncSigs.ts --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
+      ts-node ./script/tasks/diamondSyncSigs.ts --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --environment "$ENVIRONMENT"
 
       # check the return code of the last call
       if [ $? -eq 0 ]; then

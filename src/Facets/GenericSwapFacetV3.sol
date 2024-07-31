@@ -8,15 +8,23 @@ import { LibAllowList } from "../Libraries/LibAllowList.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
-import { console2 } from "forge-std/console2.sol";
 
 /// @title GenericSwapFacetV3
 /// @author LI.FI (https://li.fi)
 /// @notice Provides gas-optimized functionality for fee collection and for swapping through any APPROVED DEX
 /// @dev Can only execute calldata for APPROVED function selectors
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract GenericSwapFacetV3 is ILiFi {
     using SafeTransferLib for ERC20;
+
+    /// Storage
+    address public immutable NATIVE_ADDRESS;
+
+    /// Constructor
+    /// @param _nativeAddress the address of the native token for this network
+    constructor(address _nativeAddress) {
+        NATIVE_ADDRESS = _nativeAddress;
+    }
 
     /// External Methods ///
 
@@ -114,7 +122,7 @@ contract GenericSwapFacetV3 is ILiFi {
             _transactionId,
             _swapData.callTo,
             sendingAssetId,
-            address(0),
+            NATIVE_ADDRESS,
             fromAmount,
             amountReceived,
             block.timestamp
@@ -126,7 +134,7 @@ contract GenericSwapFacetV3 is ILiFi {
             _referrer,
             _receiver,
             sendingAssetId,
-            address(0),
+            NATIVE_ADDRESS,
             fromAmount,
             amountReceived
         );
@@ -183,7 +191,7 @@ contract GenericSwapFacetV3 is ILiFi {
         emit LibSwap.AssetSwapped(
             _transactionId,
             callTo,
-            address(0),
+            NATIVE_ADDRESS,
             receivingAssetId,
             fromAmount,
             amountReceived,
@@ -195,7 +203,7 @@ contract GenericSwapFacetV3 is ILiFi {
             _integrator,
             _referrer,
             _receiver,
-            address(0),
+            NATIVE_ADDRESS,
             receivingAssetId,
             fromAmount,
             amountReceived
@@ -506,7 +514,6 @@ contract GenericSwapFacetV3 is ILiFi {
         uint256 _minAmountOut,
         LibSwap.SwapData[] calldata _swapData
     ) private {
-        console2.log("in _transferNativeTokensAndEmitEvent");
         uint256 amountReceived = address(this).balance;
 
         // make sure minAmountOut was received
@@ -517,7 +524,6 @@ contract GenericSwapFacetV3 is ILiFi {
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, ) = _receiver.call{ value: amountReceived }("");
         if (!success) {
-            console2.log("HEYA");
             revert NativeAssetTransferFailed();
         }
 
@@ -528,7 +534,7 @@ contract GenericSwapFacetV3 is ILiFi {
             _referrer,
             _receiver,
             _swapData[0].sendingAssetId,
-            address(0),
+            NATIVE_ADDRESS,
             _swapData[0].fromAmount,
             amountReceived
         );
@@ -540,7 +546,7 @@ contract GenericSwapFacetV3 is ILiFi {
         address receiver
     ) private {
         // if a balance exists in sendingAsset, it must be positive slippage
-        if (address(sendingAsset) != address(0)) {
+        if (address(sendingAsset) != NATIVE_ADDRESS) {
             uint256 sendingAssetBalance = sendingAsset.balanceOf(
                 address(this)
             );

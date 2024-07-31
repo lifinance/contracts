@@ -36,6 +36,10 @@ jobs:
             if echo "$PR_LABELS" | grep -q "WIP"; then
               continue
             fi
+            # Continue loop if the PR has the label "WaitForBackend"
+            if echo "$PR_LABELS" | grep -q "WaitForBackend"; then
+              continue
+            fi
 
             # Continue loop if the PR has the label "WaitForBackend"
             if echo "$PR_LABELS" | grep -q "WaitForBackend"; then

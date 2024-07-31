@@ -264,7 +264,9 @@ abstract contract TestBaseFacet is TestBase {
     {
         vm.startPrank(USER_SENDER);
 
-        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
         // prepare bridgeData
         bridgeData.hasDestinationCall = true;
 

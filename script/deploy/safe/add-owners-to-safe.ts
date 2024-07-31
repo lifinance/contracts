@@ -1,11 +1,19 @@
 import { defineCommand, runMain } from 'citty'
 import { type SafeApiKitConfig } from '@safe-global/api-kit'
 import { type Chain, getAddress } from 'viem'
-import Safe, { EthersAdapter } from '@safe-global/protocol-kit'
+import Safe, {
+  ContractNetworksConfig,
+  EthersAdapter,
+} from '@safe-global/protocol-kit'
 import SafeApiKit from '@safe-global/api-kit'
 import { ethers } from 'ethers6'
 import * as chains from 'viem/chains'
-import { chainNameMappings, safeAddresses, safeApiUrls } from './config'
+import {
+  chainNameMappings,
+  getSafeUtilityContracts,
+  safeAddresses,
+  safeApiUrls,
+} from './config'
 
 const chainMap: Record<string, Chain> = {}
 for (const [k, v] of Object.entries(chains)) {
@@ -64,11 +72,13 @@ const main = defineCommand({
     const protocolKit = await Safe.create({
       ethAdapter,
       safeAddress: safeAddress,
+      contractNetworks: getSafeUtilityContracts(chain.id),
     })
 
     const owners = String(args.owners).split(',')
 
     let nextNonce = await safeService.getNextNonce(safeAddress)
+    const info = safeService.getSafeInfo(safeAddress)
     for (const o of owners) {
       const owner = getAddress(o)
       const existingOwners = await protocolKit.getOwners()
@@ -80,7 +90,7 @@ const main = defineCommand({
       const safeTransaction = await protocolKit.createAddOwnerTx(
         {
           ownerAddress: owner,
-          threshold: 1,
+          threshold: (await info).threshold,
         },
         {
           nonce: nextNonce,

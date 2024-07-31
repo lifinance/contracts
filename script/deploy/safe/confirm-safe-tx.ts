@@ -6,33 +6,48 @@ import SafeApiKit from '@safe-global/api-kit'
 import { ethers } from 'ethers6'
 import consola from 'consola'
 import * as chains from 'viem/chains'
-import { chainNameMappings, safeAddresses, safeApiUrls } from './config'
+import {
+  chainNameMappings,
+  getSafeUtilityContracts,
+  safeAddresses,
+  safeApiUrls,
+} from './config'
 
 const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
 
-// Keep a list here instead of referencing on to allow to easily comment out some chains
-const defaultNetworks = [
-  'mainnet',
-  'arbitrum',
-  'aurora',
-  'avalanche',
-  'base',
-  'boba',
-  'bsc',
-  'celo',
-  'fantom',
-  'fuse',
-  'gnosis',
-  'moonbeam',
-  'moonriver',
-  'optimism',
-  'polygon',
-  'polygonZkEvm',
-  'scroll',
-  'gnosis',
-  'zkSync',
-  'linea',
+const allNetworks = Object.keys(safeAddresses)
+// In order to skip specific networks simple comment them in
+const skipNetworks: string[] = [
+  // 'mainnet',
+  // 'arbitrum',
+  // 'aurora',
+  // 'avalanche',
+  // 'base',
+  // 'blast',
+  // 'boba',
+  // 'bsc',
+  // 'celo',
+  // 'fantom',
+  // 'fraxtal',
+  // 'fuse',
+  // 'gnosis',
+  // 'linea',
+  // 'mantle',
+  // 'metis',
+  // 'mode',
+  // 'moonbeam',
+  // 'moonriver',
+  // 'optimism',
+  // 'polygon',
+  // 'polygonzkevm',
+  // 'rootstock',
+  // 'scroll',
+  // 'sei',
+  // 'zksync',
 ]
+const defaultNetworks = allNetworks.filter(
+  (network) => !skipNetworks.includes(network)
+)
 
 const storedResponses: Record<string, string> = {}
 
@@ -91,6 +106,7 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
   const protocolKit = await Safe.create({
     ethAdapter,
     safeAddress: safeAddress,
+    contractNetworks: getSafeUtilityContracts(chain.id),
   })
 
   const allTx = await retry(() =>

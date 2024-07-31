@@ -1,4 +1,228 @@
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
+echo ""
+echo "Running 'forge build' now"
+forge build
 
+# If the build fails, abort the commit
+if [ $? -ne 0 ]; then
+  echo "\nForge build failed. Aborting commit.\n"
+  exit 1
+fi
+
+echo ""
+echo ""
+echo "Running 'yarn lint-staged' now:"
 yarn lint-staged
+
+echo ""
+echo ""
+echo "now checking for .env secrets and private keys accidentally being committed to Github"
+echo " > any 64-byte hex string will be identified as potential private key"
+echo " > disable false positive matches by commenting '[pre-commit-checker: not a secret]' in same line or line above"
+echo " > execution might take a while depending on the size of your git diff "
+echo " > logs will only be shown once task is completed"
+echo ""
+
+DISABLE_WITH_COMMENT="pre-commit-checker: not a secret"
+# Regex pattern to identify potential Ethereum private keys (64 hexadecimal characters)
+ETH_PRIVATE_KEY_PATTERN="\b[a-fA-F0-9]{64}\b"
+
+# Load secrets from .env file
+if [ -f ".env" ]; then
+  ENV_SECRETS=$(grep -v '^#' .env | sed 's/#.*//' | grep -v '^\s*$' | sed 's/ *$//')
+else
+  echo ".env file not found"
+  ENV_SECRETS=""
+fi
+
+printRed() {
+  local MESSAGE=$1
+  printf '\033[31m%s\033[0m\n' "$MESSAGE"
+}
+printYellow() {
+  local MESSAGE=$1
+  printf '\033[33m%s\033[0m\n' "$MESSAGE"
+}
+
+printAdvise() {
+  local ACTION=$1
+
+  echo ""
+  printf '\033[91m%s\033[0m\n' "NEXT STEPS"
+  if [ "$ACTION" = "abort" ]; then
+    printf '\033[91m%s\033[0m\n' "Remove the secrets and try to commit again"
+  else
+    printf '\033[91m%s\033[0m\n' "Check each match carefully and make sure that no sensitive information is being committed"
+    printf '\033[91m%s\033[0m\n' "If it did happen, undo the commit with 'git reset --soft HEAD~1', remove the secret(s) and commit again."
+    printf '\033[91m%s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! BEFORE PUSHING TO GITHUB !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  fi
+}
+
+# checks if the given line number or the line above contain a comment to disable the check
+isKnownFalsePositiveMatch() {
+  local FILE=$1
+  local LINE_NUMBER=$2
+
+  if [ "$LINE_NUMBER" -gt 1 ]; then
+    local PREV_LINE=$(sed "$((LINE_NUMBER - 1))q;d" "$FILE")
+    local CURR_LINE=$(sed "${LINE_NUMBER}q;d" "$FILE")
+
+    # check if comment is present in line above
+    if echo "$PREV_LINE" | grep -q "$DISABLE_WITH_COMMENT"; then
+      return 0
+    # check if comment is present in current line
+    elif echo "$CURR_LINE" | grep -q "$DISABLE_WITH_COMMENT"; then
+      return 0
+    fi
+  # special handlng if line number is first line (then only check this line)
+  elif [ "$LINE_NUMBER" -eq 1 ]; then
+    local CURR_LINE=$(sed "${LINE_NUMBER}q;d" "$FILE")
+
+    if echo "$CURR_LINE" | grep -q "$DISABLE_WITH_COMMENT"; then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+# checks if a file contains any of the secrets in .env
+doesFileContainDotEnvSecret() {
+  local FILE=$1
+  # iterate through all secrets
+  for SECRET in $ENV_SECRETS; do
+    # extract key and value
+    local VALUE=$(echo "$SECRET" | cut -d '=' -f 2- | sed -e 's/^["'\''"]*//' -e 's/["'\''"]*$//')
+    local KEY=$(echo "$SECRET" | cut -d '=' -f 1)
+
+    # skip empty values
+    if [ -z "$VALUE" ]; then
+      continue
+    fi
+
+    # go through file line by line
+    grep -nH "$VALUE" "$FILE" | while IFS= read -r LINE; do
+      LINE_CONTENT=$(echo "$LINE" | cut -d: -f2-)
+
+      # check if the FILE contains the SECRET value
+      if [ "$LINE_CONTENT" != "" ] && echo "$LINE_CONTENT" | grep -q "$VALUE"; then
+        # match found
+        LINE_NUMBER=$(echo "$LINE" | cut -d: -f2)
+        # check if this is a known false positive marked by a comment in the code
+        if ! isKnownFalsePositiveMatch "$FILE" "$LINE_NUMBER"; then
+          # print match
+          echo "[$FILE:$LINE_NUMBER] Secret from .env file found (key: $KEY)"
+        fi
+      fi
+    done
+  done
+}
+
+# checks if a file contains a potential private key (=> a 64 hex string)
+doesFileContainPotentialPrivateKey() {
+  local FILE=$1
+  local KEY=$2
+
+  # check file content for matches with private key regEx
+  local MATCHES=$(grep -E -nH "$ETH_PRIVATE_KEY_PATTERN" "$FILE")
+
+  # go through each (potential) match
+  while read -r LINE
+  do
+    # skip empty MATCHES
+    if [[ -z "$LINE" ]]; then
+      continue
+    fi
+
+    LINENUMBER=$(echo "$LINE" | cut -d: -f2)
+
+    # check if this is a known false positive marked by a comment in the code
+    if ! isKnownFalsePositiveMatch "$FILE" "$LINENUMBER"; then
+      echo "Potential private key found:"
+      echo "$LINE"
+      echo ""
+
+    fi
+
+  done <<< "$(echo "$MATCHES")"
+
+}
+
+processGitDiff() {
+  echo "-------------------------------------- RESULTS: ---------------------------------------------––"
+  echo ""
+
+  # Check for private keys and secrets in all added or modified FILES
+  git diff --cached --name-only --diff-filter=ACM | while IFS= read -r FILE; do
+    # Skip the deploy log file as this is auto generated and contains tons of false positives
+    if [ "$FILE" = "deployments/_deployments_log_file.json" ]; then
+      continue
+    fi
+
+    #skip libraries
+    if [[ "$FILE" == "lib/"* ]]; then
+      continue
+    fi
+
+    #skip yarn.lock
+    if [[ $FILE == "yarn.lock" ]]; then
+      continue
+    fi
+
+    #skip .yarn files (releases etc.)
+    if [[ $FILE == ".yarn/"* ]]; then
+      continue
+    fi
+
+    # Check for secrets from .env file
+    RESULT_SECRET=$(doesFileContainDotEnvSecret "$FILE")
+    if [[ -n $RESULT_SECRET ]]; then
+      printRed "$RESULT_SECRET"
+      echo ""
+    fi
+
+    # Check for potential private keys
+    RESULT_PRIVKEY=$(doesFileContainPotentialPrivateKey "$FILE" "$KEY")
+    if [[ -n $RESULT_PRIVKEY ]]; then
+      printYellow "$RESULT_PRIVKEY"
+      echo ""
+    fi
+  done
+  echo "---------------------------------------------------------------------------------------------––"
+}
+
+checkGitDiffForSecretsAndPrivateKeys() {
+
+  # process all files in git diff and search for secrets
+  local RESULT=$(processGitDiff)
+
+  # print the search results to console
+  if [[ -n $RESULT ]]; then
+    echo "$RESULT"
+  fi
+
+  echo ""
+
+  # log a warning and prevent the commit if a secret was found
+  if [[ "$RESULT" == *"Secret from .env file found"* ]]; then
+
+    echo ""
+    WARNING="Warning: Secret value(s) from .env found. This code cannot be committed."
+    printf '\033[36m%s\033[0m\n' "$WARNING"
+    printAdvise "abort"
+    echo ""
+    exit 1
+  fi
+
+  # log a warning and next steps if a potential private key was found (the commit will still be accepted)
+  if [[ "$RESULT" == *"Potential private key found"* ]]; then
+    printf '\033[36m%s\033[0m\n' "Warning: Potential Ethereum private keys found"
+    printAdvise "warning"
+    echo ""
+  fi
+
+  exit 0
+}
+
+checkGitDiffForSecretsAndPrivateKeys
