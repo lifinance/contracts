@@ -81,7 +81,8 @@
     "healthcheck": "tsx ./script/deploy/healthCheck.mts",
     "propose-safe-tx": "ts-node ./script/deploy/safe/propose-to-safe.ts",
     "confirm-safe-tx": "ts-node ./script/deploy/safe/confirm-safe-tx.ts",
-    "add-safe-owners": "ts-node ./script/deploy/safe/add-owners-to-safe.ts"
+    "add-safe-owners": "ts-node ./script/deploy/safe/add-owners-to-safe.ts",
+    "flatten": "forge flatten --output"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
