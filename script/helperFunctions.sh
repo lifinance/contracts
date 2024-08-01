@@ -1359,12 +1359,11 @@ function verifyContract() {
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        echo "------------------------------------------------------------------------------ >>>>> HERE"
-        # forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}"
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}"
 
         # TODO: add code that automatically identifies blockscout verification
-        # blockscout
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --verifier blockscout --verifier-url "https://explorer.immutable.com/api?"
+        # use --skip-is-verified-check by default? (to be tested)
+        # forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --verifier blockscout --verifier-url "https://explorer.immutable.com/api?"
       else
         forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}" >/dev/null 2>&1
       fi
