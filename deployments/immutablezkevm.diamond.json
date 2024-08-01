@@ -64,7 +64,8 @@
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "",
-      "TokenWrapper": "0x5C6Dd0170348666A3e07fD033C12D9D15c83e360"
+      "TokenWrapper": "0x5C6Dd0170348666A3e07fD033C12D9D15c83e360",
+      "LiFiDEXAggregator": ""
     }
   }
 }
