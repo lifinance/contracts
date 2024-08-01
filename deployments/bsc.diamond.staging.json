@@ -79,16 +79,17 @@
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0xf90a432dD1D0541470BC9C440d9dEc3659755238",
-      "Executor": "0x4f3B1b1075cC19daA15b7cc681b28e2fB82145eD",
-      "FeeCollector": "0x7f98D45c7902f079fDb65811B633522e2d227BB6",
+      "ERC20Proxy": "",
+      "Executor": "",
+      "FeeCollector": "",
       "GasRebateDistributor": "",
-      "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
-      "Receiver": "0x76EE0F8fb09047284B6ea89881595Fc6F5B09E12",
+      "LiFuelFeeCollector": "",
+      "Receiver": "",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d",
-      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
+      "ServiceFeeCollector": "",
+      "TokenWrapper": "",
+      "LiFiDEXAggregator": ""
     }
   }
 }
