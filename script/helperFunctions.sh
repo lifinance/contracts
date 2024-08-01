@@ -3753,8 +3753,7 @@ function test_tmp() {
 
   CONTRACT="LiFiDEXAggregator"
   NETWORK="immutablezkevm"
-  # ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F"
-  ADDRESS="0xAcD913Ad6936Bb662395ac9a66D75bFc77c165fF"
+  ADDRESS="0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
   ENVIRONMENT="production"
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
@@ -3777,6 +3776,6 @@ function test_tmp() {
   # RESPONSE=$(cast call "$ADDRESS" "owner()" --rpc-url $(getRPCUrl "$NETWORK"))
   # echo "RESPONSE: $RESPONSE"
 
-  # cast call "$ADDRESS" "approvedDexs() returns (address[])" --rpc-url $(getRPCUrl "$NETWORK")
+  RESULT=$(yarn add-safe-owners --network immutablezkevm --rpc-url "$(getRPCUrl "$NETWORK" "$ENVIRONMENT")" --privateKey "$PRIVATE_KEY_PRODUCTION" --owners "0xb78FbE12d9C09d98ce7271Fa089c2fe437B7B4D5,0x65f6F29D3eb871254d71A79CC4F74dB3AAF3b86e,0x24767E3A1cb07ee500BA9A5621F2B608440Ca270,0x81Dbb716aA13869323974A1766120D0854188e3e,0x11F1022cA6AdEF6400e5677528a80d49a069C00c,0x498E8fF83B503aDe5e905719D27b2f11B605b45A")
 }
 # test_tmp

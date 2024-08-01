@@ -1,6 +1,6 @@
 import { defineCommand, runMain } from 'citty'
 import { type SafeApiKitConfig } from '@safe-global/api-kit'
-import { type Chain, getAddress } from 'viem'
+import { type Chain, defineChain, getAddress } from 'viem'
 import Safe, {
   ContractNetworksConfig,
   EthersAdapter,
@@ -48,8 +48,38 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const chainName = chainNameMappings[args.network] || args.network
-    const chain: Chain = chainMap[chainName]
+    // const chainName = chainNameMappings[args.network] || args.network
+    // const chain: Chain = chainMap[chainName]
+
+    const chainName = 'immutablezkevm'
+    const chain = defineChain({
+      id: 13371,
+      name: 'Immutable zkEVM',
+      nativeCurrency: {
+        decimals: 18,
+        name: 'IMX',
+        symbol: 'IMX',
+      },
+      rpcUrls: {
+        default: {
+          http: ['https://rpc.immutable.com'], // [pre-commit-checker: not a secret]
+          webSocket: ['wss://immutable-zkevm.drpc.org'],
+        },
+      },
+      blockExplorers: {
+        default: { name: 'Explorer', url: 'https://explorer.immutable.com/' },
+      },
+      contracts: {
+        // multicall3: {
+        //   address: '0x4f6F1CeE578C0B201c65CCaaBFF1D924377F622D',
+        //   blockCreated: 2863004,
+        // },
+        multicall3: {
+          address: '0xcA11bde05977b3631167028862bE2a173976CA11',
+          blockCreated: 3680945,
+        },
+      },
+    })
 
     const config: SafeApiKitConfig = {
       chainId: BigInt(chain.id),

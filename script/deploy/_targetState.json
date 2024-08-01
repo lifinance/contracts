@@ -2063,7 +2063,8 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
-        "SquidFacet": "1.0.0"
+        "SquidFacet": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
