@@ -3752,14 +3752,15 @@ function test_getContractNameFromDeploymentLogs() {
 
 function test_tmp() {
 
-  CONTRACT="LiFiDiamond"
+  CONTRACT="LiFiDEXAggregator"
   NETWORK="immutablezkevm"
   # ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F"
-  ADDRESS="0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
+  ADDRESS="0xAcD913Ad6936Bb662395ac9a66D75bFc77c165fF"
   ENVIRONMENT="production"
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
-  ARGS="0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000c9e3d116262e93c14f87032fbe0c43791e0fafcb"
+  ARGS="0x"
+  ARGS="0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000100000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7"
 
   #  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
   #  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
@@ -3769,7 +3770,7 @@ function test_tmp() {
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
   # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 
-  # forge verify-contract "$ADDRESS" "$CONTRACT" --chain-id 13371 --verifier blockscout --verifier-url https://explorer.immutable.com/api
+  # forge verify-contract "$ADDRESS" "$CONTRACT" --chain-id 13371 --verifier blockscout --verifier-url https://explorer.immutable.com/api --skip-is-verified-check
   # forge verify-contract 0x8CDDE82cFB4555D6ca21B5b28F97630265DA94c4 Counter --verifier oklink --verifier-url https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER  --api-key $OKLINK_API_KEY
 
 
