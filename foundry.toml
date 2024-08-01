@@ -73,7 +73,7 @@ fraxtal = { key = "${FRAXTAL_ETHERSCAN_API_KEY}", url = "https://api.fraxscan.co
 fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api", chain = "122" }
 gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://api.gnosisscan.io/api", chain = "100" }
 gravity = { key = "${GRAVITY_ETHERSCAN_API_KEY}", url = "https://explorer.gravity.xyz/api", chain = "1625", verifier = "blockscout"}
-immutablezkevm = { key = """${IMMUTABLEZKEVM_ETHERSCAN_API_KEY}""", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout"}
+immutablezkevm = { key = "${IMMUTABLEZKEVM_ETHERSCAN_API_KEY}", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout"}
 moonbeam = { key = "${MOONBEAM_ETHERSCAN_API_KEY}", url = "https://api-moonbeam.moonscan.io/api", chain = "1284" }
 moonriver = { key = "${MOONRIVER_ETHERSCAN_API_KEY}", url = "https://api-moonriver.moonscan.io/api", chain = "1285" }
 optimism = { key = "${OPTIMISM_ETHERSCAN_API_KEY}", url = "https://api-optimistic.etherscan.io/api", chain = "10" }
