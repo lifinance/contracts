@@ -30,7 +30,7 @@ contract MayanFacetTest is TestBaseFacet {
     address DEV_WALLET = 0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7;
 
     bytes32 ACTUAL_SOL_ADDR =
-        hex"4cb7c5f1632114c376c0e7a9a1fd1fbd562699fbd9a0c9f4f26ba8cf6e23df0d";
+        hex"4cb7c5f1632114c376c0e7a9a1fd1fbd562699fbd9a0c9f4f26ba8cf6e23df0d"; // [pre-commit-checker: not a secret]
     bytes32 EXPECTED_SOL_ADDR = bytes32("EXPECTED ADDRESS");
 
     function setUp() public {

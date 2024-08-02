@@ -46,6 +46,7 @@
     "fraxtal": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "fuse": "0x5336e97bA7332FAC20281Bda8B790c8892245Ded",
     "gnosis": "0x2bC523875b59A1Ddd03CEB1F1b28c5B0e8e6654A",
+    "gravity": "0x245B16CaCE8730b009c5352186DcE7d73c3037A1",
     "linea": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "mantle": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "metis": "0x925cD8289Ac2d617F52974da8338867f3bB62d56",
@@ -65,7 +66,8 @@
     "0x65f6F29D3eb871254d71A79CC4F74dB3AAF3b86e",
     "0x24767E3A1cb07ee500BA9A5621F2B608440Ca270",
     "0x81Dbb716aA13869323974A1766120D0854188e3e",
-    "0x11F1022cA6AdEF6400e5677528a80d49a069C00c"
+    "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+    "0x498E8fF83B503aDe5e905719D27b2f11B605b45A"
   ],
   "safeApiUrls": {
     "mainnet": "https://safe-transaction-mainnet.safe.global/api",
@@ -78,9 +80,10 @@
     "bsc": "https://safe-transaction-bsc.safe.global/api",
     "celo": "https://safe-transaction-celo.safe.global/api",
     "fantom": "https://safe-txservice.fantom.network/api",
-    "fraxtal": "https://safe.origin.mainnet.frax.com/txs/api",
+    "fraxtal": "https://transaction-frax.safe.optimism.io/api",
     "fuse": "https://transaction-fuse.safe.fuse.io/api",
     "gnosis": "https://safe-transaction-gnosis-chain.safe.global/api",
+    "gravity": "https://safe.gravity.xyz/txs/api",
     "linea": "https://transaction.safe.linea.build/api",
     "mantle": "https://transaction.multisig.mantle.xyz/api",
     "metis": "https://metissafe.tech/txs/api",
@@ -91,11 +94,10 @@
     "polygon": "https://safe-transaction-polygon.safe.global/api",
     "polygonzkevm": "https://safe-transaction-zkevm.safe.global/api",
     "rootstock": "https://transaction.safe.rootstock.io/api",
-    "scroll": "https://transaction.safe.scroll.xyz/api",
+    "scroll": "https://safe-transaction-scroll.safe.global/api",
     "sei": "https://transaction.sei-safe.protofire.io/api",
     "zksync": "https://safe-transaction-zksync.safe.global/api"
   },
-
   "nativeAddress": {
     "mainnet": "0x0000000000000000000000000000000000000000",
     "arbitrum": "0x0000000000000000000000000000000000000000",
@@ -110,6 +112,7 @@
     "fraxtal": "0x0000000000000000000000000000000000000000",
     "fuse": "0x0000000000000000000000000000000000000000",
     "gnosis": "0x0000000000000000000000000000000000000000",
+    "gravity": "0x0000000000000000000000000000000000000000",
     "linea": "0x0000000000000000000000000000000000000000",
     "mantle": "0x0000000000000000000000000000000000000000",
     "metis": "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000",
