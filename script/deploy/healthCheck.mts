@@ -14,6 +14,7 @@ import {
   http,
   parseAbi,
 } from 'viem'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers.ts'
 
 const SAFE_THRESHOLD = 3
 
@@ -43,12 +44,6 @@ const corePeriphery = [
   'LiFuelFeeCollector',
   'TokenWrapper',
 ]
-
-const chainMap: Record<string, Chain> = {}
-for (const [k, v] of Object.entries(chains)) {
-  // @ts-ignore
-  chainMap[k] = v
-}
 
 const errors: string[] = []
 const main = defineCommand({
@@ -105,7 +100,8 @@ const main = defineCommand({
 
     const globalConfig = await import('../../config/global.json')
 
-    const chain = chainMap[network]
+    const chain = getViemChainForNetworkName(network)
+
     const publicClient = createPublicClient({
       batch: { multicall: true },
       chain,

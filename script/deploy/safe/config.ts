@@ -63,11 +63,6 @@ export const safeAddresses: Record<string, string> = {
   zksync: '0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744',
 }
 
-export const chainNameMappings: Record<string, string> = {
-  zksync: 'zkSync',
-  polygonzkevm: 'polygonZkEvm',
-}
-
 export const getSafeUtilityContracts = (chainId: number) => {
   let contractNetworks: ContractNetworksConfig
   switch (chainId) {

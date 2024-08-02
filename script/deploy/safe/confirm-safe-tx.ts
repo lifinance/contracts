@@ -6,12 +6,8 @@ import SafeApiKit from '@safe-global/api-kit'
 import { ethers } from 'ethers6'
 import consola from 'consola'
 import * as chains from 'viem/chains'
-import {
-  chainNameMappings,
-  getSafeUtilityContracts,
-  safeAddresses,
-  safeApiUrls,
-} from './config'
+import { getSafeUtilityContracts, safeAddresses, safeApiUrls } from './config'
+import { getViemChainForNetworkName } from '../../../utils/viemScriptHelpers'
 
 const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
 
@@ -31,6 +27,8 @@ const skipNetworks: string[] = [
   // 'fraxtal',
   // 'fuse',
   // 'gnosis',
+  // 'gravity',
+  // 'immutablezkevm',
   // 'linea',
   // 'mantle',
   // 'metis',
@@ -77,17 +75,16 @@ for (const [k, v] of Object.entries(chains)) {
 }
 
 const func = async (network: string, privateKey: string, rpcUrl?: string) => {
-  const chainName = chainNameMappings[network] || network
-  const chain: Chain = chainMap[chainName]
+  const chain = getViemChainForNetworkName(network)
 
   const config: SafeApiKitConfig = {
     chainId: BigInt(chain.id),
-    txServiceUrl: safeApiUrls[chainName.toLowerCase()],
+    txServiceUrl: safeApiUrls[chain.name.toLowerCase()],
   }
 
   const safeService = new SafeApiKit(config)
 
-  const safeAddress = safeAddresses[chainName.toLowerCase()]
+  const safeAddress = safeAddresses[chain.name.toLowerCase()]
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
   const provider = new ethers.JsonRpcProvider(parsedRpcUrl)
