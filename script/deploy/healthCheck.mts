@@ -84,13 +84,13 @@ const main = defineCommand({
 
     const { network } = args
     const deployedContracts = await import(
-      `../../deployments/${network.toLowerCase()}.staging.json`
+      `../../deployments/${network.toLowerCase()}.json`
     )
     const targetStateJson = await import(
       `../../script/deploy/_targetState.json`
     )
     const nonCoreFacets = Object.keys(
-      targetStateJson[network.toLowerCase()].staging.LiFiDiamond
+      targetStateJson[network.toLowerCase()].production.LiFiDiamond
     ).filter((k) => {
       return (
         !coreFacets.includes(k) &&
