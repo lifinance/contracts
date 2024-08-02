@@ -393,7 +393,9 @@ contract StargateFacetV2Test is TestBaseFacet {
         // than available in the contract and thus leave some dust
         // the facet should update this parameter after swapping with the amountOut
         // of the swap, thus not leaving any dust in the contract
-        stargateData.sendParams.amountLD = bridgeData.minAmount - 100;
+        bridgeData.minAmount = stargateData.sendParams.amountLD =
+            amountOut -
+            100;
 
         stargateFacetV2.swapAndStartBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
