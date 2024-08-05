@@ -168,9 +168,9 @@ jobs:
           IFS=',' read -ra UPDATED_ARRAY <<< "$UPDATED_CONTRACTS"
           for TARGET_STRING in "${UPDATED_ARRAY[@]}"; do
             if [[ "$PR_TITLE_UPDATED" =~ "$TARGET_STRING" ]]; then
-              echo "PR title contains target string ($TARGET_STRING)"
+              echo "PR title contains target string '$TARGET_STRING'"
             else
-              echo "PR title does not contain target string ($TARGET_STRING)"
+              echo "PR title does not contain target string '$TARGET_STRING'"
               PR_TITLE_UPDATED="$PR_TITLE_UPDATED ($TARGET_STRING)"
             fi
           done
