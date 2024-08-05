@@ -177,13 +177,13 @@ jobs:
             PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-2})"
           elif [[ "${PR_TITLE_UPDATED: -1}" == "(" ]]; then
             # Remove the last character if it is an open bracket
-            PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-1}"
+            PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-1})"
           else
             echo "Error: Unexpected ending in PR_TITLE_UPDATED: '$PR_TITLE_UPDATED'"
             exit 1
           fi
 
-          echo "Final PR Title: $PR_TITLE_UPDATED)"
+          echo "Final PR Title: $PR_TITLE_UPDATED"
           echo "PR_TITLE=$PR_TITLE_UPDATED" >> $GITHUB_ENV
 
       # - name: Update PR title with updated version info
