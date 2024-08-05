@@ -35,8 +35,6 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bool payFeeWithSendingAsset;
     }
 
-    function bla() external view {}
-
     /// @notice Initializes the AllBridge contract
     /// @param _allBridge The address of the AllBridge contract
     constructor(IAllBridge _allBridge) {
