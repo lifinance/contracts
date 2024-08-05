@@ -160,7 +160,7 @@ jobs:
           # Initialize PR title
           PR_TITLE_UPDATED="$PR_TITLE ("
 
-          # Check if each target string is in the PR title
+          # Check for each target string if it's already in the PR title
           IFS=',' read -ra UPDATED_ARRAY <<< "$UPDATED_CONTRACTS"
           for TARGET_STRING in "${UPDATED_ARRAY[@]}"; do
             if [[ "$PR_TITLE_UPDATED" =~ "$TARGET_STRING" ]]; then
