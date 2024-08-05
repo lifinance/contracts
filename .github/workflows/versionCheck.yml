@@ -108,7 +108,7 @@ jobs:
               fi
             fi
             echo "--------------------"
-          done <<< "$CONTRACTS""
+          done <<< "$CONTRACTS"
 
           echo "A"
           # Output the results
