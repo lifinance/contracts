@@ -114,13 +114,13 @@ jobs:
           # Output the results
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
           echo "Files missing version tags: ${MISSING_VERSION_TAG[*]}"
-          echo -e "${MISSING_VERSION_TAG[*]}" > missing_version_tag.txt
+          #echo -e "${MISSING_VERSION_TAG[*]}" > missing_version_tag.txt
           fi
           echo "B"
 
           if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
           echo "Files with version tags not updated: ${MISSING_VERSION_UPDATE[*]}"
-          echo -e "${MISSING_VERSION_UPDATE[*]}" > missing_version_update.txt
+          #echo -e "${MISSING_VERSION_UPDATE[*]}" > missing_version_update.txt
           fi
           echo "C"
 
@@ -129,7 +129,7 @@ jobs:
             echo "Updated contracts and versions: ${UPDATED_CONTRACTS[*]}"
             UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
             echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
-            echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
+            #echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
           fi
 
       - name: Update PR title with updated version info
