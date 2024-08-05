@@ -97,7 +97,7 @@ jobs:
 
             ##### Check if a version tag exists in the contract file
             if [[ -z "$VERSION_TAG" ]]; then
-              echo "File does not contain a version tag"
+              echo -e "\033[33mFile does not contain a version tag\033[0m"
               MISSING_VERSION_TAG+=("$FILE")
             else
               echo "File contains a version tag"
@@ -106,14 +106,14 @@ jobs:
 
               ##### Check if the version was updated in this PR (by checking if any of the git diff lines starts with '/// @custom:version')
               if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
-                echo "File version was updated in this PR to version $VERSION"
+                echo -e "\033[32mFile version was updated in this PR to version $VERSION\033[0m"
                 ##### extract the new version and save it together with the name of the contract in an array
                 NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
                 TARGET_STRING="${FILENAME} v${NEW_VERSION}"
                 UPDATED_CONTRACTS+=("$TARGET_STRING")
               else
                 ##### add to files with missing version updates
-                echo "File's version was not updated in this PR"
+                echo -e "\033[33mFile's version was not updated in this PR\033[0m"
                 MISSING_VERSION_UPDATE+=("$FILE")
               fi
             fi
