@@ -97,7 +97,7 @@ jobs:
 
             ##### Check if a version tag exists in the contract file
             if [[ -z "$VERSION_TAG" ]]; then
-              echo -e "\033[33mFile does not contain a version tag\033[0m"
+              echo -e "\033[31mFile does not contain a version tag\033[0m"
               MISSING_VERSION_TAG+=("$FILE")
             else
               echo -e "\033[32mFile contains a custom:version tag\033[0m"
@@ -113,7 +113,7 @@ jobs:
                 UPDATED_CONTRACTS+=("$TARGET_STRING")
               else
                 ##### add to files with missing version updates
-                echo -e "\033[33mFile's version was not updated in this PR\033[0m"
+                echo -e "\033[31mFile's version was not updated in this PR\033[0m"
                 MISSING_VERSION_UPDATE+=("$FILE")
               fi
             fi
