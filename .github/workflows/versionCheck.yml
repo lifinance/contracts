@@ -141,7 +141,7 @@ jobs:
             echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
           fi
 
-      - name: Update PR title with updated version info
+      - name: Check if PR title contains updated contracts already
         env:
           PR_TITLE: ${{github.event.pull_request.title}}
           UPDATED_CONTRACTS: ${{ steps.check_versions.outputs.UPDATED_CONTRACTS }}
