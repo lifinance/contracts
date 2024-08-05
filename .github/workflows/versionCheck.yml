@@ -142,7 +142,7 @@ jobs:
           if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
             echo "---------------------–"
             echo ">>>>>>"
-            echo "The following contracts have been changed but their version tags were not updated: ${MISSING_VERSION_UPDATE[*]}"
+            echo -e "\033[31mThe following contracts have been changed but their version tags were not updated: ${MISSING_VERSION_UPDATE[*]}\033[0m"
             echo "Please make sure to update a contract's version whenever there are changes in the file."
             echo "This Github action cannot complete until these issues are solved."
             exit 1
