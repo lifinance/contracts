@@ -123,17 +123,18 @@ jobs:
 
           ##### If any contract files are missing a version tag, this must be corrected before continuing
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
-            echo "---------------------–"
+            echo "--------------------"
             echo ">>>>>>"
-            echo -e "\033[31mThe following files are missing a version tag: ${MISSING_VERSION_TAG[*]}\033[0m"
-            echo -e "\033[31mEvery contract needs to have a version in its code.\033[0m"
+            echo -e "\033[31mThe following files are missing a custom:version tag in their code:\033[0m"
+            echo "${MISSING_VERSION_TAG[*]}"
+            echo -e "\033[31mEvery version-controlled contract needs to have a custom:version tag in its code.\033[0m"
             echo -e "\033[31mThis Github action cannot complete until these issues are solved.\033[0m"
             exit 1
           fi
 
           ##### if the version was not updated in any of the changed contracts, store the list of affected files in a tmp file
           if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
-            echo "---------------------–"
+            echo "--------------------"
             echo ">>>>>>"
             echo -e "\033[31mThe following contract(s) have been modified but their version tags were not updated:\033[0m"
             echo "${MISSING_VERSION_UPDATE[*]}"
