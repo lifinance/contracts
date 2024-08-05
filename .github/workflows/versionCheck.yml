@@ -134,13 +134,13 @@ jobs:
             echo -e "\033[31mThis Github action cannot complete until these issues are solved.\033[0m"
             exit 1
           fi
-          echo "C"
 
           ##### if the version was not updated in any of the changed contracts, store the list of affected files in a tmp file
           if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
             echo "---------------------–"
             echo ">>>>>>"
-            echo -e "\033[31mThe following contracts have been changed but their version tags were not updated: ${MISSING_VERSION_UPDATE[*]}\033[0m"
+            echo -e "\033[31mThe following contract(s) have been modified but their version tags were not updated:\033[0m"
+            echo "${MISSING_VERSION_UPDATE[*]}"
             echo -e "\033[31mPlease make sure to update a contract's version whenever there are changes in the file.\033[0m"
             echo -e "\033[31mThis Github action cannot complete until these issues are solved.\033[0m"
             echo ""
