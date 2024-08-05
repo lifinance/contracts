@@ -115,12 +115,12 @@ jobs:
                 NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
                 TARGET_STRING="${FILENAME} v${NEW_VERSION}"
                 UPDATED_CONTRACTS+=("$TARGET_STRING")
-                else
+              else
                 ##### add to files with missing version updates
                 echo "File's version was not updated in this PR"
                 MISSING_VERSION_UPDATE+=("$FILE")
-                fi
-                echo "AA"
+              fi
+              echo "AA"
             fi
             echo "--------------------"
           done <<< "$CONTRACTS"
