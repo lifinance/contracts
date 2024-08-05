@@ -1,0 +1,34 @@
+name: Test for "Pause PRODUCTION diamond (CAREFUL)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      Warning:
+        description: 'By clicking the next button you are pausing all PROD diamonds. Please proceed with caution'
+        required: false
+
+jobs:
+  diamond-emergency-pause:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Authenticate git user (check membership in 'DiamondPauser' group)
+        id: authenticate-user
+        uses: tspascoal/get-user-teams-membership@v3
+        with:
+          username: ${{ github.actor }}
+          organization: lifinance
+          team: diamondpauser
+          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
+
+      - name: Check team membership
+        run: |
+          if [[ "${{ steps.authenticate-user.outputs.isTeamMember }}" != "true" ]]; then
+            echo "User ${{ github.actor }} is not a member of the DiamondPauser team. Please ask one of the team members to execute this action:"
+            echo "https://github.com/orgs/lifinance/teams/diamondpauser/members"
+            exit 1
+          else
+            echo "User is a member of the DiamondPauser team and may execute this action"
+          fi
