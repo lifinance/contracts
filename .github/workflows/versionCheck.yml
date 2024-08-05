@@ -111,9 +111,9 @@ jobs:
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
             echo "---------------------–"
             echo ">>>>>>"
-            echo "The following files are missing a version tag: ${MISSING_VERSION_TAG[*]}"
-            echo "Please make sure that all contracts have a version tag and try to push your changes again."
-            echo "This Github action cannot complete until these issues are solved."
+            error "The following files are missing a version tag: ${MISSING_VERSION_TAG[*]}"
+            error "Please make sure that all contracts have a version tag and try to push your changes again."
+            error "This Github action cannot complete until these issues are solved."
             exit 1
             fi
 
@@ -121,9 +121,9 @@ jobs:
             if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
             echo "---------------------–"
             echo ">>>>>>"
-            echo "The following contracts have been changed but their version tags were not updated: ${MISSING_VERSION_UPDATE[*]}"
-            echo "Please make sure to update a contract's version whenever there are changes in the file."
-            echo "This Github action cannot complete until these issues are solved."
+            error "The following contracts have been changed but their version tags were not updated: ${MISSING_VERSION_UPDATE[*]}"
+            error "Please make sure to update a contract's version whenever there are changes in the file."
+            error "This Github action cannot complete until these issues are solved."
             exit 1
           fi
 
