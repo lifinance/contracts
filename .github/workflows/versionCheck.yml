@@ -17,7 +17,7 @@ jobs:
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh
 
-      - name: Get list of modified files
+      - name: Get list of modified files by this PR
         id: modified_files
         run: |
 
@@ -64,14 +64,13 @@ jobs:
           ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
           echo -e "$CONTRACTS" > modified_contracts.txt
 
-      - name: Verify version updates on changed contracts
+      - name: Verify version updates on modified contracts
         id: verify_version_changes
         if: env.UPDATED_CONTRACTS_FOUND == 'true'
         run: |
 
           ##### Read tmp file into variable
           CONTRACTS=$(cat modified_contracts.txt)
-          echo -e "CONTRACTS=$CONTRACTS"
 
           ##### Initialize variables
           MISSING_VERSION_TAG=()
@@ -145,7 +144,7 @@ jobs:
             exit 0
           fi
 
-      - name: Check if PR title contains updated contracts already
+      - name: Compose updated PR title
         if: env.UPDATED_CONTRACTS_FOUND == 'true'
         env:
           PR_TITLE: ${{github.event.pull_request.title}}
