@@ -12,7 +12,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 /// @title Allbridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through AllBridge
-/// @custom:version 2.0.0
+/// @custom:version 3.0.0
 contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The contract address of the AllBridge router on the source chain.
     IAllBridge private immutable allBridge;
@@ -34,6 +34,8 @@ contract AllBridgeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         IAllBridge.MessengerProtocol messenger;
         bool payFeeWithSendingAsset;
     }
+
+    function bla() external view {}
 
     /// @notice Initializes the AllBridge contract
     /// @param _allBridge The address of the AllBridge contract

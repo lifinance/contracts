@@ -23,9 +23,6 @@ jobs:
         with:
           fetch-depth: 0 ##### Fetch all history for all branches
 
-      - name: Install GitHub CLI
-        run: sudo apt-get install -y gh
-
       - name: Get list of modified files by this PR
         id: modified_files
         run: |
