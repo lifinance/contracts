@@ -198,7 +198,7 @@ jobs:
           echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
 
       - name: Update the PR title on GitHub
-        if: ${{env.SHOULD_CONTINUE}} == 'true'
+        if: env.SHOULD_CONTINUE == 'true'
         env:
           GH_PAT: ${{ secrets.GIT_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
