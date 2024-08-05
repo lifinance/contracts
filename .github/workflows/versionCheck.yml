@@ -53,7 +53,12 @@ jobs:
           ##### if none found, exit here as there is nothing to do
           if [[ -z "$CONTRACTS" ]]; then
             echo "No facets or periphery contracts found in files modified/added by this PR. No further checks are required."
+            # set action output to false
+            echo "::set-output name=should_continue::false"
             exit 0
+          else
+            # set action output to true
+            echo "::set-output name=should_continue::true"
           fi
 
           ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
@@ -61,6 +66,7 @@ jobs:
 
       - name: Verify version updates on changed contracts
         id: verify_version_changes
+        if: steps.modified_files.outputs.should_continue == 'true'
         run: |
 
           ##### Read tmp file into variable
@@ -140,6 +146,7 @@ jobs:
           fi
 
       - name: Check if PR title contains updated contracts already
+        if: steps.modified_files.outputs.should_continue == 'true'
         env:
           PR_TITLE: ${{github.event.pull_request.title}}
         run: |
@@ -189,6 +196,7 @@ jobs:
           echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
 
       - name: Update the PR title on GitHub
+        if: steps.modified_files.outputs.should_continue == 'true'
         env:
           GH_PAT: ${{ secrets.GIT_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
