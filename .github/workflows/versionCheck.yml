@@ -130,7 +130,7 @@ jobs:
             echo "---------------------–"
             echo ">>>>>>"
             echo -e "\033[31mThe following files are missing a version tag: ${MISSING_VERSION_TAG[*]}\033[0m"
-            echo -e "\033[31mPlease make sure to update a contract's version whenever there are changes in the file.\033[0m"
+            echo -e "\033[31mEvery contract needs to have a version in its code.\033[0m"
             echo -e "\033[31mThis Github action cannot complete until these issues are solved.\033[0m"
             exit 1
           fi
