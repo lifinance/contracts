@@ -12,6 +12,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 /// @title Allbridge Facet
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through AllBridge
+/// @custom:version 2.0.0
 contract AllBridgeFacet_NoVersion is
     ILiFi,
     ReentrancyGuard,

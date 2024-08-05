@@ -111,22 +111,26 @@ jobs:
             echo "--------------------"
           done <<< "$CONTRACTS"
 
-          echo "A"
           # If contract files are missing a version tag, this must be corrected before continuing
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
+            echo "---------------------–"
+            echo ">>>>>>"
             echo "The following files are missing a version tag: ${MISSING_VERSION_TAG[*]}"
             echo "Please make sure that all contracts have a version tag and try to push your changes again."
             exit 1
           fi
-          echo "B"
 
+          # if the version was not updated in any of the changed contracts, store the list of affected files in a tmp file
           if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
-          echo "Files with version tags not updated: ${MISSING_VERSION_UPDATE[*]}"
-          echo -e "${MISSING_VERSION_UPDATE[*]}" > missing_version_update.txt
+            echo "---------------------–"
+            echo ">>>>>>"
+            echo "The following contracts have been changed but their version tags were not updated: ${MISSING_VERSION_UPDATE[*]}"
+            echo "Please make sure that all contracts have a version tag and try to push your changes again."
+            exit 1
+            # echo -e "${MISSING_VERSION_UPDATE[*]}" > missing_version_update.txt
           fi
-          echo "C"
 
-          # if there are any contracts that were (correctly) updated, add them to an array (so we can check the PR title after)
+          # store any contracts that were correctly updated in a tmp file so we can check the PR title after for each of those
           if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
             echo "Updated contracts and versions: ${UPDATED_CONTRACTS[*]}"
             UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
@@ -148,16 +152,6 @@ jobs:
 
           echo "-----------------------------------"
           # Read tmp files into variables
-          if [ -f missing_version_tag.txt ]; then
-            MISSING_VERSION_TAG=$(cat missing_version_tag.txt)
-            echo "MISSING_VERSION_TAG=$MISSING_VERSION_TAG"
-          fi
-
-          if [ -f missing_version_update.txt ]; then
-            MISSING_VERSION_UPDATE=$(cat missing_version_update.txt)
-            echo "MISSING_VERSION_UPDATE=$MISSING_VERSION_UPDATE"
-          fi
-
           if [ -f updated_contracts.txt ]; then
             UPDATED_CONTRACTS=$(cat updated_contracts.txt)
             echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS"
