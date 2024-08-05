@@ -183,11 +183,13 @@ jobs:
           PR_TITLE: ${{github.event.pull_request.title}}
           UPDATED_PR_TITLE: ${{env.PR_TITLE}}
         run: |
+
+
           PR_TITLE="${{ env.PR_TITLE }}"
           UPDATED_PR_TITLE="${{ env.UPDATED_PR_TITLE }}"
           UPDATED_CONTRACTS=""
 
-          # Read tmp files into variables
+          # Read tmp file
           if [ -f updated_contracts.txt ]; then
             UPDATED_CONTRACTS=$(cat updated_contracts.txt)
           fi
@@ -207,6 +209,8 @@ jobs:
 
           PR_TITLE_UPDATED="${PR_TITLE_UPDATED%,})"
           echo "PR_TITLE=$PR_TITLE_UPDATED" >> $GITHUB_ENV
+
+          echo "final PR title: $PR_TITLE_UPDATED"
 
       - name: Update the PR title on GitHub
         env:
