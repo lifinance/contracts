@@ -21346,6 +21346,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x089153117bffd37CBbE0c604dAE8e493D4743fA8",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-24 11:34:41",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006e3d884c96d640526f273c61dfcf08915ebd7e2b",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
       }
     },
     "gravity": {
