@@ -14,8 +14,8 @@ jobs:
         with:
           fetch-depth: 0 # Fetch all history for all branches
 
-      - name: Fetch base branch
-        run: git fetch origin +refs/heads/${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
+      # - name: Fetch base branch
+      #   run: git fetch origin +refs/heads/${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
 
       - name: Get list of modified files
         id: modified_files
@@ -159,7 +159,7 @@ jobs:
           echo "-----------------------------------"
 
           # Initialize PR title
-          PR_TITLE_UPDATED="$PR_TITLE"
+          PR_TITLE_UPDATED="$PR_TITLE ("
 
           # Check if each target string is in the PR title
           IFS=',' read -ra UPDATED_ARRAY <<< "$UPDATED_CONTRACTS"
@@ -172,18 +172,18 @@ jobs:
             fi
           done
 
-          echo "Final PR Title: $PR_TITLE_UPDATED"
+          echo "Final PR Title: $PR_TITLE_UPDATED)"
           echo "PR_TITLE=$PR_TITLE_UPDATED" >> $GITHUB_ENV
 
-      # - name: Update the PR title on GitHub
-      #   uses: actions/github-script@v5
-      #   with:
-      #     script: |
-      #       const { execSync } = require('child_process');
-      #       const prTitle = process.env.PR_TITLE;
-      #       github.rest.pulls.update({
-      #         owner: context.repo.owner,
-      #         repo: context.repo.repo,
-      #         pull_number: context.issue.number,
-      #         title: prTitle
-      #       });
+      - name: Update the PR title on GitHub
+        uses: actions/github-script@v5
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            const prTitle = process.env.PR_TITLE;
+            github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              title: prTitle
+            });
