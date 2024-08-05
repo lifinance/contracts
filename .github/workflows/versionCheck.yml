@@ -2,7 +2,7 @@ name: Version Check
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, edited, synchronize]
 
 jobs:
   check-version:
@@ -12,13 +12,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetch all history for all branches
+          fetch-depth: 0 ##### Fetch all history for all branches
 
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh
-
-      # - name: Fetch base branch
-      #   run: git fetch origin +refs/heads/${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
 
       - name: Get list of modified files
         id: modified_files
@@ -27,115 +24,109 @@ jobs:
 
           BASE_REF="${{ github.event.pull_request.base.ref }}"
 
-          # get all files modified by this PR
+          ##### get all files modified by this PR
           FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
 
-          # make sure that modified files of this PR are available
+          ##### make sure that there are modified files
           if [[ -z $FILES ]]; then
             echo "No files found. This should not happen. Please check the code of the Github action"
             exit 1
           fi
 
-          # Initialize empty variables
+          ##### Initialize empty variables
           CONTRACTS=""
 
-          # go through all file names and identify facet, periphery & diamond contracts (other contracts dont have versioning)
+          ##### go through all file names and identify facet, periphery & diamond contracts (other contracts dont have versioning)
           while IFS= read -r FILE; do
             if echo "$FILE" | grep -E '^src/Facets/.*\.sol$'; then
-              # facet found
+              ##### facet found
               CONTRACTS="${CONTRACTS}${FILE}"$'\n'
             elif echo "$FILE" | grep -E '^src/Periphery/.*\.sol$'; then
-              # periphery found
+              ##### periphery found
               CONTRACTS="${CONTRACTS}${FILE}"$'\n'
             elif echo "$FILE" | grep -E '^src/.*\.sol$'; then
-              # diamond contract found
+              ##### diamond contract found
               CONTRACTS="${CONTRACTS}${FILE}"$'\n'
             fi
           done <<< "$FILES"
 
-          # if none found, exit here as there is nothing to do
+          ##### if none found, exit here as there is nothing to do
           if [[ -z "$CONTRACTS" ]]; then
-            echo "No facets or periphery contracts found in files modified/added by this PR"
+            echo "No facets or periphery contracts found in files modified/added by this PR. No further checks are required."
             exit 0
           fi
 
-          # Write filenames to temporary files (using variables here was causing issues due to the file names)
-          echo -e "$FILES" > modified_files.txt
+          ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
           echo -e "$CONTRACTS" > modified_contracts.txt
 
       - name: Verify version updates on changed contracts
         id: verify_version_changes
         run: |
 
-          # Read tmp files into variables
-          FILES=$(cat modified_files.txt)
-          echo "FILES=$FILES"
+          ##### Read tmp file into variable
           CONTRACTS=$(cat modified_contracts.txt)
           echo -e "CONTRACTS=$CONTRACTS"
 
-          # Initialize variables
+          ##### Initialize variables
           MISSING_VERSION_TAG=()
           MISSING_VERSION_UPDATE=()
           UPDATED_CONTRACTS=()
 
           echo "--------------------"
 
-          # Process each file separately
+          ##### Process each file separately
           while IFS= read -r FILE; do
             echo "Now checking contract: $FILE"
             VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE" || true)
             VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' || true)
 
-            # Extract the filename without extension
+            ##### Extract the filename without extension
             FILENAME=$(basename "$FILE" .sol)
 
-            echo "File: $FILENAME, Version: $VERSION, Version_Tag: $VERSION_TAG"
-
-            # Check if version tag exists
+            ##### Check if a version tag exists in the contract file
             if [[ -z "$VERSION_TAG" ]]; then
-              echo "File $FILENAME does not have a version tag at all"
               MISSING_VERSION_TAG+=("$FILE")
             else
-              echo "File $FILENAME does have a version tag"
-              # Check if version tag was updated in this PR
+              ##### get all changes of the current file/contract
               DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE")
-              # echo "Diff output: $DIFF_OUTPUT"
+
+              ##### Check if the version was updated in this PR (by checking if any of the git diff lines starts with '/// @custom:version')
               if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
-                echo "Version was updated in $FILENAME"
-                CONTRACT_NAME=$(basename "$FILE" .sol)
+                ##### extract the new version and save it together with the name of the contract in an array
                 NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
-                TARGET_STRING="${CONTRACT_NAME} v${NEW_VERSION}"
+                TARGET_STRING="${FILENAME} v${NEW_VERSION}"
                 UPDATED_CONTRACTS+=("$TARGET_STRING")
               else
-                echo "Version was not updated in $FILENAME"
+                ##### add to files with missing version updates
                 MISSING_VERSION_UPDATE+=("$FILE")
               fi
             fi
             echo "--------------------"
           done <<< "$CONTRACTS"
 
-          # If contract files are missing a version tag, this must be corrected before continuing
+          ##### If any contract files are missing a version tag, this must be corrected before continuing
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
             echo "---------------------–"
             echo ">>>>>>"
             echo "The following files are missing a version tag: ${MISSING_VERSION_TAG[*]}"
             echo "Please make sure that all contracts have a version tag and try to push your changes again."
+            echo "This Github action cannot complete until these issues are solved."
             exit 1
-          fi
+            fi
 
-          # if the version was not updated in any of the changed contracts, store the list of affected files in a tmp file
-          if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
+            ##### if the version was not updated in any of the changed contracts, store the list of affected files in a tmp file
+            if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
             echo "---------------------–"
             echo ">>>>>>"
             echo "The following contracts have been changed but their version tags were not updated: ${MISSING_VERSION_UPDATE[*]}"
             echo "Please make sure to update a contract's version whenever there are changes in the file."
+            echo "This Github action cannot complete until these issues are solved."
             exit 1
-            # echo -e "${MISSING_VERSION_UPDATE[*]}" > missing_version_update.txt
           fi
 
-          # store any contracts that were correctly updated in a tmp file so we can check the PR title after for each of those
+          ##### store any contracts that were correctly updated in a tmp file so we can check the PR title after for each of those
           if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
-            echo "Updated contracts and versions: ${UPDATED_CONTRACTS[*]}"
+            ##### create a string from the array with all contracts
             UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
             echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
             echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
@@ -147,43 +138,49 @@ jobs:
         run: |
 
 
-          echo "PR_TITLE: $PR_TITLE"
-
           echo "-----------------------------------"
-          # Read tmp files into variables
+          ##### Read tmp files into variables
           if [ -f updated_contracts.txt ]; then
             UPDATED_CONTRACTS=$(cat updated_contracts.txt)
             echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS"
           fi
           echo "-----------------------------------"
 
-          # Initialize PR title
+          ##### Initialize PR title
           PR_TITLE_UPDATED="$PR_TITLE ("
 
-          # Check for each target string if it's already in the PR title
+          ##### Go through the list of target strings (contract + newVersion)
           IFS=',' read -ra UPDATED_ARRAY <<< "$UPDATED_CONTRACTS"
           for TARGET_STRING in "${UPDATED_ARRAY[@]}"; do
-            if [[ "$PR_TITLE_UPDATED" =~ "$TARGET_STRING" ]]; then
-              echo "PR title contains target string '$TARGET_STRING'"
-            else
-              echo "PR title does not contain target string '$TARGET_STRING'"
-              PR_TITLE_UPDATED=""$PR_TITLE_UPDATED""$TARGET_STRING", "
+            ##### if current PR title does not contain this contract's name....
+            if [[ ! "$PR_TITLE_UPDATED" =~ "$TARGET_STRING" ]]; then
+              ##### ... then add it to the title
+              PR_TITLE_UPDATED="$PR_TITLE_UPDATED$TARGET_STRING, "
             fi
           done
 
-          # Check if the last two characters are ", "
+          ##### Finalize the PR title
+          ##### Check if the last two characters are ", " (= contracts were added to title)
           if [[ "${PR_TITLE_UPDATED: -2}" == ", " ]]; then
-            # Remove the last two characters and append a closing bracket
+            ##### Remove the last two characters and append a closing bracket
             PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-2})"
+          ##### Check if last character is '(' (= no contracts were added to title)
           elif [[ "${PR_TITLE_UPDATED: -1}" == "(" ]]; then
-            # Remove the last character if it is an open bracket
-            PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-1})"
+            ##### Remove the last character (not needed)
+            PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-1}"
           else
             echo "Error: Unexpected ending in PR_TITLE_UPDATED: '$PR_TITLE_UPDATED'"
             exit 1
           fi
 
-          echo "Final PR Title: $PR_TITLE_UPDATED"
+          ##### if there are no changes in the title, no need to continue further
+          if [[ $PR_TITLE == $PR_TITLE_UPDATED ]]; then
+            echo "No PR title updates are required."
+            echo "This github action will end here."
+            exit 0
+          fi
+
+          ##### save updated PR title in env variable
           echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
 
       - name: Update the PR title on GitHub
@@ -193,6 +190,9 @@ jobs:
           PR_TITLE_UPDATED: ${{ env.PR_TITLE_UPDATED }}
         run: |
 
+          ##### unset the default git token (does not have sufficient rights to perform the update)
           unset GITHUB_TOKEN
+          ##### use the Personal Access Token to log into git CLI
           echo $GH_PAT | gh auth login --with-token
+          ##### update the PR title
           gh pr edit ${{ github.event.pull_request.number }} --title "${{ env.PR_TITLE_UPDATED }}"
