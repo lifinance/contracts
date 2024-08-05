@@ -61,7 +61,8 @@ jobs:
 
           ##### if none found, exit here as there is nothing to do
           if [[ -z "$CONTRACTS" ]]; then
-            echo "No facets or periphery contracts found in files modified/added by this PR. No further checks are required."
+            echo -e "\033[33mNo facets or periphery contracts found in files modified/added by this PR.\033[0m"
+            echo -e "\033[No further checks are required.\033[0m"
             # set action output to false
             echo "UPDATED_CONTRACTS_FOUND=false" >> $GITHUB_ENV
             exit 0
@@ -108,7 +109,6 @@ jobs:
               DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE")
 
               ##### Check if the version was updated in this PR (by checking if any of the git diff lines starts with '/// @custom:version')
-              echo "A"
               if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
                 echo "File version was updated in this PR to $VERSION_TAG"
                 ##### extract the new version and save it together with the name of the contract in an array
@@ -120,20 +120,18 @@ jobs:
                 echo "File's version was not updated in this PR"
                 MISSING_VERSION_UPDATE+=("$FILE")
               fi
-              echo "AA"
             fi
             echo "--------------------"
           done <<< "$CONTRACTS"
 
-          echo "B"
 
           ##### If any contract files are missing a version tag, this must be corrected before continuing
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
             echo "---------------------–"
             echo ">>>>>>"
             echo -e "\033[31mThe following files are missing a version tag: ${MISSING_VERSION_TAG[*]}\033[0m"
-            echo "Please make sure that all contracts have a version tag and try to push your changes again."
-            echo "This Github action cannot complete until these issues are solved."
+            echo -e "\033[31mPlease make sure to update a contract's version whenever there are changes in the file.\033[0m"
+            echo -e "\033[31mThis Github action cannot complete until these issues are solved.\033[0m"
             exit 1
           fi
           echo "C"
@@ -143,8 +141,9 @@ jobs:
             echo "---------------------–"
             echo ">>>>>>"
             echo -e "\033[31mThe following contracts have been changed but their version tags were not updated: ${MISSING_VERSION_UPDATE[*]}\033[0m"
-            echo "Please make sure to update a contract's version whenever there are changes in the file."
-            echo "This Github action cannot complete until these issues are solved."
+            echo -e "\033[31mPlease make sure to update a contract's version whenever there are changes in the file.\033[0m"
+            echo -e "\033[31mThis Github action cannot complete until these issues are solved.\033[0m"
+            echo ""
             exit 1
           fi
           echo "D"
@@ -156,8 +155,8 @@ jobs:
             echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
             echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
           else
-            echo "Did not find any contracts for which version control is activated (only facets, periphery and diamonds)."
-            echo "No further checks are required."
+            echo -e "\033[33mDid not find any contracts for which version control is activated (only facets, periphery and diamonds).\033[0m"
+            echo -e "\033[No further checks are required.\033[0m"
             exit 0
           fi
           echo "E"
