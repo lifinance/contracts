@@ -219,6 +219,6 @@ jobs:
           PR_TITLE: ${{ env.PR_TITLE }}
         run: |
 
-
+          unset GITHUB_TOKEN
           echo $GH_PAT | gh auth login --with-token
           gh pr edit ${{ github.event.pull_request.number }} --title "${{ env.PR_TITLE }}"
