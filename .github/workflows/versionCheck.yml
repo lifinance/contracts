@@ -61,14 +61,14 @@ jobs:
 
           ##### if none found, exit here as there is nothing to do
           if [[ -z "$CONTRACTS" ]]; then
-            echo -e "\033[33mNo facets or periphery contracts found in files modified/added by this PR.\033[0m"
-            echo -e "\033[No further checks are required.\033[0m"
+            echo -e "\033[32No facets or periphery contracts found in files modified/added by this PR.\033[0m"
+            echo -e "\033[32No further checks are required.\033[0m"
             # set action output to false
-            echo "UPDATED_CONTRACTS_FOUND=false" >> $GITHUB_ENV
+            echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0
           else
             # set action output to true
-            echo "UPDATED_CONTRACTS_FOUND=true" >> $GITHUB_ENV
+            echo "CONTINUE=true" >> $GITHUB_ENV
           fi
 
           ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
@@ -76,7 +76,7 @@ jobs:
 
       - name: Verify version updates on modified contracts
         id: verify_version_changes
-        if: env.UPDATED_CONTRACTS_FOUND == 'true'
+        if: env.CONTINUE == 'true'
         run: |
 
           ##### Read tmp file into variable
@@ -153,13 +153,14 @@ jobs:
             echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
             echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
           else
-            echo -e "\033[33mDid not find any contracts for which version control is activated (only facets, periphery and diamonds).\033[0m"
-            echo -e "\033[No further checks are required.\033[0m"
+            echo -e "\033[32mDid not find any contracts for which version control is activated (only facets, periphery and diamonds).\033[0m"
+            echo -e "\033[32mNo further checks are required.\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0
           fi
 
       - name: Compose updated PR title
-        if: env.UPDATED_CONTRACTS_FOUND == 'true'
+        if: env.CONTINUE == 'true'
         env:
           PR_TITLE: ${{github.event.pull_request.title}}
         run: |
@@ -211,7 +212,7 @@ jobs:
           echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
 
       - name: Update the PR title on GitHub
-        if: env.UPDATED_CONTRACTS_FOUND == 'true'
+        if: env.CONTINUE == 'true'
         env:
           GH_PAT: ${{ secrets.GIT_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
