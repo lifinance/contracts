@@ -65,12 +65,13 @@ jobs:
             # set action output to false
             echo "UPDATED_CONTRACTS_FOUND=false" >> $GITHUB_ENV
             exit 0
-            else
+          else
             # set action output to true
             echo "UPDATED_CONTRACTS_FOUND=true" >> $GITHUB_ENV
           fi
 
           ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
+          echo  "List of modified files in watched paths: "
           echo -e "$CONTRACTS" > modified_contracts.txt
 
       - name: Verify version updates on modified contracts
@@ -99,27 +100,32 @@ jobs:
 
             ##### Check if a version tag exists in the contract file
             if [[ -z "$VERSION_TAG" ]]; then
-              echo "File contains a version tag"
+              echo "File does not contain a version tag"
               MISSING_VERSION_TAG+=("$FILE")
             else
+              echo "File contains a version tag"
               ##### get all changes of the current file/contract
               DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE")
 
               ##### Check if the version was updated in this PR (by checking if any of the git diff lines starts with '/// @custom:version')
+              echo "A"
               if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
                 echo "File version was updated in this PR to $VERSION_TAG"
                 ##### extract the new version and save it together with the name of the contract in an array
                 NEW_VERSION=$(echo "$VERSION_TAG" | awk '{print $NF}')
                 TARGET_STRING="${FILENAME} v${NEW_VERSION}"
                 UPDATED_CONTRACTS+=("$TARGET_STRING")
-              else
+                else
                 ##### add to files with missing version updates
                 echo "File's version was not updated in this PR"
                 MISSING_VERSION_UPDATE+=("$FILE")
-              fi
+                fi
+                echo "AA"
             fi
             echo "--------------------"
           done <<< "$CONTRACTS"
+
+          echo "B"
 
           ##### If any contract files are missing a version tag, this must be corrected before continuing
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
