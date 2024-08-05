@@ -176,9 +176,14 @@ jobs:
           echo "PR_TITLE=$PR_TITLE_UPDATED" >> $GITHUB_ENV
 
       - name: Update the PR title on GitHub
+        env:
+          UPDATE_PR_TITLE: ${{ env.PR_TITLE }}
         uses: actions/github-script@v5
         with:
           script: |
+
+            echo "UPDATE_PR_TITLE: $UPDATE_PR_TITLE"
+            echo "UPDATE_PR_TITLE2: ${{env.UPDATE_PR_TITLE}}"
             const { execSync } = require('child_process');
             const prTitle = process.env.PR_TITLE;
             github.rest.pulls.update({
