@@ -147,7 +147,7 @@ jobs:
           fi
 
           ##### Initialize PR title
-          PR_TITLE_UPDATED="$PR_TITLE ("
+          PR_TITLE_UPDATED="$PR_TITLE ["
 
           ##### Go through the list of target strings (contract + newVersion)
           IFS=',' read -ra UPDATED_ARRAY <<< "$UPDATED_CONTRACTS"
@@ -164,9 +164,9 @@ jobs:
           ##### Check if the last two characters are ", " (= contracts were added to title)
           if [[ "${PR_TITLE_UPDATED: -2}" == ", " ]]; then
             ##### Remove the last two characters and append a closing bracket
-            PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-2})"
+            PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-2}]"
           ##### Check if last character is '(' (= no contracts were added to title)
-          elif [[ "${PR_TITLE_UPDATED: -1}" == "(" ]]; then
+          elif [[ "${PR_TITLE_UPDATED: -1}" == "[" ]]; then
             ##### Remove the last character (not needed)
             PR_TITLE_UPDATED="${PR_TITLE_UPDATED:0:-1}"
           else
