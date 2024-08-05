@@ -1,3 +1,12 @@
+# - Github Version Control Checker
+# - Watches only (!) changes on contracts in the following paths:
+#   - src
+#   - src/Facets/
+#   - src/Periphery/
+# - will check all modified or new contracts in watched paths
+# - will fail if a new contract was added to watched paths without contract version
+# - will fail if an existing contract was modified but version was not updated
+# - will update the PR title to contain all contract names and their new versions (watched paths only)
 name: Version Check
 
 on:
