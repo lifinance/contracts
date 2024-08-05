@@ -14,7 +14,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @title Executor
 /// @author LI.FI (https://li.fi)
 /// @notice Arbitrary execution contract used for cross-chain swaps and message passing
-/// @custom:version 2.0.0
+/// @custom:version 3.0.0
 contract Executor is ILiFi, ReentrancyGuard, ERC1155Holder, ERC721Holder {
     /// Storage ///
 
