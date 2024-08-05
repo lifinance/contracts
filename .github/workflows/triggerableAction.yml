@@ -8,11 +8,11 @@ on:
         required: false
 
 jobs:
-  diamond-emergency-pause:
+  test-diamond-emergency-pause:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Authenticate git user (check membership in 'DiamondPauser' group)
         id: authenticate-user
