@@ -114,13 +114,13 @@ jobs:
           # Output the results
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
           echo "Files missing version tags: ${MISSING_VERSION_TAG[*]}"
-          #echo -e "${MISSING_VERSION_TAG[*]}" > missing_version_tag.txt
+          echo -e "${MISSING_VERSION_TAG[*]}" > missing_version_tag.txt
           fi
           echo "B"
 
           if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
           echo "Files with version tags not updated: ${MISSING_VERSION_UPDATE[*]}"
-          #echo -e "${MISSING_VERSION_UPDATE[*]}" > missing_version_update.txt
+          echo -e "${MISSING_VERSION_UPDATE[*]}" > missing_version_update.txt
           fi
           echo "C"
 
@@ -129,7 +129,7 @@ jobs:
             echo "Updated contracts and versions: ${UPDATED_CONTRACTS[*]}"
             UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
             echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
-            #echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
+            echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
           fi
 
       - name: Update PR title with updated version info
@@ -146,14 +146,20 @@ jobs:
 
           echo "-----------------------------------"
           # Read tmp files into variables
-          MISSING_VERSION_TAG=$(cat missing_version_tag.txt)
-          echo "MISSING_VERSION_TAG=$MISSING_VERSION_TAG"
-          MISSING_VERSION_UPDATE=$(cat missing_version_update.txt)
-          echo "--"
-          echo "MISSING_VERSION_UPDATE=$MISSING_VERSION_UPDATE"
-          echo "--"
-          UPDATED_CONTRACTS=$(cat updated_contracts.txt)
-          echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS"
+          if [ -f missing_version_tag.txt ]; then
+            MISSING_VERSION_TAG=$(cat missing_version_tag.txt)
+            echo "MISSING_VERSION_TAG=$MISSING_VERSION_TAG"
+          fi
+
+          if [ -f missing_version_update.txt ]; then
+            MISSING_VERSION_UPDATE=$(cat missing_version_update.txt)
+            echo "MISSING_VERSION_UPDATE=$MISSING_VERSION_UPDATE"
+          fi
+
+          if [ -f updated_contracts.txt ]; then
+            UPDATED_CONTRACTS=$(cat updated_contracts.txt)
+            echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS"
+          fi
           echo "-----------------------------------"
 
           # Initialize PR title
