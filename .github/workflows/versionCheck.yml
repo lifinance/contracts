@@ -20,6 +20,8 @@ jobs:
       - name: Get list of modified files
         id: modified_files
         run: |
+
+
           BASE_REF="${{ github.event.pull_request.base.ref }}"
 
           # get all files modified by this PR
@@ -58,10 +60,9 @@ jobs:
           echo -e "$FILES" > modified_files.txt
           echo -e "$CONTRACTS" > modified_contracts.txt
 
-      - name: Check version tags and update PR title
-        id: check_versions
+      - name: Verify version updates on changed contracts
+        id: verify_version_changes
         run: |
-          BASE_REF="${{ github.event.pull_request.base.ref }}"
 
           # Read tmp files into variables
           FILES=$(cat modified_files.txt)
@@ -94,7 +95,7 @@ jobs:
             else
               echo "File $FILENAME does have a version tag"
               # Check if version tag was updated in this PR
-              DIFF_OUTPUT=$(git diff origin/${BASE_REF} HEAD "$FILE")
+              DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }} HEAD "$FILE")
               # echo "Diff output: $DIFF_OUTPUT"
               if echo "$DIFF_OUTPUT" | grep -qE '^\+/// @custom:version'; then
                 echo "Version was updated in $FILENAME"
@@ -111,10 +112,11 @@ jobs:
           done <<< "$CONTRACTS"
 
           echo "A"
-          # Output the results
+          # If contract files are missing a version tag, this must be corrected before continuing
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
-          echo "Files missing version tags: ${MISSING_VERSION_TAG[*]}"
-          echo -e "${MISSING_VERSION_TAG[*]}" > missing_version_tag.txt
+            echo "The following files are missing a version tag: ${MISSING_VERSION_TAG[*]}"
+            echo "Please make sure that all contracts have a version tag and try to push your changes again."
+            exit 1
           fi
           echo "B"
 
