@@ -214,7 +214,11 @@ jobs:
 
       - name: Update the PR title on GitHub
         env:
+          GH_PAT: ${{ secrets.GIT_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_TITLE: ${{ env.PR_TITLE }}
         run: |
+
+
+          echo $GH_PAT | gh auth login --with-token
           gh pr edit ${{ github.event.pull_request.number }} --title "${{ env.PR_TITLE }}"
