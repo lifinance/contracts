@@ -26,8 +26,6 @@ contract Executor is ILiFi, ReentrancyGuard, ERC1155Holder, ERC721Holder {
 
     /// Modifiers ///
 
-    function bla() external view {}
-
     /// @dev Sends any leftover balances back to the user
     modifier noLeftovers(
         LibSwap.SwapData[] calldata _swaps,

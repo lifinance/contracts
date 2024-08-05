@@ -125,7 +125,7 @@ jobs:
             echo "---------------------–"
             echo ">>>>>>"
             echo "The following contracts have been changed but their version tags were not updated: ${MISSING_VERSION_UPDATE[*]}"
-            echo "Please make sure that all contracts have a version tag and try to push your changes again."
+            echo "Please make sure to update a contract's version whenever there are changes in the file."
             exit 1
             # echo -e "${MISSING_VERSION_UPDATE[*]}" > missing_version_update.txt
           fi
