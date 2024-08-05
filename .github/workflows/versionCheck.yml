@@ -90,7 +90,7 @@ jobs:
             # Check if version tag exists
             if [[ -z "$VERSION_TAG" ]]; then
               echo "File $FILENAME does not have a version tag at all"
-              MISSING_VERSION_TAG+=("$FILE")
+              MISSING_VERSION_TAG+=("$FILE") # original
             else
               echo "File $FILENAME does have a version tag"
               # Check if version tag was updated in this PR
@@ -108,15 +108,17 @@ jobs:
               fi
             fi
             echo "--------------------"
-          done <<< "$CONTRACTS"
+          done <<< "$CONTRACTS""
 
           # Output the results
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
             echo "Files missing version tags: ${MISSING_VERSION_TAG[*]}"
+            echo -e "${MISSING_VERSION_TAG[*]}" > missing_version_tag.txt
           fi
 
           if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
             echo "Files with version tags not updated: ${MISSING_VERSION_UPDATE[*]}"
+            echo -e "${MISSING_VERSION_UPDATE[*]}" > missing_version_update.txt
           fi
 
           # if there are any contracts that were (correctly) updated, add them to an array (so we can check the PR title after)
@@ -124,6 +126,7 @@ jobs:
             echo "Updated contracts and versions: ${UPDATED_CONTRACTS[*]}"
             UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
             echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
+            echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
           fi
 
       - name: Update PR title with updated version info
@@ -137,6 +140,15 @@ jobs:
           echo "UPDATED_CONTRACTS_STR: $UPDATED_CONTRACTS_STR"
           echo "UPDATED_CONTRACTS_STR: ${{ env.UPDATED_CONTRACTS_STR }}"
           echo "UPDATED_CONTRACTS_STR: ${{ github.UPDATED_CONTRACTS_STR }}"
+
+          echo "-------"
+          # Read tmp files into variables
+          MISSING_VERSION_TAG=$(cat missing_version_tag.txt)
+          echo "MISSING_VERSION_TAG=$MISSING_VERSION_TAG"
+          MISSING_VERSION_UPDATE=$(cat missing_version_update.txt)
+          echo "MISSING_VERSION_UPDATE=$MISSING_VERSION_UPDATE"
+          UPDATED_CONTRACTS=$(cat updated_contracts.txt)
+          echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS"
 
           # Initialize PR title
           PR_TITLE_UPDATED="$PR_TITLE"
