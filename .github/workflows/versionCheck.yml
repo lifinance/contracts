@@ -157,6 +157,8 @@ jobs:
             UPDATED_CONTRACTS=$(cat updated_contracts.txt)
           fi
 
+          echo "UPDATED CONTRACTS: $UPDATED_CONTRACTS"
+
           ##### Initialize PR title
           PR_TITLE_UPDATED="$PR_TITLE ["
 
