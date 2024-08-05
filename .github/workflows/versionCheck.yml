@@ -131,21 +131,23 @@ jobs:
           if [[ ${#MISSING_VERSION_TAG[@]} -ne 0 ]]; then
             echo "---------------------–"
             echo ">>>>>>"
-            error "The following files are missing a version tag: ${MISSING_VERSION_TAG[*]}"
-            error "Please make sure that all contracts have a version tag and try to push your changes again."
-            error "This Github action cannot complete until these issues are solved."
-            exit 1
-            fi
-
-            ##### if the version was not updated in any of the changed contracts, store the list of affected files in a tmp file
-            if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
-            echo "---------------------–"
-            echo ">>>>>>"
-            error "The following contracts have been changed but their version tags were not updated: ${MISSING_VERSION_UPDATE[*]}"
-            error "Please make sure to update a contract's version whenever there are changes in the file."
-            error "This Github action cannot complete until these issues are solved."
+            echo -e "\033[31mThe following files are missing a version tag: ${MISSING_VERSION_TAG[*]}\033[0m"
+            echo "Please make sure that all contracts have a version tag and try to push your changes again."
+            echo "This Github action cannot complete until these issues are solved."
             exit 1
           fi
+          echo "C"
+
+          ##### if the version was not updated in any of the changed contracts, store the list of affected files in a tmp file
+          if [[ ${#MISSING_VERSION_UPDATE[@]} -ne 0 ]]; then
+            echo "---------------------–"
+            echo ">>>>>>"
+            echo "The following contracts have been changed but their version tags were not updated: ${MISSING_VERSION_UPDATE[*]}"
+            echo "Please make sure to update a contract's version whenever there are changes in the file."
+            echo "This Github action cannot complete until these issues are solved."
+            exit 1
+          fi
+          echo "D"
 
           ##### store any contracts that were correctly updated in a tmp file so we can check the PR title after for each of those
           if [[ ${#UPDATED_CONTRACTS[@]} -ne 0 ]]; then
@@ -158,6 +160,7 @@ jobs:
             echo "No further checks are required."
             exit 0
           fi
+          echo "E"
 
       - name: Compose updated PR title
         if: env.UPDATED_CONTRACTS_FOUND == 'true'
