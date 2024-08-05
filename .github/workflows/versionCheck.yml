@@ -133,6 +133,10 @@ jobs:
             UPDATED_CONTRACTS_STR=$(IFS=,; echo "${UPDATED_CONTRACTS[*]}")
             echo "UPDATED_CONTRACTS=$UPDATED_CONTRACTS_STR" >> $GITHUB_ENV
             echo -e "${UPDATED_CONTRACTS_STR[*]}" > updated_contracts.txt
+          else
+            echo "Did not find any contracts for which version control is activated (only facets, periphery and diamonds)."
+            echo "No further checks are required."
+            exit 0
           fi
 
       - name: Check if PR title contains updated contracts already
