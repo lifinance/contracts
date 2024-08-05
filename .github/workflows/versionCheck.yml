@@ -54,11 +54,11 @@ jobs:
           if [[ -z "$CONTRACTS" ]]; then
             echo "No facets or periphery contracts found in files modified/added by this PR. No further checks are required."
             # set action output to false
-            echo "SHOULD_CONTINUE=false" >> $GITHUB_ENV
+            echo "SHOULD_CONTINUE='false'" >> $GITHUB_ENV
             exit 0
             else
             # set action output to true
-            echo "SHOULD_CONTINUE=true" >> $GITHUB_ENV
+            echo "SHOULD_CONTINUE='true'" >> $GITHUB_ENV
           fi
 
           ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
