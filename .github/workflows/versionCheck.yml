@@ -184,56 +184,15 @@ jobs:
           fi
 
           echo "Final PR Title: $PR_TITLE_UPDATED"
-          echo "PR_TITLE=$PR_TITLE_UPDATED" >> $GITHUB_ENV
+          echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
 
-      # - name: Update PR title with updated version info
-      #   env:
-      #     PR_TITLE: ${{github.event.pull_request.title}}
-      #     UPDATED_PR_TITLE: ${{env.PR_TITLE}}
-      #   run: |
+      - name: Update the PR title on GitHub
+        env:
+          GH_PAT: ${{ secrets.GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TITLE_UPDATED: ${{ env.PR_TITLE_UPDATED }}
+        run: |
 
-      #     PR_TITLE="${{ env.PR_TITLE }}"
-      #     UPDATED_PR_TITLE="${{ env.UPDATED_PR_TITLE }}"
-      #     UPDATED_CONTRACTS=""
-
-      #     # Read tmp file
-      #     if [ -f updated_contracts.txt ]; then
-      #       UPDATED_CONTRACTS=$(cat updated_contracts.txt)
-      #     fi
-
-      #     # Initialize PR title
-      #     PR_TITLE_UPDATED="$PR_TITLE ("
-
-      #     # Check if each target string is in the PR title
-      #     IFS=',' read -ra UPDATED_ARRAY <<< "$UPDATED_CONTRACTS"
-      #     for TARGET_STRING in "${UPDATED_ARRAY[@]}"; do
-      #       if [[ "$PR_TITLE_UPDATED" =~ "$TARGET_STRING" ]]; then
-      #         continue
-      #       else
-      #         PR_TITLE_UPDATED="$PR_TITLE_UPDATED$TARGET_STRING,"
-      #       fi
-      #     done
-
-      #     # Check if the last character is a comma (= contract names were added)
-      #     if [[ "${PR_TITLE_UPDATED: -1}" == "," ]]; then
-      #       # Remove the last character and append a closing bracket
-      #       PR_TITLE_UPDATED="${PR_TITLE_UPDATED%?})"
-      #     # if the last char is a '(' then no contract was added
-      #     elif [[ "${PR_TITLE_UPDATED: -1}" == "(" ]]; then
-      #       # Remove the open bracket
-      #       PR_TITLE_UPDATED="${PR_TITLE_UPDATED%?}"
-      #     fi
-
-      #     # Log final updated PR title
-      #     echo "final PR title: $PR_TITLE_UPDATED"
-
-      # - name: Update the PR title on GitHub
-      #   env:
-      #     GH_PAT: ${{ secrets.GIT_TOKEN }}
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #     PR_TITLE_UPDATED: ${{ env.PR_TITLE_UPDATED }}
-      #   run: |
-
-      #     unset GITHUB_TOKEN
-      #     echo $GH_PAT | gh auth login --with-token
-      #     gh pr edit ${{ github.event.pull_request.number }} --title "${{ env.PR_TITLE_UPDATED }}"
+          unset GITHUB_TOKEN
+          echo $GH_PAT | gh auth login --with-token
+          gh pr edit ${{ github.event.pull_request.number }} --title "${{ env.PR_TITLE_UPDATED }}"
