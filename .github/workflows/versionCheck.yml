@@ -61,7 +61,7 @@ jobs:
 
           ##### if none found, exit here as there is nothing to do
           if [[ -z "$CONTRACTS" ]]; then
-            echo -e "\033[32No facets or periphery contracts found in files modified/added by this PR.\033[0m"
+            echo -e "\033[32No version-controlled contracts found in files modified/added by this PR.\033[0m"
             echo -e "\033[32No further checks are required.\033[0m"
             # set action output to false
             echo "CONTINUE=false" >> $GITHUB_ENV
