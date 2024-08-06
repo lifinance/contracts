@@ -241,12 +241,21 @@ jobs:
           script: |
             const fs = require('fs');
 
+            // ANSI escape codes for colors (used for colored output in Git action console)
+            const colors = {
+              reset: "\033[0m",
+              red: "\033[31m",
+              green: "\033[32m",
+              yellow: "\033[33m",
+            };
+
             // Read commit hashes from file
             const commitHashesFile = 'commit_hashes.txt'; // Adjust this if needed
             const commitHashes = fs.readFileSync(commitHashesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
 
             // Log the number of commit hashes found
             console.log(`${commitHashes.length} commit hashes found`);
+
 
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -276,8 +285,8 @@ jobs:
 
                 // if current commit is not associated to this PR, end this
                 if (!isAssociatedWithPR) {
-                  console.error(`None of the associated PRs of commit ${hash} matches with this PR (${pull_number})`);
-                  console.error(`Please check if the 'auditCommitHash' in the audit log is accurate and try again.`);
+                  console.log(`${colors.red}None of the associated PRs of commit ${hash} matches with this PR (${pull_number})${colors.reset}`);
+                  console.log(`${colors.red}Please check if the 'auditCommitHash' in the audit log is accurate and try again.${colors.reset}`);
 
                   // set flag to false
                   allCommitsFound=false;
@@ -285,8 +294,8 @@ jobs:
                 }
                 else console.log(`Commit ${hash} is associated with this PR. Check passed.`)
               } catch (error) {
-                console.error(`The following audit commit seems to be invalid: ${hash}`);
-                console.error(`Please check if the 'auditCommitHash' in the audit log is accurate and try again.`);
+                console.log(`${colors.red}The following audit commit seems to be invalid: ${hash}${colors.reset}`);
+                console.log(`${colors.red}Please check if the 'auditCommitHash' in the audit log is accurate and try again.${colors.reset}`);
 
                 // set flag to false
                 allCommitsFound=false;
@@ -309,6 +318,7 @@ jobs:
                 core.setFailed("This check failed");
             })();
 
+            console.log(`${colors.green}All audit commits have been successfully verified.${colors.reset}`);
             core.setOutput('all_commits_present', 'true');
 
       # - name: Assign "Ready_For_PROD_Deployment" label
