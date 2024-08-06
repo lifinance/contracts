@@ -283,7 +283,7 @@ jobs:
                   fs.appendFileSync(envFilePath, `CONTINUE=false\n`);
                   throw new Error("Commit not associated with PR");
                 }
-                else console.success(`Commit ${hash} is associated with this PR. Check passed.`)
+                else console.log(`Commit ${hash} is associated with this PR. Check passed.`)
               } catch (error) {
                 console.log(`Error fetching commit ${hash}: ${error.message}`);
                 allCommitsFound = false;
