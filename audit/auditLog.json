@@ -1,0 +1,26 @@
+{
+  "ContractName": {
+    "1.0.0": [
+      {
+        "auditCompletedOn": "01.01.2024",
+        "auditedBy": "testPerson",
+        "auditReportPath": "./reports/xxxxx.pdf",
+        "auditCommitHash": ""
+      },
+      {
+        "auditCompletedOn": "05.01.2024",
+        "auditedBy": "secondAuditor",
+        "auditReportPath": "./reports/yyyyyy.pdf",
+        "auditCommitHash": ""
+      }
+    ],
+    "1.0.1": [
+      {
+        "auditCompletedOn": "01.01.2024",
+        "auditedBy": "testPerson",
+        "auditReportPath": "./reports/xxxxx.pdf",
+        "auditCommitHash": ""
+      }
+    ]
+  }
+}

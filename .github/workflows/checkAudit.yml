@@ -1,0 +1,115 @@
+# - Github Audit Checker
+# - checks if an audit is required
+#   YES, if:
+#   > contract in src/*.sol (no test or script contracts)
+# - checks if an audit was conducted
+#   > is there an entry in the audit log for that contract/version
+# - checks if all audit-related files are updated accordingly
+#   > is the audit report uploaded to ./audit/reports/ ?
+# - checks if there is one approving review of an auditor (do we really want this?)
+
+name: Audit Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    env:
+      auditLogPath: 'audit/auditLog.json'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check modified files for protected contracts
+        id: check_eligibility
+        run: |
+
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+
+          ##### get all files modified by this PR
+          FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
+
+          ##### make sure that there are modified files
+          if [[ -z $FILES ]]; then
+            echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 1
+          fi
+
+          ##### Initialize empty variables
+          PROTECTED_CONTRACTS=""
+
+          ##### go through all modified file names/paths and identify contracts with path 'src/*'
+          while IFS= read -r FILE; do
+            if echo "$FILE" | grep -E '^src/.*\.sol$'; then
+            # if echo "$FILE" | grep -E '^src/*\.sol$'; then
+              ##### contract found
+              PROTECTED_CONTRACTS="${PROTECTED_CONTRACTS}${FILE}"$'\n'
+            fi
+          done <<< "$FILES"
+
+          ##### if none found, exit here as there is nothing to do
+          if [[ -z "$PROTECTED_CONTRACTS" ]]; then
+            echo -e "\033[31mNo protected contracts found in files modified/added by this PR.\033[0m"
+            echo -e "\033[31mNo further checks are required.\033[0m"
+            # set action output to false
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 0
+          else
+            # set action output to true
+            echo "CONTINUE=true" >> $GITHUB_ENV
+          fi
+
+          echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
+
+          ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
+          echo -e "$PROTECTED_CONTRACTS" > protected_contracts.txt
+
+      - name: Check audit log
+        id: check-audit-log
+        if: env.CONTINUE == 'true'
+        run: |
+
+          # load list of protected contracts
+          PROTECTED_CONTRACTS=$(cat protected_contracts.txt)
+
+          ##### make sure that there are any protected contracts
+          if [[ -z $PROTECTED_CONTRACTS ]]; then
+            echo -e "\033[31mNo protected contracts found. This should not happen (action should stop earlier). Please check the code of the Github action. Aborting now.\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 1
+          fi
+
+          # iterate through all contracts
+          while IFS= read -r FILE; do
+            # load contract version
+            VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE")
+
+            ##### make sure that contract version was extracted successfully
+            if [[ -z $VERSION ]]; then
+              echo -e "\033[31mCould not find version of contract $FILE. This should not happen. Please check the Github action code. Aborting now.\033[0m"
+              echo "CONTINUE=false" >> $GITHUB_ENV
+              exit 1
+            fi
+
+            # see if audit log contains an entry with those values
+            FILENAME=$(basename "$FILE" .sol)
+
+            LOG_ENTRIES=$(jq -r ".${FILENAME}.${VERSION}[]" "$env.auditLogPath")
+
+            echo "${#LOG_ENTRIES} LOG_ENTRIES:"
+            echo "LOG_ENTRIES:"
+
+            # go through array of log entries
+              # extract audit report path
+              # make sure that file exists at path
+
+          done <<< "$PROTECTED_CONTRACTS"
+
+      # - name: Check audit report
+      # - name: Check auditor review
+      # - name: Assign "Ready_For_PROD_Deployment" label
