@@ -6,7 +6,7 @@
         "auditedBy": "Spearbit",
         "auditorGitHandle": "0xDEnYO",
         "auditReportPath": "./audit/reports/xxxxxx.pdf",
-        "auditCommitHash": "4f7533dac30e5c1dd60a6daffc93881ea3dd1f8c"
+        "auditCommitHash": "fcbe2cb98b23304f3ac54636bbf122d03ad8c533"
       },
       {
         "auditCompletedOn": "05.01.2024",
