@@ -11,9 +11,7 @@
 name: Audit Check
 
 on:
-  push:
   pull_request:
-    types: [opened, edited, synchronize]
 
 jobs:
   check-version:
