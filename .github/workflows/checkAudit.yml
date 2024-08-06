@@ -78,7 +78,7 @@ jobs:
 
           # initialize variables for output
           COMMIT_HASHES=""
-          AUDITOR_HANDLES=""
+          AUDITOR_GIT_HANDLES=""
 
           ##### make sure that there are any protected contracts
           if [[ -z $PROTECTED_CONTRACTS ]]; then
@@ -177,7 +177,7 @@ jobs:
               fi
 
               # store the commit hash to check it in a following step
-              COMMIT_HASHES="${COMMIT_HASHES} $AUDIT_COMMIT_HASH"
+              AUDIT_COMMIT_HASHES="${AUDIT_COMMIT_HASHES} $AUDIT_COMMIT_HASH"
 
               # store the commit hash to check it in a following step
               AUDITOR_GIT_HANDLES="${AUDITOR_GIT_HANDLES} $AUDITOR_GIT_HANDLE"
@@ -186,8 +186,8 @@ jobs:
 
           echo -e "\033[32mAll audit log entries are complete.\033[0m"
 
-          echo "COMMIT_HASHES=$COMMIT_HASHES"
-          echo "COMMIT_HASHES=$COMMIT_HASHES" >> $GITHUB_ENV
+          echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES"
+          echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES" >> $GITHUB_ENV
           echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES"
           echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES" >> $GITHUB_ENV
 
