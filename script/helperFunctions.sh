@@ -1359,20 +1359,19 @@ function verifyContract() {
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}"
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
 
         # TODO: add code that automatically identifies blockscout verification
-        # use --skip-is-verified-check by default? (to be tested)
         # forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --verifier blockscout --verifier-url "https://explorer.immutable.com/api?"
       else
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}" >/dev/null 2>&1
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
       fi
     else
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}"
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
       else
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}" >/dev/null 2>&1
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
       fi
     fi
     COMMAND_STATUS=$?
@@ -3766,7 +3765,7 @@ function test_tmp() {
   #    exit 1
   #  fi
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
-  # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
+  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 
   # forge verify-contract "$ADDRESS" "$CONTRACT" --chain-id 13371 --verifier blockscout --verifier-url https://explorer.immutable.com/api --skip-is-verified-check
   # forge verify-contract 0x8CDDE82cFB4555D6ca21B5b28F97630265DA94c4 Counter --verifier oklink --verifier-url https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER  --api-key $OKLINK_API_KEY

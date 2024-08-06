@@ -10,12 +10,11 @@ import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { ERC20 } from "solady/tokens/ERC20.sol";
-import { console2 } from "forge-std/console2.sol";
 
 /// @title StargateFacetV2
 /// @author Li.Finance (https://li.finance)
 /// @notice Provides functionality for bridging through Stargate (V2)
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
 
@@ -99,7 +98,7 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _stargateData Data specific to Stargate Bridge
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        StargateData calldata _stargateData
+        StargateData memory _stargateData
     ) private {
         // validate destination call flag
         if (
@@ -147,6 +146,9 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 sendingAssetId.safeApprove(routerAddress, type(uint256).max);
             }
         }
+
+        // update amount in sendParams
+        _stargateData.sendParams.amountLD = _bridgeData.minAmount;
 
         // execute call to Stargate router
         IStargate(routerAddress).sendToken{ value: msgValue }(
