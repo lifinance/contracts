@@ -3,7 +3,7 @@
 #   YES, if:
 #   > contract in src/*.sol (no test or script contracts)
 # - checks if an audit was conducted
-#   > is there an entry in the audit log for that contract/version
+#   > is there at least one complete entry in the audit log for that contract/version
 # - checks if all audit-related files are updated accordingly
 #   > is the audit report uploaded to ./audit/reports/ ?
 # - checks if there is one approving review of an auditor (do we really want this?)
@@ -113,34 +113,83 @@ jobs:
             echo "$LOG_ENTRIES"
             echo "---------------------------------------------------"
 
+            # initialize variables for output
+            COMMIT_HASHES=""
+            AUDITOR_HANDLES=""
+
             # Iterate through each log entry
             echo "$LOG_ENTRIES" | jq -c '.' | while IFS= read -r entry; do
+              # extract log entry values into variables
               AUDIT_COMPLETED_ON=$(echo "$entry" | jq -r '.auditCompletedOn')
               AUDITED_BY=$(echo "$entry" | jq -r '.auditedBy')
+              AUDITOR_GIT_HANDLE=$(echo "$entry" | jq -r '.auditorGitHandle')
               AUDIT_REPORT_PATH=$(echo "$entry" | jq -r '.auditReportPath')
               AUDIT_COMMIT_HASH=$(echo "$entry" | jq -r '.auditCommitHash')
 
-              echo "Audit Completed On: $AUDIT_COMPLETED_ON"
-              echo "Audited By: $AUDITED_BY"
-              echo "Audit Report Path: $AUDIT_REPORT_PATH"
-              echo "Audit Commit Hash: $AUDIT_COMMIT_HASH"
+              # echo "Audit Completed On: $AUDIT_COMPLETED_ON"
+              # echo "Audited By: $AUDITED_BY"
+              # echo "AUDITOR_GIT_HANDLE: $AUDITOR_GIT_HANDLE"
+              # echo "Audit Report Path: $AUDIT_REPORT_PATH"
+              # echo "Audit Commit Hash: $AUDIT_COMMIT_HASH"
 
-              # You can add additional checks here for the audit report path and commit hash
+              # make sure that audit log entry contains date
+              if [ -z "$AUDIT_COMPLETED_ON" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditCompletedOn' date.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                echo "CONTINUE=false" >> $GITHUB_ENV
+                exit 1
+              fi
+
+              # make sure that audit log entry contains auditor's (company) name
+              if [ -z "$AUDITED_BY" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditedBy' information.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                echo "CONTINUE=false" >> $GITHUB_ENV
+                exit 1
+              fi
+
+              # make sure that audit log entry contains auditor's git handle
+              if [ -z "$AUDITOR_GIT_HANDLE" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditorGitHandle' information.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                echo "CONTINUE=false" >> $GITHUB_ENV
+                exit 1
+              fi
+
+
+              # make sure that audit log entry contains audit report path
+              if [ ! -f "$AUDIT_REPORT_PATH" ]; then
+              echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditReportPath' information.\033[0m"
+              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+              echo -e "\033[31mAborting now.\033[0m"
+              echo "CONTINUE=false" >> $GITHUB_ENV
+              exit 1
+              fi
+
+              # make sure that audit log entry contains audit report path
+              if [ -z "$AUDIT_COMMIT_HASH" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditCommitHash' information.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                echo "CONTINUE=false" >> $GITHUB_ENV
+                exit 1
+              fi
+
+              # store the commit hash to check it in a following step
+              COMMIT_HASHES="${COMMIT_HASHES} $AUDIT_COMMIT_HASH"
+
+              # store the commit hash to check it in a following step
+              AUDITOR_GIT_HANDLES="${AUDITOR_GIT_HANDLES} $AUDITOR_GIT_HANDLE"
             done
-
-
-            echo "${#LOG_ENTRIES} LOG_ENTRIES:"
-
-            echo "---------------"
-            echo "LOG_ENTRIES[*]: ${LOG_ENTRIES[*]}"
-
-            # go through array of log entries
-              # extract audit report path
-              # extract audit commit hash
-              # make sure that file exists at path
-              # make sure that commit hash exists in this PR's history
-
           done <<< "$PROTECTED_CONTRACTS"
+
+          echo "COMMIT_HASHES=$COMMIT_HASHES" >> $GITHUB_ENV
+          echo "COMMIT_HASHES=$COMMIT_HASHES"
+          echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES" >> $GITHUB_ENV
+          echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES"
 
       # - name: Check auditor review
       # - name: Assign "Ready_For_PROD_Deployment" label
