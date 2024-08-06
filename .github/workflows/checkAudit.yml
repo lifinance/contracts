@@ -106,10 +106,11 @@ jobs:
 
             # go through array of log entries
               # extract audit report path
+              # extract audit commit hash
               # make sure that file exists at path
+              # make sure that commit hash exists in this PR's history
 
           done <<< "$PROTECTED_CONTRACTS"
 
-      # - name: Check audit report
       # - name: Check auditor review
       # - name: Assign "Ready_For_PROD_Deployment" label
