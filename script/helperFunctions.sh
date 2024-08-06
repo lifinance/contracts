@@ -1360,6 +1360,9 @@ function verifyContract() {
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
         forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+
+        # TODO: add code that automatically identifies blockscout verification
+        # forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --verifier blockscout --verifier-url "https://explorer.immutable.com/api?"
       else
         forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
       fi
@@ -2871,6 +2874,10 @@ function getChainId() {
     echo "1329"
     return 0
     ;;
+  "immutablezkevm")
+    echo "13371"
+    return 0
+    ;;
   *)
     return 1
     ;;
@@ -3743,16 +3750,15 @@ function test_getContractNameFromDeploymentLogs() {
 
 function test_tmp() {
 
-  CONTRACT="AllBridgeFacet"
-  NETWORK="optimism"
-  # ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F"
-  ADDRESS="0x2cE0ea020872a75bdE21a7e4e97556236Eb79e02"
-  ENVIRONMENT="staging"
+  CONTRACT="LiFiDEXAggregator"
+  NETWORK="immutablezkevm"
+  ADDRESS=""
+  ENVIRONMENT="production"
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
-  ARGS="0x0000000000000000000000007775d63836987f444e2f14aa0fa2602204d7d3e0"
-  # ARGS="0x000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b"
-
+  ARGS="0x"
+  ARGS="0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000100000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7"
+  RPC_URL=$(getRPCUrl "$NETWORK" "$ENVIRONMENT")
   #  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
   #  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
   #    error "ERC20Proxy ownership was not transferred to address(0)"
@@ -3761,9 +3767,16 @@ function test_tmp() {
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
   verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 
-  # transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
+  # forge verify-contract "$ADDRESS" "$CONTRACT" --chain-id 13371 --verifier blockscout --verifier-url https://explorer.immutable.com/api --skip-is-verified-check
+  # forge verify-contract 0x8CDDE82cFB4555D6ca21B5b28F97630265DA94c4 Counter --verifier oklink --verifier-url https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER  --api-key $OKLINK_API_KEY
+
+
+  # transferContractOwnership "$PRIVATE_KEY_PRODUCTION" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
   # RESPONSE=$(cast call "$ADDRESS" "owner()" --rpc-url $(getRPCUrl "$NETWORK"))
   # echo "RESPONSE: $RESPONSE"
-}
+  # ADDRESS_NEW_OWNER=0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772
+  # cast send "$ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key $PRIVATE_KEY_PRODUCTION --rpc-url "$RPC_URL"
 
+  # RESULT=$(yarn add-safe-owners --network immutablezkevm --rpc-url "$(getRPCUrl "$NETWORK" "$ENVIRONMENT")" --privateKey "$PRIVATE_KEY_PRODUCTION" --owners "0xb78FbE12d9C09d98ce7271Fa089c2fe437B7B4D5,0x65f6F29D3eb871254d71A79CC4F74dB3AAF3b86e,0x24767E3A1cb07ee500BA9A5621F2B608440Ca270,0x81Dbb716aA13869323974A1766120D0854188e3e,0x11F1022cA6AdEF6400e5677528a80d49a069C00c,0x498E8fF83B503aDe5e905719D27b2f11B605b45A")
+}
 # test_tmp

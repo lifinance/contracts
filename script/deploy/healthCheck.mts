@@ -15,6 +15,31 @@ import {
   parseAbi,
 } from 'viem'
 
+const chainNameMappings: Record<string, string> = {
+  zksync: 'zkSync',
+  polygonzkevm: 'polygonZkEvm',
+  immutablezkevm: 'immutableZkEvm',
+}
+
+const chainMap: Record<string, Chain> = {}
+for (const [k, v] of Object.entries(chains)) {
+  // @ts-ignore
+  chainMap[k] = v
+}
+
+// TODO: remove this and import from ./utils/viemScriptHelpers.ts instead (did not work when I tried it)
+export const getViemChainForNetworkName = (networkName: string): Chain => {
+  const chainName = chainNameMappings[networkName] || networkName
+  const chain: Chain = chainMap[chainName]
+
+  if (!chain)
+    throw new Error(
+      `Chain ${networkName} (aka '${chainName}', if a mapping exists) not supported by viem or requires name mapping. Check if you can find your chain here: https://github.com/wevm/viem/tree/main/src/chains/definitions`
+    )
+
+  return chain
+}
+
 const SAFE_THRESHOLD = 3
 
 const louperCmd = 'louper-cli'
@@ -43,12 +68,6 @@ const corePeriphery = [
   'LiFuelFeeCollector',
   'TokenWrapper',
 ]
-
-const chainMap: Record<string, Chain> = {}
-for (const [k, v] of Object.entries(chains)) {
-  // @ts-ignore
-  chainMap[k] = v
-}
 
 const errors: string[] = []
 const main = defineCommand({
@@ -105,7 +124,8 @@ const main = defineCommand({
 
     const globalConfig = await import('../../config/global.json')
 
-    const chain = chainMap[network]
+    const chain = getViemChainForNetworkName(network)
+
     const publicClient = createPublicClient({
       batch: { multicall: true },
       chain,
@@ -172,15 +192,18 @@ const main = defineCommand({
     //          ╰─────────────────────────────────────────────────────────╯
     consola.box('Checking facets registered in diamond...')
     $.quiet = true
+
+    const string = `${louperCmd} inspect diamond -a ${diamondAddress} -n ${network} --json`
+    console.log(`string: ${string}`)
     const facetsResult =
       await $`${louperCmd} inspect diamond -a ${diamondAddress} -n ${network} --json`
 
-    const resgisteredFacets = JSON.parse(facetsResult.stdout).facets.map(
+    const registeredFacets = JSON.parse(facetsResult.stdout).facets.map(
       (f: { name: string }) => f.name
     )
 
     for (const facet of [...coreFacets, ...nonCoreFacets]) {
-      if (!resgisteredFacets.includes(facet)) {
+      if (!registeredFacets.includes(facet)) {
         logError(
           `Facet ${facet} not registered in Diamond or possibly unverified`
         )
