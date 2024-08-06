@@ -100,8 +100,37 @@ jobs:
 
             LOG_ENTRIES=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" '.[$filename][$version][]' "$auditLogPath")
 
+            ##### make sure that audit log entries were found
+            if [[ -z $LOG_ENTRIES || "${#LOG_ENTRIES}" -eq 0 ]]; then
+              echo -e "\033[31mCould not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
+              echo -e "\033[31mThis github action cannot complete until the audit log contains a logged audit for this file.\033[0m"
+              echo "CONTINUE=false" >> $GITHUB_ENV
+              exit 1
+            fi
+
+            echo "---------------------------------------------------"
+            echo "Found log entries for $FILENAME version $VERSION:"
+            echo "$LOG_ENTRIES"
+            echo "---------------------------------------------------"
+
+            # Iterate through each log entry
+            echo "$LOG_ENTRIES" | jq -c '.' | while IFS= read -r entry; do
+              AUDIT_COMPLETED_ON=$(echo "$entry" | jq -r '.auditCompletedOn')
+              AUDITED_BY=$(echo "$entry" | jq -r '.auditedBy')
+              AUDIT_REPORT_PATH=$(echo "$entry" | jq -r '.auditReportPath')
+              AUDIT_COMMIT_HASH=$(echo "$entry" | jq -r '.auditCommitHash')
+
+              echo "Audit Completed On: $AUDIT_COMPLETED_ON"
+              echo "Audited By: $AUDITED_BY"
+              echo "Audit Report Path: $AUDIT_REPORT_PATH"
+              echo "Audit Commit Hash: $AUDIT_COMMIT_HASH"
+
+              # You can add additional checks here for the audit report path and commit hash
+            done
+
+
             echo "${#LOG_ENTRIES} LOG_ENTRIES:"
-            echo "LOG_ENTRIES: $LOG_ENTRIES"
+
             echo "---------------"
             echo "LOG_ENTRIES[*]: ${LOG_ENTRIES[*]}"
 
