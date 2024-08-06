@@ -274,8 +274,12 @@ jobs:
                   commit_sha: hash,
                   });
 
-                  // check if this commit is part of this PR
-                  const isAssociatedWithPR = associatedPRs.data.some(pr => pr.number === pull_number);
+
+                console.log(`commit: ${hash}`)
+                associatedPRs.map(PR => console.log(`is associated with PR: ${PR}`))
+
+                // check if this commit is part of this PR
+                const isAssociatedWithPR = associatedPRs.data.some(pr => pr.number === pull_number);
 
                 if (!isAssociatedWithPR) {
                   console.log(`Commit ${hash} is not associated with the PR`);
