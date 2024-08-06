@@ -28,7 +28,7 @@ jobs:
         run: |
 
           ##### get all files modified by this PR
-          FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
+          FILES=$(git diff --name-only origin/main HEAD)
 
           ##### make sure that there are modified files
           if [[ -z $FILES ]]; then
