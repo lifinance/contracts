@@ -1359,16 +1359,16 @@ function verifyContract() {
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}"
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
       else
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" -e "${!API_KEY}" >/dev/null 2>&1
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
       fi
     else
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}"
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
       else
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS -e "${!API_KEY}" >/dev/null 2>&1
+        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
       fi
     fi
     COMMAND_STATUS=$?
@@ -2747,6 +2747,10 @@ function getChainId() {
     echo "250"
     return 0
     ;;
+  "gravity")
+    echo "1625"
+    return 0
+    ;;
   "okx")
     echo "66"
     return 0
@@ -3739,13 +3743,15 @@ function test_getContractNameFromDeploymentLogs() {
 
 function test_tmp() {
 
-  CONTRACT="LiFiDiamond"
-  NETWORK="bsc"
-  ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F"
-  ENVIRONMENT="production"
+  CONTRACT="AllBridgeFacet"
+  NETWORK="optimism"
+  # ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F"
+  ADDRESS="0x2cE0ea020872a75bdE21a7e4e97556236Eb79e02"
+  ENVIRONMENT="staging"
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
-  ARGS="0x"
+  ARGS="0x0000000000000000000000007775d63836987f444e2f14aa0fa2602204d7d3e0"
+  # ARGS="0x000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b"
 
   #  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
   #  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
@@ -3753,9 +3759,11 @@ function test_tmp() {
   #    exit 1
   #  fi
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
-  # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
+  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 
-  transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
+  # transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
+  # RESPONSE=$(cast call "$ADDRESS" "owner()" --rpc-url $(getRPCUrl "$NETWORK"))
+  # echo "RESPONSE: $RESPONSE"
 }
 
 # test_tmp

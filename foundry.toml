@@ -1,6 +1,7 @@
 [profile.default]
 test = 'test/solidity'
 solc_version = '0.8.17'
+evm_version='paris'
 optimizer = true
 optimizer_runs = 1000000
 sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
@@ -31,6 +32,7 @@ fraxtal = "${ETH_NODE_URI_FRAXTAL}"
 fuse = "${ETH_NODE_URI_FUSE}"
 harmony = "${ETH_NODE_URI_HARMONY}"
 gnosis = "${ETH_NODE_URI_GNOSIS}"
+gravity = "${ETH_NODE_URI_GRAVITY}"
 linea = "${ETH_NODE_URI_LINEA}"
 moonbeam = "${ETH_NODE_URI_MOONBEAM}"
 moonriver = "${ETH_NODE_URI_MOONRIVER}"
@@ -70,6 +72,7 @@ fantom = { key = "${FANTOM_ETHERSCAN_API_KEY}", url = "https://api.ftmscan.com/a
 fraxtal = { key = "${FRAXTAL_ETHERSCAN_API_KEY}", url = "https://api.fraxscan.com/api", chain = "252" }
 fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api", chain = "122" }
 gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://api.gnosisscan.io/api", chain = "100" }
+gravity = { key = "${GRAVITY_ETHERSCAN_API_KEY}", url = "https://explorer.gravity.xyz/api", chain = "1625", verifier = "blockscout"}
 moonbeam = { key = "${MOONBEAM_ETHERSCAN_API_KEY}", url = "https://api-moonbeam.moonscan.io/api", chain = "1284" }
 moonriver = { key = "${MOONRIVER_ETHERSCAN_API_KEY}", url = "https://api-moonriver.moonscan.io/api", chain = "1285" }
 optimism = { key = "${OPTIMISM_ETHERSCAN_API_KEY}", url = "https://api-optimistic.etherscan.io/api", chain = "10" }

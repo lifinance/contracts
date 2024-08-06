@@ -9,7 +9,7 @@ export function node_url(networkName: string): string {
 
   if (networkName === 'localhost') {
     // do not use ETH_NODE_URI
-    return 'http://localhost:8545'
+    return 'http://localhost:8545' // [pre-commit-checker: not a secret]
   }
 
   let uri = process.env.ETH_NODE_URI
