@@ -161,9 +161,18 @@ jobs:
 
 
               # make sure that audit log entry contains audit report path
-              if [ ! -f "$AUDIT_REPORT_PATH" ]; then
+              if [ -z "$AUDIT_REPORT_PATH" ]; then
               echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditReportPath' information.\033[0m"
               echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+              echo -e "\033[31mAborting now.\033[0m"
+              echo "CONTINUE=false" >> $GITHUB_ENV
+              exit 1
+              fi
+
+              # make sure that a file exists at the audit report path
+              if [ ! -f "$AUDIT_REPORT_PATH" ]; then
+              echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract "$FILENAME".\033[0m"
+              echo -e "\033[31mThis github action cannot complete before the audit report is uploaded to 'audit/reports/'.\033[0m"
               echo -e "\033[31mAborting now.\033[0m"
               echo "CONTINUE=false" >> $GITHUB_ENV
               exit 1
@@ -177,6 +186,8 @@ jobs:
                 echo "CONTINUE=false" >> $GITHUB_ENV
                 exit 1
               fi
+
+
 
               # store the commit hash to check it in a following step
               COMMIT_HASHES="${COMMIT_HASHES} $AUDIT_COMMIT_HASH"
