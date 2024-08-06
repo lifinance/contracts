@@ -134,7 +134,7 @@ jobs:
 
               # make sure that audit log entry contains date
               if [ -z "$AUDIT_COMPLETED_ON" ]; then
-                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditCompletedOn' date.\033[0m"
+                echo -e "\033[31mThe audit log entry for file $FILE contains an invalid or no 'auditCompletedOn' date.\033[0m"
                 echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
                 echo -e "\033[31mAborting now.\033[0m"
                 echo "CONTINUE=false" >> $GITHUB_ENV
