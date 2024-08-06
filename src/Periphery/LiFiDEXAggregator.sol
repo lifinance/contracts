@@ -20,7 +20,7 @@ uint160 constant MIN_SQRT_RATIO = 4295128739;
 uint160 constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
 
 /// @title LiFi DEX Aggregator
-/// @author Ilya Lyalin
+/// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
 /// @notice Processes calldata to swap using various DEXs
 /// @custom:version 1.0.0
 contract LiFiDEXAggregator is Ownable {
