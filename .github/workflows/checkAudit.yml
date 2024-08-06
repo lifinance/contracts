@@ -152,20 +152,20 @@ jobs:
 
               # make sure that audit log entry contains audit report path
               if [ -z "$AUDIT_REPORT_PATH" ]; then
-              echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditReportPath' information.\033[0m"
-              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-              echo -e "\033[31mAborting now.\033[0m"
-              echo "CONTINUE=false" >> $GITHUB_ENV
-              exit 1
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditReportPath' information.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                echo "CONTINUE=false" >> $GITHUB_ENV
+                exit 1
               fi
 
               # make sure that a file exists at the audit report path
               if [ ! -f "$AUDIT_REPORT_PATH" ]; then
-              echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract "$FILENAME".\033[0m"
-              echo -e "\033[31mThis github action cannot complete before the audit report is uploaded to 'audit/reports/'.\033[0m"
-              echo -e "\033[31mAborting now.\033[0m"
-              echo "CONTINUE=false" >> $GITHUB_ENV
-              exit 1
+                echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract "$FILENAME".\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit report is uploaded to 'audit/reports/'.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                echo "CONTINUE=false" >> $GITHUB_ENV
+                exit 1
               fi
 
               # make sure that audit log entry contains audit report path
@@ -270,35 +270,26 @@ jobs:
 
                   console.log("B")
                   // get all PRs associated with this commit
-                  const associatedPRs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  const associatedPRs = (await github.rest.repos.listPullRequestsAssociatedWithCommit({
                     owner,
                     repo,
                     commit_sha: hash,
-                    });
+                    })).data;
 
 
                 console.log("C")
                 console.log(`commit: ${hash}`)
-                associatedPRs.data.map(PR => console.log(`is associated with PR: ${PR.name} ${PR.number}`))
 
-                // check if this commit is part of this PR
-                const isAssociatedWithPR = associatedPRs.data.some(pr => pr.number === pull_number);
+                // check if any of the associated PR numbers matches with <this> PR number
+                if(!associatedPRs.includes(pr => pr.number === pull_number)) {
+                  console.error(`None of the associated PRs of commit $hash matches with this PR (${pull_number})`)
+                  console.error(`Please check if the 'auditCommitHash' in the audit log is accurate and try again.`)
+                  console.error(`Aborting now.`)
 
-                if (!isAssociatedWithPR) {
-                  console.log(`Commit ${hash} is not associated with the PR`);
-                  allCommitsFound = false;
-                } else {
-                  console.log(`Commit ${hash} is associated with the PR`);
+                  // Set environment variable based on whether all commits are found
+                  const envFilePath = process.env.GITHUB_ENV;
+                  fs.appendFileSync(envFilePath, `CONTINUE=false\n`);
+                  exit 1
                 }
-              } catch (error) {
-                console.log(`Error fetching commit ${hash}: ${error.message}`);
-                allCommitsFound = false;
-              }
-            }
-
-            // throw an error if any of the audit commits was not found
-            if (!allCommitsFound) {
-              core.setFailed("Not all required commits are part of the PR.");
-            }
 
       # - name: Assign "Ready_For_PROD_Deployment" label
