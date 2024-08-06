@@ -259,8 +259,6 @@ jobs:
 
             const checkCommit = async (hash) => {
               try {
-                console.log("A");
-
                 // get the commit through github REST API
                 const { data: commit } = await github.rest.repos.getCommit({
                   owner,
@@ -268,7 +266,6 @@ jobs:
                   ref: hash,
                 });
 
-                console.log("B");
 
                 // get all PRs associated with this commit
                 const associatedPRs = (await github.rest.repos.listPullRequestsAssociatedWithCommit({
@@ -276,9 +273,6 @@ jobs:
                   repo,
                   commit_sha: hash,
                 })).data;
-
-                console.log("C");
-                console.log(`commit: ${hash}`);
 
                 // check if any of the associated PR numbers matches with <this> PR number
                 const isAssociatedWithPR = associatedPRs.some(pr => pr.number === pull_number);
@@ -292,6 +286,7 @@ jobs:
                   fs.appendFileSync(envFilePath, `CONTINUE=false\n`);
                   throw new Error("Commit not associated with PR");
                 }
+                else console.success(`Commit ${hash} is associated with this PR. Check passed.`)
               } catch (error) {
                 console.log(`Error fetching commit ${hash}: ${error.message}`);
                 allCommitsFound = false;

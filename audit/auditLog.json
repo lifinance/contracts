@@ -13,7 +13,7 @@
         "auditedBy": "Individual Security Researcher",
         "auditorGitHandle": "someHandle",
         "auditReportPath": "./audit/reports/yyyyyy.pdf",
-        "auditCommitHash": "bbdbf0be93e57bf31ba23f26a0cc65bad395e137"
+        "auditCommitHash": "bbdbf0be93e57bf31ba23f26a0cc65bad395e136"
       }
     ],
     "1.0.1": [
