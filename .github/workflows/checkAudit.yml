@@ -240,7 +240,6 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const core = require('@actions/core'); // Import core module
 
             // ANSI escape codes for colors (used for colored output in Git action console)
             const colors = {
