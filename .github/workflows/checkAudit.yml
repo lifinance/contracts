@@ -260,6 +260,7 @@ jobs:
             for (const hash of commitHashes) {
               try {
 
+                console.log("A")
                 // get the commit through github REST API
                 const { data: commit } = await github.rest.repos.getCommit({
                   owner,
@@ -267,16 +268,18 @@ jobs:
                   ref: hash,
                   });
 
-                // get all PRs associated with this commit
-                const associatedPRs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                  owner,
-                  repo,
-                  commit_sha: hash,
-                  });
+                  console.log("B")
+                  // get all PRs associated with this commit
+                  const associatedPRs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                    owner,
+                    repo,
+                    commit_sha: hash,
+                    });
 
 
+                console.log("C")
                 console.log(`commit: ${hash}`)
-                associatedPRs.data.map(PR => console.log(`is associated with PR: ${PR}`))
+                associatedPRs.data.map(PR => console.log(`is associated with PR: ${PR.name} ${PR.number}`))
 
                 // check if this commit is part of this PR
                 const isAssociatedWithPR = associatedPRs.data.some(pr => pr.number === pull_number);
@@ -293,10 +296,9 @@ jobs:
               }
             }
 
+            // throw an error if any of the audit commits was not found
             if (!allCommitsFound) {
               core.setFailed("Not all required commits are part of the PR.");
-            } else {
-              core.setOutput('all_commits_present', 'true');
             }
 
       # - name: Assign "Ready_For_PROD_Deployment" label
