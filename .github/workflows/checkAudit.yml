@@ -76,9 +76,9 @@ jobs:
           # load list of protected contracts
           PROTECTED_CONTRACTS=$(cat protected_contracts.txt)
 
-          # initialize variables for output
-          COMMIT_HASHES=""
-          AUDITOR_GIT_HANDLES=""
+          # create temp files to store commit hashes and auditor handles
+          COMMIT_HASHES_FILE=$(mktemp)
+          AUDITOR_GIT_HANDLES_FILE=$(mktemp)
 
           ##### make sure that there are any protected contracts
           if [[ -z $PROTECTED_CONTRACTS ]]; then
@@ -177,18 +177,22 @@ jobs:
               fi
 
               # store the commit hash to check it in a following step
-              AUDIT_COMMIT_HASHES="${AUDIT_COMMIT_HASHES} $AUDIT_COMMIT_HASH"
+              echo "$AUDIT_COMMIT_HASH" >> "$COMMIT_HASHES_FILE"
 
-              # store the commit hash to check it in a following step
-              AUDITOR_GIT_HANDLES="${AUDITOR_GIT_HANDLES} $AUDITOR_GIT_HANDLE"
+              # store the auditor git handle to check it in a following step
+              echo "$AUDITOR_GIT_HANDLE" >> "$AUDITOR_GIT_HANDLES_FILE"
             done
           done <<< "$PROTECTED_CONTRACTS"
 
           echo -e "\033[32mAll audit log entries are complete.\033[0m"
 
+
+          # read the temp files into variables
+          COMMIT_HASHES=$(cat "$COMMIT_HASHES_FILE" | tr '\n' ' ')
+          AUDITOR_GIT_HANDLES=$(cat "$AUDITOR_GIT_HANDLES_FILE" | tr '\n' ' ')
           echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES"
           echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES" >> $GITHUB_ENV
-          echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES"
+          echo "AUDITOR_GIT_HANDLES=$(AUDITOR_GIT_HANDLES_FILE)"
           echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES" >> $GITHUB_ENV
 
       # - name: Check auditor review
