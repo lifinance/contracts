@@ -250,7 +250,7 @@ jobs:
 
             console.log(`${commitHashes.length} commitHashes found`)
 
-            const { data: commits } = await github.pulls.listCommits({
+            const { data: commits } = await ${{github}}.pulls.listCommits({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number,
