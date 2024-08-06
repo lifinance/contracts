@@ -276,7 +276,7 @@ jobs:
 
 
                 console.log(`commit: ${hash}`)
-                associatedPRs.map(PR => console.log(`is associated with PR: ${PR}`))
+                associatedPRs.data.map(PR => console.log(`is associated with PR: ${PR}`))
 
                 // check if this commit is part of this PR
                 const isAssociatedWithPR = associatedPRs.data.some(pr => pr.number === pull_number);
