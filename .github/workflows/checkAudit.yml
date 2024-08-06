@@ -285,7 +285,7 @@ jobs:
 
                 // if current commit is not associated to this PR, end this
                 if (!isAssociatedWithPR) {
-                  console.log(`${colors.red}None of the associated PRs of commit ${hash} matches with this PR (${pull_number})${colors.reset}`);
+                  console.log(`${colors.red}None of the associated PRs (${JSON.stringify(associatedPRs.map(pr => pr.number))}) of commit ${hash} matches with this PR (${pull_number})${colors.reset}`);
                   console.log(`${colors.red}Please check if the 'auditCommitHash' in the audit log is accurate and try again.${colors.reset}`);
 
                   // set flag to false
