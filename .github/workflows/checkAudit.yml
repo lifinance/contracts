@@ -27,8 +27,6 @@ jobs:
         id: check_eligibility
         run: |
 
-          BASE_REF="${{ github.event.pull_request.base.ref }}"
-
           ##### get all files modified by this PR
           FILES=$(git diff --name-only origin/${BASE_REF} HEAD)
 
