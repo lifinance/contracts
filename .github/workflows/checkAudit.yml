@@ -98,7 +98,7 @@ jobs:
             # see if audit log contains an entry with those values
             FILENAME=$(basename "$FILE" .sol)
 
-            LOG_ENTRIES=$(jq -r ".${FILENAME}.${VERSION}[]" "$env.auditLogPath")
+            LOG_ENTRIES=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" '.[$filename][$version][]' "$auditLogPath")
 
             echo "${#LOG_ENTRIES} LOG_ENTRIES:"
             echo "LOG_ENTRIES:"
