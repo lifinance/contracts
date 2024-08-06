@@ -101,7 +101,9 @@ jobs:
             LOG_ENTRIES=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" '.[$filename][$version][]' "$auditLogPath")
 
             echo "${#LOG_ENTRIES} LOG_ENTRIES:"
-            echo "LOG_ENTRIES:"
+            echo "LOG_ENTRIES: $LOG_ENTRIES"
+            echo "---------------"
+            echo "LOG_ENTRIES[*]: ${LOG_ENTRIES[*]}"
 
             # go through array of log entries
               # extract audit report path
