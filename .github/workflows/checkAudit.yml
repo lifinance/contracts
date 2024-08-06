@@ -76,6 +76,10 @@ jobs:
           # load list of protected contracts
           PROTECTED_CONTRACTS=$(cat protected_contracts.txt)
 
+          # initialize variables for output
+          COMMIT_HASHES=""
+          AUDITOR_HANDLES=""
+
           ##### make sure that there are any protected contracts
           if [[ -z $PROTECTED_CONTRACTS ]]; then
             echo -e "\033[31mNo protected contracts found. This should not happen (action should stop earlier). Please check the code of the Github action. Aborting now.\033[0m"
@@ -108,16 +112,7 @@ jobs:
               exit 1
             fi
 
-            echo "---------------------------------------------------"
-            echo "Found log entries for $FILENAME version $VERSION:"
-            echo "$LOG_ENTRIES"
-            echo "---------------------------------------------------"
-
-            # initialize variables for output
-            COMMIT_HASHES=""
-            AUDITOR_HANDLES=""
-
-            # Iterate through each log entry
+            # Iterate through all log entries
             echo "$LOG_ENTRIES" | jq -c '.' | while IFS= read -r entry; do
               # extract log entry values into variables
               AUDIT_COMPLETED_ON=$(echo "$entry" | jq -r '.auditCompletedOn')
@@ -125,12 +120,6 @@ jobs:
               AUDITOR_GIT_HANDLE=$(echo "$entry" | jq -r '.auditorGitHandle')
               AUDIT_REPORT_PATH=$(echo "$entry" | jq -r '.auditReportPath')
               AUDIT_COMMIT_HASH=$(echo "$entry" | jq -r '.auditCommitHash')
-
-              # echo "Audit Completed On: $AUDIT_COMPLETED_ON"
-              # echo "Audited By: $AUDITED_BY"
-              # echo "AUDITOR_GIT_HANDLE: $AUDITOR_GIT_HANDLE"
-              # echo "Audit Report Path: $AUDIT_REPORT_PATH"
-              # echo "Audit Commit Hash: $AUDIT_COMMIT_HASH"
 
               # make sure that audit log entry contains date
               if [ -z "$AUDIT_COMPLETED_ON" ]; then
@@ -186,8 +175,6 @@ jobs:
                 echo "CONTINUE=false" >> $GITHUB_ENV
                 exit 1
               fi
-
-
 
               # store the commit hash to check it in a following step
               COMMIT_HASHES="${COMMIT_HASHES} $AUDIT_COMMIT_HASH"
