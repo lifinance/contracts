@@ -323,4 +323,10 @@ jobs:
               }
             })();
 
-      # - name: Assign "Ready_For_PROD_Deployment" label
+      - name: Assign "Ready_For_PROD_Deployment" label
+        uses: actions-ecosystem/action-add-labels@v1
+        id: assign_label
+        if: env.CONTINUE == 'true'
+        with:
+          labels: 'AuditCompleted'
+          number: ${{ github.event.pull_request.number }}
