@@ -197,10 +197,12 @@ jobs:
             done
           done <<< "$PROTECTED_CONTRACTS"
 
-          echo "COMMIT_HASHES=$COMMIT_HASHES" >> $GITHUB_ENV
+          echo -e "\033[32mAll audit log entries are complete.\033[0m"
+
           echo "COMMIT_HASHES=$COMMIT_HASHES"
-          echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES" >> $GITHUB_ENV
+          echo "COMMIT_HASHES=$COMMIT_HASHES" >> $GITHUB_ENV
           echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES"
+          echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES" >> $GITHUB_ENV
 
       # - name: Check auditor review
       # - name: Assign "Ready_For_PROD_Deployment" label

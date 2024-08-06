@@ -22,7 +22,7 @@
         "auditedBy": "testPerson",
         "auditorGitHandle": "0xDEnYO",
         "auditReportPath": "./audit/reports/xxxxxx.pdf",
-        "auditCommitHash": ""
+        "auditCommitHash": "notAValidCommitHash"
       }
     ]
   }
