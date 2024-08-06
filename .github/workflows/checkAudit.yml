@@ -190,7 +190,7 @@ jobs:
 
 
           # read the temp files into variables
-          COMMIT_HASHES=$(cat "$COMMIT_HASHES_FILE" | tr '\n' ' ')
+          AUDIT_COMMIT_HASHES=$(cat "$COMMIT_HASHES_FILE" | tr '\n' ' ')
           AUDITOR_GIT_HANDLES=$(cat "$AUDITOR_GIT_HANDLES_FILE" | tr '\n' ' ')
           echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES"
           echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES" >> $GITHUB_ENV
