@@ -259,10 +259,11 @@ jobs:
             const prCommitHashes = commits.map(commit => commit.sha);
             let allCommitsFound = true;
 
+            prCommitHashes.map(hash =>  console.log(`pr commit hash: ${hash}`))
+
             console.log(`${prCommitHashes.length} prCommitHashes found`)
 
             commitHashes.forEach(hash => {
-              console.log(`now checking pr commit hash: ${hash}`)
               if (!prCommitHashes.includes(hash)) {
                 console.log(`Commit ${hash} is not part of the PR`);
                 allCommitsFound = false;
