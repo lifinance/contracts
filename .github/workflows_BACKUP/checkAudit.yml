@@ -7,7 +7,6 @@
 # - checks if all audit-related files are updated accordingly
 #   > is the audit report uploaded to ./audit/reports/ ?
 # - checks if there is one approving review of an auditor (do we really want this?)
-# - checks if the logged audit commit hash is part of the commits of this PULL_REQUEST
 
 name: Audit Check
 
@@ -78,8 +77,8 @@ jobs:
           PROTECTED_CONTRACTS=$(cat protected_contracts.txt)
 
           # create temp files to store commit hashes and auditor handles
-          COMMIT_HASHES_FILE="commit_hashes.txt"
-          AUDITOR_GIT_HANDLES_FILE="auditor_handles.txt"
+          COMMIT_HASHES_FILE=$(mktemp)
+          AUDITOR_GIT_HANDLES_FILE=$(mktemp)
 
           ##### make sure that there are any protected contracts
           if [[ -z $PROTECTED_CONTRACTS ]]; then
@@ -179,103 +178,24 @@ jobs:
 
               # store the commit hash in a temporary file to check its validity in a following step
               echo "adding commit hash $AUDIT_COMMIT_HASH"
-              # echo "$AUDIT_COMMIT_HASH" >> "$COMMIT_HASHES_FILE"
-              echo "$AUDIT_COMMIT_HASH" >> commit_hashes.txt
+              echo "$AUDIT_COMMIT_HASH" >> "$COMMIT_HASHES_FILE"
 
               # store the auditor git handle to check it in a following step if this auditor has reviewed the PR
               echo "adding auditor handle $AUDITOR_GIT_HANDLE"
-              # echo "$AUDITOR_GIT_HANDLE" >> "$AUDITOR_GIT_HANDLES_FILE"
-              echo "$AUDITOR_GIT_HANDLE" >> auditor_handles.txt
+              echo "$AUDITOR_GIT_HANDLE" >> "$AUDITOR_GIT_HANDLES_FILE"
             done
           done <<< "$PROTECTED_CONTRACTS"
 
           echo -e "\033[32mAll audit log entries are complete.\033[0m"
 
 
-          # # read the temp files into variables
-          # AUDIT_COMMIT_HASHES=$(cat "$COMMIT_HASHES_FILE" | tr '\n' ' ')
-          # AUDITOR_GIT_HANDLES=$(cat "$AUDITOR_GIT_HANDLES_FILE" | tr '\n' ' ')
-          # echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES"
-          # echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES" >> $GITHUB_ENV
-          # echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES"
-          # echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES" >> $GITHUB_ENV
+          # read the temp files into variables
+          AUDIT_COMMIT_HASHES=$(cat "$COMMIT_HASHES_FILE" | tr '\n' ' ')
+          AUDITOR_GIT_HANDLES=$(cat "$AUDITOR_GIT_HANDLES_FILE" | tr '\n' ' ')
+          echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES"
+          echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES" >> $GITHUB_ENV
+          echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES"
+          echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES" >> $GITHUB_ENV
 
-      # - name: Check if PR is approved by auditor(s)
-      #   id: check-auditor-approval
-      #   uses: actions/github-script@v5
-      #   if: env.CONTINUE == 'true'
-      #   with:
-      #     script: |
-      #       const fs = require('fs');
-      #       const auditorHandlesFile = 'auditor_handles.txt'; // Adjust this if needed
-
-      #       // Read auditor handles from file
-      #       const auditorHandles = fs.readFileSync(auditorHandlesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
-
-      #       const { data: reviews } = await github.pulls.listReviews({
-      #         owner: context.repo.owner,
-      #         repo: context.repo.repo,
-      #         pull_number: context.issue.number,
-      #       });
-
-      #       let allApproved = true;
-
-      #       auditorHandles.forEach(handle => {
-      #         const approved = reviews.some(review => review.user.login === handle && review.state === 'APPROVED');
-      #         if (!approved) {
-      #           console.log(`PR is not approved by ${handle}`);
-      #           allApproved = false;
-      #         } else {
-      #           console.log(`PR is approved by ${handle}`);
-      #         }
-      #       });
-
-      #       if (!allApproved) {
-      #         core.setFailed("Not all required auditors have approved the PR.");
-      #       } else {
-      #         core.setOutput('approved', 'true');
-      #       }
-
-      - name: Check if all required commits are part of the PR
-        id: check_commit_hashes
-        if: env.CONTINUE == 'true'
-        uses: actions/github-script@v5
-        with:
-          script: |
-            const fs = require('fs');
-
-            // Read commit hashes from file
-            const commitHashesFile = 'commit_hashes.txt'; // Adjust this if needed
-            const commitHashes = fs.readFileSync(commitHashesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
-
-            console.log(`${commitHashes.length} commitHashes found`)
-
-            const { data: commits } = await github.pulls.listCommits({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-            });
-
-            const prCommitHashes = commits.map(commit => commit.sha);
-            let allCommitsFound = true;
-
-            console.log(`${prCommitHashes.length} prCommitHashes found`)
-
-            commitHashes.forEach(hash => {
-              if (!prCommitHashes.includes(hash)) {
-                console.log(`Commit ${hash} is not part of the PR`);
-                allCommitsFound = false;
-              } else {
-                console.log(`Commit ${hash} is part of the PR`);
-              }
-            });
-
-            if (!allCommitsFound) {
-              console.log("CHECK FAILED")
-              core.setFailed("Not all required commits are part of the PR.");
-              } else {
-              console.log("CHECK PASSED")
-              core.setOutput('all_commits_present', 'true');
-            }
-
+      # - name: Check auditor review
       # - name: Assign "Ready_For_PROD_Deployment" label
