@@ -240,6 +240,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
+            const core = require('@actions/core'); // Import core module
 
             // ANSI escape codes for colors (used for colored output in Git action console)
             const colors = {
@@ -316,9 +317,10 @@ jobs:
 
               if (!allCommitsFound)
                 core.setFailed("This check failed");
+              else {
+                console.log(`${colors.green}All audit commits have been successfully verified.${colors.reset}`);
+                core.setOutput('all_commits_present', 'true');
+              }
             })();
-
-            console.log(`${colors.green}All audit commits have been successfully verified.${colors.reset}`);
-            core.setOutput('all_commits_present', 'true');
 
       # - name: Assign "Ready_For_PROD_Deployment" label
