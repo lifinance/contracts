@@ -176,10 +176,12 @@ jobs:
                 exit 1
               fi
 
-              # store the commit hash to check it in a following step
+              # store the commit hash in a temporary file to check its validity in a following step
+              echo "adding commit hash $AUDIT_COMMIT_HASH"
               echo "$AUDIT_COMMIT_HASH" >> "$COMMIT_HASHES_FILE"
 
-              # store the auditor git handle to check it in a following step
+              # store the auditor git handle to check it in a following step if this auditor has reviewed the PR
+              echo "adding auditor handle $AUDITOR_GIT_HANDLE"
               echo "$AUDITOR_GIT_HANDLE" >> "$AUDITOR_GIT_HANDLES_FILE"
             done
           done <<< "$PROTECTED_CONTRACTS"
@@ -192,7 +194,7 @@ jobs:
           AUDITOR_GIT_HANDLES=$(cat "$AUDITOR_GIT_HANDLES_FILE" | tr '\n' ' ')
           echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES"
           echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES" >> $GITHUB_ENV
-          echo "AUDITOR_GIT_HANDLES=$(AUDITOR_GIT_HANDLES_FILE)"
+          echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES"
           echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES" >> $GITHUB_ENV
 
       # - name: Check auditor review
