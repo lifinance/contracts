@@ -9,6 +9,9 @@
 # - checks if there is one approving review of an auditor (do we really want this?)
 # - checks if the logged audit commit hash is part of the commits of this PULL_REQUEST
 
+# KNOWN LIMITATIONS
+# - will only check the last 100 commits for any matches with audit commit hashes
+
 name: Audit Check
 
 on:
