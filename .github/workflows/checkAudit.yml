@@ -46,7 +46,6 @@ jobs:
           ##### go through all modified file names/paths and identify contracts with path 'src/*'
           while IFS= read -r FILE; do
             if echo "$FILE" | grep -E '^src/.*\.sol$'; then
-            # if echo "$FILE" | grep -E '^src/*\.sol$'; then
               ##### contract found
               PROTECTED_CONTRACTS="${PROTECTED_CONTRACTS}${FILE}"$'\n'
             fi
@@ -60,7 +59,7 @@ jobs:
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0
           else
-            # set action output to true
+            ##### set action output to true
             echo "CONTINUE=true" >> $GITHUB_ENV
           fi
 
@@ -178,12 +177,10 @@ jobs:
               fi
 
               # store the commit hash in a temporary file to check its validity in a following step
-              echo "adding commit hash $AUDIT_COMMIT_HASH"
               # echo "$AUDIT_COMMIT_HASH" >> "$COMMIT_HASHES_FILE"
               echo "$AUDIT_COMMIT_HASH" >> commit_hashes.txt
 
               # store the auditor git handle to check it in a following step if this auditor has reviewed the PR
-              echo "adding auditor handle $AUDITOR_GIT_HANDLE"
               # echo "$AUDITOR_GIT_HANDLE" >> "$AUDITOR_GIT_HANDLES_FILE"
               echo "$AUDITOR_GIT_HANDLE" >> auditor_handles.txt
             done
