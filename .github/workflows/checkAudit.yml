@@ -248,36 +248,50 @@ jobs:
             const commitHashesFile = 'commit_hashes.txt'; // Adjust this if needed
             const commitHashes = fs.readFileSync(commitHashesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
 
-            console.log(`${commitHashes.length} commitHashes found`)
+            // Log the number of commit hashes found
+            console.log(`${commitHashes.length} commit hashes found`);
 
-            const { data: commits } = await github.rest.pulls.listCommits({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              per_page: 300
-            });
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull_number = context.issue.number;
 
-            const prCommitHashes = commits.map(commit => commit.sha);
             let allCommitsFound = true;
 
-            prCommitHashes.map(hash =>  console.log(`pr commit hash: ${hash}`))
+            for (const hash of commitHashes) {
+              try {
 
-            console.log(`${prCommitHashes.length} prCommitHashes found`)
+                // get the commit through github REST API
+                const { data: commit } = await github.rest.repos.getCommit({
+                  owner,
+                  repo,
+                  ref: hash,
+                  });
 
-            commitHashes.forEach(hash => {
-              if (!prCommitHashes.includes(hash)) {
-                console.log(`Commit ${hash} is not part of the PR`);
+                // get all PRs associated with this commit
+                const associatedPRs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  owner,
+                  repo,
+                  commit_sha: hash,
+                  });
+
+                  // check if this commit is part of this PR
+                  const isAssociatedWithPR = associatedPRs.data.some(pr => pr.number === pull_number);
+
+                if (!isAssociatedWithPR) {
+                  console.log(`Commit ${hash} is not associated with the PR`);
+                  allCommitsFound = false;
+                } else {
+                  console.log(`Commit ${hash} is associated with the PR`);
+                }
+              } catch (error) {
+                console.log(`Error fetching commit ${hash}: ${error.message}`);
                 allCommitsFound = false;
-              } else {
-                console.log(`Commit ${hash} is part of the PR`);
               }
-            });
+            }
 
             if (!allCommitsFound) {
-              console.log("CHECK FAILED")
               core.setFailed("Not all required commits are part of the PR.");
-              } else {
-              console.log("CHECK PASSED")
+            } else {
               core.setOutput('all_commits_present', 'true');
             }
 
