@@ -278,43 +278,42 @@ jobs:
                 if (!isAssociatedWithPR) {
                   console.error(`None of the associated PRs of commit ${hash} matches with this PR (${pull_number})`);
                   console.error(`Please check if the 'auditCommitHash' in the audit log is accurate and try again.`);
-                  console.error(`Aborting now.`);
 
-                  // Set environment variable based on whether all commits were found
-                  const envFilePath = process.env.GITHUB_ENV;
-                  fs.appendFileSync(envFilePath, `CONTINUE=false\n`);
+                  // set flag to false
+                  allCommitsFound=false;
 
-                  throw new Error(``);
                 }
                 else console.log(`Commit ${hash} is associated with this PR. Check passed.`)
               } catch (error) {
                 console.error(`The following audit commit seems to be invalid: ${hash}`);
                 console.error(`Please check if the 'auditCommitHash' in the audit log is accurate and try again.`);
-                console.error(`Aborting now.`);
-                throw new Error(``);
+
+                // set flag to false
+                allCommitsFound=false;
               }
             };
 
             (async () => {
               for (const hash of commitHashes) {
-                console.log(`next hash: ${hash}`)
+                console.log(`---------------------------------------------------------------`)
+                console.log(`Now checking auditCommitHash: ${hash}`)
 
-                try {
-                  await checkCommit(hash);
-                } catch {
-                  throw new Error(``);
-                }
+                await checkCommit(hash);
+                # try {
+                #   await checkCommit(hash);
+                # } catch {
+                #   throw new Error(``);
+                # }
               }
 
               // Set environment variable based on whether all commits are found
               const envFilePath = process.env.GITHUB_ENV;
               fs.appendFileSync(envFilePath, `CONTINUE=${allCommitsFound}\n`);
 
-              if (!allCommitsFound) {
-                core.setFailed("Not all required commits are part of the PR.");
-              } else {
-                core.setOutput('all_commits_present', 'true');
-              }
+              if (!allCommitsFound)
+                core.setFailed("This check failed");
             })();
+
+            core.setOutput('all_commits_present', 'true');
 
       # - name: Assign "Ready_For_PROD_Deployment" label
