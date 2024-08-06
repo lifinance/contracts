@@ -257,39 +257,61 @@ jobs:
 
             let allCommitsFound = true;
 
-            for (const hash of commitHashes) {
+            const checkCommit = async (hash) => {
               try {
+                console.log("A");
 
-                console.log("A")
                 // get the commit through github REST API
                 const { data: commit } = await github.rest.repos.getCommit({
                   owner,
                   repo,
                   ref: hash,
-                  });
+                });
 
-                  console.log("B")
-                  // get all PRs associated with this commit
-                  const associatedPRs = (await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                    owner,
-                    repo,
-                    commit_sha: hash,
-                    })).data;
+                console.log("B");
 
+                // get all PRs associated with this commit
+                const associatedPRs = (await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  owner,
+                  repo,
+                  commit_sha: hash,
+                })).data;
 
-                console.log("C")
-                console.log(`commit: ${hash}`)
+                console.log("C");
+                console.log(`commit: ${hash}`);
 
                 // check if any of the associated PR numbers matches with <this> PR number
-                if(!associatedPRs.includes(pr => pr.number === pull_number)) {
-                  console.error(`None of the associated PRs of commit $hash matches with this PR (${pull_number})`)
-                  console.error(`Please check if the 'auditCommitHash' in the audit log is accurate and try again.`)
-                  console.error(`Aborting now.`)
+                const isAssociatedWithPR = associatedPRs.some(pr => pr.number === pull_number);
+                if (!isAssociatedWithPR) {
+                  console.error(`None of the associated PRs of commit ${hash} matches with this PR (${pull_number})`);
+                  console.error(`Please check if the 'auditCommitHash' in the audit log is accurate and try again.`);
+                  console.error(`Aborting now.`);
 
                   // Set environment variable based on whether all commits are found
                   const envFilePath = process.env.GITHUB_ENV;
                   fs.appendFileSync(envFilePath, `CONTINUE=false\n`);
-                  exit 1
+                  throw new Error("Commit not associated with PR");
                 }
+              } catch (error) {
+                console.log(`Error fetching commit ${hash}: ${error.message}`);
+                allCommitsFound = false;
+              }
+            };
+
+            (async () => {
+              for (const hash of commitHashes) {
+                await checkCommit(hash);
+              }
+
+              // Set environment variable based on whether all commits are found
+              const envFilePath = process.env.GITHUB_ENV;
+              fs.appendFileSync(envFilePath, `ALL_COMMITS_FOUND=${allCommitsFound}\n`);
+
+              if (!allCommitsFound) {
+                core.setFailed("Not all required commits are part of the PR.");
+              } else {
+                core.setOutput('all_commits_present', 'true');
+              }
+            })();
 
       # - name: Assign "Ready_For_PROD_Deployment" label
