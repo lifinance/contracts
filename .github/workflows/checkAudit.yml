@@ -282,6 +282,8 @@ jobs:
 
                 // check if any of the associated PR numbers matches with <this> PR number
                 const isAssociatedWithPR = associatedPRs.some(pr => pr.number === pull_number);
+                const associatedPRNumbers = associatedPRs.map(pr => pr.number)
+                console.log(`associatedPRNumbers: ${associatedPRNumbers}`)
 
                 // if current commit is not associated to this PR, end this
                 if (!isAssociatedWithPR) {
