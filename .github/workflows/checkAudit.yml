@@ -299,11 +299,6 @@ jobs:
                 console.log(`Now checking auditCommitHash: ${hash}`)
 
                 await checkCommit(hash);
-                # try {
-                #   await checkCommit(hash);
-                # } catch {
-                #   throw new Error(``);
-                # }
               }
 
               // Set environment variable based on whether all commits are found
