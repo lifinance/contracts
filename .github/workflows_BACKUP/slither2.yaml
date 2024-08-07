@@ -1,0 +1,106 @@
+name: Slither2
+on:
+  pull_request:
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # - name: Run Slither
+      #   id: slither
+      #   uses: crytic/slither-action@v0.4.0
+      #   with:
+      #     node-version: 20
+      #     sarif: results.sarif
+      #     fail-on: none
+
+      # - name: Upload SARIF file
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: ${{ steps.slither.outputs.sarif }}
+
+      - name: Create Markdown Report / Checklist
+        uses: crytic/slither-action@v0.4.0
+        id: slither2
+        with:
+          node-version: 20
+          fail-on: none
+          slither-args: --checklist --markdown-root ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/
+
+      - name: Save slither2 Output
+        run: echo "${{ steps.slither2.outputs.stdout }}" > slither_output.txt
+
+      - name: Create/update checklist as PR Comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = './slither_output.txt';
+            const report = fs.readFileSync(path, 'utf8');
+            const header = '# Slither report\n';
+            const body = header + report;
+            const issue_number = context.payload.pull_request.number;
+
+            const comments = await ${{github}}.rest.issues.listComments({
+              owner: ${{github}}.repo.owner,
+              repo: ${{github}}.repo.repo,
+              issue_number
+            });
+
+            const comment = comments.data.find(comment => comment.user.login === 'github-actions[bot]');
+
+            if (comment) {
+              await ${{github}}.rest.issues.updateComment({
+                owner: ${{github}}.repo.owner,
+                repo: ${{github}}.repo.repo,
+                comment_id: comment.id,
+                body
+              });
+            } else {
+              await ${{github}}.rest.issues.createComment({
+                owner: ${{github}}.repo.owner,
+                repo: ${{github}}.repo.repo,
+                issue_number,
+                body
+              });
+            }
+
+      # - name: Run Slither
+      #   uses: crytic/slither-action@dev-install-foundry
+      #   id: slither
+      #   with:
+      #     node-version: 20
+      #     sarif: results.sarif
+      #     fail-on: none
+      #     target: 'src/'
+
+      # - name: Upload SARIF file
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: ${{ steps.slither.outputs.sarif }}
+
+      # - name: Create Markdown Report / Checklist
+      #   uses: crytic/slither-action@v0.4.0
+      #   id: slither2
+      #   with:
+      #     node-version: 20
+      #     fail-on: none
+      #     slither-args: --checklist --markdown-root ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/
+
+      # - name: Create/update checklist as PR Comment
+      #   uses: actions/github-script@v7
+      #   if: github.event_name == 'pull_request'
+      #   env:
+      #     REPORT: ${{ steps.slither.outputs.stdout }}
+      #   with:
+      #     script: |
+      #       const script = require('.github/scripts/comment')
+      #       const header = '# Slither report'
+      #       const body = process.env.REPORT
+      #       await script({ github, context, header, body })

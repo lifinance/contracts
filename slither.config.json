@@ -1,5 +1,5 @@
 {
-  "filter_paths": "lib",
+  "filter_paths": "lib|test|script",
   "solc_remaps": [
     "@eth-optimism/=node_modules/@hop-protocol/sdk/node_modules/@eth-optimism/",
     "@uniswap/=node_modules/@uniswap/",
