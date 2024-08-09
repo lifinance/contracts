@@ -21,6 +21,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -45,7 +46,7 @@
         "PolygonBridgeFacet": "1.0.0",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.0",
@@ -71,6 +72,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -95,7 +97,7 @@
         "PolygonBridgeFacet": "1.0.0",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.0",
@@ -125,6 +127,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -143,7 +146,7 @@
         "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m"
@@ -168,6 +171,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -186,7 +190,7 @@
         "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m"
@@ -215,6 +219,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AllBridgeFacet": "2.0.0",
         "AmarokFacet": "3.0.0",
         "AmarokFacetPacked": "1.0.0",
@@ -228,7 +233,7 @@
         "OpBNBBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OpBNBBridgeFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.0"
@@ -253,6 +258,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AllBridgeFacet": "2.0.0",
         "AmarokFacet": "3.0.0",
         "AmarokFacetPacked": "1.0.0",
@@ -266,7 +272,7 @@
         "OpBNBBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OpBNBBridgeFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.0"
@@ -295,6 +301,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AmarokFacet": "3.0.0",
         "AmarokFacetPacked": "1.0.0",
         "CBridgeFacet": "1.0.0",
@@ -324,6 +331,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AmarokFacet": "3.0.0",
         "AmarokFacetPacked": "1.0.0",
         "CBridgeFacet": "1.0.0",
@@ -357,6 +365,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
@@ -385,6 +394,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
@@ -417,6 +427,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -439,6 +450,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0"
       }
     }
@@ -465,6 +477,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AllBridgeFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
@@ -477,7 +490,7 @@
         "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.0",
@@ -503,6 +516,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AllBridgeFacet": "2.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
@@ -515,7 +529,7 @@
         "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.0",
@@ -545,6 +559,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -564,7 +579,7 @@
         "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m"
@@ -589,6 +604,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -608,7 +624,7 @@
         "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m"
@@ -637,6 +653,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -654,7 +671,7 @@
         "HyphenFacet": "1.0.0",
         "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m"
@@ -679,6 +696,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -696,7 +714,7 @@
         "HyphenFacet": "1.0.0",
         "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m"
@@ -725,6 +743,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0"
@@ -749,6 +768,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0"
@@ -777,6 +797,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "SquidFacet": "1.0.0"
       },
@@ -800,6 +821,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "SquidFacet": "1.0.0"
       }
@@ -826,7 +848,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0"
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -847,7 +870,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0"
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       }
     }
   },
@@ -872,7 +896,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0"
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -893,7 +918,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0"
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       }
     }
   },
@@ -918,7 +944,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0"
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -939,7 +966,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0"
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       }
     }
   },
@@ -965,6 +993,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -987,6 +1016,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0"
       }
     }
@@ -1013,10 +1043,11 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -1039,10 +1070,11 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0"
       }
     }
@@ -1069,6 +1101,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
@@ -1092,6 +1125,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -1119,6 +1153,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
         "SymbiosisFacet": "1.0.0"
@@ -1143,6 +1178,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
         "SymbiosisFacet": "1.0.0"
@@ -1171,6 +1207,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "CBridgeFacet": "1.0.0",
@@ -1199,6 +1236,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "CBridgeFacet": "1.0.0",
@@ -1231,6 +1269,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
@@ -1259,6 +1298,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
@@ -1291,6 +1331,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AmarokFacet": "3.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
@@ -1298,7 +1339,7 @@
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
@@ -1322,6 +1363,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AmarokFacet": "3.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
@@ -1329,7 +1371,7 @@
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -1357,6 +1399,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -1369,7 +1412,7 @@
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m"
@@ -1394,6 +1437,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AllBridgeFacet": "2.0.0",
@@ -1406,7 +1450,7 @@
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
         "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m"
@@ -1434,7 +1478,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0"
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1455,7 +1500,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0"
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       }
     }
   },
@@ -1481,9 +1527,10 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AmarokFacet": "3.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
@@ -1507,9 +1554,10 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AmarokFacet": "3.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -1537,10 +1585,11 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
@@ -1564,10 +1613,11 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -1595,6 +1645,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AmarokFacet": "3.0.0",
@@ -1620,6 +1671,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AmarokFacet": "3.0.0",
@@ -1649,9 +1701,10 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
@@ -1675,9 +1728,10 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -1705,6 +1759,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AllBridgeFacet": "2.0.0",
         "SquidFacet": "1.0.0"
       },
@@ -1728,6 +1783,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "AllBridgeFacet": "2.0.0",
         "SquidFacet": "1.0.0"
       }
@@ -1755,6 +1811,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "SquidFacet": "1.0.0",
@@ -1780,6 +1837,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "SquidFacet": "1.0.0",
@@ -1809,6 +1867,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -1831,6 +1890,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -1857,8 +1917,9 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "SquidFacet": "1.0.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
@@ -1882,8 +1943,9 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "SquidFacet": "1.0.0",
-        "StargateFacetV2": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -1911,6 +1973,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "SquidFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
@@ -1934,6 +1997,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "SquidFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -1961,7 +2025,8 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
-        "StargateFacetV2": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       },
@@ -1985,7 +2050,8 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
-        "StargateFacetV2": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0"
       }
@@ -2013,7 +2079,8 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
-        "StargateFacetV2": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -2036,7 +2103,8 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
-        "StargateFacetV2": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
+        "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0"
       }
     }
@@ -2063,8 +2131,8 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
-        "SquidFacet": "1.0.0",
-        "LiFiDEXAggregator": "1.0.0"
+        "LiFiDEXAggregator": "1.0.0",
+        "SquidFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2086,6 +2154,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "SquidFacet": "1.0.0"
       }
     }
@@ -2112,6 +2181,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0"
       },
@@ -2135,6 +2205,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0"
       }
@@ -2161,7 +2232,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0"
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2182,7 +2254,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0"
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       }
     }
   },
@@ -2208,6 +2281,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0"
       },
@@ -2231,6 +2305,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0"
       }
@@ -2258,6 +2333,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0"
       },
@@ -2281,6 +2357,7 @@
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
         "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0",
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0"
       }
@@ -2307,7 +2384,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0"
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2328,7 +2406,8 @@
         "FeeCollector": "1.0.0",
         "Receiver": "2.0.2",
         "LiFuelFeeCollector": "1.0.1",
-        "TokenWrapper": "1.0.0"
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       }
     }
   }

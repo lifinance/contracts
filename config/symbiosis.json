@@ -74,5 +74,9 @@
   "sei": {
     "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
     "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
+  },
+  "taiko": {
+    "metaRouter": "0x7057aB3fB2BeE9c18e0cDe4240DE4ff7f159E365",
+    "gateway": "0xa0079829B9F1Edc5DD0DE3eC104f281745C4bD81"
   }
 }
