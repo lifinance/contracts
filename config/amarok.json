@@ -278,5 +278,11 @@
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "",
     "tokensToApprove": []
+  },
+  "taiko": {
+    "chainId": 167000,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
   }
 }
