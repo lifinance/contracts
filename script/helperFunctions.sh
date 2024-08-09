@@ -1307,6 +1307,63 @@ function getBytecodeFromArtifact() {
   fi
 }
 
+function addPeripheryToDexsJson() {
+  echo "[info] now adding all contracts listed in WHITELIST_PERIPHERY (config.sh) to config/dexs.json"
+  # read function arguments into variables
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+
+  # Get all contracts that need to be whitelisted and convert the comma-separated string into an array
+  IFS=',' read -r -a CONTRACTS <<< "$WHITELIST_PERIPHERY"
+
+  # get number of periphery contracts to be added
+  local ADD_COUNTER=${#CONTRACTS[@]}
+
+  local FILEPATH_DEXS="config/dexs.json"
+
+  # get number of existing DEX addresses in the file for the given network
+  local EXISTING_DEXS=$(jq --arg network "$NETWORK" '.[$network] | length' "$FILEPATH_DEXS")
+
+  # Iterate through all contracts
+  for CONTRACT in "${CONTRACTS[@]}"; do
+    # get contract address
+    local CONTRACT_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
+
+    if [[ -z "$CONTRACT_ADDRESS" ]]; then
+      error "Could not find contract address for contract $CONTRACT on network $NETWORK ($ENVIRONMENT) in deploy log."
+      error "Please manually whitelist this contract after this task has been completed."
+    fi
+
+    # check if address already exists in dexs.json for the given network
+    local EXISTS=$(jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] // []) | any(. == $address)' $FILEPATH_DEXS)
+
+    if [ "$EXISTS" == "true" ]; then
+      echo "The address $CONTRACT_ADDRESS is already part of the whitelisted DEXs in network $NETWORK."
+
+      # since this address is already in the list and will not be added, we have to reduce the "ADD_COUNTER" variable which will be used later to make sure that all addresses were indeed added
+      ((ADD_COUNTER--)) # reduces by 1
+    else
+      # add the address to dexs.json
+      local TMP_FILE="tmp.$$.json"
+      jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] //= []) | .[$network] += [$address]' $FILEPATH_DEXS > "$TMP_FILE" && mv "$TMP_FILE" $FILEPATH_DEXS
+      rm -f "$TMP_FILE"
+
+
+      success "$CONTRACT address $CONTRACT_ADDRESS added to dexs.json[$NETWORK]"
+    fi
+  done
+
+  # check how many DEX addresses are in the dexs.json now
+  local ADDRESS_COUNTER=${#CONTRACTS[@]}
+
+  # make sure dexs.json has been updated correctly
+  if [ $ADDRESS_COUNTER -eq $((EXISTING_DEXS + ADD_COUNTER)) ]; then
+    success "$ADD_COUNTER addresses were added to config/dexs.json"
+  else
+    error "The array in dexs.json for network $NETWORK does not have the expected number of elements after executing this script (expected: $, got: $ADDRESS_COUNTER)."
+    exit 1
+  fi
+}
 # <<<<< working with directories and reading other files
 
 # >>>>> writing to blockchain & verification
@@ -2056,6 +2113,9 @@ function echoDebug() {
   if [[ $DEBUG == "true" ]]; then
     printf "$BLUE[debug] %s$NC\n" "$MESSAGE"
   fi
+}
+function success() {
+  printf '\033[32m%s\033[0m\n' "$1"
 }
 function error() {
   printf '\033[31m[error] %s\033[0m\n' "$1"
@@ -3769,7 +3829,7 @@ function test_tmp() {
   #    exit 1
   #  fi
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
-  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
+  # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 
   # forge verify-contract "$ADDRESS" "$CONTRACT" --chain-id 13371 --verifier blockscout --verifier-url https://explorer.immutable.com/api --skip-is-verified-check
   # forge verify-contract 0x8CDDE82cFB4555D6ca21B5b28F97630265DA94c4 Counter --verifier oklink --verifier-url https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER  --api-key $OKLINK_API_KEY
