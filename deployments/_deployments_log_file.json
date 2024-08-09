@@ -665,7 +665,7 @@
             "TIMESTAMP": "2024-08-09 13:16:31",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1349,7 +1349,7 @@
             "TIMESTAMP": "2024-08-09 13:16:40",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5563,7 +5563,7 @@
             "TIMESTAMP": "2024-08-09 13:19:32",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c000000000000000000000000429da7043882c2a962bc4ea7b33440c3b9a033d7",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7190,7 +7190,7 @@
             "TIMESTAMP": "2024-08-09 13:18:18",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10436,7 +10436,7 @@
             "TIMESTAMP": "2024-08-09 13:28:43",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -11262,7 +11262,7 @@
             "TIMESTAMP": "2024-08-09 13:29:29",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000006bc43f95c5234aa749d18403753d60b91f972d3c",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -11889,7 +11889,7 @@
             "TIMESTAMP": "2024-08-09 13:30:44",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -18519,7 +18519,7 @@
             "TIMESTAMP": "2024-08-09 13:18:39",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -19171,7 +19171,7 @@
             "TIMESTAMP": "2024-08-09 13:18:50",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -19990,7 +19990,7 @@
             "TIMESTAMP": "2024-08-09 13:32:16",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -20663,7 +20663,7 @@
             "TIMESTAMP": "2024-08-09 13:26:43",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000007057ab3fb2bee9c18e0cde4240de4ff7f159e365000000000000000000000000a0079829b9f1edc5dd0de3ec104f281745c4bd81",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -21150,7 +21150,7 @@
             "TIMESTAMP": "2024-08-09 13:35:17",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000a51894664a773981c6c112c43ce576f315d5b1b6",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -21998,7 +21998,7 @@
             "TIMESTAMP": "2024-08-09 13:24:45",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000045d417612e177672958dc0537c45a8f8d754ac2e",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
