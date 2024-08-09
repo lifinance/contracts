@@ -100,10 +100,12 @@ deploySingleContract() {
 
   # Display contract-specific information, if existing
   if grep -q "^$CONTRACT=" "$CONTRACT_REMINDERS"; then
-    echo ""
+    echo -e "\n\n"
+    printf '\033[31m%s\031\n' "--------------------------------------- !!!!!!!! ATTENTION !!!!!!!! ---------------------------------------"
     warning "Please read the following information carefully: "
     warning "${!CONTRACT}"
-    echo ""
+    printf '\033[31m%s\031\n' "-----------------------------------------------------------------------------------------------------------"
+    echo -e "\n\n"
   fi
 
   # check if deploy script exists
