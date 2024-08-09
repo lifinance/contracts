@@ -62,6 +62,7 @@
     "rootstock": "0xDF61270FdC1a892874Fd3C0143A0a4CBa74F4EF1",
     "scroll": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "sei": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
+    "taiko": "tbd",
     "zksync": "0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744"
   },
   "safeOwners": [
@@ -100,6 +101,7 @@
     "rootstock": "https://transaction.safe.rootstock.io/api",
     "scroll": "https://safe-transaction-scroll.safe.global/api",
     "sei": "https://transaction.sei-safe.protofire.io/api",
+    "taiko": "https://transaction.safe.taiko.xyz/api",
     "zksync": "https://safe-transaction-zksync.safe.global/api"
   },
   "nativeAddress": {
@@ -130,6 +132,7 @@
     "rootstock": "0x0000000000000000000000000000000000000000",
     "scroll": "0x0000000000000000000000000000000000000000",
     "sei": "0x0000000000000000000000000000000000000000",
+    "taiko": "0x0000000000000000000000000000000000000000",
     "zksync": "0x0000000000000000000000000000000000000000"
   }
 }
