@@ -1,5 +1,7 @@
-# - Protect Security System
-# - makes sure that git actions can only be changed/removed with approval of CTO or Information Security Manager
+# - Ensure Deploy Process Integrity
+# - ensures that the systems in place to guarantee audits, approvals, versioning, test coverage etc. cannot be easily deactivated
+#   or altered without approval of the Information Security Manager (or CTO)
+# - protects any git actions in folder .github/workflows/*
 
 name: Ensure Deploy Process Integrity
 
@@ -56,13 +58,12 @@ jobs:
             echo "CONTINUE=true" >> $GITHUB_ENV
           fi
 
-
       - name: Get "Information Security Manager" Group Members
         if: env.CONTINUE == 'true'
         env:
           GH_PAT: ${{ secrets.GIT_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          run: |
+        run: |
 
           ##### unset the default git token (does not have sufficient rights to get team members)
           unset GITHUB_TOKEN
@@ -87,7 +88,6 @@ jobs:
 
           ##### store members in variable
           echo "INFORMATION_SECURITY_MEMBERS=$INFORMATION_SECURITY_MEMBERS" >> $GITHUB_ENV
-
 
       - name: Check approval of Information Security Manager
         id: check-sec-mgr-approval
