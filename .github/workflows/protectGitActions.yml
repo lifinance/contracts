@@ -104,16 +104,9 @@ jobs:
           script: |
             const fs = require('fs');
 
-            console.log("A")
-
-            const itSecHandlesFile = 'itSec_git_handles.txt';
-            console.log("B")
-
             // Read git handles from file
+            const itSecHandlesFile = 'itSec_git_handles.txt';
             const itSecHandles = fs.readFileSync(itSecHandlesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
-
-            console.log("C")
-            console.log(`itSecHandles: ${itSecHandles}`)
 
             // get all reviewers of the current pr
             const { data: reviews } = await github.pulls.listReviews({
@@ -125,16 +118,16 @@ jobs:
             // extract the git login handles of all reviewers
             const reviewerHandles = reviews.map(review => review.user.login);
 
-            console.log(`reviewerHandles: ${reviewerHandles}`)
+            console.log(`This PR has been reviewed by the following git members: ${reviewerHandles}`)
 
             // check if at least one of these reviewers is member in information-security-manager group
             if (reviewerHandles.some((handle) => itSecHandles.includes(handle))) {
-              echo -e "\033[32mThe current PR was approved by a member of the information-security-manager group.\033[0m"
-              echo -e "\033[32mCheck passed.\033[0m"
+              console.log(`${colors.green}The current PR was approved by a member of the information-security-manager group.${colors.reset}`);
+              console.log(`${colors.green}Check passed.${colors.reset}`);
               core.setOutput('approved', 'true');
               } else {
-              echo -e "\033[31mThe PR requires a missing approval by a member of the information-security-manager group.\033[0m"
-              echo -e "\033[31mFind group members here: https://github.com/orgs/lifinance/teams/information-security-manager.\033[0m"
-              echo -e "\033[31mCheck failed.\033[0m"
+              console.log(`${colors.red}The PR requires a missing approval by a member of the information-security-manager group.${colors.reset}`);
+              console.log(`${colors.red}Find group members here: https://github.com/orgs/lifinance/teams/information-security-manager.${colors.reset}`);
+              console.log(`${colors.red}Check failed.${colors.reset}`);
               core.setFailed("Required approval is missing");
             }
