@@ -1,0 +1,131 @@
+# - Protect Security System
+# - makes sure that git actions can only be changed/removed with approval of CTO or Information Security Manager
+
+name: Ensure Deploy Process Integrity
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  protect-security-system:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 ##### Fetch all history for all branches
+
+      - name: Check Git Diff for protected files
+        id: check_protected_files
+        run: |
+
+          ##### get all files modified by this PR
+          FILES=$(git diff --name-only origin/main HEAD)
+
+          ##### make sure that there are modified files
+          if [[ -z $FILES ]]; then
+            echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 1
+          fi
+
+          ##### Initialize empty variables
+          PROTECTED_FILES=""
+
+          ##### go through all modified file names/paths and identify contracts with path 'src/*'
+          while IFS= read -r FILE; do
+            if echo "$FILE" | grep -E '^.github/workflows/\.git/'; then
+
+              ##### modified git action found
+              PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
+            fi
+          done <<< "$FILES"
+
+          ##### if none found, exit here as there is nothing to do
+          if [[ -z "$PROTECTED_FILES" ]]; then
+            echo -e "\033[31mNo protected files found in files modified/added by this PR.\033[0m"
+            echo -e "\033[31mNo further checks are required.\033[0m"
+            # set action output to false
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 0
+          else
+            ##### set action output to true
+            echo "CONTINUE=true" >> $GITHUB_ENV
+          fi
+
+
+      - name: Get "Information Security Manager" Group Members
+        if: env.CONTINUE == 'true'
+        env:
+          GH_PAT: ${{ secrets.GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          run: |
+
+          ##### unset the default git token (does not have sufficient rights to get team members)
+          unset GITHUB_TOKEN
+
+          ##### use the Personal Access Token to log into git CLI
+          echo $GH_PAT | gh auth login --with-token
+
+          ##### Function to get team members using github CLI
+          getTeamMembers() {
+            local org=$1
+            local team=$2
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/orgs/$org/teams/$team/members" | jq -r '.[].login'
+          }
+
+          ##### get team members
+          INFORMATION_SECURITY_MEMBERS=$(getTeamMembers $ORG_NAME $GROUP_A)
+
+          echo "Team members of 'Information Security Manager' group: $INFORMATION_SECURITY_MEMBERS"
+
+          ##### store members in variable
+          echo "INFORMATION_SECURITY_MEMBERS=$INFORMATION_SECURITY_MEMBERS" >> $GITHUB_ENV
+
+
+      - name: Check approval of Information Security Manager
+        id: check-sec-mgr-approval
+        uses: actions/github-script@v7
+        if: env.CONTINUE == 'true'
+        with:
+          script: |
+
+            const members = $INFORMATION_SECURITY_MEMBERS
+
+            console.log(`members: ${members}`)
+
+            # const fs = require('fs');
+            # const auditorHandlesFile = 'auditor_handles.txt'; // Adjust this if needed
+
+            # // Read auditor handles from file
+            # const auditorHandles = fs.readFileSync(auditorHandlesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
+
+            # const { data: reviews } = await github.pulls.listReviews({
+            #   owner: context.repo.owner,
+            #   repo: context.repo.repo,
+            #   pull_number: context.issue.number,
+            # });
+
+            # let allApproved = true;
+
+            # auditorHandles.forEach(handle => {
+            #   const approved = reviews.some(review => review.user.login === handle && review.state === 'APPROVED');
+            #   if (!approved) {
+            #     console.log(`PR is not approved by ${handle}`);
+            #     allApproved = false;
+            #   } else {
+            #     console.log(`PR is approved by ${handle}`);
+            #   }
+            # });
+
+            # if (!allApproved) {
+            #   core.setFailed("Not all required auditors have approved the PR.");
+            # } else {
+            #   core.setOutput('approved', 'true');
+            # }
