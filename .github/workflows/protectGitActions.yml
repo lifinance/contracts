@@ -94,7 +94,7 @@ jobs:
           echo "Team members of 'Information Security Manager' group: $INFORMATION_SECURITY_MEMBERS"
 
           ##### store members in variable
-          echo "INFORMATION_SECURITY_MEMBERS=$INFORMATION_SECURITY_MEMBERS" >> $GITHUB_ENV
+          echo "INFORMATION_SECURITY_MEMBERS=$INFORMATION_SECURITY_MEMBERS" > itSec_git_handles.txt
 
       - name: Check approval of Information Security Manager
         id: check-sec-mgr-approval
@@ -103,15 +103,13 @@ jobs:
         with:
           script: |
 
-            const members = $INFORMATION_SECURITY_MEMBERS
+            const fs = require('fs');
+            const itSecHandlesFile = 'itSec_git_handles.txt'; // Adjust this if needed
 
-            console.log(`members: ${members}`)
+            // Read git handles from file
+            const itSecHandles = fs.readFileSync(itSecHandlesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
 
-            # const fs = require('fs');
-            # const auditorHandlesFile = 'auditor_handles.txt'; // Adjust this if needed
-
-            # // Read auditor handles from file
-            # const auditorHandles = fs.readFileSync(auditorHandlesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
+            console.log(`itSecHandles: ${itSecHandles}`)
 
             # const { data: reviews } = await github.pulls.listReviews({
             #   owner: context.repo.owner,
