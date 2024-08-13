@@ -103,6 +103,13 @@ jobs:
         with:
           script: |
             const fs = require('fs');
+            // ANSI escape codes for colors (used for colored output in Git action console)
+            const colors = {
+              reset: "\033[0m",
+              red: "\033[31m",
+              green: "\033[32m",
+              yellow: "\033[33m",
+            };
 
             // Read git handles from file
             const itSecHandlesFile = 'itSec_git_handles.txt';
