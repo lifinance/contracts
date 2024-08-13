@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
+/// @custom:version 1.0.0
 pragma solidity 0.8.17;
 
 interface IRootChainManager {
