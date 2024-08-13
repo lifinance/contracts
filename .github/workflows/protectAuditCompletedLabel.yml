@@ -12,6 +12,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Log Event Payload
+        run: echo "${{ toJson(github.event) }}"
+
       - name: Check if "AuditCompleted" label was modified
         env:
           GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
