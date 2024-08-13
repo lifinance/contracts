@@ -23,7 +23,9 @@ jobs:
               const members = [];
               let page = 1;
 
+              console.log("before while")
               while (true) {
+                console.log(`in while with page ${page}`)
                 const { data } = await github.rest.teams.listMembersInOrg({
                   org,
                   team_slug: teamSlug,
@@ -31,6 +33,7 @@ jobs:
                   page
                 });
 
+                console.log("pushing members now")
                 members.push(...data.map(member => member.login));
 
                 if (data.length < 100) break;
