@@ -1,0 +1,54 @@
+# - Protect "AuditCompleted" Label
+# - makes sure that the label "AuditCompleted" can only be assigned by a Github action and not by a human actor
+
+name: Protect "AuditCompleted" Label
+
+on:
+  pull_request_target:
+    types: [labeled, unlabeled]
+
+jobs:
+  protect_audit_label:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check if "AuditCompleted" label was modified
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
+        run: |
+          # The label being monitored
+          TARGET_LABEL="AuditCompleted"
+
+          # Check if the event was triggered by github-actions bot
+          if [[ "${{ github.actor }}" != "github-actions[bot]" ]]; then
+            echo "This event was triggered by ${{ github.actor }}. Checking label..."
+
+            # Determine if the label was added or removed
+            ACTION_TYPE="none"
+            if [[ "${{ github.event.action }}" == "labeled" && "${{ github.event.label.name }}" == "$TARGET_LABEL" ]]; then
+              ACTION_TYPE="added"
+            elif [[ "${{ github.event.action }}" == "unlabeled" && "${{ github.event.label.name }}" == "$TARGET_LABEL" ]]; then
+              ACTION_TYPE="removed"
+            fi
+
+            # Revert the label change if necessary
+            if [[ "$ACTION_TYPE" != "none" ]]; then
+              echo -e "\033[31mUnauthorized modification of '$TARGET_LABEL' by ${{ github.actor }}. Reverting change...\033[0m"
+
+
+              if [[ "$ACTION_TYPE" == "added" ]]; then
+                # Remove the unauthorized label addition
+                gh issue remove-label ${{ github.event.issue.number }} --label "$TARGET_LABEL"
+              elif [[ "$ACTION_TYPE" == "removed" ]]; then
+                # Re-add the unauthorized label removal
+                gh issue add-label ${{ github.event.issue.number }} --label "$TARGET_LABEL"
+              fi
+
+              echo "Action failed due to unauthorized label modification."
+              exit 1
+            else
+              echo -e "\033[32mNo unauthorized modifications detected.\033[0m"
+            fi
+          else
+            echo -e "\033[32mLabel change initiated by GitHub Action. No checks required.\033[0m"
+          fi
