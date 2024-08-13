@@ -1,0 +1,69 @@
+name: Protect Auditors Group
+
+on:
+  push:
+
+jobs:
+  check_membership:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Group Membership Overlap
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const ORG_NAME = 'lifinance';
+            const GROUP_A = 'smart-contract-core';
+            const GROUP_B = 'smart-contract-admins';
+            const GROUP_C = 'auditors';
+
+            async function getTeamMembers(org, teamSlug) {
+              const members = [];
+              let page = 1;
+
+              while (true) {
+                const { data } = await github.rest.teams.listMembersInOrg({
+                  org,
+                  team_slug: teamSlug,
+                  per_page: 100,
+                  page
+                });
+
+                members.push(...data.map(member => member.login));
+
+                if (data.length < 100) break;
+                page++;
+              }
+
+              return members;
+            }
+
+            async function run() {
+              const groupAMembers = await getTeamMembers(ORG_NAME, GROUP_A);
+              const groupBMembers = await getTeamMembers(ORG_NAME, GROUP_B);
+              const groupCMembers = await getTeamMembers(ORG_NAME, GROUP_C);
+
+
+              // check overlap between smart-contract-core and auditors
+              const overlap = groupAMembers.filter(member => groupCMembers.includes(member));
+
+              if (overlap.length > 0) {
+                core.setFailed(`ERROR: The following members are in both ${GROUP_A} and ${GROUP_C}: ${overlap.join(', ')}`);
+                } else {
+                  core.info(`No overlap found between ${GROUP_A} and ${GROUP_B}.`);
+                }
+
+              // check overlap between smart-contract-admins and auditors
+              const overlap = groupBMembers.filter(member => groupCMembers.includes(member));
+              if (overlap.length > 0) {
+                core.setFailed(`ERROR: The following members are in both ${GROUP_B} and ${GROUP_C}: ${overlap.join(', ')}`);
+              } else {
+                core.info(`No overlap found between ${GROUP_A} and ${GROUP_B}.`);
+              }
+            }
+
+            await run();
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
