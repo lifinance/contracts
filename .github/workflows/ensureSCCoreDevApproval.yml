@@ -1,0 +1,113 @@
+# - Smart Contract Core Dev Approval checker
+# - makes sure that every pull_request is at least reviewed by one Smart Contract Core Dev
+#   (member of group https://github.com/orgs/lifinance/teams/smart-contract-core)
+
+name: SC Core Dev Approval Check
+
+on:
+  pull_request:
+
+jobs:
+  core-dev-approval:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 ##### Fetch all history for all branches
+
+      - name: Get SC Core Dev Team Members
+        env:
+          GH_PAT: ${{ secrets.GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+
+          ##### unset the default git token (does not have sufficient rights to get team members)
+          unset GITHUB_TOKEN
+          ##### use the Personal Access Token to log into git CLI
+          echo $GH_PAT | gh auth login --with-token
+
+          ##### Function that uses github's REST API via CLI to get team members
+          getTeamMembers() {
+            local org=$1
+            local team=$2
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/orgs/$org/teams/$team/members" | jq -r '.[].login'
+          }
+
+          ORG_NAME="lifinance"
+          TEAM_SLUG="smart-contract-core"
+
+          # Get members of each group
+          echo "Fetching members of $TEAM_SLUG..."
+          MEMBERS=$(getTeamMembers $ORG_NAME $TEAM_SLUG)
+
+          #### check if any members were returned
+          if [[ -z $MEMBERS ]]; then
+            echo -e "\033[31mERROR: Could not retrieve team members of group $TEAM_SLUG\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 1
+          fi
+
+          echo "Team members of smart contract core: "
+          echo "$MEMBERS"
+
+          echo -e "$MEMBERS" > sc_core_dev_members.txt
+          echo "CONTINUE=true" >> $GITHUB_ENV
+
+      - name: Check if PR is approved by at least one SC core dev
+        id: check-core-dev-approval
+        if: env.CONTINUE == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            // ANSI escape codes for colors (used for colored output in Git action console)
+            const colors = {
+              reset: "\033[0m",
+              red: "\033[31m",
+              green: "\033[32m",
+            };
+
+            const coreDevsFile = 'sc_core_dev_members.txt';
+
+            // Read handles from file
+            const coreDevs = fs.readFileSync(coreDevsFile, 'utf-8').split(/\r?\n/).filter(Boolean);
+
+            // make sure that reviews are available
+            if(!(await github.pulls)) {
+              console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews yet?${colors.reset}`);
+              console.log(`${colors.red}Check failed.${colors.reset}`);
+              core.setFailed("Required approval is missing");
+              return
+            }
+
+            // get all reviewers that have approved this PR
+            const { data: reviews } = await github.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            // Filter to only include reviews that have "APPROVED" status
+            const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
+
+            // extract the git login handles of all reviewers
+            const reviewerHandles = approvedReviews.map(review => review.user.login);
+            console.log(`This PR has been reviewed by the following git members: ${reviewerHandles}`)
+
+            // check if at least one of these reviewers is member in smart-contract-core group
+            if (reviewerHandles.some((handle) => coreDevs.includes(handle))) {
+              console.log(`${colors.green}The current PR is approved by a member of the $TEAM_SLUG group.${colors.reset}`);
+              console.log(`${colors.green}Check passed.${colors.reset}`);
+              core.setOutput('approved', 'true');
+              } else {
+              console.log(`${colors.red}The PR requires a missing approval by a member of the $TEAM_SLUG group.${colors.reset}`);
+              console.log(`${colors.red}Find group members here: https://github.com/orgs/lifinance/teams/smart-contract-core.${colors.reset}`);
+              console.log(`${colors.red}Check failed.${colors.reset}`);
+              core.setFailed("Required approval is missing");
+            }
