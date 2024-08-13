@@ -329,6 +329,7 @@ jobs:
 
       - name: Assign "Ready_For_PROD_Deployment" label
         uses: actions-ecosystem/action-add-labels@v1
+        #### TODO: add lifi-github-actions_PAT here  <<<<<<<<<<<<<<<<<<<---------------------
         id: assign_label
         if: env.CONTINUE == 'true'
         with:
