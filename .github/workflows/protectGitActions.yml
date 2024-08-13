@@ -108,6 +108,12 @@ jobs:
             const itSecHandlesFile = 'itSec_git_handles.txt';
             const itSecHandles = fs.readFileSync(itSecHandlesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
 
+            if(!github.pulls) {
+              console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews?${colors.reset}`);
+              console.log(`${colors.red}Check failed.${colors.reset}`);
+              core.setFailed("Required approval is missing");
+            }
+
             // get all reviewers of the current pr
             const { data: reviews } = await github.pulls.listReviews({
               owner: context.repo.owner,
