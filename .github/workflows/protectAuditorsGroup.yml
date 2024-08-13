@@ -88,9 +88,9 @@ jobs:
           echo $GH_PAT | gh auth login --with-token
           ##### update the PR title
 
-          BLA=gh api \
+          BLA=$(gh api \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            /orgs/lifinance/teams/auditors/members
+            /orgs/lifinance/teams/auditors/members)
 
           echo "bla: $BLA"
