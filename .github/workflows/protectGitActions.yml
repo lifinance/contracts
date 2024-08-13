@@ -49,13 +49,15 @@ jobs:
 
           ##### if none found, exit here as there is nothing to do
           if [[ -z "$PROTECTED_FILES" ]]; then
-            echo -e "\033[31mNo protected files found in files modified/added by this PR.\033[0m"
+            echo -e "\033[31mNo protected files found in Git diff.\033[0m"
             echo -e "\033[31mNo further checks are required.\033[0m"
             # set action output to false
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0
           else
             ##### set action output to true
+            echo -e "\033[32mThe following protected files were found in Git diff:\033[0m"
+            echo "$PROTECTED_FILES"
             echo "CONTINUE=true" >> $GITHUB_ENV
           fi
 
