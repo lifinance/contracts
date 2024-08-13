@@ -16,14 +16,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Log Event Payload
-        # run: echo "${{ toJson(github.event) }}"
         run: |
           if [[ "${{ github.actor }}" == "github-actions" ]]; then
             echo "This action was triggered by another GitHub Action."
           else
             echo "This action was triggered by a user: ${{ github.actor }}."
           fi
-          echo "${{ github.event }}"
+          echo "${{ toJson(github.event) }}"
 
       - name: Check if "AuditCompleted" label was modified
         env:
@@ -60,7 +59,7 @@ jobs:
 
               # make sure that the label change was undone
               if [[ $ACTION_TYPE == 'added' ]]; then
-
+                echo ""
               fi
 
               echo "Action failed due to unauthorized label modification."
