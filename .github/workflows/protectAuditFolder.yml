@@ -1,0 +1,32 @@
+name: Audit Folder Protection
+
+on:
+  push:
+    paths:
+      - 'audit/**'
+  pull_request:
+    paths:
+      - 'audit/**'
+
+jobs:
+  check-audit-access:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify user access
+        run: |
+          echo "Checking access permissions for user: ${{ github.actor }}"
+
+          # Verify if the user belongs to the auditors group
+          AUDITORS_GROUP="auditors"
+          USER_GROUP=$(curl -s -H "Authorization: token ${{ secrets.GIT_TOKEN }}" https://api.github.com/orgs/${{ github.repository_owner }}/teams/${AUDITORS_GROUP}/members/${{ github.actor }} | jq -r .login)
+
+          if [ "$USER_GROUP" != "${{ github.actor }}" ]; then
+            echo "User ${{ github.actor }} is not a member of the ${AUDITORS_GROUP} group. Access denied."
+            exit 1
+          else
+            echo "User ${{ github.actor }} is a member of the ${AUDITORS_GROUP} group. Access granted."
+          fi
