@@ -94,7 +94,7 @@ jobs:
           echo "Team members of 'Information Security Manager' group: $INFORMATION_SECURITY_MEMBERS"
 
           ##### store members in variable
-          echo -e "INFORMATION_SECURITY_MEMBERS=$INFORMATION_SECURITY_MEMBERS" > itSec_git_handles.txt
+          echo -e "$INFORMATION_SECURITY_MEMBERS" > itSec_git_handles.txt
 
       - name: Check approval of Information Security Manager
         id: check-sec-mgr-approval
@@ -115,26 +115,26 @@ jobs:
             console.log("C")
             console.log(`itSecHandles: ${itSecHandles}`)
 
-            // const { data: reviews } = await github.pulls.listReviews({
-            //   owner: context.repo.owner,
-            //   repo: context.repo.repo,
-            //   pull_number: context.issue.number,
-            // });
+            // get all reviewers of the current pr
+            const { data: reviews } = await github.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
 
-            // let allApproved = true;
+            // extract the git login handles of all reviewers
+            const reviewerHandles = reviews.map(review => review.user.login);
 
-            // auditorHandles.forEach(handle => {
-            //   const approved = reviews.some(review => review.user.login === handle && review.state === 'APPROVED');
-            //   if (!approved) {
-            //     console.log(`PR is not approved by ${handle}`);
-            //     allApproved = false;
-            //   } else {
-            //     console.log(`PR is approved by ${handle}`);
-            //   }
-            // });
+            console.log(`reviewerHandles: ${reviewerHandles}`)
 
-            // if (!allApproved) {
-            //   core.setFailed("Not all required auditors have approved the PR.");
-            // } else {
-            //   core.setOutput('approved', 'true');
-            // }
+            // check if at least one of these reviewers is member in information-security-manager group
+            if (reviewerHandles.some((handle) => itSecHandles.includes(handle))) {
+              echo -e "\033[32mThe current PR was approved by a member of the information-security-manager group.\033[0m"
+              echo -e "\033[32mCheck passed.\033[0m"
+              core.setOutput('approved', 'true');
+              } else {
+              echo -e "\033[31mThe PR requires a missing approval by a member of the information-security-manager group.\033[0m"
+              echo -e "\033[31mFind group members here: https://github.com/orgs/lifinance/teams/information-security-manager.\033[0m"
+              echo -e "\033[31mCheck failed.\033[0m"
+              core.setFailed("Required approval is missing");
+            }
