@@ -80,7 +80,6 @@ jobs:
         env:
           GH_PAT: ${{ secrets.GIT_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_TITLE_UPDATED: ${{ env.PR_TITLE_UPDATED }}
         run: |
 
           ##### unset the default git token (does not have sufficient rights to get team members)
@@ -88,7 +87,6 @@ jobs:
           ##### use the Personal Access Token to log into git CLI
           echo $GH_PAT | gh auth login --with-token
           ##### update the PR title
-          gh pr edit ${{ github.event.pull_request.number }} --title "${{ env.PR_TITLE_UPDATED }}"
 
           const BLA = gh api \
             -H "Accept: application/vnd.github+json" \
