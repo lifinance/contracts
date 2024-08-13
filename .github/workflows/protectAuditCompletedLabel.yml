@@ -1,10 +1,12 @@
 # - Protect "AuditCompleted" Label
 # - makes sure that the label "AuditCompleted" can only be assigned by a Github action and not by a human actor
+# - will undo any unauthorized change of this label
+# - will fail if it runs into an error, otherwise pass
 
 name: Protect "AuditCompleted" Label
 
 on:
-  pull_request:
+  pull_request_target: #### << needs to be changed to 'pull_request' to activate it
     types: [labeled, unlabeled]
 
 jobs:
@@ -26,14 +28,14 @@ jobs:
 
       - name: Check if "AuditCompleted" label was modified
         env:
-          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
-          GH_PAT: ${{ secrets.GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.LIFI_GIT_ACTIONS_TOKEN }}
+          GH_PAT: ${{ secrets.LIFI_GIT_ACTIONS_TOKEN }}
         run: |
           # The label being monitored
           TARGET_LABEL="AuditCompleted"
 
-          # Check if the event was triggered by github-actions bot
-          if [[ "${{ github.actor }}" != "github-actions[bot]" ]]; then
+          # Check if the event was triggered by any other github action
+          if [[ "${{ github.actor }}" != "lifiGitActions" ]]; then #### TODO: REPLACE WITH GITHUB_ACTIONS_PAT and USERNAME <<<<<-----------
             echo "This event was triggered by ${{ github.actor }}. Checking label..."
 
             # Determine if the label was added or removed
@@ -58,11 +60,16 @@ jobs:
               fi
 
               # make sure that the label change was undone
-              if [[ $ACTION_TYPE == 'added' ]]; then
-                echo ""
+              CURRENT_LABELS=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name')
+              if [[ "$ACTION_TYPE" == "added" && "$CURRENT_LABELS" == *"$TARGET_LABEL"* ]]; then
+                echo -e "\033[31Failed to remove the unauthorized 'AuditCompleted' label.\033[0m"
+                exit 1
+                elif [[ "$ACTION_TYPE" == "removed" && "$CURRENT_LABELS" != *"$TARGET_LABEL"* ]]; then
+                echo -e "\033[31Failed to re-add the 'AuditCompleted' label.\033[0m"
+                exit 1
               fi
 
-              echo "Unauthorized label modification was successfully prevented and undone."
+              echo -e "\033[32Unauthorized label modification was successfully prevented and undone.\033[0m"
             else
               echo -e "\033[32mNo unauthorized modifications detected.\033[0m"
             fi

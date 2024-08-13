@@ -3744,9 +3744,9 @@ function test_getContractNameFromDeploymentLogs() {
 function test_tmp() {
 
   CONTRACT="AllBridgeFacet"
-  NETWORK="optimism"
+  NETWORK="mainnet"
   # ADDRESS="0xbEbCDb5093B47Cd7add8211E4c77B6826aF7bc5F"
-  ADDRESS="0x2cE0ea020872a75bdE21a7e4e97556236Eb79e02"
+  ADDRESS="0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
   ENVIRONMENT="staging"
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
@@ -3759,11 +3759,10 @@ function test_tmp() {
   #    exit 1
   #  fi
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
-  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
+  # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 
   # transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
-  # RESPONSE=$(cast call "$ADDRESS" "owner()" --rpc-url $(getRPCUrl "$NETWORK"))
-  # echo "RESPONSE: $RESPONSE"
+  cast call "$ADDRESS" "approvedDexs() returns(address[])" --rpc-url $(getRPCUrl "$NETWORK")
 }
 
-# test_tmp
+test_tmp
