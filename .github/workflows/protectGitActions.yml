@@ -40,7 +40,7 @@ jobs:
 
           ##### go through all modified file names/paths and identify contracts with path 'src/*'
           while IFS= read -r FILE; do
-            if echo "$FILE" | grep -E '^.github/workflows/\.git/'; then
+            if echo "$FILE" | grep -E '^.github/workflows/'; then
 
               ##### modified git action found
               PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
