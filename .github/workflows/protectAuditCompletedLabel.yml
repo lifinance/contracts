@@ -17,7 +17,13 @@ jobs:
 
       - name: Log Event Payload
         # run: echo "${{ toJson(github.event) }}"
-        run: echo "${{ github.event }}"
+        run: |
+          if [[ "${{ github.actor }}" == "github-actions" ]]; then
+            echo "This action was triggered by another GitHub Action."
+          else
+            echo "This action was triggered by a user: ${{ github.actor }}."
+          fi
+          echo "${{ github.event }}"
 
       - name: Check if "AuditCompleted" label was modified
         env:
@@ -43,19 +49,21 @@ jobs:
             if [[ "$ACTION_TYPE" != "none" ]]; then
               echo -e "\033[31mUnauthorized modification of '$TARGET_LABEL' by ${{ github.actor }}. Reverting change...\033[0m"
 
-
+              ##### remove or re-add label, depending on the case
               if [[ "$ACTION_TYPE" == "added" ]]; then
                 # Remove the unauthorized label addition
                 gh pr edit ${{ github.event.pull_request.number }} --remove-label "$TARGET_LABEL"
-                #gh pr edit --remove-label "$TARGET_LABEL"
               elif [[ "$ACTION_TYPE" == "removed" ]]; then
                 # Re-add the unauthorized label removal
                  gh pr edit ${{ github.event.pull_request.number }} --add-label "$TARGET_LABEL"
-                #gh pr edit --add-label "$TARGET_LABEL"
+              fi
+
+              # make sure that the label change was undone
+              if [[ $ACTION_TYPE == 'added' ]]; then
+
               fi
 
               echo "Action failed due to unauthorized label modification."
-              exit 1
             else
               echo -e "\033[32mNo unauthorized modifications detected.\033[0m"
             fi
