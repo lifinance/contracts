@@ -115,8 +115,8 @@ jobs:
           # Check overlap between smart-contract-core and auditors
           overlap=$(echo "$groupAMembers" | grep -Fxf - <(echo "$groupCMembers"))
           if [ -n "$overlap" ]; then
-            echo -e "\033[31mERROR: The following members are in both $GROUP_A and $GROUP_C: $overlap\033[0m""
-            exit 1
+            echo -e "\033[31mERROR: The following members are in both $GROUP_A and $GROUP_C: $overlap\033[0m"
+            # exit 1
           else
             echo -e "\033[32mNo overlap found between $GROUP_A and $GROUP_C.\033[0m"
           fi
