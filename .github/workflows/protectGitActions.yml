@@ -84,8 +84,12 @@ jobs:
               "/orgs/$org/teams/$team/members" | jq -r '.[].login'
           }
 
+          ORG_NAME='lifinance'
+          # GROUP_NAME='information-security-manager'
+          GROUP_NAME='smart-contract-core'
+
           ##### get team members
-          INFORMATION_SECURITY_MEMBERS=$(getTeamMembers $ORG_NAME $GROUP_A)
+          INFORMATION_SECURITY_MEMBERS=$(getTeamMembers $ORG_NAME $GROUP_NAME)
 
           echo "Team members of 'Information Security Manager' group: $INFORMATION_SECURITY_MEMBERS"
 
