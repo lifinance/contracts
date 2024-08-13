@@ -102,11 +102,11 @@ jobs:
         if: env.CONTINUE == 'true'
         with:
           script: |
+            const fs = require('fs');
 
             console.log("A")
 
-            const fs = require('fs');
-            const itSecHandlesFile = 'itSec_git_handles.txt'; // Adjust this if needed
+            const itSecHandlesFile = 'itSec_git_handles.txt';
             console.log("B")
 
             // Read git handles from file
@@ -115,26 +115,26 @@ jobs:
             console.log("C")
             console.log(`itSecHandles: ${itSecHandles}`)
 
-            # const { data: reviews } = await github.pulls.listReviews({
-            #   owner: context.repo.owner,
-            #   repo: context.repo.repo,
-            #   pull_number: context.issue.number,
-            # });
+            // const { data: reviews } = await github.pulls.listReviews({
+            //   owner: context.repo.owner,
+            //   repo: context.repo.repo,
+            //   pull_number: context.issue.number,
+            // });
 
-            # let allApproved = true;
+            // let allApproved = true;
 
-            # auditorHandles.forEach(handle => {
-            #   const approved = reviews.some(review => review.user.login === handle && review.state === 'APPROVED');
-            #   if (!approved) {
-            #     console.log(`PR is not approved by ${handle}`);
-            #     allApproved = false;
-            #   } else {
-            #     console.log(`PR is approved by ${handle}`);
-            #   }
-            # });
+            // auditorHandles.forEach(handle => {
+            //   const approved = reviews.some(review => review.user.login === handle && review.state === 'APPROVED');
+            //   if (!approved) {
+            //     console.log(`PR is not approved by ${handle}`);
+            //     allApproved = false;
+            //   } else {
+            //     console.log(`PR is approved by ${handle}`);
+            //   }
+            // });
 
-            # if (!allApproved) {
-            #   core.setFailed("Not all required auditors have approved the PR.");
-            # } else {
-            #   core.setOutput('approved', 'true');
-            # }
+            // if (!allApproved) {
+            //   core.setFailed("Not all required auditors have approved the PR.");
+            // } else {
+            //   core.setOutput('approved', 'true');
+            // }
