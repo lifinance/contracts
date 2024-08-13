@@ -26,8 +26,6 @@ jobs:
           ##### get all files modified by this PR
           FILES=$(git diff --name-only origin/main HEAD)
 
-          echo "FILES: $FILES"
-
           ##### make sure that there are modified files
           if [[ -z $FILES ]]; then
             echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
@@ -49,14 +47,14 @@ jobs:
 
           ##### if none found, exit here as there is nothing to do
           if [[ -z "$PROTECTED_FILES" ]]; then
-            echo -e "\033[31mNo protected files found in Git diff.\033[0m"
-            echo -e "\033[31mNo further checks are required.\033[0m"
+            echo -e "\033[32mNo protected files found in Git diff.\033[0m"
+            echo -e "\033[32mNo further checks are required.\033[0m"
             # set action output to false
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0
           else
             ##### set action output to true
-            echo -e "\033[32mThe following protected files were found in Git diff:\033[0m"
+            echo -e "\033[31mThe following protected files were found in Git diff:\033[0m"
             echo "$PROTECTED_FILES"
             echo "CONTINUE=true" >> $GITHUB_ENV
           fi
@@ -115,10 +113,11 @@ jobs:
             const itSecHandlesFile = 'itSec_git_handles.txt';
             const itSecHandles = fs.readFileSync(itSecHandlesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
 
-            if(!await github.pulls) {
+            if(!(await github.pulls)) {
               console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews?${colors.reset}`);
               console.log(`${colors.red}Check failed.${colors.reset}`);
               core.setFailed("Required approval is missing");
+              return
             }
 
             // get all reviewers of the current pr
