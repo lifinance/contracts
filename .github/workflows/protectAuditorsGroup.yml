@@ -52,15 +52,15 @@ jobs:
               if (overlap.length > 0) {
                 core.setFailed(`ERROR: The following members are in both ${GROUP_A} and ${GROUP_C}: ${overlap.join(', ')}`);
                 } else {
-                  core.info(`No overlap found between ${GROUP_A} and ${GROUP_B}.`);
+                  core.info(`No overlap found between ${GROUP_A} and ${GROUP_C}.`);
                 }
 
               // check overlap between smart-contract-admins and auditors
-              const overlap = groupBMembers.filter(member => groupCMembers.includes(member));
-              if (overlap.length > 0) {
+              const overlap2 = groupBMembers.filter(member => groupCMembers.includes(member));
+              if (overlap2.length > 0) {
                 core.setFailed(`ERROR: The following members are in both ${GROUP_B} and ${GROUP_C}: ${overlap.join(', ')}`);
               } else {
-                core.info(`No overlap found between ${GROUP_A} and ${GROUP_B}.`);
+                core.info(`No overlap found between ${GROUP_B} and ${GROUP_C}.`);
               }
             }
 
