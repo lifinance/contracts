@@ -41,9 +41,17 @@ jobs:
             }
 
             async function run() {
+              console.log("A")
               const groupAMembers = await getTeamMembers(ORG_NAME, GROUP_A);
+              console.log("B")
               const groupBMembers = await getTeamMembers(ORG_NAME, GROUP_B);
+              console.log("C")
               const groupCMembers = await getTeamMembers(ORG_NAME, GROUP_C);
+              console.log(`groupAMembers.length: ${groupAMembers.length}`)
+              console.log(`groupBMembers.length: ${groupBMembers.length}`)
+              console.log(`groupCMembers.length: ${groupCMembers.length}`)
+
+
 
 
               // check overlap between smart-contract-core and auditors
