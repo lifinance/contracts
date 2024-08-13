@@ -46,12 +46,12 @@ jobs:
 
               if [[ "$ACTION_TYPE" == "added" ]]; then
                 # Remove the unauthorized label addition
-                # gh pr edit ${{ github.event.pull_request.number }} --remove-label "$TARGET_LABEL"
-                gh pr edit --remove-label "$TARGET_LABEL"
+                gh pr edit ${{ github.event.pull_request.number }} --remove-label "$TARGET_LABEL"
+                #gh pr edit --remove-label "$TARGET_LABEL"
               elif [[ "$ACTION_TYPE" == "removed" ]]; then
                 # Re-add the unauthorized label removal
-                # gh pr edit ${{ github.event.pull_request.number }} --add-label "$TARGET_LABEL"
-                gh pr edit --add-label "$TARGET_LABEL"
+                 gh pr edit ${{ github.event.pull_request.number }} --add-label "$TARGET_LABEL"
+                #gh pr edit --add-label "$TARGET_LABEL"
               fi
 
               echo "Action failed due to unauthorized label modification."
