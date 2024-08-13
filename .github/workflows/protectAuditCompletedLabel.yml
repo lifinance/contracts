@@ -13,7 +13,8 @@ jobs:
 
     steps:
       - name: Log Event Payload
-        run: echo "${{ toJson(github.event) }}"
+        # run: echo "${{ toJson(github.event) }}"
+        run: echo "${{ github.event }}"
 
       - name: Check if "AuditCompleted" label was modified
         env:
