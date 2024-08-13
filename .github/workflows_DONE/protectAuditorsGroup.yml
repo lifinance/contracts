@@ -1,0 +1,67 @@
+name: Protect Auditors Group
+
+on:
+  push:
+
+jobs:
+  check_membership:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compare Group Members
+        env:
+          GH_PAT: ${{ secrets.GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+
+          ##### unset the default git token (does not have sufficient rights to get team members)
+          unset GITHUB_TOKEN
+          ##### use the Personal Access Token to log into git CLI
+          echo $GH_PAT | gh auth login --with-token
+
+          # Function to get team members
+          getTeamMembers() {
+            local org=$1
+            local team=$2
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/orgs/$org/teams/$team/members" | jq -r '.[].login'
+          }
+
+          ORG_NAME="lifinance"
+          GROUP_A="smart-contract-admins"
+          GROUP_B="smart-contract-core"
+          GROUP_C="auditors"
+
+          # Get members of each group
+          echo "Fetching members of $GROUP_A..."
+          groupAMembers=$(getTeamMembers $ORG_NAME $GROUP_A)
+
+          echo "Fetching members of $GROUP_B..."
+          groupBMembers=$(getTeamMembers $ORG_NAME $GROUP_B)
+
+          echo "Fetching members of $GROUP_C..."
+          groupCMembers=$(getTeamMembers $ORG_NAME $GROUP_C)
+
+          # Check overlap between smart-contract-core and auditors
+          overlap=$(echo "$groupAMembers" | grep -Fxf - <(echo "$groupCMembers"))
+          if [ -n "$overlap" ]; then
+            echo -e "\033[31mERROR: The following members are in both $GROUP_A and $GROUP_C: $overlap\033[0m"
+            echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
+            exit 1
+            else
+            echo -e "\033[32mNo overlap found between $GROUP_A and $GROUP_C.\033[0m"
+            fi
+
+            # Check overlap between smart-contract-admins and auditors
+            overlap2=$(echo "$groupBMembers" | grep -Fxf - <(echo "$groupCMembers"))
+            if [ -n "$overlap2" ]; then
+            echo -e "\033[31mERROR: The following members are in both $GROUP_B and $GROUP_C: $overlap2\033[0m"
+            echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
+            exit 1
+          else
+            echo -e "\033[32mNo overlap found between $GROUP_B and $GROUP_C.\033[0m"
+          fi
