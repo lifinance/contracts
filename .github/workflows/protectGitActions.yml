@@ -6,7 +6,6 @@
 name: Ensure Deploy Process Integrity
 
 on:
-  push:
   pull_request:
 
 jobs:
@@ -26,6 +25,8 @@ jobs:
 
           ##### get all files modified by this PR
           FILES=$(git diff --name-only origin/main HEAD)
+
+          echo "FILES: $FILES"
 
           ##### make sure that there are modified files
           if [[ -z $FILES ]]; then
