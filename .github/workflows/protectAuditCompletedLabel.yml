@@ -22,7 +22,7 @@ jobs:
           else
             echo "This action was triggered by a user: ${{ github.actor }}."
           fi
-          echo "${{ toJson(github.event) }}"
+          echo "${{ github.event }}"
 
       - name: Check if "AuditCompleted" label was modified
         env:
@@ -62,7 +62,7 @@ jobs:
                 echo ""
               fi
 
-              echo "Action failed due to unauthorized label modification."
+              echo "Unauthorized label modification was successfully prevented and undone."
             else
               echo -e "\033[32mNo unauthorized modifications detected.\033[0m"
             fi
