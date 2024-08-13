@@ -15,8 +15,8 @@ jobs:
         with:
           script: |
             const ORG_NAME = 'lifinance';
-            const GROUP_A = 'smart-contract-core';
-            const GROUP_B = 'smart-contract-admins';
+            const GROUP_A = 'smart-contract-admins';
+            const GROUP_B = 'smart-contract-core';
             const GROUP_C = 'auditors';
 
             async function getTeamMembers(org, teamSlug) {
