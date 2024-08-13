@@ -3762,7 +3762,7 @@ function test_tmp() {
   # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 
   # transferContractOwnership "$PRIVATE_KEY_OLD" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
-  cast call "$ADDRESS" "approvedDexs() returns(address[])" --rpc-url $(getRPCUrl "$NETWORK")
+  # cast call "$ADDRESS" "approvedDexs() returns(address[])" --rpc-url $(getRPCUrl "$NETWORK")
 }
 
-test_tmp
+# test_tmp
