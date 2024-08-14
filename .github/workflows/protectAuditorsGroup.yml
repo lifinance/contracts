@@ -32,36 +32,36 @@ jobs:
           }
 
           ORG_NAME="lifinance"
-          GROUP_A="smart-contract-admins"
-          GROUP_B="smart-contract-core"
-          GROUP_C="auditors"
+          SC_ADMINS="smart-contract-admins"
+          SC_CORE="smart-contract-core"
+          AUDITORS="auditors"
 
           ##### Get members of each group
-          echo "Fetching members of $GROUP_A..."
-          groupAMembers=$(getTeamMembers $ORG_NAME $GROUP_A)
+          echo "Fetching members of $SC_ADMINS..."
+          groupAMembers=$(getTeamMembers $ORG_NAME $SC_ADMINS)
 
-          echo "Fetching members of $GROUP_B..."
-          groupBMembers=$(getTeamMembers $ORG_NAME $GROUP_B)
+          echo "Fetching members of $SC_CORE..."
+          groupBMembers=$(getTeamMembers $ORG_NAME $SC_CORE)
 
-          echo "Fetching members of $GROUP_C..."
-          groupCMembers=$(getTeamMembers $ORG_NAME $GROUP_C)
+          echo "Fetching members of $AUDITORS..."
+          groupCMembers=$(getTeamMembers $ORG_NAME $AUDITORS)
 
           ##### Check overlap between smart-contract-core and auditors
           overlap=$(echo "$groupAMembers" | grep -Fxf - <(echo "$groupCMembers"))
           if [ -n "$overlap" ]; then
-            echo -e "\033[31mERROR: The following members are in both $GROUP_A and $GROUP_C: $overlap\033[0m"
+            echo -e "\033[31mERROR: The following members are in both $SC_ADMINS and $AUDITORS: $overlap\033[0m"
             echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
             exit 1
             else
-            echo -e "\033[32mNo overlap found between $GROUP_A and $GROUP_C.\033[0m"
+            echo -e "\033[32mNo overlap found between $SC_ADMINS and $AUDITORS.\033[0m"
             fi
 
             ##### Check overlap between smart-contract-admins and auditors
             overlap2=$(echo "$groupBMembers" | grep -Fxf - <(echo "$groupCMembers"))
             if [ -n "$overlap2" ]; then
-            echo -e "\033[31mERROR: The following members are in both $GROUP_B and $GROUP_C: $overlap2\033[0m"
+            echo -e "\033[31mERROR: The following members are in both $SC_CORE and $AUDITORS: $overlap2\033[0m"
             echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
             exit 1
           else
-            echo -e "\033[32mNo overlap found between $GROUP_B and $GROUP_C.\033[0m"
+            echo -e "\033[32mNo overlap found between $SC_CORE and $AUDITORS.\033[0m"
           fi
