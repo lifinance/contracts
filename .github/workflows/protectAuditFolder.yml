@@ -74,10 +74,6 @@ jobs:
           # load list auditors team members
           AUDITORS=$(cat members.txt)
 
-          echo "AUDITORS:$AUDITORS"
-          echo "USER:${{ github.actor }}"
-          echo "------------"
-
           #### check if user that submitted the change is indeed part of the auditors group
           if echo "$AUDITORS" | grep -wq "${{ github.actor }}"; then
             echo -e "\033[32mUser ${{ github.actor }} is an auditor and allowed to update the audit folder.\033[0m"
