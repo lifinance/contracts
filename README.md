@@ -170,6 +170,7 @@ Sample requests to fetch transactions for each facet can be found at the end of 
 ## Getting Started<a name="getting-started"></a>
 
 Make sure to copy `.env.example` to `.env` and fill out the missing values. Tests might fail with missing environment variables if some of the variables are blank.
+Some advanced scripts require the Github CLI to be installed. Check out <a href="https://cli.github.com">this link </a> for Git CLI installation instructions (`brew install gh` on Mac)
 
 ### INSTALL<a name="install"></a>
 
