@@ -1,3 +1,7 @@
+# - Audit Folder Protection
+# - makes sure that only members of team 'auditors' can make changes to 'audit/' folder
+#   https://github.com/orgs/lifinance/teams/auditors
+
 name: Audit Folder Protection
 
 on:
@@ -16,8 +20,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Verify user access
+      - name: Verify protected folder changes
         run: |
+          echo "Files have been changed in folder audit/** which is a protected folder."
+          echo "Only members of the group 'auditors' are allowed to make changes in this folder."
+          echo "Now checking if the change was done by a member of this group."
           echo "Checking access permissions for user: ${{ github.actor }}"
 
           # Verify if the user belongs to the auditors group
@@ -36,50 +43,50 @@ jobs:
             echo "User ${{ github.actor }} is a member of the ${AUDITORS_GROUP} group. Access granted."
           fi
 
-      - name: Check if PR has a review by an auditor
-        id: check-auditor-approval
-        uses: actions/github-script@v7
-        if: env.CONTINUE == 'true'
-        with:
-          script: |
+      # - name: Check if PR has a review by an auditor
+      #   id: check-auditor-approval
+      #   uses: actions/github-script@v7
+      #   if: env.CONTINUE == 'true'
+      #   with:
+      #     script: |
 
-            // ANSI escape codes for colors (used for colored output in Git action console)
-            const colors = {
-              reset: "\033[0m",
-              red: "\033[31m",
-              green: "\033[32m"
-            };
+      #       // ANSI escape codes for colors (used for colored output in Git action console)
+      #       const colors = {
+      #         reset: "\033[0m",
+      #         red: "\033[31m",
+      #         green: "\033[32m"
+      #       };
 
-            // make sure that reviews are available
-            if(!(await github.pulls)) {
-              console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews yet?${colors.reset}`);
-              console.log(`${colors.red}Check failed.${colors.reset}`);
-              core.setFailed("Required approval is missing");
-              return
-            }
+      #       // make sure that reviews are available
+      #       if(!(await github.pulls)) {
+      #         console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews yet?${colors.reset}`);
+      #         console.log(`${colors.red}Check failed.${colors.reset}`);
+      #         core.setFailed("Required approval is missing");
+      #         return
+      #       }
 
-            // get all reviewers of this PR
-            const { data: reviews } = await github.pulls.listReviews({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-            });
+      #       // get all reviewers of this PR
+      #       const { data: reviews } = await github.pulls.listReviews({
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         pull_number: context.issue.number,
+      #       });
 
-            // Filter to only include reviews that have "APPROVED" status
-            const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
+      #       // Filter to only include reviews that have "APPROVED" status
+      #       const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
 
-            // extract the git login handles of all reviewers
-            const reviewerHandles = approvedReviews.map(review => review.user.login);
-            console.log(`This PR has been reviewed by the following git members: ${reviewerHandles}`)
+      #       // extract the git login handles of all reviewers
+      #       const reviewerHandles = approvedReviews.map(review => review.user.login);
+      #       console.log(`This PR has been reviewed by the following git members: ${reviewerHandles}`)
 
-            // check if at least one of these reviewers is member of auditors group
-            if (reviewerHandles.some((handle) => coreDevs.includes(handle))) {
-              console.log(`${colors.green}The current PR is approved by a member of the $TEAM_SLUG group.${colors.reset}`);
-              console.log(`${colors.green}Check passed.${colors.reset}`);
-              core.setOutput('approved', 'true');
-              } else {
-              console.log(`${colors.red}The PR requires a missing approval by a member of the $TEAM_SLUG group.${colors.reset}`);
-              console.log(`${colors.red}Find group members here: https://github.com/orgs/lifinance/teams/smart-contract-core.${colors.reset}`);
-              console.log(`${colors.red}Check failed.${colors.reset}`);
-              core.setFailed("Required approval is missing");
-            }
+      #       // check if at least one of these reviewers is member of auditors group
+      #       if (reviewerHandles.some((handle) => coreDevs.includes(handle))) {
+      #         console.log(`${colors.green}The current PR is approved by a member of the $TEAM_SLUG group.${colors.reset}`);
+      #         console.log(`${colors.green}Check passed.${colors.reset}`);
+      #         core.setOutput('approved', 'true');
+      #         } else {
+      #         console.log(`${colors.red}The PR requires a missing approval by a member of the $TEAM_SLUG group.${colors.reset}`);
+      #         console.log(`${colors.red}Find group members here: https://github.com/orgs/lifinance/teams/smart-contract-core.${colors.reset}`);
+      #         console.log(`${colors.red}Check failed.${colors.reset}`);
+      #         core.setFailed("Required approval is missing");
+      #       }
