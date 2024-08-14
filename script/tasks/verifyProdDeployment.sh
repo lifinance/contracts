@@ -103,11 +103,22 @@ verifyProdDeployment() {
 
     echo "PR_SHA: $PR_SHA"
 
-    # Fetch workflow runs for the commit SHA
-    WORKFLOW_RUNS=$(gh run list --repo "$ORG_NAME/$REPO_NAME" --branch "$PR_SHA" --json status,conclusion,event,name)
+    # Fetch workflow runs for the specific commit SHA
+    WORKFLOW_RUNS=$(gh api "repos/$ORG_NAME/$REPO_NAME/actions/runs?head_sha=$PR_SHA" --paginate)
+
+    # Check if there was an error fetching the runs
+    if [ $? -ne 0 ]; then
+        echo -e "\033[31mError fetching workflow runs: $WORKFLOW_RUNS for commit $PR_SHA in PR $PR_NUMBER\033[0m"
+        exit 1
+    fi
+
+    # Debugging: Print the workflow runs
+    echo "WORKFLOW_RUNS: $WORKFLOW_RUNS"
+
 
     # Check for running or queued workflows
-    RUNNING_OR_QUEUED=$(echo "$WORKFLOW_RUNS" | jq -r '.[] | select(.status == "in_progress" or .status == "queued")')
+    RUNNING_OR_QUEUED=$(echo "$WORKFLOW_RUNS" | jq -r '.workflow_runs[] | select(.status == "in_progress" or .status == "queued") | "\(.name) - Status: \(.status) - Event: \(.event)"')
+
     echo "RUNNING_OR_QUEUED: $RUNNING_OR_QUEUED"
 
     if [ ! -z "$RUNNING_OR_QUEUED" ]; then
