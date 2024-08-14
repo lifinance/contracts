@@ -112,19 +112,13 @@ verifyProdDeployment() {
         exit 1
     fi
 
-    # Debugging: Print the workflow runs
-    echo "WORKFLOW_RUNS: $WORKFLOW_RUNS"
-
-
     # Check for running or queued workflows
     RUNNING_OR_QUEUED=$(echo "$WORKFLOW_RUNS" | jq -r '.workflow_runs[] | select(.status == "in_progress" or .status == "queued") | "\(.name) - Status: \(.status) - Event: \(.event)"')
-
-    echo "RUNNING_OR_QUEUED: $RUNNING_OR_QUEUED"
-
+    # echo "RUNNING_OR_QUEUED: $RUNNING_OR_QUEUED"
     if [ ! -z "$RUNNING_OR_QUEUED" ]; then
         echo -e "\033[31mThere are running or queued github actions for PR #$PR_NUMBER:\033[0m"
-        echo -e "\033[31m$RUNNING_OR_QUEUED" | jq -r '. | "\(.name) - Status: \(.status) - Event: \(.event)"'"\033[0m"
-        echo -e "\033[31mWe cannot safely verify PROD deployment while actions are still running. Please wait until they are finished and try again.\033[0m"
+        echo -e "\033[33m$RUNNING_OR_QUEUED\033[0m"
+        echo -e "\033[31mWe cannot safely verify PROD deployment while Github actions are still running. Please wait until they are finished and try again.\033[0m"
         exit 1
     fi
 

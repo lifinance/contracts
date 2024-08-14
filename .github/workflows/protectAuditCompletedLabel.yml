@@ -6,7 +6,7 @@
 name: Protect "AuditCompleted" Label
 
 on:
-  pull_request_target: #### << needs to be changed to 'pull_request' to activate it
+  pull_request: #### << needs to be changed to 'pull_request' to activate it
     types: [labeled, unlabeled]
 
 jobs:
