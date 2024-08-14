@@ -87,7 +87,7 @@ jobs:
               return
             }
 
-            // get all reviewers that have approved this PR
+            // get all reviewers of this PR
             const { data: reviews } = await github.pulls.listReviews({
               owner: context.repo.owner,
               repo: context.repo.repo,
