@@ -8,7 +8,6 @@
 - [ ] This pull request is as small as possible and only tackles one problem
 - [ ] I have added tests that cover the functionality / test the bug
 - [ ] I have updated any required documentation
-- [ ] If this requires a contract version change, I have updated the version number in the source file
 
 # Checklist for reviewer (DO NOT DEPLOY and contracts BEFORE CHECKING THIS!!!)
 
