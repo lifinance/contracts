@@ -75,6 +75,7 @@ jobs:
           AUDITORS=$(cat members.txt)
 
           echo "AUDITORS:$AUDITORS"
+          echo "USER:${{ github.actor }}"
           echo "------------"
 
           #### check if user that submitted the change is indeed part of the auditors group
@@ -83,8 +84,9 @@ jobs:
             echo -e "\033[32mCheck passed.\033[0m"
             exit 0
           else
-            echo -e "\031[32mUser ${{ github.actor }} is not an auditor and is not allowed to update the audit folder.\033[0m"
-            echo -e "\031[33mPlease ask an auditor for support.\033[0m"
-            echo -e "\031[32mCheck failed.\033[0m"
+            echo -e "\031[31mUser ${{ github.actor }} is not an auditor and is not allowed to update the audit folder.\033[0m"
+            echo -e "\031[31mPlease ask an auditor for support:\033[0m"
+            echo -e "\031[31mhttps://github.com/orgs/lifinance/teams/auditors\033[0m"
+            echo -e "\031[31mCheck failed.\033[0m"
             exit 1
           fi
