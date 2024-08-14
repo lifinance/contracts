@@ -13,7 +13,7 @@ on:
       - 'audit/**'
 
 jobs:
-  check-audit-access:
+  protect-audit-folder:
     runs-on: ubuntu-latest
 
     steps:
@@ -29,7 +29,7 @@ jobs:
 
           # Verify if the user belongs to the auditors group
           AUDITORS_GROUP="auditors"
-          USER_GROUP=$(curl -s -H "Authorization: token ${{ secrets.GIT_TOKEN }}" https://api.github.com/orgs/${{ github.repository_owner }}/teams/${AUDITORS_GROUP}/members/${{ github.actor }} | jq -r .login)
+          USER_GROUP=$(curl -s -H "Authorization: token ${{ secrets.GIT_TOKEN }}" https://api.github.com/orgs/lifinance/teams/auditors/members/${{ github.actor }} | jq -r .login)
 
           echo "USER_GROUP:"
           echo "$USER_GROUP"
