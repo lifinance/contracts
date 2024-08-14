@@ -29,8 +29,11 @@ jobs:
 
           # Verify if the user belongs to the auditors group
           AUDITORS_GROUP="auditors"
+          AUDITORS=$(curl -s -H "Authorization: token ${{ secrets.GIT_TOKEN }}" https://api.github.com/orgs/lifinance/teams/auditors/members/)
           USER_GROUP=$(curl -s -H "Authorization: token ${{ secrets.GIT_TOKEN }}" https://api.github.com/orgs/lifinance/teams/auditors/members/${{ github.actor }} | jq -r .login)
 
+          echo "AUDITORS:$AUDITORS"
+          echo "------------"
           echo "USER_GROUP:"
           echo "$USER_GROUP"
 

@@ -2,7 +2,7 @@
   "ContractName": {
     "1.0.0": [
       {
-        "auditCompletedOn": "01.01.2024",
+        "auditCompletedOn": "01.01.2023",
         "auditedBy": "Spearbit",
         "auditorGitHandle": "0xDEnYO",
         "auditReportPath": "./audit/reports/xxxxxx.pdf",
