@@ -429,9 +429,9 @@ const main = defineCommand({
 
         // Check that threshold is correct
         if (safeConfig.threshold < SAFE_THRESHOLD) {
-          logError(`SAFE signtaure threshold is less than ${SAFE_THRESHOLD}`)
+          logError(`SAFE signature threshold is less than ${SAFE_THRESHOLD}`)
         } else {
-          consola.success(`SAFE signtaure threshold is ${safeConfig.threshold}`)
+          consola.success(`SAFE signature threshold is ${safeConfig.threshold}`)
         }
       }
 
