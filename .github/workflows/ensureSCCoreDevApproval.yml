@@ -94,6 +94,8 @@ jobs:
               core.setFailed("Required approval is missing");
               return
             }
+
+            console.log(reviews);
             
             // Filter to only include reviews that have "APPROVED" status
             const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
