@@ -17,7 +17,6 @@ import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
 import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
-import { MultichainFacet } from "lifi/Facets/MultichainFacet.sol";
 import { OptimismBridgeFacet } from "lifi/Facets/OptimismBridgeFacet.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 
@@ -90,16 +89,6 @@ contract DeployScript is UpdateScriptBase {
             ) != address(0)
         ) {
             selectors.push(HopFacetPacked.setApprovalForHopBridges.selector);
-        }
-
-        // MultichainFacet
-        if (
-            DiamondLoupeFacet(diamond).facetAddress(
-                MultichainFacet.registerRouters.selector
-            ) != address(0)
-        ) {
-            selectors.push(MultichainFacet.registerRouters.selector);
-            selectors.push(MultichainFacet.updateAddressMappings.selector);
         }
 
         // OptimismBridgeFacet
