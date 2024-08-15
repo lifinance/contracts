@@ -23,7 +23,7 @@
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0xC9BdeEd33CD01541e1eeD10f90519d2C06Fe3feB",
-    "status": "inactive",
+    "status": "active",
     "type": "mainnet"
   },
   "avalanche": {
@@ -59,7 +59,8 @@
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000",
-    "status": "????"
+    "status": "active",
+    "type": "mainnet"
   },
   "bsc": {
     "name": "BNB Smart Chain",
