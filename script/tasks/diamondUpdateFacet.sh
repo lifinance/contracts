@@ -105,14 +105,47 @@ diamondUpdateFacet() {
   attempts=1
   while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     echo "[info] trying to execute $SCRIPT on $DIAMOND_CONTRACT_NAME now - attempt ${attempts} (max attempts:$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
-    # try to execute call
+    # check if command output should be printed to console
     if [[ "$DEBUG" == *"true"* ]]; then
-      # print output to console
-      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+      # check if we are deploying to PROD
+      if [[ "$ENVIRONMENT" == "production" ]]; then
+          # PROD: suggest diamondCut transaction to SAFE
+          UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY""$SCRIPT".s.sol)
+          PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
+          echoDebug "Calculating facet cuts for $SCRIPT..."
+          RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
+          CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+          FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
+
+          if [ "$FACET_CUT" != "0x" ]; then
+            echoDebug "Proposing facet cut for $script..."
+            DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+            ts-node script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl $(getRPCUrl $NETWORK) --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+          fi
+        else
+          # STAGING: just deploy normally without further checks
+          RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+      fi
     else
-      # do not print output to console
-      RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy) 2>/dev/null
-    fi
+      # check if we are deploying to PROD
+      if [[ "$ENVIRONMENT" == "production" ]]; then
+        # PROD: suggest diamondCut transaction to SAFE
+        UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$SCRIPT".s.sol)
+        PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
+        echoDebug "Calculating facet cuts for $script..."
+        RAW_RETURN_DATA=$(NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script "$UPDATE_SCRIPT" -f $NETWORK -vvvv --json --silent --skip-simulation --legacy)
+        CLEAN_RETURN_DATA=$(echo $RAW_RETURN_DATA | sed 's/^.*{\"logs/{\"logs/')
+        FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
+        if [ "$FACET_CUT" != "0x" ]; then
+          echo "Proposing facet cut for $script on network $NETWROK..."
+          DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+          ts-node script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl $(getRPCUrl $NETWORK) --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+        fi
+      else
+        # STAGING: just deploy normally without further checks
+        RAW_RETURN_DATA=$(NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND NO_BROADCAST=false PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script "$SCRIPT_PATH" -f $NETWORK -vvvv --json --silent --broadcast --skip-simulation --legacy)
+      fi
+     fi
     RETURN_CODE=$?
     echoDebug "RAW_RETURN_DATA: $RAW_RETURN_DATA"
 
@@ -142,8 +175,10 @@ diamondUpdateFacet() {
     return 1
   fi
 
-  # save facet addresses
-  saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS"
+  # save facet addresses (only if deploying to PROD, otherwise we update the logs before the diamondCut tx gets signed in the SAFE)
+  if [[ "$ENVIRONMENT" != "production" ]]; then
+    saveDiamondFacets "$NETWORK" "$ENVIRONMENT" "$USE_MUTABLE_DIAMOND" "$FACETS"
+  fi
 
   echo "[info] $SCRIPT successfully executed on network $NETWORK in $ENVIRONMENT environment"
   return 0
