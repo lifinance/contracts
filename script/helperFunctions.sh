@@ -3778,9 +3778,5 @@ function test_tmp() {
   # cast send "$ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key $PRIVATE_KEY_PRODUCTION --rpc-url "$RPC_URL"
 
   # RESULT=$(yarn add-safe-owners --network immutablezkevm --rpc-url "$(getRPCUrl "$NETWORK" "$ENVIRONMENT")" --privateKey "$PRIVATE_KEY_PRODUCTION" --owners "0xb78FbE12d9C09d98ce7271Fa089c2fe437B7B4D5,0x65f6F29D3eb871254d71A79CC4F74dB3AAF3b86e,0x24767E3A1cb07ee500BA9A5621F2B608440Ca270,0x81Dbb716aA13869323974A1766120D0854188e3e,0x11F1022cA6AdEF6400e5677528a80d49a069C00c,0x498E8fF83B503aDe5e905719D27b2f11B605b45A")
-
-  # yarn confirm-safe-tx --private-key "$SAFE_SIGNER_PRIVATE_KEY"
-  yarn confirm-safe-tx --private-key "$SAFE_SIGNER_PRIVATE_KEY"
-
 }
-test_tmp
+# test_tmp
