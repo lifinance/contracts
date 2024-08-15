@@ -47,6 +47,8 @@ jobs:
           echo "Fetching members of $TEAM_SLUG..."
           MEMBERS=$(getTeamMembers $ORG_NAME $TEAM_SLUG)
 
+          echo $MEMBERS
+
           #### check if any members were returned
           if [[ -z $MEMBERS ]]; then
             echo -e "\033[31mERROR: Could not retrieve team members of group $TEAM_SLUG\033[0m"
@@ -74,9 +76,10 @@ jobs:
               green: "\033[32m",
             };
 
+            const coreDevsFile = 'sc_core_dev_members.txt';
+
             // Read handles from file
-            const res = await github.teams.listMembersInOrg({org: "lifinance", team_slug: "smartcontract"})
-            const coreDevs = res.data
+            const coreDevs = fs.readFileSync(coreDevsFile, 'utf-8').split(/\r?\n/).filter(Boolean);
 
             // make sure that reviews are available
             if(!(await github.pulls)) {
