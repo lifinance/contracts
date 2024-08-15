@@ -74,10 +74,9 @@ jobs:
               green: "\033[32m",
             };
 
-            const coreDevsFile = 'sc_core_dev_members.txt';
-
             // Read handles from file
-            const coreDevs = fs.readFileSync(coreDevsFile, 'utf-8').split(/\r?\n/).filter(Boolean);
+            const res = await github.teams.listMembersInOrg({org: "lifinance", team_slug: "smartcontract"})
+            const coreDevs = res.data
 
             // make sure that reviews are available
             if(!(await github.pulls)) {
