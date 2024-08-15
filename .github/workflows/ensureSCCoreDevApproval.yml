@@ -84,11 +84,11 @@ jobs:
             const coreDevs = fs.readFileSync(coreDevsFile, 'utf-8').split(/\r?\n/).filter(Boolean);
 
             // get all reviewers that have approved this PR
-            console.log(process.env.PR_NUMBER);
+            const pull_number = process.env.PR_NUMBER;
             const { data: reviews } = await github.rest.pulls.listReviews({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: process.env.PR_NUMBER,
+              pull_number,
             });
 
             // make sure that reviews are available
