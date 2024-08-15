@@ -84,11 +84,10 @@ jobs:
             const coreDevs = fs.readFileSync(coreDevsFile, 'utf-8').split(/\r?\n/).filter(Boolean);
 
             // get all reviewers that have approved this PR
-            console.log(process.env.PR_NUMBER);
             const { data: reviews } = await github.rest.pulls.listReviews({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.issue.number,
+              pull_number: process.env.PR_NUMBER,
             });
 
             // make sure that reviews are available
@@ -108,7 +107,7 @@ jobs:
 
             // check if at least one of these reviewers is member in smart-contract-core group
             if (reviewerHandles.some((handle) => coreDevs.includes(handle))) {
-              console.log(`${colors.green}The current PR is approved by a member of the $TEAM_SLUG group.${colors.reset}`);
+              console.log(`${colors.green}The current PR is approved by a member of the ${TEAM_SLUG} group.${colors.reset}`);
               console.log(`${colors.green}Check passed.${colors.reset}`);
               core.setOutput('approved', 'true');
               } else {
