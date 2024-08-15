@@ -1,5 +1,5 @@
 // Interface for Stargate V2
-
+/// @custom:version 1.0.0
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity =0.8.17;
 
