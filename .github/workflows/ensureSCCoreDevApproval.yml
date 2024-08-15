@@ -100,6 +100,12 @@ jobs:
             // Filter to only include reviews that have "APPROVED" status
             const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
 
+            if(!approvedReviews) {
+              console.log(`${colors.red}Check failed.${colors.reset}`);
+              core.setFailed("Required approval is missing");
+              return
+            }
+
             // extract the git login handles of all reviewers
             const reviewerHandles = approvedReviews.map(review => review.user.login);
             console.log(`This PR has been reviewed by the following git members: ${reviewerHandles}`)
