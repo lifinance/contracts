@@ -1,0 +1,88 @@
+# - Audit Folder Protection
+# - makes sure that only members of team 'auditors' can make changes to 'audit/' folder
+#   https://github.com/orgs/lifinance/teams/auditors
+
+name: Audit Folder Protection
+
+on:
+  push:
+    paths:
+      - 'audit/**'
+  pull_request:
+    paths:
+      - 'audit/**'
+
+jobs:
+  protect-audit-folder:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get 'Auditors' Team Members
+        env:
+          GH_PAT: ${{ secrets.GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+
+          ##### unset the default git token (does not have sufficient rights to get team members)
+          unset GITHUB_TOKEN
+          ##### use the Personal Access Token to log into git CLI
+          echo $GH_PAT | gh auth login --with-token
+
+          ##### Function that uses github's REST API via CLI to get team members
+          getTeamMembers() {
+            local org=$1
+            local team=$2
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/orgs/$org/teams/$team/members" | jq -r '.[].login'
+          }
+
+          ORG_NAME="lifinance"
+          TEAM_SLUG="auditors"
+
+          # Get members of each group
+          echo "Fetching members of $TEAM_SLUG..."
+          MEMBERS=$(getTeamMembers $ORG_NAME $TEAM_SLUG)
+
+          #### check if any members were returned
+          if [[ -z $MEMBERS ]]; then
+            echo -e "\033[31mERROR: Could not retrieve team members of group $TEAM_SLUG\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 1
+          fi
+
+          echo "Team members of $TEAM_SLUG: "
+          echo "$MEMBERS"
+
+          echo -e "$MEMBERS" > members.txt
+          echo "CONTINUE=true" >> $GITHUB_ENV
+
+      - name: Verify protected folder changes
+        if: env.CONTINUE == 'true'
+        run: |
+
+
+          echo "Files have been modified in folder 'audit/**' which is a protected folder."
+          echo "Only members of the group 'auditors' are allowed to make changes in this folder."
+          echo "Now checking if user '${{ github.actor }}' is a member of the auditors group"
+          echo "FYI: https://github.com/orgs/lifinance/teams/auditors"
+
+          # load list auditors team members
+          AUDITORS=$(cat members.txt)
+
+          #### check if user that submitted the change is indeed part of the auditors group
+          if echo "$AUDITORS" | grep -wq "${{ github.actor }}"; then
+            echo -e "\033[32mUser ${{ github.actor }} is an auditor and allowed to update the audit folder.\033[0m"
+            echo -e "\033[32mCheck passed.\033[0m"
+            exit 0
+          else
+            echo -e "\033[31mUser ${{ github.actor }} is not an auditor and is not allowed to update the audit folder.\033[0m"
+            echo -e "\033[31mPlease ask an auditor for support:\033[0m"
+            echo -e "\033[31mhttps://github.com/orgs/lifinance/teams/auditors\033[0m"
+            echo -e "\033[31mCheck failed.\033[0m"
+            exit 1
+          fi
