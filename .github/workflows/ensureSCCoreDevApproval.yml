@@ -81,14 +81,6 @@ jobs:
             // Read handles from file
             const coreDevs = fs.readFileSync(coreDevsFile, 'utf-8').split(/\r?\n/).filter(Boolean);
 
-            // make sure that reviews are available
-            if(!(await github.pulls)) {
-              console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews yet?${colors.reset}`);
-              console.log(`${colors.red}Check failed.${colors.reset}`);
-              core.setFailed("Required approval is missing");
-              return
-            }
-
             // get all reviewers that have approved this PR
             const { data: reviews } = await github.pulls.listReviews({
               owner: context.repo.owner,
@@ -96,6 +88,14 @@ jobs:
               pull_number: context.issue.number,
             });
 
+            // make sure that reviews are available
+            if(!reviews) {
+              console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews yet?${colors.reset}`);
+              console.log(`${colors.red}Check failed.${colors.reset}`);
+              core.setFailed("Required approval is missing");
+              return
+            }
+            
             // Filter to only include reviews that have "APPROVED" status
             const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
 
