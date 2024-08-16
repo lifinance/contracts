@@ -1,12 +1,20 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0xf7993A8df974AD022647E63402d6315137c58ABf": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
+        "Name": "",
+        "Version": ""
+      },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B": {
-        "Name": "WithdrawFacet",
+      "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9": {
+        "Name": "AcrossFacetPacked",
         "Version": "1.0.0"
       },
       "0x22B31a1a81d5e594315c866616db793E799556c5": {
@@ -16,6 +24,10 @@
       "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
+      },
+      "0x0b5726b7348efBdA8620D5C374F85Cbe8f040B6a": {
+        "Name": "",
+        "Version": ""
       },
       "0x3F95b05a77FDC6D82162D86A72b156b55030627f": {
         "Name": "AmarokFacet",
@@ -49,11 +61,15 @@
         "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
       },
+      "0x87C10910DA7258E55dA2C5d43739fB68B12E6a4b": {
+        "Name": "",
+        "Version": ""
+      },
       "0xF609fdBA8f7A020975a7c82C82f6A1f526F9A8fC": {
         "Name": "PolygonBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x31e3b5611FBb1a90d35039fCC9656649e7Fd482b": {
+      "0x7D1940fDfF0B37c137B105ce7967B3B86DB42648": {
         "Name": "StargateFacet",
         "Version": "2.2.0"
       },
@@ -61,7 +77,7 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x41bDcf7A9695ba3994cCA53d529DE23f54881D7F": {
+      "0x2b7D2C78bd801Cc06DDCF91DeE2e8fAE22814f7e": {
         "Name": "GenericSwapFacet",
         "Version": "2.0.0"
       },
@@ -73,9 +89,9 @@
         "Name": "HopFacetOptimized",
         "Version": "2.0.0"
       },
-      "0x51709aF40dE8feEbD9d694F26826F29ce915DcbF": {
+      "0x66861f292099cAF644F4A8b6091De49BEC5E8a15": {
         "Name": "LIFuelFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
         "Name": "CBridgeFacetPacked",
@@ -95,22 +111,30 @@
       },
       "0xF70A1Ed85EcC454a562A4B69ee40CBc6a4eB0b64": {
         "Name": "CelerIMFacetMutable",
-        "Version": ""
+        "Version": "2.0.0"
       },
-      "0x2E61751366B7e006f8D53becB4b697890B30144F": {
+      "0x175E7799DA0CD40E641352EaB90D8e39e02a4Ca9": {
         "Name": "StandardizedCallFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
+      "0xF965f52046D7095d5080bD31459601F4Eb24f72D": {
+        "Name": "",
+        "Version": ""
+      },
       "0x376f99f7EADE8A17f036fCff9eBA978E66e5fd28": {
         "Name": "ThorSwapFacet",
         "Version": "1.2.0"
       },
-      "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9": {
-        "Name": "AcrossFacetPacked",
+      "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
+        "Name": "GenericSwapFacetV3",
         "Version": "1.0.0"
       },
       "0xF18A285f4e6f720Eb9b4e05df71f88b9552E6ADB": {
@@ -129,23 +153,22 @@
         "Name": "MayanFacet",
         "Version": "1.0.0"
       },
-      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
-        "Name": "GenericSwapFacetV3",
-        "Version": "1.0.0"
-      },
-      "0x139e0a9c4C90cC40D562859e8D6d3246C1915FD4": {
+      "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
         "Name": "StargateFacetV2",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
+      "GasRebateDistributor": "",
+      "LiFiDEXAggregator": "",
+      "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
       "Receiver": "0x050e198E36A73a1e32F15C3afC58C4506d82f657",
+      "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
-      "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
