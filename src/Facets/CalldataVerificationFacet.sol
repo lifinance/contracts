@@ -10,6 +10,7 @@ import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { InvalidCallData } from "../Errors/GenericErrors.sol";
+import { console2 } from "forge-std/console2.sol";
 
 /// @title Calldata Verification Facet
 /// @author LI.FI (https://li.fi)
@@ -176,6 +177,7 @@ contract CalldataVerificationFacet {
             // will always start at position 68
             functionSelector = bytes4(data[68:72]);
             callData = data[68:];
+            // callData = abi.decode(data[4:], (bytes)); // this one is also valid, even though the calldata differs slightly (add. padding)
         }
 
         if (_isGenericV3SingleSwap(functionSelector)) {
