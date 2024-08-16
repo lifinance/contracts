@@ -70,7 +70,8 @@ export const getSafeUtilityContracts = (chainId: number) => {
   switch (chainId) {
     case 288:
     case 1088:
-      // Boba
+    case 13371:
+      // Boba, Metis, IMX
       contractNetworks = {
         [chainId.toString()]: {
           multiSendAddress: '0x998739BFdAAdde7C933B942a68053933098f9EDa',
