@@ -9,16 +9,22 @@ import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { CelerIM, CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
+import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { TestBase } from "../utils/TestBase.sol";
+import { LibBytes } from "lifi/Libraries/LibBytes.sol";
+
 import { MsgDataTypes } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
-import "forge-std/console.sol";
+import { console } from "forge-std/console.sol";
+import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 contract CalldataVerificationFacetTest is TestBase {
+    using LibBytes for bytes;
     CalldataVerificationFacet internal calldataVerificationFacet;
 
     function setUp() public {
+        initTestBase();
         calldataVerificationFacet = new CalldataVerificationFacet();
         bridgeData = ILiFi.BridgeData({
             transactionId: keccak256("id"),
@@ -278,9 +284,129 @@ contract CalldataVerificationFacetTest is TestBase {
         assertEq(hasDestinationCall, bridgeData.hasDestinationCall);
     }
 
-    function test_CanExtractGenericSwapParameters() public {
+    function test_RevertsOnInvalidGenericSwapCallData() public {
+        // prepare minimum callData
+        swapData[0] = LibSwap.SwapData({
+            callTo: address(uniswap),
+            approveTo: address(uniswap),
+            sendingAssetId: address(123),
+            receivingAssetId: address(456),
+            fromAmount: 1,
+            callData: "",
+            requiresDeposit: false
+        });
         bytes memory callData = abi.encodeWithSelector(
-            GenericSwapFacet.swapTokensGeneric.selector,
+            GenericSwapFacetV3.swapTokensSingleV3ERC20ToERC20.selector,
+            keccak256(""),
+            "",
+            "",
+            payable(address(1234)),
+            1,
+            swapData[0]
+        );
+
+        // reduce calldata to 483 bytes to not meet min calldata length threshold
+        callData = callData.slice(0, 483);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        calldataVerificationFacet.extractGenericSwapParameters(callData);
+    }
+
+    function test_CanExtractGenericSwapMinCallData() public {
+        swapData[0] = LibSwap.SwapData({
+            callTo: address(uniswap),
+            approveTo: address(uniswap),
+            sendingAssetId: address(123),
+            receivingAssetId: address(456),
+            fromAmount: 1,
+            callData: "",
+            requiresDeposit: false
+        });
+        bytes memory callData = abi.encodeWithSelector(
+            GenericSwapFacetV3.swapTokensSingleV3ERC20ToERC20.selector,
+            keccak256(""),
+            "",
+            "",
+            payable(address(1234)),
+            1,
+            swapData[0]
+        );
+
+        (
+            address sendingAssetId,
+            uint256 amount,
+            address receiver,
+            address receivingAssetId,
+            uint256 receivingAmount
+        ) = calldataVerificationFacet.extractGenericSwapParameters(callData);
+
+        assertEq(sendingAssetId, swapData[0].sendingAssetId);
+        assertEq(amount, swapData[0].fromAmount);
+        assertEq(receiver, address(1234));
+        assertEq(
+            receivingAssetId,
+            swapData[swapData.length - 1].receivingAssetId
+        );
+        assertEq(receivingAmount, 1);
+    }
+
+    function test_CanExtractGenericSwapV3SingleParameters() public {
+        bytes memory callData = abi.encodeWithSelector(
+            GenericSwapFacetV3.swapTokensSingleV3ERC20ToERC20.selector,
+            keccak256("id"),
+            "acme",
+            "acme",
+            payable(address(1234)),
+            1 ether,
+            swapData[0]
+        );
+
+        (
+            address sendingAssetId,
+            uint256 amount,
+            address receiver,
+            address receivingAssetId,
+            uint256 receivingAmount
+        ) = calldataVerificationFacet.extractGenericSwapParameters(callData);
+
+        assertEq(sendingAssetId, swapData[0].sendingAssetId);
+        assertEq(amount, swapData[0].fromAmount);
+        assertEq(receiver, address(1234));
+        assertEq(
+            receivingAssetId,
+            swapData[swapData.length - 1].receivingAssetId
+        );
+        assertEq(receivingAmount, 1 ether);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+        (
+            sendingAssetId,
+            amount,
+            receiver,
+            receivingAssetId,
+            receivingAmount
+        ) = calldataVerificationFacet.extractGenericSwapParameters(
+            standardizedCallData
+        );
+
+        assertEq(sendingAssetId, swapData[0].sendingAssetId);
+        assertEq(amount, swapData[0].fromAmount);
+        assertEq(receiver, address(1234));
+        assertEq(
+            receivingAssetId,
+            swapData[swapData.length - 1].receivingAssetId
+        );
+        assertEq(receivingAmount, 1 ether);
+    }
+
+    function test_CanExtractGenericSwapV3MultipleParameters() public {
+        bytes memory callData = abi.encodeWithSelector(
+            GenericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20.selector,
             keccak256("id"),
             "acme",
             "acme",
@@ -603,6 +729,85 @@ contract CalldataVerificationFacetTest is TestBase {
     }
 
     function test_CanValidateCelerIMDestinationCalldata() public {
+        CelerIM.CelerIMData memory cimData = CelerIM.CelerIMData({
+            maxSlippage: 1,
+            nonce: 2,
+            callTo: abi.encode(USER_RECEIVER),
+            callData: bytes("foobarbytes"),
+            messageBusFee: 3,
+            bridgeType: MsgDataTypes.BridgeSendType.Liquidity
+        });
+
+        bytes memory callData = abi.encodeWithSelector(
+            CelerIMFacetBase.startBridgeTokensViaCelerIM.selector,
+            bridgeData,
+            cimData
+        );
+
+        bytes memory callDataWithSwap = abi.encodeWithSelector(
+            CelerIMFacetBase.swapAndStartBridgeTokensViaCelerIM.selector,
+            bridgeData,
+            swapData,
+            cimData
+        );
+
+        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            abi.encode(USER_RECEIVER),
+            bytes("foobarbytes")
+        );
+        bool validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                callDataWithSwap,
+                abi.encode(USER_RECEIVER),
+                bytes("foobarbytes")
+            );
+
+        bool badCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            abi.encode(USER_RECEIVER),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        bytes memory standardizedCallDataWithSwap = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        validCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
+            bytes("foobarbytes")
+        );
+        validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                standardizedCallDataWithSwap,
+                abi.encode(USER_RECEIVER),
+                bytes("foobarbytes")
+            );
+
+        badCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+    }
+
+    function test_RevertsOnDestinationCalldataWithInvalidSelector() public {
         CelerIM.CelerIMData memory cimData = CelerIM.CelerIMData({
             maxSlippage: 1,
             nonce: 2,
