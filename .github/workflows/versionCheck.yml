@@ -2,8 +2,8 @@ name: Version Check
 
 on:
   pull_request:
-    types: [opened, edited, synchronize]
-
+    types: [edited, synchronize]
+    branches: []
 jobs:
   check-version:
     runs-on: ubuntu-latest
