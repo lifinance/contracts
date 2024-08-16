@@ -11,7 +11,7 @@ import {
 import { ethers } from 'ethers6'
 import * as chains from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers.js'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 export const chainNameMappings: Record<string, string> = {
   zksync: 'zkSync',
