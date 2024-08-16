@@ -173,7 +173,9 @@ contract CalldataVerificationFacet {
             functionSelector == StandardizedCallFacet.standardizedCall.selector
         ) {
             // extract nested function selector and calldata
-            (functionSelector, callData) = getNestedData(data);
+            // will always start at position 68
+            functionSelector = bytes4(data[68:72]);
+            callData = data[68:];
         }
 
         if (_isGenericV3SingleSwap(functionSelector)) {
@@ -420,18 +422,5 @@ contract CalldataVerificationFacet {
             GenericSwapFacetV3.swapTokensSingleV3ERC20ToNative.selector ||
             functionSelector ==
             GenericSwapFacetV3.swapTokensSingleV3NativeToERC20.selector;
-    }
-
-    function getNestedData(
-        bytes calldata standardizedCallData
-    ) public pure returns (bytes4 functionSelector, bytes memory callData) {
-        functionSelector = bytes4(standardizedCallData[68:72]);
-        callData = standardizedCallData[68:];
-    }
-
-    function _getStandardizedCallNestedCallData(
-        bytes calldata standardizedCallData
-    ) public pure returns (bytes memory) {
-        return standardizedCallData[68:];
     }
 }

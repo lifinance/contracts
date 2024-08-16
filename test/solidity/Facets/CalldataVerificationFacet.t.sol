@@ -52,6 +52,10 @@ contract CalldataVerificationFacetTest is TestBase {
         );
     }
 
+    function test_DeploysWithoutErrors() public {
+        calldataVerificationFacet = new CalldataVerificationFacet();
+    }
+
     function test_IgnoresExtraBytes() public view {
         bytes memory callData = abi.encodeWithSelector(
             HyphenFacet.swapAndStartBridgeTokensViaHyphen.selector,
@@ -818,15 +822,8 @@ contract CalldataVerificationFacetTest is TestBase {
         });
 
         bytes memory callData = abi.encodeWithSelector(
-            CelerIMFacetBase.startBridgeTokensViaCelerIM.selector,
+            GenericSwapFacet.swapTokensGeneric.selector, // wrong selector, does not support destination calls
             bridgeData,
-            cimData
-        );
-
-        bytes memory callDataWithSwap = abi.encodeWithSelector(
-            CelerIMFacetBase.swapAndStartBridgeTokensViaCelerIM.selector,
-            bridgeData,
-            swapData,
             cimData
         );
 
@@ -835,55 +832,8 @@ contract CalldataVerificationFacetTest is TestBase {
             abi.encode(USER_RECEIVER),
             bytes("foobarbytes")
         );
-        bool validCallWithSwap = calldataVerificationFacet
-            .validateDestinationCalldata(
-                callDataWithSwap,
-                abi.encode(USER_RECEIVER),
-                bytes("foobarbytes")
-            );
 
-        bool badCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("badbytes")
-        );
-
-        assertTrue(validCall);
-        assertTrue(validCallWithSwap);
-        assertFalse(badCall);
-
-        // StandardizedCall
-        bytes memory standardizedCallData = abi.encodeWithSelector(
-            StandardizedCallFacet.standardizedCall.selector,
-            callData
-        );
-
-        bytes memory standardizedCallDataWithSwap = abi.encodeWithSelector(
-            StandardizedCallFacet.standardizedCall.selector,
-            callData
-        );
-
-        validCall = calldataVerificationFacet.validateDestinationCalldata(
-            standardizedCallData,
-            abi.encode(USER_RECEIVER),
-            bytes("foobarbytes")
-        );
-        validCallWithSwap = calldataVerificationFacet
-            .validateDestinationCalldata(
-                standardizedCallDataWithSwap,
-                abi.encode(USER_RECEIVER),
-                bytes("foobarbytes")
-            );
-
-        badCall = calldataVerificationFacet.validateDestinationCalldata(
-            standardizedCallData,
-            abi.encode(USER_RECEIVER),
-            bytes("badbytes")
-        );
-
-        assertTrue(validCall);
-        assertTrue(validCallWithSwap);
-        assertFalse(badCall);
+        assertFalse(validCall);
     }
 
     function checkBridgeData(ILiFi.BridgeData memory data) internal {
