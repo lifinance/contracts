@@ -10,7 +10,6 @@ import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { InvalidCallData } from "../Errors/GenericErrors.sol";
-import { console2 } from "forge-std/console2.sol";
 
 /// @title Calldata Verification Facet
 /// @author LI.FI (https://li.fi)
