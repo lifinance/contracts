@@ -29,6 +29,7 @@ export const safeApiUrls: Record<string, string> = {
   rootstock: 'https://transaction.safe.rootstock.io/api',
   scroll: 'https://safe-transaction-scroll.safe.global/api',
   sei: 'https://transaction.sei-safe.protofire.io/api',
+  taiko: 'https://api.taikoscan.io/api',
   zksync: 'https://safe-transaction-zksync.safe.global/api',
 }
 
@@ -60,6 +61,7 @@ export const safeAddresses: Record<string, string> = {
   rootstock: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   scroll: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   sei: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
+  taiko: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
   zksync: '0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744',
 }
 
@@ -68,7 +70,8 @@ export const getSafeUtilityContracts = (chainId: number) => {
   switch (chainId) {
     case 288:
     case 1088:
-      // Boba
+    case 13371:
+      // Boba, Metis, IMX
       contractNetworks = {
         [chainId.toString()]: {
           multiSendAddress: '0x998739BFdAAdde7C933B942a68053933098f9EDa',
