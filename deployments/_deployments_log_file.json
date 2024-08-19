@@ -21802,6 +21802,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 18:28:47",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006ce9bf8cdab780416ad1fd87b318a077d2f50eac",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
@@ -21824,7 +21834,7 @@
             "TIMESTAMP": "2024-08-14 15:57:42",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000006d6620efa72948c5f68a3c8646d58c00d3f4a980",
             "SALT": "",
-            "VERIFIED": "true"
+            "VERIFIED": "false"
           }
         ]
       }
