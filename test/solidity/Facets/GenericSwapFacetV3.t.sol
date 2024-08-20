@@ -12,7 +12,7 @@ import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { ContractCallNotAllowed, CumulativeSlippageTooHigh, NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
-
+import { TransferEventEmitter } from "lifi/Periphery/TransferEventEmitter.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { TestHelpers, MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
@@ -62,6 +62,13 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         uint256 toAmount
     );
 
+    event TokensTransferred(
+        address token,
+        address from,
+        address to,
+        uint256 amount
+    );
+
     // These values are for Mainnet
     address internal constant USDC_ADDRESS =
         0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -81,7 +88,6 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
     address internal constant FEE_COLLECTOR =
         0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9;
-
     // -----
 
     LiFiDiamond internal diamond;
@@ -93,6 +99,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
     ERC20 internal weth;
     UniswapV2Router02 internal uniswap;
     FeeCollector internal feeCollector;
+    TransferEventEmitter internal eventEmitter;
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
@@ -112,6 +119,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         weth = ERC20(WETH_ADDRESS);
         uniswap = UniswapV2Router02(UNISWAP_V2_ROUTER);
         feeCollector = FeeCollector(FEE_COLLECTOR);
+        eventEmitter = new TransferEventEmitter();
 
         // add genericSwapFacet (v1) to diamond (for gas usage comparison)
         bytes4[] memory functionSelectors = new bytes4[](4);
@@ -195,6 +203,10 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         );
         genericSwapFacetV3.setFunctionApprovalBySignature(
             feeCollector.collectNativeFees.selector
+        );
+        genericSwapFacetV3.addDex(address(eventEmitter));
+        genericSwapFacetV3.setFunctionApprovalBySignature(
+            eventEmitter.emitTransferEvent.selector
         );
 
         vm.label(address(genericSwapFacet), "LiFiDiamond");
@@ -1532,6 +1544,61 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         );
     }
 
+    function _produceSwapDataERC20FeeAndEmitTransferEvent()
+        private
+        view
+        returns (
+            LibSwap.SwapData[] memory swapData,
+            uint256 amountIn,
+            uint256 minAmountOut
+        )
+    {
+        amountIn = 100 * 10 ** dai.decimals();
+
+        uint integratorFee = 5 * 10 ** dai.decimals();
+        uint lifiFee = 0;
+        address integratorAddress = address(0xb33f); // some random address
+
+        // Swap1: Collect ERC20 fee (DAI)
+        // prepare swapData
+        swapData = new LibSwap.SwapData[](2);
+        swapData[0] = LibSwap.SwapData(
+            FEE_COLLECTOR,
+            FEE_COLLECTOR,
+            DAI_ADDRESS,
+            DAI_ADDRESS,
+            amountIn,
+            abi.encodeWithSelector(
+                feeCollector.collectTokenFees.selector,
+                DAI_ADDRESS,
+                integratorFee,
+                lifiFee,
+                integratorAddress
+            ),
+            true
+        );
+
+        uint256 amountOutFeeCollection = amountIn - integratorFee - lifiFee;
+        minAmountOut = amountOutFeeCollection;
+
+        // Swap2: Emit Transfer Event
+        swapData[1] = LibSwap.SwapData(
+            address(eventEmitter),
+            address(eventEmitter),
+            DAI_ADDRESS,
+            DAI_ADDRESS,
+            amountOutFeeCollection,
+            abi.encodeWithSelector(
+                eventEmitter.emitTransferEvent.selector,
+                DAI_ADDRESS,
+                DAI_HOLDER,
+                SOME_WALLET,
+                amountOutFeeCollection
+            ),
+            false
+        );
+    }
+
     function test_CanCollectERC20FeesAndSwapToERC20_V1() public {
         vm.startPrank(DAI_HOLDER);
         dai.approve(address(genericSwapFacet), 100 * 10 ** dai.decimals());
@@ -1568,6 +1635,52 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
 
         uint256 gasUsed = gasLeftBef - gasleft();
         console.log("gas used V1: ", gasUsed);
+
+        vm.stopPrank();
+    }
+
+    function test_CanCollectERC20FeesAndTransferERC20_V1() public {
+        vm.startPrank(DAI_HOLDER);
+        dai.approve(address(genericSwapFacet), 100 * 10 ** dai.decimals());
+        uint startingBalance = dai.balanceOf(SOME_WALLET);
+        // get swapData
+        (
+            LibSwap.SwapData[] memory swapData,
+            uint256 amountIn,
+            uint256 minAmountOut
+        ) = _produceSwapDataERC20FeeAndEmitTransferEvent();
+
+        vm.expectEmit(true, true, true, true, address(eventEmitter));
+        emit TokensTransferred(
+            DAI_ADDRESS,
+            DAI_HOLDER,
+            SOME_WALLET,
+            minAmountOut
+        );
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiGenericSwapCompleted(
+            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
+            "integrator", // integrator,
+            "referrer", // referrer,
+            SOME_WALLET, // receiver,
+            DAI_ADDRESS, // fromAssetId,
+            DAI_ADDRESS, // toAssetId,
+            amountIn, // fromAmount,
+            minAmountOut // toAmount (with liquidity in that selected block)
+        );
+
+        genericSwapFacet.swapTokensGeneric(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET),
+            minAmountOut,
+            swapData
+        );
+
+        uint endingBalance = dai.balanceOf(SOME_WALLET);
+        assertEq(endingBalance, startingBalance + minAmountOut);
 
         vm.stopPrank();
     }
