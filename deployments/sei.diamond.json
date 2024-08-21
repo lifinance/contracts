@@ -37,10 +37,6 @@
         "Name": "GenericSwapFacet",
         "Version": "2.0.0"
       },
-      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
-        "Name": "GenericSwapFacetV3",
-        "Version": "1.0.0"
-      },
       "0xeB98530f99e1c4406d24FdE4b590C96Ac7143aEe": {
         "Name": "StandardizedCallFacet",
         "Version": "1.1.0"
@@ -53,9 +49,13 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x139e0a9c4C90cC40D562859e8D6d3246C1915FD4": {
-        "Name": "StargateFacetV2",
+      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
+        "Name": "GenericSwapFacetV3",
         "Version": "1.0.0"
+      },
+      "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
+        "Name": "StargateFacetV2",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
@@ -63,8 +63,10 @@
       "Executor": "0x6d425eAb1Eb6e002Bf40c44e5d9Ff7fC6a38824a",
       "FeeCollector": "0x7956280Ec4B4d651C4083Ca737a1fa808b5319D8",
       "GasRebateDistributor": "",
+      "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x9870F0C91D722B3393383722968269496d919bD8",
       "Receiver": "0xf22c55c50fF14d9AB1fa4D9DCA832085D143E854",
+      "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x45d69A8a07F79DE2364F0B80F78af86e99015162",
       "TokenWrapper": "0xC82fd49be3F3D851b9E10589C50784cEAC7114a5"
