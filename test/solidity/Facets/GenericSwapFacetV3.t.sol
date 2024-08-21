@@ -62,12 +62,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         uint256 toAmount
     );
 
-    event TokensTransferred(
-        address token,
-        address from,
-        address to,
-        uint256 amount
-    );
+    event TokensTransferred();
 
     // These values are for Mainnet
     address internal constant USDC_ADDRESS =
@@ -1588,13 +1583,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
             DAI_ADDRESS,
             DAI_ADDRESS,
             amountOutFeeCollection,
-            abi.encodeWithSelector(
-                eventEmitter.emitTransferEvent.selector,
-                DAI_ADDRESS,
-                DAI_HOLDER,
-                SOME_WALLET,
-                amountOutFeeCollection
-            ),
+            abi.encodeWithSelector(eventEmitter.emitTransferEvent.selector),
             false
         );
     }
@@ -1651,12 +1640,7 @@ contract GenericSwapFacetV3Test is DSTest, DiamondTest, TestHelpers {
         ) = _produceSwapDataERC20FeeAndEmitTransferEvent();
 
         vm.expectEmit(true, true, true, true, address(eventEmitter));
-        emit TokensTransferred(
-            DAI_ADDRESS,
-            DAI_HOLDER,
-            SOME_WALLET,
-            minAmountOut
-        );
+        emit TokensTransferred();
 
         vm.expectEmit(true, true, true, true, address(diamond));
         emit LiFiGenericSwapCompleted(
