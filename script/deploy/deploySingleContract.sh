@@ -11,11 +11,11 @@ deploySingleContract() {
 
   # read function arguments into variables
   local CONTRACT="$1"
-  NETWORK="$2"
-  ENVIRONMENT="$3"
-  VERSION="$4"
-  EXIT_ON_ERROR="$5"
-  DIAMOND_TYPE="$6" # optional parameter (only used by CelerIMFacet)
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+  local VERSION="$4"
+  local EXIT_ON_ERROR="$5"
+  local DIAMOND_TYPE="$6" # optional parameter (only used by CelerIMFacet)
 
   # load env variables
   source .env
@@ -93,7 +93,7 @@ deploySingleContract() {
   if [[ -z "$CONTRACT" ]]; then
     # get user-selected deploy script and contract from list
     SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
-    CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
+    local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
   else
     SCRIPT="Deploy"$CONTRACT
   fi
@@ -252,8 +252,10 @@ deploySingleContract() {
 
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" ]]; then
+      echo "return 1"
       return 1
     else
+      echo "exit 1"
       exit 1
     fi
   fi

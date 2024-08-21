@@ -45,9 +45,13 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0xad09520Af186Ae931b668c2B9620A087fBfE127c": {
+      "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
         "Name": "StargateFacetV2",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
+      },
+      "0x83037e2fF2B3Ea09fED5A6e8150bf9899673f33A": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
@@ -55,6 +59,7 @@
       "Executor": "0xCdE9376F284d5CA9aaec69dD4D0761278b4ae034",
       "FeeCollector": "0x79540403cdE176Ca5f1fb95bE84A7ec91fFDEF76",
       "GasRebateDistributor": "",
+      "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x134f525AC05E4724e55C363A9C4FA35ceB13F88d",
       "Receiver": "0x2DeB3bFa2b19024A0c1Ba299b6b79276f1F77b14",
       "ReceiverStargateV2": "0x6A3d6652fb7be72200a47313C092342218aAeb72",
