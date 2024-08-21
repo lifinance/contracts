@@ -8,13 +8,11 @@ import { StargateFacet } from "./StargateFacet.sol";
 import { CelerIMFacetBase, CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
-import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
-import { InvalidCallData } from "../Errors/GenericErrors.sol";
 
 /// @title Calldata Verification Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
-/// @custom:version 1.2.0
+/// @custom:version 1.1.1
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
@@ -153,51 +151,19 @@ contract CalldataVerificationFacet {
         )
     {
         LibSwap.SwapData[] memory swapData;
-        bytes4 functionSelector = bytes4(data[:4]);
         bytes memory callData = data;
 
-        // valid callData for a genericSwap call should have at least 484 bytes:
-        // Function selector: 4 bytes
-        // _transactionId: 32 bytes
-        // _integrator: 64 bytes
-        // _referrer: 64 bytes
-        // _receiver: 32 bytes
-        // _minAmountOut: 32 bytes
-        // _swapData: 256 bytes
-        if (callData.length < 484) {
-            revert InvalidCallData();
-        }
-
-        // check if this is a call via StandardizedCallFacet
         if (
-            functionSelector == StandardizedCallFacet.standardizedCall.selector
+            bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
         ) {
-            // extract nested function selector and calldata
-            // will always start at position 68
-            functionSelector = bytes4(data[68:72]);
-            callData = data[68:];
+            // standardizedCall
+            callData = abi.decode(data[4:], (bytes));
         }
+        (, , , receiver, receivingAmount, swapData) = abi.decode(
+            callData.slice(4, callData.length - 4),
+            (bytes32, string, string, address, uint256, LibSwap.SwapData[])
+        );
 
-        if (_isGenericV3SingleSwap(functionSelector)) {
-            // single swap
-            swapData = new LibSwap.SwapData[](1);
-
-            // extract parameters from calldata
-            LibSwap.SwapData memory swapDataSingle;
-            (, , , receiver, receivingAmount, swapDataSingle) = abi.decode(
-                callData.slice(4, callData.length - 4),
-                (bytes32, string, string, address, uint256, LibSwap.SwapData)
-            );
-            swapData[0] = swapDataSingle;
-        } else {
-            // multi swap or GenericSwap V1 call
-            (, , , receiver, receivingAmount, swapData) = abi.decode(
-                callData.slice(4, callData.length - 4),
-                (bytes32, string, string, address, uint256, LibSwap.SwapData[])
-            );
-        }
-
-        // extract missing return parameters from swapData
         sendingAssetId = swapData[0].sendingAssetId;
         amount = swapData[0].fromAmount;
         receivingAssetId = swapData[swapData.length - 1].receivingAssetId;
@@ -410,17 +376,5 @@ contract CalldataVerificationFacet {
             data[4:],
             (ILiFi.BridgeData, LibSwap.SwapData[])
         );
-    }
-
-    function _isGenericV3SingleSwap(
-        bytes4 functionSelector
-    ) private pure returns (bool) {
-        return
-            functionSelector ==
-            GenericSwapFacetV3.swapTokensSingleV3ERC20ToERC20.selector ||
-            functionSelector ==
-            GenericSwapFacetV3.swapTokensSingleV3ERC20ToNative.selector ||
-            functionSelector ==
-            GenericSwapFacetV3.swapTokensSingleV3NativeToERC20.selector;
     }
 }
