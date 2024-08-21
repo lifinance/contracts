@@ -5,7 +5,6 @@
 name: SC Core Dev Approval Check
 
 on:
-  push:
   pull_request:
 
 jobs:
