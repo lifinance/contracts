@@ -6,10 +6,10 @@ name: SC Core Dev Approval Check
 
 on:
   push:
-  pull_request:
 
 jobs:
   core-dev-approval:
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

@@ -6169,6 +6169,34 @@
           }
         ]
       }
+    },
+    "blast": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x9535A1AFd986FA9a2D324657116F02C364edebFf",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-19 17:33:50",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002d509190ed0172ba588407d4c2df918f955cc6e10000000000000000000000004300000000000000000000000000000000000004",
+            "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "scroll": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x9535A1AFd986FA9a2D324657116F02C364edebFf",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-19 17:48:39",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000003bad7ad0728f9917d1bf08af5782dcbd516cdd960000000000000000000000005300000000000000000000000000000000000004",
+            "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "CBridgeFacet": {
@@ -20130,6 +20158,34 @@
           }
         ]
       }
+    },
+    "blast": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xFd796bf7Ff74d414b99CacF6F216eAC24bF3aC8E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-19 17:50:49",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002d509190ed0172ba588407d4c2df918f955cc6e1000000000000000000000000430000000000000000000000000000000000000400000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "scroll": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xFd796bf7Ff74d414b99CacF6F216eAC24bF3aC8E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-19 17:52:23",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000003bad7ad0728f9917d1bf08af5782dcbd516cdd96000000000000000000000000530000000000000000000000000000000000000400000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "DeBridgeDlnFacet": {
@@ -21788,16 +21844,6 @@
             "ADDRESS": "0x139e0a9c4C90cC40D562859e8D6d3246C1915FD4",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-28 14:04:09",
-            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006ce9bf8cdab780416ad1fd87b318a077d2f50eac",
-            "SALT": "",
-            "VERIFIED": "true"
-          }
-        ],
-        "1.0.1": [
-          {
-            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-08-14 18:28:47",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000006ce9bf8cdab780416ad1fd87b318a077d2f50eac",
             "SALT": "",
             "VERIFIED": "true"
