@@ -75,14 +75,6 @@ deployAllContracts() {
   checkFailure $? "update approve deployer wallet to execute config-related functions"
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployer wallet approved"
 
-  # run sync dexs script
-  echo ""
-  diamondSyncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
-
-  # run sync sigs script
-  echo ""
-  diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
-
   # deploy all non-core facets (that are in target_state.JSON) and add to diamond
   echo ""
   echo ""
@@ -115,6 +107,17 @@ deployAllContracts() {
 
   # update periphery registry
   diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
+
+  # add core periphery addresses to dexs.json for whitelisting in subsequent steps
+  addPeripheryToDexsJson "$NETWORK" "$ENVIRONMENT"
+
+  # run sync dexs script
+  echo ""
+  diamondSyncDEXs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
+
+  # run sync sigs script
+  echo ""
+  diamondSyncSigs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
 
   echo ""
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"

@@ -1307,6 +1307,63 @@ function getBytecodeFromArtifact() {
   fi
 }
 
+function addPeripheryToDexsJson() {
+  echo "[info] now adding all contracts listed in WHITELIST_PERIPHERY (config.sh) to config/dexs.json"
+  # read function arguments into variables
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+
+  # Get all contracts that need to be whitelisted and convert the comma-separated string into an array
+  IFS=',' read -r -a CONTRACTS <<< "$WHITELIST_PERIPHERY"
+
+  # get number of periphery contracts to be added
+  local ADD_COUNTER=${#CONTRACTS[@]}
+
+  local FILEPATH_DEXS="config/dexs.json"
+
+  # get number of existing DEX addresses in the file for the given network
+  local EXISTING_DEXS=$(jq --arg network "$NETWORK" '.[$network] | length' "$FILEPATH_DEXS")
+
+  # Iterate through all contracts
+  for CONTRACT in "${CONTRACTS[@]}"; do
+    # get contract address
+    local CONTRACT_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
+
+    if [[ -z "$CONTRACT_ADDRESS" ]]; then
+      error "Could not find contract address for contract $CONTRACT on network $NETWORK ($ENVIRONMENT) in deploy log."
+      error "Please manually whitelist this contract after this task has been completed."
+    fi
+
+    # check if address already exists in dexs.json for the given network
+    local EXISTS=$(jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] // []) | any(. == $address)' $FILEPATH_DEXS)
+
+    if [ "$EXISTS" == "true" ]; then
+      echo "The address $CONTRACT_ADDRESS is already part of the whitelisted DEXs in network $NETWORK."
+
+      # since this address is already in the list and will not be added, we have to reduce the "ADD_COUNTER" variable which will be used later to make sure that all addresses were indeed added
+      ((ADD_COUNTER--)) # reduces by 1
+    else
+      # add the address to dexs.json
+      local TMP_FILE="tmp.$$.json"
+      jq --arg address "$CONTRACT_ADDRESS" --arg network "$NETWORK" '(.[$network] //= []) | .[$network] += [$address]' $FILEPATH_DEXS > "$TMP_FILE" && mv "$TMP_FILE" $FILEPATH_DEXS
+      rm -f "$TMP_FILE"
+
+
+      success "$CONTRACT address $CONTRACT_ADDRESS added to dexs.json[$NETWORK]"
+    fi
+  done
+
+  # check how many DEX addresses are in the dexs.json now
+  local ADDRESS_COUNTER=${#CONTRACTS[@]}
+
+  # make sure dexs.json has been updated correctly
+  if [ $ADDRESS_COUNTER -eq $((EXISTING_DEXS + ADD_COUNTER)) ]; then
+    success "$ADD_COUNTER addresses were added to config/dexs.json"
+  else
+    error "The array in dexs.json for network $NETWORK does not have the expected number of elements after executing this script (expected: $, got: $ADDRESS_COUNTER)."
+    exit 1
+  fi
+}
 # <<<<< working with directories and reading other files
 
 # >>>>> writing to blockchain & verification
@@ -2056,6 +2113,9 @@ function echoDebug() {
   if [[ $DEBUG == "true" ]]; then
     printf "$BLUE[debug] %s$NC\n" "$MESSAGE"
   fi
+}
+function success() {
+  printf '\033[32m%s\033[0m\n' "$1"
 }
 function error() {
   printf '\033[31m[error] %s\033[0m\n' "$1"
@@ -2876,6 +2936,10 @@ function getChainId() {
     ;;
   "immutablezkevm")
     echo "13371"
+    return 0
+    ;;
+  "taiko")
+    echo "167000"
     return 0
     ;;
   *)
@@ -3750,14 +3814,14 @@ function test_getContractNameFromDeploymentLogs() {
 
 function test_tmp() {
 
-  CONTRACT="LiFiDEXAggregator"
-  NETWORK="immutablezkevm"
-  ADDRESS=""
+  CONTRACT="LiFiDiamond"
+  NETWORK="taiko"
+  ADDRESS="0x3A9A5dBa8FE1C4Da98187cE4755701BCA182f63b"
+  ADDRESS_NEW_OWNER="0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772"
   ENVIRONMENT="production"
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
   ARGS="0x"
-  ARGS="0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000100000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7"
   RPC_URL=$(getRPCUrl "$NETWORK" "$ENVIRONMENT")
   #  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
   #  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
@@ -3765,7 +3829,7 @@ function test_tmp() {
   #    exit 1
   #  fi
   #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
-  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
+  # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
 
   # forge verify-contract "$ADDRESS" "$CONTRACT" --chain-id 13371 --verifier blockscout --verifier-url https://explorer.immutable.com/api --skip-is-verified-check
   # forge verify-contract 0x8CDDE82cFB4555D6ca21B5b28F97630265DA94c4 Counter --verifier oklink --verifier-url https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER  --api-key $OKLINK_API_KEY
@@ -3775,8 +3839,14 @@ function test_tmp() {
   # RESPONSE=$(cast call "$ADDRESS" "owner()" --rpc-url $(getRPCUrl "$NETWORK"))
   # echo "RESPONSE: $RESPONSE"
   # ADDRESS_NEW_OWNER=0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772
-  # cast send "$ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key $PRIVATE_KEY_PRODUCTION --rpc-url "$RPC_URL"
+  # cast call "$ADDRESS" "pendingOwner()" --rpc-url $(getRPCUrl "$NETWORK")
+  # cast call "$ADDRESS" "facets() returns ((address,bytes4[])[] )" --rpc-url $(getRPCUrl "$NETWORK")
+  # RESPONSE=$(cast send "$ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key $PRIVATE_KEY_PRODUCTION --rpc-url "$RPC_URL")
+  # echo "RESPONSE: $RESPONSE"
 
   # RESULT=$(yarn add-safe-owners --network immutablezkevm --rpc-url "$(getRPCUrl "$NETWORK" "$ENVIRONMENT")" --privateKey "$PRIVATE_KEY_PRODUCTION" --owners "0xb78FbE12d9C09d98ce7271Fa089c2fe437B7B4D5,0x65f6F29D3eb871254d71A79CC4F74dB3AAF3b86e,0x24767E3A1cb07ee500BA9A5621F2B608440Ca270,0x81Dbb716aA13869323974A1766120D0854188e3e,0x11F1022cA6AdEF6400e5677528a80d49a069C00c,0x498E8fF83B503aDe5e905719D27b2f11B605b45A")
+
+  # RESPONSE=$(yarn add-safe-owners --network taiko --rpc-url $(getRPCUrl $NETWORK $ENVIRONMENT) --privateKey $PRIVATE_KEY_PRODUCTION --owners "0xb78FbE12d9C09d98ce7271Fa089c2fe437B7B4D5,0x65f6F29D3eb871254d71A79CC4F74dB3AAF3b86e,0x24767E3A1cb07ee500BA9A5621F2B608440Ca270,0x81Dbb716aA13869323974A1766120D0854188e3e,0x11F1022cA6AdEF6400e5677528a80d49a069C00c,0x498E8fF83B503aDe5e905719D27b2f11B605b45A")
+  # echo "RESPONSE: $RESPONSE"
 }
-# test_tmp
+test_tmp

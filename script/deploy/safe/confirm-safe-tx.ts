@@ -7,7 +7,7 @@ import { ethers } from 'ethers6'
 import consola from 'consola'
 import * as chains from 'viem/chains'
 import { getSafeUtilityContracts, safeAddresses, safeApiUrls } from './config'
-import { getViemChainForNetworkName } from '../../../utils/viemScriptHelpers.js'
+import { getViemChainForNetworkName } from '../../../utils/viemScriptHelpers'
 
 const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
 
@@ -79,12 +79,12 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
 
   const config: SafeApiKitConfig = {
     chainId: BigInt(chain.id),
-    txServiceUrl: safeApiUrls[chain.name.toLowerCase()],
+    txServiceUrl: safeApiUrls[network.toLowerCase()],
   }
 
   const safeService = new SafeApiKit(config)
 
-  const safeAddress = safeAddresses[chain.name.toLowerCase()]
+  const safeAddress = safeAddresses[network.toLowerCase()]
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
   const provider = new ethers.JsonRpcProvider(parsedRpcUrl)
