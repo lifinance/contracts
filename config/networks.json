@@ -1,0 +1,299 @@
+{
+  "mainnet": {
+    "name": "Ethereum Mainnet",
+    "chainId": 1,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "arbitrum": {
+    "name": "Arbitrum One",
+    "chainId": 42161,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "aurora": {
+    "name": "Aurora",
+    "chainId": 1313161554,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0xC9BdeEd33CD01541e1eeD10f90519d2C06Fe3feB",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "avalanche": {
+    "name": "Avalanche C-Chain",
+    "chainId": 43114,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "AVAX",
+    "wrappedNativeAddress": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "base": {
+    "name": "Base",
+    "chainId": 8453,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "blast": {
+    "name": "Blast",
+    "chainId": 81457,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x4300000000000000000000000000000000000004",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "boba": {
+    "name": "Boba Network",
+    "chainId": 288,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "bsc": {
+    "name": "BNB Smart Chain",
+    "chainId": 56,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "BNB",
+    "wrappedNativeAddress": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "celo": {
+    "name": "Celo",
+    "chainId": 42220,
+    "nativeAddress": "0x471EcE3750Da237f93B8E339c536989b8978a438",
+    "nativeCurrency": "CELO",
+    "wrappedNativeAddress": "0x471EcE3750Da237f93B8E339c536989b8978a438",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "fantom": {
+    "name": "Fantom",
+    "chainId": 250,
+    "nativeCurrency": "FTM",
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "wrappedNativeAddress": "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "fraxtal": {
+    "name": "Fraxtal",
+    "chainId": 252,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "frxETH",
+    "wrappedNativeAddress": "0xfc00000000000000000000000000000000000006",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "fuse": {
+    "name": "Fuse",
+    "chainId": 122,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "FUSE",
+    "wrappedNativeAddress": "0x0BE9e53fd7EDaC9F859882AfdDa116645287C629",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "gnosis": {
+    "name": "Gnosis Chain",
+    "chainId": 100,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "XDAI",
+    "wrappedNativeAddress": "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "gravity": {
+    "name": "Gravity Alpha Mainnet",
+    "chainId": 1625,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "G",
+    "wrappedNativeAddress": "0xBB859E225ac8Fb6BE1C7e38D87b767e95Fef0EbD",
+    "status": "inactive",
+    "type": "mainnet"
+  },
+  "immutablezkevm": {
+    "name": "Immutable zkEVM",
+    "chainId": 13371,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "IMX",
+    "wrappedNativeAddress": "0x3a0c2ba54d6cbd3121f01b96dfd20e99d1696c9d",
+    "status": "inactive",
+    "type": "mainnet"
+  },
+  "linea": {
+    "name": "Linea",
+    "chainId": 59144,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "mantle": {
+    "name": "Mantle",
+    "chainId": 5000,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "MNT",
+    "wrappedNativeAddress": "0x78c1b0c915c4faa5fffa6cabf0219da63d7f4cb8",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "metis": {
+    "name": "Metis Andromeda Mainnet",
+    "chainId": 1088,
+    "nativeAddress": "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000",
+    "nativeCurrency": "METIS",
+    "wrappedNativeAddress": "0x75cb093E4D61d2A2e65D8e0BBb01DE8d89b53481",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "mode": {
+    "name": "Mode",
+    "chainId": 34443,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "moonbeam": {
+    "name": "Moonbeam",
+    "chainId": 1284,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "GLMR",
+    "wrappedNativeAddress": "0xacc15dc74880c9944775448304b263d191c6077f",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "moonriver": {
+    "name": "Moonriver",
+    "chainId": 1285,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "MOVR",
+    "wrappedNativeAddress": "0x98878b06940ae243284ca214f92bb71a2b032b8a",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "optimism": {
+    "name": "Optimism",
+    "chainId": 10,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "polygon": {
+    "name": "Polygon",
+    "chainId": 137,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "MATIC",
+    "wrappedNativeAddress": "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "polygonzkevm": {
+    "name": "Polygon zkEVM",
+    "chainId": 1101,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x4f9a0e7fd2bf6067db6994cf12e4495df938e6e9",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "rootstock": {
+    "name": "Rootstock",
+    "chainId": 30,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "RBTC",
+    "wrappedNativeAddress": "0x542FDA317318eBf1d3DeAF76E0B632741a7e677d",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "scroll": {
+    "name": "Scroll",
+    "chainId": 534352,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x5300000000000000000000000000000000000004",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "sei": {
+    "name": "Sei Network",
+    "chainId": 1329,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "SEI",
+    "wrappedNativeAddress": "0xe30fedd158a2e3b13e9badaeabafc5516e95e8c7",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "zksync": {
+    "name": "zkSync Era Mainnet",
+    "chainId": 324,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x5aea5775959fbc2557cc8789bc1bf90a239d9a91",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "bsc-testnet": {
+    "name": "Binance Smart Chain Testnet",
+    "chainId": 97,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "BNB",
+    "wrappedNativeAddress": "",
+    "status": "active",
+    "type": "testnet"
+  },
+  "lineatest": {
+    "name": "Linea Testnet",
+    "chainId": 59140,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "",
+    "status": "active",
+    "type": "testnet"
+  },
+  "mumbai": {
+    "name": "Mumbai",
+    "chainId": 80001,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "MATIC",
+    "wrappedNativeAddress": "",
+    "status": "active",
+    "type": "testnet"
+  },
+  "sepolia": {
+    "name": "Sepolia",
+    "chainId": 11155111,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "",
+    "status": "active",
+    "type": "testnet"
+  },
+  "localanvil": {
+    "name": "Local Anvil (temporary Foundry test network)",
+    "chainId": 31337,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x0000000000000000000000000000000000000000",
+    "status": "active",
+    "type": "testnet"
+  }
+}
