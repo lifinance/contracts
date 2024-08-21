@@ -11,6 +11,7 @@ import {
 import { ethers } from 'ethers6'
 import * as chains from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 export const chainNameMappings: Record<string, string> = {
   zksync: 'zkSync',
@@ -43,18 +44,24 @@ const main = defineCommand({
       description: 'Private key',
       required: true,
     },
+    environment: {
+      type: 'string',
+      description: 'PROD (production) or STAGING (staging) environment',
+      required: true,
+    },
   },
   async run({ args }) {
-    const { network, privateKey } = args
+    const { network, privateKey, environment } = args
 
-    const chainName = chainNameMappings[network] || network
-    const chain: Chain = chainMap[chainName]
+    const chain = getViemChainForNetworkName(network)
 
     console.log(`Checking signature for ${chain.name}`)
 
     // Fetch list of deployed contracts
     const deployedContracts = await import(
-      `../../deployments/${network.toLowerCase()}.json`
+      `../../deployments/${network.toLowerCase()}${
+        environment == 'staging' ? '.staging' : ''
+      }.json`
     )
 
     const rpcUrl = args.rpcUrl || chain.rpcUrls.default.http[0]

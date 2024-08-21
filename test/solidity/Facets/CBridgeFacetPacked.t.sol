@@ -19,6 +19,10 @@ contract MockLiquidityBridge is TestBase {
 contract CBridgeFacetPackedTest is TestBase {
     address internal constant CBRIDGE_ROUTER =
         0x1619DE6B6B20eD217a58d00f37B9d47C7663feca;
+    address internal constant USDT_ADDRESS =
+        0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
+    address internal constant USDC_ADDRESS =
+        0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
     address internal constant WHALE =
         0xF3F094484eC6901FfC9681bCb808B96bAFd0b8a8; // usdt + ETH
     address internal constant RECEIVER =

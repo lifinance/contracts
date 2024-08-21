@@ -61,9 +61,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0x139e0a9c4C90cC40D562859e8D6d3246C1915FD4": {
+      "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
         "Name": "StargateFacetV2",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
@@ -71,9 +71,10 @@
       "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
       "GasRebateDistributor": "",
+      "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
       "Receiver": "0x2fA14922ABc117c4737260032C8fD6D9Ab35395A",
-      "ReceiverStargateV2": "",
+      "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0xf3552b98BB4234B47674700A99a0308D74B40F51",
       "TokenWrapper": "0x0263180888007D45340F86eC0b610d250BbDcB23"

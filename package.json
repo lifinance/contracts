@@ -81,12 +81,14 @@
     "healthcheck": "tsx ./script/deploy/healthCheck.mts",
     "propose-safe-tx": "ts-node ./script/deploy/safe/propose-to-safe.ts",
     "confirm-safe-tx": "ts-node ./script/deploy/safe/confirm-safe-tx.ts",
-    "add-safe-owners": "ts-node ./script/deploy/safe/add-owners-to-safe.ts"
+    "add-safe-owners": "ts-node ./script/deploy/safe/add-owners-to-safe.ts",
+    "flatten": "forge flatten --output"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
     "@hop-protocol/sdk": "0.0.1-beta.310",
     "@layerzerolabs/lz-v2-utilities": "^2.3.21",
+    "@octokit/rest": "^21.0.1",
     "@safe-global/api-kit": "^2.3.1",
     "@safe-global/protocol-kit": "^3.1.0",
     "@safe-global/safe-apps-sdk": "^9.0.0",
@@ -104,7 +106,7 @@
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
     "tsx": "^4.7.2",
-    "viem": "^2.11.1",
+    "viem": "^2.18.7",
     "zx": "^8.0.2"
   },
   "lint-staged": {

@@ -1,4 +1,5 @@
 import { ContractNetworksConfig } from '@safe-global/protocol-kit'
+import { immutableZkEvm } from 'viem/chains'
 
 export const safeApiUrls: Record<string, string> = {
   mainnet: 'https://safe-transaction-mainnet.safe.global/api',
@@ -14,6 +15,8 @@ export const safeApiUrls: Record<string, string> = {
   fraxtal: 'https://transaction-frax.safe.optimism.io/api',
   fuse: 'https://transaction-fuse.safe.fuse.io/api',
   gnosis: 'https://safe-transaction-gnosis-chain.safe.global/api',
+  gravity: 'https://safe.gravity.xyz/txs/api',
+  immutablezkevm: 'https://transaction.safe.immutable.com/api',
   linea: 'https://transaction.safe.linea.build/api',
   mantle: 'https://transaction.multisig.mantle.xyz/api',
   metis: 'https://metissafe.tech/txs/api',
@@ -26,6 +29,7 @@ export const safeApiUrls: Record<string, string> = {
   rootstock: 'https://transaction.safe.rootstock.io/api',
   scroll: 'https://safe-transaction-scroll.safe.global/api',
   sei: 'https://transaction.sei-safe.protofire.io/api',
+  taiko: 'https://api.taikoscan.io/api',
   zksync: 'https://safe-transaction-zksync.safe.global/api',
 }
 
@@ -43,6 +47,8 @@ export const safeAddresses: Record<string, string> = {
   fraxtal: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
   fuse: '0x5336e97bA7332FAC20281Bda8B790c8892245Ded',
   gnosis: '0x2bC523875b59A1Ddd03CEB1F1b28c5B0e8e6654A',
+  gravity: '0x245B16CaCE8730b009c5352186DcE7d73c3037A1',
+  immutablezkevm: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
   linea: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   mantle: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
   metis: '0x925cD8289Ac2d617F52974da8338867f3bB62d56',
@@ -55,12 +61,8 @@ export const safeAddresses: Record<string, string> = {
   rootstock: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   scroll: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   sei: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
+  taiko: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
   zksync: '0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744',
-}
-
-export const chainNameMappings: Record<string, string> = {
-  zksync: 'zkSync',
-  polygonzkevm: 'polygonZkEvm',
 }
 
 export const getSafeUtilityContracts = (chainId: number) => {
@@ -68,7 +70,8 @@ export const getSafeUtilityContracts = (chainId: number) => {
   switch (chainId) {
     case 288:
     case 1088:
-      // Boba
+    case 13371:
+      // Boba, Metis, IMX
       contractNetworks = {
         [chainId.toString()]: {
           multiSendAddress: '0x998739BFdAAdde7C933B942a68053933098f9EDa',

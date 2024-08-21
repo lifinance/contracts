@@ -11,11 +11,11 @@ deploySingleContract() {
 
   # read function arguments into variables
   local CONTRACT="$1"
-  NETWORK="$2"
-  ENVIRONMENT="$3"
-  VERSION="$4"
-  EXIT_ON_ERROR="$5"
-  DIAMOND_TYPE="$6" # optional parameter (only used by CelerIMFacet)
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+  local VERSION="$4"
+  local EXIT_ON_ERROR="$5"
+  local DIAMOND_TYPE="$6" # optional parameter (only used by CelerIMFacet)
 
   # load env variables
   source .env
@@ -93,17 +93,19 @@ deploySingleContract() {
   if [[ -z "$CONTRACT" ]]; then
     # get user-selected deploy script and contract from list
     SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
-    CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
+    local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
   else
     SCRIPT="Deploy"$CONTRACT
   fi
 
   # Display contract-specific information, if existing
   if grep -q "^$CONTRACT=" "$CONTRACT_REMINDERS"; then
-    echo ""
+    echo -e "\n\n"
+    printf '\033[31m%s\031\n' "--------------------------------------- !!!!!!!! ATTENTION !!!!!!!! ---------------------------------------"
     warning "Please read the following information carefully: "
     warning "${!CONTRACT}"
-    echo ""
+    printf '\033[31m%s\031\n' "-----------------------------------------------------------------------------------------------------------"
+    echo -e "\n\n"
   fi
 
   # check if deploy script exists
@@ -140,7 +142,6 @@ deploySingleContract() {
   # get CREATE3_FACTORY_ADDRESS
   CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
 
-  echo $CREATE3_FACTORY_ADDRESS  # if selected contract is "LiFiDiamondImmutable" then use an adjusted salt for deployment to prevent clashes due to same bytecode
   if [[ $CONTRACT == "LiFiDiamondImmutable" ]]; then
     # adds a string to the end of the bytecode to alter the salt but always produce deterministic results based on bytecode
     BYTECODE="$BYTECODE""ffffffffffffffffffffffffffffffffffffff"
@@ -251,8 +252,10 @@ deploySingleContract() {
 
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" ]]; then
+      echo "return 1"
       return 1
     else
+      echo "exit 1"
       exit 1
     fi
   fi

@@ -479,7 +479,7 @@ scriptMaster() {
     )
     echo "[info] selected option: $SELECTION_NETWORK"
 
-    if [[ "$SELECTION_DIAMOND_TYPE" == "1)"* ]]; then
+    if [[ "$SELECTION_NETWORK" == "1)"* ]]; then
       # call update diamond log function
       updateDiamondLogs
     else

@@ -47,6 +47,9 @@ function diamondSyncSigs {
     NETWORKS=($NETWORK)
   fi
 
+    # get diamond address from deployments script
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+
   # logging for debug purposes
   echo ""
   echoDebug "in function syncSIGs"
@@ -71,10 +74,38 @@ function diamondSyncSigs {
       # ensure that gas price is below maximum threshold (for mainnet only)
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-      ts-node ./script/tasks/diamondSyncSigs.ts --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY"
+      # try to run the typescript script (will fail if the network is not yet supported by viem)
+      ts-node ./script/tasks/diamondSyncSigs.ts --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --environment "$ENVIRONMENT"
+      RETURN_CODE=$?
+
+      # check the typescript script failed
+      if [ $RETURN_CODE -ne 0 ]; then
+        echoDebug "diamondSyncSigs.ts was not successful, trying the old approach now"
+
+        # do this stuff only on the first iteration to prepare the params for the call
+        if [[ $ATTEMPTS == 1 ]]; then
+          # get function selectors (sigs) from config files
+          local CFG_SIGS=($(jq -r '.[] | @sh' "./config/sigs.json" | tr -d \' | tr '[:upper:]' '[:lower:]' ))
+
+          # prepare parameter for batchSetFunctionApprovalBySignature call (=add all sigs to an array)
+          for d in "${CFG_SIGS[@]}"; do
+            local PARAMS+="${d},"
+          done
+        fi
+
+        # call diamond using the old approach (just registering all signatures)
+        if [[ "$DEBUG" == *"true"* ]]; then
+          # print output to console
+          cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy
+        else
+          # do not print output to console
+          cast send "$DIAMOND_ADDRESS" "batchSetFunctionApprovalBySignature(bytes4[],bool)" "[${PARAMS::${#PARAMS}-1}]" true --rpc-url $RPC_URL --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --legacy >/dev/null 2>&1
+        fi
+        RETURN_CODE=$?
+      fi
 
       # check the return code of the last call
-      if [ $? -eq 0 ]; then
+      if [ $RETURN_CODE -eq 0 ]; then
         break # exit the loop if the operation was successful
       fi
 

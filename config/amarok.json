@@ -43,6 +43,18 @@
       "0xddafbb505ad214d7b80b1f830fccc89b60fb7a83"
     ]
   },
+  "gravity": {
+    "chainId": 1625,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "immutablezkevm": {
+    "chainId": 13371,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
   "polygon": {
     "chainId": 137,
     "connextHandler": "0x11984dc4465481512eb5b777E44061C158CF2259",
@@ -263,6 +275,12 @@
   },
   "harmonyTestnet": {
     "chainId": 1666700000,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
+  "taiko": {
+    "chainId": 167000,
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "",
     "tokensToApprove": []

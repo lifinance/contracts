@@ -333,6 +333,79 @@ contract StargateFacetV2Test is TestBaseFacet {
         }(bridgeData, swapData, stargateData);
     }
 
+    function test_WillNotLeaveAnyDustWhenSwappingBeforeBridging() public {
+        vm.startPrank(USER_SENDER);
+
+        uint256 initialUSDCBalanceDiamond = usdc.balanceOf(
+            address(stargateFacetV2)
+        );
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+
+        uint256 amountIn = defaultNativeAmount;
+
+        // Calculate USDC input amount
+        uint256[] memory amounts = uniswap.getAmountsOut(amountIn, path);
+        uint256 amountOut = amounts[1];
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_WRAPPED_NATIVE,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForTokens.selector,
+                    amountIn,
+                    amountOut,
+                    path,
+                    address(stargateFacetV2),
+                    block.timestamp + 2000 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        // update bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = amountOut;
+
+        // update stargateData
+        stargateData.sendParams.amountLD = bridgeData.minAmount;
+        stargateData.sendParams.minAmountLD =
+            (bridgeData.minAmount * 9e4) /
+            1e5;
+        weth.approve(address(stargateFacetV2), defaultNativeAmount);
+
+        vm.expectEmit(true, true, true, true, address(stargateFacetV2));
+        emit LiFiTransferStarted(bridgeData);
+
+        // by reducing the amount in the sendParams we would usually send less tokens
+        // than available in the contract and thus leave some dust
+        // the facet should update this parameter after swapping with the amountOut
+        // of the swap, thus not leaving any dust in the contract
+        bridgeData.minAmount = stargateData.sendParams.amountLD =
+            amountOut -
+            100;
+
+        stargateFacetV2.swapAndStartBridgeTokensViaStargate{
+            value: stargateData.fee.nativeFee
+        }(bridgeData, swapData, stargateData);
+
+        uint256 finalUSDCBalanceDiamond = usdc.balanceOf(
+            address(stargateFacetV2)
+        );
+
+        assertEq(initialUSDCBalanceDiamond, finalUSDCBalanceDiamond);
+        assertEq(weth.balanceOf(address(stargateFacetV2)), 0);
+    }
+
     function test_revert_UnknownAssetId() public {
         vm.startPrank(USER_SENDER);
         usdc.approve(address(stargateFacetV2), bridgeData.minAmount);

@@ -45,20 +45,23 @@ function diamondSyncDEXs {
     NETWORKS=($NETWORK)
   fi
 
-  # logging for debug purposes
-  echo ""
-  echoDebug "in function syncDEXs"
-  echoDebug "NETWORKS=$NETWORKS"
-  echoDebug "ENVIRONMENT=$ENVIRONMENT"
-  echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
-  echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
-  echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
-  echo ""
+
 
   # go through all networks and execute the script
   for NETWORK in "${NETWORKS[@]}"; do
     # get diamond address from deployments script
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+
+    # logging for debug purposes
+    echo ""
+    echoDebug "in function syncDEXs"
+    echoDebug "NETWORKS=$NETWORKS"
+    echoDebug "CURRENT NETWORK=$NETWORK"
+    echoDebug "ENVIRONMENT=$ENVIRONMENT"
+    echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+    echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
+    echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
+    echo ""
 
     # if no diamond address was found, throw an error and exit the script
     if [[ "$DIAMOND_ADDRESS" == "null" || -z "$DIAMOND_ADDRESS" ]]; then
@@ -77,9 +80,21 @@ function diamondSyncDEXs {
 
     # get addresses of DEXs that are already approved in the diamond contract
     RESULT=$(cast call "$DIAMOND_ADDRESS" "approvedDexs() returns (address[])" --rpc-url "$RPC_URL")
-    DEXS=($(echo ${RESULT:1:${#RESULT}-1} | tr ',' '\n' | tr '[:upper:]' '[:lower:]'))
 
-    echoDebug "approved DEXs from diamond with address $DIAMOND_ADDRESS: [$DEXS]"
+    # Check if any approved DEXs were found
+    if [[ "$RESULT" == "[]" ]]; then
+      DEXS=()
+    else
+      # reformat
+      DEXS=($(echo ${RESULT:1:${#RESULT}-1} | tr ',' '\n' | tr '[:upper:]' '[:lower:]'))
+    fi
+
+    # Check the length of the array
+    if [ ${#DEXS[@]} -eq 0 ]; then
+      echoDebug "0 approved DEXs found on diamond $DIAMOND_ADDRESS"
+    else
+      echoDebug "${#DEXS[@]} approved DEXs found on diamond $DIAMOND_ADDRESS: $DEXS ${DEXS[@]}"
+    fi
 
     # Loop through all DEX addresses from config and check if they are already known by the diamond
     NEW_DEXS=()
@@ -98,7 +113,7 @@ function diamondSyncDEXs {
       fi
     done
 
-    echoDebug "new DEXs to be added: [${NEW_DEXS[*]}]"
+    echoDebug "${#NEW_DEXS[@]} new DEXs to be added: [${NEW_DEXS[*]}]"
 
     # add new DEXs to diamond
     if [[ ! ${#NEW_DEXS[@]} -eq 0 ]]; then
