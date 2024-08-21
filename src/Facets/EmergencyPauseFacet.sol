@@ -204,7 +204,7 @@ contract EmergencyPauseFacet {
                     i
                 ].functionSelectors;
 
-                // gas-efficient way to increase loop counter
+                // gas-efficient way to increase counter
                 unchecked {
                     ++toBeRemovedCounter;
                 }
