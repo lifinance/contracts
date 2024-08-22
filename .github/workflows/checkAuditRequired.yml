@@ -91,11 +91,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
+
+          ##### get all labels that are assigned to this PR
           assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name')
+          ##### check if 'AuditRequired' is assigned
           audit_required_assigned=$(echo "$assigned_labels" | grep -c "AuditRequired")
+          ##### check if 'AuditNotRequired' is assigned
           audit_not_required_assigned=$(echo "$assigned_labels" | grep -c "AuditNotRequired")
+          ##### make sure that exactly one of the two labels is assigned
           total_labels_assigned=$((audit_required_assigned + audit_not_required_assigned))
           if [[ "$total_labels_assigned" -ne 1 ]]; then
-            echo "Error: Exactly one label should be assigned. Found $total_labels_assigned labels."
+            echo -e "\033[31mError: Exactly one of the two labels should be assigned but found $total_labels_assigned assigned labels.\033[0m"
             exit 1
+          else
+            echo -e "\033[32mVerified that exactly one label is assigned.\033[0m"
+            echo -e "\033[32mAll good :)\033[0m"
           fi
