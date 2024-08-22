@@ -22,3 +22,6 @@
 [submodule "lib/solady"]
 	path = lib/solady
 	url = https://github.com/Vectorized/solady
+[submodule "lib/Permit2"]
+	path = lib/Permit2
+	url = https://github.com/Uniswap/Permit2
