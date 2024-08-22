@@ -19,6 +19,7 @@ on:
 
 jobs:
   check-audit:
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     env:
       auditLogPath: 'audit/auditLog.json'
@@ -60,6 +61,7 @@ jobs:
             echo -e "\033[31mNo protected contracts found in files modified/added by this PR.\033[0m"
             echo -e "\033[31mNo further checks are required.\033[0m"
             # set action output to false
+            echo "CONTINUE=false" >> $GITHUB_ENV
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0
           else
@@ -327,11 +329,10 @@ jobs:
               }
             })();
 
-      - name: Assign "Ready_For_PROD_Deployment" label
+      - name: Assign correct label based on check outcome
         uses: actions-ecosystem/action-add-labels@v1
-        #### TODO: add lifi-github-actions_PAT here  <<<<<<<<<<<<<<<<<<<---------------------
         id: assign_label
-        if: env.CONTINUE == 'true'
         with:
-          labels: 'AuditCompleted'
+          token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the git action user so the label protection check will pass
+          labels: ${{ env.CONTINUE == 'true' && 'AuditCompleted' || 'AuditNotRequired' }} # if the action made it until here and CONTINUE was true then all checks passed. It CONTINUE was false then no audit is required
           number: ${{ github.event.pull_request.number }}

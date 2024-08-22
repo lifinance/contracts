@@ -1,0 +1,77 @@
+# Audit Requirement Checker
+# - checks if an audit is required
+#
+# An audit is required if any .sol file in path 'src/' has been modified or added
+#
+# If an audit is required, the action will assign the label "AuditRequired", otherwise it will assign label "AuditNotRequired"
+
+# KNOWN LIMITATIONS
+# - will only check the last 100 commits for any matches with audit commit hashes
+
+name: Audit Check
+
+on:
+  pull_request:
+
+jobs:
+  check-audit:
+    if: ${{ github.event.pull_request.draft == false }} # will only run once the PR is in "Ready for Review" state
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 ##### Fetch all history for all branches
+
+      - name: Check Git Diff for protected contracts
+        id: check_eligibility
+        run: |
+
+          ##### get all files modified by this PR
+          FILES=$(git diff --name-only origin/main HEAD)
+
+          ##### make sure that there are modified files
+          if [[ -z $FILES ]]; then
+            echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 1
+          fi
+
+          ##### Initialize empty variables
+          PROTECTED_CONTRACTS=""
+
+          ##### go through all modified file names/paths and identify contracts with path 'src/*'
+          while IFS= read -r FILE; do
+            if echo "$FILE" | grep -E '^src/.*\.sol$'; then
+              ##### contract found
+              PROTECTED_CONTRACTS="${PROTECTED_CONTRACTS}${FILE}"$'\n'
+            fi
+          done <<< "$FILES"
+
+          ##### if none found, exit here as there is nothing to do
+          if [[ -z "$PROTECTED_CONTRACTS" ]]; then
+            echo -e "\033[31mNo protected contracts found in files modified/added by this PR.\033[0m"
+            echo -e "\033[31mNo further checks are required.\033[0m"
+            # set action output to false
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 0
+          else
+            ##### set action output to true
+            echo "CONTINUE=true" >> $GITHUB_ENV
+          fi
+
+          echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
+
+          ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
+          echo -e "$PROTECTED_CONTRACTS" > protected_contracts.txt
+
+      - name: Assign correct label based on check outcome
+        uses: actions-ecosystem/action-add-labels@v1
+        id: assign_label
+        with:
+          token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the git action user so the label protection check will pass
+          labels: ${{ env.CONTINUE == 'true' && 'AuditRequired' || 'AuditNotRequired' }} # if the action made it until here and CONTINUE was true then all checks passed. It CONTINUE was false then no audit is required
+          number: ${{ github.event.pull_request.number }}
