@@ -1,0 +1,105 @@
+# Audit Requirement Checker
+# - checks if an audit is required for a given PR
+# - an audit is required if any .sol file in path 'src/' has been modified or added
+# - if audit is required, the action will assign the label "AuditRequired", otherwise it will assign label "AuditNotRequired"
+# - it will also make sure that at the end, exactly one of these two labels is indeed assigned
+
+name: Audit Requirement Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-audit-required:
+    if: ${{ github.event.pull_request.draft == false }} # will only run once the PR is in "Ready for Review" state
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 ##### Fetch all history for all branches
+
+      - name: Remove existing 'AuditRequired' and 'AuditNotRequired' labels
+        uses: actions-ecosystem/action-remove-labels@v1
+        with:
+          github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          labels: |
+            AuditRequired
+            AuditNotRequired
+          number: ${{ github.event.pull_request.number }}
+
+      - name: Check Git Diff for protected contracts
+        id: check_eligibility
+        run: |
+
+          ##### get all files modified by this PR
+          FILES=$(git diff --name-only origin/main HEAD)
+
+          ##### make sure that there are modified files
+          if [[ -z $FILES ]]; then
+            echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 1
+          fi
+
+          ##### Initialize empty variables
+          PROTECTED_CONTRACTS=""
+
+          ##### go through all modified file names/paths and identify contracts with path 'src/*'
+          while IFS= read -r FILE; do
+            if echo "$FILE" | grep -E '^src/.*\.sol$'; then
+              ##### contract found
+              PROTECTED_CONTRACTS="${PROTECTED_CONTRACTS}${FILE}"$'\n'
+            fi
+          done <<< "$FILES"
+
+          ##### if none found, exit here as there is nothing to do
+          if [[ -z "$PROTECTED_CONTRACTS" ]]; then
+            echo -e "\033[32mNo protected contracts found in files modified/added by this PR.\033[0m"
+            echo -e "\033[32mNo further checks are required.\033[0m"
+            echo -e "\033[32mAssigning label 'AuditNotRequired' to this PR.\033[0m"
+            # set action output to false
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 0
+          else
+            ##### set action output to true
+            echo "CONTINUE=true" >> $GITHUB_ENV
+          fi
+
+          echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
+
+          ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
+          echo -e "$PROTECTED_CONTRACTS" > protected_contracts.txt
+
+      - name: Assign correct label based on check outcome
+        uses: actions-ecosystem/action-add-labels@v1
+        id: assign_label
+        with:
+          github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the git action user so the label protection check will pass
+          labels: ${{ env.CONTINUE == 'true' && 'AuditRequired' || 'AuditNotRequired' }} # if the action made it until here and CONTINUE was true then all checks passed. It CONTINUE was false then no audit is required
+          number: ${{ github.event.pull_request.number }}
+
+      - name: Verify label assignments (make sure exactly one of the two labels is assigned)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+
+          ##### get all labels that are assigned to this PR
+          assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name')
+          ##### check if 'AuditRequired' is assigned
+          audit_required_assigned=$(echo "$assigned_labels" | grep -c "AuditRequired")
+          ##### check if 'AuditNotRequired' is assigned
+          audit_not_required_assigned=$(echo "$assigned_labels" | grep -c "AuditNotRequired")
+          ##### make sure that exactly one of the two labels is assigned
+          total_labels_assigned=$((audit_required_assigned + audit_not_required_assigned))
+          if [[ "$total_labels_assigned" -ne 1 ]]; then
+            echo -e "\033[31mError: Exactly one of the two labels should be assigned but found $total_labels_assigned assigned labels.\033[0m"
+            exit 1
+          else
+            echo -e "\033[32mVerified that exactly one label is assigned.\033[0m"
+            echo -e "\033[32mAll good :)\033[0m"
+          fi
