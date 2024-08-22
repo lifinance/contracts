@@ -2,12 +2,15 @@
   "create3Factory": {
     "default": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
     "linea": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499",
-    "metis": "0x763f212f355433C59d734C71247d16fCE74D8785"
+    "metis": "0x763f212f355433C59d734C71247d16fCE74D8785",
+    "taiko": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499"
   },
   "refundWallet": "0x156CeBba59DEB2cB23742F70dCb0a11cC775591F",
   "withdrawWallet": "0x08647cc950813966142A416D40C382e2c5DB73bB",
+  "pauserWallet": "0x3b6211981d47Fb6375E0125A6a401830616f7906",
   "lifuelRebalanceWallet": "0xC71284231A726A18ac85c94D75f9fe17A185BeAF",
   "deployerWallet": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+  "pauserWallet": "0x29DaCdF7cCaDf4eE67c923b4C22255A4B2494eD7",
   "approvedSigsForRefundWallet": [
     {
       "sig": "0x0d19e519",
@@ -47,6 +50,7 @@
     "fuse": "0x5336e97bA7332FAC20281Bda8B790c8892245Ded",
     "gnosis": "0x2bC523875b59A1Ddd03CEB1F1b28c5B0e8e6654A",
     "gravity": "0x245B16CaCE8730b009c5352186DcE7d73c3037A1",
+    "immutablezkevm": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "linea": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "mantle": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "metis": "0x925cD8289Ac2d617F52974da8338867f3bB62d56",
@@ -59,14 +63,15 @@
     "rootstock": "0xDF61270FdC1a892874Fd3C0143A0a4CBa74F4EF1",
     "scroll": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
     "sei": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
+    "taiko": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
     "zksync": "0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744"
   },
   "safeOwners": [
+    "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
     "0xb78FbE12d9C09d98ce7271Fa089c2fe437B7B4D5",
     "0x65f6F29D3eb871254d71A79CC4F74dB3AAF3b86e",
     "0x24767E3A1cb07ee500BA9A5621F2B608440Ca270",
     "0x81Dbb716aA13869323974A1766120D0854188e3e",
-    "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
     "0x498E8fF83B503aDe5e905719D27b2f11B605b45A"
   ],
   "safeApiUrls": {
@@ -84,6 +89,7 @@
     "fuse": "https://transaction-fuse.safe.fuse.io/api",
     "gnosis": "https://safe-transaction-gnosis-chain.safe.global/api",
     "gravity": "https://safe.gravity.xyz/txs/api",
+    "immutablezkevm": "https://transaction.safe.immutable.com/api",
     "linea": "https://transaction.safe.linea.build/api",
     "mantle": "https://transaction.multisig.mantle.xyz/api",
     "metis": "https://metissafe.tech/txs/api",
@@ -96,6 +102,7 @@
     "rootstock": "https://transaction.safe.rootstock.io/api",
     "scroll": "https://safe-transaction-scroll.safe.global/api",
     "sei": "https://transaction.sei-safe.protofire.io/api",
+    "taiko": "https://transaction.safe.taiko.xyz/api",
     "zksync": "https://safe-transaction-zksync.safe.global/api"
   },
   "nativeAddress": {
@@ -113,6 +120,7 @@
     "fuse": "0x0000000000000000000000000000000000000000",
     "gnosis": "0x0000000000000000000000000000000000000000",
     "gravity": "0x0000000000000000000000000000000000000000",
+    "immutablezkevm": "0x0000000000000000000000000000000000000000",
     "linea": "0x0000000000000000000000000000000000000000",
     "mantle": "0x0000000000000000000000000000000000000000",
     "metis": "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000",
@@ -125,6 +133,13 @@
     "rootstock": "0x0000000000000000000000000000000000000000",
     "scroll": "0x0000000000000000000000000000000000000000",
     "sei": "0x0000000000000000000000000000000000000000",
+    "taiko": "0x0000000000000000000000000000000000000000",
     "zksync": "0x0000000000000000000000000000000000000000"
-  }
+  },
+  "autoWhitelistPeripheryContracts": [
+    "FeeCollector",
+    "LiFuelFeeCollector",
+    "TokenWrapper",
+    "LiFiDEXAggregator"
+  ]
 }

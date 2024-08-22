@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-
+/// @custom:version 1.0.0
 pragma solidity =0.8.17;
 
 // This library was taken from: https://github.com/LayerZero-Labs/LayerZero-v2/tree/38278c8d8f4606d0ce247d6edd473fc96674769b/packages/layerzero-v2/evm/oapp/contracts/oft/libs

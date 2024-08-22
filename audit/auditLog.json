@@ -1,29 +1,16 @@
 {
-  "ContractName": {
-    "1.0.0": [
-      {
-        "auditCompletedOn": "01.01.2023",
-        "auditedBy": "Spearbit",
-        "auditorGitHandle": "0xDEnYO",
-        "auditReportPath": "./audit/reports/xxxxxx.pdf",
-        "auditCommitHash": "fcbe2cb98b23304f3ac54636bbf122d03ad8c533"
-      },
-      {
-        "auditCompletedOn": "05.01.2024",
-        "auditedBy": "Individual Security Researcher",
-        "auditorGitHandle": "someHandle",
-        "auditReportPath": "./audit/reports/yyyyyy.pdf",
-        "auditCommitHash": "bbdbf0be93e57bf31ba23f26a0cc65bad395e137"
-      }
-    ],
-    "1.0.6": [
-      {
-        "auditCompletedOn": "01.01.2024",
-        "auditedBy": "testPerson",
-        "auditorGitHandle": "0xDEnYO",
-        "auditReportPath": "./audit/reports/xxxxxx.pdf",
-        "auditCommitHash": "notAValidCommitHash"
-      }
-    ]
+  "audits": {
+    "audit20240814": {
+      "auditCompletedOn": "14.08.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.08.14_StargateFacetV2_ReAudit.pdf",
+      "auditCommitHash": "d622002440317580b5d0fb90ef22b839d84957e2"
+    }
+  },
+  "auditedContracts": {
+    "StargateFacetV2": {
+      "1.0.1": ["audit20240814"]
+    }
   }
 }
