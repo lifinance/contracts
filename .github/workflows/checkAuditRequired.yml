@@ -26,6 +26,15 @@ jobs:
         with:
           fetch-depth: 0 ##### Fetch all history for all branches
 
+      - name: Remove existing 'AuditRequired' and 'AuditNotRequired' labels
+        uses: actions-ecosystem/action-remove-labels@v1
+        with:
+          github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          labels: |
+            AuditRequired
+            AuditNotRequired
+          number: ${{ github.event.pull_request.number }}
+
       - name: Check Git Diff for protected contracts
         id: check_eligibility
         run: |
@@ -53,8 +62,9 @@ jobs:
 
           ##### if none found, exit here as there is nothing to do
           if [[ -z "$PROTECTED_CONTRACTS" ]]; then
-            echo -e "\033[31mNo protected contracts found in files modified/added by this PR.\033[0m"
-            echo -e "\033[31mNo further checks are required.\033[0m"
+            echo -e "\033[32mNo protected contracts found in files modified/added by this PR.\033[0m"
+            echo -e "\033[32mNo further checks are required.\033[0m"
+            echo -e "\033[32mAssigning label 'AuditNotRequired' to this PR.\033[0m"
             # set action output to false
             echo "CONTINUE=false" >> $GITHUB_ENV
             echo "CONTINUE=false" >> $GITHUB_ENV
@@ -76,3 +86,16 @@ jobs:
           github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the git action user so the label protection check will pass
           labels: ${{ env.CONTINUE == 'true' && 'AuditRequired' || 'AuditNotRequired' }} # if the action made it until here and CONTINUE was true then all checks passed. It CONTINUE was false then no audit is required
           number: ${{ github.event.pull_request.number }}
+
+      - name: Verify label assignments (make sure exactly one of the two labels is assigned)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name')
+          audit_required_assigned=$(echo "$assigned_labels" | grep -c "AuditRequired")
+          audit_not_required_assigned=$(echo "$assigned_labels" | grep -c "AuditNotRequired")
+          total_labels_assigned=$((audit_required_assigned + audit_not_required_assigned))
+          if [[ "$total_labels_assigned" -ne 1 ]]; then
+            echo "Error: Exactly one label should be assigned. Found $total_labels_assigned labels."
+            exit 1
+          fi
