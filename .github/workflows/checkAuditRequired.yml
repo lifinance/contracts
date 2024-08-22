@@ -12,6 +12,7 @@ name: Audit Check
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
   check-audit:
