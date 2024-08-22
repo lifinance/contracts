@@ -135,11 +135,5 @@
     "sei": "0x0000000000000000000000000000000000000000",
     "taiko": "0x0000000000000000000000000000000000000000",
     "zksync": "0x0000000000000000000000000000000000000000"
-  },
-  "autoWhitelistPeripheryContracts": [
-    "FeeCollector",
-    "LiFuelFeeCollector",
-    "TokenWrapper",
-    "LiFiDEXAggregator"
-  ]
+  }
 }
