@@ -1,21 +1,17 @@
 # Audit Requirement Checker
-# - checks if an audit is required
-#
-# An audit is required if any .sol file in path 'src/' has been modified or added
-#
-# If an audit is required, the action will assign the label "AuditRequired", otherwise it will assign label "AuditNotRequired"
+# - checks if an audit is required for a given PR
+# - an audit is required if any .sol file in path 'src/' has been modified or added
+# - if audit is required, the action will assign the label "AuditRequired", otherwise it will assign label "AuditNotRequired"
+# - it will also make sure that at the end, exactly one of these two labels is indeed assigned
 
-# KNOWN LIMITATIONS
-# - will only check the last 100 commits for any matches with audit commit hashes
-
-name: Audit Check
+name: Audit Requirement Check
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
 jobs:
-  check-audit:
+  check-audit-required:
     if: ${{ github.event.pull_request.draft == false }} # will only run once the PR is in "Ready for Review" state
     runs-on: ubuntu-latest
     permissions:
