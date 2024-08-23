@@ -101,6 +101,7 @@ jobs:
 
           # Loop through assigned labels and count occurrences of the specific labels
           for label in $assigned_labels; do
+            echo "Checking label: $label" # Debugging output for each label
             if [[ "$label" == "AuditRequired" ]]; then
               ((audit_required_assigned++))
             elif [[ "$label" == "AuditNotRequired" ]]; then
