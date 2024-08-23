@@ -86,7 +86,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
 
-
+          set +e  # Disable automatic exit on error
           set -x  # Enable debug mode
 
           echo "Fetching currently assigned labels..."
