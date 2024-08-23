@@ -26,7 +26,8 @@ jobs:
           fi
           echo "CONTINUE=true" >> $GITHUB_ENV
           echo "This action was triggered by: ${{ github.actor }}"
-          echo "Event details: ${{ toJson(github.event) }}"
+          echo "Event details:"
+          cat $GITHUB_EVENT_PATH | jq '.'
 
       - name: Protect Audit Labels
         if: env.CONTINUE == 'true'

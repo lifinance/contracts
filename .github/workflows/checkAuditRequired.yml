@@ -93,6 +93,7 @@ jobs:
           audit_required_assigned=0
           audit_not_required_assigned=0
 
+          ##### go through all assigned labels and count how many protected labels are found
           for label in $assigned_labels; do
             if [ "$label" = "AuditRequired" ]; then
               audit_required_assigned=$((audit_required_assigned + 1))
@@ -101,12 +102,10 @@ jobs:
             fi
           done
 
-          echo "AuditRequired assigned: $audit_required_assigned (0 = false, 1 = true)"
-          echo "AuditNotRequired assigned: $audit_not_required_assigned  (0 = false, 1 = true)"
-
           total_labels_assigned=$((audit_required_assigned + audit_not_required_assigned))
           echo "Total labels assigned: $total_labels_assigned"
 
+          ##### make sure that exactly (only) one protected label is assigned
           if [ "$total_labels_assigned" -ne 1 ]; then
             echo -e "\033[31mError: Exactly one of the two labels should be assigned but found $total_labels_assigned assigned labels.\033[0m"
             exit 1
