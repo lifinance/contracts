@@ -20,7 +20,7 @@ jobs:
 
       - name: Get 'Auditors' Team Members
         env:
-          GH_PAT: ${{ secrets.GIT_TOKEN}}
+          GH_PAT: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC}}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
 
@@ -46,7 +46,7 @@ jobs:
           echo "Fetching members of $TEAM_SLUG..."
           MEMBERS=$(getTeamMembers $ORG_NAME $TEAM_SLUG)
 
-          #### check if any members were returned
+          ##### check if any members were returned
           if [[ -z $MEMBERS ]]; then
             echo -e "\033[31mERROR: Could not retrieve team members of group $TEAM_SLUG\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
@@ -59,28 +59,51 @@ jobs:
           echo -e "$MEMBERS" > members.txt
           echo "CONTINUE=true" >> $GITHUB_ENV
 
-      - name: Verify protected folder changes
+      - name: Extract Auditor Git Handles from Modified JSON
         if: env.CONTINUE == 'true'
         run: |
+          ##### Extract the diff for the audit log file and filter only added lines with auditorGitHandle
+          MODIFIED_HANDLES=$(git diff origin/main HEAD -- audit/audit_log.json | grep -oP '(?<=^\+.*"auditorGitHandle": ")[^"]+')
 
-
-          echo "Files have been modified in folder 'audit/**' which is a protected folder."
-          echo "Only members of the group 'auditors' are allowed to make changes in this folder."
-          echo "Now checking if user '${{ github.actor }}' is a member of the auditors group"
-          echo "FYI: https://github.com/orgs/lifinance/teams/auditors"
-
-          ##### load list auditors team members
-          AUDITORS=$(cat members.txt)
-
-          #### check if user that submitted the change is indeed part of the auditors group
-          if echo "$AUDITORS" | grep -wq "${{ github.actor }}"; then
-            echo -e "\033[32mUser ${{ github.actor }} is an auditor and allowed to update the audit folder.\033[0m"
-            echo -e "\033[32mCheck passed.\033[0m"
-            exit 0
-          else
-            echo -e "\033[31mUser ${{ github.actor }} is not an auditor and is not allowed to update the audit folder.\033[0m"
-            echo -e "\033[31mPlease ask an auditor for support:\033[0m"
-            echo -e "\033[31mhttps://github.com/orgs/lifinance/teams/auditors\033[0m"
-            echo -e "\033[31mCheck failed.\033[0m"
+          ##### check if any handles were returned
+          if [[ -z $MODIFIED_HANDLES ]]; then
+            echo -e "\033[31mERROR: No auditor handles found in the modified parts of the JSON file.\033[0m"
             exit 1
           fi
+
+          echo "Modified Auditor Git Handles: $MODIFIED_HANDLES"
+          echo "$MODIFIED_HANDLES" > modified_auditor_handles.txt
+
+      - name: Verify Pull Request Approvals
+        if: env.CONTINUE == 'true'
+        env:
+          GH_PAT: ${{ secrets.GIT_TOKEN }}
+        run: |
+
+          ##### unset the default git token
+          unset GITHUB_TOKEN
+          ##### use the Personal Access Token to log into git CLI
+          echo $GH_PAT | gh auth login --with-token
+
+          ##### Get the pull request number
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          ##### Fetch approved handles from the pull request
+          APPROVED_HANDLES=$(gh pr view $PR_NUMBER --json reviews --jq '.reviews | map(select(.state == "APPROVED")) | .[].user.login' | sort | uniq)
+
+          ##### Check if there are any approvals
+          if [[ -z $APPROVED_HANDLES ]]; then
+            echo -e "\033[31mERROR: No approvals found on the pull request.\033[0m"
+            exit 1
+          fi
+
+          echo "Approved by: $APPROVED_HANDLES"
+
+          ##### Verify each modified auditor handle has an approval
+          for handle in $(cat modified_auditor_handles.txt); do
+            if ! echo "$APPROVED_HANDLES" | grep -qw "$handle"; then
+              echo -e "\033[31mERROR: Auditor $handle has not approved this pull request.\033[0m"
+              exit 1
+            fi
+          done
+
+          echo -e "\033[32mAll necessary auditors have approved the pull request. Check passed.\033[0m"
