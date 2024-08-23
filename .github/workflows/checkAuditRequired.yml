@@ -85,7 +85,7 @@ jobs:
 
       - name: Verify label assignments (make sure exactly one of the two labels is assigned)
         env:
-          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_FINE_GRAINED }}
         run: |
 
           set -x  # Enable debug mode
