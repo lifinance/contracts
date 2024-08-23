@@ -122,3 +122,4 @@ jobs:
           else
             echo -e "\033[32mVerified that exactly one label is assigned.\033[0m"
             echo -e "\033[32mAll good :)\033[0m"
+          fi
