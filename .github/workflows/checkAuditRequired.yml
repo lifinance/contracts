@@ -91,6 +91,8 @@ jobs:
           echo "A"
           ##### get all labels that are assigned to this PR
           assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name')
+          echo "Assigned labels: $assigned_labels" # Debugging output
+
           echo "B"
           ##### check if 'AuditRequired' is assigned
           audit_required_assigned=$(echo "$assigned_labels" | grep -c "AuditRequired")
