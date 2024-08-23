@@ -42,7 +42,6 @@ jobs:
           if [[ -z $FILES ]]; then
             echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
-            exit 1
           fi
 
           ##### Initialize empty variables
@@ -58,16 +57,14 @@ jobs:
 
           ##### if none found, exit here as there is nothing to do
           if [[ -z "$PROTECTED_CONTRACTS" ]]; then
-            echo -e "\033[32mNo protected contracts found in files modified/added by this PR.\033[0m"
-            echo -e "\033[32mNo further checks are required.\033[0m"
+            echo -e "\033[32mNo protected contracts found in Git Diff.\033[0m"
             echo -e "\033[32mAssigning label 'AuditNotRequired' to this PR.\033[0m"
-            # set action output to false
-            echo "CONTINUE=false" >> $GITHUB_ENV
-            echo "CONTINUE=false" >> $GITHUB_ENV
+            echo "AUDIT_REQUIRED=false" >> $GITHUB_ENV
             exit 0
           else
-            ##### set action output to true
-            echo "CONTINUE=true" >> $GITHUB_ENV
+            echo -e "\033[31mProtected contracts found in Git Diff.\033[0m"
+            echo -e "\033[31mAssigning label 'AuditRequired' to this PR.\033[0m"
+            echo "AUDIT_REQUIRED=true" >> $GITHUB_ENV
           fi
 
           echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
@@ -80,7 +77,7 @@ jobs:
         id: assign_label
         with:
           github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the git action user so the label protection check will pass
-          labels: ${{ env.CONTINUE == 'true' && 'AuditRequired' || 'AuditNotRequired' }} # if the action made it until here and CONTINUE was true then all checks passed. It CONTINUE was false then no audit is required
+          labels: ${{ env.AUDIT_REQUIRED == 'true' && 'AuditRequired' || 'AuditNotRequired' }} # if the action made it until here and CONTINUE was true then all checks passed. It CONTINUE was false then no audit is required
           number: ${{ github.event.pull_request.number }}
 
       - name: Verify label assignments (make sure exactly one of the two labels is assigned)
@@ -88,18 +85,33 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
 
-          ##### get all labels that are assigned to this PR
-          assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name')
-          ##### check if 'AuditRequired' is assigned
-          audit_required_assigned=$(echo "$assigned_labels" | grep -c "AuditRequired")
-          ##### check if 'AuditNotRequired' is assigned
-          audit_not_required_assigned=$(echo "$assigned_labels" | grep -c "AuditNotRequired")
-          ##### make sure that exactly one of the two labels is assigned
+          echo "Fetching currently assigned labels..."
+          assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels | map(.name) | .[]')
+
+          echo "Assigned labels: $assigned_labels"
+
+          audit_required_assigned=0
+          audit_not_required_assigned=0
+
+          ##### go through all assigned labels and count how many protected labels are found
+          for label in $assigned_labels; do
+            if [ "$label" = "AuditRequired" ]; then
+              audit_required_assigned=$((audit_required_assigned + 1))
+            elif [ "$label" = "AuditNotRequired" ]; then
+              audit_not_required_assigned=$((audit_not_required_assigned + 1))
+            fi
+          done
+
           total_labels_assigned=$((audit_required_assigned + audit_not_required_assigned))
-          if [[ "$total_labels_assigned" -ne 1 ]]; then
+          echo "Total labels assigned: $total_labels_assigned"
+
+          ##### make sure that exactly (only) one protected label is assigned
+          if [ "$total_labels_assigned" -ne 1 ]; then
             echo -e "\033[31mError: Exactly one of the two labels should be assigned but found $total_labels_assigned assigned labels.\033[0m"
             exit 1
           else
             echo -e "\033[32mVerified that exactly one label is assigned.\033[0m"
             echo -e "\033[32mAll good :)\033[0m"
           fi
+
+          echo -e  "\033[31mGit Action completed successfully\033[0m"
