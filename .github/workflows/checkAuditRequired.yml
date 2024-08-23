@@ -58,16 +58,14 @@ jobs:
 
           ##### if none found, exit here as there is nothing to do
           if [[ -z "$PROTECTED_CONTRACTS" ]]; then
-            echo -e "\033[32mNo protected contracts found in files modified/added by this PR.\033[0m"
-            echo -e "\033[32mNo further checks are required.\033[0m"
+            echo -e "\033[32mNo protected contracts found in Git Diff.\033[0m"
             echo -e "\033[32mAssigning label 'AuditNotRequired' to this PR.\033[0m"
-            # set action output to false
-            echo "CONTINUE=false" >> $GITHUB_ENV
-            echo "CONTINUE=false" >> $GITHUB_ENV
+            echo "AUDIT_REQUIRED=false" >> $GITHUB_ENV
             exit 0
           else
-            ##### set action output to true
-            echo "CONTINUE=true" >> $GITHUB_ENV
+            echo -e "\033[31mProtected contracts found in Git Diff.\033[0m"
+            echo -e "\033[31mAssigning label 'AuditRequired' to this PR.\033[0m"
+            echo "AUDIT_REQUIRED=true" >> $GITHUB_ENV
           fi
 
           echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
@@ -80,12 +78,12 @@ jobs:
         id: assign_label
         with:
           github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the git action user so the label protection check will pass
-          labels: ${{ env.CONTINUE == 'true' && 'AuditRequired' || 'AuditNotRequired' }} # if the action made it until here and CONTINUE was true then all checks passed. It CONTINUE was false then no audit is required
+          labels: ${{ env.AUDIT_REQUIRED == 'true' && 'AuditRequired' || 'AuditNotRequired' }} # if the action made it until here and CONTINUE was true then all checks passed. It CONTINUE was false then no audit is required
           number: ${{ github.event.pull_request.number }}
 
       - name: Verify label assignments (make sure exactly one of the two labels is assigned)
         env:
-          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
 
           set -x  # Enable debug mode
