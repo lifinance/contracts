@@ -19,6 +19,8 @@ jobs:
 
       - name: Check for authorized actor
         run: |
+
+
           if [[ "${{ github.actor }}" == "lifi-action-bot" ]]; then
             echo -e "\033[32mAction triggered by lifi-action-bot. No further checks required.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
@@ -26,8 +28,8 @@ jobs:
           fi
           echo "CONTINUE=true" >> $GITHUB_ENV
           echo "This action was triggered by: ${{ github.actor }}"
-          echo "Event details:"
-          cat $GITHUB_EVENT_PATH | jq '.'
+          # echo "Event details:"
+          # cat $GITHUB_EVENT_PATH | jq '.'
 
       - name: Protect Audit Labels
         if: env.CONTINUE == 'true'
