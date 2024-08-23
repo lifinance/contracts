@@ -1,14 +1,12 @@
-# - Audit Folder Protection
+# Audit Folder Protection
 # - makes sure that only members of team 'auditors' can make changes to 'audit/' folder
 #   https://github.com/orgs/lifinance/teams/auditors
 
 name: Audit Folder Protection
 
 on:
-  push:
-    paths:
-      - 'audit/**'
   pull_request:
+    types: [opened, synchronize, reopened]
     paths:
       - 'audit/**'
 
@@ -22,7 +20,7 @@ jobs:
 
       - name: Get 'Auditors' Team Members
         env:
-          GH_PAT: ${{ secrets.GIT_TOKEN }}
+          GH_PAT: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
 
@@ -44,7 +42,7 @@ jobs:
           ORG_NAME="lifinance"
           TEAM_SLUG="auditors"
 
-          # Get members of each group
+          ##### Get members of each group
           echo "Fetching members of $TEAM_SLUG..."
           MEMBERS=$(getTeamMembers $ORG_NAME $TEAM_SLUG)
 
@@ -71,7 +69,7 @@ jobs:
           echo "Now checking if user '${{ github.actor }}' is a member of the auditors group"
           echo "FYI: https://github.com/orgs/lifinance/teams/auditors"
 
-          # load list auditors team members
+          ##### load list auditors team members
           AUDITORS=$(cat members.txt)
 
           #### check if user that submitted the change is indeed part of the auditors group
