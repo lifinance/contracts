@@ -90,27 +90,19 @@ jobs:
 
           echo "Assigned labels: $assigned_labels"
 
-          echo "Initializing counters..."
           audit_required_assigned=0
           audit_not_required_assigned=0
 
-          echo "Starting loop..."
           for label in $assigned_labels; do
-            echo "Checking label: $label"
             if [ "$label" = "AuditRequired" ]; then
-              echo "Incrementing AuditRequired counter"
               audit_required_assigned=$((audit_required_assigned + 1))
-              echo "New value of audit_required_assigned: $audit_required_assigned"
             elif [ "$label" = "AuditNotRequired" ]; then
-              echo "Incrementing AuditNotRequired counter"
               audit_not_required_assigned=$((audit_not_required_assigned + 1))
-              echo "New value of audit_not_required_assigned: $audit_not_required_assigned"
             fi
-            echo "Current counters: AuditRequired=$audit_required_assigned, AuditNotRequired=$audit_not_required_assigned"
           done
 
-          echo "AuditRequired assigned: $audit_required_assigned"
-          echo "AuditNotRequired assigned: $audit_not_required_assigned"
+          echo "AuditRequired assigned: $audit_required_assigned (0 = false, 1 = true)"
+          echo "AuditNotRequired assigned: $audit_not_required_assigned  (0 = false, 1 = true)"
 
           total_labels_assigned=$((audit_required_assigned + audit_not_required_assigned))
           echo "Total labels assigned: $total_labels_assigned"
@@ -123,4 +115,4 @@ jobs:
             echo -e "\033[32mAll good :)\033[0m"
           fi
 
-          echo "Script completed successfully"
+          echo -e  "\033[31mGit Action completed successfully\033[0m"
