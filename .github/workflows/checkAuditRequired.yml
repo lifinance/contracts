@@ -88,6 +88,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
 
+          set -x  # Enable debug mode
+
           echo "A"
           ##### get all labels that are assigned to this PR
           assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name')
