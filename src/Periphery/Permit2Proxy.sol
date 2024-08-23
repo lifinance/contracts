@@ -1,29 +1,42 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { ISignatureTransfer } from "../Interfaces/ISignatureTransfer.sol";
+import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Permit2Proxy {
-    ISignatureTransfer immutable PERMIT2 =
-        ISignatureTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+    /// Storage ///
 
-    error CallToDiamondFailed(bytes);
+    ISignatureTransfer public immutable PERMIT2;
 
-    // LIFI Specific Witness to verify
+    string public constant WITNESS_TYPE_STRING =
+        "LIFICall witness)LIFICall(address tokenReceiver,address diamondAddress,bytes32 diamondCalldataHash)TokenPermissions(address token,uint256 amount)";
+    bytes32 public constant WITNESS_TYPEHASH =
+        keccak256(
+            "LIFICall(address tokenReceiver,address diamondAddress,bytes32 diamondCalldataHash)"
+        );
+
+    /// Types ///
+
+    // @dev LIFI Specific Witness to verify
     struct LIFICall {
         address tokenReceiver;
         address diamondAddress;
         bytes32 diamondCalldataHash;
     }
 
-    string private constant WITNESS_TYPE_STRING =
-        "LIFICall witness)TokenPermissions(address token,uint256 amount)LIFICall(address tokenReceiver,address diamondAddress,bytes32 diamondCalldataHash)";
-    bytes32 private WITNESS_TYPEHASH =
-        keccak256(
-            "LIFICall(address tokenReceiver,address diamondAddress,bytes32 diamondCalldataHash)"
-        );
+    /// Errors ///
+
+    error CallToDiamondFailed(bytes);
+
+    /// Constructor ///
+
+    constructor(ISignatureTransfer _permit2) {
+        PERMIT2 = _permit2;
+    }
+
+    /// External Functions ///
 
     function maxApproveERC20(
         IERC20 assetId,
@@ -47,16 +60,23 @@ contract Permit2Proxy {
     function diamondCallSingle(
         address _tokenReceiver,
         address _diamondAddress,
-        bytes32 _diamondCalldataHash,
         bytes calldata _diamondCalldata,
         address _owner,
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata _signature
     ) external payable {
-        bytes32 witnessHash = keccak256(
+        LIFICall memory lifiCall = LIFICall(
+            _tokenReceiver,
+            _diamondAddress,
+            keccak256(_diamondCalldata)
+        );
+
+        bytes32 witness = keccak256(
             abi.encode(
                 WITNESS_TYPEHASH,
-                LIFICall(_tokenReceiver, _diamondAddress, _diamondCalldataHash)
+                lifiCall.tokenReceiver,
+                lifiCall.diamondAddress,
+                lifiCall.diamondCalldataHash
             )
         );
 
@@ -67,7 +87,7 @@ contract Permit2Proxy {
                 requestedAmount: _permit.permitted.amount
             }),
             _owner,
-            witnessHash,
+            witness,
             WITNESS_TYPE_STRING,
             _signature
         );
