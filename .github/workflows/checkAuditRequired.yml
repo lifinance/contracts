@@ -104,10 +104,14 @@ jobs:
           ##### check if 'AuditNotRequired' is assigned
           echo "$assigned_labels"
           echo "C1"
-          echo "$(echo "$assigned_labels" | grep -c "AuditNotRequired")"
+          echo "$(echo "AuditRequired" | grep -c "AuditNotRequired")"
           echo "C2"
-          #audit_not_required_assigned=$(echo "$assigned_labels" | grep -c "AuditNotRequired")
+          echo "$(echo "$assigned_labels" | grep -c "AuditNotRequired")"
+          echo "C3"
           audit_not_required_assigned=0
+          echo "C4"
+          audit_not_required_assigned=$(echo "$assigned_labels" | grep -c "AuditNotRequired")
+          echo "C5"
           echo "AuditNotRequired assigned: $audit_not_required_assigned" # Debugging output
 
           echo "D"
