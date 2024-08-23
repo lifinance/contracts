@@ -85,9 +85,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
 
-          set +e  # Disable automatic exit on error
-          set -x  # Enable debug mode
-
           echo "Fetching currently assigned labels..."
           # Fetch all labels assigned to this PR and store them in a variable
           assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels | map(.name) | .[]')
@@ -107,9 +104,6 @@ jobs:
               ((audit_not_required_assigned++))
             fi
           done
-
-          echo "AuditRequired assigned: $audit_required_assigned"
-          echo "AuditNotRequired assigned: $audit_not_required_assigned"
 
           # Calculate total labels assigned that are of interest
           total_labels_assigned=$((audit_required_assigned + audit_not_required_assigned))
