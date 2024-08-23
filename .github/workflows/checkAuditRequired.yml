@@ -89,7 +89,12 @@ jobs:
 
           echo "Fetching currently assigned labels..."
           # Fetch all labels assigned to this PR and store them in a variable
-          assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels | map(.name) | .[]')
+          assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels | map(.name) | .[]') || true
+
+          if [ -z "$assigned_labels" ]; then
+            echo "No labels found or error occurred while fetching labels."
+            exit 1
+          fi
 
           echo "Assigned labels: $assigned_labels" # Debugging output
 
