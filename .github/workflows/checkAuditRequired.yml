@@ -42,7 +42,6 @@ jobs:
           if [[ -z $FILES ]]; then
             echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
-            exit 1
           fi
 
           ##### Initialize empty variables
