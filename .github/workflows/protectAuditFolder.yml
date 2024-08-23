@@ -29,6 +29,8 @@ jobs:
           ##### use the Personal Access Token to log into git CLI
           echo $GH_PAT | gh auth login --with-token
 
+          gh auth refresh -h github.com -s admin:org
+
           ##### Function that uses github's REST API via CLI to get team members
           getTeamMembers() {
             local org=$1
