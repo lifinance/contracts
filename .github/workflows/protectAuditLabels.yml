@@ -19,7 +19,9 @@ jobs:
 
       - name: Check for authorized actor
         run: |
-          # Only allow the specific bot to manipulate audit labels
+
+
+          ##### Only allow the specific bot to manipulate audit labels
           if [[ "${{ github.actor }}" == "lifi-action-bot" ]]; then
             echo -e "\033[32mAction triggered by lifi-action-bot. No further checks required.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
@@ -27,41 +29,40 @@ jobs:
           fi
           echo "CONTINUE=true" >> $GITHUB_ENV
           echo "This action was triggered by: ${{ github.actor }}"
-          # Uncomment below to log detailed event JSON
-          # echo "Event details:"
-          # cat $GITHUB_EVENT_PATH | jq '.'
 
       - name: Protect Audit Labels
         if: env.CONTINUE == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
-          # Define the labels to protect
+
+
+          ##### Define the labels to protect
           PROTECTED_LABELS=("AuditCompleted" "AuditRequired" "AuditNotRequired")
           TARGET_LABEL="${{ github.event.label.name }}"
           EVENT_ACTION="${{ github.event.action }}"
           PR_NUMBER="${{ github.event.pull_request.number }}"
 
-          # Fetch the current labels before action (to restore if needed)
+          ##### Fetch the current labels before action (to restore if needed)
           CURRENT_LABELS=$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name' | tr '\n' ' ')
           echo "Current labels before processing: $CURRENT_LABELS"
           echo "Event type: $EVENT_ACTION, Target label: $TARGET_LABEL"
 
-          # Check if the event involves a protected label
+          ##### Check if the event involves a protected label
           if [[ " ${PROTECTED_LABELS[*]} " =~ " $TARGET_LABEL " ]]; then
             echo -e "\033[31mUnauthorized modification of a protected label by ${{ github.actor }}. Reverting changes...\033[0m"
-            # Revert to the previous state of labels
+            ##### Revert to the previous state of labels
             if [[ "$EVENT_ACTION" == "unlabeled" ]]; then
               gh pr edit $PR_NUMBER --add-label "$TARGET_LABEL"
             elif [[ "$EVENT_ACTION" == "labeled" ]]; then
               gh pr edit $PR_NUMBER --remove-label "$TARGET_LABEL"
             fi
 
-            # Validate if the revert was successful
+            ##### Validate if the revert was successful
             NEW_LABELS=$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name' | tr '\n' ' ')
             echo "Labels after attempted revert: $NEW_LABELS"
 
-            # Check if revert was successful
+            ##### Check if revert was successful
             if [[ "$EVENT_ACTION" == "unlabeled" && ! " $NEW_LABELS " =~ " $TARGET_LABEL " ]]; then
               echo -e "\033[31mFailed to restore the '$TARGET_LABEL' label.\033[0m"
               exit 1
