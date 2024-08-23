@@ -1,0 +1,73 @@
+# Protect Audit Labels
+# - Makes sure that the following labels can only be assigned by a GitHub Action: "AuditCompleted", "AuditRequired", and "AuditNotRequired"
+# - Will undo any unauthorized change of these labels
+# - Will fail if it runs into an error, otherwise pass
+
+name: Protect Audit Labels
+
+on:
+  pull_request:
+    types: [labeled, unlabeled]
+
+jobs:
+  protect_audit_labels:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check for authorized actor
+        run: |
+          if [[ "${{ github.actor }}" == "lifi-action-bot" ]]; then
+            echo -e "\033[32mAction triggered by lifi-action-bot. No further checks required.\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 0
+          fi
+          echo "CONTINUE=true" >> $GITHUB_ENV
+          echo "This action was triggered by: ${{ github.actor }}"
+          echo "Event details: ${{ toJson(github.event) }}"
+
+      - name: Protect Audit Labels
+        if: env.CONTINUE == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+
+
+          # Define the labels to protect
+          PROTECTED_LABELS=("AuditCompleted" "AuditRequired" "AuditNotRequired")
+          TARGET_LABEL="${{ github.event.label.name }}"
+
+          # Fetch the current labels before action (to restore if needed)
+          PREVIOUS_LABELS=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name')
+
+          # Check if the event involves a protected label
+          if [[ " ${PROTECTED_LABELS[@]} " =~ " ${TARGET_LABEL} " ]]; then
+            echo -e "\033[31mUnauthorized modification of a protected label by ${{ github.actor }}. Reverting changes...\033[0m"
+
+            # Revert to the previous state of labels
+            for LABEL in "${PROTECTED_LABELS[@]}"; do
+              if [[ "$PREVIOUS_LABELS" == *"$LABEL"* && "${{ github.event.action }}" == "unlabeled" ]]; then
+                gh pr edit ${{ github.event.pull_request.number }} --add-label "$LABEL"
+              elif [[ "$PREVIOUS_LABELS" != *"$LABEL"* && "${{ github.event.action }}" == "labeled" ]]; then
+                gh pr edit ${{ github.event.pull_request.number }} --remove-label "$LABEL"
+              fi
+            done
+
+            # Validate if the revert was successful
+            CURRENT_LABELS=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name')
+            for LABEL in "${PROTECTED_LABELS[@]}"; do
+              if [[ "$PREVIOUS_LABELS" == *"$LABEL"* && "$CURRENT_LABELS" != *"$LABEL"* ]]; then
+                echo -e "\033[31mFailed to restore the '$LABEL' label.\033[0m"
+                exit 1
+              elif [[ "$PREVIOUS_LABELS" != *"$LABEL"* && "$CURRENT_LABELS" == *"$LABEL"* ]]; then
+                echo -e "\033[31mFailed to remove the unauthorized '$LABEL' label.\033[0m"
+                exit 1
+              fi
+            done
+
+            echo -e "\033[32mUnauthorized label modification was successfully prevented and undone.\033[0m"
+          else
+            echo -e "\033[32mNo protected labels were modified.\033[0m"
+          fi
