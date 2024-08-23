@@ -86,7 +86,7 @@ jobs:
         run: |
 
           ##### get all labels that are assigned to this PR
-          assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name')
+          assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | tr ' ' '\n')
           echo "Assigned labels: $assigned_labels" # Debugging output
 
           echo "B"
