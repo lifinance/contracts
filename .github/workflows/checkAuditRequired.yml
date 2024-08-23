@@ -85,30 +85,42 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
 
-          ##### get all labels that are assigned to this PR
-          assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | tr ' ' '\n')
-          echo "Assigned labels: $assigned_labels" # Debugging output
+          echo "Fetching currently assigned labels..."
+          assigned_labels=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels | map(.name) | .[]')
 
-          echo "B"
-          ##### check if 'AuditRequired' is assigned
-          audit_required_assigned=$(echo "$assigned_labels" | grep -c "AuditRequired")
-          echo "AuditRequired assigned: $audit_required_assigned" # Debugging output
+          echo "Assigned labels: $assigned_labels"
 
-          echo "C"
-          ##### check if 'AuditNotRequired' is assigned
-          audit_not_required_assigned=$(echo "$assigned_labels" | grep -c "AuditNotRequired")
-          echo "AuditNotRequired assigned: $audit_not_required_assigned" # Debugging output
+          echo "Initializing counters..."
+          audit_required_assigned=0
+          audit_not_required_assigned=0
 
-          echo "D"
-          ##### make sure that exactly one of the two labels is assigned
+          echo "Starting loop..."
+          for label in $assigned_labels; do
+            echo "Checking label: $label"
+            if [ "$label" = "AuditRequired" ]; then
+              echo "Incrementing AuditRequired counter"
+              audit_required_assigned=$((audit_required_assigned + 1))
+              echo "New value of audit_required_assigned: $audit_required_assigned"
+            elif [ "$label" = "AuditNotRequired" ]; then
+              echo "Incrementing AuditNotRequired counter"
+              audit_not_required_assigned=$((audit_not_required_assigned + 1))
+              echo "New value of audit_not_required_assigned: $audit_not_required_assigned"
+            fi
+            echo "Current counters: AuditRequired=$audit_required_assigned, AuditNotRequired=$audit_not_required_assigned"
+          done
+
+          echo "AuditRequired assigned: $audit_required_assigned"
+          echo "AuditNotRequired assigned: $audit_not_required_assigned"
+
           total_labels_assigned=$((audit_required_assigned + audit_not_required_assigned))
-          echo "Total labels assigned: $total_labels_assigned" # Debugging output
+          echo "Total labels assigned: $total_labels_assigned"
 
-          echo "E"
-          if [[ "$total_labels_assigned" -ne 1 ]]; then
+          if [ "$total_labels_assigned" -ne 1 ]; then
             echo -e "\033[31mError: Exactly one of the two labels should be assigned but found $total_labels_assigned assigned labels.\033[0m"
             exit 1
           else
             echo -e "\033[32mVerified that exactly one label is assigned.\033[0m"
             echo -e "\033[32mAll good :)\033[0m"
           fi
+
+          echo "Script completed successfully"
