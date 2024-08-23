@@ -85,8 +85,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
 
-          set +e  # Disable automatic exit on error
-          set -x  # Enable debug mode
+          #set +e  # Disable automatic exit on error (for some weird reason it doesnt work without this)
 
           echo "Fetching currently assigned labels..."
           # Fetch all labels assigned to this PR and store them in a variable
