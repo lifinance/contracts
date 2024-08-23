@@ -1,7 +1,7 @@
 {
   "audits": {
     "audit20240814": {
-      "auditCompletedOn": "14.08.2024",
+      "auditCompletedOn": "14.08.2021",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2024.08.14_StargateFacetV2_ReAudit.pdf",
