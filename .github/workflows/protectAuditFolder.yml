@@ -20,7 +20,7 @@ jobs:
 
       - name: Get 'Auditors' Team Members
         env:
-          GH_PAT: ${{ secrets.GIT_ACTIONS_BOT_PAT_FINE_GRAINED}}
+          GH_PAT: ${{ secrets.GIT_TOKEN}}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
 
