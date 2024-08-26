@@ -71,7 +71,7 @@ contract Permit2ProxyTest is TestBase {
         ) = _getPermitWitnessTransferFromParams();
 
         // Execute
-        permit2Proxy.callDiamondUsingPermit2Single(
+        permit2Proxy.callDiamondWithPermit2SignatureSingle(
             DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
@@ -91,7 +91,7 @@ contract Permit2ProxyTest is TestBase {
             ADDRESS_USDC,
             defaultUSDCAmount,
             0,
-            type(uint256).max
+            block.timestamp + 1000
         );
 
         assertEq(msgHash, generatedMsgHash);
@@ -111,7 +111,7 @@ contract Permit2ProxyTest is TestBase {
 
         // Execute
         vm.expectRevert(DiamondAddressNotWhitelisted.selector);
-        permit2Proxy.callDiamondUsingPermit2Single(
+        permit2Proxy.callDiamondWithPermit2SignatureSingle(
             DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
@@ -135,7 +135,7 @@ contract Permit2ProxyTest is TestBase {
         ) = _getPermitWitnessTransferFromParams();
 
         // Execute x2
-        permit2Proxy.callDiamondUsingPermit2Single(
+        permit2Proxy.callDiamondWithPermit2SignatureSingle(
             DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
@@ -143,7 +143,7 @@ contract Permit2ProxyTest is TestBase {
             signature
         );
         vm.expectRevert(InvalidNonce.selector);
-        permit2Proxy.callDiamondUsingPermit2Single(
+        permit2Proxy.callDiamondWithPermit2SignatureSingle(
             DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
@@ -170,7 +170,7 @@ contract Permit2ProxyTest is TestBase {
 
         // Execute
         vm.expectRevert(InvalidSigner.selector);
-        permit2Proxy.callDiamondUsingPermit2Single(
+        permit2Proxy.callDiamondWithPermit2SignatureSingle(
             MALICIOUS_CONTRACT,
             diamondCalldata,
             PERMIT2_USER,
@@ -195,7 +195,7 @@ contract Permit2ProxyTest is TestBase {
 
         // Execute
         vm.expectRevert(InvalidSigner.selector);
-        permit2Proxy.callDiamondUsingPermit2Single(
+        permit2Proxy.callDiamondWithPermit2SignatureSingle(
             DIAMOND_ADDRESS,
             MALICIOUS_CALLDATA,
             PERMIT2_USER,
@@ -220,7 +220,7 @@ contract Permit2ProxyTest is TestBase {
 
         // Execute
         vm.expectRevert(InvalidSigner.selector);
-        permit2Proxy.callDiamondUsingPermit2Single(
+        permit2Proxy.callDiamondWithPermit2SignatureSingle(
             DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
@@ -247,7 +247,7 @@ contract Permit2ProxyTest is TestBase {
 
         // Execute
         vm.expectRevert(InvalidSigner.selector);
-        permit2Proxy.callDiamondUsingPermit2Single(
+        permit2Proxy.callDiamondWithPermit2SignatureSingle(
             DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
@@ -290,7 +290,7 @@ contract Permit2ProxyTest is TestBase {
             permit,
             address(permit2Proxy),
             0,
-            type(uint256).max,
+            block.timestamp + 1000,
             witness
         );
 
@@ -299,7 +299,7 @@ contract Permit2ProxyTest is TestBase {
         permitTransferFrom = ISignatureTransfer.PermitTransferFrom(
             tokenPermissions,
             0,
-            type(uint256).max
+            block.timestamp + 1000
         );
     }
 

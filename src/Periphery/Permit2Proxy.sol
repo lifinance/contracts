@@ -7,6 +7,7 @@ import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 
 contract Permit2Proxy is TransferrableOwnership {
     /// Storage ///
@@ -57,6 +58,50 @@ contract Permit2Proxy is TransferrableOwnership {
 
     /// External Functions ///
 
+    /// @notice Allows to bridge tokens through a LI.FI diamond contract using an EIP2612 gasless permit
+    ///         (only works with tokenAddresses that implement EIP2612)
+    ///         (in contrast to Permit2, calldata and diamondAddress are not signed by the user and could therefore be replaced)
+    /// @param tokenAddress Address of the token to be bridged
+    /// @param owner Owner of the tokens to be bridged
+    /// @param amount Amount of tokens to be bridged
+    /// @param deadline Transaction must be completed before this timestamp
+    /// @param v User signature (recovery ID)
+    /// @param r User signature (ECDSA output)
+    /// @param s User signature (ECDSA output)
+    /// @param diamondAddress Address of the token to be bridged
+    /// @param diamondCalldata Address of the token to be bridged
+    function callDiamondWithEIP2612Signature(
+        address tokenAddress,
+        address owner,
+        uint256 amount,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s,
+        address diamondAddress,
+        bytes calldata diamondCalldata
+    ) public payable {
+        // call permit function of token contract to register approval using signature
+        ERC20Permit(tokenAddress).permit(
+            owner,
+            address(this),
+            amount,
+            deadline,
+            v,
+            r,
+            s
+        );
+
+        // deposit assets
+        LibAsset.transferFromERC20(tokenAddress, owner, address(this), amount);
+
+        // maxApprove token to diamond if current allowance is insufficient
+        LibAsset.maxApproveERC20(IERC20(tokenAddress), diamondAddress, amount);
+
+        // call our diamond to execute calldata
+        _executeCalldata(diamondAddress, diamondCalldata);
+    }
+
     /// @notice Forwards a call to a whitelisted LIFI diamond
     ///         pulling tokens from the user using Uniswap Permit2
     /// @param _diamondAddress the diamond contract to execute the call
@@ -64,7 +109,7 @@ contract Permit2Proxy is TransferrableOwnership {
     /// @param _signer the signer giving permission to transfer tokens
     /// @param _permit the Uniswap Permit2 parameters
     /// @param _signature the signature giving approval to transfer tokens
-    function callDiamondUsingPermit2Single(
+    function callDiamondWithPermit2SignatureSingle(
         address _diamondAddress,
         bytes calldata _diamondCalldata,
         address _signer,
