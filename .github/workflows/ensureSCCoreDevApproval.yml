@@ -10,6 +10,7 @@ on:
 
 jobs:
   core-dev-approval:
+    if: ${{ github.event.pull_request.draft == false }} # will only run once the PR is in "Ready for Review" state
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -57,68 +58,68 @@ jobs:
           echo "CONTINUE=true" >> "$GITHUB_ENV"
 
       - name: Check if PR is approved by at least one SC core dev
-          id: check-core-dev-approval
-          if: env.CONTINUE == 'true'
-          uses: actions/github-script@v7
-          env:
-            PR_NUMBER: ${{ github.event.number }}
-          with:
-            script: |
-              const fs = require('fs');
-              // ANSI escape codes for colors (used for colored output in Git action console)
-              const colors = {
-                reset: "\033[0m",
-                red: "\033[31m",
-                green: "\033[32m",
-              };
+        id: check-core-dev-approval
+        if: env.CONTINUE == 'true'
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+        with:
+          script: |
+            const fs = require('fs');
+            // ANSI escape codes for colors (used for colored output in Git action console)
+            const colors = {
+              reset: "\033[0m",
+              red: "\033[31m",
+              green: "\033[32m",
+            };
 
-              const coreDevsFile = 'sc_core_dev_members.txt';
-              // Read handles from file
-              const coreDevs = fs.readFileSync(coreDevsFile, 'utf-8').split(/\r?\n/).filter(Boolean);
+            const coreDevsFile = 'sc_core_dev_members.txt';
+            // Read handles from file
+            const coreDevs = fs.readFileSync(coreDevsFile, 'utf-8').split(/\r?\n/).filter(Boolean);
 
-              console.log(`coreDevs: ${coreDevs}`)
+            console.log(`coreDevs: ${coreDevs}`)
 
-              // get all reviewers that have approved this PR
-              const { data: reviews } = await github.rest.pulls.listReviews({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: process.env.PR_NUMBER,
-              });
+            // get all reviewers that have approved this PR
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: process.env.PR_NUMBER,
+            });
 
-              // make sure that reviews are available
-              if(!reviews) {
-                console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews yet?${colors.reset}`);
-                console.log(`${colors.red}Check failed.${colors.reset}`);
-                core.setFailed("Required approval is missing");
-                return
-              }
+            // make sure that reviews are available
+            if(!reviews) {
+              console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews yet?${colors.reset}`);
+              console.log(`${colors.red}Check failed.${colors.reset}`);
+              core.setFailed("Required approval is missing");
+              return
+            }
 
-              console.log(`found the following reviews: ${JSON.stringify(reviews)}`);
+            console.log(`found the following reviews: ${JSON.stringify(reviews)}`);
 
-              // Filter to only include reviews that have "APPROVED" status
-              const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
+            // Filter to only include reviews that have "APPROVED" status
+            const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
 
-              if(!approvedReviews) {
-                console.log(`${colors.red}Could not find any reviews with approval.${colors.reset}`);
-                console.log(`${colors.red}Cannot continue. Check failed.${colors.reset}`);
-                core.setFailed("Required approval is missing");
-                return
-              }
+            if(!approvedReviews) {
+              console.log(`${colors.red}Could not find any reviews with approval.${colors.reset}`);
+              console.log(`${colors.red}Cannot continue. Check failed.${colors.reset}`);
+              core.setFailed("Required approval is missing");
+              return
+            }
 
-              console.log(`found the following approved reviews: ${JSON.stringify(approvedReviews)}`);
+            console.log(`found the following approved reviews: ${JSON.stringify(approvedReviews)}`);
 
-              // extract the git login handles of all reviewers
-              const reviewerHandles = approvedReviews.map(review => review.user.login);
-              console.log(`${colors.green}This PR has been reviewed by the following git members: ${reviewerHandles}${colors.reset}`);
+            // extract the git login handles of all reviewers
+            const reviewerHandles = approvedReviews.map(review => review.user.login);
+            console.log(`${colors.green}This PR has been reviewed by the following git members: ${reviewerHandles}${colors.reset}`);
 
-              // check if at least one of these reviewers is member in smart-contract-core group
-              if (reviewerHandles.some((handle) => coreDevs.includes(handle))) {
-                console.log(`${colors.green}The current PR is approved by a member of the smart-contract-core group.${colors.reset}`);
-                console.log(`${colors.green}Check passed.${colors.reset}`);
-                core.setOutput('approved', 'true');
-                } else {
-                console.log(`${colors.red}The PR requires a missing approval by a member of the smart-contract-core group.${colors.reset}`);
-                console.log(`${colors.red}Find group members here: https://github.com/orgs/lifinance/teams/smart-contract-core.${colors.reset}`);
-                console.log(`${colors.red}Check failed.${colors.reset}`);
-                core.setFailed("Required approval is missing");
-              }
+            // check if at least one of these reviewers is member in smart-contract-core group
+            if (reviewerHandles.some((handle) => coreDevs.includes(handle))) {
+              console.log(`${colors.green}The current PR is approved by a member of the smart-contract-core group.${colors.reset}`);
+              console.log(`${colors.green}Check passed.${colors.reset}`);
+              core.setOutput('approved', 'true');
+              } else {
+              console.log(`${colors.red}The PR requires a missing approval by a member of the smart-contract-core group.${colors.reset}`);
+              console.log(`${colors.red}Find group members here: https://github.com/orgs/lifinance/teams/smart-contract-core.${colors.reset}`);
+              console.log(`${colors.red}Check failed.${colors.reset}`);
+              core.setFailed("Required approval is missing");
+            }
