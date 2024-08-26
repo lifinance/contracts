@@ -21802,16 +21802,6 @@
             "SALT": "",
             "VERIFIED": "true"
           }
-        ],
-        "1.0.1": [
-          {
-            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
-            "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-08-14 18:28:47",
-            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006ce9bf8cdab780416ad1fd87b318a077d2f50eac",
-            "SALT": "",
-            "VERIFIED": "true"
-          }
         ]
       }
     },
@@ -22403,6 +22393,22 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000100000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7",
             "SALT": "",
             "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "Permit2Proxy": {
+    "arbitrum": {
+      "staging": {
+        "\u001b[31m[error] '@custom:version' string not found in src/Periphery/Permit2Proxy.sol\u001b[0m": [
+          {
+            "ADDRESS": "0x442BBFD6a4641B2b710DFfa4754081eC7502a3F7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-26 18:34:52",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
+            "SALT": "09072024",
+            "VERIFIED": "true"
           }
         ]
       }

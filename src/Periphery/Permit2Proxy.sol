@@ -9,6 +9,11 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 
+/// @title Permit2Proxy
+/// @author LI.FI (https://li.fi)
+/// @notice Proxy contract allowing gasless (Permit2-enabled) calls to our
+///         diamond contract
+/// @custom:version 1.0.0
 contract Permit2Proxy is TransferrableOwnership {
     /// Storage ///
 
@@ -58,9 +63,10 @@ contract Permit2Proxy is TransferrableOwnership {
 
     /// External Functions ///
 
-    /// @notice Allows to bridge tokens through a LI.FI diamond contract using an EIP2612 gasless permit
-    ///         (only works with tokenAddresses that implement EIP2612)
-    ///         (in contrast to Permit2, calldata and diamondAddress are not signed by the user and could therefore be replaced)
+    /// @notice Allows to bridge tokens through a LI.FI diamond contract using
+    /// an EIP2612 gasless permit (only works with tokenAddresses that
+    /// implement EIP2612) (in contrast to Permit2, calldata and diamondAddress
+    /// are not signed by the user and could therefore be replaced)
     /// @param tokenAddress Address of the token to be bridged
     /// @param owner Owner of the tokens to be bridged
     /// @param amount Amount of tokens to be bridged
@@ -81,7 +87,7 @@ contract Permit2Proxy is TransferrableOwnership {
         address diamondAddress,
         bytes calldata diamondCalldata
     ) public payable {
-        // call permit function of token contract to register approval using signature
+        // call permit on token contract to register approval using signature
         ERC20Permit(tokenAddress).permit(
             owner,
             address(this),
@@ -102,8 +108,9 @@ contract Permit2Proxy is TransferrableOwnership {
         _executeCalldata(diamondAddress, diamondCalldata);
     }
 
-    /// @notice Forwards a call to a whitelisted LIFI diamond
-    ///         pulling tokens from the user using Uniswap Permit2
+    /// @notice Allows to bridge tokens of one type through a LI.FI diamond
+    ///         contract using Uniswap's Permit2 contract and a user signature
+    ///         that verifies allowance, diamondAddress and diamondCalldata
     /// @param _diamondAddress the diamond contract to execute the call
     /// @param _diamondCalldata the calldata to execute
     /// @param _signer the signer giving permission to transfer tokens
@@ -147,7 +154,8 @@ contract Permit2Proxy is TransferrableOwnership {
 
     /// @notice Allows to update the whitelist of diamond contracts
     /// @dev Admin function
-    /// @param addresses Addresses to be added (true) or removed (false) from whitelist
+    /// @param addresses Addresses to be added (true) or removed (false) from
+    ///                  whitelist
     /// @param values Values for each address that should be updated
     function updateWhitelist(
         address[] calldata addresses,
@@ -255,7 +263,8 @@ contract Permit2Proxy is TransferrableOwnership {
         bytes memory diamondCalldata
     ) internal {
         // make sure diamondAddress is whitelisted
-        // this limits the usage of this Permit2Proxy contracts to only work with our diamond contracts
+        // this limits the usage of this Permit2Proxy contracts to only work
+        // with our diamond contracts
         if (!diamondWhitelist[diamondAddress])
             revert DiamondAddressNotWhitelisted();
 
@@ -264,7 +273,8 @@ contract Permit2Proxy is TransferrableOwnership {
         (bool success, bytes memory data) = diamondAddress.call{
             value: msg.value
         }(diamondCalldata);
-        // throw error to make sure tx reverts if low-level call was unsuccessful
+        // throw error to make sure tx reverts if low-level call was
+        // unsuccessful
         if (!success) {
             revert CallToDiamondFailed(data);
         }
