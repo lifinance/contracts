@@ -24,7 +24,6 @@ contract Permit2Proxy is TransferrableOwnership {
 
     // @dev LIFI Specific Witness to verify
     struct LIFICall {
-        address tokenReceiver;
         address diamondAddress;
         bytes32 diamondCalldataHash;
     }
@@ -49,16 +48,21 @@ contract Permit2Proxy is TransferrableOwnership {
 
     /// External Functions ///
 
+    /// @notice Forwards a call to a whitelisted LIFI diamond
+    ///         pulling tokens from the user using Uniswap Permit2
+    /// @param _diamondAddress the diamond contract to execute the call
+    /// @param _diamondCalldata the calldata to execute
+    /// @param _signer the signer giving permission to transfer tokens
+    /// @param _permit the Uniswap Permit2 parameters
+    /// @param _signature the signature giving approval to transfer tokens
     function diamondCallSingle(
-        address _tokenReceiver,
         address _diamondAddress,
         bytes calldata _diamondCalldata,
-        address _owner,
+        address _signer,
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata _signature
     ) external payable {
         LIFICall memory lifiCall = LIFICall(
-            _tokenReceiver,
             _diamondAddress,
             keccak256(_diamondCalldata)
         );
@@ -71,7 +75,7 @@ contract Permit2Proxy is TransferrableOwnership {
                 to: address(this),
                 requestedAmount: _permit.permitted.amount
             }),
-            _owner,
+            _signer,
             witness,
             WITNESS_TYPE_STRING,
             _signature

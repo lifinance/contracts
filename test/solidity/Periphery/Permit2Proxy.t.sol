@@ -10,16 +10,20 @@ import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 
 contract Permit2ProxyTest is TestBase {
     using PermitHash for ISignatureTransfer.PermitTransferFrom;
+
+    /// Constants ///
+
     address internal constant PERMIT2_ADDRESS =
         0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    address internal constant LINK_ADDRESS =
-        0x514910771AF9Ca656af840dff83E8264EcF986CA;
-    bytes32 internal PERMIT_WITH_WITNESS_TYPEHASH;
-
-    Permit2Proxy internal permit2Proxy;
-
-    ISignatureTransfer internal uniPermit2;
     uint256 internal PRIVATE_KEY = 0x1234567890;
+    address internal constant DIAMOND_ADDRESS =
+        0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE;
+
+    /// Storage ///
+
+    bytes32 internal PERMIT_WITH_WITNESS_TYPEHASH;
+    Permit2Proxy internal permit2Proxy;
+    ISignatureTransfer internal uniPermit2;
     address internal PERMIT2_USER;
 
     /// Errors ///
@@ -41,17 +45,17 @@ contract Permit2ProxyTest is TestBase {
         );
 
         address[] memory whitelist = new address[](1);
-        whitelist[0] = address(0x11f1);
+        whitelist[0] = DIAMOND_ADDRESS;
         bool[] memory allowed = new bool[](1);
         allowed[0] = true;
         permit2Proxy.updateWhitelist(whitelist, allowed);
         PERMIT2_USER = vm.addr(PRIVATE_KEY);
         vm.label(PERMIT2_USER, "Permit2 User");
-        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
+        deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
 
         // Infinite approve to Permit2
         vm.prank(PERMIT2_USER);
-        ERC20(LINK_ADDRESS).approve(PERMIT2_ADDRESS, type(uint256).max);
+        ERC20(ADDRESS_USDC).approve(PERMIT2_ADDRESS, type(uint256).max);
     }
 
     function test_can_call_diamond_single() public {
@@ -67,8 +71,7 @@ contract Permit2ProxyTest is TestBase {
 
         // Execute
         permit2Proxy.diamondCallSingle(
-            PERMIT2_USER,
-            address(0x11f1),
+            DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
@@ -79,7 +82,7 @@ contract Permit2ProxyTest is TestBase {
     function testRevert_cannot_call_diamond_single_with_same_signature_more_than_once()
         public
     {
-        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
+        deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes memory signature;
@@ -92,8 +95,7 @@ contract Permit2ProxyTest is TestBase {
 
         // Execute x2
         permit2Proxy.diamondCallSingle(
-            PERMIT2_USER,
-            address(0x11f1),
+            DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
@@ -101,34 +103,7 @@ contract Permit2ProxyTest is TestBase {
         );
         vm.expectRevert(InvalidNonce.selector);
         permit2Proxy.diamondCallSingle(
-            PERMIT2_USER,
-            address(0x11f1),
-            diamondCalldata,
-            PERMIT2_USER,
-            permitTransferFrom,
-            signature
-        );
-    }
-
-    function testRevert_cannot_set_different_receiver_than_intended() public {
-        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
-        bytes memory diamondCalldata;
-        ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
-        bytes memory signature;
-        (
-            diamondCalldata,
-            permitTransferFrom,
-            ,
-            signature
-        ) = _getPermitWitnessTransferFromParams();
-
-        address MALICIOUS_RECEIVER;
-
-        // Execute
-        vm.expectRevert(InvalidSigner.selector);
-        permit2Proxy.diamondCallSingle(
-            MALICIOUS_RECEIVER,
-            address(0x11f1),
+            DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
@@ -139,7 +114,7 @@ contract Permit2ProxyTest is TestBase {
     function testRevert_cannot_set_different_diamond_address_than_intended()
         public
     {
-        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
+        deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes memory signature;
@@ -155,7 +130,6 @@ contract Permit2ProxyTest is TestBase {
         // Execute
         vm.expectRevert(InvalidSigner.selector);
         permit2Proxy.diamondCallSingle(
-            PERMIT2_USER,
             MALICIOUS_CONTRACT,
             diamondCalldata,
             PERMIT2_USER,
@@ -165,7 +139,7 @@ contract Permit2ProxyTest is TestBase {
     }
 
     function testRevert_cannot_set_different_calldata_than_intended() public {
-        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
+        deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes memory signature;
@@ -181,8 +155,7 @@ contract Permit2ProxyTest is TestBase {
         // Execute
         vm.expectRevert(InvalidSigner.selector);
         permit2Proxy.diamondCallSingle(
-            PERMIT2_USER,
-            address(0x11f1),
+            DIAMOND_ADDRESS,
             MALICIOUS_CALLDATA,
             PERMIT2_USER,
             permitTransferFrom,
@@ -191,7 +164,7 @@ contract Permit2ProxyTest is TestBase {
     }
 
     function testRevert_cannot_use_signature_from_another_wallet() public {
-        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
+        deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes32 msgHash;
@@ -207,8 +180,7 @@ contract Permit2ProxyTest is TestBase {
         // Execute
         vm.expectRevert(InvalidSigner.selector);
         permit2Proxy.diamondCallSingle(
-            PERMIT2_USER,
-            address(0x11f1),
+            DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
@@ -217,7 +189,7 @@ contract Permit2ProxyTest is TestBase {
     }
 
     function testRevert_cannot_transfer_more_tokens_than_intended() public {
-        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
+        deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes32 msgHash;
@@ -235,8 +207,7 @@ contract Permit2ProxyTest is TestBase {
         // Execute
         vm.expectRevert(InvalidSigner.selector);
         permit2Proxy.diamondCallSingle(
-            PERMIT2_USER,
-            address(0x11f1),
+            DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
@@ -259,7 +230,7 @@ contract Permit2ProxyTest is TestBase {
         // Token Permissions
         ISignatureTransfer.TokenPermissions
             memory tokenPermissions = ISignatureTransfer.TokenPermissions(
-                LINK_ADDRESS, // LINK
+                ADDRESS_USDC, // LINK
                 100 ether
             );
         bytes32 permit = _getTokenPermissionsHash(tokenPermissions);
@@ -267,8 +238,7 @@ contract Permit2ProxyTest is TestBase {
         // Witness
         diamondCalldata = _getCalldataForBridging();
         Permit2Proxy.LIFICall memory lifiCall = Permit2Proxy.LIFICall(
-            PERMIT2_USER,
-            address(0x11f1),
+            DIAMOND_ADDRESS,
             keccak256(diamondCalldata)
         );
         bytes32 witness = _getWitnessHash(lifiCall);
