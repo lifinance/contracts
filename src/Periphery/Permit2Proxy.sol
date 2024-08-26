@@ -64,7 +64,7 @@ contract Permit2Proxy is TransferrableOwnership {
     /// @param _signer the signer giving permission to transfer tokens
     /// @param _permit the Uniswap Permit2 parameters
     /// @param _signature the signature giving approval to transfer tokens
-    function diamondCallSingle(
+    function callDiamondUsingPermit2Single(
         address _diamondAddress,
         bytes calldata _diamondCalldata,
         address _signer,
