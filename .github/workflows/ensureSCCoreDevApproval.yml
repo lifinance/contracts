@@ -12,8 +12,6 @@ jobs:
   core-dev-approval:
     if: ${{ github.event.pull_request.draft == false }} # will only run once the PR is in "Ready for Review" state
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
