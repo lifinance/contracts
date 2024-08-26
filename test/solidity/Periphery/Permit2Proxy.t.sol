@@ -7,6 +7,7 @@ import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { ERC20 } from "../utils/TestBase.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
+import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 
 contract Permit2ProxyTest is TestBase {
     using PermitHash for ISignatureTransfer.PermitTransferFrom;
@@ -25,6 +26,19 @@ contract Permit2ProxyTest is TestBase {
     Permit2Proxy internal permit2Proxy;
     ISignatureTransfer internal uniPermit2;
     address internal PERMIT2_USER;
+
+    /// Types ///
+
+    struct TestDataEIP2612 {
+        address tokenAddress;
+        address userWallet;
+        uint256 nonce;
+        uint256 deadline;
+        bytes diamondCalldata;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
 
     /// Errors ///
 
@@ -58,6 +72,152 @@ contract Permit2ProxyTest is TestBase {
         vm.prank(PERMIT2_USER);
         ERC20(ADDRESS_USDC).approve(PERMIT2_ADDRESS, type(uint256).max);
     }
+
+    /// Tests ///
+
+    /// EIP2612 (native permit) related test cases ///
+
+    function test_can_execute_calldata_using_eip2612_signature_usdc() public {
+        vm.startPrank(PERMIT2_USER);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
+            ADDRESS_USDC,
+            domainSeparator,
+            block.timestamp + 1000
+        );
+
+        // expect LifiTransferStarted event to be emitted by our diamond contract
+        vm.expectEmit(true, true, true, true, DIAMOND_ADDRESS);
+        emit LiFiTransferStarted(bridgeData);
+
+        // call Permit2Proxy with signature
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            PERMIT2_USER,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            DIAMOND_ADDRESS,
+            testdata.diamondCalldata
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevertcannotUseEIP2612SignatureTwice() public {
+        vm.startPrank(PERMIT2_USER);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
+            ADDRESS_USDC,
+            domainSeparator,
+            block.timestamp + 1000
+        );
+
+        // call Permit2Proxy with signature
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            PERMIT2_USER,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            DIAMOND_ADDRESS,
+            testdata.diamondCalldata
+        );
+
+        // expect call to revert if same signature is used twice
+        vm.expectRevert("EIP2612: invalid signature");
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            PERMIT2_USER,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            DIAMOND_ADDRESS,
+            testdata.diamondCalldata
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevertCannotUseExpiredEIP2612Signature() public {
+        vm.startPrank(PERMIT2_USER);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
+            ADDRESS_USDC,
+            domainSeparator,
+            block.timestamp - 1 //  deadline in the past
+        );
+
+        // expect call to revert since signature deadline is in the past
+        vm.expectRevert("FiatTokenV2: permit is expired");
+
+        // call Permit2Proxy with signature
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            PERMIT2_USER,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            DIAMOND_ADDRESS,
+            testdata.diamondCalldata
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevertCannotUseInvalidEIP2612Signature() public {
+        vm.startPrank(PERMIT2_USER);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
+            ADDRESS_USDC,
+            domainSeparator,
+            block.timestamp
+        );
+
+        // expect call to revert since signature deadline is in the past
+        vm.expectRevert("EIP2612: invalid signature");
+
+        // call Permit2Proxy with signature
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            PERMIT2_USER,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v + 1, // invalid v value
+            testdata.r,
+            testdata.s,
+            DIAMOND_ADDRESS,
+            testdata.diamondCalldata
+        );
+
+        vm.stopPrank();
+    }
+
+    /// Permit2 specific tests ///
 
     function test_can_call_diamond_single() public {
         bytes memory diamondCalldata;
@@ -364,5 +524,62 @@ contract Permit2ProxyTest is TestBase {
 
         return
             keccak256(abi.encodePacked("\x19\x01", domainSeparator, dataHash));
+    }
+
+    function _getTestDataEIP2612(
+        address tokenAddress,
+        bytes32 domainSeparator,
+        uint256 deadline
+    ) internal view returns (TestDataEIP2612 memory testdata) {
+        testdata.tokenAddress = tokenAddress;
+        testdata.userWallet = PERMIT2_USER;
+        testdata.nonce = ERC20Permit(tokenAddress).nonces(testdata.userWallet);
+        testdata.deadline = deadline;
+
+        // generate approval data to be signed by user
+        bytes32 digest = _generateEIP2612MsgHash(
+            testdata.userWallet,
+            address(permit2Proxy),
+            defaultUSDCAmount,
+            testdata.nonce,
+            testdata.deadline,
+            domainSeparator
+        );
+
+        // sign digest and return signature
+        (testdata.v, testdata.r, testdata.s) = vm.sign(PRIVATE_KEY, digest);
+
+        // get calldata for bridging (simple USDC bridging via PolygonBridge)
+        testdata.diamondCalldata = _getCalldataForBridging();
+    }
+
+    function _generateEIP2612MsgHash(
+        address owner,
+        address spender,
+        uint256 amount,
+        uint256 nonce,
+        uint256 deadline,
+        bytes32 domainSeparator
+    ) internal pure returns (bytes32 digest) {
+        digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                // Domain separator
+                domainSeparator,
+                // Permit struct
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                        ),
+                        owner,
+                        spender,
+                        amount,
+                        nonce,
+                        deadline
+                    )
+                )
+            )
+        );
     }
 }
