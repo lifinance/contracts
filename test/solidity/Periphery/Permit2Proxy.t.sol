@@ -16,7 +16,7 @@ contract Permit2ProxyTest is TestBase {
     address internal constant PERMIT2_ADDRESS =
         0x000000000022D473030F116dDEE9F6B43aC78BA3;
     uint256 internal PRIVATE_KEY = 0x1234567890;
-    address internal constant DIAMOND_ADDRESS =
+    address internal DIAMOND_ADDRESS =
         0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE;
 
     /// Storage ///
@@ -30,6 +30,7 @@ contract Permit2ProxyTest is TestBase {
 
     error InvalidSigner();
     error InvalidNonce();
+    error DiamondAddressNotWhitelisted();
 
     function setUp() public {
         customBlockNumberForForking = 20261175;
@@ -70,6 +71,46 @@ contract Permit2ProxyTest is TestBase {
         ) = _getPermitWitnessTransferFromParams();
 
         // Execute
+        permit2Proxy.diamondCallSingle(
+            DIAMOND_ADDRESS,
+            diamondCalldata,
+            PERMIT2_USER,
+            permitTransferFrom,
+            signature
+        );
+    }
+
+    function test_can_generrate_a_valid_msg_hash_for_signing() public {
+        bytes32 msgHash;
+        bytes32 generatedMsgHash;
+        (, , msgHash, ) = _getPermitWitnessTransferFromParams();
+
+        generatedMsgHash = permit2Proxy.getPermit2MsgHash(
+            DIAMOND_ADDRESS,
+            _getCalldataForBridging(),
+            ADDRESS_USDC,
+            defaultUSDCAmount,
+            0,
+            type(uint256).max
+        );
+
+        assertEq(msgHash, generatedMsgHash);
+    }
+
+    function testRevery_cannot_call_unwhitelisted_diamond() public {
+        DIAMOND_ADDRESS = address(0x11f1); // Not whitelisted
+        bytes memory diamondCalldata;
+        ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
+        bytes memory signature;
+        (
+            diamondCalldata,
+            permitTransferFrom,
+            ,
+            signature
+        ) = _getPermitWitnessTransferFromParams();
+
+        // Execute
+        vm.expectRevert(DiamondAddressNotWhitelisted.selector);
         permit2Proxy.diamondCallSingle(
             DIAMOND_ADDRESS,
             diamondCalldata,
@@ -230,8 +271,8 @@ contract Permit2ProxyTest is TestBase {
         // Token Permissions
         ISignatureTransfer.TokenPermissions
             memory tokenPermissions = ISignatureTransfer.TokenPermissions(
-                ADDRESS_USDC, // LINK
-                100 ether
+                ADDRESS_USDC,
+                defaultUSDCAmount
             );
         bytes32 permit = _getTokenPermissionsHash(tokenPermissions);
 
