@@ -116,7 +116,7 @@ jobs:
 
             // check if at least one of these reviewers is member in smart-contract-core group
             if (reviewerHandles.some((handle) => coreDevs.includes(handle))) {
-              console.log(`${colors.green}The current PR is approved by a member of the ${TEAM_SLUG} group.${colors.reset}`);
+              console.log(`${colors.green}The current PR is approved by a member of the smart-contract-core group.${colors.reset}`);
               console.log(`${colors.green}Check passed.${colors.reset}`);
               core.setOutput('approved', 'true');
               } else {
