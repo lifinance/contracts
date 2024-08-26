@@ -2,13 +2,16 @@
 pragma solidity ^0.8.17;
 
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
+import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
+import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract Permit2Proxy {
+contract Permit2Proxy is TransferrableOwnership {
     /// Storage ///
 
     ISignatureTransfer public immutable PERMIT2;
+    mapping(address => bool) public diamondWhitelist;
 
     string public constant WITNESS_TYPE_STRING =
         "LIFICall witness)LIFICall(address tokenReceiver,address diamondAddress,bytes32 diamondCalldataHash)TokenPermissions(address token,uint256 amount)";
@@ -29,33 +32,22 @@ contract Permit2Proxy {
     /// Errors ///
 
     error CallToDiamondFailed(bytes);
+    error DiamondAddressNotWhitelisted();
+
+    /// Events ///
+
+    event WhitelistUpdated(address[] addresses, bool[] values);
 
     /// Constructor ///
 
-    constructor(ISignatureTransfer _permit2) {
+    constructor(
+        address _owner,
+        ISignatureTransfer _permit2
+    ) TransferrableOwnership(_owner) {
         PERMIT2 = _permit2;
     }
 
     /// External Functions ///
-
-    function maxApproveERC20(
-        IERC20 assetId,
-        address spender,
-        uint256 amount
-    ) internal {
-        if (address(assetId) == address(0)) {
-            return;
-        }
-
-        if (assetId.allowance(address(this), spender) < amount) {
-            SafeERC20.safeIncreaseAllowance(IERC20(assetId), spender, 0);
-            SafeERC20.safeIncreaseAllowance(
-                IERC20(assetId),
-                spender,
-                type(uint).max
-            );
-        }
-    }
 
     function diamondCallSingle(
         address _tokenReceiver,
@@ -71,14 +63,7 @@ contract Permit2Proxy {
             keccak256(_diamondCalldata)
         );
 
-        bytes32 witness = keccak256(
-            abi.encode(
-                WITNESS_TYPEHASH,
-                lifiCall.tokenReceiver,
-                lifiCall.diamondAddress,
-                lifiCall.diamondCalldataHash
-            )
-        );
+        bytes32 witness = keccak256(abi.encode(WITNESS_TYPEHASH, lifiCall));
 
         PERMIT2.permitWitnessTransferFrom(
             _permit,
@@ -92,20 +77,53 @@ contract Permit2Proxy {
             _signature
         );
 
-        maxApproveERC20(
+        // maxApprove token to diamond if current allowance is insufficient
+        LibAsset.maxApproveERC20(
             IERC20(_permit.permitted.token),
             _diamondAddress,
             _permit.permitted.amount
         );
 
+        _executeCalldata(_diamondAddress, _diamondCalldata);
+    }
+
+    function _executeCalldata(
+        address diamondAddress,
+        bytes memory diamondCalldata
+    ) private {
+        // make sure diamondAddress is whitelisted
+        // this limits the usage of this Permit2Proxy contracts to only work with our diamond contracts
+        if (!diamondWhitelist[diamondAddress])
+            revert DiamondAddressNotWhitelisted();
+
         // call diamond with provided calldata
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory data) = _diamondAddress.call{
+        (bool success, bytes memory data) = diamondAddress.call{
             value: msg.value
-        }(_diamondCalldata);
+        }(diamondCalldata);
         // throw error to make sure tx reverts if low-level call was unsuccessful
         if (!success) {
             revert CallToDiamondFailed(data);
         }
+    }
+
+    /// @notice Allows to update the whitelist of diamond contracts
+    /// @dev Admin function
+    /// @param addresses Addresses to be added (true) or removed (false) from whitelist
+    /// @param values Values for each address that should be updated
+    function updateWhitelist(
+        address[] calldata addresses,
+        bool[] calldata values
+    ) external onlyOwner {
+        for (uint i; i < addresses.length; ) {
+            // update whitelist address value
+            diamondWhitelist[addresses[i]] = values[i];
+
+            // gas-efficient way to increase the loop counter
+            unchecked {
+                ++i;
+            }
+        }
+        emit WhitelistUpdated(addresses, values);
     }
 }

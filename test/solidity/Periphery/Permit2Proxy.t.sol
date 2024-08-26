@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { Test, console } from "forge-std/Test.sol";
+import { Test, TestBase, DSTest, ILiFi, console, ERC20 } from "../utils/TestBase.sol";
 import { Permit2Proxy } from "lifi/Periphery/Permit2Proxy.sol";
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
 import { ERC20 } from "../utils/TestBase.sol";
-import "forge-std/console.sol";
+import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 
-contract Permit2ProxyTest is Test {
+contract Permit2ProxyTest is TestBase {
     using PermitHash for ISignatureTransfer.PermitTransferFrom;
     address internal constant PERMIT2_ADDRESS =
         0x000000000022D473030F116dDEE9F6B43aC78BA3;
@@ -20,40 +20,261 @@ contract Permit2ProxyTest is Test {
 
     ISignatureTransfer internal uniPermit2;
     uint256 internal PRIVATE_KEY = 0x1234567890;
-    address internal USER;
+    address internal PERMIT2_USER;
+
+    /// Errors ///
+
+    error InvalidSigner();
+    error InvalidNonce();
 
     function setUp() public {
+        customBlockNumberForForking = 20261175;
+        initTestBase();
+
         uniPermit2 = ISignatureTransfer(PERMIT2_ADDRESS);
-        permit2Proxy = new Permit2Proxy(uniPermit2);
+        permit2Proxy = new Permit2Proxy(address(this), uniPermit2);
         PERMIT_WITH_WITNESS_TYPEHASH = keccak256(
             abi.encodePacked(
                 PermitHash._PERMIT_TRANSFER_FROM_WITNESS_TYPEHASH_STUB,
                 permit2Proxy.WITNESS_TYPE_STRING()
             )
         );
-        vm.createSelectFork(vm.envString("ETH_NODE_URI_MAINNET"), 20261175);
-        USER = vm.addr(PRIVATE_KEY);
+
+        address[] memory whitelist = new address[](1);
+        whitelist[0] = address(0x11f1);
+        bool[] memory allowed = new bool[](1);
+        allowed[0] = true;
+        permit2Proxy.updateWhitelist(whitelist, allowed);
+        PERMIT2_USER = vm.addr(PRIVATE_KEY);
+        vm.label(PERMIT2_USER, "Permit2 User");
+        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
+
+        // Infinite approve to Permit2
+        vm.prank(PERMIT2_USER);
+        ERC20(LINK_ADDRESS).approve(PERMIT2_ADDRESS, type(uint256).max);
     }
 
     function test_can_call_diamond_single() public {
+        bytes memory diamondCalldata;
+        ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
+        bytes memory signature;
+        (
+            diamondCalldata,
+            permitTransferFrom,
+            ,
+            signature
+        ) = _getPermitWitnessTransferFromParams();
+
+        // Execute
+        permit2Proxy.diamondCallSingle(
+            PERMIT2_USER,
+            address(0x11f1),
+            diamondCalldata,
+            PERMIT2_USER,
+            permitTransferFrom,
+            signature
+        );
+    }
+
+    function testRevert_cannot_call_diamond_single_with_same_signature_more_than_once()
+        public
+    {
+        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
+        bytes memory diamondCalldata;
+        ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
+        bytes memory signature;
+        (
+            diamondCalldata,
+            permitTransferFrom,
+            ,
+            signature
+        ) = _getPermitWitnessTransferFromParams();
+
+        // Execute x2
+        permit2Proxy.diamondCallSingle(
+            PERMIT2_USER,
+            address(0x11f1),
+            diamondCalldata,
+            PERMIT2_USER,
+            permitTransferFrom,
+            signature
+        );
+        vm.expectRevert(InvalidNonce.selector);
+        permit2Proxy.diamondCallSingle(
+            PERMIT2_USER,
+            address(0x11f1),
+            diamondCalldata,
+            PERMIT2_USER,
+            permitTransferFrom,
+            signature
+        );
+    }
+
+    function testRevert_cannot_set_different_receiver_than_intended() public {
+        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
+        bytes memory diamondCalldata;
+        ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
+        bytes memory signature;
+        (
+            diamondCalldata,
+            permitTransferFrom,
+            ,
+            signature
+        ) = _getPermitWitnessTransferFromParams();
+
+        address MALICIOUS_RECEIVER;
+
+        // Execute
+        vm.expectRevert(InvalidSigner.selector);
+        permit2Proxy.diamondCallSingle(
+            MALICIOUS_RECEIVER,
+            address(0x11f1),
+            diamondCalldata,
+            PERMIT2_USER,
+            permitTransferFrom,
+            signature
+        );
+    }
+
+    function testRevert_cannot_set_different_diamond_address_than_intended()
+        public
+    {
+        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
+        bytes memory diamondCalldata;
+        ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
+        bytes memory signature;
+        (
+            diamondCalldata,
+            permitTransferFrom,
+            ,
+            signature
+        ) = _getPermitWitnessTransferFromParams();
+
+        address MALICIOUS_CONTRACT;
+
+        // Execute
+        vm.expectRevert(InvalidSigner.selector);
+        permit2Proxy.diamondCallSingle(
+            PERMIT2_USER,
+            MALICIOUS_CONTRACT,
+            diamondCalldata,
+            PERMIT2_USER,
+            permitTransferFrom,
+            signature
+        );
+    }
+
+    function testRevert_cannot_set_different_calldata_than_intended() public {
+        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
+        bytes memory diamondCalldata;
+        ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
+        bytes memory signature;
+        (
+            diamondCalldata,
+            permitTransferFrom,
+            ,
+            signature
+        ) = _getPermitWitnessTransferFromParams();
+
+        bytes memory MALICIOUS_CALLDATA;
+
+        // Execute
+        vm.expectRevert(InvalidSigner.selector);
+        permit2Proxy.diamondCallSingle(
+            PERMIT2_USER,
+            address(0x11f1),
+            MALICIOUS_CALLDATA,
+            PERMIT2_USER,
+            permitTransferFrom,
+            signature
+        );
+    }
+
+    function testRevert_cannot_use_signature_from_another_wallet() public {
+        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
+        bytes memory diamondCalldata;
+        ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
+        bytes32 msgHash;
+        (
+            diamondCalldata,
+            permitTransferFrom,
+            msgHash,
+
+        ) = _getPermitWitnessTransferFromParams();
+
+        bytes memory signature = _signMsgHash(msgHash, 987654321);
+
+        // Execute
+        vm.expectRevert(InvalidSigner.selector);
+        permit2Proxy.diamondCallSingle(
+            PERMIT2_USER,
+            address(0x11f1),
+            diamondCalldata,
+            PERMIT2_USER,
+            permitTransferFrom,
+            signature
+        );
+    }
+
+    function testRevert_cannot_transfer_more_tokens_than_intended() public {
+        deal(LINK_ADDRESS, PERMIT2_USER, 10000 ether);
+        bytes memory diamondCalldata;
+        ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
+        bytes32 msgHash;
+        (
+            diamondCalldata,
+            permitTransferFrom,
+            msgHash,
+
+        ) = _getPermitWitnessTransferFromParams();
+
+        bytes memory signature = _signMsgHash(msgHash, 987654321);
+
+        permitTransferFrom.permitted.amount = 500 ether;
+
+        // Execute
+        vm.expectRevert(InvalidSigner.selector);
+        permit2Proxy.diamondCallSingle(
+            PERMIT2_USER,
+            address(0x11f1),
+            diamondCalldata,
+            PERMIT2_USER,
+            permitTransferFrom,
+            signature
+        );
+    }
+
+    /// Helper Functions ///
+
+    function _getPermitWitnessTransferFromParams()
+        internal
+        view
+        returns (
+            bytes memory diamondCalldata,
+            ISignatureTransfer.PermitTransferFrom memory permitTransferFrom,
+            bytes32 msgHash,
+            bytes memory signature
+        )
+    {
         // Token Permissions
         ISignatureTransfer.TokenPermissions
             memory tokenPermissions = ISignatureTransfer.TokenPermissions(
                 LINK_ADDRESS, // LINK
                 100 ether
             );
-        bytes32 permit = getTokenPermissionsHash(tokenPermissions);
+        bytes32 permit = _getTokenPermissionsHash(tokenPermissions);
 
         // Witness
+        diamondCalldata = _getCalldataForBridging();
         Permit2Proxy.LIFICall memory lifiCall = Permit2Proxy.LIFICall(
-            USER,
+            PERMIT2_USER,
             address(0x11f1),
-            keccak256(hex"d34db33f")
+            keccak256(diamondCalldata)
         );
-        bytes32 witness = getWitnessHash(lifiCall);
+        bytes32 witness = _getWitnessHash(lifiCall);
 
         // PermitTransferWithWitness
-        bytes32 msgHash = getPermitWitnessTransferFromHash(
+        msgHash = _getPermitWitnessTransferFromHash(
             uniPermit2.DOMAIN_SEPARATOR(),
             permit,
             address(permit2Proxy),
@@ -62,29 +283,36 @@ contract Permit2ProxyTest is Test {
             witness
         );
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(PRIVATE_KEY, msgHash);
-        bytes memory sig = bytes.concat(r, s, bytes1(v));
+        signature = _signMsgHash(msgHash, PRIVATE_KEY);
 
-        deal(LINK_ADDRESS, USER, 10000 ether);
-        // Approve to Permit2
-        vm.prank(USER);
-        ERC20(LINK_ADDRESS).approve(PERMIT2_ADDRESS, 100 ether);
-
-        permit2Proxy.diamondCallSingle(
-            USER,
-            address(0x11f1),
-            hex"d34db33f",
-            USER,
-            ISignatureTransfer.PermitTransferFrom(
-                tokenPermissions,
-                0,
-                type(uint256).max
-            ),
-            sig
+        permitTransferFrom = ISignatureTransfer.PermitTransferFrom(
+            tokenPermissions,
+            0,
+            type(uint256).max
         );
     }
 
-    function getTokenPermissionsHash(
+    function _signMsgHash(
+        bytes32 msgHash,
+        uint256 privateKey
+    ) internal pure returns (bytes memory signature) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
+        signature = bytes.concat(r, s, bytes1(v));
+    }
+
+    function _getCalldataForBridging()
+        private
+        view
+        returns (bytes memory diamondCalldata)
+    {
+        bytes4 selector = PolygonBridgeFacet
+            .startBridgeTokensViaPolygonBridge
+            .selector;
+
+        diamondCalldata = abi.encodeWithSelector(selector, bridgeData);
+    }
+
+    function _getTokenPermissionsHash(
         ISignatureTransfer.TokenPermissions memory tokenPermissions
     ) internal pure returns (bytes32) {
         return
@@ -97,21 +325,14 @@ contract Permit2ProxyTest is Test {
             );
     }
 
-    function getWitnessHash(
+    function _getWitnessHash(
         Permit2Proxy.LIFICall memory lifiCall
     ) internal view returns (bytes32) {
         return
-            keccak256(
-                abi.encode(
-                    permit2Proxy.WITNESS_TYPEHASH(),
-                    lifiCall.tokenReceiver,
-                    lifiCall.diamondAddress,
-                    lifiCall.diamondCalldataHash
-                )
-            );
+            keccak256(abi.encode(permit2Proxy.WITNESS_TYPEHASH(), lifiCall));
     }
 
-    function getPermitWitnessTransferFromHash(
+    function _getPermitWitnessTransferFromHash(
         bytes32 domainSeparator,
         bytes32 permit,
         address spender,
