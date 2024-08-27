@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    "target": "es2020",
     "module": "commonjs",
     "strict": true,
     "esModuleInterop": true,
@@ -8,8 +8,12 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "dist",
     "resolveJsonModule": true,
-    "lib": ["es2015"],
-    "types": ["node"]
+    "lib": [
+      "es2020"
+    ],
+    "types": [
+      "node"
+    ]
   },
   "include": [
     "hardhat.config.ts",
