@@ -22401,7 +22401,7 @@
   "Permit2Proxy": {
     "arbitrum": {
       "staging": {
-        "\u001b[31m[error] '@custom:version' string not found in src/Periphery/Permit2Proxy.sol\u001b[0m": [
+        "1.0.0": [
           {
             "ADDRESS": "0x442BBFD6a4641B2b710DFfa4754081eC7502a3F7",
             "OPTIMIZER_RUNS": "1000000",
