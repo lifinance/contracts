@@ -200,7 +200,7 @@
   "polygon": {
     "name": "Polygon",
     "chainId": 137,
-    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeAddress": "0x0000000000000000000000000000000000001010",
     "nativeCurrency": "MATIC",
     "wrappedNativeAddress": "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270",
     "status": "active",
