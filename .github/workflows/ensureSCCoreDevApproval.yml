@@ -89,8 +89,6 @@ jobs:
               return
             }
 
-            console.log("gm")
-
             // Filter to only include reviews that have "APPROVED" status
             const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
 
