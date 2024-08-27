@@ -103,6 +103,10 @@ jobs:
 
             // extract the git login handles of all reviewers that approved this PR
             const reviewerHandles = approvedReviews.map(review => review.user.login);
+
+            console.log(`approved reviews: ${JSON.stringify(approvedReviews, null, 2)}`)
+
+
             if(approvedReviews.length === 0)
               console.log(`This PR has been approved by the following git members: ${reviewerHandles}`);
             else
