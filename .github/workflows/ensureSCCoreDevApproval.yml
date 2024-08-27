@@ -105,9 +105,12 @@ jobs:
 
             console.log(`found the following approved reviews: ${JSON.stringify(approvedReviews)}`);
 
-            // extract the git login handles of all reviewers
+            // extract the git login handles of all reviewers that approved this PR
             const reviewerHandles = approvedReviews.map(review => review.user.login);
-            console.log(`${colors.green}This PR has been reviewed by the following git members: ${reviewerHandles}${colors.reset}`);
+            if(!reviewerHandles)
+              console.log('This PR has been approved by the following git members: ${reviewerHandles}${colors.reset}`);
+            else
+              console.log('${colors.red}This PR has no approvals${colors.reset}`);
 
             // check if at least one of these reviewers is member in smart-contract-core group
             if (reviewerHandles.some((handle) => coreDevs.includes(handle))) {
