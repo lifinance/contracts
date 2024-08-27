@@ -82,7 +82,7 @@ jobs:
             });
 
             // make sure that reviews are available
-            if(!reviews) {
+            if(!reviews || reviews.length === 0)) {
               console.log(`${colors.red}Could not get reviewers of this PR from Github. Are there any reviews yet?${colors.reset}`);
               console.log(`${colors.red}Check failed.${colors.reset}`);
               core.setFailed("Required approval is missing");
