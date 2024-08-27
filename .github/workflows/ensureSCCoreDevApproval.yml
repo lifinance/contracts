@@ -113,8 +113,7 @@ jobs:
               console.log(`${colors.green}Check passed.${colors.reset}`);
               core.setOutput('approved', 'true');
               } else {
-              console.log(`${colors.red}The PR requires a missing approval by a member of the smart-contract-core group.${colors.reset}`);
-              console.log(`${colors.red}Find group members here: https://github.com/orgs/lifinance/teams/smart-contract-core.${colors.reset}`);
+              console.log(`${colors.red}The PR requires a missing approval by a member of the smart-contract-core group (https://github.com/orgs/lifinance/teams/smart-contract-core).${colors.reset}`);
               console.log(`${colors.red}Check failed.${colors.reset}`);
               core.setFailed("Required approval is missing");
             }
