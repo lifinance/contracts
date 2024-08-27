@@ -91,12 +91,10 @@ jobs:
               return
             }
 
-            console.log(`found the following reviews: ${JSON.stringify(reviews)}`);
-
             // Filter to only include reviews that have "APPROVED" status
             const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
 
-            if(!approvedReviews) {
+            if(!approvedReviews.length === 0) {
               console.log(`${colors.red}Could not find any reviews with approval.${colors.reset}`);
               console.log(`${colors.red}Cannot continue. Check failed.${colors.reset}`);
               core.setFailed("Required approval is missing");
