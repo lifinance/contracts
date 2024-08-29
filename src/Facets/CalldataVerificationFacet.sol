@@ -161,7 +161,7 @@ contract CalldataVerificationFacet {
         // _receiver: 32 bytes
         // _minAmountOut: 32 bytes
         // _swapData: 256 bytes
-        if (data.length < 484) {
+        if (data.length <= 484) {
             revert InvalidCallData();
         }
 
