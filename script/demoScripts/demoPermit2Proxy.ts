@@ -13,7 +13,7 @@ import { defineCommand, runMain } from 'citty'
 
 const DIAMOND_ADDRESS = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
 const USDT_ADDRESS = '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9'
-const PERMIT2_PROXY_ADDRESS = '0x442BBFD6a4641B2b710DFfa4754081eC7502a3F7'
+const PERMIT2_PROXY_ADDRESS = '0x30252Fd1C12d240F7d63F24e54390F796F2EAF37'
 const PERMIT2_ADDRESS = '0x000000000022D473030F116dDEE9F6B43aC78BA3'
 const PRIVATE_KEY = `0x${process.env.PRIVATE_KEY}`
 
@@ -43,8 +43,8 @@ const main = defineCommand({
       'function nonceBitmap(address owner, uint256 index) external view returns (uint256 nonce)',
     ])
     const permit2ProxyAbi = parseAbi([
-      'function getPermit2MsgHash(address,bytes,address,uint256,uint256,uint256) external view returns (bytes32)',
-      'function callDiamondWithPermit2SignatureSingle(address,bytes,address,((address,uint256),uint256,uint256),bytes) external',
+      'function getPermit2MsgHash(bytes,address,uint256,uint256,uint256) external view returns (bytes32)',
+      'function callDiamondWithPermit2Witness(bytes,address,((address,uint256),uint256,uint256),bytes) external',
     ])
 
     // Setup a READ-ONLY client
@@ -80,7 +80,6 @@ const main = defineCommand({
       abi: permit2ProxyAbi,
       functionName: 'getPermit2MsgHash',
       args: [
-        DIAMOND_ADDRESS,
         calldata,
         USDT_ADDRESS,
         parseUnits('5', 6),
@@ -111,8 +110,8 @@ const main = defineCommand({
     const tx = await walletClient.writeContract({
       address: PERMIT2_PROXY_ADDRESS,
       abi: permit2ProxyAbi,
-      functionName: 'callDiamondWithPermit2SignatureSingle',
-      args: [DIAMOND_ADDRESS, calldata, account.address, permit, signature],
+      functionName: 'callDiamondWithPermit2Witness',
+      args: [calldata, account.address, permit, signature],
     })
   },
 })
