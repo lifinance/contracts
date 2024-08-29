@@ -97,7 +97,6 @@ contract Permit2ProxyTest is TestBase {
         // call Permit2Proxy with signature
         permit2Proxy.callDiamondWithEIP2612Signature(
             ADDRESS_USDC,
-            PERMIT2_USER,
             defaultUSDCAmount,
             testdata.deadline,
             testdata.v,
@@ -110,7 +109,7 @@ contract Permit2ProxyTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevertcannotUseEIP2612SignatureTwice() public {
+    function testRevert_cannot_use_eip2612_signature_twice() public {
         vm.startPrank(PERMIT2_USER);
 
         // get token-specific domainSeparator
@@ -126,7 +125,6 @@ contract Permit2ProxyTest is TestBase {
         // call Permit2Proxy with signature
         permit2Proxy.callDiamondWithEIP2612Signature(
             ADDRESS_USDC,
-            PERMIT2_USER,
             defaultUSDCAmount,
             testdata.deadline,
             testdata.v,
@@ -140,7 +138,6 @@ contract Permit2ProxyTest is TestBase {
         vm.expectRevert("EIP2612: invalid signature");
         permit2Proxy.callDiamondWithEIP2612Signature(
             ADDRESS_USDC,
-            PERMIT2_USER,
             defaultUSDCAmount,
             testdata.deadline,
             testdata.v,
@@ -153,7 +150,7 @@ contract Permit2ProxyTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevertCannotUseExpiredEIP2612Signature() public {
+    function testRevert_cannot_use_expired_eip2612_signature() public {
         vm.startPrank(PERMIT2_USER);
 
         // get token-specific domainSeparator
@@ -172,7 +169,6 @@ contract Permit2ProxyTest is TestBase {
         // call Permit2Proxy with signature
         permit2Proxy.callDiamondWithEIP2612Signature(
             ADDRESS_USDC,
-            PERMIT2_USER,
             defaultUSDCAmount,
             testdata.deadline,
             testdata.v,
@@ -185,7 +181,7 @@ contract Permit2ProxyTest is TestBase {
         vm.stopPrank();
     }
 
-    function testRevertCannotUseInvalidEIP2612Signature() public {
+    function testRevert_cannot_use_invalid_eip2612_signature() public {
         vm.startPrank(PERMIT2_USER);
 
         // get token-specific domainSeparator
@@ -204,10 +200,39 @@ contract Permit2ProxyTest is TestBase {
         // call Permit2Proxy with signature
         permit2Proxy.callDiamondWithEIP2612Signature(
             ADDRESS_USDC,
-            PERMIT2_USER,
             defaultUSDCAmount,
             testdata.deadline,
             testdata.v + 1, // invalid v value
+            testdata.r,
+            testdata.s,
+            DIAMOND_ADDRESS,
+            testdata.diamondCalldata
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_sign_and_call_using_different_addresses() public {
+        vm.startPrank(USER_SENDER);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
+            ADDRESS_USDC,
+            domainSeparator,
+            block.timestamp
+        );
+
+        // expect call to revert since signature deadline is in the past
+        vm.expectRevert("EIP2612: invalid signature");
+        // call Permit2Proxy with signature
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
             testdata.r,
             testdata.s,
             DIAMOND_ADDRESS,

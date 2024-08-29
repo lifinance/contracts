@@ -68,7 +68,6 @@ contract Permit2Proxy is TransferrableOwnership {
     /// implement EIP2612) (in contrast to Permit2, calldata and diamondAddress
     /// are not signed by the user and could therefore be replaced)
     /// @param tokenAddress Address of the token to be bridged
-    /// @param owner Owner of the tokens to be bridged
     /// @param amount Amount of tokens to be bridged
     /// @param deadline Transaction must be completed before this timestamp
     /// @param v User signature (recovery ID)
@@ -78,7 +77,6 @@ contract Permit2Proxy is TransferrableOwnership {
     /// @param diamondCalldata Address of the token to be bridged
     function callDiamondWithEIP2612Signature(
         address tokenAddress,
-        address owner,
         uint256 amount,
         uint256 deadline,
         uint8 v,
@@ -89,7 +87,7 @@ contract Permit2Proxy is TransferrableOwnership {
     ) public payable {
         // call permit on token contract to register approval using signature
         ERC20Permit(tokenAddress).permit(
-            owner,
+            msg.sender,
             address(this),
             amount,
             deadline,
@@ -99,7 +97,12 @@ contract Permit2Proxy is TransferrableOwnership {
         );
 
         // deposit assets
-        LibAsset.transferFromERC20(tokenAddress, owner, address(this), amount);
+        LibAsset.transferFromERC20(
+            tokenAddress,
+            msg.sender,
+            address(this),
+            amount
+        );
 
         // maxApprove token to diamond if current allowance is insufficient
         LibAsset.maxApproveERC20(IERC20(tokenAddress), diamondAddress, amount);
