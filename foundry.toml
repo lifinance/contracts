@@ -1,7 +1,7 @@
 [profile.default]
 test = 'test/solidity'
 solc_version = '0.8.17'
-evm_version='paris'
+evm_version = 'paris'
 optimizer = true
 optimizer_runs = 1000000
 sender = '0x00a329c0648769a73afac7f9381e08fb43dbea73'
@@ -64,7 +64,7 @@ base = "${ETH_NODE_URI_BASE}"
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", chain = "1" }
 arbitrum = { key = "${ARBITRUM_ETHERSCAN_API_KEY}", url = "https://api.arbiscan.io/api", chain = "42161" }
-aurora = { key = "${AURORA_ETHERSCAN_API_KEY}", url = "https://api.aurorascan.dev/api", chain = "1313161554" }
+aurora = { key = "${AURORA_ETHERSCAN_API_KEY}", url = "https://explorer.mainnet.aurora.dev/api", chain = "1313161554", verifier = "blockscout" }
 avalanche = { key = "${AVALANCHE_ETHERSCAN_API_KEY}", url = "https://api.snowtrace.io/api", chain = "43114" }
 base = { key = "${BASE_ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api", chain = "8453" }
 blast = { key = "${BLAST_ETHERSCAN_API_KEY}", url = "https://api.blastscan.io/api", chain = "81457" }
@@ -76,8 +76,8 @@ fantom = { key = "${FANTOM_ETHERSCAN_API_KEY}", url = "https://api.ftmscan.com/a
 fraxtal = { key = "${FRAXTAL_ETHERSCAN_API_KEY}", url = "https://api.fraxscan.com/api", chain = "252" }
 fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api", chain = "122" }
 gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://api.gnosisscan.io/api", chain = "100" }
-gravity = { key = "${GRAVITY_ETHERSCAN_API_KEY}", url = "https://explorer.gravity.xyz/api", chain = "1625", verifier = "blockscout"}
-immutablezkevm = { key = "${IMMUTABLEZKEVM_ETHERSCAN_API_KEY}", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout"}
+gravity = { key = "${GRAVITY_ETHERSCAN_API_KEY}", url = "https://explorer.gravity.xyz/api", chain = "1625", verifier = "blockscout" }
+immutablezkevm = { key = "${IMMUTABLEZKEVM_ETHERSCAN_API_KEY}", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout" }
 linea = { key = "${LINEA_ETHERSCAN_API_KEY}", url = "https://api.lineascan.build/api", chain = "59144" }
 mantle = { key = "${MANTLE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/5000/etherscan", chain = "5000" }
 metis = { key = "${METIS_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan", chain = "1088" }
