@@ -109,18 +109,19 @@ contract CalldataVerificationFacet {
     function extractNonEVMAddress(
         bytes calldata data
     ) external pure returns (bytes32 nonEVMAddress) {
-        bytes memory callData = data;
-        ILiFi.BridgeData memory bridgeData = _extractBridgeData(data);
+        bytes memory callData;
 
         if (
             bytes4(data[:4]) == StandardizedCallFacet.standardizedCall.selector
         ) {
             // standardizedCall
             callData = abi.decode(data[4:], (bytes));
+        } else {
+            callData = data;
         }
 
         // Non-EVM address is always the first parameter of bridge specific data
-        if (bridgeData.hasSourceSwaps) {
+        if (_extractBridgeData(data).hasSourceSwaps) {
             assembly {
                 let offset := mload(add(callData, 0x64)) // Get the offset of the bridge specific data
                 nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
