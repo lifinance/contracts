@@ -20,19 +20,17 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        // get path of global config file
-        string memory globalConfigPath = string.concat(
+        string memory deployments = string.concat(
             root,
-            "/config/global.json"
+            "/deployments/",
+            network,
+            ".",
+            fileSuffix,
+            "json"
         );
+        string memory deploymentsJSON = vm.readFile(deployments);
 
-        // read file into json variable
-        string memory globalConfigJson = vm.readFile(globalConfigPath);
-
-        // extract refundWallet address
-        address deployWalletAddress = globalConfigJson.readAddress(
-            ".deployerWallet"
-        );
+        address diamond = deploymentsJSON.readAddress(".LiFiDiamond");
 
         // get path of permit2 config file
         string memory permit2ProxyConfig = string.concat(
@@ -48,6 +46,6 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network)
         );
 
-        return abi.encode(deployWalletAddress, permit2Address);
+        return abi.encode(diamond, permit2Address);
     }
 }
