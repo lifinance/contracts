@@ -68,7 +68,7 @@ contract CalldataVerificationFacet {
     function extractMainParameters(
         bytes calldata data
     )
-        public
+        external
         pure
         returns (
             string memory bridge,
@@ -234,22 +234,14 @@ contract CalldataVerificationFacet {
         bool hasSourceSwaps,
         bool hasDestinationCall
     ) external pure returns (bool isValid) {
-        ILiFi.BridgeData memory bridgeData;
-        (
-            bridgeData.bridge,
-            bridgeData.sendingAssetId,
-            bridgeData.receiver,
-            bridgeData.minAmount,
-            bridgeData.destinationChainId,
-            bridgeData.hasSourceSwaps,
-            bridgeData.hasDestinationCall
-        ) = extractMainParameters(data);
+        ILiFi.BridgeData memory bridgeData = _extractBridgeData(data);
+
+        bytes32 bridgeNameHash = keccak256(abi.encodePacked(bridge));
         return
             // Check bridge
-            (keccak256(abi.encodePacked(bridge)) ==
-                keccak256(abi.encodePacked("")) ||
+            (bridgeNameHash == keccak256(abi.encodePacked("")) ||
                 keccak256(abi.encodePacked(bridgeData.bridge)) ==
-                keccak256(abi.encodePacked(bridge))) &&
+                bridgeNameHash) &&
             // Check sendingAssetId
             (sendingAssetId == 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF ||
                 bridgeData.sendingAssetId == sendingAssetId) &&
