@@ -103,9 +103,9 @@ contract CalldataVerificationFacet {
         );
     }
 
-    // @notice Extracts the non-EVM address from the calldata
-    // @param data The calldata to extract the non-EVM address from
-    // @return nonEVMAddress The non-EVM address extracted from the calldata
+    /// @notice Extracts the non-EVM address from the calldata
+    /// @param data The calldata to extract the non-EVM address from
+    /// @return nonEVMAddress The non-EVM address extracted from the calldata
     function extractNonEVMAddress(
         bytes calldata data
     ) external pure returns (bytes32 nonEVMAddress) {
@@ -225,7 +225,7 @@ contract CalldataVerificationFacet {
     ///        or type(uint256).max to ignore
     /// @param hasSourceSwaps Whether the calldata has source swaps
     /// @param hasDestinationCall Whether the calldata has a destination call
-    /// @return isValid Whether the calldata is validate
+    /// @return isValid Whether the calldata is valid
     function validateCalldata(
         bytes calldata data,
         string calldata bridge,
