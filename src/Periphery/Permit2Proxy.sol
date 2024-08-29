@@ -14,9 +14,10 @@ import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC2
 /// @notice Proxy contract allowing gasless (Permit2-enabled) calls to our
 ///         diamond contract
 /// @custom:version 1.0.0
-contract Permit2Proxy is TransferrableOwnership {
+contract Permit2Proxy {
     /// Storage ///
 
+    address public immutable LIFI_DIAMOND;
     ISignatureTransfer public immutable PERMIT2;
     mapping(address => bool) public diamondWhitelist;
 
@@ -47,10 +48,8 @@ contract Permit2Proxy is TransferrableOwnership {
 
     /// Constructor ///
 
-    constructor(
-        address _owner,
-        ISignatureTransfer _permit2
-    ) TransferrableOwnership(_owner) {
+    constructor(address _lifiDiamond, ISignatureTransfer _permit2) {
+        LIFI_DIAMOND = _lifiDiamond;
         PERMIT2 = _permit2;
 
         PERMIT_WITH_WITNESS_TYPEHASH = keccak256(
@@ -73,7 +72,6 @@ contract Permit2Proxy is TransferrableOwnership {
     /// @param v User signature (recovery ID)
     /// @param r User signature (ECDSA output)
     /// @param s User signature (ECDSA output)
-    /// @param diamondAddress Address of the token to be bridged
     /// @param diamondCalldata Address of the token to be bridged
     function callDiamondWithEIP2612Signature(
         address tokenAddress,
@@ -82,7 +80,6 @@ contract Permit2Proxy is TransferrableOwnership {
         uint8 v,
         bytes32 r,
         bytes32 s,
-        address diamondAddress,
         bytes calldata diamondCalldata
     ) public payable {
         // call permit on token contract to register approval using signature
@@ -105,29 +102,27 @@ contract Permit2Proxy is TransferrableOwnership {
         );
 
         // maxApprove token to diamond if current allowance is insufficient
-        LibAsset.maxApproveERC20(IERC20(tokenAddress), diamondAddress, amount);
+        LibAsset.maxApproveERC20(IERC20(tokenAddress), LIFI_DIAMOND, amount);
 
         // call our diamond to execute calldata
-        _executeCalldata(diamondAddress, diamondCalldata);
+        _executeCalldata(diamondCalldata);
     }
 
     /// @notice Allows to bridge tokens of one type through a LI.FI diamond
     ///         contract using Uniswap's Permit2 contract and a user signature
     ///         that verifies allowance, diamondAddress and diamondCalldata
-    /// @param _diamondAddress the diamond contract to execute the call
     /// @param _diamondCalldata the calldata to execute
     /// @param _signer the signer giving permission to transfer tokens
     /// @param _permit the Uniswap Permit2 parameters
     /// @param _signature the signature giving approval to transfer tokens
     function callDiamondWithPermit2SignatureSingle(
-        address _diamondAddress,
         bytes calldata _diamondCalldata,
         address _signer,
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata _signature
     ) external payable {
         LIFICall memory lifiCall = LIFICall(
-            _diamondAddress,
+            LIFI_DIAMOND,
             keccak256(_diamondCalldata)
         );
 
@@ -148,43 +143,20 @@ contract Permit2Proxy is TransferrableOwnership {
         // maxApprove token to diamond if current allowance is insufficient
         LibAsset.maxApproveERC20(
             IERC20(_permit.permitted.token),
-            _diamondAddress,
+            LIFI_DIAMOND,
             _permit.permitted.amount
         );
 
-        _executeCalldata(_diamondAddress, _diamondCalldata);
-    }
-
-    /// @notice Allows to update the whitelist of diamond contracts
-    /// @dev Admin function
-    /// @param addresses Addresses to be added (true) or removed (false) from
-    ///                  whitelist
-    /// @param values Values for each address that should be updated
-    function updateWhitelist(
-        address[] calldata addresses,
-        bool[] calldata values
-    ) external onlyOwner {
-        for (uint i; i < addresses.length; ) {
-            // update whitelist address value
-            diamondWhitelist[addresses[i]] = values[i];
-
-            // gas-efficient way to increase the loop counter
-            unchecked {
-                ++i;
-            }
-        }
-        emit WhitelistUpdated(addresses, values);
+        _executeCalldata(_diamondCalldata);
     }
 
     /// @notice utitlity method for constructing a valid Permit2 message hash
-    /// @param _diamondAddress the diamond address to call
     /// @param _diamondCalldata the calldata to execute
     /// @param _assetId the address of the token to approve
     /// @param _amount amount of tokens to approve
     /// @param _nonce the nonce to use
     /// @param _deadline the expiration deadline
     function getPermit2MsgHash(
-        address _diamondAddress,
         bytes calldata _diamondCalldata,
         address _assetId,
         uint256 _amount,
@@ -201,7 +173,7 @@ contract Permit2Proxy is TransferrableOwnership {
 
         // Witness
         Permit2Proxy.LIFICall memory lifiCall = LIFICall(
-            _diamondAddress,
+            LIFI_DIAMOND,
             keccak256(_diamondCalldata)
         );
         bytes32 witness = _getWitnessHash(lifiCall);
@@ -261,19 +233,10 @@ contract Permit2Proxy is TransferrableOwnership {
             keccak256(abi.encodePacked("\x19\x01", domainSeparator, dataHash));
     }
 
-    function _executeCalldata(
-        address diamondAddress,
-        bytes memory diamondCalldata
-    ) internal {
-        // make sure diamondAddress is whitelisted
-        // this limits the usage of this Permit2Proxy contracts to only work
-        // with our diamond contracts
-        if (!diamondWhitelist[diamondAddress])
-            revert DiamondAddressNotWhitelisted();
-
+    function _executeCalldata(bytes memory diamondCalldata) internal {
         // call diamond with provided calldata
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success, bytes memory data) = diamondAddress.call{
+        (bool success, bytes memory data) = LIFI_DIAMOND.call{
             value: msg.value
         }(diamondCalldata);
         // throw error to make sure tx reverts if low-level call was

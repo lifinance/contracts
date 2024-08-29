@@ -51,7 +51,7 @@ contract Permit2ProxyTest is TestBase {
         initTestBase();
 
         uniPermit2 = ISignatureTransfer(PERMIT2_ADDRESS);
-        permit2Proxy = new Permit2Proxy(address(this), uniPermit2);
+        permit2Proxy = new Permit2Proxy(DIAMOND_ADDRESS, uniPermit2);
         PERMIT_WITH_WITNESS_TYPEHASH = keccak256(
             abi.encodePacked(
                 PermitHash._PERMIT_TRANSFER_FROM_WITNESS_TYPEHASH_STUB,
@@ -59,11 +59,6 @@ contract Permit2ProxyTest is TestBase {
             )
         );
 
-        address[] memory whitelist = new address[](1);
-        whitelist[0] = DIAMOND_ADDRESS;
-        bool[] memory allowed = new bool[](1);
-        allowed[0] = true;
-        permit2Proxy.updateWhitelist(whitelist, allowed);
         PERMIT2_USER = vm.addr(PRIVATE_KEY);
         vm.label(PERMIT2_USER, "Permit2 User");
         deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
@@ -102,7 +97,6 @@ contract Permit2ProxyTest is TestBase {
             testdata.v,
             testdata.r,
             testdata.s,
-            DIAMOND_ADDRESS,
             testdata.diamondCalldata
         );
 
@@ -130,7 +124,6 @@ contract Permit2ProxyTest is TestBase {
             testdata.v,
             testdata.r,
             testdata.s,
-            DIAMOND_ADDRESS,
             testdata.diamondCalldata
         );
 
@@ -143,7 +136,6 @@ contract Permit2ProxyTest is TestBase {
             testdata.v,
             testdata.r,
             testdata.s,
-            DIAMOND_ADDRESS,
             testdata.diamondCalldata
         );
 
@@ -174,7 +166,6 @@ contract Permit2ProxyTest is TestBase {
             testdata.v,
             testdata.r,
             testdata.s,
-            DIAMOND_ADDRESS,
             testdata.diamondCalldata
         );
 
@@ -205,7 +196,6 @@ contract Permit2ProxyTest is TestBase {
             testdata.v + 1, // invalid v value
             testdata.r,
             testdata.s,
-            DIAMOND_ADDRESS,
             testdata.diamondCalldata
         );
 
@@ -235,7 +225,6 @@ contract Permit2ProxyTest is TestBase {
             testdata.v,
             testdata.r,
             testdata.s,
-            DIAMOND_ADDRESS,
             testdata.diamondCalldata
         );
 
@@ -257,7 +246,6 @@ contract Permit2ProxyTest is TestBase {
 
         // Execute
         permit2Proxy.callDiamondWithPermit2SignatureSingle(
-            DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
@@ -271,7 +259,6 @@ contract Permit2ProxyTest is TestBase {
         (, , msgHash, ) = _getPermitWitnessTransferFromParams();
 
         generatedMsgHash = permit2Proxy.getPermit2MsgHash(
-            DIAMOND_ADDRESS,
             _getCalldataForBridging(),
             ADDRESS_USDC,
             defaultUSDCAmount,
@@ -280,29 +267,6 @@ contract Permit2ProxyTest is TestBase {
         );
 
         assertEq(msgHash, generatedMsgHash);
-    }
-
-    function testRevery_cannot_call_unwhitelisted_diamond() public {
-        DIAMOND_ADDRESS = address(0x11f1); // Not whitelisted
-        bytes memory diamondCalldata;
-        ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
-        bytes memory signature;
-        (
-            diamondCalldata,
-            permitTransferFrom,
-            ,
-            signature
-        ) = _getPermitWitnessTransferFromParams();
-
-        // Execute
-        vm.expectRevert(DiamondAddressNotWhitelisted.selector);
-        permit2Proxy.callDiamondWithPermit2SignatureSingle(
-            DIAMOND_ADDRESS,
-            diamondCalldata,
-            PERMIT2_USER,
-            permitTransferFrom,
-            signature
-        );
     }
 
     function testRevert_cannot_call_diamond_single_with_same_signature_more_than_once()
@@ -321,7 +285,6 @@ contract Permit2ProxyTest is TestBase {
 
         // Execute x2
         permit2Proxy.callDiamondWithPermit2SignatureSingle(
-            DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
@@ -329,34 +292,6 @@ contract Permit2ProxyTest is TestBase {
         );
         vm.expectRevert(InvalidNonce.selector);
         permit2Proxy.callDiamondWithPermit2SignatureSingle(
-            DIAMOND_ADDRESS,
-            diamondCalldata,
-            PERMIT2_USER,
-            permitTransferFrom,
-            signature
-        );
-    }
-
-    function testRevert_cannot_set_different_diamond_address_than_intended()
-        public
-    {
-        deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
-        bytes memory diamondCalldata;
-        ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
-        bytes memory signature;
-        (
-            diamondCalldata,
-            permitTransferFrom,
-            ,
-            signature
-        ) = _getPermitWitnessTransferFromParams();
-
-        address MALICIOUS_CONTRACT;
-
-        // Execute
-        vm.expectRevert(InvalidSigner.selector);
-        permit2Proxy.callDiamondWithPermit2SignatureSingle(
-            MALICIOUS_CONTRACT,
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
@@ -381,7 +316,6 @@ contract Permit2ProxyTest is TestBase {
         // Execute
         vm.expectRevert(InvalidSigner.selector);
         permit2Proxy.callDiamondWithPermit2SignatureSingle(
-            DIAMOND_ADDRESS,
             MALICIOUS_CALLDATA,
             PERMIT2_USER,
             permitTransferFrom,
@@ -406,7 +340,6 @@ contract Permit2ProxyTest is TestBase {
         // Execute
         vm.expectRevert(InvalidSigner.selector);
         permit2Proxy.callDiamondWithPermit2SignatureSingle(
-            DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
@@ -433,7 +366,6 @@ contract Permit2ProxyTest is TestBase {
         // Execute
         vm.expectRevert(InvalidSigner.selector);
         permit2Proxy.callDiamondWithPermit2SignatureSingle(
-            DIAMOND_ADDRESS,
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
