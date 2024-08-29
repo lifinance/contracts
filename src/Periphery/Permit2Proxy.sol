@@ -112,10 +112,41 @@ contract Permit2Proxy {
     ///         contract using Uniswap's Permit2 contract and a user signature
     ///         that verifies allowance, diamondAddress and diamondCalldata
     /// @param _diamondCalldata the calldata to execute
+    /// @param _permit the Uniswap Permit2 parameters
+    /// @param _signature the signature giving approval to transfer tokens
+    function callDiamondWithPermit2(
+        bytes calldata _diamondCalldata,
+        ISignatureTransfer.PermitTransferFrom calldata _permit,
+        bytes calldata _signature
+    ) external payable {
+        PERMIT2.permitTransferFrom(
+            _permit,
+            ISignatureTransfer.SignatureTransferDetails({
+                to: address(this),
+                requestedAmount: _permit.permitted.amount
+            }),
+            msg.sender,
+            _signature
+        );
+
+        // maxApprove token to diamond if current allowance is insufficient
+        LibAsset.maxApproveERC20(
+            IERC20(_permit.permitted.token),
+            LIFI_DIAMOND,
+            _permit.permitted.amount
+        );
+
+        _executeCalldata(_diamondCalldata);
+    }
+
+    /// @notice Allows to bridge tokens of one type through a LI.FI diamond
+    ///         contract using Uniswap's Permit2 contract and a user signature
+    ///         that verifies allowance, diamondAddress and diamondCalldata
+    /// @param _diamondCalldata the calldata to execute
     /// @param _signer the signer giving permission to transfer tokens
     /// @param _permit the Uniswap Permit2 parameters
     /// @param _signature the signature giving approval to transfer tokens
-    function callDiamondWithPermit2SignatureSingle(
+    function callDiamondWithPermit2Witness(
         bytes calldata _diamondCalldata,
         address _signer,
         ISignatureTransfer.PermitTransferFrom calldata _permit,

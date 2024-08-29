@@ -233,7 +233,50 @@ contract Permit2ProxyTest is TestBase {
 
     /// Permit2 specific tests ///
 
-    function test_can_call_diamond_single() public {
+    function test_can_call_diamond_with_permit2() public {
+        bytes memory diamondCalldata;
+        ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
+        bytes memory signature;
+        (
+            diamondCalldata,
+            permitTransferFrom,
+            ,
+            signature
+        ) = _getPermitTransferFromParams();
+
+        // Execute
+        vm.prank(PERMIT2_USER);
+        permit2Proxy.callDiamondWithPermit2(
+            diamondCalldata,
+            permitTransferFrom,
+            signature
+        );
+    }
+
+    function testRevert_cannot_call_diamond_with_permit2_using_different_addresses()
+        public
+    {
+        bytes memory diamondCalldata;
+        ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
+        bytes memory signature;
+        (
+            diamondCalldata,
+            permitTransferFrom,
+            ,
+            signature
+        ) = _getPermitTransferFromParams();
+
+        // Execute
+        vm.prank(USER_SENDER);
+        vm.expectRevert(InvalidSigner.selector);
+        permit2Proxy.callDiamondWithPermit2(
+            diamondCalldata,
+            permitTransferFrom,
+            signature
+        );
+    }
+
+    function test_can_call_diamond_with_permit2_plus_witness() public {
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes memory signature;
@@ -245,7 +288,7 @@ contract Permit2ProxyTest is TestBase {
         ) = _getPermitWitnessTransferFromParams();
 
         // Execute
-        permit2Proxy.callDiamondWithPermit2SignatureSingle(
+        permit2Proxy.callDiamondWithPermit2Witness(
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
@@ -284,14 +327,14 @@ contract Permit2ProxyTest is TestBase {
         ) = _getPermitWitnessTransferFromParams();
 
         // Execute x2
-        permit2Proxy.callDiamondWithPermit2SignatureSingle(
+        permit2Proxy.callDiamondWithPermit2Witness(
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
             signature
         );
         vm.expectRevert(InvalidNonce.selector);
-        permit2Proxy.callDiamondWithPermit2SignatureSingle(
+        permit2Proxy.callDiamondWithPermit2Witness(
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
@@ -315,7 +358,7 @@ contract Permit2ProxyTest is TestBase {
 
         // Execute
         vm.expectRevert(InvalidSigner.selector);
-        permit2Proxy.callDiamondWithPermit2SignatureSingle(
+        permit2Proxy.callDiamondWithPermit2Witness(
             MALICIOUS_CALLDATA,
             PERMIT2_USER,
             permitTransferFrom,
@@ -339,7 +382,7 @@ contract Permit2ProxyTest is TestBase {
 
         // Execute
         vm.expectRevert(InvalidSigner.selector);
-        permit2Proxy.callDiamondWithPermit2SignatureSingle(
+        permit2Proxy.callDiamondWithPermit2Witness(
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
@@ -365,7 +408,7 @@ contract Permit2ProxyTest is TestBase {
 
         // Execute
         vm.expectRevert(InvalidSigner.selector);
-        permit2Proxy.callDiamondWithPermit2SignatureSingle(
+        permit2Proxy.callDiamondWithPermit2Witness(
             diamondCalldata,
             PERMIT2_USER,
             permitTransferFrom,
@@ -374,6 +417,45 @@ contract Permit2ProxyTest is TestBase {
     }
 
     /// Helper Functions ///
+
+    function _getPermitTransferFromParams()
+        internal
+        view
+        returns (
+            bytes memory diamondCalldata,
+            ISignatureTransfer.PermitTransferFrom memory permitTransferFrom,
+            bytes32 msgHash,
+            bytes memory signature
+        )
+    {
+        // Calldata
+        diamondCalldata = _getCalldataForBridging();
+
+        // Token Permissions
+        ISignatureTransfer.TokenPermissions
+            memory tokenPermissions = ISignatureTransfer.TokenPermissions(
+                ADDRESS_USDC,
+                defaultUSDCAmount
+            );
+        bytes32 permit = _getTokenPermissionsHash(tokenPermissions);
+
+        // PermitTransferFrom
+        msgHash = _getPermitTransferFromHash(
+            uniPermit2.DOMAIN_SEPARATOR(),
+            permit,
+            address(permit2Proxy),
+            0,
+            block.timestamp + 1000
+        );
+
+        signature = _signMsgHash(msgHash, PRIVATE_KEY);
+
+        permitTransferFrom = ISignatureTransfer.PermitTransferFrom(
+            tokenPermissions,
+            0,
+            block.timestamp + 1000
+        );
+    }
 
     function _getPermitWitnessTransferFromParams()
         internal
@@ -458,6 +540,27 @@ contract Permit2ProxyTest is TestBase {
     ) internal view returns (bytes32) {
         return
             keccak256(abi.encode(permit2Proxy.WITNESS_TYPEHASH(), lifiCall));
+    }
+
+    function _getPermitTransferFromHash(
+        bytes32 domainSeparator,
+        bytes32 permit,
+        address spender,
+        uint256 nonce,
+        uint256 deadline
+    ) internal pure returns (bytes32) {
+        bytes32 dataHash = keccak256(
+            abi.encode(
+                PermitHash._PERMIT_TRANSFER_FROM_TYPEHASH,
+                permit,
+                spender,
+                nonce,
+                deadline
+            )
+        );
+
+        return
+            keccak256(abi.encodePacked("\x19\x01", domainSeparator, dataHash));
     }
 
     function _getPermitWitnessTransferFromHash(
