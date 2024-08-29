@@ -6,6 +6,9 @@ import { HyphenFacet } from "lifi/Facets/HyphenFacet.sol";
 import { AmarokFacet } from "lifi/Facets/AmarokFacet.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { StargateFacet } from "lifi/Facets/StargateFacet.sol";
+import { StargateFacetV2 } from "lifi/Facets/StargateFacetV2.sol";
+import { IStargate } from "lifi/Interfaces/IStargate.sol";
+
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { CelerIM, CelerIMFacetBase } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
@@ -18,12 +21,16 @@ import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 import { MsgDataTypes } from "celer-network/contracts/message/libraries/MessageSenderLib.sol";
 import { console } from "forge-std/console.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { OFTComposeMsgCodec } from "lifi/Periphery/ReceiverStargateV2.sol";
 
 contract CalldataVerificationFacetTest is TestBase {
     using LibBytes for bytes;
+    using OFTComposeMsgCodec for address;
+
     CalldataVerificationFacet internal calldataVerificationFacet;
 
     function setUp() public {
+        customBlockNumberForForking = 19979843;
         initTestBase();
         calldataVerificationFacet = new CalldataVerificationFacet();
         bridgeData = ILiFi.BridgeData({
@@ -49,6 +56,12 @@ contract CalldataVerificationFacetTest is TestBase {
                 callData: abi.encodePacked("calldata"),
                 requiresDeposit: true
             })
+        );
+
+        // set facet address in TestBase
+        setFacetAddressInTestBase(
+            address(calldataVerificationFacet),
+            "CalldataVerificationFacet"
         );
     }
 
@@ -732,6 +745,100 @@ contract CalldataVerificationFacetTest is TestBase {
         assertFalse(badCall);
     }
 
+    function test_CanValidateStargateV2DestinationCalldata() public {
+        uint16 ASSET_ID_USDC = 1;
+        address STARGATE_POOL_USDC = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
+
+        StargateFacetV2.StargateData memory stargateData = StargateFacetV2
+            .StargateData({
+                assetId: ASSET_ID_USDC,
+                sendParams: IStargate.SendParam({
+                    dstEid: 30150,
+                    to: USER_RECEIVER.addressToBytes32(),
+                    amountLD: defaultUSDCAmount,
+                    minAmountLD: (defaultUSDCAmount * 9e4) / 1e5,
+                    extraOptions: "",
+                    composeMsg: bytes("foobarbytes"),
+                    oftCmd: OftCmdHelper.bus()
+                }),
+                fee: IStargate.MessagingFee({ nativeFee: 0, lzTokenFee: 0 }),
+                refundAddress: payable(USER_REFUND)
+            });
+
+        // get quote and update fee information in stargateData
+        IStargate.MessagingFee memory fees = IStargate(STARGATE_POOL_USDC)
+            .quoteSend(stargateData.sendParams, false);
+        stargateData.fee = fees;
+
+        bytes memory callData = abi.encodeWithSelector(
+            StargateFacetV2.startBridgeTokensViaStargate.selector,
+            bridgeData,
+            stargateData
+        );
+
+        bytes memory callDataWithSwap = abi.encodeWithSelector(
+            StargateFacetV2.swapAndStartBridgeTokensViaStargate.selector,
+            bridgeData,
+            swapData,
+            stargateData
+        );
+
+        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            abi.encode(USER_RECEIVER),
+            bytes("foobarbytes")
+        );
+        bool validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                callDataWithSwap,
+                abi.encode(USER_RECEIVER),
+                bytes("foobarbytes")
+            );
+
+        bool badCall = calldataVerificationFacet.validateDestinationCalldata(
+            callData,
+            abi.encode(USER_RECEIVER),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+
+        // StandardizedCall
+        bytes memory standardizedCallData = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callData
+        );
+
+        bytes memory standardizedCallDataWithSwap = abi.encodeWithSelector(
+            StandardizedCallFacet.standardizedCall.selector,
+            callDataWithSwap
+        );
+
+        validCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
+            bytes("foobarbytes")
+        );
+        validCallWithSwap = calldataVerificationFacet
+            .validateDestinationCalldata(
+                standardizedCallDataWithSwap,
+                abi.encode(USER_RECEIVER),
+                bytes("foobarbytes")
+            );
+
+        badCall = calldataVerificationFacet.validateDestinationCalldata(
+            standardizedCallData,
+            abi.encode(USER_RECEIVER),
+            bytes("badbytes")
+        );
+
+        assertTrue(validCall);
+        assertTrue(validCallWithSwap);
+        assertFalse(badCall);
+    }
+
     function test_CanValidateCelerIMDestinationCalldata() public {
         CelerIM.CelerIMData memory cimData = CelerIM.CelerIMData({
             maxSlippage: 1,
@@ -847,5 +954,15 @@ contract CalldataVerificationFacetTest is TestBase {
         assertTrue(data[0].approveTo == swapData[0].approveTo);
         assertTrue(data[0].sendingAssetId == swapData[0].sendingAssetId);
         assertTrue(data[0].receivingAssetId == swapData[0].receivingAssetId);
+    }
+}
+
+library OftCmdHelper {
+    function taxi() internal pure returns (bytes memory) {
+        return "";
+    }
+
+    function bus() internal pure returns (bytes memory) {
+        return new bytes(1);
     }
 }

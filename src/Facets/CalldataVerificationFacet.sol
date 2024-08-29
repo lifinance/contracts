@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { AmarokFacet } from "./AmarokFacet.sol";
+import { StargateFacetV2 } from "./StargateFacetV2.sol";
 import { StargateFacet } from "./StargateFacet.sol";
 import { CelerIMFacetBase, CelerIM } from "lifi/Helpers/CelerIMFacetBase.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
@@ -261,7 +262,7 @@ contract CalldataVerificationFacet {
 
     /// @notice Validates the destination calldata
     /// @param data The calldata to validate
-    /// @param callTo The call to address to validate
+    /// @param callTo The callTo address to validate
     /// @param dstCalldata The destination calldata to validate
     /// @return isValid Whether the destination calldata is validate
     function validateDestinationCalldata(
@@ -280,6 +281,7 @@ contract CalldataVerificationFacet {
 
         bytes4 selector = abi.decode(callData, (bytes4));
 
+        // ---------------------------------------
         // Case: Amarok
         if (selector == AmarokFacet.startBridgeTokensViaAmarok.selector) {
             (, AmarokFacet.AmarokData memory amarokData) = abi.decode(
@@ -303,6 +305,7 @@ contract CalldataVerificationFacet {
                 abi.decode(callTo, (address)) == amarokData.callTo;
         }
 
+        // ---------------------------------------
         // Case: Stargate
         if (selector == StargateFacet.startBridgeTokensViaStargate.selector) {
             (, StargateFacet.StargateData memory stargateData) = abi.decode(
@@ -329,6 +332,51 @@ contract CalldataVerificationFacet {
                 keccak256(dstCalldata) == keccak256(stargateData.callData) &&
                 keccak256(callTo) == keccak256(stargateData.callTo);
         }
+
+        // ---------------------------------------
+        // Case: StargateV2
+
+        if (
+            selector == StargateFacetV2.startBridgeTokensViaStargate.selector
+        ) {
+            (, StargateFacetV2.StargateData memory stargateDataV2) = abi
+                .decode(
+                    callData.slice(4, callData.length - 4),
+                    (ILiFi.BridgeData, StargateFacetV2.StargateData)
+                );
+
+            return
+                keccak256(dstCalldata) ==
+                keccak256(stargateDataV2.sendParams.composeMsg) &&
+                _compareBytesToBytes32CallTo(
+                    callTo,
+                    stargateDataV2.sendParams.to
+                );
+        }
+        if (
+            selector ==
+            StargateFacetV2.swapAndStartBridgeTokensViaStargate.selector
+        ) {
+            (, , StargateFacetV2.StargateData memory stargateDataV2) = abi
+                .decode(
+                    callData.slice(4, callData.length - 4),
+                    (
+                        ILiFi.BridgeData,
+                        LibSwap.SwapData[],
+                        StargateFacetV2.StargateData
+                    )
+                );
+
+            return
+                keccak256(dstCalldata) ==
+                keccak256(stargateDataV2.sendParams.composeMsg) &&
+                _compareBytesToBytes32CallTo(
+                    callTo,
+                    stargateDataV2.sendParams.to
+                );
+        }
+
+        // ---------------------------------------
         // Case: Celer
         if (
             selector == CelerIMFacetBase.startBridgeTokensViaCelerIM.selector
@@ -415,5 +463,23 @@ contract CalldataVerificationFacet {
             GenericSwapFacetV3.swapTokensSingleV3ERC20ToNative.selector ||
             functionSelector ==
             GenericSwapFacetV3.swapTokensSingleV3NativeToERC20.selector;
+    }
+
+    function _compareBytesToBytes32CallTo(
+        bytes calldata callTo,
+        bytes32 callToBytes32
+    ) private pure returns (bool) {
+        // convert both values to address type and compare them
+        return
+            address(uint160(uint256(callToBytes32))) ==
+            _bytesToAddress(callTo);
+    }
+
+    function _bytesToAddress(
+        bytes memory bys
+    ) private pure returns (address addr) {
+        assembly {
+            addr := mload(add(bys, 32))
+        }
     }
 }
