@@ -93,17 +93,19 @@ deploySingleContract() {
   if [[ -z "$CONTRACT" ]]; then
     # get user-selected deploy script and contract from list
     SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
-    CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
+    local CONTRACT=$(echo $SCRIPT | sed -e 's/Deploy//')
   else
     SCRIPT="Deploy"$CONTRACT
   fi
 
   # Display contract-specific information, if existing
   if grep -q "^$CONTRACT=" "$CONTRACT_REMINDERS"; then
-    echo ""
+    echo -e "\n\n"
+    printf '\033[31m%s\031\n' "--------------------------------------- !!!!!!!! ATTENTION !!!!!!!! ---------------------------------------"
     warning "Please read the following information carefully: "
     warning "${!CONTRACT}"
-    echo ""
+    printf '\033[31m%s\031\n' "-----------------------------------------------------------------------------------------------------------"
+    echo -e "\n\n"
   fi
 
   # check if deploy script exists
@@ -251,8 +253,10 @@ deploySingleContract() {
 
     # end this script according to flag
     if [[ -z "$EXIT_ON_ERROR" ]]; then
+      echo "return 1"
       return 1
     else
+      echo "exit 1"
       exit 1
     fi
   fi

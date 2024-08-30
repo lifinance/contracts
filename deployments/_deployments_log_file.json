@@ -46,8 +46,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:12:31",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -99,7 +99,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 15:50:07",
             "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -175,8 +176,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:31:26",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -436,7 +437,7 @@
             "TIMESTAMP": "2023-07-25 19:00:30",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -445,10 +446,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x93D06bf131a1bBB9c8EAE78F4eF05e302308Ce37",
+            "ADDRESS": "0x4305713927B95917C009b7ef30F069A910781593",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-07 13:19:25",
+            "TIMESTAMP": "2024-08-09 10:16:31",
             "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "false"
           }
         ]
@@ -639,6 +641,34 @@
           }
         ]
       }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xC9E3d116262E93c14f87032fBE0C43791e0fAfCB",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:21:24",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x429Da7043882C2A962bC4EA7b33440C3B9a033D7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:16:31",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "DiamondLoupeFacet": {
@@ -688,8 +718,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:12:43",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -728,7 +758,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 15:51:32",
             "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -804,8 +835,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:31:37",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1065,7 +1096,7 @@
             "TIMESTAMP": "2023-07-25 19:00:39",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -1074,10 +1105,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xE2FF9605Ec86bbB75042331250e27e1B9aA81783",
+            "ADDRESS": "0xA73AB25328Ff50072e5e9A4a97bdf2796C9B7caE",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-07 13:19:30",
+            "TIMESTAMP": "2024-08-09 10:16:37",
             "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "false"
           }
         ]
@@ -1289,6 +1321,34 @@
             "TIMESTAMP": "2024-07-26 14:00:03",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xa521DD4f0e6df9d56d740D0fa4f7fA2F0BC88bA7",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:21:53",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x01ABD3Dec5268802272af46FE6Ac4c2fCF0Eff10",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:16:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -1728,11 +1788,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x2942c143463A591Ba88B4241491796Fcb14306f0",
+            "ADDRESS": "0x59EfE38BE819457509Adba939780c4CfD1d2dA84",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-27 09:58:20",
+            "TIMESTAMP": "2024-08-09 10:16:42",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "26062027",
+            "SALT": "",
             "VERIFIED": "false"
           }
         ]
@@ -1948,6 +2008,34 @@
           }
         ]
       }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xf09eF957165a5265613c5a57bDe781d363d519f0",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:22:22",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x815e97BE9122Fa64259277b1509E316Fc45D4b34",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:16:51",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "DexManagerFacet": {
@@ -2027,8 +2115,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:13:08",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2067,7 +2155,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 15:56:41",
             "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2113,7 +2202,7 @@
             "TIMESTAMP": "2024-06-28 20:45:04",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2229,8 +2318,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:31:59",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2516,7 +2605,7 @@
             "TIMESTAMP": "2023-07-25 19:00:56",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ],
         "1.0.1": [
@@ -2556,6 +2645,16 @@
             "SALT": "26062027",
             "VERIFIED": "false"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0xD84484f7B346b7521905c40370535b54E909BC06",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 10:16:47",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
         ]
       },
       "production": {
@@ -2590,7 +2689,7 @@
             "TIMESTAMP": "2024-07-01 09:52:01",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2676,7 +2775,7 @@
             "TIMESTAMP": "2024-07-01 10:26:40",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2838,6 +2937,34 @@
           }
         ]
       }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x38aDe624ebAF11ee35190046fbdF2d42e03e869a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:22:52",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xD1DB5abDA5918ca4aFb8982a49378D4A2Dfe5D5c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:17:10",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "AccessManagerFacet": {
@@ -2887,8 +3014,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:13:21",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -2941,7 +3068,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 15:58:08",
             "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -3043,8 +3171,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:32:10",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -3250,7 +3378,7 @@
             "TIMESTAMP": "2023-08-29 17:08:30",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -3259,10 +3387,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x685C70986d2F90CafF61EB15Ab1BE7502bBa007D",
+            "ADDRESS": "0xa836CE919F37421B4e0990911769dE04410cd1A3",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-07 13:19:45",
+            "TIMESTAMP": "2024-08-09 10:16:52",
             "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "false"
           }
         ]
@@ -3456,6 +3585,34 @@
             "TIMESTAMP": "2024-07-26 14:00:39",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xdD6CEa60F2Bb19fA5a03F0856054E2803221c3E4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:23:20",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xa09f97e14C8351D16558b18891938aC873787652",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:17:22",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -3881,11 +4038,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x434a5E2660eea82e5f57d70f7655033f9D8257F3",
+            "ADDRESS": "0x2157031AE43C8045abfB4405E6453B48FD901B74",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-27 09:58:37",
+            "TIMESTAMP": "2024-08-09 10:16:57",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "26062027",
+            "SALT": "",
             "VERIFIED": "false"
           }
         ]
@@ -4066,6 +4223,34 @@
             "TIMESTAMP": "2024-07-26 14:00:52",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xddb090dD35ad8642DC5c79137147A6B34485B126",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:23:50",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x8A779ed5c6838e236f934Eb392D5aBdbF22404dD",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:17:40",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -4491,11 +4676,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x70aAcD515727E7057C317A4177E030f7240DF4D0",
+            "ADDRESS": "0xD51Bbb06C1234F7Eead4721915E7c6aeb99A330d",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-07 13:19:55",
+            "TIMESTAMP": "2024-08-09 10:17:01",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "26062027",
+            "SALT": "",
             "VERIFIED": "false"
           }
         ]
@@ -4707,6 +4892,34 @@
           }
         ]
       }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xdd400e751B3A9D2bF02CF1EEc245c1BDFb8e0E56",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:24:20",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x0C710c59f1a656333B5AfBAC64A8f60B52C30af4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:17:52",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LiFiDiamond": {
@@ -4757,8 +4970,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:33:37",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b000000000000000000000000b2a8517734cdf985d53f303a1f7759a34fdc772f",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       },
@@ -4875,8 +5088,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:15:05",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b000000000000000000000000b2a8517734cdf985d53f303a1f7759a34fdc772f",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       },
@@ -5092,7 +5305,7 @@
             "TIMESTAMP": "2023-07-25 19:01:47",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000ad50118509eb4c8e3e39a370151b0fd5d5957013",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5275,12 +5488,12 @@
       "production": {
         "1.0.0": [
           {
-            "ADDRESS": "0x2dea447e7dc6cd2f10b31bF10dCB30F87E838417",
+            "ADDRESS": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-05-24 16:13:16",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c000000000000000000000000ad50118509eb4c8e3e39a370151b0fd5d5957013",
             "SALT": "",
-            "VERIFIED": "true"
+            "VERIFIED": "false"
           }
         ]
       }
@@ -5322,6 +5535,34 @@
             "TIMESTAMP": "2024-07-26 14:02:30",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000b3a64c21bb4a6d95721e63185d71b637db46d848",
             "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:28:15",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000c9e3d116262e93c14f87032fbe0c43791e0fafcb",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x3A9A5dBa8FE1C4Da98187cE4755701BCA182f63b",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:19:32",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c000000000000000000000000429da7043882c2a962bc4ea7b33440c3b9a033d7",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -5389,7 +5630,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:02:17",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000f1d67e1dddc87e2858c87ebd5b19f99a4e297541",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5613,7 +5855,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-01 13:05:26",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44000000000000000000000000f1d67e1dddc87e2858c87ebd5b19f99a4e297541",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5654,6 +5897,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-08-25 12:25:21",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce4400000000000000000000000093bb2f207b9e3d8baa3523fa2ce3d8411fc419b8",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x8c582F8d09BeBAFbDdb2668dC7F7E3283d05ebA3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:06:08",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c000000000000000000000000429da7043882c2a962bc4ea7b33440c3b9a033d7",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -5726,8 +5983,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:17:53",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000e35e9842fceaca96570b734083f4a58e8f7c5f2a00000000000000000000000082af49447d8a07e3bd95bd0d56f35241523fbab1",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5798,8 +6055,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:36:58",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009295ee1d8c5b022be115a2ad3c30c72e34e7f0960000000000000000000000007ceb23fd6bc0add59e62ac25578270cff1b9f619",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5839,7 +6096,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:04:32",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5911,6 +6169,34 @@
           }
         ]
       }
+    },
+    "blast": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x9535A1AFd986FA9a2D324657116F02C364edebFf",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-19 17:33:50",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002d509190ed0172ba588407d4c2df918f955cc6e10000000000000000000000004300000000000000000000000000000000000004",
+            "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "scroll": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x9535A1AFd986FA9a2D324657116F02C364edebFf",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-19 17:48:39",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000003bad7ad0728f9917d1bf08af5782dcbd516cdd960000000000000000000000005300000000000000000000000000000000000004",
+            "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "CBridgeFacet": {
@@ -5934,8 +6220,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 13:59:29",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009d39fc627a6d9d9f8c831c16995b209548cc3401",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -5960,8 +6246,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:27:42",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000001619de6b6b20ed217a58d00f37b9d47c7663feca",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6014,7 +6300,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:12:16",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000020",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6081,8 +6368,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:45:54",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000088dcdc47d2f83a99cf0000fdf667a468bb958a78",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6208,7 +6495,7 @@
             "TIMESTAMP": "2023-07-25 19:02:57",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000d46f8e428a06789b5884df54e029e738277388d1",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6317,8 +6604,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:14:13",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ],
         "2.0.0": [
@@ -6393,7 +6680,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:16:07",
             "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6505,8 +6793,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:32:54",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ],
         "2.0.0": [
@@ -6516,7 +6804,7 @@
             "TIMESTAMP": "2024-03-28 15:27:47",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6708,7 +6996,7 @@
             "TIMESTAMP": "2023-07-25 19:01:40",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6717,11 +7005,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xAf97f8070d9823a4a6f224C2638feB6CcE44a73d",
+            "ADDRESS": "0x93d003b988c7c8976Ef41D207F4b166e35b6a1ed",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-27 09:59:27",
+            "TIMESTAMP": "2024-08-09 10:17:11",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "26062027",
+            "SALT": "",
             "VERIFIED": "false"
           }
         ]
@@ -6906,6 +7194,34 @@
           }
         ]
       }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xa27992F9ef326527F85898E645AFF1d99E9609E3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:25:19",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5B73eFA1929c80D92C85512153392B799B022D18",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:18:18",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "HopFacetOptimized": {
@@ -6938,8 +7254,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:05:16",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6973,8 +7289,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:38:39",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -6999,8 +7315,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:54:02",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7083,7 +7399,7 @@
             "TIMESTAMP": "2024-01-12 17:47:56",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7119,8 +7435,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:04:04",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7154,8 +7470,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:36:50",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7193,8 +7509,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:52:23",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7291,7 +7607,7 @@
             "TIMESTAMP": "2024-01-11 13:29:23",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7318,8 +7634,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:07:46",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000856cb5c3cbbe9e2e21293a644aa1f9363cee11e8",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7344,8 +7660,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:42:20",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000856cb5c3cbbe9e2e21293a644aa1f9363cee11e8",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7411,8 +7727,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:57:23",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a5c2568b10a0e826bfa892cf21ba7218310180b",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7523,8 +7839,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:13:59",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7599,7 +7915,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:21:55",
             "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7716,8 +8033,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:32:43",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -7874,7 +8191,7 @@
             "TIMESTAMP": "2024-04-17 14:11:12",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -8004,7 +8321,7 @@
             "TIMESTAMP": "2023-07-25 19:01:31",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ],
         "1.0.1": [
@@ -8028,6 +8345,16 @@
             "TIMESTAMP": "2023-06-27 10:00:30",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "26062027",
+            "VERIFIED": "false"
+          }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0xb03Ed64dfB284F50fc71F358492e932bbB3A99Fd",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 10:17:06",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "false"
           }
         ]
@@ -8150,7 +8477,7 @@
             "TIMESTAMP": "2024-04-17 13:54:37",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -8174,7 +8501,7 @@
             "TIMESTAMP": "2024-04-17 14:01:00",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -8271,6 +8598,34 @@
             "TIMESTAMP": "2024-07-26 14:01:47",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x75F9eaC5c368Ed9277b8952C83A063e435051332",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:24:49",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x42C1418917AE5505b5B3C79bdc1d1ba30177Ea06",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:18:05",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -9510,8 +9865,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:11:07",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -9536,8 +9891,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:49:17",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -9562,8 +9917,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 13:03:35",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -9667,7 +10022,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:37:51",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10084,6 +10440,34 @@
           }
         ]
       }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xB59Cb9E4087c841577ACE23B0168CCDdf9450290",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:34:58",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6bC43F95C5234aA749D18403753d60B91f972d3c",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:28:43",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "Executor": {
@@ -10116,8 +10500,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:11:15",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000f6d5cf7a12d89bc0fd34e27d2237875b564a6adf",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10151,8 +10535,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:49:30",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000f6d5cf7a12d89bc0fd34e27d2237875b564a6adf",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10199,8 +10583,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 13:03:46",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000f6d5cf7a12d89bc0fd34e27d2237875b564a6adf",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10344,7 +10728,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:39:15",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000000654eba982ec082036a3d0f59964d302f1ba5cda",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10671,7 +11056,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-06-01 13:12:56",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce440000000000000000000000000654eba982ec082036a3d0f59964d302f1ba5cda",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ],
         "2.0.0": [
@@ -10681,7 +11067,7 @@
             "TIMESTAMP": "2023-07-25 19:06:12",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000005741a7ffe7c39ca175546a54985fa79211290b51",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10880,6 +11266,34 @@
           }
         ]
       }
+    },
+    "immutablezkevm": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xdC55d8b59441f75e32FDD2356139DC8402e52048",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:36:27",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000b59cb9e4087c841577ace23b0168ccddf9450290",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0xeCBa38d0bAc1cA1CD5A30347370e4D539d44FAA1",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:29:29",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006bc43f95c5234aa749d18403753d60b91f972d3c",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "FeeCollector": {
@@ -10903,8 +11317,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:11:21",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10929,8 +11343,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:49:43",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -10955,8 +11369,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 13:03:57",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -11061,7 +11475,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:40:31",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f11121df7256c40339393b0fb045321022ce44",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -11279,7 +11694,7 @@
             "TIMESTAMP": "2023-07-25 19:06:51",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -11288,11 +11703,11 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0x9a0D4c65a7C52A22fe67CCb6FC44504E82d2B9Af",
+            "ADDRESS": "0xF008fd48fFBE6d364f3d267412BBfC7dBc0c5A5B",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2023-06-27 10:17:34",
-            "CONSTRUCTOR_ARGS": "0x0000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc",
-            "SALT": "26062028",
+            "TIMESTAMP": "2024-08-07 14:28:40",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
             "VERIFIED": "false"
           }
         ]
@@ -11474,6 +11889,34 @@
             "TIMESTAMP": "2024-07-26 14:23:27",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
             "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1a4E99aB56BBac95810C0A957F173054f6FA8fDc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:38:02",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xDd8A081efC90DFFD79940948a1528C51793C4B03",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:30:44",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000008647cc950813966142a416d40c382e2c5db73bb",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -12612,6 +13055,34 @@
           }
         ]
       }
+    },
+    "immutablezkevm": {
+      "production": {
+        "2.0.2": [
+          {
+            "ADDRESS": "0xCfDfbAa460EFAd6F58D4459d82863CfA137e4993",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:48:04",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000dc55d8b59441f75e32fdd2356139dc8402e5204800000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "2.0.2": [
+          {
+            "ADDRESS": "0xe38326Ae727e3fA6669249063Ce7b8ea1754e756",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 14:22:52",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ecba38d0bac1ca1cd5a30347370e4d539d44faa100000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "ServiceFeeCollector": {
@@ -13450,8 +13921,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:40:27",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b00000000000000000000000033ceb27b39d2bb7d2e61f7564d3df29344020417",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -13526,8 +13997,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:06:31",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b00000000000000000000000086ca30bef97fb651b8d866d45503684b90cb3312",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -13590,8 +14061,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:55:42",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b000000000000000000000000884d1aa15f9957e1aeaa86a82a72e49bc2bfcbe3",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -13770,7 +14241,7 @@
             "TIMESTAMP": "2024-01-12 17:49:14",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -13816,8 +14287,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 13:57:16",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000008f7492de823025b4cfaab1d34c58963f2af5deda",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -13856,7 +14327,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:06:18",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000020",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -13910,8 +14382,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:23:52",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ee9dec2712cce65174b561151701bf54b99c24c8",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14065,8 +14537,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:42:27",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011984dc4465481512eb5b777e44061c158cf2259",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14151,7 +14623,7 @@
             "TIMESTAMP": "2024-06-25 13:35:13",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b8448c6f7f7887d36dca487370778e419e9ebe3f",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14255,7 +14727,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:14:19",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14280,8 +14753,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:31:19",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000054b95b60bfface948fa4548da8ee2e212fb7c0a000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14306,8 +14779,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:01:43",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000697ac93c9263346c5ad0412f9356d5789a3aa6870000000000000000000000000b2c639c533813f4aa9d7837caf62653d097ff85",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14332,8 +14805,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:49:09",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b876cc05c3c3c8ecba65dac4cf69caf871f2e0dd0000000000000000000000003c499c542cef5e3811e1192ce70d8cc03d5c3359",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14545,8 +15018,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:40:39",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000007775d63836987f444e2f14aa0fa2602204d7d3e0",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14611,8 +15084,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:21:55",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009ce3447b58d58e8602b7306316a5ff011b92d189",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14651,8 +15124,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 13:56:06",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000097e5bf5068ea6a9604ee25851e6c9780ff50d5ab",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14721,7 +15194,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:08:16",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14792,8 +15266,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:47:32",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000088dcdc47d2f83a99cf0000fdf667a468bb958a78000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14827,8 +15301,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:00:36",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009d39fc627a6d9d9f8c831c16995b209548cc3401000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -14872,8 +15346,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:29:31",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000001619de6b6b20ed217a58d00f37b9d47c7663feca000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -15492,7 +15966,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-05-15 16:18:04",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000020",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -15587,8 +16062,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:34:58",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000019330d10d9cc8751218eaf51e8885d058642e08a000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -15772,7 +16247,7 @@
             "TIMESTAMP": "2023-07-25 19:03:31",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009bb46d5100d2db4608112026951c9c965b233f4d000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000001231deb6f5749ef6ce6943a275a1d3e7486f4eae0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -16384,7 +16859,7 @@
             "TIMESTAMP": "2023-06-30 23:09:26",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009bb46d5100d2db4608112026951c9c965b233f4d000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f0000000000000000000000009b11bc9fac17c058cab6286b0c785be6a65492ef0000000000000000000000000000000000000000000000000000000000000000",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -17085,6 +17560,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-21 09:22:02",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000dc3d8e1abe590bca428a8a2fc4cfdbd1acf57bd9",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xB6faa3155683d6856ae196c4f3847D68D478E5eA",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:32:34",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce16f69375520ab01377ce7b88f5ba8c48f8d666",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -18034,6 +18523,34 @@
           }
         ]
       }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x4CA4226Ea534F2Ece75A4FcDAD0bBe5AbaEA9820",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:27:18",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.1.0": [
+          {
+            "ADDRESS": "0x386bbbE35DF5E7bec5fff8aC4E74A6D7c5fDa482",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:18:39",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "CalldataVerificationFacet": {
@@ -18067,8 +18584,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:14:53",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -18427,8 +18944,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:33:27",
             "CONSTRUCTOR_ARGS": "0x",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -18442,7 +18959,7 @@
             "TIMESTAMP": "2023-08-29 17:09:43",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ],
         "1.1.1": [
@@ -18452,7 +18969,7 @@
             "TIMESTAMP": "2023-09-22 17:54:46",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -18658,6 +19175,34 @@
           }
         ]
       }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.1.1": [
+          {
+            "ADDRESS": "0x93b22CF8C50f87C394837DdE0fD84E8add3100e9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:27:48",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.1.1": [
+          {
+            "ADDRESS": "0xFf0dDC136bD881F3B8Eea805654Dd0D0d3bd800C",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:18:50",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "LiFuelFeeCollector": {
@@ -18679,8 +19224,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 13:04:08",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       },
@@ -18730,7 +19275,7 @@
             "TIMESTAMP": "2023-10-09 16:12:01",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -18789,8 +19334,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:49:55",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -18986,7 +19531,7 @@
             "TIMESTAMP": "2024-04-17 14:07:52",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -19117,8 +19662,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:11:28",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -19166,7 +19711,7 @@
             "TIMESTAMP": "2024-04-17 14:16:27",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -19449,6 +19994,34 @@
           }
         ]
       }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x677Fa29FFe6c8f03D6bbE789090Dceb498b7aaA4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:39:30",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0xff2F39692A90262b8Ed4DFD92799bB450425773F",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:32:16",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000c71284231a726a18ac85c94d75f9fe17a185beaf",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "AcrossFacetPacked": {
@@ -19460,8 +20033,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:38:51",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009295ee1d8c5b022be115a2ad3c30c72e34e7f0960000000000000000000000007ceb23fd6bc0add59e62ac25578270cff1b9f619000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       },
@@ -19486,8 +20059,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 13:54:55",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000006f26bf09b1c792e3228e5467807a900a503c02810000000000000000000000004200000000000000000000000000000000000006000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       },
@@ -19524,8 +20097,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:19:53",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000e35e9842fceaca96570b734083f4a58e8f7c5f2a00000000000000000000000082af49447d8a07e3bd95bd0d56f35241523fbab1000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -19567,7 +20140,7 @@
             "TIMESTAMP": "2024-04-16 11:01:10",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000007e63a5f1a8f0b4d0934b2f2327daed3f6bb2ee75000000000000000000000000e5d7c2a44ffddf6b295a15c148167daaaf5cf34f00000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -19581,6 +20154,34 @@
             "TIMESTAMP": "2024-05-31 11:48:26",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000003bad7ad0728f9917d1bf08af5782dcbd516cdd96000000000000000000000000420000000000000000000000000000000000000600000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
             "SALT": "30052024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "blast": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xFd796bf7Ff74d414b99CacF6F216eAC24bF3aC8E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-19 17:50:49",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000002d509190ed0172ba588407d4c2df918f955cc6e1000000000000000000000000430000000000000000000000000000000000000400000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "scroll": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xFd796bf7Ff74d414b99CacF6F216eAC24bF3aC8E",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-19 17:52:23",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000003bad7ad0728f9917d1bf08af5782dcbd516cdd96000000000000000000000000530000000000000000000000000000000000000400000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "SALT": "09072024",
             "VERIFIED": "true"
           }
         ]
@@ -19626,8 +20227,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:44:11",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000011984dc4465481512eb5b777e44061c158cf2259000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       },
@@ -19690,8 +20291,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:25:47",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ee9dec2712cce65174b561151701bf54b99c24c8000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -19758,8 +20359,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 13:58:21",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000008f7492de823025b4cfaab1d34c58963f2af5deda000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -20103,6 +20704,20 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-26 10:55:18",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000ce8f24a58d85ed5c5a6824f7be1f8d4711a0eb4c000000000000000000000000adb2d3b711bb8d8ea92ff70292c466140432c278",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD59F68bBdECA334A05db2BCe5B6711d22f92fE7a",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:26:43",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000007057ab3fb2bee9c18e0cde4240de4ff7f159e365000000000000000000000000a0079829b9f1edc5dd0de3ec104f281745c4bd81",
             "SALT": "",
             "VERIFIED": "true"
           }
@@ -20567,6 +21182,34 @@
           }
         ]
       }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5C6Dd0170348666A3e07fD033C12D9D15c83e360",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:42:39",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000003a0c2ba54d6cbd3121f01b96dfd20e99d1696c9d",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD989E929517B0e5eD0c8EfE7607Fa167B697cBa8",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:35:17",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000a51894664a773981c6c112c43ce576f315d5b1b6",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   },
   "GasRebateDistributor": {
@@ -20728,8 +21371,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 12:33:04",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       },
@@ -20766,8 +21409,8 @@
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-07-31 14:14:26",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
-            "SALT": "31072024",
-            "VERIFIED": "false"
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -21039,7 +21682,7 @@
             "TIMESTAMP": "2024-06-04 13:34:10",
             "CONSTRUCTOR_ARGS": "0x",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
@@ -21151,6 +21794,34 @@
           }
         ]
       }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x51504500fBFB459684E020154Dc9B2DE912d0B92",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 10:25:49",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x147e65652FDaC507d24DE522a02C76c006A24aB9",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:18:29",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
     }
   },
   "StargateFacetV2": {
@@ -21177,6 +21848,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 18:28:47",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006ce9bf8cdab780416ad1fd87b318a077d2f50eac",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
@@ -21191,6 +21872,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 15:57:42",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006d6620efa72948c5f68a3c8646d58c00d3f4a980",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
         ]
       }
     },
@@ -21201,6 +21892,16 @@
             "ADDRESS": "0x139e0a9c4C90cC40D562859e8D6d3246C1915FD4",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-28 13:33:41",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000019cfce47ed54a88614648dc3f19a5980097007dd",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 19:36:54",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000019cfce47ed54a88614648dc3f19a5980097007dd",
             "SALT": "",
             "VERIFIED": "true"
@@ -21219,6 +21920,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 17:23:47",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000005f688f563dc16590e570f97b542fa87931af2fed",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
         ]
       }
     },
@@ -21229,6 +21940,16 @@
             "ADDRESS": "0x139e0a9c4C90cC40D562859e8D6d3246C1915FD4",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-28 13:39:09",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000005634c4a5fed09819e3c46d86a965dd9447d86e47",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 17:37:54",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000005634c4a5fed09819e3c46d86a965dd9447d86e47",
             "SALT": "",
             "VERIFIED": "true"
@@ -21247,6 +21968,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 19:05:03",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000041b491285a4f888f9f636cec8a363ab9770a0aef",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
@@ -21257,6 +21988,16 @@
             "ADDRESS": "0x139e0a9c4C90cC40D562859e8D6d3246C1915FD4",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-28 14:07:33",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000004e422b0acb2bd7e3ac70b5c0e5eb806e86a94038",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 19:32:01",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000004e422b0acb2bd7e3ac70b5c0e5eb806e86a94038",
             "SALT": "",
             "VERIFIED": "true"
@@ -21275,6 +22016,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 18:33:12",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000f1fcb4cbd57b67d683972a59b6a7b1e2e8bf27e6",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
@@ -21285,6 +22036,16 @@
             "ADDRESS": "0x8C4A1847ABF1FbC1D41c8754E3A7b88028C67784",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-28 14:13:19",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000005f688f563dc16590e570f97b542fa87931af2fed",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x113E97921874646413572F2C43562463c378b6f5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-15 12:35:13",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000005f688f563dc16590e570f97b542fa87931af2fed",
             "SALT": "",
             "VERIFIED": "true"
@@ -21303,6 +22064,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0xCb667deA2894ab64e8e75EACB0d5d027AC672e25",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 19:01:23",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000cbe78230cca58b9ef4c3c5d1bc0d7e4b3206588a",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     },
@@ -21313,6 +22084,16 @@
             "ADDRESS": "0x139e0a9c4C90cC40D562859e8D6d3246C1915FD4",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-06-28 14:35:15",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000017e450be3ba9557f2378e20d64ad417e59ef9a34",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 16:51:24",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000017e450be3ba9557f2378e20d64ad417e59ef9a34",
             "SALT": "",
             "VERIFIED": "true"
@@ -21331,6 +22112,16 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 19:07:11",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000001502fa4be69d526124d453619276faccab275d3d",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
         ]
       }
     },
@@ -21345,6 +22136,28 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 17:44:55",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006e3d884c96d640526f273c61dfcf08915ebd7e2b",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      },
+      "staging": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x089153117bffd37CBbE0c604dAE8e493D4743fA8",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-07-24 11:34:41",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000006e3d884c96d640526f273c61dfcf08915ebd7e2b",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
         ]
       }
     },
@@ -21357,6 +22170,30 @@
             "TIMESTAMP": "2024-07-26 14:32:12",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000009c2dc7377717603eb92b2655c5f2e7997a4945bd",
             "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ],
+        "1.0.1": [
+          {
+            "ADDRESS": "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-14 17:45:53",
+            "CONSTRUCTOR_ARGS": "0x0000000000000000000000009c2dc7377717603eb92b2655c5f2e7997a4945bd",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.1": [
+          {
+            "ADDRESS": "0x113E97921874646413572F2C43562463c378b6f5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:24:45",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000045d417612e177672958dc0537c45a8f8d754ac2e",
+            "SALT": "",
             "VERIFIED": "true"
           }
         ]
@@ -21568,6 +22405,50 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000cde9376f284d5ca9aaec69dd4d0761278b4ae0340000000000000000000000009c2dc7377717603eb92b2655c5f2e7997a4945bd0000000000000000000000001a44076050125825900e736c501f859c50fe728c00000000000000000000000000000000000000000000000000000000000186a0",
             "SALT": "09072024",
             "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6CA57d9846f9a1fd48368762b743a047eC4f81A6",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:34:30",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f000000000000000000000000ecba38d0bac1ca1cd5a30347370e4d539d44faa100000000000000000000000045d417612e177672958dc0537c45a8f8d754ac2e0000000000000000000000001a44076050125825900e736c501f859c50fe728c00000000000000000000000000000000000000000000000000000000000186a0",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "LiFiDEXAggregator": {
+    "bsc": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD6f02718B9df9FAd2665c7304BC5b26D5bbD8642",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-01 16:22:40",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000100000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xcaA342e4f781d63EF41E220D7622B97E66BAEcF3",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-09 13:31:17",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000100000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }

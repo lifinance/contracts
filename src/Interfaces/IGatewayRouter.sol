@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity ^0.8.17;
+/// @custom:version 1.0.0
+pragma solidity 0.8.17;
 
 interface IGatewayRouter {
     /// @notice Transfer non-native assets

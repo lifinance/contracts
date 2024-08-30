@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+/// @custom:version 2.0.0
 pragma solidity ^0.8.17;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";

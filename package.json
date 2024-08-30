@@ -17,7 +17,6 @@
     "solidity"
   ],
   "devDependencies": {
-    "@layerzerolabs/lz-v2-utilities": "^2.3.15",
     "@matterlabs/hardhat-zksync-deploy": "0.6.3",
     "@matterlabs/hardhat-zksync-solc": "0.3.17",
     "@matterlabs/hardhat-zksync-verify": "0.1.7",
@@ -82,7 +81,8 @@
     "healthcheck": "tsx ./script/deploy/healthCheck.mts",
     "propose-safe-tx": "ts-node ./script/deploy/safe/propose-to-safe.ts",
     "confirm-safe-tx": "ts-node ./script/deploy/safe/confirm-safe-tx.ts",
-    "add-safe-owners": "ts-node ./script/deploy/safe/add-owners-to-safe.ts"
+    "add-safe-owners": "ts-node ./script/deploy/safe/add-owners-to-safe.ts",
+    "flatten": "forge flatten --output"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
@@ -106,7 +106,7 @@
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
     "tsx": "^4.7.2",
-    "viem": "^2.11.1",
+    "viem": "^2.18.7",
     "zx": "^8.0.2"
   },
   "lint-staged": {

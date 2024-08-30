@@ -78,6 +78,12 @@
       "0x4158734D47Fc9692176B5085E0F52ee0Da5d47F1"
     ]
   },
+  "blast": {
+    "chainId": 81457,
+    "acrossSpokePool": "0x2D509190Ed0172ba588407D4c2df918F955Cc6E1",
+    "weth": "0x4300000000000000000000000000000000000004",
+    "tokensToApprove": []
+  },
   "arbitrum": {
     "chainId": 42161,
     "acrossSpokePool": "0xe35e9842fceaca96570b734083f4a58e8f7c5f2a",
@@ -104,5 +110,11 @@
       "0xA219439258ca9da29E9Cc4cE5596924745e12B93",
       "0x3aAB2285ddcDdaD8edf438C1bAB47e1a9D05a9b4"
     ]
+  },
+  "scroll": {
+    "chainId": 534352,
+    "acrossSpokePool": "0x3baD7AD0728f9917d1Bf08af5782dCbD516cDd96",
+    "weth": "0x5300000000000000000000000000000000000004",
+    "tokensToApprove": []
   }
 }

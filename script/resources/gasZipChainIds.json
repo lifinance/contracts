@@ -1,0 +1,590 @@
+{
+  "CheckGasZipDocsForMoreChains >> https://dev.gas.zip/gas/chain-support/outbound": {
+    "networkName": "n/a",
+    "gasZipChainId": 0
+  },
+  "2649": {
+    "networkName": "AILayer",
+    "gasZipChainId": 261
+  },
+  "10241024": {
+    "networkName": "AlienX",
+    "gasZipChainId": 233
+  },
+  "888888888": {
+    "networkName": "Ancient8",
+    "gasZipChainId": 128
+  },
+  "42170": {
+    "networkName": "Arbitrum Nova",
+    "gasZipChainId": 53
+  },
+  "42161": {
+    "networkName": "Arbitrum One",
+    "gasZipChainId": 57
+  },
+  "592": {
+    "networkName": "Astar",
+    "gasZipChainId": 40
+  },
+  "3776": {
+    "networkName": "Astar zkEVM",
+    "gasZipChainId": 99
+  },
+  "1313161554": {
+    "networkName": "Aurora",
+    "gasZipChainId": 62
+  },
+  "43114": {
+    "networkName": "Avalanche",
+    "gasZipChainId": 15
+  },
+  "8453": {
+    "networkName": "Base Mainnet",
+    "gasZipChainId": 54
+  },
+  "4337": {
+    "networkName": "Beam",
+    "gasZipChainId": 24
+  },
+  "11501": {
+    "networkName": "BEVM",
+    "gasZipChainId": 138
+  },
+  "3068": {
+    "networkName": "BiFrost",
+    "gasZipChainId": 85
+  },
+  "32520": {
+    "networkName": "Bitgert",
+    "gasZipChainId": 91
+  },
+  "200901": {
+    "networkName": "Bitlayer",
+    "gasZipChainId": 147
+  },
+  "199": {
+    "networkName": "BitTorrent",
+    "gasZipChainId": 18
+  },
+  "81457": {
+    "networkName": "Blast",
+    "gasZipChainId": 96
+  },
+  "60808": {
+    "networkName": "BOB",
+    "gasZipChainId": 150
+  },
+  "288": {
+    "networkName": "Boba",
+    "gasZipChainId": 140
+  },
+  "6001": {
+    "networkName": "BounceBit",
+    "gasZipChainId": 237
+  },
+  "56": {
+    "networkName": "BSC Mainnet",
+    "gasZipChainId": 14
+  },
+  "223": {
+    "networkName": "B² Network",
+    "gasZipChainId": 148
+  },
+  "820": {
+    "networkName": "Callisto",
+    "gasZipChainId": 126
+  },
+  "7700": {
+    "networkName": "Canto",
+    "gasZipChainId": 11
+  },
+  "42220": {
+    "networkName": "Celo",
+    "gasZipChainId": 21
+  },
+  "383353": {
+    "networkName": "CHEESE",
+    "gasZipChainId": 241
+  },
+  "8853": {
+    "networkName": "Clique",
+    "gasZipChainId": 264
+  },
+  "9980": {
+    "networkName": "Combo",
+    "gasZipChainId": 84
+  },
+  "1030": {
+    "networkName": "ConFlux",
+    "gasZipChainId": 65
+  },
+  "1116": {
+    "networkName": "CoreDAO",
+    "gasZipChainId": 34
+  },
+  "25": {
+    "networkName": "Cronos",
+    "gasZipChainId": 36
+  },
+  "7560": {
+    "networkName": "Cyber",
+    "gasZipChainId": 135
+  },
+  "666666666": {
+    "networkName": "Degen",
+    "gasZipChainId": 133
+  },
+  "432204": {
+    "networkName": "Dexalot",
+    "gasZipChainId": 63
+  },
+  "53935": {
+    "networkName": "DFK",
+    "gasZipChainId": 32
+  },
+  "2000": {
+    "networkName": "Dogechain",
+    "gasZipChainId": 46
+  },
+  "1100": {
+    "networkName": "Dymension",
+    "gasZipChainId": 134
+  },
+  "17777": {
+    "networkName": "EOS EVM",
+    "gasZipChainId": 142
+  },
+  "1": {
+    "networkName": "Ethereum",
+    "gasZipChainId": 255
+  },
+  "10001": {
+    "networkName": "ETHW",
+    "gasZipChainId": 71
+  },
+  "9001": {
+    "networkName": "EVMOS",
+    "gasZipChainId": 39
+  },
+  "530": {
+    "networkName": "f(x)Core",
+    "gasZipChainId": 86
+  },
+  "250": {
+    "networkName": "Fantom",
+    "gasZipChainId": 20
+  },
+  "314": {
+    "networkName": "Filecoin",
+    "gasZipChainId": 76
+  },
+  "14": {
+    "networkName": "Flare",
+    "gasZipChainId": 38
+  },
+  "252": {
+    "networkName": "Fraxtal",
+    "gasZipChainId": 10
+  },
+  "122": {
+    "networkName": "Fuse",
+    "gasZipChainId": 31
+  },
+  "32659": {
+    "networkName": "Fusion",
+    "gasZipChainId": 37
+  },
+  "12024": {
+    "networkName": "Gelios",
+    "gasZipChainId": 7
+  },
+  "100": {
+    "networkName": "Gnosis",
+    "gasZipChainId": 16
+  },
+  "1625": {
+    "networkName": "Gravity",
+    "gasZipChainId": 240
+  },
+  "5112": {
+    "networkName": "Ham",
+    "gasZipChainId": 247
+  },
+  "1666600000": {
+    "networkName": "Harmony",
+    "gasZipChainId": 66
+  },
+  "7332": {
+    "networkName": "Horizen",
+    "gasZipChainId": 49
+  },
+  "2911": {
+    "networkName": "Hychain",
+    "gasZipChainId": 132
+  },
+  "881": {
+    "networkName": "Hypr",
+    "gasZipChainId": 127
+  },
+  "13371": {
+    "networkName": "Immutable zkEVM",
+    "gasZipChainId": 95
+  },
+  "2525": {
+    "networkName": "Injective EVM",
+    "gasZipChainId": 78
+  },
+  "4689": {
+    "networkName": "IoTeX",
+    "gasZipChainId": 67
+  },
+  "2222": {
+    "networkName": "Kava",
+    "gasZipChainId": 22
+  },
+  "321": {
+    "networkName": "KCC",
+    "gasZipChainId": 90
+  },
+  "8217": {
+    "networkName": "Klayton",
+    "gasZipChainId": 33
+  },
+  "255": {
+    "networkName": "Kroma",
+    "gasZipChainId": 80
+  },
+  "12324": {
+    "networkName": "L3X Network",
+    "gasZipChainId": 243
+  },
+  "92000": {
+    "networkName": "Lambda",
+    "gasZipChainId": 145
+  },
+  "1890": {
+    "networkName": "Lightlink",
+    "gasZipChainId": 79
+  },
+  "59144": {
+    "networkName": "Linea",
+    "gasZipChainId": 59
+  },
+  "1135": {
+    "networkName": "Lisk",
+    "gasZipChainId": 238
+  },
+  "5151706": {
+    "networkName": "Loot",
+    "gasZipChainId": 25
+  },
+  "42": {
+    "networkName": "Lukso",
+    "gasZipChainId": 87
+  },
+  "8866": {
+    "networkName": "Lumio",
+    "gasZipChainId": 100
+  },
+  "169": {
+    "networkName": "Manta",
+    "gasZipChainId": 60
+  },
+  "5000": {
+    "networkName": "Mantle Mainnet",
+    "gasZipChainId": 13
+  },
+  "22776": {
+    "networkName": "MAP",
+    "gasZipChainId": 257
+  },
+  "4200": {
+    "networkName": "Merlin",
+    "gasZipChainId": 9
+  },
+  "1750": {
+    "networkName": "Metal",
+    "gasZipChainId": 144
+  },
+  "82": {
+    "networkName": "Meter",
+    "gasZipChainId": 26
+  },
+  "1088": {
+    "networkName": "Metis",
+    "gasZipChainId": 30
+  },
+  "185": {
+    "networkName": "Mint",
+    "gasZipChainId": 253
+  },
+  "34443": {
+    "networkName": "Mode",
+    "gasZipChainId": 73
+  },
+  "360": {
+    "networkName": "Molten",
+    "gasZipChainId": 263
+  },
+  "1284": {
+    "networkName": "Moonbeam",
+    "gasZipChainId": 28
+  },
+  "1285": {
+    "networkName": "Moonriver",
+    "gasZipChainId": 29
+  },
+  "4078": {
+    "networkName": "Muster Network",
+    "gasZipChainId": 97
+  },
+  "18686": {
+    "networkName": "MXC zkEVM",
+    "gasZipChainId": 129
+  },
+  "5551": {
+    "networkName": "Nahmii",
+    "gasZipChainId": 70
+  },
+  "245022934": {
+    "networkName": "Neon EVM",
+    "gasZipChainId": 92
+  },
+  "10507": {
+    "networkName": "Numbers",
+    "gasZipChainId": 259
+  },
+  "42262": {
+    "networkName": "Oasis Emerald",
+    "gasZipChainId": 23
+  },
+  "248": {
+    "networkName": "Oasys",
+    "gasZipChainId": 69
+  },
+  "66": {
+    "networkName": "OKX",
+    "gasZipChainId": 35
+  },
+  "27563": {
+    "networkName": "OnChain",
+    "gasZipChainId": 252
+  },
+  "10": {
+    "networkName": "OP Mainnet",
+    "gasZipChainId": 55
+  },
+  "204": {
+    "networkName": "opBNB",
+    "gasZipChainId": 58
+  },
+  "62050": {
+    "networkName": "Optopia",
+    "gasZipChainId": 236
+  },
+  "291": {
+    "networkName": "Orderly",
+    "gasZipChainId": 74
+  },
+  "669": {
+    "networkName": "OX Chain",
+    "gasZipChainId": 244
+  },
+  "20201022": {
+    "networkName": "PEGO",
+    "gasZipChainId": 88
+  },
+  "210425": {
+    "networkName": "PlatON",
+    "gasZipChainId": 5
+  },
+  "70700": {
+    "networkName": "Play Apex",
+    "gasZipChainId": 98
+  },
+  "137": {
+    "networkName": "Polygon",
+    "gasZipChainId": 17
+  },
+  "1101": {
+    "networkName": "Polygon zkEVM",
+    "gasZipChainId": 52
+  },
+  "369": {
+    "networkName": "Pulsechain",
+    "gasZipChainId": 12
+  },
+  "1380012617": {
+    "networkName": "Rari",
+    "gasZipChainId": 82
+  },
+  "111188": {
+    "networkName": "Re.al",
+    "gasZipChainId": 139
+  },
+  "690": {
+    "networkName": "Redstone",
+    "gasZipChainId": 149
+  },
+  "1729": {
+    "networkName": "Reya",
+    "gasZipChainId": 234
+  },
+  "570": {
+    "networkName": "Rollux",
+    "gasZipChainId": 141
+  },
+  "30": {
+    "networkName": "Rootstock",
+    "gasZipChainId": 254
+  },
+  "12553": {
+    "networkName": "RSS3",
+    "gasZipChainId": 125
+  },
+  "1996": {
+    "networkName": "Sanko",
+    "gasZipChainId": 131
+  },
+  "3109": {
+    "networkName": "SatoshiVM",
+    "gasZipChainId": 6
+  },
+  "1329": {
+    "networkName": "Sei",
+    "gasZipChainId": 246
+  },
+  "109": {
+    "networkName": "Shibarium",
+    "gasZipChainId": 42
+  },
+  "336": {
+    "networkName": "Shiden",
+    "gasZipChainId": 130
+  },
+  "148": {
+    "networkName": "ShimmerEVM",
+    "gasZipChainId": 93
+  },
+  "501474": {
+    "networkName": "Solana",
+    "gasZipChainId": 245
+  },
+  "19": {
+    "networkName": "Songbird",
+    "gasZipChainId": 68
+  },
+  "1234": {
+    "networkName": "Step",
+    "gasZipChainId": 64
+  },
+  "254": {
+    "networkName": "Swan",
+    "gasZipChainId": 256
+  },
+  "416": {
+    "networkName": "SX Network",
+    "gasZipChainId": 19
+  },
+  "5101": {
+    "networkName": "Syndicate Frame",
+    "gasZipChainId": 137
+  },
+  "167000": {
+    "networkName": "Taiko",
+    "gasZipChainId": 249
+  },
+  "911": {
+    "networkName": "Taproot",
+    "gasZipChainId": 260
+  },
+  "40": {
+    "networkName": "Telos",
+    "gasZipChainId": 47
+  },
+  "1559": {
+    "networkName": "Tenet",
+    "gasZipChainId": 27
+  },
+  "108": {
+    "networkName": "ThunderCore",
+    "gasZipChainId": 258
+  },
+  "1000001": {
+    "networkName": "Tron",
+    "gasZipChainId": 75
+  },
+  "1231": {
+    "networkName": "Ultron",
+    "gasZipChainId": 83
+  },
+  "88": {
+    "networkName": "Viction",
+    "gasZipChainId": 43
+  },
+  "207": {
+    "networkName": "VinuChain",
+    "gasZipChainId": 45
+  },
+  "888": {
+    "networkName": "Wanchain",
+    "gasZipChainId": 89
+  },
+  "1111": {
+    "networkName": "Wemix",
+    "gasZipChainId": 81
+  },
+  "196": {
+    "networkName": "X Layer",
+    "gasZipChainId": 146
+  },
+  "660279": {
+    "networkName": "XAI",
+    "gasZipChainId": 77
+  },
+  "94524": {
+    "networkName": "XCHAIN",
+    "gasZipChainId": 242
+  },
+  "37": {
+    "networkName": "XPLA",
+    "gasZipChainId": 48
+  },
+  "2702128": {
+    "networkName": "Xterio",
+    "gasZipChainId": 239
+  },
+  "7000": {
+    "networkName": "Zeta",
+    "gasZipChainId": 94
+  },
+  "381": {
+    "networkName": "zkAmoeba",
+    "gasZipChainId": 143
+  },
+  "1456": {
+    "networkName": "zkBase",
+    "gasZipChainId": 235
+  },
+  "42766": {
+    "networkName": "zkFair",
+    "gasZipChainId": 50
+  },
+  "810180": {
+    "networkName": "zkLink Nova",
+    "gasZipChainId": 136
+  },
+  "534352": {
+    "networkName": "zkScroll",
+    "gasZipChainId": 41
+  },
+  "324": {
+    "networkName": "zkSync Era",
+    "gasZipChainId": 51
+  },
+  "7777777": {
+    "networkName": "Zora",
+    "gasZipChainId": 56
+  }
+}

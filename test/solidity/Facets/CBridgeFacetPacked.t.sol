@@ -24,7 +24,7 @@ contract CBridgeFacetPackedTest is Test, DiamondTest {
     address internal constant CBRIDGE_ROUTER =
         0x1619DE6B6B20eD217a58d00f37B9d47C7663feca;
     address internal constant USDT_ADDRESS =
-        0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8;
+        0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
     address internal constant USDC_ADDRESS =
         0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
     address internal constant WHALE =

@@ -234,6 +234,15 @@
       }
     }
   },
+  "LiFiDEXAggregator": {
+    "configData": {
+      "_privilegedUser": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".pauserWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "MakerTeleportFacet": {
     "configData": {
       "_teleportGateway": {
