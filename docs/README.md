@@ -56,3 +56,4 @@
 - [FeeCollector](./FeeCollector.md)
 - [Receiver](./Receiver.md)
 - [RelayerCelerIM](./RelayerCelerIM.md)
+- [Permi2Proxy](./Permit2Proxy.md)
