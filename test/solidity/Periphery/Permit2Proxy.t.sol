@@ -439,12 +439,15 @@ contract Permit2ProxyTest is TestBase {
             );
         bytes32 permit = _getTokenPermissionsHash(tokenPermissions);
 
+        // Nonce
+        uint256 nonce = permit2Proxy.nextNonce(PERMIT2_USER);
+
         // PermitTransferFrom
         msgHash = _getPermitTransferFromHash(
             uniPermit2.DOMAIN_SEPARATOR(),
             permit,
             address(permit2Proxy),
-            0,
+            nonce,
             block.timestamp + 1000
         );
 
@@ -452,7 +455,7 @@ contract Permit2ProxyTest is TestBase {
 
         permitTransferFrom = ISignatureTransfer.PermitTransferFrom(
             tokenPermissions,
-            0,
+            nonce,
             block.timestamp + 1000
         );
     }
@@ -483,12 +486,15 @@ contract Permit2ProxyTest is TestBase {
         );
         bytes32 witness = _getWitnessHash(lifiCall);
 
+        // Nonce
+        uint256 nonce = permit2Proxy.nextNonce(PERMIT2_USER);
+
         // PermitTransferWithWitness
         msgHash = _getPermitWitnessTransferFromHash(
             uniPermit2.DOMAIN_SEPARATOR(),
             permit,
             address(permit2Proxy),
-            0,
+            nonce,
             block.timestamp + 1000,
             witness
         );
@@ -497,7 +503,7 @@ contract Permit2ProxyTest is TestBase {
 
         permitTransferFrom = ISignatureTransfer.PermitTransferFrom(
             tokenPermissions,
-            0,
+            nonce,
             block.timestamp + 1000
         );
     }
