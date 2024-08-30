@@ -40,11 +40,6 @@ contract Permit2Proxy {
     /// Errors ///
 
     error CallToDiamondFailed(bytes);
-    error DiamondAddressNotWhitelisted();
-
-    /// Events ///
-
-    event WhitelistUpdated(address[] addresses, bool[] values);
 
     /// Constructor ///
 
@@ -65,7 +60,8 @@ contract Permit2Proxy {
     /// @notice Allows to bridge tokens through a LI.FI diamond contract using
     /// an EIP2612 gasless permit (only works with tokenAddresses that
     /// implement EIP2612) (in contrast to Permit2, calldata and diamondAddress
-    /// are not signed by the user and could therefore be replaced)
+    /// are not signed by the user and could therefore be replaced by the user)
+    /// Can only be called by the permit signer to prevent front-running.
     /// @param tokenAddress Address of the token to be bridged
     /// @param amount Amount of tokens to be bridged
     /// @param deadline Transaction must be completed before this timestamp
@@ -84,7 +80,7 @@ contract Permit2Proxy {
     ) public payable {
         // call permit on token contract to register approval using signature
         ERC20Permit(tokenAddress).permit(
-            msg.sender,
+            msg.sender, // Ensure msg.sender is same wallet that signed permit
             address(this),
             amount,
             deadline,
@@ -110,7 +106,9 @@ contract Permit2Proxy {
 
     /// @notice Allows to bridge tokens of one type through a LI.FI diamond
     ///         contract using Uniswap's Permit2 contract and a user signature
-    ///         that verifies allowance, diamondAddress and diamondCalldata
+    ///         that verifies allowance. The calldata can be changed by the
+    ///         user. Can only be called by the permit signer to prevent
+    ///         front-running.
     /// @param _diamondCalldata the calldata to execute
     /// @param _permit the Uniswap Permit2 parameters
     /// @param _signature the signature giving approval to transfer tokens
@@ -125,7 +123,7 @@ contract Permit2Proxy {
                 to: address(this),
                 requestedAmount: _permit.permitted.amount
             }),
-            msg.sender,
+            msg.sender, // Ensure msg.sender is same wallet that signed permit
             _signature
         );
 
