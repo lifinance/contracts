@@ -226,7 +226,7 @@ contract CalldataVerificationFacet {
     ///        or type(uint256).max to ignore
     /// @param hasSourceSwaps Whether the calldata has source swaps
     /// @param hasDestinationCall Whether the calldata has a destination call
-    /// @return isValid Whether the calldata is valid
+    /// @return isValid Returns true if the calldata is valid
     function validateCalldata(
         bytes calldata data,
         string calldata bridge,
@@ -266,7 +266,7 @@ contract CalldataVerificationFacet {
     /// @param data The calldata to validate
     /// @param callTo The callTo address to validate
     /// @param dstCalldata The destination calldata to validate
-    /// @return isValid Whether the destination calldata is validate
+    /// @return isValid Returns true if the calldata is valid
     function validateDestinationCalldata(
         bytes calldata data,
         bytes calldata callTo,
