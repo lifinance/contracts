@@ -487,20 +487,25 @@ contract CalldataVerificationFacet {
     }
 
     function _compareBytesToBytes32CallTo(
-        bytes calldata callTo,
+        bytes memory callTo,
         bytes32 callToBytes32
     ) private pure returns (bool) {
-        // convert both values to address type and compare them
-        return
-            address(uint160(uint256(callToBytes32))) ==
-            _bytesToAddress(callTo);
-    }
+        require(
+            callTo.length >= 20,
+            "Invalid callTo length; expected at least 20 bytes"
+        );
 
-    function _bytesToAddress(
-        bytes memory bys
-    ) private pure returns (address addr) {
+        // Convert bytes to address type from callTo
+        address callToAddress;
         assembly {
-            addr := mload(add(bys, 32))
+            callToAddress := mload(add(callTo, 32))
         }
+
+        // Convert callToBytes32 to address type and compare them
+        address callToAddressFromBytes32 = address(
+            uint160(uint256(callToBytes32))
+        );
+
+        return callToAddress == callToAddressFromBytes32;
     }
 }
