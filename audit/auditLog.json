@@ -6,9 +6,25 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2024.08.14_StargateFacetV2_ReAudit.pdf",
       "auditCommitHash": "d622002440317580b5d0fb90ef22b839d84957e2"
+    },
+    "audit20240902": {
+      "auditCompletedOn": "02.09.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.09.02_AcrossFacetV3_AcrossFacetPackedV3_ReceiverAcrossV3.pdf",
+      "auditCommitHash": "ef2d7bc478ce1e7f5ad6f1060f657864124fa85e"
     }
   },
   "auditedContracts": {
+    "AcrossFacetV3": {
+      "1.0.0": ["audit20240902"]
+    },
+    "AcrossFacetPackedV3": {
+      "1.0.0": ["audit20240902"]
+    },
+    "ReceiverAcrossV3": {
+      "1.0.0": ["audit20240902"]
+    },
     "StargateFacetV2": {
       "1.0.1": ["audit20240814"]
     }
