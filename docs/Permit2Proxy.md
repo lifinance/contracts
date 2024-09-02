@@ -103,7 +103,7 @@ function getPermit2MsgHash(
 ) external view returns (bytes32 msgHash)
 ```
 
-Permit2 nonces are non-sequential and are a bit complicated to work with the
+Permit2 nonces are non-sequential and are a bit complicated to work with. The
 following utility methods allow you to fetch the next valid nonce or sequence
 of nonces for use when generating Permit2 signatures.
 

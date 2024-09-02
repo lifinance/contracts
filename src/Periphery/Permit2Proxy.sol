@@ -11,8 +11,8 @@ import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC2
 
 /// @title Permit2Proxy
 /// @author LI.FI (https://li.fi)
-/// @notice Proxy contract allowing gasless (Permit2-enabled) calls to our
-///         diamond contract
+/// @notice Proxy contract allowing gasless calls via Permit2 as well as making
+///         token approvals via ERC20 Permit (EIP-2612) to our diamond contract
 /// @custom:version 1.0.0
 contract Permit2Proxy {
     /// Storage ///
@@ -31,7 +31,8 @@ contract Permit2Proxy {
 
     /// Types ///
 
-    // @dev LIFI Specific Witness to verify
+    // @dev LIFI Specific Witness which verifies the correct calldata and
+    //      diamond address
     struct LIFICall {
         address diamondAddress;
         bytes32 diamondCalldataHash;

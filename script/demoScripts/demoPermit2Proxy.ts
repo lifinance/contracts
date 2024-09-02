@@ -69,10 +69,10 @@ const main = defineCommand({
       args: [account.address],
     })
 
-    // Get lastest block
+    // Get latest block
     const block = await client.getBlock()
 
-    // Consturct a valid message hash to sign using Permit2Proxy's utility func
+    // Construct a valid message hash to sign using Permit2Proxy's utility func
     const msgHash = await client.readContract({
       address: PERMIT2_PROXY_ADDRESS,
       abi: permit2ProxyAbi,
