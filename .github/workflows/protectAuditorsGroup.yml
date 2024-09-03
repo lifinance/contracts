@@ -50,8 +50,19 @@ jobs:
           AUDITORS_MEMBERS=$(getTeamMembers "$ORG_NAME" "$AUDITORS") || { echo "Failed to fetch members of $AUDITORS"; exit 1; }
           echo "AUDITORS: $AUDITORS_MEMBERS"
 
+          # Convert string to sorted lines and remove empty lines
+          echo "$SC_ADMINS_MEMBERS" | tr ' ' '\n' | sort | uniq > sc_admins_sorted.txt
+          echo "$AUDITORS_MEMBERS" | tr ' ' '\n' | sort | uniq > auditors_sorted.txt
+
+          # Check if both files exist and are not empty
+          if [ ! -s sc_admins_sorted.txt ] || [ ! -s auditors_sorted.txt ]; then
+            echo -e "\033[31mERROR: One of the membership lists is empty or failed to be generated.\033[0m"
+            exit 1
+          fi
+
           echo "Checking overlap between SC_ADMINS and AUDITORS..."
-          OVERLAP=$(echo "$SC_ADMINS_MEMBERS" | grep -Fxf - <(echo "$AUDITORS_MEMBERS")) || { echo "Overlap check failed"; exit 1; }
+          # OVERLAP=$(echo "$SC_ADMINS_MEMBERS" | grep -Fxf - <(echo "$AUDITORS_MEMBERS")) || { echo "Overlap check failed"; exit 1; }
+          OVERLAP=$(comm -12 sc_admins_sorted.txt auditors_sorted.txt)
 
           if [ -n "$OVERLAP" ]; then
             echo -e "\033[31mERROR: The following git users are members of both $SC_ADMINS and $AUDITORS groups: $overlap\033[0m"
