@@ -480,7 +480,7 @@ contract Permit2ProxyTest is TestBase {
 
         // Witness
         diamondCalldata = _getCalldataForBridging();
-        Permit2Proxy.LIFICall memory lifiCall = Permit2Proxy.LIFICall(
+        Permit2Proxy.LiFiCall memory lifiCall = Permit2Proxy.LiFiCall(
             DIAMOND_ADDRESS,
             keccak256(diamondCalldata)
         );
@@ -542,7 +542,7 @@ contract Permit2ProxyTest is TestBase {
     }
 
     function _getWitnessHash(
-        Permit2Proxy.LIFICall memory lifiCall
+        Permit2Proxy.LiFiCall memory lifiCall
     ) internal view returns (bytes32) {
         return
             keccak256(abi.encode(permit2Proxy.WITNESS_TYPEHASH(), lifiCall));

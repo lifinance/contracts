@@ -22,10 +22,10 @@ contract Permit2Proxy {
     mapping(address => bool) public diamondWhitelist;
 
     string public constant WITNESS_TYPE_STRING =
-        "LIFICall witness)LIFICall(address tokenReceiver,address diamondAddress,bytes32 diamondCalldataHash)TokenPermissions(address token,uint256 amount)";
+        "LiFiCall witness)LiFiCall(address tokenReceiver,address diamondAddress,bytes32 diamondCalldataHash)TokenPermissions(address token,uint256 amount)";
     bytes32 public constant WITNESS_TYPEHASH =
         keccak256(
-            "LIFICall(address tokenReceiver,address diamondAddress,bytes32 diamondCalldataHash)"
+            "LiFiCall(address tokenReceiver,address diamondAddress,bytes32 diamondCalldataHash)"
         );
     bytes32 public immutable PERMIT_WITH_WITNESS_TYPEHASH;
 
@@ -33,7 +33,7 @@ contract Permit2Proxy {
 
     // @dev LIFI Specific Witness which verifies the correct calldata and
     //      diamond address
-    struct LIFICall {
+    struct LiFiCall {
         address diamondAddress;
         bytes32 diamondCalldataHash;
     }
@@ -151,7 +151,7 @@ contract Permit2Proxy {
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata _signature
     ) external payable {
-        LIFICall memory lifiCall = LIFICall(
+        LiFiCall memory lifiCall = LiFiCall(
             LIFI_DIAMOND,
             keccak256(_diamondCalldata)
         );
@@ -202,7 +202,7 @@ contract Permit2Proxy {
         bytes32 permit = _getTokenPermissionsHash(tokenPermissions);
 
         // Witness
-        Permit2Proxy.LIFICall memory lifiCall = LIFICall(
+        Permit2Proxy.LiFiCall memory lifiCall = LiFiCall(
             LIFI_DIAMOND,
             keccak256(_diamondCalldata)
         );
@@ -235,7 +235,7 @@ contract Permit2Proxy {
     }
 
     function _getWitnessHash(
-        Permit2Proxy.LIFICall memory lifiCall
+        Permit2Proxy.LiFiCall memory lifiCall
     ) internal pure returns (bytes32) {
         return keccak256(abi.encode(WITNESS_TYPEHASH, lifiCall));
     }
