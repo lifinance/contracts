@@ -40,15 +40,11 @@ jobs:
           echo "Fetching members of $SC_ADMINS..."
           SC_ADMINS_MEMBERS=$(getTeamMembers "$ORG_NAME" "$SC_ADMINS") || { echo "Failed to fetch members of $SC_ADMINS"; exit 1; }
 
-          echo "SC_ADMINS: $SC_ADMINS_MEMBERS"
-
           echo "Fetching members of $SC_CORE..."
           SC_CORE_MEMBERS=$(getTeamMembers "$ORG_NAME" "$SC_CORE") || { echo "Failed to fetch members of $SC_CORE"; exit 1; }
-          echo "SC_CORE: $SC_CORE_MEMBERS"
 
           echo "Fetching members of $AUDITORS..."
           AUDITORS_MEMBERS=$(getTeamMembers "$ORG_NAME" "$AUDITORS") || { echo "Failed to fetch members of $AUDITORS"; exit 1; }
-          echo "AUDITORS: $AUDITORS_MEMBERS"
 
           # Convert string to sorted lines and remove empty lines
           echo "$SC_ADMINS_MEMBERS" | tr ' ' '\n' | sort | uniq > sc_admins_sorted.txt
@@ -64,10 +60,8 @@ jobs:
           echo "Checking for git users that are members of both $SC_ADMINS and $AUDITORS team..."
           OVERLAP=$(comm -12 sc_admins_sorted.txt auditors_sorted.txt)
 
-          echo "OVERLAP: $OVERLAP"
-
           if [ -n "$OVERLAP" ]; then
-          echo -e "\033[31mERROR: The following git users are members of both $SC_ADMINS and $AUDITORS groups: $overlap\033[0m"
+          echo -e "\033[31mERROR: The following git users are members of both $SC_ADMINS and $AUDITORS groups: $OVERLAP\033[0m"
           echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
           exit 1
           else
@@ -79,30 +73,10 @@ jobs:
           echo "OVERLAP: $OVERLAP"
 
           if [ -n "$OVERLAP" ]; then
-            echo -e "\033[31mERROR: The following git users are members of both $SC_CORE and $AUDITORS groups: $overlap\033[0m"
+            echo -e "\033[31mERROR: The following git users are members of both $SC_CORE and $AUDITORS groups: $OVERLAP\033[0m"
             echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
             exit 1
           else
             echo -e "\033[32mNo overlap found between $SC_CORE and $AUDITORS.\033[0m"
+            echo -e "\033[32mAll checks passed\033[0m"
           fi
-
-
-          # ##### Check overlap between smart-contract-core and auditors
-          # overlap=$(echo "$SC_ADMINS_MEMBERS" | grep -Fxf - <(echo "$AUDITORS_MEMBERS"))
-          # if [ -n "$overlap" ]; then
-          #   echo -e "\033[31mERROR: The following members are in both $SC_ADMINS and $AUDITORS: $overlap\033[0m"
-          #   echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
-          #   exit 1
-          #   else
-          #   echo -e "\033[32mNo overlap found between $SC_ADMINS and $AUDITORS.\033[0m"
-          #   fi
-
-          #   ##### Check overlap between smart-contract-admins and auditors
-          #   overlap2=$(echo "$SC_CORE_MEMBERS" | grep -Fxf - <(echo "$AUDITORS_MEMBERS"))
-          #   if [ -n "$overlap2" ]; then
-          #   echo -e "\033[31mERROR: The following members are in both $SC_CORE and $AUDITORS: $overlap2\033[0m"
-          #   echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
-          #   exit 1
-          # else
-          #   echo -e "\033[32mNo overlap found between $SC_CORE and $AUDITORS.\033[0m"
-          # fi
