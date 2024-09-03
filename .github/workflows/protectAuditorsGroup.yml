@@ -7,6 +7,9 @@ jobs:
   protect-auditors-group:
     runs-on: ubuntu-latest
     steps:
+      - name: Check grep version
+        run: grep --version
+
       - name: Compare Group Members
         env:
           GH_PAT: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
