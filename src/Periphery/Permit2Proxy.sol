@@ -19,7 +19,6 @@ contract Permit2Proxy {
 
     address public immutable LIFI_DIAMOND;
     ISignatureTransfer public immutable PERMIT2;
-    mapping(address => bool) public diamondWhitelist;
 
     string public constant WITNESS_TYPE_STRING =
         "LiFiCall witness)LiFiCall(address tokenReceiver,address diamondAddress,bytes32 diamondCalldataHash)TokenPermissions(address token,uint256 amount)";
