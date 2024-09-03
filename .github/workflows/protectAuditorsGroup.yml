@@ -7,12 +7,9 @@ jobs:
   check_membership:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Compare Group Members
         env:
-          GH_PAT: ${{ secrets.GIT_TOKEN }}
+          GH_PAT: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
 
@@ -38,16 +35,20 @@ jobs:
 
           ##### Get members of each group
           echo "Fetching members of $SC_ADMINS..."
-          groupAMembers=$(getTeamMembers $ORG_NAME $SC_ADMINS)
+          SC_ADMINS_MEMBERS=$(getTeamMembers "$ORG_NAME" "$SC_ADMINS")
+
+          echo "SC_ADMINS: $SC_ADMINS_MEMBERS"
 
           echo "Fetching members of $SC_CORE..."
-          groupBMembers=$(getTeamMembers $ORG_NAME $SC_CORE)
+          SC_CORE_MEMBERS=$(getTeamMembers "$ORG_NAME" "$SC_CORE")
+          echo "SC_CORE: $SC_CORE_MEMBERS"
 
           echo "Fetching members of $AUDITORS..."
-          groupCMembers=$(getTeamMembers $ORG_NAME $AUDITORS)
+          AUDITORS_MEMBERS=$(getTeamMembers "$ORG_NAME" "$AUDITORS")
+          echo "AUDITORS: $AUDITORS_MEMBERS"
 
           ##### Check overlap between smart-contract-core and auditors
-          overlap=$(echo "$groupAMembers" | grep -Fxf - <(echo "$groupCMembers"))
+          overlap=$(echo "$SC_ADMINS_MEMBERS" | grep -Fxf - <(echo "$AUDITORS_MEMBERS"))
           if [ -n "$overlap" ]; then
             echo -e "\033[31mERROR: The following members are in both $SC_ADMINS and $AUDITORS: $overlap\033[0m"
             echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
@@ -57,7 +58,7 @@ jobs:
             fi
 
             ##### Check overlap between smart-contract-admins and auditors
-            overlap2=$(echo "$groupBMembers" | grep -Fxf - <(echo "$groupCMembers"))
+            overlap2=$(echo "$SC_CORE_MEMBERS" | grep -Fxf - <(echo "$AUDITORS_MEMBERS"))
             if [ -n "$overlap2" ]; then
             echo -e "\033[31mERROR: The following members are in both $SC_CORE and $AUDITORS: $overlap2\033[0m"
             echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
