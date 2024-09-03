@@ -11,6 +11,7 @@ import {
 import { ethers } from 'ethers6'
 import * as chains from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 export const chainNameMappings: Record<string, string> = {
   zksync: 'zkSync',
@@ -52,8 +53,7 @@ const main = defineCommand({
   async run({ args }) {
     const { network, privateKey, environment } = args
 
-    const chainName = chainNameMappings[network] || network
-    const chain: Chain = chainMap[chainName]
+    const chain = getViemChainForNetworkName(network)
 
     console.log(`Checking signature for ${chain.name}`)
 
