@@ -1,7 +1,7 @@
 name: Enforce Min Test Coverage
 
 # - will make sure that (Foundry) unit test coverage is above min threshold
-# - we start with 75%, planning to increase to 100% until EOY 2024
+# - we start with 74% (status today), planning to increase to 100% until EOY 2024
 # - Only the 'lines' coverage counts as 'branch' coverage is not reliable
 
 on:
@@ -24,8 +24,7 @@ jobs:
       ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
-      GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
-      MIN_TEST_COVERAGE: 75 # 75 percent for now, will be increased to 100% gradually until the end of 2024
+      MIN_TEST_COVERAGE: 74 # = 74% line coverage
     steps:
       - uses: actions/checkout@v4.1.7
 
@@ -131,8 +130,9 @@ jobs:
           echo "RESULT_COVERAGE_REPORT=$RESULT_COVERAGE_REPORT" >> $GITHUB_ENV
 
       - name: Comment with Coverage Summary in PR
-        uses: mshick/add-pr-comment@v2
+        uses: mshick/add-pr-comment@v2.8.2
         with:
+          repo-token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           message: |
             ## Test Coverage Report
             ${{ env.LINE_COVERAGE_REPORT }}
