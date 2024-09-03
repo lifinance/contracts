@@ -64,16 +64,19 @@ jobs:
           echo "Checking for git users that are members of both $SC_ADMINS and $AUDITORS team..."
           OVERLAP=$(comm -12 sc_admins_sorted.txt auditors_sorted.txt)
 
+          echo "OVERLAP: $OVERLAP"
+
           if [ -n "$OVERLAP" ]; then
-            echo -e "\033[31mERROR: The following git users are members of both $SC_ADMINS and $AUDITORS groups: $overlap\033[0m"
-            echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
-            exit 1
+          echo -e "\033[31mERROR: The following git users are members of both $SC_ADMINS and $AUDITORS groups: $overlap\033[0m"
+          echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
+          exit 1
           else
-            echo -e "\033[32mNo overlap found between $SC_ADMINS and $AUDITORS.\033[0m"
+          echo -e "\033[32mNo overlap found between $SC_ADMINS and $AUDITORS.\033[0m"
           fi
 
           echo "Checking for git users that are members of both $SC_CORE and $AUDITORS team..."
           OVERLAP=$(comm -12 sc_admins_sorted.txt auditors_sorted.txt)
+          echo "OVERLAP: $OVERLAP"
 
           if [ -n "$OVERLAP" ]; then
             echo -e "\033[31mERROR: The following git users are members of both $SC_CORE and $AUDITORS groups: $overlap\033[0m"
