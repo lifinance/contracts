@@ -111,9 +111,10 @@ jobs:
           # Check against minimum threshold
           if (( $(echo "$LINE_COVERAGE_PERCENTAGE >= $MIN_TEST_COVERAGE" | bc -l) )); then
             RESULT_COVERAGE_REPORT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is above min threshold ($MIN_TEST_COVERAGE%). Check passed."
+            echo -e "\033[32m$RESULT_COVERAGE_REPORT\033[0m"
           else
             RESULT_COVERAGE_REPORT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is below min threshold ($MIN_TEST_COVERAGE%). Check failed."
-            echo -e "\033[32m$RESULT_COVERAGE_REPORT\033[0m"
+            echo -e "\033[31m$RESULT_COVERAGE_REPORT\033[0m"
             exit 1
           fi
 
