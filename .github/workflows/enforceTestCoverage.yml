@@ -45,20 +45,20 @@ jobs:
       - name: Install Dependencies
         run: forge install
 
-      - name: Install Git Submodules
-        run: |
-          git config --global url."https://github.com/".insteadOf "git@github.com:"
-          git submodule update --init --recursive
-
       - name: Generate Coverage Report
         run: |
           forge coverage --report lcov --force
-          echo "Filtering coverage report to only contain coverage info about src/ folder now"
+
+          echo "Filtering coverage report to only contain coverage info for 'src/'' folder now"
+
           npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
-          echo "Coverage report filtered"
+
+          echo "Coverage report successfully filtered"
 
       - name: Generate Coverage Summary
         run: |
+
+
           # Path to the lcov info file
           LCOV_FILE="lcov-filtered.info"
 
