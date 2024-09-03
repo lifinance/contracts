@@ -113,7 +113,7 @@ jobs:
             RESULT_COVERAGE_REPORT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is above min threshold ($MIN_TEST_COVERAGE%). Check passed."
           else
             RESULT_COVERAGE_REPORT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is below min threshold ($MIN_TEST_COVERAGE%). Check failed."
-            echo $RESULT_COVERAGE_REPORT
+            echo -e "\033[32m$RESULT_COVERAGE_REPORT\033[0m"
             exit 1
           fi
 
@@ -128,6 +128,13 @@ jobs:
           echo "FUNCTION_COVERAGE_REPORT=$FUNCTION_COVERAGE_REPORT" >> $GITHUB_ENV
           echo "BRANCH_COVERAGE_REPORT=$BRANCH_COVERAGE_REPORT" >> $GITHUB_ENV
           echo "RESULT_COVERAGE_REPORT=$RESULT_COVERAGE_REPORT" >> $GITHUB_ENV
+
+          {
+          echo "LINE_COVERAGE_REPORT=$LINE_COVERAGE_REPORT"
+          echo "FUNCTION_COVERAGE_REPORT=$FUNCTION_COVERAGE_REPORT"
+          echo "BRANCH_COVERAGE_REPORT=$BRANCH_COVERAGE_REPORT"
+          echo "RESULT_COVERAGE_REPORT=$RESULT_COVERAGE_REPORT"
+          } >> "$GITHUB_ENV"
 
       - name: Comment with Coverage Summary in PR
         uses: mshick/add-pr-comment@v2.8.2
