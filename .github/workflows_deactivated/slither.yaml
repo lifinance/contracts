@@ -1,0 +1,16 @@
+# - Run Static Analyzer Tool "Slither"
+# - currently deactivated until we found time to configure it correctly
+
+name: Slither Analysis
+on: [push]
+jobs:
+  run-slither:
+    if: ${{ github.event.pull_request.draft == false }} # will only run once the PR is in "Ready for Review" state
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.1.1
+      - uses: crytic/slither-action@v0.3.0
+        with:
+          node-version: 20
+        continue-on-error: true
