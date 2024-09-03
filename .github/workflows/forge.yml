@@ -17,9 +17,6 @@ jobs:
       ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
-      FORK_NUMBER: ${{ secrets.FORK_NUMBER }}
-      POLYGON_FORK_NUMBER: ${{ secrets.POLYGON_FORK_NUMBER }}
-      FORK_NUMBER_POLYGON: 36004499
 
     steps:
       - uses: actions/checkout@v4.1.7
@@ -40,6 +37,7 @@ jobs:
 
       - name: Install Deps
         run: forge install
+
       - name: Run forge tests
         uses: Wandalen/wretry.action@v3.5.0
         with:
