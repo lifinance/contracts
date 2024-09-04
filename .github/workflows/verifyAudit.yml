@@ -44,7 +44,7 @@ jobs:
 
           echo "ASSIGNED_LABELS=${ASSIGNED_LABELS}" >> "$GITHUB_ENV"
 
-      - name: Check Git Diff for protected contracts ('src/*')
+      - name: Check PR for changes for protected folders ('src/*')
         id: check_if_audit_is_required
         run: |
 
@@ -71,10 +71,10 @@ jobs:
 
           ##### Determine if audit is required
           if [[ -z "$PROTECTED_CONTRACTS" ]]; then
-            echo -e "\033[32mNo protected contracts found in Git Diff.\033[0m"
+            echo -e "\033[32mNo protected contracts found in this PR.\033[0m"
             echo "AUDIT_REQUIRED=false" >> "$GITHUB_ENV"
           else
-            echo -e "\033[31mProtected contracts found in Git Diff.\033[0m"
+            echo -e "\033[31mProtected contracts found in this PR.\033[0m"
             echo "AUDIT_REQUIRED=true" >> "$GITHUB_ENV"
           fi
 
@@ -86,6 +86,7 @@ jobs:
         env:
           ASSIGNED_LABELS: ${{ env.ASSIGNED_LABELS }}
           AUDIT_REQUIRED: ${{ env.AUDIT_REQUIRED }}
+          GH_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC}}
         with:
           script: |
             const { execSync } = require('child_process');
