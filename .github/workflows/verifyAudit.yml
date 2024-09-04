@@ -102,6 +102,14 @@ jobs:
             console.log(`Determined label to be assigned for this PR: ${labelToAssign}`);
             console.log(`Remove this label if currently present: ${oppositeLabel}`);
 
+            // Detailed debugging for label matching
+            assignedLabels.forEach(label => {
+              console.log(`Comparing label: "${label}" with "${labelToAssign}"`);
+              if (label === labelToAssign) {
+                console.log(`Label "${labelToAssign}" is already assigned.`);
+              }
+            });
+
             if (!assignedLabels.includes(labelToAssign)) {
               console.log(`Assigning label: ${labelToAssign}`);
               execSync(`gh pr edit ${{ github.event.pull_request.number }} --add-label "${labelToAssign}"`, { stdio: 'inherit' });
