@@ -19,6 +19,7 @@ on:
 
 jobs:
   verify-audit-information:
+    needs: check-if-audit-required # This job will run only after the audit check completes successfully
     runs-on: ubuntu-latest
     env:
       auditLogPath: 'audit/auditLog.json'
