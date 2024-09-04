@@ -35,13 +35,13 @@ contract DeployScript is DeployScriptBase {
         // get path of permit2 config file
         string memory permit2ProxyConfig = string.concat(
             root,
-            "/config/permit2.json"
+            "/config/permit2Proxy.json"
         );
 
         // read file into json variable
         string memory permit2ProxyConfigJSON = vm.readFile(permit2ProxyConfig);
 
-        // extract wrapped token address for the given network
+        // extract Permit2 contract address for the given network
         address permit2Address = permit2ProxyConfigJSON.readAddress(
             string.concat(".", network)
         );

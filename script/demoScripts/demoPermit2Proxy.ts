@@ -82,7 +82,7 @@ const main = defineCommand({
         USDT_ADDRESS,
         parseUnits('5', 6),
         nonce,
-        block.timestamp + 1200n,
+        block.timestamp + 1200n, // 20 min deadline
       ],
     })
     console.log(msgHash)
