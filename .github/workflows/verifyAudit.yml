@@ -25,6 +25,8 @@ jobs:
     # will only run once the PR is in "Ready for Review" state
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
     permissions:
       pull-requests: write
     steps:
@@ -35,8 +37,7 @@ jobs:
 
       - name: Fetch currently assigned labels
         id: fetch_current_labels
-        env:
-          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+
         run: |
           echo "Fetching currently assigned labels..."
           ASSIGNED_LABELS=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | tr '\n' ' ')
