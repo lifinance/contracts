@@ -76,31 +76,31 @@ jobs:
             echo "AUDIT_REQUIRED=false" >> "$GITHUB_ENV"
           else
             echo -e "\033[31mProtected contracts found in this PR.\033[0m"
+            echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
             echo "AUDIT_REQUIRED=true" >> "$GITHUB_ENV"
+            echo -e "$PROTECTED_CONTRACTS" > protected_contracts.txt
           fi
-
-          echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
-          echo -e "$PROTECTED_CONTRACTS" > protected_contracts.txt
 
       - name: Assign or update labels based on check outcome
         uses: actions/github-script@v7
         env:
           ASSIGNED_LABELS: ${{ env.ASSIGNED_LABELS }}
           AUDIT_REQUIRED: ${{ env.AUDIT_REQUIRED }}
-          GH_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC}}
         with:
           script: |
             const { execSync } = require('child_process');
 
-            const assignedLabels = process.env.ASSIGNED_LABELS.split('\n').filter(Boolean);
+            // read currently assigned labels from previous step / environment
+            const assignedLabels = process.env.ASSIGNED_LABELS.split('\n').map(label => label.trim()).filter(Boolean);
             const auditRequired = process.env.AUDIT_REQUIRED === 'true';
 
+            // determine which label should be assigned and which should be removed
             const labelToAssign = auditRequired ? 'AuditRequired' : 'AuditNotRequired';
             const oppositeLabel = auditRequired ? 'AuditNotRequired' : 'AuditRequired';
 
-            console.log(`Currently assigned labels: ${assignedLabels}`);
-            console.log(`Determined label to assign: ${labelToAssign}`);
-            console.log(`Opposite label to remove if present: ${oppositeLabel}`);
+            console.log(`Currently assigned labels: ${JSON.stringify(assignedLabels)}`);
+            console.log(`Determined label to be assigned for this PR: ${labelToAssign}`);
+            console.log(`Remove this label if currently present: ${oppositeLabel}`);
 
             if (!assignedLabels.includes(labelToAssign)) {
               console.log(`Assigning label: ${labelToAssign}`);
