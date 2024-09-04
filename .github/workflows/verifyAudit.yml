@@ -39,7 +39,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
           echo "Fetching currently assigned labels..."
-          ASSIGNED_LABELS=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels | map(.name) | .[]')
+          ASSIGNED_LABELS=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | tr '\n' ' ')
           echo "Assigned labels: $ASSIGNED_LABELS"
 
           echo "ASSIGNED_LABELS=${ASSIGNED_LABELS}" >> "$GITHUB_ENV"
