@@ -12,6 +12,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Mark as draft
-        uses: voiceflow/draft-pr@latest
+        uses: voiceflow/draft-pr@v1.1
         with:
           token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
