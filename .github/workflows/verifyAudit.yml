@@ -35,16 +35,6 @@ jobs:
         with:
           fetch-depth: 0 ##### Fetch all history for all branches
 
-      - name: Fetch currently assigned labels
-        id: fetch_current_labels
-
-        run: |
-          echo "Fetching currently assigned labels..."
-          ASSIGNED_LABELS=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | tr '\n' ' ')
-          echo "Assigned labels: $ASSIGNED_LABELS"
-
-          echo "ASSIGNED_LABELS=${ASSIGNED_LABELS}" >> "$GITHUB_ENV"
-
       - name: Check PR for changes for protected folders ('src/*')
         id: check_if_audit_is_required
         run: |
@@ -89,6 +79,12 @@ jobs:
         with:
           script: |
             const { execSync } = require('child_process');
+            // ANSI escape codes for colors (used for colored output in Git action console)
+            const colors = {
+              reset: "\033[0m",
+              red: "\033[31m",
+              green: "\033[32m",
+            };
 
             // Fetch currently assigned labels from GitHub using GitHub CLI
             let assignedLabels = [];
@@ -99,13 +95,10 @@ jobs:
               // Split the labels output into an array and trim each label
               assignedLabels = labelsOutput.split('\n').map(label => label.trim()).filter(Boolean);
             } catch (error) {
-              console.error(`Error fetching assigned labels: ${error.message}`);
+              console.error(`${colors.red}Error fetching assigned labels: ${error.message}${colors.reset}`);
             }
 
-
-
-            // read currently assigned labels from previous step / environment
-            //const assignedLabels = process.env.ASSIGNED_LABELS.split('\n').map(label => label.trim()).filter(Boolean);
+            // check if audit is required (determined by previous step)
             const auditRequired = process.env.AUDIT_REQUIRED === 'true';
 
             // determine which label should be assigned and which should be removed
@@ -113,29 +106,21 @@ jobs:
             const oppositeLabel = auditRequired ? 'AuditNotRequired' : 'AuditRequired';
 
             console.log(`Currently assigned labels: ${JSON.stringify(assignedLabels)}`);
-            console.log(`Determined label to be assigned for this PR: ${labelToAssign}`);
-            console.log(`Remove this label if currently present: ${oppositeLabel}`);
-
-            // Detailed debugging for label matching
-            assignedLabels.forEach(label => {
-              console.log(`Comparing label: "${label}" with "${labelToAssign}"`);
-              if (label === labelToAssign) {
-                console.log(`Label "${labelToAssign}" is already assigned.`);
-              }
-            });
+            console.log(`Label '${labelToAssign}' has to be assigned to this PR`);
+            console.log(`Label '${oppositeLabel}' will be removed, if currently present`);
 
             if (!assignedLabels.includes(labelToAssign)) {
               console.log(`Assigning label: ${labelToAssign}`);
               execSync(`gh pr edit ${{ github.event.pull_request.number }} --add-label "${labelToAssign}"`, { stdio: 'inherit' });
             } else {
-              console.log(`Label "${labelToAssign}" is already assigned. No action needed.`);
+              console.log(`${colors.green}Label "${labelToAssign}" is already assigned. No action needed.${colors.reset}`);
             }
 
             if (assignedLabels.includes(oppositeLabel)) {
               console.log(`Removing opposite label: ${oppositeLabel}`);
               execSync(`gh pr edit ${{ github.event.pull_request.number }} --remove-label "${oppositeLabel}"`, { stdio: 'inherit' });
             } else {
-              console.log(`Opposite label "${oppositeLabel}" is not assigned. No action needed.`);
+              console.log(`${colors.green}Opposite label "${oppositeLabel}" is not assigned. No action needed.`);
             }
 
       - name: Verify label assignments (make sure exactly one of the two labels is assigned)
@@ -164,11 +149,11 @@ jobs:
 
           ##### Make sure that exactly (only) one protected label is assigned
           if [ "$total_labels_assigned" -ne 1 ]; then
-            echo -e "\033[31mError: Exactly one of the two labels should be assigned but found $total_labels_assigned assigned labels.\033[0m"
+            echo -e "\033[31mError: Exactly one of the two protected labels should be assigned but found $total_labels_assigned assigned labels.\033[0m"
             exit 1
           else
             echo -e "\033[32mVerified that exactly one label is assigned.\033[0m"
             echo -e "\033[32mAll good :)\033[0m"
           fi
 
-          echo -e  "\033[31mGit Action completed successfully\033[0m"
+          echo -e  "\033[32mGit Action completed successfully\033[0m"
