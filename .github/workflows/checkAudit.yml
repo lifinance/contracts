@@ -9,16 +9,16 @@
 # KNOWN LIMITATIONS
 # - will only check the last 100 commits for any matches with audit commit hashes
 
-name: Audit Check
+name: Verify Audit Information
 
 on:
   workflow_run:
-    workflows: ['Audit Requirement Check'] # Only runs after the "Audit Requirement Check" workflow is completed
+    workflows: ['check-audit-required', 'Audit Requirement Check'] # Only runs after the "Audit Requirement Check" workflow is completed
     types:
       - completed # Runs when the first workflow completes
 
 jobs:
-  check-audit:
+  verify-audit-information:
     runs-on: ubuntu-latest
     env:
       auditLogPath: 'audit/auditLog.json'
