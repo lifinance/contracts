@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.17;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.17;
 
 import { Test, TestBase, DSTest, ILiFi, console, ERC20 } from "../utils/TestBase.sol";
 import { Permit2Proxy } from "lifi/Periphery/Permit2Proxy.sol";
@@ -85,11 +85,12 @@ contract Permit2ProxyTest is TestBase {
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
         // // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_USDC,
-            domainSeparator,
-            block.timestamp + 1000
-        );
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp + 1000
+            );
 
         // expect LifiTransferStarted event to be emitted by our diamond contract
         vm.expectEmit(true, true, true, true, DIAMOND_ADDRESS);
@@ -142,11 +143,12 @@ contract Permit2ProxyTest is TestBase {
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
         // // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_USDC,
-            domainSeparator,
-            block.timestamp - 1 //  deadline in the past
-        );
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp - 1 //  deadline in the past
+            );
 
         // expect call to revert since signature deadline is in the past
         vm.expectRevert("FiatTokenV2: permit is expired");
@@ -172,11 +174,12 @@ contract Permit2ProxyTest is TestBase {
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
         // // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_USDC,
-            domainSeparator,
-            block.timestamp
-        );
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp
+            );
 
         // expect call to revert since signature is invalid
         vm.expectRevert("EIP2612: invalid signature");
@@ -202,11 +205,12 @@ contract Permit2ProxyTest is TestBase {
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
         // // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_USDC,
-            domainSeparator,
-            block.timestamp
-        );
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp
+            );
 
         // expect call to revert since signature was created by a different address
         vm.expectRevert("EIP2612: invalid signature");
@@ -595,7 +599,7 @@ contract Permit2ProxyTest is TestBase {
             keccak256(abi.encodePacked("\x19\x01", domainSeparator, dataHash));
     }
 
-    function _getTestDataEIP2612(
+    function _getTestDataEIP2612SignedByPERMIT2_USER(
         address tokenAddress,
         bytes32 domainSeparator,
         uint256 deadline
