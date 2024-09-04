@@ -90,15 +90,23 @@ jobs:
           script: |
             const { execSync } = require('child_process');
 
+            // Fetch currently assigned labels from GitHub using GitHub CLI
+            let assignedLabels = [];
+            try {
+              // Fetch the labels directly from the pull request
+              const labelsOutput = execSync(`gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name'`).toString();
+
+              // Split the labels output into an array and trim each label
+              assignedLabels = labelsOutput.split('\n').map(label => label.trim()).filter(Boolean);
+            } catch (error) {
+              console.error(`Error fetching assigned labels: ${error.message}`);
+            }
+
+
+
             // read currently assigned labels from previous step / environment
-            // Correctly split and trim the assigned labels into an array
-            const assignedLabelsRaw = process.env.ASSIGNED_LABELS || '';
-            // Split by spaces, commas, or other delimiters you notice
-            const assignedLabels = assignedLabelsRaw.split(/[,\s]+/).map(label => label.trim()).filter(Boolean);
-
-
-            # const assignedLabels = process.env.ASSIGNED_LABELS.split('\n').map(label => label.trim()).filter(Boolean);
-            # const auditRequired = process.env.AUDIT_REQUIRED === 'true';
+            //const assignedLabels = process.env.ASSIGNED_LABELS.split('\n').map(label => label.trim()).filter(Boolean);
+            const auditRequired = process.env.AUDIT_REQUIRED === 'true';
 
             // determine which label should be assigned and which should be removed
             const labelToAssign = auditRequired ? 'AuditRequired' : 'AuditNotRequired';
