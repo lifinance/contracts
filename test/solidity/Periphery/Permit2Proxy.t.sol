@@ -45,6 +45,7 @@ contract Permit2ProxyTest is TestBase {
     error InvalidSigner();
     error InvalidNonce();
     error DiamondAddressNotWhitelisted();
+    error CallToDiamondFailed(bytes);
 
     function setUp() public {
         customBlockNumberForForking = 20261175;
@@ -113,6 +114,38 @@ contract Permit2ProxyTest is TestBase {
         assertEq(defaultUSDCAmount, delta);
         vm.stopPrank();
         return testdata;
+    }
+
+    function testRevert_when_called_with_invalid_calldata() public {
+        vm.startPrank(PERMIT2_USER);
+
+        // get token-specific domainSeparator
+        bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
+
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp + 1000
+            );
+
+        // call Permit2Proxy with signature
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "CallToDiamondFailed(bytes)",
+                hex"a9ad62f8" // Function does not exist
+            )
+        );
+        permit2Proxy.callDiamondWithEIP2612Signature(
+            ADDRESS_USDC,
+            defaultUSDCAmount,
+            testdata.deadline,
+            testdata.v,
+            testdata.r,
+            testdata.s,
+            hex"1337c0d3" // This should revert
+        );
     }
 
     function testRevert_cannot_use_eip2612_signature_twice() public {
@@ -421,6 +454,36 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             signature
         );
+    }
+
+    /// The following test code was adapted from https://github.com/flood-protocol/permit2-nonce-finder/blob/7a4ac8a58d0b499308000b75ddb2384834f31fac/test/Permit2NonceFinder.t.sol
+
+    function test_can_find_nonce() public {
+        // We invalidate the first nonce to make sure it's not returned.
+        // We pass a mask of 0...0011 to invalidate nonce 0 and 1.
+        uniPermit2.invalidateUnorderedNonces(0, 3);
+        assertEq(permit2Proxy.nextNonce(address(this)), 2);
+
+        // Invalidate the first word minus 1 nonce
+        uniPermit2.invalidateUnorderedNonces(0, type(uint256).max >> 1);
+        // We should find the last nonce in the first word
+        assertEq(permit2Proxy.nextNonce(address(this)), 255);
+    }
+
+    function test_can_find_nonce_after() public {
+        // We want to start from the second word
+        uint256 start = 256;
+        // We invalidate the whole next word to make sure it's not returned.
+        uniPermit2.invalidateUnorderedNonces(1, type(uint256).max);
+        assertEq(permit2Proxy.nextNonceAfter(address(this), start), 512);
+
+        // Invalidate the next word minus 1 nonce
+        uniPermit2.invalidateUnorderedNonces(2, type(uint256).max >> 1);
+        // We should find the first nonce in the third word
+        assertEq(permit2Proxy.nextNonceAfter(address(this), 767), 768);
+
+        // The first word is still accessible if we start from a lower nonce
+        assertEq(permit2Proxy.nextNonceAfter(address(this), 1), 2);
     }
 
     /// Helper Functions ///
