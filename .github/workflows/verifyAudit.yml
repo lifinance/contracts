@@ -162,6 +162,8 @@ jobs:
             echo "now processing file $FILE"
             # load contract version
             VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE")
+            echo "Version $VERSION"
+
 
             ##### make sure that contract version was extracted successfully
             if [[ -z $VERSION ]]; then
@@ -173,7 +175,7 @@ jobs:
             # see if audit log contains an entry with those values
             FILENAME=$(basename "$FILE" .sol)
 
-            LOG_ENTRIES=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" '.[$filename][$version][]' "$auditLogPath")
+            LOG_ENTRIES=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" '.[$filename][$version][]' "$AUDIT_LOG_PATH")
 
             ##### make sure that audit log entries were found
             if [[ -z $LOG_ENTRIES || "${#LOG_ENTRIES}" -eq 0 ]]; then
