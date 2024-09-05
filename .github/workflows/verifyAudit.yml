@@ -137,7 +137,6 @@ jobs:
             }
 
       - name: Check Audit Log
-        continue-on-error: true
         id: check-audit-log
         if: env.AUDIT_REQUIRED == 'true'
         run: |
