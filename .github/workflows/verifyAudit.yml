@@ -305,7 +305,7 @@ jobs:
 
             echo "now checking if the the auditor has approved this PR"
             # Fetch all reviews for the specified pull request
-            REVIEWS=$(gh pr reviews $PR_NUMBER --json author,state --jq '.[] | {author: .author.login, state: .state}')
+            REVIEWS=$(gh pr review $PR_NUMBER --json author,state --jq '.[] | {author: .author.login, state: .state}')
 
 
             # Check if the PR was approved by the target user
@@ -323,9 +323,10 @@ jobs:
           done <<< "$PROTECTED_CONTRACTS"
 
       - name: Assign label "AuditCompleted" if all checks passed
+        if: ${{ env.CONTINUE == 'true' }}
         uses: actions-ecosystem/action-add-labels@v1
         id: assign_label
         with:
           github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the git action user so the label protection check will pass
-          labels: ${{ env.CONTINUE == 'true' && 'AuditCompleted' || 'AuditNotRequired' }} # if the action made it until here and CONTINUE was true then all checks passed. It CONTINUE was false then no audit is required
-          number: ${{ github.event.pull_request.number }}
+          labels: 'AuditCompleted'
+          number: ${{ env.PR_NUMBER }}
