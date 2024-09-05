@@ -26,8 +26,14 @@
     "StargateFacetV2": {
       "1.0.1": ["audit20240814"]
     },
-    "ContractName": {
+    "ContractOneAudit": {
       "1.0.0": ["audit20240814"]
+    },
+    "ContractMultipleAudits": {
+      "1.0.0": ["audit20240814"]
+    },
+    "ContractInvalidAudit": {
+      "1.0.0": ["audit20250814"]
     }
   }
 }
