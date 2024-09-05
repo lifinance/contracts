@@ -1,6 +1,12 @@
+# Audit Verifier
+# - checks if an audit is required for a given PR
+#   - an audit is required if any .sol file in path 'src/' has been modified or added
+# - if audit is required, the action will assign the label "AuditRequired", otherwise it will assign label "AuditNotRequired"
+# - it will also make sure that at the end, exactly one of these two labels is indeed assigned
+
 name: Audit Verifier
 # - checks if an audit is required and assigns a (protected) label based on the result ('AuditRequired' or 'AuditNotRequired')
-# - if an audit is required, it will verify that the audit was actually completed and then assign label "AuditCompleted"
+# - if an audit is required, it will verify that the audit was actually done and assign label "AuditCompleted"
 # - verification includes:
 #   - ensuring the audit log contains an entry for all added/modified contracts in their latest version
 #   - ensuring that an audit report has been added
@@ -62,7 +68,6 @@ jobs:
             echo -e "\033[31mProtected contracts found in this PR.\033[0m"
             echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
             echo "AUDIT_REQUIRED=true" >> "$GITHUB_ENV"
-            echo "$AUDIT_REQUIRED" > audit_required.txt
             echo -e "$PROTECTED_CONTRACTS" > protected_contracts.txt
           fi
 
@@ -131,19 +136,3 @@ jobs:
             } else {
               console.log(`${colors.green}Verified that exactly one label is assigned. Check passed :)${colors.reset}`);
             }
-
-  verify-audit-information:
-    needs: check-if-audit-required # This job will run only after the audit check completes successfully
-    runs-on: ubuntu-latest
-    env:
-      auditLogPath: 'audit/auditLog.json'
-    permissions:
-      pull-requests: write
-    steps:
-      - name: Check if audit is required
-        run: |
-
-          # load list of protected contracts
-          AUDIT_REQUIRED=$(cat audit_required.txt)
-
-          echo "Audit Required: ($AUDIT_REQUIRED)"

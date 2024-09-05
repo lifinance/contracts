@@ -18,349 +18,341 @@ on:
       - completed # Runs when the first workflow completes
 
 jobs:
-  verify-audit-information:
-    needs: check-if-audit-required # This job will run only after the audit check completes successfully
-    runs-on: ubuntu-latest
-    env:
-      auditLogPath: 'audit/auditLog.json'
-    permissions:
-      pull-requests: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 ##### Fetch all history for all branches
+  - name: Checkout repository
+  uses: actions/checkout@v4
+  with:
+    fetch-depth: 0 ##### Fetch all history for all branches
 
-      - name: Check assigned labels
-        id: check_labels
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const labels = context.payload.workflow_run.pull_requests[0].labels.map(label => label.name);
-            console.log(`labels: ${labels}`)
-            const auditRequired = labels.includes('AuditRequired');
-            console.log(`auditRequired: ${auditRequired}`)
-            const auditNotRequired = labels.includes('AuditNotRequired');
-            console.log(`auditNotRequired: ${auditNotRequired}`)
+- name: Check assigned labels
+  id: check_labels
+  uses: actions/github-script@v7
+  with:
+    script: |
+      const labels = context.payload.workflow_run.pull_requests[0].labels.map(label => label.name);
+      console.log(`labels: ${labels}`)
+      const auditRequired = labels.includes('AuditRequired');
+      console.log(`auditRequired: ${auditRequired}`)
+      const auditNotRequired = labels.includes('AuditNotRequired');
+      console.log(`auditNotRequired: ${auditNotRequired}`)
 
-            if (!auditRequired && !auditNotRequired) {
-              core.setFailed("Neither 'AuditRequired' nor 'AuditNotRequired' labels are assigned. Aborting.");
-            }
+      if (!auditRequired && !auditNotRequired) {
+        core.setFailed("Neither 'AuditRequired' nor 'AuditNotRequired' labels are assigned. Aborting.");
+      }
 
-            core.setOutput('auditRequired', auditRequired);
-            core.setOutput('auditNotRequired', auditNotRequired);
+      core.setOutput('auditRequired', auditRequired);
+      core.setOutput('auditNotRequired', auditNotRequired);
 
-      - name: Skip checks if audit is not required
-        if: steps.check_labels.outputs.auditNotRequired == 'true'
-        run: |
-          echo "Audit not required. Exiting."
-          exit 0
+- name: Skip checks if audit is not required
+  if: steps.check_labels.outputs.auditNotRequired == 'true'
+  run: |
+    echo "Audit not required. Exiting."
+    exit 0
 
-      - name: Continue if audit is required
-        if: steps.check_labels.outputs.auditRequired == 'true'
-        run: echo "Audit is required. Proceeding with checks."
-      - name: Check modified files for protected contracts
-        id: check_eligibility
-        run: |
+- name: Continue if audit is required
+  if: steps.check_labels.outputs.auditRequired == 'true'
+  run: echo "Audit is required. Proceeding with checks."
+- name: Check modified files for protected contracts
+  id: check_eligibility
+  run: |
 
-          ##### get all files modified by this PR
-          FILES=$(git diff --name-only origin/main HEAD)
+    ##### get all files modified by this PR
+    FILES=$(git diff --name-only origin/main HEAD)
 
-          ##### make sure that there are modified files
-          if [[ -z $FILES ]]; then
-            echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
-            echo "CONTINUE=false" >> $GITHUB_ENV
-            exit 1
-          fi
+    ##### make sure that there are modified files
+    if [[ -z $FILES ]]; then
+      echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
+      echo "CONTINUE=false" >> $GITHUB_ENV
+      exit 1
+    fi
 
-          ##### Initialize empty variables
-          PROTECTED_CONTRACTS=""
+    ##### Initialize empty variables
+    PROTECTED_CONTRACTS=""
 
-          ##### go through all modified file names/paths and identify contracts with path 'src/*'
-          while IFS= read -r FILE; do
-            if echo "$FILE" | grep -E '^src/.*\.sol$'; then
-              ##### contract found
-              PROTECTED_CONTRACTS="${PROTECTED_CONTRACTS}${FILE}"$'\n'
-            fi
-          done <<< "$FILES"
+    ##### go through all modified file names/paths and identify contracts with path 'src/*'
+    while IFS= read -r FILE; do
+      if echo "$FILE" | grep -E '^src/.*\.sol$'; then
+        ##### contract found
+        PROTECTED_CONTRACTS="${PROTECTED_CONTRACTS}${FILE}"$'\n'
+      fi
+    done <<< "$FILES"
 
-          ##### if none found, exit here as there is nothing to do
-          if [[ -z "$PROTECTED_CONTRACTS" ]]; then
-            echo -e "\033[31mNo protected contracts found in files modified/added by this PR.\033[0m"
-            echo -e "\033[31mNo further checks are required.\033[0m"
-            # set action output to false
-            echo "CONTINUE=false" >> $GITHUB_ENV
-            echo "CONTINUE=false" >> $GITHUB_ENV
-            exit 0
-          else
-            ##### set action output to true
-            echo "CONTINUE=true" >> $GITHUB_ENV
-          fi
+    ##### if none found, exit here as there is nothing to do
+    if [[ -z "$PROTECTED_CONTRACTS" ]]; then
+      echo -e "\033[31mNo protected contracts found in files modified/added by this PR.\033[0m"
+      echo -e "\033[31mNo further checks are required.\033[0m"
+      # set action output to false
+      echo "CONTINUE=false" >> $GITHUB_ENV
+      echo "CONTINUE=false" >> $GITHUB_ENV
+      exit 0
+    else
+      ##### set action output to true
+      echo "CONTINUE=true" >> $GITHUB_ENV
+    fi
 
-          echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
+    echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
 
-          ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
-          echo -e "$PROTECTED_CONTRACTS" > protected_contracts.txt
+    ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
+    echo -e "$PROTECTED_CONTRACTS" > protected_contracts.txt
 
-      - name: Check audit log
-        id: check-audit-log
-        if: env.CONTINUE == 'true'
-        run: |
+- name: Check audit log
+  id: check-audit-log
+  if: env.CONTINUE == 'true'
+  run: |
 
-          # load list of protected contracts
-          PROTECTED_CONTRACTS=$(cat protected_contracts.txt)
+    # load list of protected contracts
+    PROTECTED_CONTRACTS=$(cat protected_contracts.txt)
 
-          # create temp files to store commit hashes and auditor handles
-          COMMIT_HASHES_FILE="commit_hashes.txt"
-          AUDITOR_GIT_HANDLES_FILE="auditor_handles.txt"
+    # create temp files to store commit hashes and auditor handles
+    COMMIT_HASHES_FILE="commit_hashes.txt"
+    AUDITOR_GIT_HANDLES_FILE="auditor_handles.txt"
 
-          ##### make sure that there are any protected contracts
-          if [[ -z $PROTECTED_CONTRACTS ]]; then
-            echo -e "\033[31mNo protected contracts found. This should not happen (action should stop earlier). Please check the code of the Github action. Aborting now.\033[0m"
-            echo "CONTINUE=false" >> $GITHUB_ENV
-            exit 1
-          fi
+    ##### make sure that there are any protected contracts
+    if [[ -z $PROTECTED_CONTRACTS ]]; then
+      echo -e "\033[31mNo protected contracts found. This should not happen (action should stop earlier). Please check the code of the Github action. Aborting now.\033[0m"
+      echo "CONTINUE=false" >> $GITHUB_ENV
+      exit 1
+    fi
 
-          # iterate through all contracts
-          while IFS= read -r FILE; do
-            # load contract version
-            VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE")
+    # iterate through all contracts
+    while IFS= read -r FILE; do
+      # load contract version
+      VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE")
 
-            ##### make sure that contract version was extracted successfully
-            if [[ -z $VERSION ]]; then
-              echo -e "\033[31mCould not find version of contract $FILE. This should not happen. Please check the Github action code. Aborting now.\033[0m"
-              echo "CONTINUE=false" >> $GITHUB_ENV
-              exit 1
-            fi
+      ##### make sure that contract version was extracted successfully
+      if [[ -z $VERSION ]]; then
+        echo -e "\033[31mCould not find version of contract $FILE. This should not happen. Please check the Github action code. Aborting now.\033[0m"
+        echo "CONTINUE=false" >> $GITHUB_ENV
+        exit 1
+      fi
 
-            # see if audit log contains an entry with those values
-            FILENAME=$(basename "$FILE" .sol)
+      # see if audit log contains an entry with those values
+      FILENAME=$(basename "$FILE" .sol)
 
-            LOG_ENTRIES=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" '.[$filename][$version][]' "$auditLogPath")
+      LOG_ENTRIES=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" '.[$filename][$version][]' "$auditLogPath")
 
-            ##### make sure that audit log entries were found
-            if [[ -z $LOG_ENTRIES || "${#LOG_ENTRIES}" -eq 0 ]]; then
-              echo -e "\033[31mCould not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
-              echo -e "\033[31mThis github action cannot complete until the audit log contains a logged audit for this file.\033[0m"
-              echo "CONTINUE=false" >> $GITHUB_ENV
-              exit 1
-            fi
+      ##### make sure that audit log entries were found
+      if [[ -z $LOG_ENTRIES || "${#LOG_ENTRIES}" -eq 0 ]]; then
+        echo -e "\033[31mCould not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
+        echo -e "\033[31mThis github action cannot complete until the audit log contains a logged audit for this file.\033[0m"
+        echo "CONTINUE=false" >> $GITHUB_ENV
+        exit 1
+      fi
 
-            # Iterate through all log entries
-            echo "$LOG_ENTRIES" | jq -c '.' | while IFS= read -r entry; do
-              # extract log entry values into variables
-              AUDIT_COMPLETED_ON=$(echo "$entry" | jq -r '.auditCompletedOn')
-              AUDITED_BY=$(echo "$entry" | jq -r '.auditedBy')
-              AUDITOR_GIT_HANDLE=$(echo "$entry" | jq -r '.auditorGitHandle')
-              AUDIT_REPORT_PATH=$(echo "$entry" | jq -r '.auditReportPath')
-              AUDIT_COMMIT_HASH=$(echo "$entry" | jq -r '.auditCommitHash')
+      # Iterate through all log entries
+      echo "$LOG_ENTRIES" | jq -c '.' | while IFS= read -r entry; do
+        # extract log entry values into variables
+        AUDIT_COMPLETED_ON=$(echo "$entry" | jq -r '.auditCompletedOn')
+        AUDITED_BY=$(echo "$entry" | jq -r '.auditedBy')
+        AUDITOR_GIT_HANDLE=$(echo "$entry" | jq -r '.auditorGitHandle')
+        AUDIT_REPORT_PATH=$(echo "$entry" | jq -r '.auditReportPath')
+        AUDIT_COMMIT_HASH=$(echo "$entry" | jq -r '.auditCommitHash')
 
-              # make sure that audit log entry contains date
-              if [ -z "$AUDIT_COMPLETED_ON" ]; then
-                echo -e "\033[31mThe audit log entry for file $FILE contains an invalid or no 'auditCompletedOn' date.\033[0m"
-                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-                echo -e "\033[31mAborting now.\033[0m"
-                echo "CONTINUE=false" >> $GITHUB_ENV
-                exit 1
-              fi
+        # make sure that audit log entry contains date
+        if [ -z "$AUDIT_COMPLETED_ON" ]; then
+          echo -e "\033[31mThe audit log entry for file $FILE contains an invalid or no 'auditCompletedOn' date.\033[0m"
+          echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+          echo -e "\033[31mAborting now.\033[0m"
+          echo "CONTINUE=false" >> $GITHUB_ENV
+          exit 1
+        fi
 
-              # make sure that audit log entry contains auditor's (company) name
-              if [ -z "$AUDITED_BY" ]; then
-                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditedBy' information.\033[0m"
-                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-                echo -e "\033[31mAborting now.\033[0m"
-                echo "CONTINUE=false" >> $GITHUB_ENV
-                exit 1
-              fi
+        # make sure that audit log entry contains auditor's (company) name
+        if [ -z "$AUDITED_BY" ]; then
+          echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditedBy' information.\033[0m"
+          echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+          echo -e "\033[31mAborting now.\033[0m"
+          echo "CONTINUE=false" >> $GITHUB_ENV
+          exit 1
+        fi
 
-              # make sure that audit log entry contains auditor's git handle
-              if [ -z "$AUDITOR_GIT_HANDLE" ]; then
-                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditorGitHandle' information.\033[0m"
-                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-                echo -e "\033[31mAborting now.\033[0m"
-                echo "CONTINUE=false" >> $GITHUB_ENV
-                exit 1
-              fi
+        # make sure that audit log entry contains auditor's git handle
+        if [ -z "$AUDITOR_GIT_HANDLE" ]; then
+          echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditorGitHandle' information.\033[0m"
+          echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+          echo -e "\033[31mAborting now.\033[0m"
+          echo "CONTINUE=false" >> $GITHUB_ENV
+          exit 1
+        fi
 
 
-              # make sure that audit log entry contains audit report path
-              if [ -z "$AUDIT_REPORT_PATH" ]; then
-                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditReportPath' information.\033[0m"
-                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-                echo -e "\033[31mAborting now.\033[0m"
-                echo "CONTINUE=false" >> $GITHUB_ENV
-                exit 1
-              fi
+        # make sure that audit log entry contains audit report path
+        if [ -z "$AUDIT_REPORT_PATH" ]; then
+          echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditReportPath' information.\033[0m"
+          echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+          echo -e "\033[31mAborting now.\033[0m"
+          echo "CONTINUE=false" >> $GITHUB_ENV
+          exit 1
+        fi
 
-              # make sure that a file exists at the audit report path
-              if [ ! -f "$AUDIT_REPORT_PATH" ]; then
-                echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract "$FILENAME".\033[0m"
-                echo -e "\033[31mThis github action cannot complete before the audit report is uploaded to 'audit/reports/'.\033[0m"
-                echo -e "\033[31mAborting now.\033[0m"
-                echo "CONTINUE=false" >> $GITHUB_ENV
-                exit 1
-              fi
+        # make sure that a file exists at the audit report path
+        if [ ! -f "$AUDIT_REPORT_PATH" ]; then
+          echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract "$FILENAME".\033[0m"
+          echo -e "\033[31mThis github action cannot complete before the audit report is uploaded to 'audit/reports/'.\033[0m"
+          echo -e "\033[31mAborting now.\033[0m"
+          echo "CONTINUE=false" >> $GITHUB_ENV
+          exit 1
+        fi
 
-              # make sure that audit log entry contains audit report path
-              if [ -z "$AUDIT_COMMIT_HASH" ]; then
-                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditCommitHash' information.\033[0m"
-                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
-                echo -e "\033[31mAborting now.\033[0m"
-                echo "CONTINUE=false" >> $GITHUB_ENV
-                exit 1
-              fi
+        # make sure that audit log entry contains audit report path
+        if [ -z "$AUDIT_COMMIT_HASH" ]; then
+          echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditCommitHash' information.\033[0m"
+          echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+          echo -e "\033[31mAborting now.\033[0m"
+          echo "CONTINUE=false" >> $GITHUB_ENV
+          exit 1
+        fi
 
-              # store the commit hash in a temporary file to check its validity in a following step
-              # echo "$AUDIT_COMMIT_HASH" >> "$COMMIT_HASHES_FILE"
-              echo "$AUDIT_COMMIT_HASH" >> commit_hashes.txt
+        # store the commit hash in a temporary file to check its validity in a following step
+        # echo "$AUDIT_COMMIT_HASH" >> "$COMMIT_HASHES_FILE"
+        echo "$AUDIT_COMMIT_HASH" >> commit_hashes.txt
 
-              # store the auditor git handle to check it in a following step if this auditor has reviewed the PR
-              # echo "$AUDITOR_GIT_HANDLE" >> "$AUDITOR_GIT_HANDLES_FILE"
-              echo "$AUDITOR_GIT_HANDLE" >> auditor_handles.txt
-            done
-          done <<< "$PROTECTED_CONTRACTS"
+        # store the auditor git handle to check it in a following step if this auditor has reviewed the PR
+        # echo "$AUDITOR_GIT_HANDLE" >> "$AUDITOR_GIT_HANDLES_FILE"
+        echo "$AUDITOR_GIT_HANDLE" >> auditor_handles.txt
+      done
+    done <<< "$PROTECTED_CONTRACTS"
 
-          echo -e "\033[32mAll audit log entries are complete.\033[0m"
-
-
-          # # read the temp files into variables
-          # AUDIT_COMMIT_HASHES=$(cat "$COMMIT_HASHES_FILE" | tr '\n' ' ')
-          # AUDITOR_GIT_HANDLES=$(cat "$AUDITOR_GIT_HANDLES_FILE" | tr '\n' ' ')
-          # echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES"
-          # echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES" >> $GITHUB_ENV
-          # echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES"
-          # echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES" >> $GITHUB_ENV
-
-      # - name: Check if PR is approved by auditor(s)
-      #   id: check-auditor-approval
-      #   uses: actions/github-script@v7
-      #   if: env.CONTINUE == 'true'
-      #   with:
-      #     script: |
-      #       const fs = require('fs');
-      #       const auditorHandlesFile = 'auditor_handles.txt'; // Adjust this if needed
-
-      #       // Read auditor handles from file
-      #       const auditorHandles = fs.readFileSync(auditorHandlesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
-
-      #       const { data: reviews } = await github.pulls.listReviews({
-      #         owner: context.repo.owner,
-      #         repo: context.repo.repo,
-      #         pull_number: context.issue.number,
-      #       });
-
-      #       let allApproved = true;
-
-      #       auditorHandles.forEach(handle => {
-      #         const approved = reviews.some(review => review.user.login === handle && review.state === 'APPROVED');
-      #         if (!approved) {
-      #           console.log(`PR is not approved by ${handle}`);
-      #           allApproved = false;
-      #         } else {
-      #           console.log(`PR is approved by ${handle}`);
-      #         }
-      #       });
-
-      #       if (!allApproved) {
-      #         core.setFailed("Not all required auditors have approved the PR.");
-      #       } else {
-      #         core.setOutput('approved', 'true');
-      #       }
-
-      - name: Check if all required commits are part of the PR
-        id: check_commit_hashes
-        if: env.CONTINUE == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-
-            // ANSI escape codes for colors (used for colored output in Git action console)
-            const colors = {
-              reset: "\033[0m",
-              red: "\033[31m",
-              green: "\033[32m",
-              yellow: "\033[33m",
-            };
-
-            // Read commit hashes from file
-            const commitHashesFile = 'commit_hashes.txt'; // Adjust this if needed
-            const commitHashes = fs.readFileSync(commitHashesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
-
-            // Log the number of commit hashes found
-            console.log(`${commitHashes.length} relevant audit commit hashes found: ${commitHashes}`);
+    echo -e "\033[32mAll audit log entries are complete.\033[0m"
 
 
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const pull_number = context.issue.number;
+    # # read the temp files into variables
+    # AUDIT_COMMIT_HASHES=$(cat "$COMMIT_HASHES_FILE" | tr '\n' ' ')
+    # AUDITOR_GIT_HANDLES=$(cat "$AUDITOR_GIT_HANDLES_FILE" | tr '\n' ' ')
+    # echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES"
+    # echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES" >> $GITHUB_ENV
+    # echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES"
+    # echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES" >> $GITHUB_ENV
 
-            let allCommitsFound = true;
+# - name: Check if PR is approved by auditor(s)
+#   id: check-auditor-approval
+#   uses: actions/github-script@v7
+#   if: env.CONTINUE == 'true'
+#   with:
+#     script: |
+#       const fs = require('fs');
+#       const auditorHandlesFile = 'auditor_handles.txt'; // Adjust this if needed
 
-            // define a function that ensures that a given commit hash is part of the current pull request
-            const checkCommit = async (hash) => {
-              try {
-                // get the commit through github REST API
-                const { data: commit } = await github.rest.repos.getCommit({
-                  owner,
-                  repo,
-                  ref: hash,
-                });
+#       // Read auditor handles from file
+#       const auditorHandles = fs.readFileSync(auditorHandlesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
 
-                // get all PRs associated with this commit
-                const associatedPRs = (await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                  owner,
-                  repo,
-                  commit_sha: hash,
-                })).data;
+#       const { data: reviews } = await github.pulls.listReviews({
+#         owner: context.repo.owner,
+#         repo: context.repo.repo,
+#         pull_number: context.issue.number,
+#       });
 
-                // check if any of the associated PR numbers matches with <this> PR number
-                const isAssociatedWithPR = associatedPRs.some(pr => pr.number === pull_number);
+#       let allApproved = true;
 
-                // if current commit is not associated to this PR, end this
-                if (!isAssociatedWithPR) {
-                  // console.log(`${colors.red}None of the associated PRs (${JSON.stringify(associatedPRs.map(pr => pr.number))}) of commit ${hash} matches with this PR (${pull_number})${colors.reset}`);
-                  console.log(`${colors.red}None of the associated PRs (${associatedPRs.map(pr => pr.number)}) of commit ${hash} matches with this PR (${pull_number})${colors.reset}`);
-                  console.log(`${colors.red}Please check if the 'auditCommitHash' in the audit log is accurate and try again.${colors.reset}`);
+#       auditorHandles.forEach(handle => {
+#         const approved = reviews.some(review => review.user.login === handle && review.state === 'APPROVED');
+#         if (!approved) {
+#           console.log(`PR is not approved by ${handle}`);
+#           allApproved = false;
+#         } else {
+#           console.log(`PR is approved by ${handle}`);
+#         }
+#       });
 
-                  // set flag to false
-                  allCommitsFound=false;
+#       if (!allApproved) {
+#         core.setFailed("Not all required auditors have approved the PR.");
+#       } else {
+#         core.setOutput('approved', 'true');
+#       }
 
-                }
-                else console.log(`${colors.green}Commit ${hash} is associated with this PR. Check passed.${colors.reset}`)
-              } catch (error) {
-                console.log(`${colors.red}The following audit commit seems to be invalid: ${hash}${colors.reset}`);
-                console.log(`${colors.red}Please check if the 'auditCommitHash' in the audit log is accurate and try again.${colors.reset}`);
+- name: Check if all required commits are part of the PR
+  id: check_commit_hashes
+  if: env.CONTINUE == 'true'
+  uses: actions/github-script@v7
+  with:
+    script: |
+      const fs = require('fs');
 
-                // set flag to false
-                allCommitsFound=false;
-              }
-            };
+      // ANSI escape codes for colors (used for colored output in Git action console)
+      const colors = {
+        reset: "\033[0m",
+        red: "\033[31m",
+        green: "\033[32m",
+        yellow: "\033[33m",
+      };
 
-            (async () => {
-              for (const hash of commitHashes) {
-                console.log(`---------------------------------------------------------------`)
-                console.log(`Now checking auditCommitHash: ${hash}`)
+      // Read commit hashes from file
+      const commitHashesFile = 'commit_hashes.txt'; // Adjust this if needed
+      const commitHashes = fs.readFileSync(commitHashesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
 
-                await checkCommit(hash);
-              }
+      // Log the number of commit hashes found
+      console.log(`${commitHashes.length} relevant audit commit hashes found: ${commitHashes}`);
 
-              // Set environment variable based on whether all commits are found
-              const envFilePath = process.env.GITHUB_ENV;
-              fs.appendFileSync(envFilePath, `CONTINUE=${allCommitsFound}\n`);
 
-              if (!allCommitsFound)
-                core.setFailed("This check failed");
-              else {
-                console.log(`${colors.green}All audit commits have been successfully verified.${colors.reset}`);
-                core.setOutput('all_commits_present', 'true');
-              }
-            })();
+      const owner = context.repo.owner;
+      const repo = context.repo.repo;
+      const pull_number = context.issue.number;
 
-      - name: Assign correct label based on check outcome
-        uses: actions-ecosystem/action-add-labels@v1
-        id: assign_label
-        with:
-          token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the git action user so the label protection check will pass
-          labels: ${{ env.CONTINUE == 'true' && 'AuditCompleted' || 'AuditNotRequired' }} # if the action made it until here and CONTINUE was true then all checks passed. It CONTINUE was false then no audit is required
-          number: ${{ github.event.pull_request.number }}
+      let allCommitsFound = true;
+
+      // define a function that ensures that a given commit hash is part of the current pull request
+      const checkCommit = async (hash) => {
+        try {
+          // get the commit through github REST API
+          const { data: commit } = await github.rest.repos.getCommit({
+            owner,
+            repo,
+            ref: hash,
+          });
+
+          // get all PRs associated with this commit
+          const associatedPRs = (await github.rest.repos.listPullRequestsAssociatedWithCommit({
+            owner,
+            repo,
+            commit_sha: hash,
+          })).data;
+
+          // check if any of the associated PR numbers matches with <this> PR number
+          const isAssociatedWithPR = associatedPRs.some(pr => pr.number === pull_number);
+
+          // if current commit is not associated to this PR, end this
+          if (!isAssociatedWithPR) {
+            // console.log(`${colors.red}None of the associated PRs (${JSON.stringify(associatedPRs.map(pr => pr.number))}) of commit ${hash} matches with this PR (${pull_number})${colors.reset}`);
+            console.log(`${colors.red}None of the associated PRs (${associatedPRs.map(pr => pr.number)}) of commit ${hash} matches with this PR (${pull_number})${colors.reset}`);
+            console.log(`${colors.red}Please check if the 'auditCommitHash' in the audit log is accurate and try again.${colors.reset}`);
+
+            // set flag to false
+            allCommitsFound=false;
+
+          }
+          else console.log(`${colors.green}Commit ${hash} is associated with this PR. Check passed.${colors.reset}`)
+        } catch (error) {
+          console.log(`${colors.red}The following audit commit seems to be invalid: ${hash}${colors.reset}`);
+          console.log(`${colors.red}Please check if the 'auditCommitHash' in the audit log is accurate and try again.${colors.reset}`);
+
+          // set flag to false
+          allCommitsFound=false;
+        }
+      };
+
+      (async () => {
+        for (const hash of commitHashes) {
+          console.log(`---------------------------------------------------------------`)
+          console.log(`Now checking auditCommitHash: ${hash}`)
+
+          await checkCommit(hash);
+        }
+
+        // Set environment variable based on whether all commits are found
+        const envFilePath = process.env.GITHUB_ENV;
+        fs.appendFileSync(envFilePath, `CONTINUE=${allCommitsFound}\n`);
+
+        if (!allCommitsFound)
+          core.setFailed("This check failed");
+        else {
+          console.log(`${colors.green}All audit commits have been successfully verified.${colors.reset}`);
+          core.setOutput('all_commits_present', 'true');
+        }
+      })();
+
+- name: Assign correct label based on check outcome
+  uses: actions-ecosystem/action-add-labels@v1
+  id: assign_label
+  with:
+    token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the git action user so the label protection check will pass
+    labels: ${{ env.CONTINUE == 'true' && 'AuditCompleted' || 'AuditNotRequired' }} # if the action made it until here and CONTINUE was true then all checks passed. It CONTINUE was false then no audit is required
+    number: ${{ github.event.pull_request.number }}
