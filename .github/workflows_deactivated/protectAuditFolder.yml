@@ -9,6 +9,7 @@ on:
     paths:
       - 'audit/**'
   pull_request:
+    types: [opened, synchronize, reopened]
     paths:
       - 'audit/**'
 
