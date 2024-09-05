@@ -288,7 +288,7 @@ jobs:
             else
               echo "The audit log contains the commit hash that was audited in $AUDIT_ID: $AUDIT_COMMIT_HASH"
             fi
-            echo -e "\033[32mThe audit log contains all required information for contract $FILE.\033[0m"
+            echo -e "\033[32mThe audit log contains all required information for contract $FILE\033[0m"
 
             echo "now checking if audit commit hash ($AUDIT_COMMIT_HASH) is associated with this PR ($PR_NUMBER)"
             # Fetch the list of commits associated with the PR
@@ -302,12 +302,10 @@ jobs:
               echo "CONTINUE=false" >> $GITHUB_ENV
               exit 1
             fi
-            #### ------------------------------------------------------
-            # Fetch PR reviews using the GitHub API via gh cli
-            echo "now checking if auditor ($AUDITOR_GIT_HANDLE) approved this PR ($PR_NUMBER)"
-            REVIEWS=$(gh api repos/lifinance/contracts/pulls/$PR_NUMBER/reviews --jq '.[] | select(.state == "APPROVED") | @json')
 
-            echo "REVIEWS: $REVIEWS"
+            # Fetch PR reviews using the GitHub API via gh cli
+            echo "now checking if the auditor ($AUDITOR_GIT_HANDLE) approved this PR ($PR_NUMBER)"
+            REVIEWS=$(gh api repos/lifinance/contracts/pulls/$PR_NUMBER/reviews --jq '.[] | select(.state == "APPROVED") | @json')
 
             # Check if the output is empty or not valid JSON
             if [[ -z "$REVIEWS" ]]; then
@@ -339,7 +337,7 @@ jobs:
               echo -e "\033[32mCheck passed\033[0m"
               exit 0
             else
-              echo -e "\033[31mERROR: No review found by $AUDITOR_GIT_HANDLE\033[0m"
+              echo -e "\033[31mERROR: No review found by git user '$AUDITOR_GIT_HANDLE' (= the auditor)\033[0m"
               echo -e "\033[31mCheck failed\033[0m"
               echo "CONTINUE=false" >> $GITHUB_ENV
               exit 1
