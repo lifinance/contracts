@@ -206,7 +206,6 @@ jobs:
 
             ##### Extract the single audit ID
             AUDIT_ID=$(echo "$AUDIT_IDS" | head -n 1)
-            echo "Processing audit ID: $AUDIT_ID"
 
             ##### Extract audit entry details for the single audit ID
             AUDIT_ENTRY=$(jq -r --arg audit_id "$AUDIT_ID" '.audits[$audit_id]' "$AUDIT_LOG_PATH")
