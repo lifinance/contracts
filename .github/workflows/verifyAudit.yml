@@ -318,7 +318,7 @@ jobs:
             FOUND_REVIEW=false
 
             # Check if the desired reviewer is present among the reviews
-            echo "$REVIEWS" | jq -c '.[]' | while read -r REVIEW; do
+            echo "$REVIEWS" | jq -c '.' | while read -r REVIEW; do
               AUTHOR=$(echo "$REVIEW" | jq -r '.user.login')
               STATE=$(echo "$REVIEW" | jq -r '.state')
 
