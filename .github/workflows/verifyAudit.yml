@@ -137,6 +137,7 @@ jobs:
             }
 
       - name: Check Audit Log
+        continue-on-error: true
         id: check-audit-log
         if: env.AUDIT_REQUIRED == 'true'
         run: |
@@ -381,3 +382,10 @@ jobs:
           github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the lifi-action-bot so the label protection check will pass
           labels: 'AuditCompleted'
           number: ${{ env.PR_NUMBER }}
+
+      - name: Fail the git action if any critical step failed
+        if: env.CONTINUE == 'false' # This step runs only if a failure was recorded
+        run: |
+
+          echo -e "\033[31mError: One or more critical steps failed. Failing the job.\033[0m"
+          exit 1
