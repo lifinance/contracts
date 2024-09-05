@@ -160,11 +160,10 @@ jobs:
 
           # iterate through all contracts
           while IFS= read -r FILE; do
-            echo "now processing file $FILE"
+            echo "-----------"
+            echo "now checking file $FILE"
             # load contract version
             VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE")
-            echo "Version $VERSION"
-
 
             ##### make sure that contract version was extracted successfully
             if [[ -z $VERSION ]]; then
@@ -180,31 +179,24 @@ jobs:
             AUDIT_IDS=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" \
               'if .auditedContracts[$filename][$version] != null then .auditedContracts[$filename][$version][] else empty end' "$AUDIT_LOG_PATH")
 
-            echo "AUDIT_IDS: ($AUDIT_IDS)"
-
-            # Count the number of audits found
+            # Count the number of audits found in the log for this contract/version
             if [[ -z "$AUDIT_IDS" ]]; then
               AUDIT_COUNT=0
             else
-            # Properly count the number of non-empty audit IDs using awk
               AUDIT_COUNT=$(echo "$AUDIT_IDS" | wc -l)
             fi
-
-            echo "AUDIT_COUNT: $AUDIT_COUNT"
-
 
             # Ensure exactly one audit is logged; handle errors if not
             if [[ $AUDIT_COUNT -ne 1 ]]; then
               echo "CONTINUE=false" >> $GITHUB_ENV
-              echo "AUDIT_VERIFIED=false" >> $GITHUB_ENV
 
               if [[ $AUDIT_COUNT -gt 1 ]]; then
                 echo -e "\033[31mError: Multiple audits found for contract $FILENAME in version $VERSION.\033[0m"
                 echo -e "\033[31mOnly one audit should be logged per contract version.\033[0m"
                 echo -e "\033[31mPlease fix the audit log and try again.\033[0m"
               else
-                echo -e "\033[31mCould not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
-                echo -e "\033[31mThis GitHub action cannot complete until the audit log contains a logged audit for this file.\033[0m"
+                echo -e "\033[31mError: Could not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
+                echo -e "\033[31mThis check will not pass until the audit log contains a completed audit for this file.\033[0m"
               fi
 
               exit 1
@@ -226,6 +218,7 @@ jobs:
             fi
 
             echo "File $FILE was audited in $AUDIT_ID"
+            echo "Now checking if all required information is logged for this audit..."
 
             # Extract log entry values into variables
             AUDIT_COMPLETED_ON=$(echo "$AUDIT_ENTRY" | jq -r '.auditCompletedOn')
@@ -290,7 +283,7 @@ jobs:
             fi
             echo -e "\033[32mThe audit log contains all required information for contract $FILE\033[0m"
 
-            echo "now checking if audit commit hash ($AUDIT_COMMIT_HASH) is associated with this PR ($PR_NUMBER)"
+            echo "now checking if audit commit hash $AUDIT_COMMIT_HASH is associated with PR $PR_NUMBER"
             # Fetch the list of commits associated with the PR
             COMMIT_LIST=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].oid')
 
