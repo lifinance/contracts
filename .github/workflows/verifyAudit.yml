@@ -196,7 +196,8 @@ jobs:
 
               if [[ $AUDIT_COUNT -gt 1 ]]; then
                 echo -e "\033[31mError: Multiple audits found for contract $FILENAME in version $VERSION.\033[0m"
-                echo -e "\033[31mOnly one audit should be logged per contract version. Aborting now.\033[0m"
+                echo -e "\033[31mOnly one audit should be logged per contract version.\033[0m"
+                echo -e "\033[31mPlease fix the audit log and try again.\033[0m"
               else
                 echo -e "\033[31mCould not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
                 echo -e "\033[31mThis GitHub action cannot complete until the audit log contains a logged audit for this file.\033[0m"
