@@ -176,27 +176,41 @@ jobs:
             FILENAME=$(basename "$FILE" .sol)
 
             # Check if the contract and version exist in the JSON
-            LOG_ENTRIES=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" \
+            AUDIT_IDS=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" \
               'if .auditedContracts[$filename][$version] != null then .auditedContracts[$filename][$version][] else empty end' "$AUDIT_LOG_PATH")
 
-            echo "LOG_ENTRIES ($LOG_ENTRIES)"
+            echo "AUDIT_IDS ($AUDIT_IDS)"
 
             # Make sure that audit log entries were found
-            if [[ -z $LOG_ENTRIES || "${#LOG_ENTRIES}" -eq 0 ]]; then
+            if [[ -z $AUDIT_IDS || "${#AUDIT_IDS}" -eq 0 ]]; then
               echo -e "\033[31mCould not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
               echo -e "\033[31mThis Github action cannot complete until the audit log contains a logged audit for this file.\033[0m"
               echo "CONTINUE=false" >> $GITHUB_ENV
               exit 1
             fi
 
-            # Iterate through all log entries
-            echo "$LOG_ENTRIES" | jq -c '.' | while IFS= read -r entry; do
-              # extract log entry values into variables
-              AUDIT_COMPLETED_ON=$(echo "$entry" | jq -r '.auditCompletedOn')
-              AUDITED_BY=$(echo "$entry" | jq -r '.auditedBy')
-              AUDITOR_GIT_HANDLE=$(echo "$entry" | jq -r '.auditorGitHandle')
-              AUDIT_REPORT_PATH=$(echo "$entry" | jq -r '.auditReportPath')
-              AUDIT_COMMIT_HASH=$(echo "$entry" | jq -r '.auditCommitHash')
+            # Iterate through each audit ID and fetch its details from the audit log
+            for AUDIT_ID in $AUDIT_IDS; do
+              echo "Processing audit ID: $AUDIT_ID"
+
+              # Extract audit entry details for each audit ID
+              AUDIT_ENTRY=$(jq -r --arg audit_id "$AUDIT_ID" '.audits[$audit_id]' "$AUDIT_LOG_PATH")
+
+              # Check if AUDIT_ENTRY is valid JSON
+              if [[ -z "$AUDIT_ENTRY" || "$AUDIT_ENTRY" == "null" ]]; then
+                echo -e "\033[31mError: Could not find audit details for audit ID $AUDIT_ID.\033[0m"
+                continue
+              fi
+
+              # Debug: Show the audit entry
+              echo "Audit Entry: $AUDIT_ENTRY"
+
+              # Extract log entry values into variables
+              AUDIT_COMPLETED_ON=$(echo "$AUDIT_ENTRY" | jq -r '.auditCompletedOn')
+              AUDITED_BY=$(echo "$AUDIT_ENTRY" | jq -r '.auditedBy')
+              AUDITOR_GIT_HANDLE=$(echo "$AUDIT_ENTRY" | jq -r '.auditorGitHandle')
+              AUDIT_REPORT_PATH=$(echo "$AUDIT_ENTRY" | jq -r '.auditReportPath')
+              AUDIT_COMMIT_HASH=$(echo "$AUDIT_ENTRY" | jq -r '.auditCommitHash')
 
               # make sure that audit log entry contains date
               if [ -z "$AUDIT_COMPLETED_ON" ]; then
