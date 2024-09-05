@@ -77,6 +77,9 @@
   "heco": {
     "cBridge": "0xBB7684Cc5408F4DD0921E5c2Cadd547b8f1AD573"
   },
+  "kaia": {
+    "cBridge": "0x4C882ec256823eE773B25b414d36F92ef58a7c0C"
+  },
   "linea": {
     "cBridge": "0x9B36f165baB9ebe611d491180418d8De4b8f3a1f"
   },
@@ -136,7 +139,9 @@
   },
   "scroll": {
     "cBridge": "0x9B36f165baB9ebe611d491180418d8De4b8f3a1f",
-    "tokensToApprove": ["0x5300000000000000000000000000000000000004"]
+    "tokensToApprove": [
+      "0x5300000000000000000000000000000000000004"
+    ]
   },
   "goerli": {
     "cBridge": "0x358234B325EF9eA8115291A8b81b7d33A2Fa762D",
