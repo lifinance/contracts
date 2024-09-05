@@ -344,6 +344,7 @@ jobs:
 
           echo -e "\033[32mSuccessfully verified that all contracts in this PRs are audited.\033[0m"
           echo -e "\033[32mCheck passed.\033[0m"
+          echo "CONTINUE=true" >> "$GITHUB_ENV"
           echo "Assigning label 'AuditCompleted' next
 
 
