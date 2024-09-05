@@ -159,6 +159,7 @@ jobs:
           echo "D"
           # iterate through all contracts
           while IFS= read -r FILE; do
+            echo "now processing file $FILE"
             # load contract version
             VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE")
 
@@ -255,6 +256,8 @@ jobs:
               # echo "$AUDITOR_GIT_HANDLE" >> "$AUDITOR_GIT_HANDLES_FILE"
               echo "$AUDITOR_GIT_HANDLE" >> auditor_handles.txt
             done
+
+          echo "E"
           done <<< "$PROTECTED_CONTRACTS"
 
           echo -e "\033[32mAll audit log entries are complete.\033[0m"
