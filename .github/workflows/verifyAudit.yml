@@ -210,7 +210,7 @@ jobs:
 
             # Check if AUDIT_ENTRY is valid JSON
             if [[ -z "$AUDIT_ENTRY" || "$AUDIT_ENTRY" == "null" ]]; then
-              echo -e "\033[31mError: Could not find audit details for audit ID $AUDIT_ID.\033[0m"
+              echo -e "\033[31mError: The logged audit ID ($AUDIT_ID) for contract $FILENAME seems to be invalid.\033[0m"
               echo "CONTINUE=false" >> $GITHUB_ENV
               exit 1
             fi

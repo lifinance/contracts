@@ -9,7 +9,7 @@ import { CannotAuthoriseSelf } from "../Errors/GenericErrors.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for managing method level access control
 /// @custom:version 1.0.0
-contract ContractName {
+contract ContractNoAudit {
     /// Events ///
 
     event ExecutionAllowed(address indexed account, bytes4 indexed method);
