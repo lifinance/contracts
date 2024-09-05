@@ -143,11 +143,3 @@ jobs:
             core.setOutput('all_commits_present', 'true');
           }
         })();
-
-  - name: Assign correct label based on check outcome
-    uses: actions-ecosystem/action-add-labels@v1
-    id: assign_label
-    with:
-      token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the git action user so the label protection check will pass
-      labels: ${{ env.CONTINUE == 'true' && 'AuditCompleted' || 'AuditNotRequired' }} # if the action made it until here and CONTINUE was true then all checks passed. It CONTINUE was false then no audit is required
-      number: ${{ github.event.pull_request.number }}
