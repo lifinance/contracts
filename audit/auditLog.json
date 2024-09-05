@@ -8,14 +8,14 @@
       "auditCommitHash": "d622002440317580b5d0fb90ef22b839d84957e2"
     },
     "audit20240817": {
-      "auditCompletedOn": "14.08.21",
+      "auditCompletedOn": "17.08.21",
       "auditedBy": "Daniel Blaecker",
       "auditorGitHandle": "0xDEnY0",
       "auditReportPath": "./audit/reports/2024.08.14_StargateFacetV2_ReAudit.pdf",
       "auditCommitHash": "d622002440317580b5d0fb90ef22b839d84957e2"
     },
     "audit20240818": {
-      "auditCompletedOn": "14.08.21",
+      "auditCompletedOn": "18.08.21",
       "auditedBy": "Someone else",
       "auditorGitHandle": "someone",
       "auditReportPath": "./audit/reports/2024.08.14_StargateFacetV2_ReAudit.pdf",
