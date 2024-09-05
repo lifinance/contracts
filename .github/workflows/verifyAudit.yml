@@ -342,6 +342,11 @@ jobs:
 
           done <<< "$PROTECTED_CONTRACTS"
 
+          echo -e "\033[32mSuccessfully verified that all contracts in this PRs are audited.\033[0m"
+          echo -e "\033[32mCheck passed.\033[0m"
+          echo "Assigning label 'AuditCompleted' next
+
+
           echo "AUDIT_REQUIRED: ${{ env.AUDIT_REQUIRED }}"
           echo "CONTINUE: ${{ env.CONTINUE }}"
 
