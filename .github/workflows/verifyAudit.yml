@@ -307,6 +307,8 @@ jobs:
             echo "now checking if auditor ($AUDITOR_GIT_HANDLE) approved this PR ($PR_NUMBER)"
             REVIEWS=$(gh api repos/lifinance/contracts/pulls/$PR_NUMBER/reviews --jq '.[] | @json')
 
+            echo "REVIEWS: $REVIEWS"
+
             # Check if the output is empty or not valid JSON
             if [[ -z "$REVIEWS" ]]; then
               echo "ERROR: No reviews found or failed to fetch reviews for PR #$PR_NUMBER"
