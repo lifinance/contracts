@@ -9,6 +9,7 @@ name: Audit Verifier
 
 # KNOWN LIMITATIONS
 # - will only check the last 100 commits for any matches with audit commit hashes
+# - only one audit can be registered per contract (in a specific version)
 
 on:
   pull_request:
@@ -175,20 +176,35 @@ jobs:
             # see if audit log contains an entry with those values
             FILENAME=$(basename "$FILE" .sol)
 
-            # Check if the contract and version exist in the JSON
+            # Check if the contract and version exist in the JSON and get the audit IDs
             AUDIT_IDS=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" \
               'if .auditedContracts[$filename][$version] != null then .auditedContracts[$filename][$version][] else empty end' "$AUDIT_LOG_PATH")
 
-            echo "AUDIT_IDS ($AUDIT_IDS)"
+            echo "AUDIT_IDS: $AUDIT_IDS"
 
-            # Make sure that audit log entries were found
-            if [[ -z $AUDIT_IDS || "${#AUDIT_IDS}" -eq 0 ]]; then
-              echo -e "\033[31mCould not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
-              echo -e "\033[31mThis Github action cannot complete until the audit log contains a logged audit for this file.\033[0m"
+            # Count the number of audits found
+            AUDIT_COUNT=$(echo "$AUDIT_IDS" | wc -l)
+
+            echo "AUDIT_COUNT: $AUDIT_COUNT"
+
+
+            # Ensure exactly one audit is logged; handle errors if not
+            if [[ $AUDIT_COUNT -ne 1 ]]; then
               echo "CONTINUE=false" >> $GITHUB_ENV
+              echo "AUDIT_VERIFIED=false" >> $GITHUB_ENV
+
+              if [[ $AUDIT_COUNT -gt 1 ]]; then
+                echo -e "\033[31mError: Multiple audits found for contract $FILENAME in version $VERSION.\033[0m"
+                echo -e "\033[31mOnly one audit should be logged per contract version. Aborting now.\033[0m"
+              else
+                echo -e "\033[31mCould not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
+                echo -e "\033[31mThis GitHub action cannot complete until the audit log contains a logged audit for this file.\033[0m"
+              fi
+
               exit 1
             fi
 
+            AUDIT_VERIFIED=false  ##### >>>>>>> NEEED TO SET TO TRUE AS SOON AS ONE AUDIT IS FULLY VERIFIED
             # Iterate through each audit ID and fetch its details from the audit log
             for AUDIT_ID in $AUDIT_IDS; do
               echo "Processing audit ID: $AUDIT_ID"
