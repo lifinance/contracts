@@ -1,4 +1,4 @@
-name: Audit Verifier
+name: Audit Verifier2
 # - checks if an audit is required and assigns a (protected) label based on the result ('AuditRequired' or 'AuditNotRequired')
 # - if an audit is required, it will verify that the audit was actually completed and then assign label "AuditCompleted"
 # - verification includes:
