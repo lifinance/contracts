@@ -175,12 +175,16 @@ jobs:
             # see if audit log contains an entry with those values
             FILENAME=$(basename "$FILE" .sol)
 
-            LOG_ENTRIES=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" '.[$filename][$version][]' "$AUDIT_LOG_PATH")
+            # Check if the contract and version exist in the JSON
+            LOG_ENTRIES=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" \
+              'if .auditedContracts[$filename][$version] != null then .auditedContracts[$filename][$version][] else empty end' "$AUDIT_LOG_PATH")
 
-            ##### make sure that audit log entries were found
+            echo "LOG_ENTRIES ($LOG_ENTRIES)"
+
+            # Make sure that audit log entries were found
             if [[ -z $LOG_ENTRIES || "${#LOG_ENTRIES}" -eq 0 ]]; then
               echo -e "\033[31mCould not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
-              echo -e "\033[31mThis github action cannot complete until the audit log contains a logged audit for this file.\033[0m"
+              echo -e "\033[31mThis Github action cannot complete until the audit log contains a logged audit for this file.\033[0m"
               echo "CONTINUE=false" >> $GITHUB_ENV
               exit 1
             fi
