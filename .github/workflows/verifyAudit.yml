@@ -305,7 +305,7 @@ jobs:
             #### ------------------------------------------------------
             # Fetch PR reviews using the GitHub API via gh cli
             echo "now checking if auditor ($AUDITOR_GIT_HANDLE) approved this PR ($PR_NUMBER)"
-            REVIEWS=$(gh api repos/lifinance/contracts/pulls/$PR_NUMBER/reviews --jq '.[] | @json')
+            REVIEWS=$(gh api repos/lifinance/contracts/pulls/$PR_NUMBER/reviews --jq '.[] | select(.state == "APPROVED") | @json')
 
             echo "REVIEWS: $REVIEWS"
 
