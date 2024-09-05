@@ -375,6 +375,7 @@ jobs:
           number: ${{ env.PR_NUMBER }}
 
       - name: Remove label "AuditCompleted" in case check was not successful but label was assigned in earlier checks
+        continue-on-error: true # This ensures the step will execute even if the job has a failed status.
         uses: actions-ecosystem/action-remove-labels@v1
         if: ${{ env.CONTINUE == 'false' || (env.CONTINUE == 'true' && env.AUDIT_REQUIRED == 'false')}}
         with:
