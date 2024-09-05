@@ -304,7 +304,7 @@ jobs:
             fi
             #### ------------------------------------------------------
             # Fetch PR reviews using the GitHub API via gh cli
-            REVIEWS=$(gh api repos/lifinance/contracts/pulls/$PR_NUMBER/reviews --jq '.[] | {author: $AUDITOR_GIT_HANDLE, state: .state}')
+            REVIEWS=$(gh api repos/lifinance/contracts/pulls/$PR_NUMBER/reviews --jq ".[] | {author: \"$AUDITOR_GIT_HANDLE\", state: .state}")
 
             # Flag to track if the review by the specified person is found
             FOUND_REVIEW=false
