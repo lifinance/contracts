@@ -302,23 +302,53 @@ jobs:
               echo "CONTINUE=false" >> $GITHUB_ENV
               exit 1
             fi
+            #### ------------------------------------------------------
+            # Fetch PR reviews using the GitHub API via gh cli
+            REVIEWS=$(gh api repos/lifinance/contracts/pulls/$PR_NUMBER/reviews --jq '.[] | {author: $AUDITOR_GIT_HANDLE, state: .state}')
 
-            echo "now checking if the the auditor has approved this PR"
-            # Fetch all reviews for the specified pull request
-            REVIEWS=$(gh pr review $PR_NUMBER --json author,state --jq '.[] | {author: .author.login, state: .state}')
+            # Flag to track if the review by the specified person is found
+            FOUND_REVIEW=false
+
+            # Check if the desired reviewer is present among the reviews
+            echo "$REVIEWS" | jq -c '.[]' | while read -r REVIEW; do
+              AUTHOR=$(echo "$REVIEW" | jq -r '.author')
+              STATE=$(echo "$REVIEW" | jq -r '.state')
+
+              echo "found review by $AUTHOR with state $STATE"
 
 
-            # Check if the PR was approved by the target user
-            USER_APPROVED=$(echo "$REVIEWS" | jq -r --arg user "$AUDITOR_GIT_HANDLE" 'select(.author == $user and .state == "APPROVED") | .author')
+              # Check if the reviewer is the person we're looking for
+              if [ "$AUTHOR" == "$REVIEWER" ]; then
+                echo "Review found by $REVIEWER with state: $STATE"
+                FOUND_REVIEW=true
+                exit 0
+              fi
+            done
 
-            # Validate if the target user has approved the PR
-            if [ "$USER_APPROVED" == "$TARGET_USER" ]; then
-              echo -e "\033[32mThe pull request #$PR_NUMBER was approved by $TARGET_USER.\033[0m"
-            else
-              echo -e "\033[31mThe pull request #$PR_NUMBER has not been approved by $TARGET_USER.\033[0m"
-              echo "CONTINUE=false" >> $GITHUB_ENV
+            # If no matching review was found, exit with an error
+            if [ "$FOUND_REVIEW" != true ]; then
+              echo "ERROR: No review found by $REVIEWER"
               exit 1
             fi
+
+
+
+            # echo "now checking if the the auditor has approved this PR"
+            # # Fetch all reviews for the specified pull request
+            # REVIEWS=$(gh pr review $PR_NUMBER --json author,state --jq '.[] | {author: .author.login, state: .state}')
+
+
+            # # Check if the PR was approved by the target user
+            # USER_APPROVED=$(echo "$REVIEWS" | jq -r --arg user "$AUDITOR_GIT_HANDLE" 'select(.author == $user and .state == "APPROVED") | .author')
+
+            # # Validate if the target user has approved the PR
+            # if [ "$USER_APPROVED" == "$TARGET_USER" ]; then
+            #   echo -e "\033[32mThe pull request #$PR_NUMBER was approved by $TARGET_USER.\033[0m"
+            # else
+            #   echo -e "\033[31mThe pull request #$PR_NUMBER has not been approved by $TARGET_USER.\033[0m"
+            #   echo "CONTINUE=false" >> $GITHUB_ENV
+            #   exit 1
+            # fi
 
           done <<< "$PROTECTED_CONTRACTS"
 
