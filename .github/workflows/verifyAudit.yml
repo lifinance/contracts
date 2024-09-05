@@ -298,11 +298,11 @@ jobs:
 
 
             ##### Check if the auditor git handle exists on github
-            echo "now checking if the auditor git handle actually exists"
-            if gh api users/$GITHUB_USER > /dev/null 2>&1; then
-              echo -e "\033[32mA user with handle '$GITHUB_USER' exists on GitHub.\033[0m"
+            echo "now checking if the auditor git handle ($AUDITOR_GIT_HANDLE) actually exists"
+            if gh api users/$AUDITOR_GIT_HANDLE > /dev/null 2>&1; then
+              echo -e "\033[32mA user with handle '$AUDITOR_GIT_HANDLE' exists on GitHub.\033[0m"
             else
-              echo -e "\033[31mA user with handle '$GITHUB_USER' does not exist on GitHub.\033[0m"
+              echo -e "\033[31mA user with handle '$AUDITOR_GIT_HANDLE' does not exist on GitHub.\033[0m"
               echo -e "\033[31mPlease fix the audit log before continuing.\033[0m"
               echo -e "\033[31mCheck failed.\033[0m"
               echo "CONTINUE=false" >> "$GITHUB_ENV"
