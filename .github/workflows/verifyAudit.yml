@@ -304,30 +304,25 @@ jobs:
             fi
 
             echo "now checking if the the auditor has approved this PR"
+            # Fetch all reviews for the specified pull request
+            REVIEWS=$(gh pr reviews $PR_NUMBER --json author,state --jq '.[] | {author: .author.login, state: .state}')
+
+
+            # Check if the PR was approved by the target user
+            USER_APPROVED=$(echo "$REVIEWS" | jq -r --arg user "$AUDITOR_GIT_HANDLE" 'select(.author == $user and .state == "APPROVED") | .author')
+
+            # Validate if the target user has approved the PR
+            if [ "$USER_APPROVED" == "$TARGET_USER" ]; then
+              echo -e "\033[32mThe pull request #$PR_NUMBER was approved by $TARGET_USER.\033[0m"
+            else
+              echo -e "\033[31mThe pull request #$PR_NUMBER has not been approved by $TARGET_USER.\033[0m"
+              echo "CONTINUE=false" >> $GITHUB_ENV
+              exit 1
+            fi
 
           done <<< "$PROTECTED_CONTRACTS"
 
-            # store the commit hash in a temporary file to check its validity in a following step
-            # echo "$AUDIT_COMMIT_HASH" >> "$COMMIT_HASHES_FILE"
-            # echo "$AUDIT_COMMIT_HASH" >> commit_hashes.txt
-
-            # store the auditor git handle to check it in a following step if this auditor has reviewed the PR
-            # echo "$AUDITOR_GIT_HANDLE" >> "$AUDITOR_GIT_HANDLES_FILE"
-            # echo "$AUDITOR_GIT_HANDLE" >> auditor_handles.txt
-
-
-
-
-
-          # # read the temp files into variables
-          # AUDIT_COMMIT_HASHES=$(cat "$COMMIT_HASHES_FILE" | tr '\n' ' ')
-          # AUDITOR_GIT_HANDLES=$(cat "$AUDITOR_GIT_HANDLES_FILE" | tr '\n' ' ')
-          # echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES"
-          # echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES" >> $GITHUB_ENV
-          # echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES"
-          # echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES" >> $GITHUB_ENV
-
-      - name: Assign correct label based on check outcome
+      - name: Assign label "AuditCompleted" if all checks passed
         uses: actions-ecosystem/action-add-labels@v1
         id: assign_label
         with:
