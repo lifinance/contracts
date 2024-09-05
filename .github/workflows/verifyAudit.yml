@@ -23,6 +23,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
       AUDIT_LOG_PATH: 'audit/auditLog.json'
+      PR_NUMBER: ${{ github.event.pull_request.number }}
 
     permissions:
       pull-requests: write
@@ -296,18 +297,33 @@ jobs:
             else
               echo -e "\033[32mThe audit log contains the commit hash that was audited in $AUDIT_ID: $AUDIT_COMMIT_HASH.\033[0m"
             fi
+            echo -e "\033[32mThe audit log contains all required information for contract $FILE.\033[0m"
+
+            echo "now checking if audit commit hash ($AUDIT_COMMIT_HASH) is associated with this PR ($PR_NUMBER)"
+            # Fetch the list of commits associated with the PR
+            COMMIT_LIST=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].oid')
+
+            # Check if the target commit is in the list
+            if echo "$COMMIT_LIST" | grep -q "$TARGET_COMMIT"; then
+              echo -e "\033[32mCommit $TARGET_COMMIT is associated with PR #$PR_NUMBER.\033[0m"
+            else
+              echo -e "\033[31mCommit $TARGET_COMMIT is NOT associated with PR #$PR_NUMBER.\033[0m"
+              exit 1
+            fi
+
+            echo "now checking if the the auditor has approved this PR"
+
+          done <<< "$PROTECTED_CONTRACTS"
 
             # store the commit hash in a temporary file to check its validity in a following step
             # echo "$AUDIT_COMMIT_HASH" >> "$COMMIT_HASHES_FILE"
-            echo "$AUDIT_COMMIT_HASH" >> commit_hashes.txt
+            # echo "$AUDIT_COMMIT_HASH" >> commit_hashes.txt
 
             # store the auditor git handle to check it in a following step if this auditor has reviewed the PR
             # echo "$AUDITOR_GIT_HANDLE" >> "$AUDITOR_GIT_HANDLES_FILE"
-            echo "$AUDITOR_GIT_HANDLE" >> auditor_handles.txt
+            # echo "$AUDITOR_GIT_HANDLE" >> auditor_handles.txt
 
 
-          echo -e "\033[32mThe audit log contains all required information for contract $FILE.\033[0m"
-          done <<< "$PROTECTED_CONTRACTS"
 
 
 
@@ -323,6 +339,6 @@ jobs:
         uses: actions-ecosystem/action-add-labels@v1
         id: assign_label
         with:
-          token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the git action user so the label protection check will pass
+          github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the git action user so the label protection check will pass
           labels: ${{ env.CONTINUE == 'true' && 'AuditCompleted' || 'AuditNotRequired' }} # if the action made it until here and CONTINUE was true then all checks passed. It CONTINUE was false then no audit is required
           number: ${{ github.event.pull_request.number }}
