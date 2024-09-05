@@ -182,8 +182,8 @@ jobs:
 
             echo "AUDIT_IDS: $AUDIT_IDS"
 
-            # Count the number of audits found
-            AUDIT_COUNT=$(echo "$AUDIT_IDS" | wc -l)
+            # Properly count the number of audit IDs by splitting on newlines
+            AUDIT_COUNT=$(echo "$AUDIT_IDS" | tr ' ' '\n' | grep -c .)
 
             echo "AUDIT_COUNT: $AUDIT_COUNT"
 
