@@ -179,7 +179,12 @@ jobs:
             echo "AUDIT_IDS: ($AUDIT_IDS)"
 
             # Count the number of audits found
-            AUDIT_COUNT=$(echo "$AUDIT_IDS" | grep -c '^[^[:space:]]')
+            if [[ -z "$AUDIT_IDS" ]]; then
+              AUDIT_COUNT=0
+            else
+            # Properly count the number of non-empty audit IDs using awk
+              AUDIT_COUNT=$(echo "$AUDIT_IDS" | wc -l)
+            fi
 
             echo "AUDIT_COUNT: $AUDIT_COUNT"
 
