@@ -176,10 +176,10 @@ jobs:
             AUDIT_IDS=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" \
               'if .auditedContracts[$filename][$version] != null then .auditedContracts[$filename][$version][] else empty end' "$AUDIT_LOG_PATH")
 
-            echo "AUDIT_IDS: $AUDIT_IDS"
+            echo "AUDIT_IDS: ($AUDIT_IDS)"
 
             # Count the number of audits found
-            AUDIT_COUNT=$(echo "$AUDIT_IDS" | wc -l)
+            AUDIT_COUNT=$(echo "$AUDIT_IDS" | grep -c '^[^[:space:]]')
 
             echo "AUDIT_COUNT: $AUDIT_COUNT"
 
