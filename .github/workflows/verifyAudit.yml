@@ -139,13 +139,16 @@ jobs:
         if: env.AUDIT_REQUIRED == 'true'
         run: |
 
+          echo "A"
           # load list of protected contracts
           PROTECTED_CONTRACTS=$(cat protected_contracts.txt)
+          echo "B"
 
           # create temp files to store commit hashes and auditor handles
           COMMIT_HASHES_FILE="commit_hashes.txt"
           AUDITOR_GIT_HANDLES_FILE="auditor_handles.txt"
 
+          echo "C"
           ##### make sure that there are any protected contracts
           if [[ -z $PROTECTED_CONTRACTS ]]; then
             echo -e "\033[31mNo protected contracts found. This should not happen (action should stop earlier). Please check the code of the Github action. Aborting now.\033[0m"
@@ -153,6 +156,7 @@ jobs:
             exit 1
           fi
 
+          echo "D"
           # iterate through all contracts
           while IFS= read -r FILE; do
             # load contract version
@@ -195,6 +199,7 @@ jobs:
                 echo "CONTINUE=false" >> $GITHUB_ENV
                 exit 1
               fi
+              echo "D"
 
               # make sure that audit log entry contains auditor's (company) name
               if [ -z "$AUDITED_BY" ]; then
