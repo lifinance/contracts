@@ -27,6 +27,8 @@ jobs:
       MIN_TEST_COVERAGE: 74 # = 74% line coverage
     steps:
       - uses: actions/checkout@v4.1.7
+        with:
+          fetch-depth: 0 ##### Fetch all history for all branches
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
