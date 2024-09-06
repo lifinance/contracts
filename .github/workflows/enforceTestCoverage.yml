@@ -79,8 +79,8 @@ jobs:
           TOTAL_BRANCHES_FOUND=0
           TOTAL_BRANCHES_HIT=0
 
-          # Initialize associative array to store file-specific coverage
-          declare -A FILE_COVERAGE_SUMMARY
+          # Clear the per-file coverage report file
+          echo "" > per_file_coverage_report.txt
 
           # Read through the lcov file
           while IFS= read -r line; do
@@ -116,14 +116,8 @@ jobs:
                 # Calculate line coverage percentage for the current file
                 LINE_COVERAGE_PERCENTAGE=$(echo "scale=2; $FILE_LINES_HIT / $FILE_LINES_FOUND * 100" | bc)
 
-                # Sanitize file name to prevent any potential issues with bad subscripts
-                FILE_NAME_CLEAN=$(echo "$FILE_NAME" | tr -cd '[:alnum:]._')
-
-                echo "FILE_NAME_CLEAN: $FILE_NAME_CLEAN"
-                echo "LINE_COVERAGE_PERCENTAGE: $LINE_COVERAGE_PERCENTAGE"
-
-                # Update associative array with sanitized file name
-                FILE_COVERAGE_SUMMARY["$FILE_NAME_CLEAN"]="File: $FILE_NAME - Line Coverage: $LINE_COVERAGE_PERCENTAGE% ($FILE_LINES_HIT / $FILE_LINES_FOUND)"
+                # Append the per-file coverage to the report file
+                echo "File: $FILE_NAME - Line Coverage: $LINE_COVERAGE_PERCENTAGE% ($FILE_LINES_HIT / $FILE_LINES_FOUND)" >> per_file_coverage_report.txt
               fi
 
           done < "$LCOV_FILE"
@@ -166,8 +160,3 @@ jobs:
           echo "BRANCH_COVERAGE_REPORT=$BRANCH_COVERAGE_REPORT"
           echo "RESULT_COVERAGE_REPORT=$RESULT_COVERAGE_REPORT"
           } >> "$GITHUB_ENV"
-
-          # Prepare per-file coverage report
-          for FILE in "${!FILE_COVERAGE_SUMMARY[@]}"; do
-            echo "${FILE_COVERAGE_SUMMARY[$FILE]}"
-          done > per_file_coverage_report.txt
