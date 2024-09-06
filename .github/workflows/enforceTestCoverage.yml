@@ -54,12 +54,20 @@ jobs:
 
           echo "Coverage report successfully filtered"
 
+      # Step to get modified or added files in the src/ folder
+      - name: Get Modified Files
+        id: get_modified_files
+        run: |
+          # Get list of modified or added files in src directory
+          MODIFIED_FILES=$(git diff --name-only --diff-filter=AM origin/main | grep '^src/.*\.sol$')
+          echo "modified_files=$MODIFIED_FILES" >> "$GITHUB_ENV"
+
       - name: Generate Coverage Summary
         run: |
 
-
           # Path to the lcov info file
           LCOV_FILE="lcov-filtered.info"
+          MODIFIED_FILES=(${MODIFIED_FILES})
 
           # Initialize counters
           TOTAL_LINES_FOUND=0
@@ -69,14 +77,23 @@ jobs:
           TOTAL_BRANCHES_FOUND=0
           TOTAL_BRANCHES_HIT=0
 
+          # Initialize associative array to store file-specific coverage
+          declare -A FILE_COVERAGE_SUMMARY
+
           # Read through the lcov file
           while IFS= read -r line; do
               case $line in
+                  SF:*)
+                      CURRENT_FILE=${line#SF:}
+                      FILE_NAME=$(basename "$CURRENT_FILE")
+                      ;;
                   LF:*)
                       TOTAL_LINES_FOUND=$((TOTAL_LINES_FOUND + ${line#LF:}))
+                      FILE_LINES_FOUND=${line#LF:}
                       ;;
                   LH:*)
                       TOTAL_LINES_HIT=$((TOTAL_LINES_HIT + ${line#LH:}))
+                      FILE_LINES_HIT=${line#LH:}
                       ;;
                   FNF:*)
                       TOTAL_FUNCTIONS_FOUND=$((TOTAL_FUNCTIONS_FOUND + ${line#FNF:}))
@@ -91,6 +108,14 @@ jobs:
                       TOTAL_BRANCHES_HIT=$((TOTAL_BRANCHES_HIT + ${line#BRH:}))
                       ;;
               esac
+
+              # Check if the file is in the list of modified files
+              if [[ " ${MODIFIED_FILES[@]} " =~ "$FILE_NAME" ]]; then
+                # Calculate line coverage percentage for the current file
+                LINE_COVERAGE_PERCENTAGE=$(echo "scale=2; $FILE_LINES_HIT / $FILE_LINES_FOUND * 100" | bc)
+                FILE_COVERAGE_SUMMARY["$FILE_NAME"]="File: $FILE_NAME - Line Coverage: $LINE_COVERAGE_PERCENTAGE% ($FILE_LINES_HIT / $FILE_LINES_FOUND)"
+              fi
+
           done < "$LCOV_FILE"
 
           # Calculate percentages with high precision
@@ -118,7 +143,7 @@ jobs:
             exit 1
           fi
 
-          # Output result_COVERAGE_REPORTs
+          # Output results
           echo "$LINE_COVERAGE_REPORT"
           echo "$FUNCTION_COVERAGE_REPORT"
           echo "$BRANCH_COVERAGE_REPORT"
@@ -132,6 +157,11 @@ jobs:
           echo "RESULT_COVERAGE_REPORT=$RESULT_COVERAGE_REPORT"
           } >> "$GITHUB_ENV"
 
+          # Prepare per-file coverage report
+          for FILE in "${!FILE_COVERAGE_SUMMARY[@]}"; do
+            echo "${FILE_COVERAGE_SUMMARY[$FILE]}"
+          done > per_file_coverage_report.txt
+
       - name: Comment with Coverage Summary in PR
         uses: mshick/add-pr-comment@v2.8.2
         with:
@@ -142,3 +172,8 @@ jobs:
             ${{ env.FUNCTION_COVERAGE_REPORT }}
             ${{ env.BRANCH_COVERAGE_REPORT }}
             ${{ env.RESULT_COVERAGE_REPORT }}
+
+            ### Per File Coverage:
+            ```txt
+            $(cat per_file_coverage_report.txt)
+            ```
