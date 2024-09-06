@@ -1,4 +1,4 @@
-name: Audit Verifier2
+name: Audit Verifier
 # - checks if an audit is required and assigns a (protected) label based on the result ('AuditRequired' or 'AuditNotRequired')
 # - if an audit is required, it will verify that the audit was actually completed and then assign label "AuditCompleted"
 # - verification includes:
@@ -13,7 +13,7 @@ name: Audit Verifier2
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   verify-audit:
