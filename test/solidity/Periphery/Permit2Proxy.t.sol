@@ -75,11 +75,13 @@ contract Permit2ProxyTest is TestBase {
 
     function test_can_execute_calldata_using_eip2612_signature_usdc()
         public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            PERMIT2_USER,
+            -int256(defaultUSDCAmount)
+        )
         returns (TestDataEIP2612 memory)
     {
-        uint256 startingUSDCBalance = ERC20(ADDRESS_USDC).balanceOf(
-            PERMIT2_USER
-        );
         vm.startPrank(PERMIT2_USER);
 
         // get token-specific domainSeparator
@@ -107,11 +109,6 @@ contract Permit2ProxyTest is TestBase {
             testdata.s,
             testdata.diamondCalldata
         );
-        uint256 endingUSDCBalance = ERC20(ADDRESS_USDC).balanceOf(
-            PERMIT2_USER
-        );
-        uint256 delta = startingUSDCBalance - endingUSDCBalance;
-        assertEq(defaultUSDCAmount, delta);
         vm.stopPrank();
         return testdata;
     }
@@ -144,7 +141,7 @@ contract Permit2ProxyTest is TestBase {
             testdata.v,
             testdata.r,
             testdata.s,
-            hex"1337c0d3" // This should revert
+            hex"1337c0d3" // This should revert as the method does not exist
         );
     }
 
