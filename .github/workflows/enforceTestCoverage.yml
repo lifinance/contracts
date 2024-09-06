@@ -112,10 +112,15 @@ jobs:
               esac
 
               # Check if the file is in the list of modified files
-              if [[ " ${MODIFIED_FILES[@]} " =~ "$FILE_NAME" ]]; then
+              if [[ " ${MODIFIED_FILES[@]} " =~ " $FILE_NAME " ]]; then
                 # Calculate line coverage percentage for the current file
                 LINE_COVERAGE_PERCENTAGE=$(echo "scale=2; $FILE_LINES_HIT / $FILE_LINES_FOUND * 100" | bc)
-                FILE_COVERAGE_SUMMARY["$FILE_NAME"]="File: $FILE_NAME - Line Coverage: $LINE_COVERAGE_PERCENTAGE% ($FILE_LINES_HIT / $FILE_LINES_FOUND)"
+
+                # Sanitize file name to prevent any potential issues with bad subscripts
+                FILE_NAME_CLEAN=$(echo "$FILE_NAME" | tr -cd '[:alnum:]._')
+
+                # Update associative array with sanitized file name
+                FILE_COVERAGE_SUMMARY["$FILE_NAME_CLEAN"]="File: $FILE_NAME - Line Coverage: $LINE_COVERAGE_PERCENTAGE% ($FILE_LINES_HIT / $FILE_LINES_FOUND)"
               fi
 
           done < "$LCOV_FILE"
@@ -163,19 +168,3 @@ jobs:
           for FILE in "${!FILE_COVERAGE_SUMMARY[@]}"; do
             echo "${FILE_COVERAGE_SUMMARY[$FILE]}"
           done > per_file_coverage_report.txt
-
-      - name: Comment with Coverage Summary in PR
-        uses: mshick/add-pr-comment@v2.8.2
-        with:
-          repo-token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
-          message: |
-            ## Test Coverage Report
-            ${{ env.LINE_COVERAGE_REPORT }}
-            ${{ env.FUNCTION_COVERAGE_REPORT }}
-            ${{ env.BRANCH_COVERAGE_REPORT }}
-            ${{ env.RESULT_COVERAGE_REPORT }}
-
-            ### Per File Coverage:
-            ```txt
-            $(cat per_file_coverage_report.txt)
-            ```
