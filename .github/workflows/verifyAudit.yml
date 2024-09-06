@@ -111,7 +111,7 @@ jobs:
 
             // Assign the required label if not already present
             if (!assignedLabels.includes(labelToAssign)) {
-              console.log(`Assigning label: ${labelToAssign}`);
+              console.log(`Now assigning label: ${labelToAssign}`);
               execSync(`gh pr edit ${{ github.event.pull_request.number }} --add-label "${labelToAssign}"`, { stdio: 'inherit' });
             } else {
               console.log(`${colors.green}Label "${labelToAssign}" is already assigned. No action needed.${colors.reset}`);
@@ -119,7 +119,7 @@ jobs:
 
             // Remove the opposite label if it is present
             if (assignedLabels.includes(oppositeLabel)) {
-              console.log(`Removing opposite label: ${oppositeLabel}`);
+              console.log(`Now removing opposite label: ${oppositeLabel}`);
               execSync(`gh pr edit ${{ github.event.pull_request.number }} --remove-label "${oppositeLabel}"`, { stdio: 'inherit' });
             } else {
               console.log(`${colors.green}Opposite label "${oppositeLabel}" is not assigned. No action needed.${colors.reset}`);
@@ -139,13 +139,7 @@ jobs:
             }
 
             // Verify that exactly one of the two labels is assigned
-            const requiredLabelCount = assignedLabels.filter(label => label === 'AuditRequired').length;
-            console.log(`requiredLabelCount: ${requiredLabelCount}`);
-
-            const notRequiredLabelCount = assignedLabels.filter(label => label === 'AuditNotRequired').length;
-            console.log(`notRequiredLabelCount: ${notRequiredLabelCount}`);
-            const totalLabelsAssigned = requiredLabelCount + notRequiredLabelCount;
-            console.log(`totalLabelsAssigned: ${totalLabelsAssigned}`);
+            const totalLabelsAssigned = assignedLabels.filter(label => ['AuditRequired', 'AuditNotRequired'].includes(label)).length;
 
             if (totalLabelsAssigned !== 1) {
               console.error(`${colors.red}Error: Exactly one of the two protected labels should be assigned but found ${totalLabelsAssigned} assigned labels.${colors.reset}`);
