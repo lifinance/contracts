@@ -68,7 +68,7 @@ contract Permit2Proxy {
     /// @param v User signature (recovery ID)
     /// @param r User signature (ECDSA output)
     /// @param s User signature (ECDSA output)
-    /// @param diamondCalldata Address of the token to be bridged
+    /// @param diamondCalldata calldata to execute
     function callDiamondWithEIP2612Signature(
         address tokenAddress,
         uint256 amount,
@@ -77,7 +77,7 @@ contract Permit2Proxy {
         bytes32 r,
         bytes32 s,
         bytes calldata diamondCalldata
-    ) public payable {
+    ) public payable returns (bytes memory) {
         // call permit on token contract to register approval using signature
         ERC20Permit(tokenAddress).permit(
             msg.sender, // Ensure msg.sender is same wallet that signed permit
@@ -101,7 +101,7 @@ contract Permit2Proxy {
         LibAsset.maxApproveERC20(IERC20(tokenAddress), LIFI_DIAMOND, amount);
 
         // call our diamond to execute calldata
-        _executeCalldata(diamondCalldata);
+        return _executeCalldata(diamondCalldata);
     }
 
     /// @notice Allows to bridge tokens of one type through a LI.FI diamond
@@ -116,7 +116,7 @@ contract Permit2Proxy {
         bytes calldata _diamondCalldata,
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata _signature
-    ) external payable {
+    ) external payable returns (bytes memory) {
         PERMIT2.permitTransferFrom(
             _permit,
             ISignatureTransfer.SignatureTransferDetails({
@@ -134,7 +134,7 @@ contract Permit2Proxy {
             _permit.permitted.amount
         );
 
-        _executeCalldata(_diamondCalldata);
+        return _executeCalldata(_diamondCalldata);
     }
 
     /// @notice Allows to bridge tokens of one type through a LI.FI diamond
@@ -149,7 +149,7 @@ contract Permit2Proxy {
         address _signer,
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata _signature
-    ) external payable {
+    ) external payable returns (bytes memory) {
         LiFiCall memory lifiCall = LiFiCall(
             LIFI_DIAMOND,
             keccak256(_diamondCalldata)
@@ -176,7 +176,7 @@ contract Permit2Proxy {
             _permit.permitted.amount
         );
 
-        _executeCalldata(_diamondCalldata);
+        return _executeCalldata(_diamondCalldata);
     }
 
     /// @notice utitlity method for constructing a valid Permit2 message hash
@@ -262,7 +262,9 @@ contract Permit2Proxy {
             keccak256(abi.encodePacked("\x19\x01", domainSeparator, dataHash));
     }
 
-    function _executeCalldata(bytes memory diamondCalldata) internal {
+    function _executeCalldata(
+        bytes memory diamondCalldata
+    ) internal returns (bytes memory) {
         // call diamond with provided calldata
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory data) = LIFI_DIAMOND.call{
@@ -273,6 +275,7 @@ contract Permit2Proxy {
         if (!success) {
             revert CallToDiamondFailed(data);
         }
+        return data;
     }
 
     /// The following code was adapted from https://github.com/flood-protocol/permit2-nonce-finder/blob/7a4ac8a58d0b499308000b75ddb2384834f31fac/src/Permit2NonceFinder.sol
