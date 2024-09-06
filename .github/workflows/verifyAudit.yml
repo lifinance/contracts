@@ -361,10 +361,6 @@ jobs:
           echo "CONTINUE=true" >> "$GITHUB_ENV"
           echo "Assigning label 'AuditCompleted' next"
 
-
-          echo "AUDIT_REQUIRED: ${{ env.AUDIT_REQUIRED }}"
-          echo "CONTINUE: ${{ env.CONTINUE }}"
-
       - name: Assign label "AuditCompleted" if all checks passed
         if: ${{ env.AUDIT_REQUIRED == 'true' && env.CONTINUE == 'true' }}
         uses: actions-ecosystem/action-add-labels@v1
