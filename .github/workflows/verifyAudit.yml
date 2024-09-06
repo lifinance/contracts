@@ -125,8 +125,18 @@ jobs:
               console.log(`${colors.green}Opposite label "${oppositeLabel}" is not assigned. No action needed.${colors.reset}`);
             }
 
-            // Adding a delay to allow GitHub to process the label changes
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // fetch all currently assigned labels again
+            assignedLabels = []
+            try {
+              // Fetch the labels directly from the pull request
+              const labelsOutput = execSync(`gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name'`).toString();
+
+              // Split the labels output into an array and trim each label
+              assignedLabels = labelsOutput.split('\n').map(label => label.trim()).filter(Boolean);
+            } catch (error) {
+              console.error(`${colors.red}Error fetching assigned labels: ${error.message}${colors.reset}`);
+              process.exit(1);
+            }
 
             // Verify that exactly one of the two labels is assigned
             const requiredLabelCount = assignedLabels.filter(label => label === 'AuditRequired').length;
