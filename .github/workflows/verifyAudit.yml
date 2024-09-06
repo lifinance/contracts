@@ -6,6 +6,7 @@ name: Audit Verifier
 #   - ensuring that an audit report has been added
 #   - ensuring that the PR is approved by the auditor (uses auditor git handle from audit log)
 #   - ensuring that the commit hash that was audited is actually part of this PR
+# - if "AuditCompleted" was assigned earlier but conditions are not met anymore due to changes submitted after the check, label "AuditCompleted" will be removed by this action
 
 # KNOWN LIMITATIONS
 # - will only check the last 100 commits for any matches with audit commit hashes
