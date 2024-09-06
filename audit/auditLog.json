@@ -1,9 +1,23 @@
 {
   "audits": {
     "audit20240814": {
-      "auditCompletedOn": "14.08.2024",
+      "auditCompletedOn": "14.08.21",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.08.14_StargateFacetV2_ReAudit.pdf",
+      "auditCommitHash": "d622002440317580b5d0fb90ef22b839d84957e2"
+    },
+    "audit20240817": {
+      "auditCompletedOn": "17.08.21",
+      "auditedBy": "Daniel Blaecker",
+      "auditorGitHandle": "0xDEnY0",
+      "auditReportPath": "./audit/reports/2024.08.14_StargateFacetV2_ReAudit.pdf",
+      "auditCommitHash": "d622002440317580b5d0fb90ef22b839d84957e2"
+    },
+    "audit20240818": {
+      "auditCompletedOn": "18.08.21",
+      "auditedBy": "SomeName",
+      "auditorGitHandle": "rtzuzfzjgizgz",
       "auditReportPath": "./audit/reports/2024.08.14_StargateFacetV2_ReAudit.pdf",
       "auditCommitHash": "d622002440317580b5d0fb90ef22b839d84957e2"
     }
@@ -11,6 +25,15 @@
   "auditedContracts": {
     "StargateFacetV2": {
       "1.0.1": ["audit20240814"]
+    },
+    "ContractOneAudit": {
+      "1.0.0": ["audit20240814"]
+    },
+    "ContractMultipleAudits": {
+      "1.0.0": ["audit20240814", "audit20240817"]
+    },
+    "ContractInvalidAudit": {
+      "1.0.0": ["audit20240818"]
     }
   }
 }

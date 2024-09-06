@@ -1,0 +1,145 @@
+# - Github Audit Checker
+# - checks if an audit was conducted
+#   > is there at least one complete entry in the audit log for that contract/version
+# - checks if all audit-related files are updated accordingly
+#   > is the audit report uploaded to ./audit/reports/ ?
+# - checks if there is one approving review of an auditor (do we really want this?)
+# - checks if the logged audit commit hash is part of the commits of this PULL_REQUEST
+
+# KNOWN LIMITATIONS
+# - will only check the last 100 commits for any matches with audit commit hashes
+
+name: Verify Audit Information
+
+on:
+  workflow_run:
+    workflows: ['check-audit-required', 'Audit Requirement Check'] # Only runs after the "Audit Requirement Check" workflow is completed
+    types:
+      - completed # Runs when the first workflow completes
+
+jobs:
+  # - name: Check if PR is approved by auditor(s)
+  #   id: check-auditor-approval
+  #   uses: actions/github-script@v7
+  #   if: env.CONTINUE == 'true'
+  #   with:
+  #     script: |
+  #       const fs = require('fs');
+  #       const auditorHandlesFile = 'auditor_handles.txt'; // Adjust this if needed
+
+  #       // Read auditor handles from file
+  #       const auditorHandles = fs.readFileSync(auditorHandlesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
+
+  #       const { data: reviews } = await github.pulls.listReviews({
+  #         owner: context.repo.owner,
+  #         repo: context.repo.repo,
+  #         pull_number: context.issue.number,
+  #       });
+
+  #       let allApproved = true;
+
+  #       auditorHandles.forEach(handle => {
+  #         const approved = reviews.some(review => review.user.login === handle && review.state === 'APPROVED');
+  #         if (!approved) {
+  #           console.log(`PR is not approved by ${handle}`);
+  #           allApproved = false;
+  #         } else {
+  #           console.log(`PR is approved by ${handle}`);
+  #         }
+  #       });
+
+  #       if (!allApproved) {
+  #         core.setFailed("Not all required auditors have approved the PR.");
+  #       } else {
+  #         core.setOutput('approved', 'true');
+  #       }
+
+  - name: Check if all required commits are part of the PR
+    id: check_commit_hashes
+    if: env.CONTINUE == 'true'
+    uses: actions/github-script@v7
+    with:
+      script: |
+        const fs = require('fs');
+
+        // ANSI escape codes for colors (used for colored output in Git action console)
+        const colors = {
+          reset: "\033[0m",
+          red: "\033[31m",
+          green: "\033[32m",
+          yellow: "\033[33m",
+        };
+
+        // Read commit hashes from file
+        const commitHashesFile = 'commit_hashes.txt'; // Adjust this if needed
+        const commitHashes = fs.readFileSync(commitHashesFile, 'utf-8').split(/\r?\n/).filter(Boolean);
+
+        // Log the number of commit hashes found
+        console.log(`${commitHashes.length} relevant audit commit hashes found: ${commitHashes}`);
+
+
+        const owner = context.repo.owner;
+        const repo = context.repo.repo;
+        const pull_number = context.issue.number;
+
+        let allCommitsFound = true;
+
+        // define a function that ensures that a given commit hash is part of the current pull request
+        const checkCommit = async (hash) => {
+          try {
+            // get the commit through github REST API
+            const { data: commit } = await github.rest.repos.getCommit({
+              owner,
+              repo,
+              ref: hash,
+            });
+
+            // get all PRs associated with this commit
+            const associatedPRs = (await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner,
+              repo,
+              commit_sha: hash,
+            })).data;
+
+            // check if any of the associated PR numbers matches with <this> PR number
+            const isAssociatedWithPR = associatedPRs.some(pr => pr.number === pull_number);
+
+            // if current commit is not associated to this PR, end this
+            if (!isAssociatedWithPR) {
+              // console.log(`${colors.red}None of the associated PRs (${JSON.stringify(associatedPRs.map(pr => pr.number))}) of commit ${hash} matches with this PR (${pull_number})${colors.reset}`);
+              console.log(`${colors.red}None of the associated PRs (${associatedPRs.map(pr => pr.number)}) of commit ${hash} matches with this PR (${pull_number})${colors.reset}`);
+              console.log(`${colors.red}Please check if the 'auditCommitHash' in the audit log is accurate and try again.${colors.reset}`);
+
+              // set flag to false
+              allCommitsFound=false;
+
+            }
+            else console.log(`${colors.green}Commit ${hash} is associated with this PR. Check passed.${colors.reset}`)
+          } catch (error) {
+            console.log(`${colors.red}The following audit commit seems to be invalid: ${hash}${colors.reset}`);
+            console.log(`${colors.red}Please check if the 'auditCommitHash' in the audit log is accurate and try again.${colors.reset}`);
+
+            // set flag to false
+            allCommitsFound=false;
+          }
+        };
+
+        (async () => {
+          for (const hash of commitHashes) {
+            console.log(`---------------------------------------------------------------`)
+            console.log(`Now checking auditCommitHash: ${hash}`)
+
+            await checkCommit(hash);
+          }
+
+          // Set environment variable based on whether all commits are found
+          const envFilePath = process.env.GITHUB_ENV;
+          fs.appendFileSync(envFilePath, `CONTINUE=${allCommitsFound}\n`);
+
+          if (!allCommitsFound)
+            core.setFailed("This check failed");
+          else {
+            console.log(`${colors.green}All audit commits have been successfully verified.${colors.reset}`);
+            core.setOutput('all_commits_present', 'true');
+          }
+        })();

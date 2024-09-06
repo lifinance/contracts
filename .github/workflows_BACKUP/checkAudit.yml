@@ -1,0 +1,201 @@
+# - Github Audit Checker
+# - checks if an audit is required
+#   YES, if:
+#   > contract in src/*.sol (no test or script contracts)
+# - checks if an audit was conducted
+#   > is there at least one complete entry in the audit log for that contract/version
+# - checks if all audit-related files are updated accordingly
+#   > is the audit report uploaded to ./audit/reports/ ?
+# - checks if there is one approving review of an auditor (do we really want this?)
+
+name: Audit Check
+
+on:
+  pull_request:
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    env:
+      auditLogPath: 'audit/auditLog.json'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 ##### Fetch all history for all branches
+
+      - name: Check modified files for protected contracts
+        id: check_eligibility
+        run: |
+
+          ##### get all files modified by this PR
+          FILES=$(git diff --name-only origin/main HEAD)
+
+          ##### make sure that there are modified files
+          if [[ -z $FILES ]]; then
+            echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 1
+          fi
+
+          ##### Initialize empty variables
+          PROTECTED_CONTRACTS=""
+
+          ##### go through all modified file names/paths and identify contracts with path 'src/*'
+          while IFS= read -r FILE; do
+            if echo "$FILE" | grep -E '^src/.*\.sol$'; then
+            # if echo "$FILE" | grep -E '^src/*\.sol$'; then
+              ##### contract found
+              PROTECTED_CONTRACTS="${PROTECTED_CONTRACTS}${FILE}"$'\n'
+            fi
+          done <<< "$FILES"
+
+          ##### if none found, exit here as there is nothing to do
+          if [[ -z "$PROTECTED_CONTRACTS" ]]; then
+            echo -e "\033[31mNo protected contracts found in files modified/added by this PR.\033[0m"
+            echo -e "\033[31mNo further checks are required.\033[0m"
+            # set action output to false
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 0
+          else
+            # set action output to true
+            echo "CONTINUE=true" >> $GITHUB_ENV
+          fi
+
+          echo "PROTECTED_CONTRACTS: $PROTECTED_CONTRACTS"
+
+          ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
+          echo -e "$PROTECTED_CONTRACTS" > protected_contracts.txt
+
+      - name: Check audit log
+        id: check-audit-log
+        if: env.CONTINUE == 'true'
+        run: |
+
+          # load list of protected contracts
+          PROTECTED_CONTRACTS=$(cat protected_contracts.txt)
+
+          # create temp files to store commit hashes and auditor handles
+          COMMIT_HASHES_FILE=$(mktemp)
+          AUDITOR_GIT_HANDLES_FILE=$(mktemp)
+
+          ##### make sure that there are any protected contracts
+          if [[ -z $PROTECTED_CONTRACTS ]]; then
+            echo -e "\033[31mNo protected contracts found. This should not happen (action should stop earlier). Please check the code of the Github action. Aborting now.\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+            exit 1
+          fi
+
+          # iterate through all contracts
+          while IFS= read -r FILE; do
+            # load contract version
+            VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE")
+
+            ##### make sure that contract version was extracted successfully
+            if [[ -z $VERSION ]]; then
+              echo -e "\033[31mCould not find version of contract $FILE. This should not happen. Please check the Github action code. Aborting now.\033[0m"
+              echo "CONTINUE=false" >> $GITHUB_ENV
+              exit 1
+            fi
+
+            # see if audit log contains an entry with those values
+            FILENAME=$(basename "$FILE" .sol)
+
+            LOG_ENTRIES=$(jq -r --arg filename "$FILENAME" --arg version "$VERSION" '.[$filename][$version][]' "$auditLogPath")
+
+            ##### make sure that audit log entries were found
+            if [[ -z $LOG_ENTRIES || "${#LOG_ENTRIES}" -eq 0 ]]; then
+              echo -e "\033[31mCould not find a logged audit for contract $FILENAME in version $VERSION.\033[0m"
+              echo -e "\033[31mThis github action cannot complete until the audit log contains a logged audit for this file.\033[0m"
+              echo "CONTINUE=false" >> $GITHUB_ENV
+              exit 1
+            fi
+
+            # Iterate through all log entries
+            echo "$LOG_ENTRIES" | jq -c '.' | while IFS= read -r entry; do
+              # extract log entry values into variables
+              AUDIT_COMPLETED_ON=$(echo "$entry" | jq -r '.auditCompletedOn')
+              AUDITED_BY=$(echo "$entry" | jq -r '.auditedBy')
+              AUDITOR_GIT_HANDLE=$(echo "$entry" | jq -r '.auditorGitHandle')
+              AUDIT_REPORT_PATH=$(echo "$entry" | jq -r '.auditReportPath')
+              AUDIT_COMMIT_HASH=$(echo "$entry" | jq -r '.auditCommitHash')
+
+              # make sure that audit log entry contains date
+              if [ -z "$AUDIT_COMPLETED_ON" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains an invalid or no 'auditCompletedOn' date.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                echo "CONTINUE=false" >> $GITHUB_ENV
+                exit 1
+              fi
+
+              # make sure that audit log entry contains auditor's (company) name
+              if [ -z "$AUDITED_BY" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditedBy' information.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                echo "CONTINUE=false" >> $GITHUB_ENV
+                exit 1
+              fi
+
+              # make sure that audit log entry contains auditor's git handle
+              if [ -z "$AUDITOR_GIT_HANDLE" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditorGitHandle' information.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                echo "CONTINUE=false" >> $GITHUB_ENV
+                exit 1
+              fi
+
+
+              # make sure that audit log entry contains audit report path
+              if [ -z "$AUDIT_REPORT_PATH" ]; then
+              echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditReportPath' information.\033[0m"
+              echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+              echo -e "\033[31mAborting now.\033[0m"
+              echo "CONTINUE=false" >> $GITHUB_ENV
+              exit 1
+              fi
+
+              # make sure that a file exists at the audit report path
+              if [ ! -f "$AUDIT_REPORT_PATH" ]; then
+              echo -e "\033[31mCould not find an audit report in path $AUDIT_REPORT_PATH for contract "$FILENAME".\033[0m"
+              echo -e "\033[31mThis github action cannot complete before the audit report is uploaded to 'audit/reports/'.\033[0m"
+              echo -e "\033[31mAborting now.\033[0m"
+              echo "CONTINUE=false" >> $GITHUB_ENV
+              exit 1
+              fi
+
+              # make sure that audit log entry contains audit report path
+              if [ -z "$AUDIT_COMMIT_HASH" ]; then
+                echo -e "\033[31mThe audit log entry for file $FILE contains invalid or no 'auditCommitHash' information.\033[0m"
+                echo -e "\033[31mThis github action cannot complete before the audit log is complete.\033[0m"
+                echo -e "\033[31mAborting now.\033[0m"
+                echo "CONTINUE=false" >> $GITHUB_ENV
+                exit 1
+              fi
+
+              # store the commit hash in a temporary file to check its validity in a following step
+              echo "adding commit hash $AUDIT_COMMIT_HASH"
+              echo "$AUDIT_COMMIT_HASH" >> "$COMMIT_HASHES_FILE"
+
+              # store the auditor git handle to check it in a following step if this auditor has reviewed the PR
+              echo "adding auditor handle $AUDITOR_GIT_HANDLE"
+              echo "$AUDITOR_GIT_HANDLE" >> "$AUDITOR_GIT_HANDLES_FILE"
+            done
+          done <<< "$PROTECTED_CONTRACTS"
+
+          echo -e "\033[32mAll audit log entries are complete.\033[0m"
+
+
+          # read the temp files into variables
+          AUDIT_COMMIT_HASHES=$(cat "$COMMIT_HASHES_FILE" | tr '\n' ' ')
+          AUDITOR_GIT_HANDLES=$(cat "$AUDITOR_GIT_HANDLES_FILE" | tr '\n' ' ')
+          echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES"
+          echo "AUDIT_COMMIT_HASHES=$AUDIT_COMMIT_HASHES" >> $GITHUB_ENV
+          echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES"
+          echo "AUDITOR_GIT_HANDLES=$AUDITOR_GIT_HANDLES" >> $GITHUB_ENV
+
+      # - name: Check auditor review
+      # - name: Assign "Ready_For_PROD_Deployment" label
