@@ -4,10 +4,8 @@ pragma solidity 0.8.17;
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibDiamondLoupe } from "../Libraries/LibDiamondLoupe.sol";
 import { UnAuthorized, InvalidCallData, DiamondIsPaused } from "../Errors/GenericErrors.sol";
-import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
-import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 
 /// @title EmergencyPauseFacet (Admin only)
 /// @author LI.FI (https://li.fi)
