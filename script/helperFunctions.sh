@@ -1313,13 +1313,18 @@ function addPeripheryToDexsJson() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
 
+  local FILEPATH_DEXS="config/dexs.json"
+  local FILEPATH_GLOBAL_CONFIG="config/global.json"
+
+  WHITELIST_PERIPHERY=($(jq -r '.autoWhitelistPeripheryContracts[] | select(length > 0)' "$FILEPATH_GLOBAL_CONFIG"))
+
   # Get all contracts that need to be whitelisted and convert the comma-separated string into an array
-  IFS=',' read -r -a CONTRACTS <<< "$WHITELIST_PERIPHERY"
+  # IFS=',' read -r -a CONTRACTS <<< "$WHITELIST_PERIPHERY"
+  CONTRACTS=("${WHITELIST_PERIPHERY[@]}")
 
   # get number of periphery contracts to be added
   local ADD_COUNTER=${#CONTRACTS[@]}
 
-  local FILEPATH_DEXS="config/dexs.json"
 
   # get number of existing DEX addresses in the file for the given network
   local EXISTING_DEXS=$(jq --arg network "$NETWORK" '.[$network] | length' "$FILEPATH_DEXS")
@@ -1332,6 +1337,9 @@ function addPeripheryToDexsJson() {
     if [[ -z "$CONTRACT_ADDRESS" ]]; then
       error "Could not find contract address for contract $CONTRACT on network $NETWORK ($ENVIRONMENT) in deploy log."
       error "Please manually whitelist this contract after this task has been completed."
+      # reduce add counter since we are not adding this contract
+      ((ADD_COUNTER--))
+      continue
     fi
 
     # check if address already exists in dexs.json for the given network
@@ -1356,8 +1364,10 @@ function addPeripheryToDexsJson() {
   # check how many DEX addresses are in the dexs.json now
   local ADDRESS_COUNTER=${#CONTRACTS[@]}
 
+  EXPECTED_DEXS=$((EXISTING_DEXS + ADD_COUNTER))
+
   # make sure dexs.json has been updated correctly
-  if [ $ADDRESS_COUNTER -eq $((EXISTING_DEXS + ADD_COUNTER)) ]; then
+  if [ $EXPECTED_DEXS -eq $((EXISTING_DEXS + ADD_COUNTER)) ]; then
     success "$ADD_COUNTER addresses were added to config/dexs.json"
   else
     error "The array in dexs.json for network $NETWORK does not have the expected number of elements after executing this script (expected: $, got: $ADDRESS_COUNTER)."
@@ -3867,10 +3877,9 @@ function test_getContractNameFromDeploymentLogs() {
 
 function test_tmp() {
 
-  CONTRACT="LiFiDiamond"
-  NETWORK="taiko"
-  ADDRESS="0x3A9A5dBa8FE1C4Da98187cE4755701BCA182f63b"
-  ADDRESS_NEW_OWNER="0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772"
+  CONTRACT="LiFiDEXAggregator"
+  NETWORK="immutablezkevm"
+  ADDRESS=""
   ENVIRONMENT="production"
   VERSION="2.0.0"
   DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
