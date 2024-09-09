@@ -166,7 +166,6 @@ contract EmergencyPauseFacet {
         IDiamondLoupe.Facet[] memory allFacets = LibDiamondLoupe.facets();
 
         // initiate return variable with allFacets length - 1 (since we will not remove the EmergencyPauseFacet)
-        delete toBeRemoved;
         toBeRemoved = new IDiamondLoupe.Facet[](allFacets.length - 1);
 
         // iterate through facets, copy every facet but EmergencyPauseFacet
