@@ -58,6 +58,10 @@ contract EmergencyPauseFacet {
     function removeFacet(
         address _facetAddress
     ) external OnlyPauserWalletOrOwner {
+        // make sure that the EmergencyPauseFacet itself cannot be removed through this function
+        if (_facetAddress == _emergencyPauseFacetAddress)
+            revert InvalidCallData();
+
         // get function selectors for this facet
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         bytes4[] memory functionSelectors = ds
