@@ -140,12 +140,18 @@ contract EmergencyPauseFacet {
         // It would be easier to not reinstate these facets in the first place but
         //  a) that would leave their function selectors associated with address of EmergencyPauseFacet (=> throws 'DiamondIsPaused() error when called)
         //  b) it consumes a lot of gas to check every facet address if it's part of the blacklist
+        bytes4[] memory currentSelectors;
         for (uint256 i; i < _blacklist.length; ) {
-            // re-add facet and its selectors to diamond
-            LibDiamond.removeFunctions(
-                address(0),
-                LibDiamondLoupe.facetFunctionSelectors(_blacklist[i])
+            currentSelectors = LibDiamondLoupe.facetFunctionSelectors(
+                _blacklist[i]
             );
+
+            // make sure that the DiamondCutFacet cannot be removed as this would make the diamond immutable
+            if (currentSelectors[0] == DiamondCutFacet.diamondCut.selector)
+                continue;
+
+            // remove facet and its selectors from diamond
+            LibDiamond.removeFunctions(address(0), currentSelectors);
 
             // gas-efficient way to increase loop counter
             unchecked {

@@ -325,8 +325,4 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         // ensure that number of facets remains unchanged
         assertTrue(initialFacets.length == finalFacets.length);
     }
-
-    function _getDiamondCutDataForFacetRemoval(
-        address facetToBeRemoved
-    ) public returns (IDiamondCut.FacetCut memory cut) {}
 }
