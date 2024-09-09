@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.17;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.17;
 
 import { Test, TestBase, DSTest, ILiFi, console, ERC20 } from "../utils/TestBase.sol";
 import { Permit2Proxy } from "lifi/Periphery/Permit2Proxy.sol";
@@ -45,6 +45,7 @@ contract Permit2ProxyTest is TestBase {
     error InvalidSigner();
     error InvalidNonce();
     error DiamondAddressNotWhitelisted();
+    error CallToDiamondFailed(bytes);
 
     function setUp() public {
         customBlockNumberForForking = 20261175;
@@ -72,18 +73,27 @@ contract Permit2ProxyTest is TestBase {
 
     /// EIP2612 (native permit) related test cases ///
 
-    function test_can_execute_calldata_using_eip2612_signature_usdc() public {
+    function test_can_execute_calldata_using_eip2612_signature_usdc()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            PERMIT2_USER,
+            -int256(defaultUSDCAmount)
+        )
+        returns (TestDataEIP2612 memory)
+    {
         vm.startPrank(PERMIT2_USER);
 
         // get token-specific domainSeparator
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
         // // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_USDC,
-            domainSeparator,
-            block.timestamp + 1000
-        );
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp + 1000
+            );
 
         // expect LifiTransferStarted event to be emitted by our diamond contract
         vm.expectEmit(true, true, true, true, DIAMOND_ADDRESS);
@@ -99,24 +109,31 @@ contract Permit2ProxyTest is TestBase {
             testdata.s,
             testdata.diamondCalldata
         );
-
         vm.stopPrank();
+        return testdata;
     }
 
-    function testRevert_cannot_use_eip2612_signature_twice() public {
+    function testRevert_when_called_with_invalid_calldata() public {
         vm.startPrank(PERMIT2_USER);
 
         // get token-specific domainSeparator
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
-        // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_USDC,
-            domainSeparator,
-            block.timestamp + 1000
-        );
+        // // using USDC on ETH for testing (implements EIP2612)
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp + 1000
+            );
 
         // call Permit2Proxy with signature
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "CallToDiamondFailed(bytes)",
+                hex"a9ad62f8" // Function does not exist
+            )
+        );
         permit2Proxy.callDiamondWithEIP2612Signature(
             ADDRESS_USDC,
             defaultUSDCAmount,
@@ -124,10 +141,17 @@ contract Permit2ProxyTest is TestBase {
             testdata.v,
             testdata.r,
             testdata.s,
-            testdata.diamondCalldata
+            hex"1337c0d3" // This should revert as the method does not exist
         );
+    }
 
-        // expect call to revert if same signature is used twice
+    function testRevert_cannot_use_eip2612_signature_twice() public {
+        TestDataEIP2612
+            memory testdata = test_can_execute_calldata_using_eip2612_signature_usdc();
+
+        vm.startPrank(PERMIT2_USER);
+
+        // // expect call to revert if same signature is used twice
         vm.expectRevert("EIP2612: invalid signature");
         permit2Proxy.callDiamondWithEIP2612Signature(
             ADDRESS_USDC,
@@ -149,11 +173,12 @@ contract Permit2ProxyTest is TestBase {
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
         // // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_USDC,
-            domainSeparator,
-            block.timestamp - 1 //  deadline in the past
-        );
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp - 1 //  deadline in the past
+            );
 
         // expect call to revert since signature deadline is in the past
         vm.expectRevert("FiatTokenV2: permit is expired");
@@ -179,13 +204,14 @@ contract Permit2ProxyTest is TestBase {
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
         // // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_USDC,
-            domainSeparator,
-            block.timestamp
-        );
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp
+            );
 
-        // expect call to revert since signature deadline is in the past
+        // expect call to revert since signature is invalid
         vm.expectRevert("EIP2612: invalid signature");
 
         // call Permit2Proxy with signature
@@ -209,13 +235,14 @@ contract Permit2ProxyTest is TestBase {
         bytes32 domainSeparator = ERC20Permit(ADDRESS_USDC).DOMAIN_SEPARATOR();
 
         // // using USDC on ETH for testing (implements EIP2612)
-        TestDataEIP2612 memory testdata = _getTestDataEIP2612(
-            ADDRESS_USDC,
-            domainSeparator,
-            block.timestamp
-        );
+        TestDataEIP2612
+            memory testdata = _getTestDataEIP2612SignedByPERMIT2_USER(
+                ADDRESS_USDC,
+                domainSeparator,
+                block.timestamp
+            );
 
-        // expect call to revert since signature deadline is in the past
+        // expect call to revert since signature was created by a different address
         vm.expectRevert("EIP2612: invalid signature");
         // call Permit2Proxy with signature
         permit2Proxy.callDiamondWithEIP2612Signature(
@@ -233,7 +260,7 @@ contract Permit2ProxyTest is TestBase {
 
     /// Permit2 specific tests ///
 
-    function test_can_call_diamond_with_permit2() public {
+    function test_user_can_call_diamond_with_own_permit2_signature() public {
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
         bytes memory signature;
@@ -242,7 +269,7 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             ,
             signature
-        ) = _getPermitTransferFromParams();
+        ) = _getPermit2TransferFromParamsSignedByPERMIT2_USER();
 
         // Execute
         vm.prank(PERMIT2_USER);
@@ -253,7 +280,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function testRevert_cannot_call_diamond_with_permit2_using_different_addresses()
+    function testRevert_cannot_call_diamond_with_permit2_using_different_wallet_address()
         public
     {
         bytes memory diamondCalldata;
@@ -264,10 +291,10 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             ,
             signature
-        ) = _getPermitTransferFromParams();
+        ) = _getPermit2TransferFromParamsSignedByPERMIT2_USER();
 
         // Execute
-        vm.prank(USER_SENDER);
+        vm.prank(USER_SENDER); // Not the original signer
         vm.expectRevert(InvalidSigner.selector);
         permit2Proxy.callDiamondWithPermit2(
             diamondCalldata,
@@ -285,9 +312,10 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             ,
             signature
-        ) = _getPermitWitnessTransferFromParams();
+        ) = _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER();
 
         // Execute
+        vm.prank(USER_SENDER); // Can be executed by anyone
         permit2Proxy.callDiamondWithPermit2Witness(
             diamondCalldata,
             PERMIT2_USER,
@@ -296,10 +324,15 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function test_can_generrate_a_valid_msg_hash_for_signing() public {
+    function test_can_generate_a_valid_msg_hash_for_signing() public {
         bytes32 msgHash;
         bytes32 generatedMsgHash;
-        (, , msgHash, ) = _getPermitWitnessTransferFromParams();
+        (
+            ,
+            ,
+            msgHash,
+
+        ) = _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER();
 
         generatedMsgHash = permit2Proxy.getPermit2MsgHash(
             _getCalldataForBridging(),
@@ -324,7 +357,7 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             ,
             signature
-        ) = _getPermitWitnessTransferFromParams();
+        ) = _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER();
 
         // Execute x2
         permit2Proxy.callDiamondWithPermit2Witness(
@@ -352,9 +385,9 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             ,
             signature
-        ) = _getPermitWitnessTransferFromParams();
+        ) = _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER();
 
-        bytes memory MALICIOUS_CALLDATA;
+        bytes memory MALICIOUS_CALLDATA = hex"1337c0d3";
 
         // Execute
         vm.expectRevert(InvalidSigner.selector);
@@ -366,7 +399,9 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function testRevert_cannot_use_signature_from_another_wallet() public {
+    function testRevert_cannot_use_permit2_signature_from_another_wallet()
+        public
+    {
         deal(ADDRESS_USDC, PERMIT2_USER, 10000 ether);
         bytes memory diamondCalldata;
         ISignatureTransfer.PermitTransferFrom memory permitTransferFrom;
@@ -376,8 +411,9 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             msgHash,
 
-        ) = _getPermitWitnessTransferFromParams();
+        ) = _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER();
 
+        // Sign with a random key
         bytes memory signature = _signMsgHash(msgHash, 987654321);
 
         // Execute
@@ -400,8 +436,9 @@ contract Permit2ProxyTest is TestBase {
             permitTransferFrom,
             msgHash,
 
-        ) = _getPermitWitnessTransferFromParams();
+        ) = _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER();
 
+        // Sign with a random key
         bytes memory signature = _signMsgHash(msgHash, 987654321);
 
         permitTransferFrom.permitted.amount = 500 ether;
@@ -416,9 +453,39 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
+    /// The following test code was adapted from https://github.com/flood-protocol/permit2-nonce-finder/blob/7a4ac8a58d0b499308000b75ddb2384834f31fac/test/Permit2NonceFinder.t.sol
+
+    function test_can_find_nonce() public {
+        // We invalidate the first nonce to make sure it's not returned.
+        // We pass a mask of 0...0011 to invalidate nonce 0 and 1.
+        uniPermit2.invalidateUnorderedNonces(0, 3);
+        assertEq(permit2Proxy.nextNonce(address(this)), 2);
+
+        // Invalidate the first word minus 1 nonce
+        uniPermit2.invalidateUnorderedNonces(0, type(uint256).max >> 1);
+        // We should find the last nonce in the first word
+        assertEq(permit2Proxy.nextNonce(address(this)), 255);
+    }
+
+    function test_can_find_nonce_after() public {
+        // We want to start from the second word
+        uint256 start = 256;
+        // We invalidate the whole next word to make sure it's not returned.
+        uniPermit2.invalidateUnorderedNonces(1, type(uint256).max);
+        assertEq(permit2Proxy.nextNonceAfter(address(this), start), 512);
+
+        // Invalidate the next word minus 1 nonce
+        uniPermit2.invalidateUnorderedNonces(2, type(uint256).max >> 1);
+        // We should find the first nonce in the third word
+        assertEq(permit2Proxy.nextNonceAfter(address(this), 767), 768);
+
+        // The first word is still accessible if we start from a lower nonce
+        assertEq(permit2Proxy.nextNonceAfter(address(this), 1), 2);
+    }
+
     /// Helper Functions ///
 
-    function _getPermitTransferFromParams()
+    function _getPermit2TransferFromParamsSignedByPERMIT2_USER()
         internal
         view
         returns (
@@ -460,7 +527,7 @@ contract Permit2ProxyTest is TestBase {
         );
     }
 
-    function _getPermitWitnessTransferFromParams()
+    function _getPermit2WitnessTransferFromParamsSignedByPERMIT2_USER()
         internal
         view
         returns (
@@ -592,7 +659,7 @@ contract Permit2ProxyTest is TestBase {
             keccak256(abi.encodePacked("\x19\x01", domainSeparator, dataHash));
     }
 
-    function _getTestDataEIP2612(
+    function _getTestDataEIP2612SignedByPERMIT2_USER(
         address tokenAddress,
         bytes32 domainSeparator,
         uint256 deadline
