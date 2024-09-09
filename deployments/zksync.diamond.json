@@ -48,6 +48,10 @@
       "0x32C846c2a2118d20B792652448Bce830A4c7eAbd": {
         "Name": "AcrossFacetV3",
         "Version": "1.0.0"
+      },
+      "0x3FB052E714a2dB2Eb30556028bBB4a43B0de9852": {
+        "Name": "AcrossFacetPackedV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

@@ -22963,6 +22963,30 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x3FB052E714a2dB2Eb30556028bBB4a43B0de9852",
+            "OPTIMIZER_RUNS": "10000",
+            "TIMESTAMP": "2024-09-09 11:27:41",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e0b015e54d54fc84a6cb9b666099c46ade9335ff0000000000000000000000005aea5775959fbc2557cc8789bc1bf90a239d9a9100000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "VERIFIED": "true"
+          }
+        ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x3FB052E714a2dB2Eb30556028bBB4a43B0de9852",
+            "OPTIMIZER_RUNS": "10000",
+            "TIMESTAMP": "2024-09-09 11:27:41",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000e0b015e54d54fc84a6cb9b666099c46ade9335ff0000000000000000000000005aea5775959fbc2557cc8789bc1bf90a239d9a9100000000000000000000000011f1022ca6adef6400e5677528a80d49a069c00c",
+            "VERIFIED": "true"
+          }
+        ]
+      }
     }
   }
 }
