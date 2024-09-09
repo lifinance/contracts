@@ -157,23 +157,6 @@ contract EmergencyPauseFacet {
 
     /// INTERNAL HELPER FUNCTIONS
 
-    function _containsAddress(
-        address[] memory _addresses,
-        address _find
-    ) internal pure returns (bool) {
-        // check if facet address belongs to blacklist
-        for (uint256 i; i < _addresses.length; ) {
-            // if address matches, return true
-            if (_addresses[i] == _find) return true;
-
-            // gas-efficient way to increase loop counter
-            unchecked {
-                ++i;
-            }
-        }
-        return false;
-    }
-
     function _getAllFacetFunctionSelectorsToBeRemoved()
         internal
         view
