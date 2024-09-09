@@ -157,14 +157,6 @@ contract EmergencyPauseFacet {
 
     /// INTERNAL HELPER FUNCTIONS
 
-    function _isEmergencyPauseFacet(
-        IDiamondLoupe.Facet memory facet
-    ) internal view returns (bool) {
-        if (facet.facetAddress == _emergencyPauseFacetAddress) return true;
-
-        return false;
-    }
-
     function _containsAddress(
         address[] memory _addresses,
         address _find
@@ -198,7 +190,7 @@ contract EmergencyPauseFacet {
         uint256 toBeRemovedCounter;
         for (uint256 i; i < allFacets.length; ) {
             // if its not the EmergencyPauseFacet, copy to the return value variable
-            if (!_isEmergencyPauseFacet(allFacets[i])) {
+            if (allFacets[i].facetAddress != _emergencyPauseFacetAddress) {
                 toBeRemoved[toBeRemovedCounter].facetAddress = allFacets[i]
                     .facetAddress;
                 toBeRemoved[toBeRemovedCounter].functionSelectors = allFacets[
