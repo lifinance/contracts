@@ -14,9 +14,12 @@ import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 /// @dev Admin-Facet for emergency purposes only
 contract EmergencyPauseFacet {
     /// Events ///
-    event EmergencyFacetRemoved(address facetAddress, address msgSender);
-    event EmergencyPaused(address msgSender);
-    event EmergencyUnpaused(address msgSender);
+    event EmergencyFacetRemoved(
+        address indexed facetAddress,
+        address indexed msgSender
+    );
+    event EmergencyPaused(address indexed msgSender);
+    event EmergencyUnpaused(address indexed msgSender);
 
     /// Errors ///
     error FacetIsNotRegistered();

@@ -29,9 +29,12 @@ contract TestEmergencyPauseFacet is EmergencyPauseFacet {
 
 contract EmergencyPauseFacetPRODTest is TestBase {
     // EVENTS
-    event EmergencyFacetRemoved(address facetAddress, address msgSender);
-    event EmergencyPaused(address msgSender);
-    event EmergencyUnpaused(address msgSender);
+    event EmergencyFacetRemoved(
+        address indexed facetAddress,
+        address indexed msgSender
+    );
+    event EmergencyPaused(address indexed msgSender);
+    event EmergencyUnpaused(address indexed msgSender);
 
     // STORAGE
     address internal constant ADDRESS_DIAMOND_MAINNET =

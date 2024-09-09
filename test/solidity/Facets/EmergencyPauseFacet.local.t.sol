@@ -16,9 +16,12 @@ import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 
 contract EmergencyPauseFacetLOCALTest is TestBase {
     // EVENTS
-    event EmergencyFacetRemoved(address facetAddress, address msgSender);
-    event EmergencyPaused(address msgSender);
-    event EmergencyUnpaused(address msgSender);
+    event EmergencyFacetRemoved(
+        address indexed facetAddress,
+        address indexed msgSender
+    );
+    event EmergencyPaused(address indexed msgSender);
+    event EmergencyUnpaused(address indexed msgSender);
 
     // STORAGE
     EmergencyPauseFacet internal emergencyPauseFacet;
