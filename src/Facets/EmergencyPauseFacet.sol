@@ -32,10 +32,10 @@ contract EmergencyPauseFacet {
     }
 
     /// Modifiers ///
-    modifier OnlyPauserWalletOrOwner(address msgSender) {
+    modifier OnlyPauserWalletOrOwner() {
         if (
-            msgSender != pauserWallet &&
-            msgSender != LibDiamond.contractOwner()
+            msg.sender != pauserWallet &&
+            msg.sender != LibDiamond.contractOwner()
         ) revert UnAuthorized();
         _;
     }
@@ -54,7 +54,7 @@ contract EmergencyPauseFacet {
     /// @dev can only be executed by pauserWallet (non-multisig for fast response time) or by the diamond owner
     function removeFacet(
         address _facetAddress
-    ) external OnlyPauserWalletOrOwner(msg.sender) {
+    ) external OnlyPauserWalletOrOwner {
         // get function selectors for this facet
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         bytes4[] memory functionSelectors = ds
@@ -78,7 +78,7 @@ contract EmergencyPauseFacet {
     ///         and redirecting all function selectors to the EmergencyPauseFacet (this will remain as the only registered facet) so that
     ///         a meaningful error message will be returned when third parties try to call the diamond
     /// @dev can only be executed by pauserWallet (non-multisig for fast response time) or by the diamond owner
-    function pauseDiamond() external OnlyPauserWalletOrOwner(msg.sender) {
+    function pauseDiamond() external OnlyPauserWalletOrOwner {
         //TODO: add handling for cases where there are too many facets and tx will run out of gas (>> pagination) ??
         Storage storage s = getStorage();
 
