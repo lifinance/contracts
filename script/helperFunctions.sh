@@ -2124,9 +2124,6 @@ function echoDebug() {
     printf "$BLUE[debug] %s$NC\n" "$MESSAGE"
   fi
 }
-function success() {
-  printf '\033[32m%s\033[0m\n' "$1"
-}
 function error() {
   printf '\033[31m[error] %s\033[0m\n' "$1"
 }
