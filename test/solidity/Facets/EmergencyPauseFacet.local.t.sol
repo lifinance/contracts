@@ -2,9 +2,10 @@
 pragma solidity 0.8.17;
 
 import { LibAllowList, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
-import { OnlyContractOwner, InvalidConfig, NotInitialized, InformationMismatch, AlreadyInitialized, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist } from "src/Errors/GenericErrors.sol";
+import { OnlyContractOwner, InvalidConfig, InvalidCallData, NotInitialized, InformationMismatch, AlreadyInitialized, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist } from "src/Errors/GenericErrors.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
+import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { IStargate, ITokenMessaging } from "lifi/Interfaces/IStargate.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
@@ -290,6 +291,42 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
                     .selector
             ) == address(0)
         );
+
+        vm.stopPrank();
+    }
+
+    function test_WillRevertWhenTryingToRemoveDiamondCutFacet() public {
+        vm.startPrank(USER_PAUSER);
+
+        // get address of diamondCutFacet
+        address diamondCutAddress = DiamondLoupeFacet(address(diamond))
+            .facetAddress(
+                DiamondCutFacet(address(diamond)).diamondCut.selector
+            );
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        // remove facet
+        emergencyPauseFacet.removeFacet(diamondCutAddress);
+
+        vm.stopPrank();
+    }
+
+    function test_WillRevertWhenTryingToRemoveEmergencyPauseFacet() public {
+        vm.startPrank(USER_PAUSER);
+
+        // get address of EmergencyPauseFacet
+        address emergencyPauseAddress = DiamondLoupeFacet(address(diamond))
+            .facetAddress(
+                EmergencyPauseFacet(payable(address(diamond)))
+                    .pauseDiamond
+                    .selector
+            );
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        // remove facet
+        emergencyPauseFacet.removeFacet(emergencyPauseAddress);
 
         vm.stopPrank();
     }
