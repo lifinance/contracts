@@ -11,4 +11,4 @@ The EmergencyPauseFacet is an admin-only facet. Its purpose is to provide a fast
 - `function pauseDiamond()`
   - Pauses the diamond by redirecting all function selectors to EmergencyPauseFacet
 - `function unpauseDiamond(address[] calldata _blacklist)`
-  - Unpauses the diamond by reactivating all formerly registered facets except for the facets in '\_blacklist'
+  - Unpauses the diamond by reactivating all formerly registered facets, except for the facets in '\_blacklist'

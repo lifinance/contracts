@@ -124,7 +124,7 @@ function main {
   done <"./networks"
   # NETWORKS=("bsc" "polygon")
 
-  echo "networks found: $NETWORKS"
+  echo "networks found: ${NETWORKS[@]}"
 
   PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
   echo "Address PauserWallet: $PRIV_KEY_ADDRESS"
