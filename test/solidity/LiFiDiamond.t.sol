@@ -93,7 +93,7 @@ contract LiFiDiamondTest is DSTest {
 
         vm.expectRevert(FunctionDoesNotExist.selector);
         (bool success, ) = address(diamond).call(callData);
-        if (success) revert("ShouldNotReachThisCode");
+        if (!success) revert("ShouldNotReachThisCode"); // was only added to silence a compiler warning
     }
 
     function test_CanReceiveETH() public {
