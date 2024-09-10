@@ -120,7 +120,8 @@ contract LiFiDiamondImmutableTest is DSTest {
         bytes memory callData = hex"a516f0f3"; // getPeripheryContract(string)
 
         vm.expectRevert(FunctionDoesNotExist.selector);
-        address(diamond).call(callData);
+        (bool success, ) = address(diamond).call(callData);
+        if (success) revert("ShouldNotReachThisCode");
     }
 
     function test_CanReceiveETH() public {
