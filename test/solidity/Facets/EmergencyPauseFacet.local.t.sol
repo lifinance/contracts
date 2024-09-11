@@ -23,6 +23,7 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
     );
     event EmergencyPaused(address indexed msgSender);
     event EmergencyUnpaused(address indexed msgSender);
+    uint256 internal counter;
 
     // STORAGE
     EmergencyPauseFacet internal emergencyPauseFacet;
@@ -362,4 +363,74 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         // ensure that number of facets remains unchanged
         assertTrue(initialFacets.length == finalFacets.length);
     }
+
+    function test_HowManyFacetsCanWePauseMax() public {
+        uint256 contractsCount = 500;
+        // deploy dummy contracts and store their addresses
+        address[] memory contractAddresses = new address[](contractsCount);
+
+        for (uint i; i < contractsCount; i++) {
+            contractAddresses[i] = address(new DummyContract());
+        }
+
+        // build diamondCut data
+        // Add the diamondCut external function from the diamondCutFacet
+        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](
+            contractsCount
+        );
+        for (uint i; i < contractsCount; i++) {
+            cut[i] = IDiamondCut.FacetCut({
+                facetAddress: contractAddresses[i],
+                action: IDiamondCut.FacetCutAction.Add,
+                functionSelectors: generateRandomBytes4Array()
+            });
+        }
+        DiamondCutFacet(address(diamond)).diamondCut(cut, address(0), "");
+
+        //
+        IDiamondLoupe.Facet[] memory facets = DiamondLoupeFacet(
+            address(diamond)
+        ).facets();
+
+        assert(facets.length >= contractsCount);
+
+        // try to pause
+
+        vm.startPrank(USER_PAUSER);
+
+        vm.expectEmit(true, true, true, true, address(emergencyPauseFacet));
+        emit EmergencyPaused(USER_PAUSER);
+
+        // pause the contract
+        emergencyPauseFacet.pauseDiamond();
+
+        // try to get a list of all registered facets via DiamondLoupe
+        vm.expectRevert(DiamondIsPaused.selector);
+        DiamondLoupeFacet(address(diamond)).facets();
+    }
+
+    function generateRandomBytes4Array()
+        public
+        returns (bytes4[] memory randomValues)
+    {
+        randomValues = new bytes4[](3);
+
+        for (uint i = 0; i < 3; i++) {
+            counter++; // Increment the counter for additional randomness
+            randomValues[i] = bytes4(
+                keccak256(
+                    abi.encodePacked(
+                        block.timestamp,
+                        block.difficulty,
+                        counter
+                    )
+                )
+            );
+        }
+        return randomValues;
+    }
+}
+
+contract DummyContract {
+    string internal bla = "I am a dummy contract";
 }
