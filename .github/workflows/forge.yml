@@ -1,12 +1,21 @@
-name: Forge
-on:
-  push:
+# - Run (Foundry) Unit Test Suite
+# - will make sure that all tests pass
 
-  # Allows you to run this workflow manually from the Actions tab
+name: Run Unit Tests
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main # makes sure that it runs on main branch after a PR has been merged
+
+  # Allows to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 jobs:
-  test:
+  run-unit-tests:
+    # will only run once the PR is in "Ready for Review" state
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     env:
       ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
@@ -15,29 +24,30 @@ jobs:
       ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
-      FORK_NUMBER: ${{ secrets.FORK_NUMBER }}
-      POLYGON_FORK_NUMBER: ${{ secrets.POLYGON_FORK_NUMBER }}
-      FORK_NUMBER_POLYGON: 36004499
+
     steps:
-      - uses: actions/checkout@v4.1.1
+      - uses: actions/checkout@v4.1.7
         with:
           submodules: recursive
+
       - uses: actions/setup-node@v4.0.0
         with:
           node-version: 20
+
       - name: Install dev dependencies
         run: yarn install
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1.0.10
+        uses: foundry-rs/foundry-toolchain@v1.2.0
         with:
           version: nightly
 
-      - name: Install Deps
+      - name: Install Dependencies
         run: forge install
-      - name: Run forge tests
-        uses: Wandalen/wretry.action@v1.3.0
+
+      - name: Run forge tests (with auto-repeat in case of error)
+        uses: Wandalen/wretry.action@v3.5.0
         with:
           command: forge test --evm-version 'shanghai'
           attempt_limit: 10
-          attempt_delay: 5000
+          attempt_delay: 15000
