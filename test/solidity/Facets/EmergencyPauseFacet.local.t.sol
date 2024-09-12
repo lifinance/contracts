@@ -23,6 +23,9 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
     );
     event EmergencyPaused(address indexed msgSender);
     event EmergencyUnpaused(address indexed msgSender);
+
+    error NoFacetToPause();
+
     uint256 internal counter;
 
     // STORAGE
@@ -57,6 +60,21 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
         // try to get a list of all registered facets via DiamondLoupe
         vm.expectRevert(DiamondIsPaused.selector);
         DiamondLoupeFacet(address(diamond)).facets();
+    }
+
+    function test_WillRevertWhenTryingToPauseTwice() public {
+        vm.startPrank(USER_PAUSER);
+
+        vm.expectEmit(true, true, true, true, address(emergencyPauseFacet));
+        emit EmergencyPaused(USER_PAUSER);
+
+        // pause the contract
+        emergencyPauseFacet.pauseDiamond();
+
+        // try to get a list of all registered facets via DiamondLoupe
+        vm.expectRevert(NoFacetToPause.selector);
+        // pause the contract
+        emergencyPauseFacet.pauseDiamond();
     }
 
     function test_DiamondOwnerCanPauseDiamond() public {

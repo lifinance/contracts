@@ -23,6 +23,7 @@ contract EmergencyPauseFacet {
 
     /// Errors ///
     error FacetIsNotRegistered();
+    error NoFacetToPause();
 
     /// Storage ///
     address public immutable pauserWallet;
@@ -93,6 +94,9 @@ contract EmergencyPauseFacet {
         // get a list of all facets that need to be removed (=all facets except EmergencyPauseFacet)
         IDiamondLoupe.Facet[]
             memory facets = _getAllFacetFunctionSelectorsToBeRemoved();
+
+        // prevent invalid contract state
+        if (facets.length == 0) revert NoFacetToPause();
 
         // go through all facets
         for (uint256 i; i < facets.length; ) {
