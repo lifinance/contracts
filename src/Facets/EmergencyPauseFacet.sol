@@ -85,8 +85,9 @@ contract EmergencyPauseFacet {
     ///         and redirecting all function selectors to the EmergencyPauseFacet (this will remain as the only registered facet) so that
     ///         a meaningful error message will be returned when third parties try to call the diamond
     /// @dev can only be executed by pauserWallet (non-multisig for fast response time) or by the diamond owner
+    /// @dev This function could potentially run out of gas if too many facets/function selectors are involved. We mitigate this issue by having a test on
+    /// @dev forked mainnet (which has most facets) that checks if the diamond can be paused
     function pauseDiamond() external OnlyPauserWalletOrOwner {
-        //TODO: add handling for cases where there are too many facets and tx will run out of gas (>> pagination) ??
         Storage storage s = getStorage();
 
         // get a list of all facets that need to be removed (=all facets except EmergencyPauseFacet)
