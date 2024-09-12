@@ -27,6 +27,11 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
     error NoFacetToPause();
 
     uint256 internal counter;
+    event DiamondCut(
+        IDiamondCut.FacetCut[] _diamondCut,
+        address _init,
+        bytes _calldata
+    );
 
     // STORAGE
     EmergencyPauseFacet internal emergencyPauseFacet;
@@ -143,17 +148,36 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
     }
 
     function test_CanUnpauseDiamondWithSingleBlacklist() public {
+        address ownershipFacetAddress = 0xB021CCbe1bd1EF2af8221A79E89dD3145947A082;
+
+        // get function selectors of OwnershipFacet
+        bytes4[] memory ownershipFunctionSelectors = IDiamondLoupe(
+            address(diamond)
+        ).facetFunctionSelectors(ownershipFacetAddress);
+
         // pause diamond first
         test_PauserWalletCanPauseDiamond();
 
         // unpause diamond as owner
         vm.startPrank(USER_DIAMOND_OWNER);
 
+        // build diamondCut
+        IDiamondCut.FacetCut[] memory facetCut = new IDiamondCut.FacetCut[](1);
+        facetCut[0] = IDiamondCut.FacetCut({
+            facetAddress: address(0),
+            // facetAddress: ownershipFacetAddress,
+            action: IDiamondCut.FacetCutAction.Remove,
+            functionSelectors: ownershipFunctionSelectors
+        });
+
+        vm.expectEmit(true, true, true, true, address(emergencyPauseFacet));
+        emit DiamondCut(facetCut, address(0), "");
+
         vm.expectEmit(true, true, true, true, address(emergencyPauseFacet));
         emit EmergencyUnpaused(USER_DIAMOND_OWNER);
 
         blacklist = new address[](1);
-        blacklist[0] = 0xB021CCbe1bd1EF2af8221A79E89dD3145947A082; // OwnershipFacet
+        blacklist[0] = ownershipFacetAddress; // OwnershipFacet
 
         emergencyPauseFacet.unpauseDiamond(blacklist);
 

@@ -5,6 +5,7 @@ import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibDiamondLoupe } from "../Libraries/LibDiamondLoupe.sol";
 import { UnAuthorized, InvalidCallData, DiamondIsPaused } from "../Errors/GenericErrors.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
+import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 
 /// @title EmergencyPauseFacet (Admin only)
@@ -155,8 +156,17 @@ contract EmergencyPauseFacet {
             if (currentSelectors[0] == DiamondCutFacet.diamondCut.selector)
                 continue;
 
+            // build FacetCut parameter
+            IDiamondCut.FacetCut[]
+                memory facetCut = new IDiamondCut.FacetCut[](1);
+            facetCut[0] = IDiamondCut.FacetCut({
+                facetAddress: address(0), // needs to be address(0) for removals
+                action: IDiamondCut.FacetCutAction.Remove,
+                functionSelectors: currentSelectors
+            });
+
             // remove facet and its selectors from diamond
-            LibDiamond.removeFunctions(address(0), currentSelectors);
+            LibDiamond.diamondCut(facetCut, address(0), "");
 
             // gas-efficient way to increase loop counter
             unchecked {
