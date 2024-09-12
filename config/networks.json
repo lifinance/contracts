@@ -134,6 +134,15 @@
     "status": "inactive",
     "type": "mainnet"
   },
+  "kaia": {
+    "name": "Kaia",
+    "chainId": 8217,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "KLAYTN",
+    "wrappedNativeAddress": "0x19aac5f612f524b754ca7e7c41cbfa2e981a4432",
+    "status": "inactive",
+    "type": "mainnet"
+  },
   "linea": {
     "name": "Linea",
     "chainId": 59144,
