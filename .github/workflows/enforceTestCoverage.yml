@@ -50,7 +50,7 @@ jobs:
 
           echo "Filtering coverage report to only contain coverage info for 'src/'' folder now"
 
-          npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+          npx ts-node script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
 
           echo "Coverage report successfully filtered"
 

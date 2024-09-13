@@ -1,7 +1,7 @@
 import { ethers, network } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/types'
-import { IDiamondLoupe } from '../typechain'
-import { addFacets, addOrReplaceFacets } from '../utils/diamond'
+import { IDiamondLoupe } from '../../../typechain'
+import { addFacets, addOrReplaceFacets } from '../../utils/diamond'
 import { diamondContractName } from './9999_utils'
 
 const func: DeployFunction = async function () {
