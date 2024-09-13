@@ -479,7 +479,7 @@
     },
     "contractAddresses": {
       "Executor": {
-        "allowToDeployWithZeroAddress": "true"
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   },
