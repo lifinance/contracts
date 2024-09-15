@@ -1,15 +1,15 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
-import { addOrReplaceFacets } from '../utils/diamond'
-import { DexManagerFacet } from '../typechain'
+import { addOrReplaceFacets } from '../../utils/diamond'
+import { DexManagerFacet } from '../../../typechain'
 import {
   diamondContractName,
   updateDeploymentLogs,
   verifyContract,
 } from './9999_utils'
-import dexsConfig from '../config/dexs.json'
-import sigsConfig from '../config/sigs.json'
+import dexsConfig from '../../../config/dexs.json'
+import sigsConfig from '../../../config/sigs.json'
 
 interface DexsConfig {
   [network: string]: string[]
