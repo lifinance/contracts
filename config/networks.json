@@ -260,6 +260,15 @@
     "status": "active",
     "type": "mainnet"
   },
+  "beratest": {
+    "name": "Berachain Testnet",
+    "chainId": 8084,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "BERA",
+    "wrappedNativeAddress": "0x7507c1dc16935B82698e4C63f2746A2fCf994dF8",
+    "status": "inactive",
+    "type": "testnet"
+  },
   "bsc-testnet": {
     "name": "Binance Smart Chain Testnet",
     "chainId": 97,

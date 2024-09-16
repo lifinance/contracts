@@ -2952,6 +2952,10 @@ function getChainId() {
     echo "167000"
     return 0
     ;;
+  "beratest")
+    echo "80084"
+    return 0
+    ;;
   *)
     return 1
     ;;

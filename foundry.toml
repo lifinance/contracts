@@ -61,6 +61,7 @@ lineatest = "${ETH_NODE_URI_LINEATEST}"
 localanvil = "${ETH_NODE_URI_LOCALANVIL}"
 mumbai = "${ETH_NODE_URI_MUMBAI}"
 base = "${ETH_NODE_URI_BASE}"
+beratest = "${ETH_NODE_URI_BERATEST}"
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", chain = "1" }
@@ -97,3 +98,4 @@ taiko = { key = "${TAIKO_ETHERSCAN_API_KEY}", url = "https://api.taikoscan.io/ap
 goerli = { key = "${MAINNET_ETHERSCAN_API_KEY}" }
 bsc-testnet = { key = "${BSC_ETHERSCAN_API_KEY}", url = "https://api-testnet.bscscan.com/" }
 mumbai = { key = "${MUMBAI_ETHERSCAN_API_KEY}", url = "https://api-testnet.polygonscan.com/api" }
+beratest = { key = "${BERATEST_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/testnet/evm/80084/etherscan/api", chain = "80084" }

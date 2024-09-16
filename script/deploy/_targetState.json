@@ -40,6 +40,7 @@
         "HopFacetOptimized": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MayanFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "OmniBridgeFacet": "1.0.0",
         "OptimismBridgeFacet": "1.0.0",
         "PolygonBridgeFacet": "1.0.0",
@@ -48,7 +49,10 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
-        "ThorSwapFacet": "1.2.0"
+        "ThorSwapFacet": "1.2.0",
+        "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -89,6 +93,7 @@
         "HopFacetOptimized": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MayanFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "OmniBridgeFacet": "1.0.0",
         "OptimismBridgeFacet": "1.0.0",
         "PolygonBridgeFacet": "1.0.0",
@@ -97,7 +102,10 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
-        "ThorSwapFacet": "1.2.0"
+        "ThorSwapFacet": "1.2.0",
+        "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       }
     }
   },
@@ -139,11 +147,15 @@
         "HopFacetOptimized": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MayanFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -181,11 +193,15 @@
         "HopFacetOptimized": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MayanFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       }
     }
   },
@@ -221,6 +237,8 @@
         "CelerIMFacetMutable": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MayanFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
+        "OpBNBBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OpBNBBridgeFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
@@ -258,6 +276,8 @@
         "CelerIMFacetImmutable": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MayanFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
+        "OpBNBBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OpBNBBridgeFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
@@ -358,6 +378,7 @@
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetMutable": "2.0.0",
         "HyphenFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0"
       },
@@ -386,6 +407,7 @@
         "RelayerCelerIM": "2.0.0",
         "CelerIMFacetImmutable": "2.0.0",
         "HyphenFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0"
       }
@@ -424,12 +446,14 @@
         "CircleBridgeFacet": "1.0.0",
         "HyphenFacet": "1.0.0",
         "MayanFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
-        "ThorSwapFacet": "1.2.0"
+        "ThorSwapFacet": "1.2.0",
+        "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -461,12 +485,14 @@
         "CircleBridgeFacet": "1.0.0",
         "HyphenFacet": "1.0.0",
         "MayanFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
         "SymbiosisFacet": "1.0.0",
-        "ThorSwapFacet": "1.2.0"
+        "ThorSwapFacet": "1.2.0",
+        "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m"
       }
     }
   },
@@ -509,11 +535,15 @@
         "HopFacetOptimized": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MayanFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -552,11 +582,15 @@
         "HopFacetOptimized": "2.0.0",
         "HyphenFacet": "1.0.0",
         "MayanFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SquidFacet": "1.0.0",
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       }
     }
   },
@@ -598,10 +632,14 @@
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
         "HyphenFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -639,10 +677,14 @@
         "HopFacetPacked": "1.0.6",
         "HopFacetOptimized": "2.0.0",
         "HyphenFacet": "1.0.0",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       }
     }
   },
@@ -995,7 +1037,10 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerIMFacetMutable": "2.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
+        "SymbiosisFacet": "1.0.0",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1023,7 +1068,10 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerIMFacetImmutable": "2.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
+        "SymbiosisFacet": "1.0.0",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       }
     }
   },
@@ -1055,6 +1103,7 @@
         "CelerIMFacetMutable": "2.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SymbiosisFacet": "1.0.0"
       },
       "LiFiDiamondImmutable": {
@@ -1083,6 +1132,7 @@
         "CelerIMFacetImmutable": "2.0.0",
         "HopFacet": "2.0.0",
         "HopFacetPacked": "1.0.6",
+        "OFTWrapperFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract OFTWrapperFacet\u001b[0m\u001b[0m",
         "SymbiosisFacet": "1.0.0"
       }
     }
@@ -1192,7 +1242,10 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1229,7 +1282,10 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AllbridgeCircleBridgeFacet": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AllbridgeCircleBridgeFacet\u001b[0m\u001b[0m",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       }
     }
   },
@@ -1369,7 +1425,9 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1399,7 +1457,9 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       }
     }
   },
@@ -1429,7 +1489,9 @@
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AmarokFacet": "3.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1455,7 +1517,9 @@
         "AcrossFacet": "2.0.0",
         "AcrossFacetPacked": "1.0.0",
         "AmarokFacet": "3.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       }
     }
   },
@@ -1597,7 +1661,9 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "SquidFacet": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -1625,7 +1691,9 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "SquidFacet": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "AcrossFacetV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetV3\u001b[0m\u001b[0m",
+        "AcrossFacetPackedV3": "\u001b[31m[error] the following filepath is invalid: \u001b[31m[error] could not find src FILE path for contract AcrossFacetPackedV3\u001b[0m\u001b[0m"
       }
     }
   },
@@ -2252,6 +2320,54 @@
         "CelerIMFacetImmutable": "2.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0"
+      }
+    }
+  },
+  "beratest": {
+    "production": {
+      "LiFiDiamond": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.1",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.1",
+        "LIFuelFacet": "1.0.1",
+        "CalldataVerificationFacet": "1.1.1",
+        "StandardizedCallFacet": "1.1.0",
+        "LiFiDiamond": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.2",
+        "LiFuelFeeCollector": "1.0.1",
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
+      },
+      "LiFiDiamondImmutable": {
+        "DiamondCutFacet": "1.0.0",
+        "DiamondLoupeFacet": "1.0.0",
+        "OwnershipFacet": "1.0.0",
+        "DexManagerFacet": "1.0.1",
+        "AccessManagerFacet": "1.0.0",
+        "WithdrawFacet": "1.0.0",
+        "PeripheryRegistryFacet": "1.0.0",
+        "GenericSwapFacet": "1.0.0",
+        "GenericSwapFacetV3": "1.0.1",
+        "LIFuelFacet": "1.0.1",
+        "CalldataVerificationFacet": "1.1.1",
+        "StandardizedCallFacet": "1.1.0",
+        "LiFiDiamondImmutable": "1.0.0",
+        "ERC20Proxy": "1.0.0",
+        "Executor": "2.0.0",
+        "FeeCollector": "1.0.0",
+        "Receiver": "2.0.2",
+        "LiFuelFeeCollector": "1.0.1",
+        "TokenWrapper": "1.0.0",
+        "LiFiDEXAggregator": "1.0.0"
       }
     }
   }
