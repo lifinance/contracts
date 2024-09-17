@@ -25,6 +25,8 @@ contract DeployScript is UpdateScriptBase {
         excludes[4] = acrossV3.pendingOwner.selector;
         excludes[5] = acrossV3.setApprovalForBridge.selector;
         excludes[6] = acrossV3.executeCallAndWithdraw.selector;
+        excludes[7] = acrossV3.spokePool.selector;
+        excludes[8] = acrossV3.wrappedNative.selector;
 
         return excludes;
     }
