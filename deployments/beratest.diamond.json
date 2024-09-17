@@ -1,0 +1,62 @@
+{
+    "LiFiDiamond": {
+        "Facets": {
+            "0x7c76E992B0E65e4AFa657f61bf9fF4b9aeBf3F65": {
+                "Name": "DiamondCutFacet",
+                "Version": "1.0.0"
+            },
+            "0x62E3c4539eBe661643319f46181Ed6C7d11AaF95": {
+                "Name": "DiamondLoupeFacet",
+                "Version": "1.0.0"
+            },
+            "0x6e9A2579c67686C6Bb069b663B5d2fFF12dfB582": {
+                "Name": "OwnershipFacet",
+                "Version": "1.0.0"
+            },
+            "0x5486c27f34C0132Ccc77d4ACb8635C2e12b70e97": {
+                "Name": "WithdrawFacet",
+                "Version": "1.0.0"
+            },
+            "0x082Bc525FdFa4739c5042060e8f72291CEfe6422": {
+                "Name": "DexManagerFacet",
+                "Version": "1.0.0"
+            },
+            "0xfC25728DBD6C4FE500d586CeA632a9c2CAa4adF3": {
+                "Name": "AccessManagerFacet",
+                "Version": "1.0.0"
+            },
+            "0x864D5B4DA52E8E8851479C964c250147f9FfFba0": {
+                "Name": "PeripheryRegistryFacet",
+                "Version": "1.0.0"
+            },
+            "0xfB595B4DeDA77fFce1B1AB7D6797121fbD10dDDa": {
+                "Name": "LIFuelFacet",
+                "Version": "1.0.0"
+            },
+            "0x3E085Dd54bdD7DEd0FcDCfb4a24CEb0e0635bDE2": {
+                "Name": "GenericSwapFacet",
+                "Version": "1.0.0"
+            },
+            "0x4E1D2308e11C06c93700FfFdD5b658D2d35a1e15": {
+                "Name": "GenericSwapFacetV3",
+                "Version": "1.0.0"
+            },
+            "0x8Fb506A8040243c1Bc9AC779cF311839176692c3": {
+                "Name": "StandardizedCallFacet",
+                "Version": "1.0.0"
+            },
+            "0x9E4f2474Cbbe682c1d050D48A12486100eDA2EE3": {
+                "Name": "CalldataVerificationFacet",
+                "Version": "1.0.0"
+            }
+        },
+        "Periphery": {
+            "ERC20Proxy": "0x9cb7bE51524DA96806EC38a9A7dDC58608650243",
+            "Executor": "0xDaF30Ca8fbB0f6cE6FF21fe33932eE786CC77646",
+            "FeeCollector": "0x6A2420650139854F17964b8C3Bb60248470aB57E",
+            "Receiver": "0x423d018777dE97059129E046BBc1026548553A20",
+            "LiFuelFeeCollector": "0xEc41F702d36b43a1E1d017Cb4da92F431dFA7a0E",
+            "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc"
+        }
+    }
+}

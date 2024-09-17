@@ -5,6 +5,7 @@ const chainNameMappings: Record<string, string> = {
   zksync: 'zkSync',
   polygonzkevm: 'polygonZkEvm',
   immutablezkevm: 'immutableZkEvm',
+  beratest: 'berachainTestnetbArtio',
 }
 
 const chainMap: Record<string, Chain> = {}

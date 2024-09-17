@@ -41,5 +41,6 @@
   "rootstock": "0x542fda317318ebf1d3deaf76e0b632741a7e677d",
   "sei": "0xE30feDd158A2e3b13e9badaeABaFc5516e95e8C7",
   "taiko": "0xA51894664A773981C6C112C43ce576f315d5b1B6",
-  "immutablezkevm": "0x3a0c2ba54d6cbd3121f01b96dfd20e99d1696c9d"
+  "immutablezkevm": "0x3a0c2ba54d6cbd3121f01b96dfd20e99d1696c9d",
+  "beratest": "0x7507c1dc16935B82698e4C63f2746A2fCf994dF8"
 }

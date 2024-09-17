@@ -300,5 +300,11 @@
     "connextHandler": "0x0000000000000000000000000000000000000000",
     "domain": "",
     "tokensToApprove": []
+  },
+  "beratest": {
+    "chainId": 80084,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
   }
 }
