@@ -1,7 +1,7 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
-import { addOrReplaceFacets } from '../utils/diamond'
+import { addOrReplaceFacets } from '../../utils/diamond'
 import {
   diamondContractName,
   updateDeploymentLogs,

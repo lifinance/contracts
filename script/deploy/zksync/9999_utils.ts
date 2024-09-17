@@ -2,7 +2,7 @@ import fs from 'fs'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployResult } from 'hardhat-deploy/types'
 import { artifacts, ethers, network } from 'hardhat'
-import { addOrReplaceFacets } from '../utils/diamond'
+import { addOrReplaceFacets } from '../../utils/diamond'
 
 export interface AddressesFile {
   [contract: string]: string
