@@ -9,6 +9,7 @@ import * as chains from 'viem/chains'
 import { getSafeUtilityContracts, safeAddresses, safeApiUrls } from './config'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 import * as dotenv from 'dotenv'
+import { SafeMultisigTransactionResponse } from '@safe-global/safe-core-sdk-types'
 dotenv.config()
 
 const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
@@ -31,6 +32,7 @@ const skipNetworks: string[] = [
   // 'gnosis',
   // 'gravity',
   // 'immutablezkevm',
+  // 'kaia',
   // 'linea',
   // 'mantle',
   // 'metis',
@@ -43,6 +45,7 @@ const skipNetworks: string[] = [
   // 'rootstock',
   // 'scroll',
   // 'sei',
+  // 'taiko',
   // 'zksync',
 ]
 const defaultNetworks = allNetworks.filter(
@@ -113,6 +116,32 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     safeService.getPendingTransactions(safeAddress)
   )
 
+  // Function to sign a transaction
+  const signTransaction = async (
+    txToConfirm: SafeMultisigTransactionResponse
+  ) => {
+    consola.info('Signing transaction', txToConfirm.safeTxHash)
+    const signedTx = await protocolKit.signTransaction(txToConfirm)
+    await retry(() =>
+      safeService.confirmTransaction(
+        txToConfirm.safeTxHash,
+        // @ts-ignore
+        signedTx.getSignature(signerAddress).data
+      )
+    )
+    consola.success('Transaction signed', txToConfirm.safeTxHash)
+  }
+
+  // Function to execute a transaction
+  async function executeTransaction(
+    txToConfirm: SafeMultisigTransactionResponse
+  ) {
+    consola.info('Executing transaction', txToConfirm.safeTxHash)
+    const exec = await protocolKit.executeTransaction(txToConfirm)
+    await exec.transactionResponse?.wait()
+    consola.success('Transaction executed', txToConfirm.safeTxHash)
+  }
+
   // only show transaction Signer has not confirmed yet
   const txs = allTx.results.filter(
     (tx) =>
@@ -180,7 +209,7 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
       storedResponse ??
       (await consola.prompt('Action', {
         type: 'select',
-        options: ['Sign & Execute Later', 'Execute Now', 'Sign & Execute Now'],
+        options: ['Sign & Execute Now', 'Sign', 'Execute Now'],
       }))
     storedResponses[tx.data!] = action
 
@@ -201,28 +230,17 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
       consola.success('Transaction signed', tx.safeTxHash)
     }
 
+    if (action === 'Sign') {
+      await signTransaction(txToConfirm)
+    }
+
     if (action === 'Sign & Execute Now') {
-      consola.info('Signing transaction', tx.safeTxHash)
-      const signedTx = await protocolKit.signTransaction(txToConfirm)
-      await retry(() =>
-        safeService.confirmTransaction(
-          tx.safeTxHash,
-          // @ts-ignore
-          signedTx.getSignature(signerAddress).data
-        )
-      )
-      consola.success('Transaction signed', tx.safeTxHash)
-      consola.info('Executing transaction', tx.safeTxHash)
-      const exec = await protocolKit.executeTransaction(txToConfirm)
-      await exec.transactionResponse?.wait()
-      consola.success('Transaction executed', tx.safeTxHash)
+      await signTransaction(txToConfirm)
+      await executeTransaction(txToConfirm)
     }
 
     if (action === 'Execute Now') {
-      consola.info('Executing transaction', tx.safeTxHash)
-      const exec = await protocolKit.executeTransaction(txToConfirm)
-      await exec.transactionResponse?.wait()
-      consola.success('Transaction executed', tx.safeTxHash)
+      await executeTransaction(txToConfirm)
     }
   }
 }
