@@ -462,5 +462,14 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "GasZip": {
+    "configData": {
+      "_gasZipRouter": {
+        "configFileName": "gaszip.json",
+        "keyInConfigFile": ".gasZipRouters.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
   }
 }

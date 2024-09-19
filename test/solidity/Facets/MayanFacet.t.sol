@@ -291,7 +291,6 @@ contract MayanFacetTest is TestBaseFacet {
         validMayanData = invalidMayanDataEVM2Solana;
         vm.startPrank(USER_SENDER);
 
-        console.log(USER_RECEIVER);
         usdc.approve(_facetTestContractAddress, type(uint256).max);
 
         vm.expectRevert(
