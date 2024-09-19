@@ -78,6 +78,7 @@ jobs:
         with:
           script: |
             const { execSync } = require('child_process');
+
             // ANSI escape codes for colors (used for colored output in Git action console)
             const colors = {
               reset: "\033[0m",
@@ -147,6 +148,13 @@ jobs:
             } else {
               console.log(`${colors.green}Verified that exactly one label is assigned. Check passed :)${colors.reset}`);
             }
+
+            if(assignedLabels.includes(label => 'AuditCompleted')) {
+              console.log(`Label 'AuditCompleted' is currently assigned`);
+              core.exportVariable('AUDIT_COMPLETED_ASSIGNED', true);
+            }
+            else
+              console.log(`Label 'AuditCompleted' is currently not assigned`);
 
       - name: Check Audit Log
         continue-on-error: true
@@ -384,7 +392,7 @@ jobs:
       - name: Remove label "AuditCompleted" in case check was not successful but label was assigned in earlier checks
         continue-on-error: true # This ensures the step will execute even if the job has a failed status.
         uses: actions-ecosystem/action-remove-labels@v1
-        if: ${{ env.CONTINUE == 'false' || (env.CONTINUE == 'true' && env.AUDIT_REQUIRED == 'false')}}
+        if: ${{ env.AUDIT_COMPLETED_ASSIGNED && (env.CONTINUE == 'false' || (env.CONTINUE == 'true' && env.AUDIT_REQUIRED == 'false'))}}
         with:
           github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the lifi-action-bot so the label protection check will pass
           labels: 'AuditCompleted'
