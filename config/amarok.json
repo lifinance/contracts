@@ -59,6 +59,12 @@
     "domain": "",
     "tokensToApprove": []
   },
+  "kaia": {
+    "chainId": 8217,
+    "connextHandler": "0x0000000000000000000000000000000000000000",
+    "domain": "",
+    "tokensToApprove": []
+  },
   "polygon": {
     "chainId": 137,
     "connextHandler": "0x11984dc4465481512eb5b777E44061C158CF2259",

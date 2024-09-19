@@ -28,6 +28,7 @@ contract LiFiDiamondTest is DSTest {
     );
 
     error FunctionDoesNotExist();
+    error ShouldNotReachThisCode();
 
     function setUp() public {
         diamondOwner = address(123456);
@@ -91,7 +92,8 @@ contract LiFiDiamondTest is DSTest {
         bytes memory callData = hex"a516f0f3"; // getPeripheryContract(string)
 
         vm.expectRevert(FunctionDoesNotExist.selector);
-        address(diamond).call(callData);
+        (bool success, ) = address(diamond).call(callData);
+        if (!success) revert("ShouldNotReachThisCode"); // was only added to silence a compiler warning
     }
 
     function test_CanReceiveETH() public {
