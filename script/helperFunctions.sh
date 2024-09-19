@@ -2948,6 +2948,10 @@ function getChainId() {
     echo "13371"
     return 0
     ;;
+  "xlayer")
+    echo "196"
+    return 0
+    ;;
   "taiko")
     echo "167000"
     return 0
