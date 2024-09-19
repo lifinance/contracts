@@ -78,7 +78,6 @@ jobs:
         with:
           script: |
             const { execSync } = require('child_process');
-            const { core } = require('@actions/core');
 
             // ANSI escape codes for colors (used for colored output in Git action console)
             const colors = {
