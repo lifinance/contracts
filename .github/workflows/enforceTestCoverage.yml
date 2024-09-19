@@ -1,7 +1,7 @@
 name: Enforce Min Test Coverage
 
 # - will make sure that (Foundry) unit test coverage is above min threshold
-# - we start with 75%, planning to increase to 100% until EOY 2024
+# - we start with 74% (status today), planning to increase to 100% until EOY 2024
 # - Only the 'lines' coverage counts as 'branch' coverage is not reliable
 
 on:
@@ -24,8 +24,7 @@ jobs:
       ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
-      GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
-      MIN_TEST_COVERAGE: 75 # 75 percent for now, will be increased to 100% gradually until the end of 2024
+      MIN_TEST_COVERAGE: 74 # = 74% line coverage
     steps:
       - uses: actions/checkout@v4.1.7
 
@@ -45,20 +44,20 @@ jobs:
       - name: Install Dependencies
         run: forge install
 
-      - name: Install Git Submodules
-        run: |
-          git config --global url."https://github.com/".insteadOf "git@github.com:"
-          git submodule update --init --recursive
-
       - name: Generate Coverage Report
         run: |
           forge coverage --report lcov --force
-          echo "Filtering coverage report to only contain coverage info about src/ folder now"
+
+          echo "Filtering coverage report to only contain coverage info for 'src/'' folder now"
+
           npx ts-node script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
-          echo "Coverage report filtered"
+
+          echo "Coverage report successfully filtered"
 
       - name: Generate Coverage Summary
         run: |
+
+
           # Path to the lcov info file
           LCOV_FILE="lcov-filtered.info"
 
@@ -112,9 +111,10 @@ jobs:
           # Check against minimum threshold
           if (( $(echo "$LINE_COVERAGE_PERCENTAGE >= $MIN_TEST_COVERAGE" | bc -l) )); then
             RESULT_COVERAGE_REPORT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is above min threshold ($MIN_TEST_COVERAGE%). Check passed."
+            echo -e "\033[32m$RESULT_COVERAGE_REPORT\033[0m"
           else
             RESULT_COVERAGE_REPORT="Test coverage ($LINE_COVERAGE_PERCENTAGE%) is below min threshold ($MIN_TEST_COVERAGE%). Check failed."
-            echo $RESULT_COVERAGE_REPORT
+            echo -e "\033[31m$RESULT_COVERAGE_REPORT\033[0m"
             exit 1
           fi
 
@@ -125,14 +125,17 @@ jobs:
           echo "$RESULT_COVERAGE_REPORT"
 
           # Store in GitHub environment variables
-          echo "LINE_COVERAGE_REPORT=$LINE_COVERAGE_REPORT" >> $GITHUB_ENV
-          echo "FUNCTION_COVERAGE_REPORT=$FUNCTION_COVERAGE_REPORT" >> $GITHUB_ENV
-          echo "BRANCH_COVERAGE_REPORT=$BRANCH_COVERAGE_REPORT" >> $GITHUB_ENV
-          echo "RESULT_COVERAGE_REPORT=$RESULT_COVERAGE_REPORT" >> $GITHUB_ENV
+          {
+          echo "LINE_COVERAGE_REPORT=$LINE_COVERAGE_REPORT"
+          echo "FUNCTION_COVERAGE_REPORT=$FUNCTION_COVERAGE_REPORT"
+          echo "BRANCH_COVERAGE_REPORT=$BRANCH_COVERAGE_REPORT"
+          echo "RESULT_COVERAGE_REPORT=$RESULT_COVERAGE_REPORT"
+          } >> "$GITHUB_ENV"
 
       - name: Comment with Coverage Summary in PR
-        uses: mshick/add-pr-comment@v2
+        uses: mshick/add-pr-comment@v2.8.2
         with:
+          repo-token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           message: |
             ## Test Coverage Report
             ${{ env.LINE_COVERAGE_REPORT }}

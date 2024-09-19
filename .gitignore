@@ -39,5 +39,6 @@ test/logs
 
 .invalid-dexs
 
-# script config
+# Bash Script Stuff
 script/config.sh
+script/playground.sh

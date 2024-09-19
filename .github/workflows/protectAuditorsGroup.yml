@@ -1,25 +1,26 @@
+# Protect Auditors Group
+# - makes sure that members of the auditor group cannot be members of a any smart-contract group
+# - this ensures that no member can have multiple roles and use this to bypass audit requirements
+
 name: Protect Auditors Group
 
 on:
   push:
 
 jobs:
-  check_membership:
+  protect-auditors-group:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Compare Group Members
         env:
-          GH_PAT: ${{ secrets.GIT_TOKEN }}
+          GH_PAT: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
 
           ##### unset the default git token (does not have sufficient rights to get team members)
           unset GITHUB_TOKEN
           ##### use the Personal Access Token to log into git CLI
-          echo $GH_PAT | gh auth login --with-token
+          echo $GH_PAT | gh auth login --with-token || { echo "GitHub authentication failed"; exit 1; }
 
           # Function to get team members
           getTeamMembers() {
@@ -38,30 +39,44 @@ jobs:
 
           ##### Get members of each group
           echo "Fetching members of $SC_ADMINS..."
-          groupAMembers=$(getTeamMembers $ORG_NAME $SC_ADMINS)
+          SC_ADMINS_MEMBERS=$(getTeamMembers "$ORG_NAME" "$SC_ADMINS") || { echo "Failed to fetch members of $SC_ADMINS"; exit 1; }
 
           echo "Fetching members of $SC_CORE..."
-          groupBMembers=$(getTeamMembers $ORG_NAME $SC_CORE)
+          SC_CORE_MEMBERS=$(getTeamMembers "$ORG_NAME" "$SC_CORE") || { echo "Failed to fetch members of $SC_CORE"; exit 1; }
 
           echo "Fetching members of $AUDITORS..."
-          groupCMembers=$(getTeamMembers $ORG_NAME $AUDITORS)
+          AUDITORS_MEMBERS=$(getTeamMembers "$ORG_NAME" "$AUDITORS") || { echo "Failed to fetch members of $AUDITORS"; exit 1; }
 
-          ##### Check overlap between smart-contract-core and auditors
-          overlap=$(echo "$groupAMembers" | grep -Fxf - <(echo "$groupCMembers"))
-          if [ -n "$overlap" ]; then
-            echo -e "\033[31mERROR: The following members are in both $SC_ADMINS and $AUDITORS: $overlap\033[0m"
-            echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
+          # Convert string to sorted lines and remove empty lines
+          echo "$SC_ADMINS_MEMBERS" | tr ' ' '\n' | sort | uniq > sc_admins_sorted.txt
+          echo "$SC_CORE_MEMBERS" | tr ' ' '\n' | sort | uniq > sc_core_sorted.txt
+          echo "$AUDITORS_MEMBERS" | tr ' ' '\n' | sort | uniq > auditors_sorted.txt
+
+          # Check if both files exist and are not empty
+          if [ ! -s sc_admins_sorted.txt ] || [ ! -s auditors_sorted.txt ]; then
+            echo -e "\033[31mERROR: One of the membership lists is empty or failed to be generated.\033[0m"
             exit 1
-            else
-            echo -e "\033[32mNo overlap found between $SC_ADMINS and $AUDITORS.\033[0m"
-            fi
+          fi
 
-            ##### Check overlap between smart-contract-admins and auditors
-            overlap2=$(echo "$groupBMembers" | grep -Fxf - <(echo "$groupCMembers"))
-            if [ -n "$overlap2" ]; then
-            echo -e "\033[31mERROR: The following members are in both $SC_CORE and $AUDITORS: $overlap2\033[0m"
+          echo "Checking for git users that are members of both $SC_ADMINS and $AUDITORS team..."
+          OVERLAP=$(comm -12 sc_admins_sorted.txt auditors_sorted.txt)
+
+          if [ -n "$OVERLAP" ]; then
+          echo -e "\033[31mERROR: The following git users are members of both $SC_ADMINS and $AUDITORS groups: $OVERLAP\033[0m"
+          echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
+          exit 1
+          else
+          echo -e "\033[32mNo overlap found between $SC_ADMINS and $AUDITORS.\033[0m"
+          fi
+
+          echo "Checking for git users that are members of both $SC_CORE and $AUDITORS team..."
+          OVERLAP=$(comm -12 sc_admins_sorted.txt auditors_sorted.txt)
+
+          if [ -n "$OVERLAP" ]; then
+            echo -e "\033[31mERROR: The following git users are members of both $SC_CORE and $AUDITORS groups: $OVERLAP\033[0m"
             echo -e "\033[31mAuditors must be external personnel and cannot be team members or admins\033[0m"
             exit 1
           else
             echo -e "\033[32mNo overlap found between $SC_CORE and $AUDITORS.\033[0m"
+            echo -e "\033[32mAll checks passed\033[0m"
           fi

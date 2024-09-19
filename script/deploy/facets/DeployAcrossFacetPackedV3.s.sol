@@ -3,21 +3,21 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { AcrossFacetPacked } from "lifi/Facets/AcrossFacetPacked.sol";
+import { AcrossFacetPackedV3 } from "lifi/Facets/AcrossFacetPackedV3.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("AcrossFacetPacked") {}
+    constructor() DeployScriptBase("AcrossFacetPackedV3") {}
 
     function run()
         public
-        returns (AcrossFacetPacked deployed, bytes memory constructorArgs)
+        returns (AcrossFacetPackedV3 deployed, bytes memory constructorArgs)
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = AcrossFacetPacked(
-            deploy(type(AcrossFacetPacked).creationCode)
+        deployed = AcrossFacetPackedV3(
+            deploy(type(AcrossFacetPackedV3).creationCode)
         );
     }
 

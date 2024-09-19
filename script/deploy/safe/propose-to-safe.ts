@@ -9,7 +9,7 @@ import {
   type SafeTransactionDataPartial,
 } from '@safe-global/safe-core-sdk-types'
 import * as chains from 'viem/chains'
-import { getViemChainForNetworkName } from '../../../utils/network'
+import { getViemChainForNetworkName } from '../../utils/network'
 import { getSafeUtilityContracts, safeAddresses, safeApiUrls } from './config'
 
 const chainMap: Record<string, Chain> = {}

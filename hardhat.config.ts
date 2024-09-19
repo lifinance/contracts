@@ -9,7 +9,7 @@ import '@nomiclabs/hardhat-etherscan'
 import '@typechain/hardhat'
 import 'hardhat-deploy'
 import 'hardhat-preprocessor'
-import { node_url, accounts } from './utils/network'
+import { node_url, accounts } from './script/utils/network'
 import { HardhatUserConfig } from 'hardhat/types'
 
 require('./tasks/generateDiamondABI.ts')
@@ -48,16 +48,8 @@ const config: HardhatUserConfig = {
     simpleERC20Beneficiary: 1,
   },
   networks: {
-    hardhat: {
-      zksync: true,
-    },
-    mainnet: {
-      url: node_url('mainnet'),
-    },
-    goerli: {
-      url: node_url('goerli'),
-    },
     zksync: {
+      deploy: ['script/deploy/zksync'],
       url: node_url('zksync'),
       accounts: PKEY ? [PKEY] : accounts(),
       chainId: 324,
@@ -65,18 +57,6 @@ const config: HardhatUserConfig = {
       ethNetwork: 'mainnet',
       verifyURL:
         'https://zksync2-mainnet-explorer.zksync.io/contract_verification',
-    },
-    zksyncGoerli: {
-      url: node_url('zksync_goerli'),
-      accounts: PKEY ? [PKEY] : accounts(),
-      chainId: 280,
-      companionNetworks: {
-        hub: 'goerli',
-      },
-      zksync: true,
-      ethNetwork: 'goerli',
-      verifyURL:
-        'https://zksync2-testnet-explorer.zksync.dev/contract_verification',
     },
   },
   preprocess: {

@@ -2,7 +2,7 @@ import fs from 'fs'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployResult } from 'hardhat-deploy/types'
 import { artifacts, ethers, network } from 'hardhat'
-import { addOrReplaceFacets } from '../utils/diamond'
+import { addOrReplaceFacets } from '../../utils/diamond'
 
 export interface AddressesFile {
   [contract: string]: string
@@ -194,7 +194,7 @@ export const deployFacet = async function (
   const facet = await ethers.getContract(name)
   const diamond = await ethers.getContract(diamondContractName)
 
-  await addOrReplaceFacets([facet], diamond.address)
+  // await addOrReplaceFacets([facet], diamond.address)
 
   const isVerified = await verifyContract(hre, name, {
     address: facet.address,
