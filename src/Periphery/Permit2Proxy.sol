@@ -2,10 +2,8 @@
 pragma solidity 0.8.17;
 
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
-import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 
