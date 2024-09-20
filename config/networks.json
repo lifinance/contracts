@@ -255,7 +255,7 @@
     "name": "X Layer",
     "chainId": 196,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "nativeCurrecy" "OKB",
+    "nativeCurrency": "OKB",
     "wrappedNativeAddress": "0xe538905cf8410324e03a5a23c1c177a474d59b2b",
     "status": "active",
     "type": "mainnet"

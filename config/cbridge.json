@@ -122,6 +122,9 @@
     "cBridge": "0xD46F8E428A06789B5884df54E029e738277388D1",
     "messageBus": "0x9Bb46D5100d2Db4608112026951c9C965b233f4D"
   },
+  "xlayer": {
+    "cBridge": "0xf5C6825015280CdfD0b56903F9F8B5A2233476F5"
+  },
   "zksync": {
     "cBridge": "0x54069e96C4247b37C2fbd9559CA99f08CD1CD66c",
     "messageBus": "0x9a98a376D30f2c9A0A7332715c15D940dE3da0e2",
@@ -139,9 +142,7 @@
   },
   "scroll": {
     "cBridge": "0x9B36f165baB9ebe611d491180418d8De4b8f3a1f",
-    "tokensToApprove": [
-      "0x5300000000000000000000000000000000000004"
-    ]
+    "tokensToApprove": ["0x5300000000000000000000000000000000000004"]
   },
   "goerli": {
     "cBridge": "0x358234B325EF9eA8115291A8b81b7d33A2Fa762D",
