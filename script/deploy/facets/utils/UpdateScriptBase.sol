@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { ScriptBase, console } from "./ScriptBase.sol";
+import { ScriptBase, console2, console } from "./ScriptBase.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
@@ -60,6 +60,16 @@ contract UpdateScriptBase is ScriptBase {
         bytes memory callData = getCallData();
 
         buildDiamondCut(getSelectors(name, excludes), facet);
+
+        // for deployments to PROD (= empty fileSuffix), make sure that the contract is audited before creating the diamondCut
+        if (keccak256(abi.encode(fileSuffix)) == keccak256(abi.encode(""))) {
+            //
+            string[] memory cmd = new string[](1);
+            cmd[0] = "script/tasks/verifyProdDeployment.sh";
+            bytes memory res = vm.ffi(cmd);
+            console2.log("Response of 'verifyProdDeployment' script:");
+            console2.logBytes(res);
+        }
 
         if (noBroadcast) {
             if (cut.length > 0) {
