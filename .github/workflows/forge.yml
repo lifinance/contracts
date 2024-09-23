@@ -30,7 +30,7 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions/setup-node@v4.0.0
+      - uses: actions/setup-node@v4.0.4
         with:
           node-version: 20
 
