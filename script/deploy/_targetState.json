@@ -2279,11 +2279,7 @@
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.3",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0",
-        "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.0.0"
+        "CBridgeFacetPacked": "1.0.3"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -2307,11 +2303,7 @@
         "TokenWrapper": "1.0.0",
         "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
-        "CBridgeFacetPacked": "1.0.3",
-        "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetImmutable": "2.0.0",
-        "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.0.0"
+        "CBridgeFacetPacked": "1.0.3"
       }
     }
   },
