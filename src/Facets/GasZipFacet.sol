@@ -96,13 +96,10 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         IGasZip.GasZipData calldata _gasZipData
     ) internal {
-        // should we conduct any calldata checks here?
-        // e.g. verify the receiver address (add parameter in _gasZipData and cross-check with bytes calldata)
-
         // deposit native to Gas.zip (v1) https://dev.gas.zip/gas/code-examples/contractDeposit
         gasZipRouter.deposit{ value: _bridgeData.minAmount }(
             _gasZipData.destinationChains,
-            _gasZipData.receiver
+            _bridgeData.receiver
         );
 
         emit LiFiTransferStarted(_bridgeData);

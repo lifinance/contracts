@@ -87,8 +87,7 @@ contract GasZipFacetTest is TestBaseFacet {
         uint8[] memory chainIds = new uint8[](1);
         chainIds[0] = 17; // polygon
         gasZipData = IGasZip.GasZipData({
-            destinationChains: gasZipFacet.getDestinationChainsValue(chainIds),
-            receiver: USER_RECEIVER
+            destinationChains: gasZipFacet.getDestinationChainsValue(chainIds)
         });
 
         bridgeData.bridge = "GasZip";

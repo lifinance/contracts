@@ -17,10 +17,12 @@ One for ERC20 tokens (these will be swapped into native before depositing to Gas
 ///         Swaps are only allowed via the LiFiDEXAggregator
 /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
 /// @param _swapData The swap data that executes the swap from ERC20 to native
-/// @param _gasZipData contains information about which address should receive gas on which chains
+/// @param _gasZipData contains information about which chains gas should be sent to
+/// @param _receiver address the gas should be sent to
 function depositToGasZipERC20(
     LibSwap.SwapData calldata _swapData,
-    IGasZip.GasZipData calldata _gasZipData
+    IGasZip.GasZipData calldata _gasZipData,
+    address _receiver
 )
 ```
 
@@ -29,9 +31,11 @@ and another for native tokens (these will be directly deposited)
 ```solidity
 /// @notice Deposits native tokens to the GasZip router contract
 /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
-/// @param _gasZipData contains information about which address should receive gas on which chains
+/// @param _gasZipData contains information about which chains gas should be sent to
+/// @param _receiver address the gas should be sent to
 function depositToGasZipNative(
     IGasZip.GasZipData calldata _gasZipData
+    address _receiver
 )
 ```
 
@@ -43,9 +47,7 @@ This data is specific to Gas.Zip and is represented as the following struct type
 
 ```solidity
 /// @param destinationChains a value that represents a list of chains to which gas should be distributed (see https://dev.gas.zip/gas/code-examples/deposit for more details)
-/// @param receiver the address to receive the gas on dst chain
 struct GasZipData {
   uint256 destinationChains;
-  address receiver;
 }
 ```

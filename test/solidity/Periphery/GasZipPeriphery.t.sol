@@ -66,8 +66,7 @@ contract GasZipPeripheryTest is TestBase {
         gnosisBridgeFacet = _getGnosisBridgeFacet();
 
         defaultGasZipData = IGasZip.GasZipData({
-            destinationChains: defaultDestinationChains,
-            receiver: USER_RECEIVER
+            destinationChains: defaultDestinationChains
         });
 
         bridgeData.bridge = "gnosis";
@@ -90,7 +89,8 @@ contract GasZipPeripheryTest is TestBase {
 
         // deposit via GasZip periphery contract
         gasZipPeriphery.depositToGasZipNative{ value: defaultNativeAmount }(
-            defaultGasZipData
+            defaultGasZipData,
+            USER_RECEIVER
         );
     }
 
@@ -235,7 +235,8 @@ contract GasZipPeripheryTest is TestBase {
             nativeZipAmount,
             abi.encodeWithSelector(
                 gasZipPeriphery.depositToGasZipNative.selector,
-                defaultGasZipData
+                defaultGasZipData,
+                USER_RECEIVER
             ),
             false
         );
@@ -351,7 +352,8 @@ contract GasZipPeripheryTest is TestBase {
         // execute the call
         gasZipPeriphery.depositToGasZipERC20(
             gasZipSwapData,
-            defaultGasZipData
+            defaultGasZipData,
+            USER_RECEIVER
         );
     }
 

@@ -22,10 +22,8 @@ This data is specific to Gas.Zip and is represented as the following struct type
 
 ```solidity
 /// @param destinationChains a value that represents a list of chains to which gas should be distributed (see https://dev.gas.zip/gas/code-examples/deposit for more details)
-/// @param receiver the address to receive the gas on dst chain
 struct GasZipData {
   uint256 destinationChains;
-  address receiver;
 }
 ```
 

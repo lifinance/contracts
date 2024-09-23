@@ -10,7 +10,6 @@ interface IGasZip {
     /// @param receiver the address to receive the gas on dst chain
     struct GasZipData {
         uint256 destinationChains;
-        address receiver;
     }
 
     function deposit(
