@@ -79,9 +79,6 @@ abstract contract TestBaseFacet is TestBase {
         bridgeData.sendingAssetId = ADDRESS_USDC;
         bridgeData.minAmount = amount;
 
-        console.log("minAmount : ", bridgeData.minAmount);
-        console.log("   amount : ", amount);
-        console.log("   balance: ", usdc.balanceOf(USER_SENDER));
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);

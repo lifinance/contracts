@@ -7,7 +7,6 @@ pragma solidity 0.8.17;
 interface IGasZip {
     /// @dev GasZip-specific bridge data
     /// @param destinationChains a value that represents a list of chains to which gas should be distributed (see https://dev.gas.zip/gas/code-examples/deposit for more details)
-    /// @param receiver the address to receive the gas on dst chain
     struct GasZipData {
         uint256 destinationChains;
     }
