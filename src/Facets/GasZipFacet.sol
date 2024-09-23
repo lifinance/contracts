@@ -110,6 +110,8 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function getDestinationChainsValue(
         uint8[] memory _chainIds
     ) public pure returns (uint256 destinationChains) {
+        require(_chainIds.length <= 32, "Too many chain IDs");
+
         for (uint256 i = 0; i < _chainIds.length; i++) {
             // Shift destinationChains left by 8 bits and add the next chainID
             destinationChains =

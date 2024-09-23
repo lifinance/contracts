@@ -10,7 +10,6 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { ERC20 } from "solady/tokens/ERC20.sol";
 
 /// @title GasZipPeriphery
 /// @author LI.FI (https://li.fi)
@@ -18,8 +17,6 @@ import { ERC20 } from "solady/tokens/ERC20.sol";
 /// @custom:version 1.0.0
 contract GasZipPeriphery is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
-
-    event DepositedToGasZip(uint256 amount);
 
     /// State ///
     IGasZip public immutable gasZipRouter;
@@ -82,8 +79,6 @@ contract GasZipPeriphery is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _gasZipData.destinationChains,
             _receiver
         );
-
-        emit DepositedToGasZip(msg.value);
     }
 
     /// @dev Returns a value that signals to Gas.zip to which chains gas should be sent in equal parts
@@ -91,6 +86,8 @@ contract GasZipPeriphery is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     function getDestinationChainsValue(
         uint8[] memory _chainIds
     ) public pure returns (uint256 destinationChains) {
+        require(_chainIds.length <= 32, "Too many chain IDs");
+
         for (uint256 i = 0; i < _chainIds.length; i++) {
             // Shift destinationChains left by 8 bits and add the next chainID
             destinationChains =
