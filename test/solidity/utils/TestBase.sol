@@ -336,7 +336,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi {
     //@dev: be careful that _facetTestContractAddress is set before calling this function
     function setDefaultSwapDataSingleDAItoETH() internal virtual {
         delete swapData;
-        // Swap DAI -> USDC
+        // Swap DAI -> ETH
         address[] memory path = new address[](2);
         path[0] = ADDRESS_DAI;
         path[1] = ADDRESS_WETH;

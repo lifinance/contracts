@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 import { GasZipFacet } from "lifi/Facets/GasZipFacet.sol";
+import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
@@ -26,7 +27,7 @@ contract GasZipFacetTest is TestBaseFacet {
         0x9E22ebeC84c7e4C4bD6D4aE7FF6f4D436D6D8390;
 
     TestGasZipFacet internal gasZipFacet;
-    GasZipFacet.GasZipData internal gasZipData;
+    IGasZip.GasZipData internal gasZipData;
 
     uint256 public defaultDestinationChains = 96;
     address public defaultRecipientAddress = address(12345);
@@ -34,6 +35,9 @@ contract GasZipFacetTest is TestBaseFacet {
     // uint256 public defaultNativeAmount = 0.0006 ether;
 
     event Deposit(address from, uint256 chains, uint256 amount, address to);
+
+    error OnlySwapsFromERC20ToNativeAllowed();
+    error OnlyNativeAllowed();
 
     function setUp() public {
         // set custom block no for mainnet forking
@@ -45,14 +49,16 @@ contract GasZipFacetTest is TestBaseFacet {
         gasZipFacet = new TestGasZipFacet(GAS_ZIP_ROUTER_MAINNET);
 
         // add gasZipFacet to diamond
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = gasZipFacet.startBridgeTokensViaGasZip.selector;
         functionSelectors[1] = gasZipFacet
             .swapAndStartBridgeTokensViaGasZip
             .selector;
-        functionSelectors[2] = gasZipFacet.addDex.selector;
-        functionSelectors[3] = gasZipFacet.removeDex.selector;
-        functionSelectors[4] = gasZipFacet
+        functionSelectors[2] = gasZipFacet.getDestinationChainsValue.selector;
+
+        functionSelectors[3] = gasZipFacet.addDex.selector;
+        functionSelectors[4] = gasZipFacet.removeDex.selector;
+        functionSelectors[5] = gasZipFacet
             .setFunctionApprovalBySignature
             .selector;
         addFacet(diamond, address(gasZipFacet), functionSelectors);
@@ -69,20 +75,20 @@ contract GasZipFacetTest is TestBaseFacet {
             uniswap.swapTokensForExactETH.selector
         );
         gasZipFacet.setFunctionApprovalBySignature(
+            uniswap.swapExactTokensForETH.selector
+        );
+        gasZipFacet.setFunctionApprovalBySignature(
             uniswap.swapETHForExactTokens.selector
-        );
-        gasZipFacet.setFunctionApprovalBySignature(
-            gasZipFacet.depositToGasZipERC20.selector
-        );
-        gasZipFacet.setFunctionApprovalBySignature(
-            gasZipFacet.depositToGasZipNative.selector
         );
 
         setFacetAddressInTestBase(address(gasZipFacet), "GasZipFacet");
 
         // produce valid GasZipData
-        gasZipData = GasZipFacet.GasZipData({
-            gasZipChainId: 17 // Polygon (https://dev.gas.zip/gas/chain-support/outbound)
+        uint8[] memory chainIds = new uint8[](1);
+        chainIds[0] = 17; // polygon
+        gasZipData = IGasZip.GasZipData({
+            destinationChains: gasZipFacet.getDestinationChainsValue(chainIds),
+            receiver: USER_RECEIVER
         });
 
         bridgeData.bridge = "GasZip";
@@ -138,56 +144,71 @@ contract GasZipFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testBase_CanBridgeNativeTokens() public override {
+        // defaultNativeAmount is too high, therefore we need to override this test
+        vm.startPrank(USER_SENDER);
+        // customize bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 10000000000000000; // ~2 USD
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
     function testBase_Revert_CallerHasInsufficientFunds() public override {
         // the startBridgeTokensViaGasZip can only be used for native tokens, therefore this test case is not applicable
     }
 
-    function testBase_CanSwapAndBridgeNativeTokens() public override {
-        // the swapAndStartBridgeTokensViaGasZip can only be used for ERC20 tokens
-        // therefore this test is expected to revert with InvalidCallData()
+    function testRevert_WillFailWhenTryingToSwapERC20ToERC20() public {
+        vm.startPrank(USER_SENDER);
+
+        // prepare swapData for an ERC20 to ERC20 swap
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // set max approval
+        dai.approve(address(gasZipFacet), type(uint256).max);
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+
+        // expect that the call reverts
+        vm.expectRevert(OnlySwapsFromERC20ToNativeAllowed.selector);
+
+        // initiate transaction
+        initiateSwapAndBridgeTxWithFacet(false);
+    }
+
+    function testRevert_WillFailWhenTryingToBridgeERC20() public {
+        vm.startPrank(USER_SENDER);
+
+        // approval
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        // expect the call to revert
+        vm.expectRevert(OnlyNativeAllowed.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_SwapAndBridgeWithInvalidSwapData()
+        public
+        override
+    {
+        // since the facets accesses the swapData parameter already before trying to execute the swap, we need to override the expected error message
         vm.startPrank(USER_SENDER);
 
         // prepare bridgeData
         bridgeData.hasSourceSwaps = true;
-        bridgeData.sendingAssetId = address(0);
 
-        // prepare swap data
-        address[] memory path = new address[](2);
-        path[0] = ADDRESS_USDC;
-        path[1] = ADDRESS_WETH;
-
-        uint256 amountOut = defaultNativeAmount;
-
-        // Calculate USDC input amount
-        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
-        uint256 amountIn = amounts[0];
-
-        bridgeData.minAmount = amountOut;
-
+        // reset swap data
         delete swapData;
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(uniswap),
-                approveTo: address(uniswap),
-                sendingAssetId: ADDRESS_USDC,
-                receivingAssetId: address(0),
-                fromAmount: amountIn,
-                callData: abi.encodeWithSelector(
-                    uniswap.swapTokensForExactETH.selector,
-                    amountOut,
-                    amountIn,
-                    path,
-                    _facetTestContractAddress,
-                    block.timestamp + 20 minutes
-                ),
-                requiresDeposit: true
-            })
-        );
 
-        // approval
-        usdc.approve(_facetTestContractAddress, amountIn);
-
-        vm.expectRevert(InvalidCallData.selector);
+        vm.expectRevert();
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
@@ -198,13 +219,42 @@ contract GasZipFacetTest is TestBaseFacet {
 
         // prepare bridgeData
         bridgeData.hasSourceSwaps = true;
-        bridgeData.minAmount = defaultNativeAmount;
 
-        // reset swap data
-        setDefaultSwapDataSingleDAItoETH();
+        // reset create swapData (5 DAI to native)
+        uint256 daiAmount = 5 * 10 ** dai.decimals();
+
+        // Swap DAI -> ETH
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WETH;
+
+        // Calculate DAI amount
+        uint256[] memory amounts = uniswap.getAmountsOut(daiAmount, path);
+        uint256 amountOut = amounts[1];
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: address(0),
+                fromAmount: daiAmount,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForETH.selector,
+                    daiAmount,
+                    amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
 
         // approval
-        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+        dai.approve(_facetTestContractAddress, daiAmount);
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -213,7 +263,7 @@ contract GasZipFacetTest is TestBaseFacet {
             ADDRESS_UNISWAP,
             ADDRESS_DAI,
             address(0),
-            swapData[0].fromAmount,
+            daiAmount,
             bridgeData.minAmount,
             block.timestamp
         );
@@ -223,5 +273,30 @@ contract GasZipFacetTest is TestBaseFacet {
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
+    }
+
+    function test_getDestinationChainsValueReturnsCorrectValues() public {
+        // case 1
+        uint8[] memory chainIds = new uint8[](1);
+        chainIds[0] = 17; // Polygon
+
+        assertEq(gasZipFacet.getDestinationChainsValue(chainIds), 17);
+
+        // case 2
+        chainIds = new uint8[](2);
+        chainIds[0] = 51;
+        chainIds[1] = 52;
+
+        assertEq(gasZipFacet.getDestinationChainsValue(chainIds), 13108);
+
+        // case 3
+        chainIds = new uint8[](5);
+        chainIds[0] = 15; // Avalanche
+        chainIds[1] = 54; // Base
+        chainIds[2] = 96; // Blast
+        chainIds[3] = 14; // BSC
+        chainIds[4] = 59; // Linea
+
+        assertEq(gasZipFacet.getDestinationChainsValue(chainIds), 65336774203);
     }
 }
