@@ -6,7 +6,12 @@
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rcpUrl": "https://eth.drpc.org",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://etherscan.io",
+    "explorerApiUrl": "https://api.etherscan.io/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "arbitrum": {
     "name": "Arbitrum One",
@@ -15,7 +20,12 @@
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://arb1.arbitrum.io/rpc",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://arbiscan.io",
+    "explorerApuUrl": "https://api.arbiscan.io/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "aurora": {
     "name": "Aurora",
@@ -24,7 +34,12 @@
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0xC9BdeEd33CD01541e1eeD10f90519d2C06Fe3feB",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://mainnet.aurora.dev",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://aurorascan.dev",
+    "explorerApuUrl": "https://aurorascan.dev/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "avalanche": {
     "name": "Avalanche C-Chain",
@@ -33,7 +48,12 @@
     "nativeCurrency": "AVAX",
     "wrappedNativeAddress": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://api.avax.network/ext/bc/C/rpc",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://snowtrace.io",
+    "explorerApuUrl": "https://api.snowtrace.io",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "base": {
     "name": "Base",
@@ -42,7 +62,12 @@
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://mainnet.base.org",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://basescan.org",
+    "explorerApuUrl": "https://api.basescan.org/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "blast": {
     "name": "Blast",
@@ -51,7 +76,12 @@
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0x4300000000000000000000000000000000000004",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.blast.io",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://blastscan.io",
+    "explorerApuUrl": "https://api.blastscan.io/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "boba": {
     "name": "Boba Network",
@@ -60,7 +90,12 @@
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://mainnet.boba.network",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://bobascan.com",
+    "explorerApuUrl": "https://api.bobascan.com/api",
+    "multicallAddress": "i0xca11bde05977b3631167028862be2a173976ca11"
   },
   "bsc": {
     "name": "BNB Smart Chain",
@@ -69,7 +104,12 @@
     "nativeCurrency": "BNB",
     "wrappedNativeAddress": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.ankr.com/bsc",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://bscscan.com",
+    "explorerApuUrl": "https://api.bscscan.com/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "celo": {
     "name": "Celo",
@@ -78,7 +118,12 @@
     "nativeCurrency": "CELO",
     "wrappedNativeAddress": "0x471EcE3750Da237f93B8E339c536989b8978a438",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://forno.celo.org",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://celoscan.io",
+    "explorerApuUrl": "https://api.celoscan.io/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "fantom": {
     "name": "Fantom",
@@ -87,7 +132,12 @@
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "wrappedNativeAddress": "0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.ankr.com/fantom",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://ftmscan.com",
+    "explorerApuUrl": "https://api.ftmscan.com/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "fraxtal": {
     "name": "Fraxtal",
@@ -96,7 +146,12 @@
     "nativeCurrency": "frxETH",
     "wrappedNativeAddress": "0xfc00000000000000000000000000000000000006",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.frax.com",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://fraxscan.com",
+    "explorerApuUrl": "https://api.fraxscan.com/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "fuse": {
     "name": "Fuse",
@@ -105,7 +160,12 @@
     "nativeCurrency": "FUSE",
     "wrappedNativeAddress": "0x0BE9e53fd7EDaC9F859882AfdDa116645287C629",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.fuse.io",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://explorer.fuse.io",
+    "explorerApuUrl": "https://explorer.fuse.io/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "gnosis": {
     "name": "Gnosis Chain",
@@ -114,7 +174,12 @@
     "nativeCurrency": "XDAI",
     "wrappedNativeAddress": "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.gnosischain.com",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://gnosisscan.io",
+    "explorerApuUrl": "https://api.gnosisscan.io/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "gravity": {
     "name": "Gravity Alpha Mainnet",
@@ -123,7 +188,12 @@
     "nativeCurrency": "G",
     "wrappedNativeAddress": "0xBB859E225ac8Fb6BE1C7e38D87b767e95Fef0EbD",
     "status": "inactive",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.gravity.xyz",
+    "explorerType": "blockscout",
+    "explorerUrl": "https://explorer.gravity.xyz",
+    "explorerApuUrl": "https://explorer.gravity.xyz/api",
+    "multicallAddress": "0xf8ac4BEB2F75d2cFFb588c63251347fdD629B92c"
   },
   "immutablezkevm": {
     "name": "Immutable zkEVM",
@@ -132,7 +202,12 @@
     "nativeCurrency": "IMX",
     "wrappedNativeAddress": "0x3a0c2ba54d6cbd3121f01b96dfd20e99d1696c9d",
     "status": "inactive",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.immutable.com",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://explorer.immutable.com",
+    "explorerApuUrl": "https://explorer.immutable.com/api",
+    "multicallAddress": "0x236bdA4589e44e6850f5aC6a74BfCa398a86c6c0"
   },
   "kaia": {
     "name": "Kaia",
@@ -141,7 +216,12 @@
     "nativeCurrency": "KLAYTN",
     "wrappedNativeAddress": "0x19aac5f612f524b754ca7e7c41cbfa2e981a4432",
     "status": "inactive",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://public-en.node.kaia.io",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://kaiascope.com",
+    "explorerApuUrl": "https://api-cypress.klaytnscope.com/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "linea": {
     "name": "Linea",
@@ -150,7 +230,12 @@
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.linea.build",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://lineascan.build",
+    "explorerApuUrl": "https://api.lineascan.build/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "mantle": {
     "name": "Mantle",
@@ -159,7 +244,12 @@
     "nativeCurrency": "MNT",
     "wrappedNativeAddress": "0x78c1b0c915c4faa5fffa6cabf0219da63d7f4cb8",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://mantlescan.xyz/",
+    "explorerApuUrl": "https://api.mantlescan.xyz/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "metis": {
     "name": "Metis Andromeda Mainnet",
@@ -168,7 +258,12 @@
     "nativeCurrency": "METIS",
     "wrappedNativeAddress": "0x75cb093E4D61d2A2e65D8e0BBb01DE8d89b53481",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://andromeda.metis.io/?owner=1088",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://explorer.metis.io",
+    "explorerApuUrl": "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "mode": {
     "name": "Mode",
@@ -177,7 +272,12 @@
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://mainnet.mode.network",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://modescan.io",
+    "explorerApuUrl": "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "moonbeam": {
     "name": "Moonbeam",
@@ -186,7 +286,12 @@
     "nativeCurrency": "GLMR",
     "wrappedNativeAddress": "0xacc15dc74880c9944775448304b263d191c6077f",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://moonbeam.public.blastapi.io",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://moonscan.io",
+    "explorerApuUrl": "https://api-moonbeam.moonscan.io/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "moonriver": {
     "name": "Moonriver",
@@ -195,7 +300,12 @@
     "nativeCurrency": "MOVR",
     "wrappedNativeAddress": "0x98878b06940ae243284ca214f92bb71a2b032b8a",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://moonriver.public.blastapi.io",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://moonriver.moonscan.io",
+    "explorerApuUrl": "https://api-moonriver.moonscan.io/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "optimism": {
     "name": "Optimism",
@@ -204,7 +314,12 @@
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://mainnet.optimism.io",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://optimistic.etherscan.io",
+    "explorerApuUrl": "https://api-optimistic.etherscan.io/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "polygon": {
     "name": "Polygon",
@@ -213,7 +328,12 @@
     "nativeCurrency": "MATIC",
     "wrappedNativeAddress": "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://polygon-rpc.com",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://polygonscan.com",
+    "explorerApuUrl": "https://api.polygonscan.com/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "polygonzkevm": {
     "name": "Polygon zkEVM",
@@ -222,7 +342,12 @@
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0x4f9a0e7fd2bf6067db6994cf12e4495df938e6e9",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://zkevm-rpc.com",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://zkevm.polygonscan.com",
+    "explorerApuUrl": "https://api-zkevm.polygonscan.com/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "rootstock": {
     "name": "Rootstock",
@@ -231,7 +356,12 @@
     "nativeCurrency": "RBTC",
     "wrappedNativeAddress": "0x542FDA317318eBf1d3DeAF76E0B632741a7e677d",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://public-node.rsk.co",
+    "explorerType": "blockscout",
+    "explorerUrl": "https://rootstock.blockscout.com",
+    "explorerApuUrl": "https://rootstock.blockscout.com/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "scroll": {
     "name": "Scroll",
@@ -240,7 +370,12 @@
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0x5300000000000000000000000000000000000004",
     "status": "active",
-    "type": "mainnet"
+    "type": "mainnet",
+    "rpcUrl": "https://rpc.scroll.io",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://scrollscan.com",
+    "explorerApuUrl": "https://api.scrollscan.com/api",
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "sei": {
     "name": "Sei Network",
@@ -249,52 +384,12 @@
     "nativeCurrency": "SEI",
     "wrappedNativeAddress": "0xe30fedd158a2e3b13e9badaeabafc5516e95e8c7",
     "status": "active",
-    "type": "mainnet"
-  },
-  "zksync": {
-    "name": "zkSync Era Mainnet",
-    "chainId": 324,
-    "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "nativeCurrency": "ETH",
-    "wrappedNativeAddress": "0x5aea5775959fbc2557cc8789bc1bf90a239d9a91",
-    "status": "active",
-    "type": "mainnet"
-  },
-  "bsc-testnet": {
-    "name": "Binance Smart Chain Testnet",
-    "chainId": 97,
-    "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "nativeCurrency": "BNB",
-    "wrappedNativeAddress": "",
-    "status": "active",
-    "type": "testnet"
-  },
-  "lineatest": {
-    "name": "Linea Testnet",
-    "chainId": 59140,
-    "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "nativeCurrency": "ETH",
-    "wrappedNativeAddress": "",
-    "status": "active",
-    "type": "testnet"
-  },
-  "mumbai": {
-    "name": "Mumbai",
-    "chainId": 80001,
-    "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "nativeCurrency": "MATIC",
-    "wrappedNativeAddress": "",
-    "status": "active",
-    "type": "testnet"
-  },
-  "sepolia": {
-    "name": "Sepolia",
-    "chainId": 11155111,
-    "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "nativeCurrency": "ETH",
-    "wrappedNativeAddress": "",
-    "status": "active",
-    "type": "testnet"
+    "type": "mainnet",
+    "rpcUrl": "https://evm-rpc.sei-apis.com",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://seitrace.com",
+    "explorerApuUrl": "https://seitrace.com/pacific-1/api",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "localanvil": {
     "name": "Local Anvil (temporary Foundry test network)",
@@ -303,6 +398,11 @@
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0x0000000000000000000000000000000000000000",
     "status": "active",
-    "type": "testnet"
+    "type": "testnet",
+    "rpcUrl": "http://localhost:8545",
+    "explorerType": "etherscan",
+    "explorerUrl": "",
+    "explorerApuUrl": "",
+    "multicallAddress": ""
   }
 }
