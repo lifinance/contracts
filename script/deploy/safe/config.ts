@@ -18,7 +18,7 @@ export const safeApiUrls: Record<string, string> = {
   gravity: 'https://safe.gravity.xyz/txs/api',
   immutablezkevm: 'https://transaction.safe.immutable.com/api',
   kaia: 'https://docs-safe.kaia.io/txs-cypress/api',
-  linea: 'https://transaction.safe.linea.build/api',
+  linea: 'https://safe-transaction-linea.safe.global/api',
   mantle: 'https://transaction.multisig.mantle.xyz/api',
   metis: 'https://metissafe.tech/txs/api',
   mode: 'https://transaction-mode.safe.optimism.io/api',
