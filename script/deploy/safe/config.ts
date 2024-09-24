@@ -30,7 +30,7 @@ export const safeApiUrls: Record<string, string> = {
   rootstock: 'https://transaction.safe.rootstock.io/api',
   scroll: 'https://safe-transaction-scroll.safe.global/api',
   sei: 'https://transaction.sei-safe.protofire.io/api',
-  taiko: 'https://api.taikoscan.io/api',
+  taiko: 'https://transaction.safe.taiko.xyz/api',
   zksync: 'https://safe-transaction-zksync.safe.global/api',
 }
 
