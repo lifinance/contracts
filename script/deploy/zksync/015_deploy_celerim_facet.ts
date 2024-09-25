@@ -7,8 +7,8 @@ import {
   addressesFile,
   AddressesFile,
 } from './9999_utils'
-import config from '../config/cbridge.json'
-import global from '../config/global.json'
+import config from '../../../config/cbridge.json'
+import global from '../../../config/global.json'
 import fs from 'fs'
 
 interface CBridgeConfig {
