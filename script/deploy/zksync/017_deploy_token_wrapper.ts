@@ -1,13 +1,13 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
-import { PeripheryRegistryFacet } from '../typechain'
+import { PeripheryRegistryFacet } from '../../../typechain'
 import {
   diamondContractName,
   updateDeploymentLogs,
   verifyContract,
 } from './9999_utils'
-import globalConfig from '../config/tokenwrapper.json'
+import globalConfig from '../../../config/networks.json'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Protect against unwanted redeployments
@@ -19,7 +19,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  const WRAPPED_NATIVE_ADDRESS = globalConfig[network.name]
+  const WRAPPED_NATIVE_ADDRESS = globalConfig.zksync.wrappedNativeAddress
 
   const diamond = await ethers.getContract(diamondContractName)
 

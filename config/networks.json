@@ -24,7 +24,7 @@
     "rpcUrl": "https://arb1.arbitrum.io/rpc",
     "explorerType": "etherscan",
     "explorerUrl": "https://arbiscan.io",
-    "explorerApuUrl": "https://api.arbiscan.io/api",
+    "explorerApiUrl": "https://api.arbiscan.io/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "aurora": {
@@ -38,7 +38,7 @@
     "rpcUrl": "https://mainnet.aurora.dev",
     "explorerType": "etherscan",
     "explorerUrl": "https://aurorascan.dev",
-    "explorerApuUrl": "https://aurorascan.dev/api",
+    "explorerApiUrl": "https://aurorascan.dev/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "avalanche": {
@@ -52,7 +52,7 @@
     "rpcUrl": "https://api.avax.network/ext/bc/C/rpc",
     "explorerType": "etherscan",
     "explorerUrl": "https://snowtrace.io",
-    "explorerApuUrl": "https://api.snowtrace.io",
+    "explorerApiUrl": "https://api.snowtrace.io",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "base": {
@@ -66,7 +66,7 @@
     "rpcUrl": "https://mainnet.base.org",
     "explorerType": "etherscan",
     "explorerUrl": "https://basescan.org",
-    "explorerApuUrl": "https://api.basescan.org/api",
+    "explorerApiUrl": "https://api.basescan.org/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "blast": {
@@ -80,7 +80,7 @@
     "rpcUrl": "https://rpc.blast.io",
     "explorerType": "etherscan",
     "explorerUrl": "https://blastscan.io",
-    "explorerApuUrl": "https://api.blastscan.io/api",
+    "explorerApiUrl": "https://api.blastscan.io/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "boba": {
@@ -94,7 +94,7 @@
     "rpcUrl": "https://mainnet.boba.network",
     "explorerType": "etherscan",
     "explorerUrl": "https://bobascan.com",
-    "explorerApuUrl": "https://api.bobascan.com/api",
+    "explorerApiUrl": "https://api.bobascan.com/api",
     "multicallAddress": "i0xca11bde05977b3631167028862be2a173976ca11"
   },
   "bsc": {
@@ -108,7 +108,7 @@
     "rpcUrl": "https://rpc.ankr.com/bsc",
     "explorerType": "etherscan",
     "explorerUrl": "https://bscscan.com",
-    "explorerApuUrl": "https://api.bscscan.com/api",
+    "explorerApiUrl": "https://api.bscscan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "celo": {
@@ -122,7 +122,7 @@
     "rpcUrl": "https://forno.celo.org",
     "explorerType": "etherscan",
     "explorerUrl": "https://celoscan.io",
-    "explorerApuUrl": "https://api.celoscan.io/api",
+    "explorerApiUrl": "https://api.celoscan.io/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "fantom": {
@@ -136,7 +136,7 @@
     "rpcUrl": "https://rpc.ankr.com/fantom",
     "explorerType": "etherscan",
     "explorerUrl": "https://ftmscan.com",
-    "explorerApuUrl": "https://api.ftmscan.com/api",
+    "explorerApiUrl": "https://api.ftmscan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "fraxtal": {
@@ -150,7 +150,7 @@
     "rpcUrl": "https://rpc.frax.com",
     "explorerType": "etherscan",
     "explorerUrl": "https://fraxscan.com",
-    "explorerApuUrl": "https://api.fraxscan.com/api",
+    "explorerApiUrl": "https://api.fraxscan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "fuse": {
@@ -164,7 +164,7 @@
     "rpcUrl": "https://rpc.fuse.io",
     "explorerType": "etherscan",
     "explorerUrl": "https://explorer.fuse.io",
-    "explorerApuUrl": "https://explorer.fuse.io/api",
+    "explorerApiUrl": "https://explorer.fuse.io/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "gnosis": {
@@ -178,7 +178,7 @@
     "rpcUrl": "https://rpc.gnosischain.com",
     "explorerType": "etherscan",
     "explorerUrl": "https://gnosisscan.io",
-    "explorerApuUrl": "https://api.gnosisscan.io/api",
+    "explorerApiUrl": "https://api.gnosisscan.io/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "gravity": {
@@ -192,7 +192,7 @@
     "rpcUrl": "https://rpc.gravity.xyz",
     "explorerType": "blockscout",
     "explorerUrl": "https://explorer.gravity.xyz",
-    "explorerApuUrl": "https://explorer.gravity.xyz/api",
+    "explorerApiUrl": "https://explorer.gravity.xyz/api",
     "multicallAddress": "0xf8ac4BEB2F75d2cFFb588c63251347fdD629B92c"
   },
   "immutablezkevm": {
@@ -206,7 +206,7 @@
     "rpcUrl": "https://rpc.immutable.com",
     "explorerType": "etherscan",
     "explorerUrl": "https://explorer.immutable.com",
-    "explorerApuUrl": "https://explorer.immutable.com/api",
+    "explorerApiUrl": "https://explorer.immutable.com/api",
     "multicallAddress": "0x236bdA4589e44e6850f5aC6a74BfCa398a86c6c0"
   },
   "kaia": {
@@ -220,7 +220,7 @@
     "rpcUrl": "https://public-en.node.kaia.io",
     "explorerType": "etherscan",
     "explorerUrl": "https://kaiascope.com",
-    "explorerApuUrl": "https://api-cypress.klaytnscope.com/api",
+    "explorerApiUrl": "https://api-cypress.klaytnscope.com/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "linea": {
@@ -234,7 +234,7 @@
     "rpcUrl": "https://rpc.linea.build",
     "explorerType": "etherscan",
     "explorerUrl": "https://lineascan.build",
-    "explorerApuUrl": "https://api.lineascan.build/api",
+    "explorerApiUrl": "https://api.lineascan.build/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "mantle": {
@@ -248,7 +248,7 @@
     "rpcUrl": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "explorerType": "etherscan",
     "explorerUrl": "https://mantlescan.xyz/",
-    "explorerApuUrl": "https://api.mantlescan.xyz/api",
+    "explorerApiUrl": "https://api.mantlescan.xyz/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "metis": {
@@ -262,7 +262,7 @@
     "rpcUrl": "https://andromeda.metis.io/?owner=1088",
     "explorerType": "etherscan",
     "explorerUrl": "https://explorer.metis.io",
-    "explorerApuUrl": "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan/api",
+    "explorerApiUrl": "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "mode": {
@@ -276,7 +276,7 @@
     "rpcUrl": "https://mainnet.mode.network",
     "explorerType": "etherscan",
     "explorerUrl": "https://modescan.io",
-    "explorerApuUrl": "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan",
+    "explorerApiUrl": "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "moonbeam": {
@@ -290,7 +290,7 @@
     "rpcUrl": "https://moonbeam.public.blastapi.io",
     "explorerType": "etherscan",
     "explorerUrl": "https://moonscan.io",
-    "explorerApuUrl": "https://api-moonbeam.moonscan.io/api",
+    "explorerApiUrl": "https://api-moonbeam.moonscan.io/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "moonriver": {
@@ -304,7 +304,7 @@
     "rpcUrl": "https://moonriver.public.blastapi.io",
     "explorerType": "etherscan",
     "explorerUrl": "https://moonriver.moonscan.io",
-    "explorerApuUrl": "https://api-moonriver.moonscan.io/api",
+    "explorerApiUrl": "https://api-moonriver.moonscan.io/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "optimism": {
@@ -318,7 +318,7 @@
     "rpcUrl": "https://mainnet.optimism.io",
     "explorerType": "etherscan",
     "explorerUrl": "https://optimistic.etherscan.io",
-    "explorerApuUrl": "https://api-optimistic.etherscan.io/api",
+    "explorerApiUrl": "https://api-optimistic.etherscan.io/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "polygon": {
@@ -332,7 +332,7 @@
     "rpcUrl": "https://polygon-rpc.com",
     "explorerType": "etherscan",
     "explorerUrl": "https://polygonscan.com",
-    "explorerApuUrl": "https://api.polygonscan.com/api",
+    "explorerApiUrl": "https://api.polygonscan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "polygonzkevm": {
@@ -346,7 +346,7 @@
     "rpcUrl": "https://zkevm-rpc.com",
     "explorerType": "etherscan",
     "explorerUrl": "https://zkevm.polygonscan.com",
-    "explorerApuUrl": "https://api-zkevm.polygonscan.com/api",
+    "explorerApiUrl": "https://api-zkevm.polygonscan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "rootstock": {
@@ -360,7 +360,7 @@
     "rpcUrl": "https://public-node.rsk.co",
     "explorerType": "blockscout",
     "explorerUrl": "https://rootstock.blockscout.com",
-    "explorerApuUrl": "https://rootstock.blockscout.com/api",
+    "explorerApiUrl": "https://rootstock.blockscout.com/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
   "scroll": {
@@ -374,7 +374,7 @@
     "rpcUrl": "https://rpc.scroll.io",
     "explorerType": "etherscan",
     "explorerUrl": "https://scrollscan.com",
-    "explorerApuUrl": "https://api.scrollscan.com/api",
+    "explorerApiUrl": "https://api.scrollscan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
   },
   "sei": {
@@ -388,8 +388,22 @@
     "rpcUrl": "https://evm-rpc.sei-apis.com",
     "explorerType": "etherscan",
     "explorerUrl": "https://seitrace.com",
-    "explorerApuUrl": "https://seitrace.com/pacific-1/api",
+    "explorerApiUrl": "https://seitrace.com/pacific-1/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
+  },
+  "zksync": {
+    "name": "zkSync Era Mainnet",
+    "chainId": 324,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x5aea5775959fbc2557cc8789bc1bf90a239d9a91",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://mainnet.era.zksync.io",
+    "explorerType": "etherscan",
+    "explorerUrl": "https://era.zksync.network",
+    "explorerApiUrl": "https://api-era.zksync.network/api",
+    "multicallAddress": "0xF9cda624FBC7e059355ce98a31693d299FACd963"
   },
   "localanvil": {
     "name": "Local Anvil (temporary Foundry test network)",
@@ -402,7 +416,7 @@
     "rpcUrl": "http://localhost:8545",
     "explorerType": "etherscan",
     "explorerUrl": "",
-    "explorerApuUrl": "",
+    "explorerApiUrl": "",
     "multicallAddress": ""
   }
 }
