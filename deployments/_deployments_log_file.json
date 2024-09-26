@@ -477,45 +477,6 @@
             "TIMESTAMP": "2023-07-13 10:38:57",
             "CONSTRUCTOR_ARGS": "0x",
             "VERIFIED": "true"
-          },
-          {
-            "ADDRESS": "0xDC954dab5dBD1Ac8d0D6e2DC600632dc84B1a840",
-            "OPTIMIZER_RUNS": "10000",
-            "TIMESTAMP": "2023-07-13 10:38:57",
-            "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "false"
-          },
-          {
-            "ADDRESS": "0xDC954dab5dBD1Ac8d0D6e2DC600632dc84B1a840",
-            "OPTIMIZER_RUNS": "10000",
-            "TIMESTAMP": "2023-07-13 10:38:57",
-            "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "true"
-          },
-          {
-            "ADDRESS": "0xDC954dab5dBD1Ac8d0D6e2DC600632dc84B1a840",
-            "OPTIMIZER_RUNS": "10000",
-            "TIMESTAMP": "2023-07-13 10:38:57",
-            "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "true"
-          },
-          {
-            "ADDRESS": "0xDC954dab5dBD1Ac8d0D6e2DC600632dc84B1a840",
-            "OPTIMIZER_RUNS": "10000",
-            "TIMESTAMP": "2023-07-13 10:38:57",
-            "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "true"
-          }
-        ]
-      },
-      "staging": {
-        "1.0.0": [
-          {
-            "ADDRESS": "0xDC954dab5dBD1Ac8d0D6e2DC600632dc84B1a840",
-            "OPTIMIZER_RUNS": "10000",
-            "TIMESTAMP": "2023-07-13 10:38:57",
-            "CONSTRUCTOR_ARGS": "0x",
-            "VERIFIED": "true"
           }
         ]
       }
@@ -23292,6 +23253,20 @@
         "1.0.0": [
           {
             "ADDRESS": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-09-25 15:55:36",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000100000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "zksync": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x1F683faf1E2a770aa75f7B2e92117A5c11183E9C",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2024-09-25 15:55:36",
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000100000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7",
