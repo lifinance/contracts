@@ -82,7 +82,8 @@
     "propose-safe-tx": "ts-node ./script/deploy/safe/propose-to-safe.ts",
     "confirm-safe-tx": "ts-node ./script/deploy/safe/confirm-safe-tx.ts",
     "add-safe-owners": "ts-node ./script/deploy/safe/add-owners-to-safe.ts",
-    "flatten": "forge flatten --output"
+    "flatten": "forge flatten --output",
+    "deploy-to-zksync": "hardhat deploy --network zksync --tags"
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
