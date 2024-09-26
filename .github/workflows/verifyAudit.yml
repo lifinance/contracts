@@ -151,7 +151,7 @@ jobs:
 
             if(assignedLabels.includes('AuditCompleted') {
               console.log(`Label 'AuditCompleted' is currently assigned`);
-              core.exportVariable('AUDIT_COMPLETED_ASSIGNED', true);
+              core.exportVariable('AUDIT_COMPLETED_ASSIGNED', 'true');
             }
             else
               console.log(`Label 'AuditCompleted' is currently not assigned`);
