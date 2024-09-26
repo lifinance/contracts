@@ -103,6 +103,7 @@
     "hardhat-ethers": "^1.0.1",
     "light-spinner": "^1.0.4",
     "merkletreejs": "^0.3.11",
+    "node-gyp": "^10.2.0",
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
     "tsx": "^4.7.2",

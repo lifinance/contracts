@@ -41,7 +41,7 @@ contract GasZipFacetTest is TestBaseFacet {
 
     function setUp() public {
         // set custom block no for mainnet forking
-        customBlockNumberForForking = 17484106;
+        customBlockNumberForForking = 20832175;
 
         initTestBase();
 
@@ -160,25 +160,6 @@ contract GasZipFacetTest is TestBaseFacet {
 
     function testBase_Revert_CallerHasInsufficientFunds() public override {
         // the startBridgeTokensViaGasZip can only be used for native tokens, therefore this test case is not applicable
-    }
-
-    function testRevert_WillFailWhenTryingToSwapERC20ToERC20() public {
-        vm.startPrank(USER_SENDER);
-
-        // prepare swapData for an ERC20 to ERC20 swap
-        setDefaultSwapDataSingleDAItoUSDC();
-
-        // set max approval
-        dai.approve(address(gasZipFacet), type(uint256).max);
-
-        // prepare bridgeData
-        bridgeData.hasSourceSwaps = true;
-
-        // expect that the call reverts
-        vm.expectRevert(OnlySwapsFromERC20ToNativeAllowed.selector);
-
-        // initiate transaction
-        initiateSwapAndBridgeTxWithFacet(false);
     }
 
     function testRevert_WillFailWhenTryingToBridgeERC20() public {

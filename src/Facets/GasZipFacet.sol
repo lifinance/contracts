@@ -53,7 +53,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData, _gasZipData);
     }
 
-    /// @notice Performs a swap from ERC20 to native before depositing to the gas.zip protocol
+    /// @notice Performs one or multiple actions (e.g. fee collection, swapping) that must end with the native token before depositing to the gas.zip protocol
     /// @param _bridgeData The core information needed for depositing
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _gasZipData GasZip-specific bridge data
@@ -70,14 +70,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
-        // this function / path shall only be used for ERC20 assets
-        if (
-            !LibAsset.isNativeAsset(
-                _swapData[_swapData.length - 1].receivingAssetId
-            )
-        ) revert OnlySwapsFromERC20ToNativeAllowed();
-
-        // deposit and swap ERC20 tokens to n ative
+        // deposit and swap ERC20 tokens to native
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
