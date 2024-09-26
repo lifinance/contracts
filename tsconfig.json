@@ -8,12 +8,8 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "dist",
     "resolveJsonModule": true,
-    "lib": [
-      "es2020"
-    ],
-    "types": [
-      "node"
-    ]
+    "lib": ["es2020", "DOM"],
+    "types": ["node"]
   },
   "include": [
     "hardhat.config.ts",
