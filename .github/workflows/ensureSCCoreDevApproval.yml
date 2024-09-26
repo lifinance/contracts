@@ -5,8 +5,6 @@
 name: SC Core Dev Approval Check
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
   pull_request_review:
     types: [submitted]
 
