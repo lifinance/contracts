@@ -128,7 +128,10 @@
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
       "ServiceFeeCollector": "",
-      "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
+      "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70",
+      "Forwarder": "0x38B3d7DD288452e672d644799c213C0c0173d1E2",
+      "LiFiDEXAggregator": "",
+      "Patcher": "0xf99e04FCc059c90F83fc6fFdDFbC60acAb691ED8"
     }
   }
 }

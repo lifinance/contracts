@@ -136,6 +136,15 @@ contract DexManagerFacet {
         return LibAllowList.selectorIsAllowed(_signature);
     }
 
+    /// @notice Returns whether a contract is approved
+    /// @param _contract the contract to query
+    /// @return approved Approved or not
+    function isContractApproved(
+        address _contract
+    ) public view returns (bool approved) {
+        return LibAllowList.contractIsAllowed(_contract);
+    }
+
     /// @notice Returns a list of all approved DEX addresses.
     /// @return addresses List of approved DEX addresses
     function approvedDexs()
