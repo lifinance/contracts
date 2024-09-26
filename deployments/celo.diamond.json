@@ -72,7 +72,7 @@
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0xf3552b98BB4234B47674700A99a0308D74B40F51",
       "TokenWrapper": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD",
-      "LiFiDEXAggregator": "",
+      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "ReceiverStargateV2": ""
     }
   }

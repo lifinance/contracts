@@ -23,36 +23,38 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const diamond = await ethers.getContract(diamondContractName)
 
-  const registryFacet = <PeripheryRegistryFacet>(
-    await ethers.getContractAt('PeripheryRegistryFacet', diamond.address)
-  )
+  const constructorArgs = [ethers.constants.AddressZero, [PAUSER_WALLET]]
 
   const deployedLiFiDEXAggregator = await deploy('LiFiDEXAggregator', {
     from: deployer,
-    args: [ethers.constants.AddressZero, [PAUSER_WALLET]],
+    args: constructorArgs,
     log: true,
     skipIfAlreadyDeployed: true,
   })
 
   const liFiDEXAggregator = await ethers.getContract('LiFiDEXAggregator')
-  const liFiDEXAggregatorAddr = await registryFacet.getPeripheryContract(
-    'LiFiDEXAggregator'
-  )
+  // SINCE WE ARE CURRENTLY USING A SAFE, THIS CODE WILL NOT WORK - KEEPING IT FOR POTENTIAL FUTURE CHANGES
+  // const registryFacet = <PeripheryRegistryFacet>(
+  //   await ethers.getContractAt('PeripheryRegistryFacet', diamond.address)
+  // )
+  // const liFiDEXAggregatorAddr = await registryFacet.getPeripheryContract(
+  //   'LiFiDEXAggregator'
+  // )
 
-  if (liFiDEXAggregatorAddr !== liFiDEXAggregator.address) {
-    console.log(
-      `Updating periphery registry on diamond ${diamondContractName}...`
-    )
-    await registryFacet.registerPeripheryContract(
-      'LiFiDEXAggregator',
-      liFiDEXAggregator.address
-    )
-    console.log('Done!')
-  }
+  // if (liFiDEXAggregatorAddr !== liFiDEXAggregator.address) {
+  //   console.log(
+  //     `Updating periphery registry on diamond ${diamondContractName}...`
+  //   )
+  //   await registryFacet.registerPeripheryContract(
+  //     'LiFiDEXAggregator',
+  //     liFiDEXAggregator.address
+  //   )
+  //   console.log('Done!')
+  // }
 
   const isVerified = await verifyContract(hre, 'LiFiDEXAggregator', {
     address: liFiDEXAggregator.address,
-    args: [PAUSER_WALLET],
+    args: constructorArgs,
   })
 
   await updateDeploymentLogs(

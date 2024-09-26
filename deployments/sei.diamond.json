@@ -63,7 +63,7 @@
       "Executor": "0x6d425eAb1Eb6e002Bf40c44e5d9Ff7fC6a38824a",
       "FeeCollector": "0x7956280Ec4B4d651C4083Ca737a1fa808b5319D8",
       "GasRebateDistributor": "",
-      "LiFiDEXAggregator": "",
+      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "LiFuelFeeCollector": "0x9870F0C91D722B3393383722968269496d919bD8",
       "Receiver": "0xf22c55c50fF14d9AB1fa4D9DCA832085D143E854",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
