@@ -4,7 +4,7 @@
 name: Run Unit Tests
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches:
       - main # makes sure that it runs on main branch after a PR has been merged
