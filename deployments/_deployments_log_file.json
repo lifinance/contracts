@@ -22802,6 +22802,32 @@
             "SALT": "",
             "VERIFIED": "true"
           }
+        ],
+        "2.0.0": [
+          {
+            "ADDRESS": "0xbE176F5a3f0A1A751acE340Bd585E37109Ea6986",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-09-26 19:38:44",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000085e5fb57844be79b42997c898d177a39f328ccf0",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
+  },
+  "GasZipPeriphery": {
+    "bsc": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x238dAC126ef963b8817385cB8a6264c321bA61a4",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-09-26 19:41:37",
+            "CONSTRUCTOR_ARGS": "0x00000000000000000000000085e5fb57844be79b42997c898d177a39f328ccf0000000000000000000000000d6f02718b9df9fad2665c7304bc5b26d5bbd8642",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
         ]
       }
     }

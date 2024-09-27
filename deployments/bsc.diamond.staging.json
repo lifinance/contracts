@@ -1,6 +1,10 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0xf03AFcA857918BE01EBD6C6800Fc2974b8a9eBA2": {
+        "Name": "",
+        "Version": ""
+      },
       "0xE871874D8AC30E8aCD0eC67529b4a5dDD73Bf0d6": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
@@ -77,23 +81,24 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0xA269cb81E6bBB86683558e449cb1bAFFdb155Bfc": {
+      "0xbE176F5a3f0A1A751acE340Bd585E37109Ea6986": {
         "Name": "GasZipFacet",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "",
-      "Executor": "",
-      "FeeCollector": "",
+      "ERC20Proxy": "0xf90a432dD1D0541470BC9C440d9dEc3659755238",
+      "Executor": "0x4f3B1b1075cC19daA15b7cc681b28e2fB82145eD",
+      "FeeCollector": "0x7f98D45c7902f079fDb65811B633522e2d227BB6",
       "GasRebateDistributor": "",
-      "LiFuelFeeCollector": "",
-      "Receiver": "",
+      "GasZipPeriphery": "",
+      "LiFiDEXAggregator": "",
+      "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
+      "Receiver": "0x76EE0F8fb09047284B6ea89881595Fc6F5B09E12",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "",
-      "ServiceFeeCollector": "",
-      "TokenWrapper": "",
-      "LiFiDEXAggregator": ""
+      "ServiceFeeCollector": "0xdF4257A2f61E5D432Dedbc9c65917C268323421d",
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
 }
