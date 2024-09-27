@@ -67,7 +67,9 @@
       "Receiver": "0xf22c55c50fF14d9AB1fa4D9DCA832085D143E854",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0x45d69A8a07F79DE2364F0B80F78af86e99015162",
-      "TokenWrapper": "0xC82fd49be3F3D851b9E10589C50784cEAC7114a5"
+      "TokenWrapper": "0xC82fd49be3F3D851b9E10589C50784cEAC7114a5",
+      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+      "ReceiverStargateV2": ""
     }
   }
 }
