@@ -35,6 +35,7 @@ jobs:
           else
             echo -e "\033[32mAction was triggered by a non-label event, thus skipping checks (not required).\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
+          fi
 
       - name: Check for authorized actor
         if: env.CONTINUE == 'true'
