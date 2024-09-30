@@ -23097,5 +23097,47 @@
         ]
       }
     }
+  },
+  "Forwarder": {
+    "arbitrum": {
+      "staging": {
+        "2.0.2": [
+          {
+            "ADDRESS": "0x38B3d7DD288452e672d644799c213C0c0173d1E2",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-09-26 13:29:44",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d3b2b0ac0afdd0d166a495f5e9fca4ecc715a782",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
+  },
+  "Patcher": {
+    "arbitrum": {
+      "staging": {
+        "2.0.2": [
+          {
+            "ADDRESS": "0x25e14B593d8255A055c63A7139178Ebf832c0Dd5",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-09-30 16:36:11",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d3b2b0ac0afdd0d166a495f5e9fca4ecc715a782",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ],
+        "1.0.0": [
+          {
+            "ADDRESS": "0xbdA7356Ea97F3FA48497d2D2Aec3246Ac348D9Af",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-09-30 16:47:15",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d3b2b0ac0afdd0d166a495f5e9fca4ecc715a782",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    }
   }
 }
