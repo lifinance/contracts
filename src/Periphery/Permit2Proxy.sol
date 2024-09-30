@@ -4,15 +4,15 @@ pragma solidity 0.8.17;
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { LibAsset, IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
 
 /// @title Permit2Proxy
 /// @author LI.FI (https://li.fi)
 /// @notice Proxy contract allowing gasless calls via Permit2 as well as making
 ///         token approvals via ERC20 Permit (EIP-2612) to our diamond contract
 /// @custom:version 1.0.0
-contract Permit2Proxy {
+contract Permit2Proxy is WithdrawablePeriphery {
     /// Storage ///
 
     address public immutable LIFI_DIAMOND;
@@ -41,7 +41,11 @@ contract Permit2Proxy {
 
     /// Constructor ///
 
-    constructor(address _lifiDiamond, ISignatureTransfer _permit2) {
+    constructor(
+        address _lifiDiamond,
+        ISignatureTransfer _permit2,
+        address _owner
+    ) WithdrawablePeriphery(_owner) {
         LIFI_DIAMOND = _lifiDiamond;
         PERMIT2 = _permit2;
 
@@ -354,4 +358,7 @@ contract Permit2Proxy {
         // The first 8 bits of the word are the position inside the word
         nonce |= pos;
     }
+
+    // required to be able to receive native token refunds from the diamond
+    receive() external payable {}
 }

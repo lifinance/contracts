@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import { Test, TestBase, DSTest, ILiFi, console, ERC20 } from "../utils/TestBase.sol";
+import { TestBase, ILiFi, console, ERC20 } from "../utils/TestBase.sol";
 import { Permit2Proxy } from "lifi/Periphery/Permit2Proxy.sol";
 import { ISignatureTransfer } from "permit2/interfaces/ISignatureTransfer.sol";
 import { PermitHash } from "permit2/libraries/PermitHash.sol";
@@ -52,7 +52,11 @@ contract Permit2ProxyTest is TestBase {
         initTestBase();
 
         uniPermit2 = ISignatureTransfer(PERMIT2_ADDRESS);
-        permit2Proxy = new Permit2Proxy(DIAMOND_ADDRESS, uniPermit2);
+        permit2Proxy = new Permit2Proxy(
+            DIAMOND_ADDRESS,
+            uniPermit2,
+            USER_DIAMOND_OWNER
+        );
         PERMIT_WITH_WITNESS_TYPEHASH = keccak256(
             abi.encodePacked(
                 PermitHash._PERMIT_TRANSFER_FROM_WITNESS_TYPEHASH_STUB,
