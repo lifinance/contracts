@@ -2,13 +2,17 @@
 # - Makes sure that the following labels can only be assigned by a GitHub Action: "AuditCompleted", "AuditRequired", and "AuditNotRequired"
 # - Will undo any unauthorized change of these labels
 # - Will fail if it runs into an error, otherwise pass
+# - Will skip checks if the PR was just approved or set from draft to "ready for review" state
+
 
 name: Protect Audit Labels
 
 on:
   pull_request:
-    types: [labeled, unlabeled]
+    types: [labeled, unlabeled, synchronize, review_requested, ready_for_review]
 
+  pull_request_review:
+      types: [submitted]
 jobs:
   protect_audit_labels:
     runs-on: ubuntu-latest
@@ -17,9 +21,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check for authorized actor
+      - name: Check if event requires audit label protection
+        id: check_event
         run: |
+          # Define the events that we care about (labeled/unlabeled)
+          EVENT_TYPES=("labeled" "unlabeled")
+          EVENT_ACTION="${{ github.event.action }}"
 
+          # Check if the action is one of the events we care about
+          if [[ " ${EVENT_TYPES[*]} " =~ " $EVENT_ACTION " ]]; then
+            echo "Human-triggered label event detected, proceeding with checks."
+            echo "CONTINUE=true" >> $GITHUB_ENV
+          else
+            echo -e "\033[32mAction was triggered by a non-label event, thus skipping checks (not required).\033[0m"
+            echo "CONTINUE=false" >> $GITHUB_ENV
+          fi
+
+      - name: Check for authorized actor
+        if: env.CONTINUE == 'true'
+        run: |
 
           ##### Only allow the specific bot to manipulate audit labels
           if [[ "${{ github.actor }}" == "lifi-action-bot" ]]; then
@@ -35,7 +55,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
         run: |
-
 
           ##### Define the labels to protect
           PROTECTED_LABELS=("AuditCompleted" "AuditRequired" "AuditNotRequired")
@@ -74,4 +93,3 @@ jobs:
             echo -e "\033[32mUnauthorized label modification was successfully prevented and undone.\033[0m"
           else
             echo -e "\033[32mNo protected labels were modified.\033[0m"
-          fi
