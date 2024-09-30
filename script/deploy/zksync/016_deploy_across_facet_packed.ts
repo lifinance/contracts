@@ -2,7 +2,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { network } from 'hardhat'
 import { diamondContractName, deployFacet } from './9999_utils'
-import config from '../config/across.json'
+import config from '../../../config/across.json'
 
 interface AcrossConfig {
   [network: string]: {
