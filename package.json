@@ -70,7 +70,7 @@
     "format": "prettier --check \"**/*.{ts,js,sol}\"",
     "format:fix": "prettier --write \"**/*.{ts,js,sol}\"",
     "compile": "make build",
-    "test": "make test",
+    "test": "forge test --evm-version 'shanghai'",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
     "gas": "make snapshot",
     "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov && ts-node script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",

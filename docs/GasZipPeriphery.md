@@ -17,12 +17,10 @@ One for ERC20 tokens (these will be swapped into native before depositing to Gas
 ///         Swaps are only allowed via the LiFiDEXAggregator
 /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
 /// @param _swapData The swap data that executes the swap from ERC20 to native
-/// @param _gasZipData contains information about which chains gas should be sent to
-/// @param _receiver address the gas should be sent to
+/// @param _gasZipData contains information which chains and address gas should be sent to
 function depositToGasZipERC20(
     LibSwap.SwapData calldata _swapData,
     IGasZip.GasZipData calldata _gasZipData,
-    address _receiver
 )
 ```
 
@@ -31,11 +29,9 @@ and another for native tokens (these will be directly deposited)
 ```solidity
 /// @notice Deposits native tokens to the GasZip router contract
 /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
-/// @param _gasZipData contains information about which chains gas should be sent to
-/// @param _receiver address the gas should be sent to
+/// @param _gasZipData contains information which chains and address gas should be sent to
 function depositToGasZipNative(
     IGasZip.GasZipData calldata _gasZipData
-    address _receiver
 )
 ```
 
@@ -46,8 +42,14 @@ Some of the methods listed above take a variable labeled `_gasZipData`.
 This data is specific to Gas.Zip and is represented as the following struct type:
 
 ```solidity
+/// @dev GasZip-specific bridge data
 /// @param destinationChains a value that represents a list of chains to which gas should be distributed (see https://dev.gas.zip/gas/code-examples/deposit for more details)
+/// @param receiver the address on destination chain(s) where gas should be sent to
 struct GasZipData {
   uint256 destinationChains;
+  // EVM addresses need to be padded with trailing 0s, e.g.:
+  // 0x391E7C679D29BD940D63BE94AD22A25D25B5A604000000000000000000000000 (correct)
+  // 0x000000000000000000000000391E7C679D29BD940D63BE94AD22A25D25B5A604 (incorrect)
+  bytes32 receiver;
 }
 ```
