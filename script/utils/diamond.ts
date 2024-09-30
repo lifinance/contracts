@@ -1,7 +1,7 @@
 import { constants, Contract } from 'ethers'
 import { Fragment, FunctionFragment } from 'ethers/lib/utils'
 import { ethers } from 'hardhat'
-import { IDiamondCut, IDiamondLoupe } from '../typechain'
+import { IDiamondCut, IDiamondLoupe } from '../../typechain'
 
 export function getSelectors(contract: Contract): string[] {
   const selectors = contract.interface.fragments.reduce(
