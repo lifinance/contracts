@@ -149,7 +149,7 @@ jobs:
               console.log(`${colors.green}Verified that exactly one label is assigned. Check passed :)${colors.reset}`);
             }
 
-            if(assignedLabels.includes('AuditCompleted') {
+            if(assignedLabels.includes('AuditCompleted')) {
               console.log(`Label 'AuditCompleted' is currently assigned`);
               core.exportVariable('AUDIT_COMPLETED_ASSIGNED', 'true');
             }
