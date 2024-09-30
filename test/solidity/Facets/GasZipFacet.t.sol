@@ -24,24 +24,27 @@ contract TestGasZipFacet is GasZipFacet {
 
 contract GasZipFacetTest is TestBaseFacet {
     address public constant GAS_ZIP_ROUTER_MAINNET =
-        0x9E22ebeC84c7e4C4bD6D4aE7FF6f4D436D6D8390;
+        0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762;
 
     TestGasZipFacet internal gasZipFacet;
     IGasZip.GasZipData internal gasZipData;
 
     uint256 public defaultDestinationChains = 96;
+    uint256 internal defaultNativeDepositAmount = 1e16;
+    uint256 internal defaultERC20DepositAmount = 1e8;
     address public defaultRecipientAddress = address(12345);
     address public defaultRefundAddress = address(56789);
-    // uint256 public defaultNativeAmount = 0.0006 ether;
+    bytes32 internal defaultReceiverBytes32 =
+        bytes32(uint256(uint160(USER_RECEIVER)));
 
-    event Deposit(address from, uint256 chains, uint256 amount, address to);
+    event Deposit(address from, uint256 chains, uint256 amount, bytes32 to);
 
     error OnlySwapsFromERC20ToNativeAllowed();
     error OnlyNativeAllowed();
 
     function setUp() public {
         // set custom block no for mainnet forking
-        customBlockNumberForForking = 20832175;
+        customBlockNumberForForking = 20828620;
 
         initTestBase();
 
@@ -87,7 +90,8 @@ contract GasZipFacetTest is TestBaseFacet {
         uint8[] memory chainIds = new uint8[](1);
         chainIds[0] = 17; // polygon
         gasZipData = IGasZip.GasZipData({
-            destinationChains: gasZipFacet.getDestinationChainsValue(chainIds)
+            destinationChains: defaultDestinationChains,
+            receiver: bytes32(uint256(uint160(USER_RECEIVER)))
         });
 
         bridgeData.bridge = "GasZip";
@@ -134,8 +138,16 @@ contract GasZipFacetTest is TestBaseFacet {
 
         // update bridgeData to use native
         bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultERC20DepositAmount;
 
         //prepare check for events
+        vm.expectEmit(true, true, true, true, GAS_ZIP_ROUTER_MAINNET);
+        emit Deposit(
+            address(gasZipFacet),
+            defaultDestinationChains,
+            defaultERC20DepositAmount,
+            defaultReceiverBytes32
+        );
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
@@ -149,8 +161,16 @@ contract GasZipFacetTest is TestBaseFacet {
         // customize bridgeData
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = 10000000000000000; // ~2 USD
+        bridgeData.minAmount = defaultNativeDepositAmount; // ~2 USD
 
         //prepare check for events
+        vm.expectEmit(true, true, true, true, GAS_ZIP_ROUTER_MAINNET);
+        emit Deposit(
+            address(gasZipFacet),
+            defaultDestinationChains,
+            defaultNativeDepositAmount,
+            defaultReceiverBytes32
+        );
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 

@@ -33,11 +33,9 @@ contract GasZipPeriphery is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
     /// @param _swapData The swap data that executes the swap from ERC20 to native
     /// @param _gasZipData contains information about which chains gas should be sent to
-    /// @param _receiver address the gas should be sent to
     function depositToGasZipERC20(
         LibSwap.SwapData calldata _swapData,
-        IGasZip.GasZipData calldata _gasZipData,
-        address _receiver
+        IGasZip.GasZipData calldata _gasZipData
     ) public {
         // deposit ERC20 asset from diamond
         LibAsset.depositAsset(_swapData.sendingAssetId, _swapData.fromAmount);
@@ -63,21 +61,19 @@ contract GasZipPeriphery is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // deposit native tokens to Gas.zip protocol
         GasZipPeriphery(payable(address(this))).depositToGasZipNative{
             value: swapOutputAmount
-        }(_gasZipData, _receiver);
+        }(_gasZipData);
     }
 
     /// @notice Deposits native tokens to the GasZip router contract
     /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
-    /// @param _gasZipData contains information about which chains gas should be sent to
-    /// @param _receiver address the gas should be sent to
+    /// @param _gasZipData contains information which chains and address gas should be sent to
     function depositToGasZipNative(
-        IGasZip.GasZipData calldata _gasZipData,
-        address _receiver
+        IGasZip.GasZipData calldata _gasZipData
     ) public payable {
-        // deposit native to Gas.zip (v1) https://dev.gas.zip/gas/code-examples/contractDeposit
+        // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
         gasZipRouter.deposit{ value: msg.value }(
             _gasZipData.destinationChains,
-            _receiver
+            _gasZipData.receiver
         );
     }
 

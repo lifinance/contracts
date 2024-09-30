@@ -9,7 +9,6 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { ERC20 } from "solady/tokens/ERC20.sol";
 
 /// @title GasZipFacet
 /// @author LI.FI (https://li.fi)
@@ -32,7 +31,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Bridges tokens using the gas.zip protocol
     /// @dev this function only supports native flow. For ERC20 flows this facet should be used as a protocol step instead
     /// @param _bridgeData The core information needed for bridging
-    /// @param _gasZipData GasZip-specific bridge data
+    /// @param _gasZipData contains information which chains and address gas should be sent to
     function startBridgeTokensViaGasZip(
         ILiFi.BridgeData memory _bridgeData,
         IGasZip.GasZipData calldata _gasZipData
@@ -56,7 +55,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Performs one or multiple actions (e.g. fee collection, swapping) that must end with the native token before depositing to the gas.zip protocol
     /// @param _bridgeData The core information needed for depositing
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _gasZipData GasZip-specific bridge data
+    /// @param _gasZipData contains information which chains and address gas should be sent to
     function swapAndStartBridgeTokensViaGasZip(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
@@ -84,15 +83,15 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @dev Contains the business logic for depositing to GasZip protocol
     /// @param _bridgeData The core information needed for bridging
-    /// @param _gasZipData Data specific to Gas.zip protocol
+    /// @param _gasZipData contains information which chains and address gas should be sent to
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         IGasZip.GasZipData calldata _gasZipData
     ) internal {
-        // deposit native to Gas.zip (v1) https://dev.gas.zip/gas/code-examples/contractDeposit
+        // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
         gasZipRouter.deposit{ value: _bridgeData.minAmount }(
             _gasZipData.destinationChains,
-            _bridgeData.receiver
+            _gasZipData.receiver
         );
 
         emit LiFiTransferStarted(_bridgeData);

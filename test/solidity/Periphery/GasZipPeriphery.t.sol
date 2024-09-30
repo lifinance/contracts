@@ -33,7 +33,7 @@ contract TestGasZipPeriphery is GasZipPeriphery {
 
 contract GasZipPeripheryTest is TestBase {
     address public constant GAS_ZIP_ROUTER_MAINNET =
-        0x9E22ebeC84c7e4C4bD6D4aE7FF6f4D436D6D8390;
+        0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762;
     address public constant LIFI_DEX_AGGREGATOR_MAINNET =
         0xe43ca1Dee3F0fc1e2df73A0745674545F11A59F5;
     address internal constant XDAI_BRIDGE =
@@ -44,13 +44,16 @@ contract GasZipPeripheryTest is TestBase {
     IGasZip.GasZipData internal defaultGasZipData;
     FeeCollector internal feeCollector;
     address internal liFiDEXAggregator = LIFI_DEX_AGGREGATOR_MAINNET;
+    bytes32 internal defaultReceiverBytes32 =
+        bytes32(uint256(uint160(USER_RECEIVER)));
+    uint256 internal defaultNativeDepositAmount = 1e16;
 
     uint256 public defaultDestinationChains = 96;
 
-    event Deposit(address from, uint256 chains, uint256 amount, address to);
+    event Deposit(address from, uint256 chains, uint256 amount, bytes32 to);
 
     function setUp() public {
-        customBlockNumberForForking = 20789064;
+        customBlockNumberForForking = 20862358;
         initTestBase();
 
         // deploy contracts
@@ -66,7 +69,8 @@ contract GasZipPeripheryTest is TestBase {
         gnosisBridgeFacet = _getGnosisBridgeFacet();
 
         defaultGasZipData = IGasZip.GasZipData({
-            destinationChains: defaultDestinationChains
+            destinationChains: defaultDestinationChains,
+            receiver: defaultReceiverBytes32
         });
 
         bridgeData.bridge = "gnosis";
@@ -77,21 +81,20 @@ contract GasZipPeripheryTest is TestBase {
         vm.label(address(gasZipPeriphery), "GasZipPeriphery");
     }
 
-    function test_canDepositNative() public {
+    function test_canDepositNatives() public {
         // set up expected event
         vm.expectEmit(true, true, true, true, GAS_ZIP_ROUTER_MAINNET);
         emit Deposit(
             address(gasZipPeriphery),
             defaultDestinationChains,
-            defaultNativeAmount,
-            USER_RECEIVER
+            defaultNativeDepositAmount,
+            defaultReceiverBytes32
         );
 
         // deposit via GasZip periphery contract
-        gasZipPeriphery.depositToGasZipNative{ value: defaultNativeAmount }(
-            defaultGasZipData,
-            USER_RECEIVER
-        );
+        gasZipPeriphery.depositToGasZipNative{
+            value: defaultNativeDepositAmount
+        }(defaultGasZipData);
     }
 
     function test_canCollectERC20FeesThenSwapToERC20ThenDepositThenBridge()
@@ -236,7 +239,7 @@ contract GasZipPeripheryTest is TestBase {
             abi.encodeWithSelector(
                 gasZipPeriphery.depositToGasZipNative.selector,
                 defaultGasZipData,
-                USER_RECEIVER
+                defaultReceiverBytes32
             ),
             false
         );
@@ -352,8 +355,7 @@ contract GasZipPeripheryTest is TestBase {
         // execute the call
         gasZipPeriphery.depositToGasZipERC20(
             gasZipSwapData,
-            defaultGasZipData,
-            USER_RECEIVER
+            defaultGasZipData
         );
     }
 
@@ -440,7 +442,7 @@ contract GasZipPeripheryTest is TestBase {
             address(0),
             fromAmount,
             // this is calldata for the DEXAggregator to swap 2 DAI to native
-            hex"2646478b0000000000000000000000006b175474e89094c44da98b954eedeac495271d0f0000000000000000000000000000000000000000000000001bc16d674ec80000000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000000000000002f245b38c0d49000000000000000000000000b9a555095d3d45211072aef86d1622d1f6fdf31600000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000073026B175474E89094C44Da98b954EedeAC495271d0F01ffff00e92Cc0e5Db597066b3C26016b2fb32830401A31A01e43ca1Dee3F0fc1e2df73A0745674545F11A59F5000bb801C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc201ffff0200B9A555095D3d45211072aEf86D1622D1f6FDf31600000000000000000000000000",
+            hex"2646478b0000000000000000000000006b175474e89094c44da98b954eedeac495271d0f0000000000000000000000000000000000000000000000001bc16d674ec80000000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000000000000002ae9d9fa81428000000000000000000000000b9a555095d3d45211072aef86d1622d1f6fdf31600000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000073026B175474E89094C44Da98b954EedeAC495271d0F01ffff00682831244b0E97946ABC52Cb1893Cce398De3A3501e43ca1Dee3F0fc1e2df73A0745674545F11A59F5000bb801C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc201ffff0200B9A555095D3d45211072aEf86D1622D1f6FDf31600000000000000000000000000",
             true
         );
     }
