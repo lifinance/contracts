@@ -1,5 +1,5 @@
 # - Smart Contract Core Dev Approval checker
-# - makes sure that every pull_request is at least reviewed by one Smart Contract Core Dev
+# - makes sure that every pull_request is at least reviewed by one Smart Contract Core Developer
 #   (member of group https://github.com/orgs/lifinance/teams/smart-contract-core)
 
 name: SC Core Dev Approval Check
