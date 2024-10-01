@@ -94,7 +94,7 @@ contract GasZipPeripheryTest is TestBase {
         // deposit via GasZip periphery contract
         gasZipPeriphery.depositToGasZipNative{
             value: defaultNativeDepositAmount
-        }(defaultGasZipData);
+        }(defaultGasZipData, defaultNativeDepositAmount);
     }
 
     function test_canCollectERC20FeesThenSwapToERC20ThenDepositThenBridge()
@@ -239,7 +239,7 @@ contract GasZipPeripheryTest is TestBase {
             abi.encodeWithSelector(
                 gasZipPeriphery.depositToGasZipNative.selector,
                 defaultGasZipData,
-                defaultReceiverBytes32
+                nativeZipAmount
             ),
             false
         );

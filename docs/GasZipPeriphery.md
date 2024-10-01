@@ -30,8 +30,10 @@ and another for native tokens (these will be directly deposited)
 /// @notice Deposits native tokens to the GasZip router contract
 /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
 /// @param _gasZipData contains information which chains and address gas should be sent to
+/// @param _amount the total amount to be deposited (will be split equally across all chains)
 function depositToGasZipNative(
-    IGasZip.GasZipData calldata _gasZipData
+    IGasZip.GasZipData calldata _gasZipData,
+    uint256 _amount
 )
 ```
 

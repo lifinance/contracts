@@ -59,19 +59,19 @@ contract GasZipPeriphery is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 swapOutputAmount = abi.decode(res, (uint256));
 
         // deposit native tokens to Gas.zip protocol
-        GasZipPeriphery(payable(address(this))).depositToGasZipNative{
-            value: swapOutputAmount
-        }(_gasZipData);
+        depositToGasZipNative(_gasZipData, swapOutputAmount);
     }
 
     /// @notice Deposits native tokens to the GasZip router contract
     /// @dev this function can be used as a LibSwap.SwapData protocol step to combine it with any other bridge
     /// @param _gasZipData contains information which chains and address gas should be sent to
+    /// @param _amount the total amount to be deposited (will be split equally across all chains)
     function depositToGasZipNative(
-        IGasZip.GasZipData calldata _gasZipData
+        IGasZip.GasZipData calldata _gasZipData,
+        uint256 _amount
     ) public payable {
         // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
-        gasZipRouter.deposit{ value: msg.value }(
+        gasZipRouter.deposit{ value: _amount }(
             _gasZipData.destinationChains,
             _gasZipData.receiver
         );
