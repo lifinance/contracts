@@ -10,6 +10,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 
 /// @title GasZipPeriphery
 /// @author LI.FI (https://li.fi)
@@ -75,6 +76,18 @@ contract GasZipPeriphery is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _gasZipData.destinationChains,
             _gasZipData.receiver
         );
+
+        // return unused native value to calling contract, if any
+        // this is required due to LI.FI backend-internal requirements (money flow)
+        uint256 remainingNativeBalance;
+        if (remainingNativeBalance > 0) {
+            (bool success, ) = msg.sender.call{
+                value: remainingNativeBalance
+            }("");
+            if (!success) {
+                revert NativeAssetTransferFailed();
+            }
+        }
     }
 
     /// @dev Returns a value that signals to Gas.zip to which chains gas should be sent in equal parts
