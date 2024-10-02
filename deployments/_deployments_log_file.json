@@ -22821,12 +22821,12 @@
       "staging": {
         "1.0.0": [
           {
-            "ADDRESS": "0xA4a16ff80E4156dA9d9656Ff83fa40a65e1EcaC9",
+            "ADDRESS": "0xA2e19668bfe28c9bA5e01Ab75407C2627B1d0Ef8",
             "OPTIMIZER_RUNS": "1000000",
-            "TIMESTAMP": "2024-10-02 16:49:59",
+            "TIMESTAMP": "2024-10-02 20:12:00",
             "CONSTRUCTOR_ARGS": "0x0000000000000000000000002a37d63eadfe4b4682a3c28c1c2cd4f109cc2762000000000000000000000000d6f02718b9df9fad2665c7304bc5b26d5bbd8642",
             "SALT": "",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }

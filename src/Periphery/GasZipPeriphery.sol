@@ -77,9 +77,9 @@ contract GasZipPeriphery is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _gasZipData.receiver
         );
 
-        // return unused native value to calling contract, if any
+        // return unused native value to msg.sender, if any
         // this is required due to LI.FI backend-internal requirements (money flow)
-        uint256 remainingNativeBalance;
+        uint256 remainingNativeBalance = msg.value - _amount;
         if (remainingNativeBalance > 0) {
             (bool success, ) = msg.sender.call{
                 value: remainingNativeBalance

@@ -81,7 +81,7 @@ contract GasZipPeripheryTest is TestBase {
         vm.label(address(gasZipPeriphery), "GasZipPeriphery");
     }
 
-    function test_canDepositNatives() public {
+    function test_CanDepositNatives() public {
         // set up expected event
         vm.expectEmit(true, true, true, true, GAS_ZIP_ROUTER_MAINNET);
         emit Deposit(
@@ -95,6 +95,26 @@ contract GasZipPeripheryTest is TestBase {
         gasZipPeriphery.depositToGasZipNative{
             value: defaultNativeDepositAmount
         }(defaultGasZipData, defaultNativeDepositAmount);
+    }
+
+    function test_WillReturnAnyExcessNativeValueAfterDeposit() public {
+        vm.startPrank(USER_SENDER);
+        uint256 balanceBefore = USER_SENDER.balance;
+        // set up expected event
+        vm.expectEmit(true, true, true, true, GAS_ZIP_ROUTER_MAINNET);
+        emit Deposit(
+            address(gasZipPeriphery),
+            defaultDestinationChains,
+            defaultNativeDepositAmount,
+            defaultReceiverBytes32
+        );
+
+        // deposit via GasZip periphery contract
+        gasZipPeriphery.depositToGasZipNative{
+            value: defaultNativeDepositAmount * 5
+        }(defaultGasZipData, defaultNativeDepositAmount); // sending 5 times the amount, expecting 4 times to be refunded
+        uint256 balanceAfter = USER_SENDER.balance;
+        assertEq(balanceBefore - defaultNativeDepositAmount, balanceAfter);
     }
 
     function test_canCollectERC20FeesThenSwapToERC20ThenDepositThenBridge()
