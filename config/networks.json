@@ -11,7 +11,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://etherscan.io",
     "explorerApiUrl": "https://api.etherscan.io/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://safe-transaction-mainnet.safe.global/api",
+    "safeAddress": ""
   },
   "arbitrum": {
     "name": "Arbitrum One",
@@ -25,7 +27,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://arbiscan.io",
     "explorerApiUrl": "https://api.arbiscan.io/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://safe-transaction-aurora.safe.global/api",
+    "safeAddress": ""
   },
   "aurora": {
     "name": "Aurora",
@@ -39,7 +43,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://aurorascan.dev",
     "explorerApiUrl": "https://aurorascan.dev/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://safe-transaction-aurora.safe.global/api",
+    "safeAddress": ""
   },
   "avalanche": {
     "name": "Avalanche C-Chain",
@@ -53,7 +59,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://snowtrace.io",
     "explorerApiUrl": "https://api.snowtrace.io",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://safe-transaction-avalanche.safe.global/api",
+    "safeAddress": ""
   },
   "base": {
     "name": "Base",
@@ -67,7 +75,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://basescan.org",
     "explorerApiUrl": "https://api.basescan.org/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://safe-transaction-base.safe.global/api",
+    "safeAddress": ""
   },
   "blast": {
     "name": "Blast",
@@ -81,7 +91,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://blastscan.io",
     "explorerApiUrl": "https://api.blastscan.io/api",
-    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "https://transaction.blast-safe.io/api",
+    "safeAddress": ""
   },
   "boba": {
     "name": "Boba Network",
@@ -95,7 +107,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://bobascan.com",
     "explorerApiUrl": "https://api.bobascan.com/api",
-    "multicallAddress": "i0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://safe-transaction.mainnet.boba.network/api",
+    "safeAddress": ""
   },
   "bsc": {
     "name": "BNB Smart Chain",
@@ -109,7 +123,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://bscscan.com",
     "explorerApiUrl": "https://api.bscscan.com/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://safe-transaction-bsc.safe.global/api",
+    "safeAddress": ""
   },
   "celo": {
     "name": "Celo",
@@ -123,7 +139,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://celoscan.io",
     "explorerApiUrl": "https://api.celoscan.io/api",
-    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "https://safe-transaction-celo.safe.global/api",
+    "safeAddress": ""
   },
   "fantom": {
     "name": "Fantom",
@@ -137,7 +155,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://ftmscan.com",
     "explorerApiUrl": "https://api.ftmscan.com/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://safe-txservice.fantom.network/api",
+    "safeAddress": ""
   },
   "fraxtal": {
     "name": "Fraxtal",
@@ -151,7 +171,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://fraxscan.com",
     "explorerApiUrl": "https://api.fraxscan.com/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://transaction-frax.safe.optimism.io/api",
+    "safeAddress": ""
   },
   "fuse": {
     "name": "Fuse",
@@ -165,7 +187,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://explorer.fuse.io",
     "explorerApiUrl": "https://explorer.fuse.io/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://transaction-frax.safe.optimism.io/api",
+    "safeAddress": ""
   },
   "gnosis": {
     "name": "Gnosis Chain",
@@ -179,7 +203,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://gnosisscan.io",
     "explorerApiUrl": "https://api.gnosisscan.io/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://safe-transaction-gnosis-chain.safe.global/api",
+    "safeAddress": ""
   },
   "gravity": {
     "name": "Gravity Alpha Mainnet",
@@ -193,7 +219,9 @@
     "explorerType": "blockscout",
     "explorerUrl": "https://explorer.gravity.xyz",
     "explorerApiUrl": "https://explorer.gravity.xyz/api",
-    "multicallAddress": "0xf8ac4BEB2F75d2cFFb588c63251347fdD629B92c"
+    "multicallAddress": "0xf8ac4BEB2F75d2cFFb588c63251347fdD629B92c",
+    "safeApiUrl": "https://safe.gravity.xyz/txs/api",
+    "safeAddress": ""
   },
   "immutablezkevm": {
     "name": "Immutable zkEVM",
@@ -207,7 +235,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://explorer.immutable.com",
     "explorerApiUrl": "https://explorer.immutable.com/api",
-    "multicallAddress": "0x236bdA4589e44e6850f5aC6a74BfCa398a86c6c0"
+    "multicallAddress": "0x236bdA4589e44e6850f5aC6a74BfCa398a86c6c0",
+    "safeApiUrl": "https://transaction.safe.immutable.com/api",
+    "safeAddress": ""
   },
   "kaia": {
     "name": "Kaia",
@@ -221,7 +251,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://kaiascope.com",
     "explorerApiUrl": "https://api-cypress.klaytnscope.com/api",
-    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "https://docs-safe.kaia.io/txs-cypress/api",
+    "safeAddress": ""
   },
   "linea": {
     "name": "Linea",
@@ -235,7 +267,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://lineascan.build",
     "explorerApiUrl": "https://api.lineascan.build/api",
-    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "https://safe-transaction-linea.safe.global/api",
+    "safeAddress": ""
   },
   "mantle": {
     "name": "Mantle",
@@ -249,7 +283,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://mantlescan.xyz/",
     "explorerApiUrl": "https://api.mantlescan.xyz/api",
-    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "https://transaction.multisig.mantle.xyz/api",
+    "safeAddress": ""
   },
   "metis": {
     "name": "Metis Andromeda Mainnet",
@@ -263,7 +299,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://explorer.metis.io",
     "explorerApiUrl": "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://metissafe.tech/txs/api",
+    "safeAddress": ""
   },
   "mode": {
     "name": "Mode",
@@ -277,7 +315,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://modescan.io",
     "explorerApiUrl": "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://transaction-mode.safe.optimism.io/api",
+    "safeAddress": ""
   },
   "moonbeam": {
     "name": "Moonbeam",
@@ -291,7 +331,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://moonscan.io",
     "explorerApiUrl": "https://api-moonbeam.moonscan.io/api",
-    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "https://transaction.multisig.moonbeam.network/api",
+    "safeAddress": ""
   },
   "moonriver": {
     "name": "Moonriver",
@@ -305,7 +347,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://moonriver.moonscan.io",
     "explorerApiUrl": "https://api-moonriver.moonscan.io/api",
-    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "https://transaction.moonriver.multisig.moonbeam.network/api",
+    "safeAddress": ""
   },
   "optimism": {
     "name": "Optimism",
@@ -319,7 +363,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://optimistic.etherscan.io",
     "explorerApiUrl": "https://api-optimistic.etherscan.io/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://safe-transaction-optimism.safe.global/api",
+    "safeAddress": ""
   },
   "polygon": {
     "name": "Polygon",
@@ -333,7 +379,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://polygonscan.com",
     "explorerApiUrl": "https://api.polygonscan.com/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://safe-transaction-polygon.safe.global/api",
+    "safeAddress": ""
   },
   "polygonzkevm": {
     "name": "Polygon zkEVM",
@@ -347,7 +395,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://zkevm.polygonscan.com",
     "explorerApiUrl": "https://api-zkevm.polygonscan.com/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://safe-transaction-zkevm.safe.global/api",
+    "safeAddress": ""
   },
   "rootstock": {
     "name": "Rootstock",
@@ -361,7 +411,9 @@
     "explorerType": "blockscout",
     "explorerUrl": "https://rootstock.blockscout.com",
     "explorerApiUrl": "https://rootstock.blockscout.com/api",
-    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "https://transaction.safe.rootstock.io/api",
+    "safeAddress": ""
   },
   "scroll": {
     "name": "Scroll",
@@ -375,7 +427,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://scrollscan.com",
     "explorerApiUrl": "https://api.scrollscan.com/api",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11"
+    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
+    "safeApiUrl": "https://safe-transaction-scroll.safe.global/api",
+    "safeAddress": ""
   },
   "sei": {
     "name": "Sei Network",
@@ -389,7 +443,41 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://seitrace.com",
     "explorerApiUrl": "https://seitrace.com/pacific-1/api",
-    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11"
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "https://transaction.sei-safe.protofire.io/api",
+    "safeAddress": ""
+  },
+  "taiko": {
+    "name": "Taiko",
+    "chainId": ,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "",
+    "explorerType": "etherscan",
+    "explorerUrl": "",
+    "explorerApiUrl": "",
+    "multicallAddress": "",
+    "safeApiUrl": "https://transaction.safe.taiko.xyz/api",
+    "safeAddress": ""
+  },
+  "xlayer": {
+    "name": "X Layer",
+    "chainId": 196,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "OKB",
+    "wrappedNativeAddress": "0xe538905cf8410324e03a5a23c1c177a474d59b2b",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "",
+    "explorerType": "etherscan",
+    "explorerUrl": "",
+    "explorerApiUrl": "",
+    "multicallAddress": "",
+    "safeApiUrl": "",
+    "safeAddress": ""
   },
   "zksync": {
     "name": "zkSync Era Mainnet",
@@ -403,7 +491,9 @@
     "explorerType": "etherscan",
     "explorerUrl": "https://era.zksync.network",
     "explorerApiUrl": "https://api-era.zksync.network/api",
-    "multicallAddress": "0xF9cda624FBC7e059355ce98a31693d299FACd963"
+    "multicallAddress": "0xF9cda624FBC7e059355ce98a31693d299FACd963",
+    "safeApiUrl": "https://safe-transaction-zksync.safe.global/api",
+    "safeAddress": ""
   },
   "localanvil": {
     "name": "Local Anvil (temporary Foundry test network)",
@@ -417,6 +507,8 @@
     "explorerType": "etherscan",
     "explorerUrl": "",
     "explorerApiUrl": "",
-    "multicallAddress": ""
+    "multicallAddress": "",
+    "safeApiUrl": "",
+    "safeAddress": ""
   }
 }
