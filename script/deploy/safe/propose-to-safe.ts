@@ -96,7 +96,7 @@ const main = defineCommand({
     console.info('Signer Address', senderAddress)
     console.info('Safe Address', safeAddress)
     console.info('Network', chain.name)
-    console.info('Proosing transaction to', args.to)
+    console.info('Proposing transaction to', args.to)
 
     // Propose transaction to the service
     await safeService.proposeTransaction({
