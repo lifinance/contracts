@@ -2116,7 +2116,7 @@ function checkFailure() {
 # >>>>> output to console
 function echoDebug() {
   # read function arguments into variables
-  MESSAGE=$1
+  MESSAGE="$1"
 
   # write message to console if debug flag is set to true
   if [[ $DEBUG == "true" ]]; then
