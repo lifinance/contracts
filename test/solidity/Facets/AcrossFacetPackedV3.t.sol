@@ -53,6 +53,7 @@ contract AcrossFacetPackedV3Test is TestBase {
     AcrossFacetPackedV3 internal acrossFacetPackedV3;
     AcrossFacetPackedV3 internal acrossStandAlone;
     AcrossFacetV3.AcrossV3Data internal validAcrossData;
+    AcrossFacetPackedV3.PackedParameters internal packedParameters;
     TestClaimContract internal claimContract;
 
     bytes32 transactionId;
@@ -135,8 +136,23 @@ contract AcrossFacetPackedV3Test is TestBase {
             refundAddress: USER_REFUND,
             receivingAssetId: ADDRESS_USDC_POL,
             outputAmount: (defaultUSDCAmount * 9) / 10,
+            exclusiveRelayer: address(0),
             quoteTimestamp: quoteTimestamp,
             fillDeadline: uint32(quoteTimestamp + 1000),
+            exclusivityDeadline: 0,
+            message: ""
+        });
+
+        packedParameters = AcrossFacetPackedV3.PackedParameters({
+            transactionId: transactionId,
+            receiver: USER_RECEIVER,
+            destinationChainId: destinationChainId,
+            receivingAssetId: ADDRESS_USDC_POL,
+            outputAmount: (defaultUSDCAmount * 9) / 10,
+            exclusiveRelayer: address(0),
+            quoteTimestamp: quoteTimestamp,
+            fillDeadline: uint32(quoteTimestamp + 1000),
+            exclusivityDeadline: 0,
             message: ""
         });
 
@@ -148,51 +164,27 @@ contract AcrossFacetPackedV3Test is TestBase {
         // Native params
         amountNative = 1 ether;
         packedNativeCalldata = acrossFacetPackedV3
-            .encode_startBridgeTokensViaAcrossV3NativePacked(
-                transactionId,
-                USER_RECEIVER,
-                destinationChainId,
-                validAcrossData.receivingAssetId,
-                validAcrossData.outputAmount,
-                validAcrossData.quoteTimestamp,
-                validAcrossData.fillDeadline,
-                validAcrossData.message
-            );
+            .encode_startBridgeTokensViaAcrossV3NativePacked(packedParameters);
 
         // usdt params
         amountUSDT = 100 * 10 ** usdt.decimals();
         packedUSDTCalldata = acrossFacetPackedV3
             .encode_startBridgeTokensViaAcrossV3ERC20Packed(
-                transactionId,
+                packedParameters,
                 ADDRESS_USDT,
-                amountUSDT,
-                USER_RECEIVER,
-                destinationChainId,
-                validAcrossData.receivingAssetId,
-                validAcrossData.outputAmount,
-                validAcrossData.quoteTimestamp,
-                validAcrossData.fillDeadline,
-                validAcrossData.message
+                amountUSDT
             );
 
         deal(ADDRESS_USDT, USER_SENDER, amountUSDT);
 
         // usdc params
         amountUSDC = 100 * 10 ** usdc.decimals();
-        // bridgeData.minAmount = amountUSDC;
-        uint256 minAmountOut = (amountUSDC * 9) / 10;
+        packedParameters.outputAmount = (amountUSDC * 9) / 10;
         packedUSDCCalldata = acrossFacetPackedV3
             .encode_startBridgeTokensViaAcrossV3ERC20Packed(
-                transactionId,
+                packedParameters,
                 ADDRESS_USDC,
-                amountUSDC,
-                USER_RECEIVER,
-                destinationChainId,
-                validAcrossData.receivingAssetId,
-                minAmountOut,
-                validAcrossData.quoteTimestamp,
-                validAcrossData.fillDeadline,
-                validAcrossData.message
+                amountUSDC
             );
 
         // fund claim rewards contract
@@ -258,16 +250,7 @@ contract AcrossFacetPackedV3Test is TestBase {
         // call facet through diamond
         acrossFacetPackedV3.startBridgeTokensViaAcrossV3NativeMin{
             value: amountNative
-        }(
-            transactionId,
-            USER_RECEIVER,
-            destinationChainId,
-            validAcrossData.receivingAssetId,
-            validAcrossData.outputAmount,
-            validAcrossData.quoteTimestamp,
-            validAcrossData.fillDeadline,
-            validAcrossData.message
-        );
+        }(packedParameters);
 
         vm.stopPrank();
     }
@@ -281,16 +264,7 @@ contract AcrossFacetPackedV3Test is TestBase {
         // call facet through diamond
         acrossStandAlone.startBridgeTokensViaAcrossV3NativeMin{
             value: amountNative
-        }(
-            transactionId,
-            USER_RECEIVER,
-            destinationChainId,
-            validAcrossData.receivingAssetId,
-            validAcrossData.outputAmount,
-            validAcrossData.quoteTimestamp,
-            validAcrossData.fillDeadline,
-            validAcrossData.message
-        );
+        }(packedParameters);
 
         vm.stopPrank();
     }
@@ -392,16 +366,9 @@ contract AcrossFacetPackedV3Test is TestBase {
 
         // call facet through diamond
         acrossFacetPackedV3.startBridgeTokensViaAcrossV3ERC20Min(
-            transactionId,
+            packedParameters,
             ADDRESS_USDC,
-            amountUSDC,
-            USER_RECEIVER,
-            destinationChainId,
-            validAcrossData.receivingAssetId,
-            validAcrossData.outputAmount,
-            validAcrossData.quoteTimestamp,
-            validAcrossData.fillDeadline,
-            validAcrossData.message
+            amountUSDC
         );
 
         vm.stopPrank();
@@ -419,16 +386,9 @@ contract AcrossFacetPackedV3Test is TestBase {
 
         // call facet through diamond
         acrossFacetPackedV3.startBridgeTokensViaAcrossV3ERC20Min(
-            transactionId,
+            packedParameters,
             ADDRESS_USDT,
-            amountUSDT,
-            USER_RECEIVER,
-            destinationChainId,
-            validAcrossData.receivingAssetId,
-            validAcrossData.outputAmount,
-            validAcrossData.quoteTimestamp,
-            validAcrossData.fillDeadline,
-            validAcrossData.message
+            amountUSDT
         );
 
         vm.stopPrank();
@@ -446,16 +406,9 @@ contract AcrossFacetPackedV3Test is TestBase {
 
         // call facet through diamond
         acrossStandAlone.startBridgeTokensViaAcrossV3ERC20Min(
-            transactionId,
+            packedParameters,
             ADDRESS_USDC,
-            amountUSDC,
-            USER_RECEIVER,
-            destinationChainId,
-            validAcrossData.receivingAssetId,
-            validAcrossData.outputAmount,
-            validAcrossData.quoteTimestamp,
-            validAcrossData.fillDeadline,
-            validAcrossData.message
+            amountUSDC
         );
 
         vm.stopPrank();
@@ -476,16 +429,9 @@ contract AcrossFacetPackedV3Test is TestBase {
 
         // call facet through diamond
         acrossStandAlone.startBridgeTokensViaAcrossV3ERC20Min(
-            transactionId,
+            packedParameters,
             ADDRESS_USDT,
-            amountUSDT,
-            USER_RECEIVER,
-            destinationChainId,
-            validAcrossData.receivingAssetId,
-            validAcrossData.outputAmount,
-            validAcrossData.quoteTimestamp,
-            validAcrossData.fillDeadline,
-            validAcrossData.message
+            amountUSDT
         );
 
         vm.stopPrank();
@@ -548,63 +494,42 @@ contract AcrossFacetPackedV3Test is TestBase {
     function test_revert_cannotEncodeDestinationChainIdAboveUint32Max_Native()
         public
     {
-        uint64 invalidDestinationChainId = uint64(type(uint32).max) + 1;
+        packedParameters.destinationChainId = uint64(type(uint32).max) + 1; // invalid destinationChainId
 
         vm.expectRevert(
             "destinationChainId value passed too big to fit in uint32"
         );
 
         acrossFacetPackedV3.encode_startBridgeTokensViaAcrossV3NativePacked(
-            transactionId,
-            USER_RECEIVER,
-            invalidDestinationChainId,
-            validAcrossData.receivingAssetId,
-            validAcrossData.outputAmount,
-            validAcrossData.quoteTimestamp,
-            validAcrossData.fillDeadline,
-            validAcrossData.message
+            packedParameters
         );
     }
 
     function test_revert_cannotEncodeDestinationChainIdAboveUint32Max_ERC20()
         public
     {
-        uint64 invalidDestinationChainId = uint64(type(uint32).max) + 1;
+        packedParameters.destinationChainId = uint64(type(uint32).max) + 1; // invalid destinationChainId
 
         vm.expectRevert(
             "destinationChainId value passed too big to fit in uint32"
         );
 
         acrossFacetPackedV3.encode_startBridgeTokensViaAcrossV3ERC20Packed(
-            transactionId,
+            packedParameters,
             ADDRESS_USDC,
-            amountUSDC,
-            USER_RECEIVER,
-            invalidDestinationChainId,
-            validAcrossData.receivingAssetId,
-            validAcrossData.outputAmount,
-            validAcrossData.quoteTimestamp,
-            validAcrossData.fillDeadline,
-            validAcrossData.message
+            amountUSDC
         );
     }
 
     function test_revert_cannotUseMinAmountAboveUint128Max_ERC20() public {
-        uint256 invalidMinAmount = uint256(type(uint128).max) + 1;
+        uint256 invalidInputAmount = uint256(type(uint128).max) + 1;
 
         vm.expectRevert("inputAmount value passed too big to fit in uint128");
 
         acrossFacetPackedV3.encode_startBridgeTokensViaAcrossV3ERC20Packed(
-            transactionId,
-            ADDRESS_USDT,
-            invalidMinAmount,
-            USER_RECEIVER,
-            destinationChainId,
-            validAcrossData.receivingAssetId,
-            validAcrossData.outputAmount,
-            validAcrossData.quoteTimestamp,
-            validAcrossData.fillDeadline,
-            validAcrossData.message
+            packedParameters,
+            ADDRESS_USDC,
+            invalidInputAmount
         );
     }
 

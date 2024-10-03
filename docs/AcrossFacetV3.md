@@ -26,16 +26,20 @@ The methods listed above take a variable labeled `_acrossData`. This data is spe
 /// @param refundAddress The address that will be used for potential bridge refunds
 /// @param receivingAssetId The address of the token to be received at destination chain
 /// @param outputAmount The amount to be received at destination chain (after fees)
+/// @param exclusiveRelayer This is the exclusive relayer who can fill the deposit before the exclusivity deadline.
 /// @param quoteTimestamp The timestamp of the Across quote that was used for this transaction
 /// @param fillDeadline The destination chain timestamp until which the order can be filled
+/// @param exclusivityDeadline The timestamp on the destination chain after which any relayer can fill the deposit
 /// @param message Arbitrary data that can be used to pass additional information to the recipient along with the tokens
 struct AcrossV3Data {
   address receiverAddress;
   address refundAddress;
   address receivingAssetId;
   uint256 outputAmount;
+  address exclusiveRelayer;
   uint32 quoteTimestamp;
   uint32 fillDeadline;
+  uint32 exclusivityDeadline;
   bytes message;
 }
 ```

@@ -81,8 +81,10 @@ contract AcrossFacetV3Test is TestBaseFacet {
             refundAddress: USER_REFUND,
             receivingAssetId: ADDRESS_USDC_POL,
             outputAmount: (defaultUSDCAmount * 9) / 10,
+            exclusiveRelayer: address(0),
             quoteTimestamp: quoteTimestamp,
             fillDeadline: uint32(quoteTimestamp + 1000),
+            exclusivityDeadline: 0,
             message: ""
         });
 

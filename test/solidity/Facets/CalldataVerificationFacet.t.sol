@@ -689,8 +689,10 @@ contract CalldataVerificationFacetTest is TestBase {
                 refundAddress: USER_REFUND,
                 receivingAssetId: ADDRESS_USDC,
                 outputAmount: (defaultUSDCAmount * 9) / 10,
+                exclusiveRelayer: address(0),
                 quoteTimestamp: uint32(block.timestamp),
                 fillDeadline: uint32(uint32(block.timestamp) + 1000),
+                exclusivityDeadline: 0,
                 message: bytes("foobarbytes")
             });
 
