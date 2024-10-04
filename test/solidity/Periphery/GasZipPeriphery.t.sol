@@ -367,7 +367,7 @@ contract GasZipPeripheryTest is TestBase {
         );
     }
 
-    function testRevert_WillFailIfSwapViaLiFiDEXAggregratorIsUnsuccessful()
+    function testRevert_WillFailIfSwapViaLiFiDEXAggregatorIsUnsuccessful()
         public
     {
         vm.startPrank(USER_SENDER);

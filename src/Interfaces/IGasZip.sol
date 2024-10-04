@@ -16,5 +16,5 @@ interface IGasZip {
         bytes32 receiver;
     }
 
-    function deposit(uint256 chains, bytes32 to) external payable;
+    function deposit(uint256 destinationChains, bytes32 to) external payable;
 }
