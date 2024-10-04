@@ -2,7 +2,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { network } from 'hardhat'
 import { deployFacet } from './9999_utils'
-import config from '../config/symbiosis.json'
+import config from '../../../config/symbiosis.json'
 
 interface SymbiosisConfig {
   [network: string]: {
