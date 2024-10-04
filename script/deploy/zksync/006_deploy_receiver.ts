@@ -1,15 +1,15 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
-import { Receiver, PeripheryRegistryFacet } from '../typechain'
+import { Receiver, PeripheryRegistryFacet } from '../../../typechain'
 import {
   diamondContractName,
   updateDeploymentLogs,
   verifyContract,
 } from './9999_utils'
-import globalConfig from '../config/global.json'
-import stargateConfig from '../config/stargate.json'
-import amarokConfig from '../config/amarok.json'
+import globalConfig from '../../../config/global.json'
+import stargateConfig from '../../../config/stargate.json'
+import amarokConfig from '../../../config/amarok.json'
 
 interface StargateConfig {
   routers: { [network: string]: string }
