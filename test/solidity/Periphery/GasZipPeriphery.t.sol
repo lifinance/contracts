@@ -10,6 +10,8 @@ import { TestGnosisBridgeFacet } from "test/solidity/Facets/GnosisBridgeFacet.t.
 import { TestBase, console, ILiFi, ERC20 } from "../utils/TestBase.sol";
 import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
+import { NonETHReceiver } from "../utils/TestHelpers.sol";
+import { NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGasZipPeriphery is GasZipPeriphery {
@@ -81,7 +83,7 @@ contract GasZipPeripheryTest is TestBase {
         vm.label(address(gasZipPeriphery), "GasZipPeriphery");
     }
 
-    function test_CanDepositNatives() public {
+    function test_CanDepositNative() public {
         // set up expected event
         vm.expectEmit(true, true, true, true, GAS_ZIP_ROUTER_MAINNET);
         emit Deposit(
@@ -115,6 +117,23 @@ contract GasZipPeripheryTest is TestBase {
         }(defaultGasZipData, defaultNativeDepositAmount); // sending 5 times the amount, expecting 4 times to be refunded
         uint256 balanceAfter = USER_SENDER.balance;
         assertEq(balanceBefore - defaultNativeDepositAmount, balanceAfter);
+    }
+
+    function testRevert_WillFailIfRemainingNativeCannotBeReturned() public {
+        // deploy contract that cannot receive ETH
+        NonETHReceiver nonETHReceiver = new NonETHReceiver();
+
+        deal(address(nonETHReceiver), 1 ether);
+
+        vm.startPrank(address(nonETHReceiver));
+
+        // set up expected event
+        vm.expectRevert(NativeAssetTransferFailed.selector);
+
+        // deposit via GasZip periphery contract
+        gasZipPeriphery.depositToGasZipNative{
+            value: defaultNativeDepositAmount * 2
+        }(defaultGasZipData, defaultNativeDepositAmount); // send twice the nativeAmount that is being deposited to trigger a refund
     }
 
     function test_canCollectERC20FeesThenSwapToERC20ThenDepositThenBridge()
