@@ -129,7 +129,7 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     consola.info('Signing transaction', txToConfirm.safeTxHash)
     const signedTx = await protocolKit.signTransaction(txToConfirm)
     const dataToBeSigned = signedTx.getSignature(signerAddress)?.data
-    if (!dataToBeSigned) throw Error(`error while preparing data to be signed)`)
+    if (!dataToBeSigned) throw Error(`error while preparing data to be signed`)
 
     await retry(() =>
       safeService.confirmTransaction(txToConfirm.safeTxHash, dataToBeSigned)
