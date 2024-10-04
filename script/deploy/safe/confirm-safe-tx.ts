@@ -55,7 +55,7 @@ const skipNetworks: string[] = [
   // 'zksync',
 ]
 const defaultNetworks = allNetworks.filter(
-  (network) => !skipNetworks.includes(network) || network !== 'localanvil'
+  (network) => !skipNetworks.includes(network) && network !== 'localanvil'
 )
 
 const storedResponses: Record<string, string> = {}
