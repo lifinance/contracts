@@ -196,7 +196,7 @@ register() {
 
       else
         # just register the diamond (no multisig required)
-        cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "$RPC_URL" --legacy
+        cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy
       fi
 
       #      cast send 0xd37c412F1a782332a91d183052427a5336438cD3 'registerPeripheryContract(string,address)' "Executor" "0x68895782994F1d7eE13AD210b63B66c81ec7F772" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" --rpc-url $RPC_URL" --legacy
@@ -212,11 +212,10 @@ register() {
         echoDebug "NETWORK: $NETWORK"
 
         echo "Now proposing registerPeripheryContract("$CONTRACT_NAME","$ADDR") to diamond "$DIAMOND_ADDRESS" with calldata $CALLDATA"
-        $(ts-node script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY")
-
+        ts-node script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
       else
         # just register the diamond (no multisig required)
-        cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "$RPC_URL" --legacy >/dev/null 2>&1
+        cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy >/dev/null 2>&1
       fi
     fi
 

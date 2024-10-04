@@ -84,11 +84,3 @@ for (const [k, v] of Object.entries(chains)) {
   // @ts-ignore
   chainMap[k] = v
 }
-
-export const getViemChainForNetworkName = (network: string): Chain => {
-  const chainName = chainNameMappings[network] || network
-  const chain: Chain = chainMap[chainName]
-
-  if (!chain) throw new Error(`Viem chain not found for network ${network}`)
-  return chain
-}
