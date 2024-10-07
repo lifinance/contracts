@@ -4,6 +4,7 @@ name: Check Active Networks for Missing Secrets
 # - This will make sure that the EmergencyPause action has RPC URLS for all networks
 
 on:
+  push:
   schedule:
     # Run every day at midnight
     - cron: '0 0 * * *'
