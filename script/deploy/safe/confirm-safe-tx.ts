@@ -6,15 +6,21 @@ import SafeApiKit from '@safe-global/api-kit'
 import { ethers } from 'ethers6'
 import consola from 'consola'
 import * as chains from 'viem/chains'
-import { getSafeUtilityContracts, safeAddresses, safeApiUrls } from './config'
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import { getSafeUtilityContracts } from './config'
+import {
+  Networks,
+  getViemChainForNetworkName,
+} from '../../utils/viemScriptHelpers'
 import * as dotenv from 'dotenv'
 import { SafeMultisigTransactionResponse } from '@safe-global/safe-core-sdk-types'
+import networksConfig from '../../../config/networks.json'
 dotenv.config()
+
+const networks: Networks = networksConfig
 
 const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
 
-const allNetworks = Object.keys(safeAddresses)
+const allNetworks = Object.keys(networks)
 // In order to skip specific networks simple comment them in
 const skipNetworks: string[] = [
   // 'mainnet',
@@ -49,7 +55,7 @@ const skipNetworks: string[] = [
   // 'zksync',
 ]
 const defaultNetworks = allNetworks.filter(
-  (network) => !skipNetworks.includes(network)
+  (network) => !skipNetworks.includes(network) && network !== 'localanvil'
 )
 
 const storedResponses: Record<string, string> = {}
@@ -84,12 +90,12 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
 
   const config: SafeApiKitConfig = {
     chainId: BigInt(chain.id),
-    txServiceUrl: safeApiUrls[network.toLowerCase()],
+    txServiceUrl: networks[network.toLowerCase()].safeApiUrl,
   }
 
   const safeService = new SafeApiKit(config)
 
-  const safeAddress = safeAddresses[network.toLowerCase()]
+  const safeAddress = networks[network.toLowerCase()].safeAddress
 
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
   const provider = new ethers.JsonRpcProvider(parsedRpcUrl)
@@ -123,7 +129,7 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
     consola.info('Signing transaction', txToConfirm.safeTxHash)
     const signedTx = await protocolKit.signTransaction(txToConfirm)
     const dataToBeSigned = signedTx.getSignature(signerAddress)?.data
-    if (!dataToBeSigned) throw Error(`error while preparing data to be signed)`)
+    if (!dataToBeSigned) throw Error(`error while preparing data to be signed`)
 
     await retry(() =>
       safeService.confirmTransaction(txToConfirm.safeTxHash, dataToBeSigned)
