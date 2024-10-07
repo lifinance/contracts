@@ -404,5 +404,19 @@
     "explorerUrl": "",
     "explorerApuUrl": "",
     "multicallAddress": ""
+  },
+  "bullshit": {
+    "name": "Local Anvil (temporary Foundry test network)",
+    "chainId": 31337,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x0000000000000000000000000000000000000000",
+    "status": "active",
+    "type": "testnet",
+    "rpcUrl": "http://localhost:8545",
+    "explorerType": "etherscan",
+    "explorerUrl": "",
+    "explorerApuUrl": "",
+    "multicallAddress": ""
   }
 }
