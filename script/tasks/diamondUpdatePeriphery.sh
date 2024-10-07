@@ -149,11 +149,11 @@ function diamondUpdatePeriphery() {
 }
 
 register() {
-  local NETWORK=$(tr '[:lower:]-' '[:upper:]_' <<<$1)
+  local NETWORK="$1"
   local DIAMOND=$2
   local CONTRACT_NAME=$3
   local ADDR=$4
-  local RPC="ETH_NODE_URI_$NETWORK"
+  local RPC_URL=$(getRPCUrl $NETWORK)
   local ENVIRONMENT=$5
 
   # register periphery contract
@@ -165,12 +165,12 @@ register() {
   echoDebug "DIAMOND=$DIAMOND"
   echoDebug "CONTRACT_NAME=$CONTRACT_NAME"
   echoDebug "ADDR=$ADDR"
-  echoDebug "RPC=${!RPC}"
+  echoDebug "RPC_URL=$RPC_URL"
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echo ""
 
   # check that the contract is actually deployed
-  local CODE_SIZE=$(cast codesize "$ADDR" --rpc-url "${!RPC}")
+  local CODE_SIZE=$(cast codesize "$ADDR" --rpc-url "$RPC_URL")
   if [ $CODE_SIZE -eq 0 ]; then
     error "contract $CONTRACT_NAME is not deployed on network $NETWORK - exiting script now"
     return 1
@@ -179,17 +179,44 @@ register() {
   while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     # try to execute call
     if [[ "$DEBUG" == *"true"* ]]; then
+      # print output to console
       echoDebug "trying to register periphery contract $CONTRACT_NAME in diamond on network $NETWORK now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
 
       # ensure that gas price is below maximum threshold (for mainnet only)
       doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
 
-      # print output to console
-      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "${!RPC}" --legacy
-      #      cast send 0xd37c412F1a782332a91d183052427a5336438cD3 'registerPeripheryContract(string,address)' "Executor" "0x68895782994F1d7eE13AD210b63B66c81ec7F772" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" --rpc-url "${!RPC}" --legacy
+      if [[ "$ENVIRONMENT" == "production" ]]; then
+        # propose registerPeripheryContract transaction to multisig safe
+        local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
+
+        DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+
+        echo "Now proposing registerPeripheryContract("$CONTRACT_NAME","$ADDR") to diamond "$DIAMOND_ADDRESS" with calldata $CALLDATA"
+        ts-node script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+
+      else
+        # just register the diamond (no multisig required)
+        cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy
+      fi
+
+      #      cast send 0xd37c412F1a782332a91d183052427a5336438cD3 'registerPeripheryContract(string,address)' "Executor" "0x68895782994F1d7eE13AD210b63B66c81ec7F772" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" --rpc-url $RPC_URL" --legacy
     else
       # do not print output to console
-      cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key $(getPrivateKey "$NETWORK" "$ENVIRONMENT") --rpc-url "${!RPC}" --legacy >/dev/null 2>&1
+      if [[ "$ENVIRONMENT" == "production" ]]; then
+        # propose registerPeripheryContract transaction to multisig safe
+        local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT_NAME" "$ADDR")
+        echoDebug "Calldata: $CALLDATA"
+
+        DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+        echoDebug "DIAMOND_ADDRESS: $DIAMOND_ADDRESS"
+        echoDebug "NETWORK: $NETWORK"
+
+        echo "Now proposing registerPeripheryContract("$CONTRACT_NAME","$ADDR") to diamond "$DIAMOND_ADDRESS" with calldata $CALLDATA"
+        ts-node script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+      else
+        # just register the diamond (no multisig required)
+        cast send "$DIAMOND" 'registerPeripheryContract(string,address)' "$CONTRACT_NAME" "$ADDR" --private-key "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" --rpc-url "$RPC_URL" --legacy >/dev/null 2>&1
+      fi
     fi
 
     # check the return code the last call

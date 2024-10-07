@@ -60,6 +60,7 @@
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
       "GasRebateDistributor": "",
       "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
+      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "Receiver": "0x0561fFe9855541C02D17951c93405A4407Df74BC",
       "RelayerCelerIM": "",
       "ServiceFeeCollector": "0xf3552b98BB4234B47674700A99a0308D74B40F51",
