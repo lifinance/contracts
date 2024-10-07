@@ -397,7 +397,7 @@
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
     "wrappedNativeAddress": "0x0000000000000000000000000000000000000000",
-    "status": "active",
+    "status": "inactive",
     "type": "testnet",
     "rpcUrl": "http://localhost:8545",
     "explorerType": "etherscan",

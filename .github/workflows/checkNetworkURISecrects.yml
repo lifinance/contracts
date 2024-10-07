@@ -62,6 +62,6 @@ jobs:
         with:
           args: |
             :warning: Missing GitHub Secrets for Networks:
-            $MISSING_SECRETS
+            ${{ env.MISSING_SECRETS }}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
