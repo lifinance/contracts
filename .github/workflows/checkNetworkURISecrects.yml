@@ -1,0 +1,67 @@
+name: Check Active Networks for Missing Secrets
+# - will read all "active" networks from config/networks.json
+# - will check if for all of these networks a Github secret with a NODE_URI exists
+# - This will make sure that the EmergencyPause action has RPC URLS for all networks
+
+on:
+  push:
+  schedule:
+    # Run every day at midnight
+    - cron: '0 0 * * *'
+
+jobs:
+  check-secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4.2.0
+
+      - name: Read Networks Configuration
+        id: read-networks
+        run: |
+          # Extract active networks from networks.json
+          active_networks=$(jq -r 'to_entries[] | select(.value.status == "active") | .key' networks.json)
+          echo "Active networks: $active_networks"
+          echo "ACTIVE_NETWORKS=$active_networks" >> $GITHUB_ENV
+
+      - name: Check for Missing Secrets
+        id: check-secrets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+        run: |
+          missing_secrets=""
+          for network in $ACTIVE_NETWORKS; do
+            secret_name="ETH_NODE_URI_${network^^}"
+            echo "Checking for secret: $secret_name"
+
+            # Use GitHub API to check if secret exists
+            secret_check=$(curl -s \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              https://api.github.com/repos/${{ github.repository }}/actions/secrets/$secret_name)
+
+            if echo "$secret_check" | grep -q "Not Found"; then
+              echo -e "\033[31mSecret $secret_name is missing!\033[0m"
+              missing_secrets="$missing_secrets\n$secret_name"
+            else
+              echo -e "\033[32mSecret $secret_name exists.\033[0m"
+            fi
+          done
+
+          if [ -n "$missing_secrets" ]; then
+            echo -e "\033[31mMissing secrets found: $missing_secrets\033[0m"
+            echo "Missing secrets found: $missing_secrets"
+            echo "MISSING_SECRETS=$missing_secrets" >> $GITHUB_ENV
+          else
+            echo -e "\033[32mFound a RPC URL for each active network. Check passed. \033[0m"
+          fi
+
+      - name: Send Discord message
+        if: env.MISSING_SECRETS != ''
+        uses: Ilshidur/action-discord@0.3.2
+        with:
+          args: |
+            :warning: Missing GitHub Secrets for Networks:
+            $MISSING_SECRETS
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
