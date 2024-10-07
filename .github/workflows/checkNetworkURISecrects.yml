@@ -20,7 +20,7 @@ jobs:
         id: read-networks
         run: |
           # Extract active networks from networks.json
-          active_networks=$(jq -r 'to_entries[] | select(.value.status == "active") | .key' networks.json)
+          active_networks=$(jq -r 'to_entries[] | select(.value.status == "active") | .key' config/networks.json)
           echo "Active networks: $active_networks"
           echo "ACTIVE_NETWORKS=$active_networks" >> $GITHUB_ENV
 
