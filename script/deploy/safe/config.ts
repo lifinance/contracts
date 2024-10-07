@@ -31,6 +31,7 @@ export const safeApiUrls: Record<string, string> = {
   scroll: 'https://safe-transaction-scroll.safe.global/api',
   sei: 'https://transaction.sei-safe.protofire.io/api',
   taiko: 'https://transaction.safe.taiko.xyz/api',
+  xlayer: 'https://safe-transaction-xlayer.safe.global/api',
   zksync: 'https://safe-transaction-zksync.safe.global/api',
 }
 
@@ -64,6 +65,7 @@ export const safeAddresses: Record<string, string> = {
   scroll: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   sei: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   taiko: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
+  xlayer: '0x3fD21B437b5E0a903A8376D33824F9BA658756C2',
   zksync: '0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744',
 }
 
