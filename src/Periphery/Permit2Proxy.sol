@@ -61,8 +61,9 @@ contract Permit2Proxy is WithdrawablePeriphery {
 
     /// @notice Allows to bridge tokens through a LI.FI diamond contract using
     /// an EIP2612 gasless permit (only works with tokenAddresses that
-    /// implement EIP2612) (in contrast to Permit2, calldata and diamondAddress
-    /// are not signed by the user and could therefore be replaced by the user)
+    /// implement EIP2612)
+    /// The permit signer must be the caller to prevent front-running and ensure
+    /// the calldata cannot be replaced by others.
     /// Can only be called by the permit signer to prevent front-running.
     /// @param tokenAddress Address of the token to be bridged
     /// @param amount Amount of tokens to be bridged
