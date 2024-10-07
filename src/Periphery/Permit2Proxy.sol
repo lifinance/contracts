@@ -109,8 +109,8 @@ contract Permit2Proxy is WithdrawablePeriphery {
 
     /// @notice Allows to bridge tokens of one type through a LI.FI diamond
     ///         contract using Uniswap's Permit2 contract and a user signature
-    ///         that verifies allowance. The calldata can be changed by the
-    ///         user. Can only be called by the permit signer to prevent
+    ///         that verifies allowance. The permit signer must be the caller to prevent front-running and
+    ///         ensure the calldata cannot be replaced by others. Can only be called by the permit signer to prevent
     ///         front-running.
     /// @param _diamondCalldata the calldata to execute
     /// @param _permit the Uniswap Permit2 parameters
