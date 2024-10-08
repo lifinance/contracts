@@ -1,15 +1,11 @@
 // // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import "ds-test/test.sol";
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
-import { Test } from "forge-std/Test.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { HopFacetPacked } from "lifi/Facets/HopFacetPacked.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { console } from "../utils/Console.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
+import { TestBase, console, ILiFi } from "../utils/TestBase.sol";
 
 contract CallForwarder {
     function callDiamond(
@@ -26,7 +22,7 @@ contract CallForwarder {
     }
 }
 
-contract HopFacetPackedL1Test is Test, DiamondTest {
+contract HopFacetPackedL1Test is TestBase {
     using SafeTransferLib for ERC20;
 
     address internal constant HOP_USDC_BRIDGE =
@@ -35,19 +31,12 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
         0x3E4a3a4796d16c0Cd582C382691998f7c06420B6;
     address internal constant HOP_NATIVE_BRIDGE =
         0xb8901acB165ed027E32754E0FFe830802919727f;
-    address internal constant USDT_ADDRESS =
-        0xdAC17F958D2ee523a2206206994597C13D831ec7;
-    address internal constant USDC_ADDRESS =
-        0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address internal constant WHALE =
         0x72A53cDBBcc1b9efa39c834A540550e23463AAcB; // USDC + ETH
     address internal constant RECEIVER =
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
 
     IHopBridge internal hop;
-    ERC20 internal usdc;
-    ERC20 internal usdt;
-    LiFiDiamond internal diamond;
     HopFacetPacked internal hopFacetPacked;
     HopFacetPacked internal standAlone;
     CallForwarder internal callForwarder;
@@ -72,25 +61,18 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
     uint256 amountOutMinNative;
     bytes packedNative;
 
-    function fork() internal {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = 15588208;
-        vm.createSelectFork(rpcUrl, blockNumber);
-    }
-
     function setUp() public {
-        fork();
+        // set custom block number for forking
+        customBlockNumberForForking = 15588208;
+        initTestBase();
 
         /// Perpare HopFacetPacked
-        diamond = createDiamond();
         hopFacetPacked = new HopFacetPacked(address(this), address(0));
         standAlone = new HopFacetPacked(address(this), address(0));
-        usdc = ERC20(USDC_ADDRESS);
-        usdt = ERC20(USDT_ADDRESS);
         hop = IHopBridge(HOP_USDC_BRIDGE);
         callForwarder = new CallForwarder();
 
-        deal(USDT_ADDRESS, address(WHALE), 100000 * 10 ** usdt.decimals());
+        deal(ADDRESS_USDT, address(WHALE), 100000 * 10 ** usdt.decimals());
 
         bytes4[] memory functionSelectors = new bytes4[](13);
         functionSelectors[0] = hopFacetPacked
@@ -141,8 +123,8 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
         bridges[0] = HOP_USDC_BRIDGE;
         bridges[1] = HOP_USDT_BRIDGE;
         address[] memory tokens = new address[](2);
-        tokens[0] = USDC_ADDRESS;
-        tokens[1] = USDT_ADDRESS;
+        tokens[0] = ADDRESS_USDC;
+        tokens[1] = ADDRESS_USDT;
 
         // > diamond
         HopFacetOptimized hopFacetOptimized = new HopFacetOptimized();
@@ -193,7 +175,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
                 transactionId,
                 RECEIVER,
                 destinationChainId,
-                USDC_ADDRESS,
+                ADDRESS_USDC,
                 amountUSDC,
                 amountOutMinUSDC,
                 address(0),
@@ -211,13 +193,16 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
                 transactionId,
                 RECEIVER,
                 destinationChainId,
-                USDT_ADDRESS,
+                ADDRESS_USDT,
                 amountUSDT,
                 amountOutMinUSDT,
                 address(0),
                 0,
                 HOP_USDT_BRIDGE
             );
+
+        // set facet address in TestBase
+        setFacetAddressInTestBase(address(hopFacetPacked), "HopFacetPackedL1");
     }
 
     // L1 Native
@@ -333,7 +318,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
             transactionId,
             RECEIVER,
             destinationChainId,
-            USDC_ADDRESS,
+            ADDRESS_USDC,
             amountUSDC,
             amountOutMinUSDC,
             address(0),
@@ -350,7 +335,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
             transactionId,
             RECEIVER,
             destinationChainId,
-            USDC_ADDRESS,
+            ADDRESS_USDC,
             amountUSDC,
             amountOutMinUSDC,
             address(0),
@@ -397,7 +382,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
             transactionId,
             RECEIVER,
             destinationChainId,
-            USDT_ADDRESS,
+            ADDRESS_USDT,
             amountUSDT,
             amountOutMinUSDT,
             address(0),
@@ -414,7 +399,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
             transactionId,
             RECEIVER,
             destinationChainId,
-            USDT_ADDRESS,
+            ADDRESS_USDT,
             amountUSDT,
             amountOutMinUSDT,
             address(0),
@@ -534,7 +519,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
     //         transactionId,
     //         RECEIVER,
     //         uint256(type(uint32).max),
-    //         USDC_ADDRESS,
+    //         ADDRESS_USDC,
     //         amountUSDC,
     //         amountBonderFeeUSDC,
     //         amountOutMinUSDC,
@@ -548,7 +533,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
     //         transactionId,
     //         RECEIVER,
     //         uint256(type(uint32).max) + 1,
-    //         USDC_ADDRESS,
+    //         ADDRESS_USDC,
     //         amountUSDC,
     //         amountBonderFeeUSDC,
     //         amountOutMinUSDC,
@@ -563,7 +548,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
     //         transactionId,
     //         RECEIVER,
     //         137,
-    //         USDC_ADDRESS,
+    //         ADDRESS_USDC,
     //         uint256(type(uint128).max),
     //         amountBonderFeeUSDC,
     //         amountOutMinUSDC,
@@ -577,7 +562,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
     //         transactionId,
     //         RECEIVER,
     //         137,
-    //         USDC_ADDRESS,
+    //         ADDRESS_USDC,
     //         uint256(type(uint128).max) + 1,
     //         amountBonderFeeUSDC,
     //         amountOutMinUSDC,
@@ -592,7 +577,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
     //         transactionId,
     //         RECEIVER,
     //         137,
-    //         USDC_ADDRESS,
+    //         ADDRESS_USDC,
     //         amountUSDC,
     //         uint256(type(uint128).max),
     //         amountOutMinUSDC,
@@ -606,7 +591,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
     //         transactionId,
     //         RECEIVER,
     //         137,
-    //         USDC_ADDRESS,
+    //         ADDRESS_USDC,
     //         amountUSDC,
     //         uint256(type(uint128).max) + 1,
     //         amountOutMinUSDC,
@@ -621,7 +606,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
     //         transactionId,
     //         RECEIVER,
     //         137,
-    //         USDC_ADDRESS,
+    //         ADDRESS_USDC,
     //         amountUSDC,
     //         amountBonderFeeUSDC,
     //         uint256(type(uint128).max),
@@ -635,7 +620,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
     //         transactionId,
     //         RECEIVER,
     //         137,
-    //         USDC_ADDRESS,
+    //         ADDRESS_USDC,
     //         amountUSDC,
     //         amountBonderFeeUSDC,
     //         uint256(type(uint128).max) + 1,
@@ -650,7 +635,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
     //         transactionId,
     //         RECEIVER,
     //         137,
-    //         USDC_ADDRESS,
+    //         ADDRESS_USDC,
     //         amountUSDC,
     //         amountBonderFeeUSDC,
     //         amountOutMinUSDC,
@@ -664,7 +649,7 @@ contract HopFacetPackedL1Test is Test, DiamondTest {
     //         transactionId,
     //         RECEIVER,
     //         137,
-    //         USDC_ADDRESS,
+    //         ADDRESS_USDC,
     //         amountUSDC,
     //         amountBonderFeeUSDC,
     //         amountOutMinUSDC,

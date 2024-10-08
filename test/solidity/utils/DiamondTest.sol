@@ -5,19 +5,28 @@ import "lifi/LiFiDiamond.sol";
 import "lifi/Facets/DiamondCutFacet.sol";
 import "lifi/Facets/DiamondLoupeFacet.sol";
 import "lifi/Facets/OwnershipFacet.sol";
+import "lifi/Facets/EmergencyPauseFacet.sol";
 import "lifi/Interfaces/IDiamondCut.sol";
 import "lifi/Facets/PeripheryRegistryFacet.sol";
+import { Test, console } from "forge-std/Test.sol";
 
-contract DiamondTest {
+contract DiamondTest is Test {
     IDiamondCut.FacetCut[] internal cut;
 
-    function createDiamond() internal returns (LiFiDiamond) {
+    function createDiamond(
+        address _diamondOwner,
+        address _pauserWallet
+    ) internal returns (LiFiDiamond) {
+        vm.startPrank(_diamondOwner);
         DiamondCutFacet diamondCut = new DiamondCutFacet();
         DiamondLoupeFacet diamondLoupe = new DiamondLoupeFacet();
         OwnershipFacet ownership = new OwnershipFacet();
         PeripheryRegistryFacet periphery = new PeripheryRegistryFacet();
+        EmergencyPauseFacet emergencyPause = new EmergencyPauseFacet(
+            _pauserWallet
+        );
         LiFiDiamond diamond = new LiFiDiamond(
-            address(this),
+            _diamondOwner,
             address(diamondCut)
         );
 
@@ -76,10 +85,25 @@ contract DiamondTest {
             })
         );
 
+        // EmergencyPauseFacet
+        functionSelectors = new bytes4[](3);
+        functionSelectors[0] = emergencyPause.removeFacet.selector;
+        functionSelectors[1] = emergencyPause.pauseDiamond.selector;
+        functionSelectors[2] = emergencyPause.unpauseDiamond.selector;
+
+        cut.push(
+            IDiamondCut.FacetCut({
+                facetAddress: address(emergencyPause),
+                action: IDiamondCut.FacetCutAction.Add,
+                functionSelectors: functionSelectors
+            })
+        );
+
         DiamondCutFacet(address(diamond)).diamondCut(cut, address(0), "");
 
         delete cut;
 
+        vm.stopPrank();
         return diamond;
     }
 
@@ -108,6 +132,7 @@ contract DiamondTest {
         address _init,
         bytes memory _initCallData
     ) internal {
+        vm.startPrank(OwnershipFacet(address(_diamond)).owner());
         cut.push(
             IDiamondCut.FacetCut({
                 facetAddress: _facet,
@@ -123,5 +148,6 @@ contract DiamondTest {
         );
 
         delete cut;
+        vm.stopPrank();
     }
 }

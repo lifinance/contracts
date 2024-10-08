@@ -51,9 +51,7 @@ contract StargateFacetV2Test is TestBaseFacet {
     // -----
 
     TestStargateFacetV2 internal stargateFacetV2;
-    FeeCollector internal feeCollector;
     StargateFacetV2.StargateData internal stargateData;
-    uint256 internal nativeAddToMessageValue;
 
     function setUp() public {
         // set custom block number for forking
@@ -62,7 +60,6 @@ contract StargateFacetV2Test is TestBaseFacet {
         initTestBase();
 
         stargateFacetV2 = new TestStargateFacetV2(TOKEN_MESSAGING);
-        feeCollector = new FeeCollector(address(this));
 
         defaultUSDCAmount = 100 * 10 ** usdc.decimals();
 
@@ -345,7 +342,7 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         // prepare swap data
         address[] memory path = new address[](2);
-        path[0] = ADDRESS_WETH;
+        path[0] = ADDRESS_WRAPPED_NATIVE;
         path[1] = ADDRESS_USDC;
 
         uint256 amountIn = defaultNativeAmount;
@@ -359,7 +356,7 @@ contract StargateFacetV2Test is TestBaseFacet {
             LibSwap.SwapData({
                 callTo: address(uniswap),
                 approveTo: address(uniswap),
-                sendingAssetId: ADDRESS_WETH,
+                sendingAssetId: ADDRESS_WRAPPED_NATIVE,
                 receivingAssetId: ADDRESS_USDC,
                 fromAmount: amountIn,
                 callData: abi.encodeWithSelector(
@@ -583,7 +580,7 @@ contract StargateFacetV2Test is TestBaseFacet {
         // prepare swap data
         address[] memory path = new address[](2);
         path[0] = ADDRESS_USDC;
-        path[1] = ADDRESS_WETH;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
 
         uint256 amountOut = bridgeData.minAmount;
 
@@ -615,7 +612,7 @@ contract StargateFacetV2Test is TestBaseFacet {
     function _getNativeToExactUSDCSwapData() internal {
         // prepare swap data
         address[] memory path = new address[](2);
-        path[0] = ADDRESS_WETH;
+        path[0] = ADDRESS_WRAPPED_NATIVE;
         path[1] = ADDRESS_USDC;
 
         uint256 amountOut = bridgeData.minAmount;

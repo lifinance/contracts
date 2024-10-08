@@ -34,15 +34,12 @@ contract StargateFacetTest is TestBaseFacet {
     event PartnerSwap(bytes2 partnerId);
 
     // These values are for Mainnet
-    address internal constant WETH_ADDRESS =
-        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address internal constant MAINNET_COMPOSER =
         0xeCc19E177d24551aA7ed6Bc6FE566eCa726CC8a9;
     uint256 internal constant DST_CHAIN_ID = 137;
     // -----
 
     TestStargateFacet internal stargateFacet;
-    FeeCollector internal feeCollector;
     StargateFacet.StargateData internal stargateData;
     uint256 internal nativeAddToMessageValue;
 
@@ -55,7 +52,6 @@ contract StargateFacetTest is TestBaseFacet {
         stargateFacet = new TestStargateFacet(
             IStargateRouter(MAINNET_COMPOSER)
         );
-        feeCollector = new FeeCollector(address(this));
 
         bytes4[] memory functionSelectors = new bytes4[](8);
         functionSelectors[0] = stargateFacet.initStargate.selector;
@@ -300,7 +296,7 @@ contract StargateFacetTest is TestBaseFacet {
         // prepare swap data
         address[] memory path = new address[](2);
         path[0] = ADDRESS_USDC;
-        path[1] = ADDRESS_WETH;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
 
         uint256 amountOut = defaultNativeAmount;
 
@@ -382,7 +378,7 @@ contract StargateFacetTest is TestBaseFacet {
     }
 
     function test_revert_InitializeAsNonOwner() public {
-        LiFiDiamond diamond2 = createDiamond();
+        LiFiDiamond diamond2 = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         stargateFacet = new TestStargateFacet(
             IStargateRouter(MAINNET_COMPOSER)
         );
