@@ -28,7 +28,7 @@ function handleNetwork() {
   esac
 
   # convert the provided private key of the pauser wallet (from github) to an address
-  PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
+  PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY")
 
   # get RPC URL for given network
   RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
@@ -124,7 +124,7 @@ function main {
   # while IFS= read -r line; do
   #   NETWORKS+=("$line")
   # done <"./networks"
-  NETWORKS=("arbitrum" "polygon" "optimism") # TODO: remove <<<<<<<<<---------------------------------------------------------------------------------------- (WILL MAKE SURE THAT THE TEST RUNS ONLY ON THREE NETWORKS)
+  NETWORKS=("arbitrum" "polygon" "optimism") # TODO: remove <<<<<<<<<---------------------------------------------------------------------------------------- (WILL MAKE SURE THAT THE TEST RUNS ONLY ON THREE
 
   echo "networks found: ${NETWORKS[@]}"
 

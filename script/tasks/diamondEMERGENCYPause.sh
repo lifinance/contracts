@@ -1,11 +1,5 @@
 #!/bin/bash
 
-#TODO:
-# - who can execute this script?
-# - who has access to the PauserWallet privKey (or should it be the tester wallet so every employee can pause our contract)?
-# - replace pauserWallet address in global config
-# - how can we make sure that the user log info is being sent to Discord (webhook URL must be in config.sh which most people wont have set up)
-
 function diamondEMERGENCYPause {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script diamondEMERGENCYPause now...."
@@ -85,7 +79,7 @@ function diamondEMERGENCYPause {
   # logging for debug purposes
   echo ""
   echoDebug "in function diamondEMERGENCYPause"
-  echoDebug "NETWORKS=$NETWORKS"
+  echoDebug "NETWORKS=${NETWORKS[*]}"
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
   echoDebug "DIAMOND_CONTRACT_NAME=$DIAMOND_CONTRACT_NAME"
@@ -101,7 +95,7 @@ function diamondEMERGENCYPause {
 
   # go through all networks and start background tasks for each network (to execute in parallel)
   for NETWORK in "${NETWORKS[@]}"; do
-      handleNetwork "$NETWORK" "$ACTION" "$FACET_CONTRACT_NAME" "$BLACKLIST" &
+      handleNetwork "$NETWORK" "$ACTION" "$FACET_CONTRACT_NAME" "$DIAMOND_CONTRACT_NAME" "$BLACKLIST" &
   done
 
   # Wait for all background jobs to finish
@@ -133,12 +127,13 @@ function handleNetwork() {
   local NETWORK=$1
   local ACTION=$2
   local FACET_CONTRACT_NAME=$3
-  local BLACKLIST=$4 # a list of facet addresses that should not be reactivated when unpausing the diamond
+  local DIAMOND_CONTRACT_NAME=$4
+  local BLACKLIST=$5 # a list of facet addresses that should not be reactivated when unpausing the diamond
 
   # get RPC URL for given network
   RPC_URL=$(getRPCUrl "$NETWORK")
 
-  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "$DIAMOND_CONTRACT_NAME")
 
   if [[ $? -ne 0 ]]; then
     error "[network: $NETWORK] could not find diamond address in PROD deploy log. Cannot continue for this network."
