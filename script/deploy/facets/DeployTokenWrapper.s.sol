@@ -23,7 +23,7 @@ contract DeployScript is DeployScriptBase {
         // get path of global config file
         string memory tokenWrapperConfig = string.concat(
             root,
-            "/config/tokenwrapper.json"
+            "/config/networks.json"
         );
 
         // read file into json variable
@@ -31,7 +31,7 @@ contract DeployScript is DeployScriptBase {
 
         // extract wrapped token address for the given network
         address wrappedNativeAddress = tokenWrapperConfigJSON.readAddress(
-            string.concat(".", network)
+            string.concat(".", network, ".wrappedNativeAddress")
         );
 
         return abi.encode(wrappedNativeAddress);
