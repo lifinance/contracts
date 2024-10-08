@@ -5,6 +5,7 @@
 name: SC Core Dev Approval Check
 
 on:
+  push:
   pull_request_review:
     types: [submitted]
 
@@ -98,7 +99,7 @@ jobs:
             }
 
             // Filter to only include reviews that have "APPROVED" status
-            console.log(JSON.stringify(review,null,2));
+            console.log(JSON.stringify(reviews,null,2));
             const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
 
             if(!approvedReviews.length) {
