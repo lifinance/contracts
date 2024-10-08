@@ -62,7 +62,7 @@ jobs:
 
       - name: Pause Diamond
         run: |
-          ./script/tasks/utils/diamondEMERGENCYPauseGitHub.sh
+          ./script/utils/diamondEMERGENCYPauseGitHub.sh
         env:
           ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
           ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
