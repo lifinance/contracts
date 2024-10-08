@@ -62,7 +62,8 @@
       "ServiceFeeCollector": "0x3F0bD05C9A09FE07DB88aA2DD97f9d9fAf82994d",
       "LiFuelFeeCollector": "0xB87C536E048Cfc082187E559fCFeFc3f1c89aEc7",
       "TokenWrapper": "0xf15485ada1a1826fA46225032b13F6A972eC73C1",
-      "ReceiverAcrossV3": "0xf5B5AdD451c3195716C482D9b27FF0c1F2c40251"
+      "ReceiverAcrossV3": "0xf5B5AdD451c3195716C482D9b27FF0c1F2c40251",
+      "LiFiDEXAggregator": "0x1F683faf1E2a770aa75f7B2e92117A5c11183E9C"
     }
   }
 }
