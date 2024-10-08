@@ -30,10 +30,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  const SPOKE_POOL = String(
-    (config as AcrossConfig)[network.name].acrossSpokePool
-  )
-  const WETH = String((config as AcrossConfig)[network.name].weth)
+  const SPOKE_POOL = (config as AcrossConfig)[network.name].acrossSpokePool
+  const WETH = (config as AcrossConfig)[network.name].weth
 
   if (!SPOKE_POOL || !WETH) {
     console.log(
@@ -42,9 +40,17 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     return
   }
 
-  const deployedFacet = await deployFacet(hre, 'AcrossFacetPackedV3', {
-    args: [SPOKE_POOL, WETH, String(deployer)],
+  // await deployFacet(hre, 'AcrossFacetPackedV3', {
+  //   args: [SPOKE_POOL, WETH, deployer],
+  // })
+  console.log(`Deploying now`)
+  const deployedFacet = await deploy('AcrossFacetPackedV3', {
+    from: deployer,
+    log: true,
+    args: [SPOKE_POOL, WETH, deployer],
   })
+
+  console.log(`Deployed (${deployedFacet})`)
 }
 
 export default func

@@ -54,6 +54,7 @@ const config: HardhatUserConfig = {
       accounts: PKEY ? [PKEY] : accounts(),
       chainId: 324,
       zksync: true,
+      forceDeploy: true,
       ethNetwork: 'mainnet',
       verifyURL:
         'https://zksync2-mainnet-explorer.zksync.io/contract_verification',
