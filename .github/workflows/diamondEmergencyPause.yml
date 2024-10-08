@@ -4,15 +4,22 @@ on:
   workflow_dispatch:
     inputs:
       Warning:
-        description: 'By clicking the next button you are pausing all PROD diamonds. Please proceed with caution'
-        required: false
+        description: 'By clicking the next button you are pausing all PROUCTION diamonds. Please proceed with extreme caution !!!'
+        required: true
+        default: 'Type UNDERSTOOD to continue'
 
 jobs:
   diamond-emergency-pause:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4.1.7
+
+      - name: Check input
+        if: ${{ inputs.Warning != 'UNDERSTOOD' }}
+        run: |
+          echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed.\033[0m"
+          exit 1
 
       # Keeping this code for now until team member authentication has been tested successfully
       # - name: Authenticate user
@@ -30,22 +37,24 @@ jobs:
       #   shell: bash
 
       - name: Authenticate git user (check membership in 'DiamondPauser' group)
+        if: ${{ inputs.Warning == 'UNDERSTOOD' }}
         id: authenticate-user
         uses: tspascoal/get-user-teams-membership@v3
         with:
           username: ${{ github.actor }}
           organization: lifinance
           team: diamondpauser
-          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
 
       - name: Check team membership
+        if: ${{ inputs.Warning == 'UNDERSTOOD' }}
         run: |
           if [[ "${{ steps.authenticate-user.outputs.isTeamMember }}" != "true" ]]; then
-            echo "User ${{ github.actor }} is not a member of the DiamondPauser team. Please ask one of the team members to execute this action:"
+            echo -e "\033[31mUser ${{ github.actor }} is not a member of the DiamondPauser team. Please ask one of the team members to execute this action:\033[0m"
             echo "https://github.com/orgs/lifinance/teams/diamondpauser/members"
             exit 1
           else
-            echo "User is a member of the DiamondPauser team and may execute this action"
+            echo -e "\033[32mUser is a member of the DiamondPauser team and may execute this action\033[0m"
           fi
 
       - name: Install Foundry
@@ -53,7 +62,7 @@ jobs:
 
       - name: Pause Diamond
         run: |
-          ./script/tasks/diamondEMERGENCYPauseGitHub.sh
+          ./script/tasks/utils/diamondEMERGENCYPauseGitHub.sh
         env:
           ETH_NODE_URI_MAINNET: ${{ secrets.ETH_NODE_URI_MAINNET }}
           ETH_NODE_URI_ARBITRUM: ${{ secrets.ETH_NODE_URI_ARBITRUM }}
@@ -68,6 +77,9 @@ jobs:
           ETH_NODE_URI_FRAXTAL: ${{ secrets.ETH_NODE_URI_FRAXTAL }}
           ETH_NODE_URI_FUSE: ${{ secrets.ETH_NODE_URI_FUSE }}
           ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
+          ETH_NODE_URI_GRAVITY: ${{ secrets.ETH_NODE_URI_GRAVITY }}
+          ETH_NODE_URI_IMMUTABLEZKEVM: ${{ secrets.ETH_NODE_URI_IMMUTABLEZKEVM }}
+          ETH_NODE_URI_KAIA: ${{ secrets.ETH_NODE_URI_KAIA }}
           ETH_NODE_URI_LINEA: ${{ secrets.ETH_NODE_URI_LINEA }}
           ETH_NODE_URI_MANTLE: ${{ secrets.ETH_NODE_URI_MANTLE }}
           ETH_NODE_URI_METIS: ${{ secrets.ETH_NODE_URI_METIS }}
@@ -75,17 +87,21 @@ jobs:
           ETH_NODE_URI_MOONBEAM: ${{ secrets.ETH_NODE_URI_MOONBEAM }}
           ETH_NODE_URI_MOONRIVER: ${{ secrets.ETH_NODE_URI_MOONRIVER }}
           ETH_NODE_URI_OPTIMISM: ${{ secrets.ETH_NODE_URI_OPTIMISM }}
+          ETH_NODE_URI_OPBNB: ${{ secrets.ETH_NODE_URI_OPBNB }}
           ETH_NODE_URI_POLYGON: ${{ secrets.ETH_NODE_URI_POLYGON }}
           ETH_NODE_URI_POLYGONZKEVM: ${{ secrets.ETH_NODE_URI_POLYGONZKEVM }}
           ETH_NODE_URI_ROOTSTOCK: ${{ secrets.ETH_NODE_URI_ROOTSTOCK }}
           ETH_NODE_URI_SCROLL: ${{ secrets.ETH_NODE_URI_SCROLL }}
           ETH_NODE_URI_SEI: ${{ secrets.ETH_NODE_URI_SEI }}
+          ETH_NODE_URI_TAIKO: ${{ secrets.ETH_NODE_URI_TAIKO }}
+          ETH_NODE_URI_XLAYER: ${{ secrets.ETH_NODE_URI_XLAYER }}
           ETH_NODE_URI_ZKSYNC: ${{ secrets.ETH_NODE_URI_ZKSYNC }}
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_PRIV_KEY_SECRET }}
 
       - name: Send Discord message
         uses: Ilshidur/action-discord@0.3.2
         with:
-          args: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
+          args: |
+            :warning: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}

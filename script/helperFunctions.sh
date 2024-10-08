@@ -3491,7 +3491,7 @@ function sendMessageToDiscordSmartContractsChannel() {
   # read function arguments into variable
   local MESSAGE=$1
 
-  if [ -z "$DISCORD_WARNING_WEBHOOK_URL" ]; then
+  if [ -z "$DISCORD_WEBHOOK_DEV_SMARTCONTRACTS" ]; then
     echo ""
     warning "Discord webhook URL for dev-smartcontracts is missing. Cannot send log message."
     echo ""
@@ -3507,7 +3507,7 @@ function sendMessageToDiscordSmartContractsChannel() {
   curl -H "Content-Type: application/json" \
      -X POST \
      -d "{\"content\": \"$MESSAGE\"}" \
-     $DISCORD_WARNING_WEBHOOK_URL
+     $DISCORD_WEBHOOK_DEV_SMARTCONTRACTS
 
   echoDebug "Log message sent to Discord"
 
