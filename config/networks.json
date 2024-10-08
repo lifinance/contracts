@@ -13,7 +13,8 @@
     "explorerApiUrl": "https://api.etherscan.io/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://safe-transaction-mainnet.safe.global/api",
-    "safeAddress": "0x37347dD595C49212C5FC2D95EA10d1085896f51E"
+    "safeAddress": "0x37347dD595C49212C5FC2D95EA10d1085896f51E",
+    "gasZipChainId": 255
   },
   "arbitrum": {
     "name": "Arbitrum One",
@@ -29,7 +30,8 @@
     "explorerApiUrl": "https://api.arbiscan.io/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://safe-transaction-arbitrum.safe.global/api",
-    "safeAddress": "0x9e606d0d2BbA344b911e2F4Eab95d9235A83fe15"
+    "safeAddress": "0x9e606d0d2BbA344b911e2F4Eab95d9235A83fe15",
+    "gasZipChainId": 57
   },
   "aurora": {
     "name": "Aurora",
@@ -45,7 +47,8 @@
     "explorerApiUrl": "https://aurorascan.dev/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://safe-transaction-aurora.safe.global/api",
-    "safeAddress": "0xC7291F249424A35b17976F057D2C97B30c92b88C"
+    "safeAddress": "0xC7291F249424A35b17976F057D2C97B30c92b88C",
+    "gasZipChainId": 62
   },
   "avalanche": {
     "name": "Avalanche C-Chain",
@@ -61,7 +64,8 @@
     "explorerApiUrl": "https://api.snowtrace.io",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://safe-transaction-avalanche.safe.global/api",
-    "safeAddress": "0x27d4eb2854d93a1A7Df8e2aeD1a535b080a6f6e4"
+    "safeAddress": "0x27d4eb2854d93a1A7Df8e2aeD1a535b080a6f6e4",
+    "gasZipChainId": 15
   },
   "base": {
     "name": "Base",
@@ -77,7 +81,8 @@
     "explorerApiUrl": "https://api.basescan.org/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://safe-transaction-base.safe.global/api",
-    "safeAddress": "0x1F6974C11B833Eb52ea07E0B442510165D87d82e"
+    "safeAddress": "0x1F6974C11B833Eb52ea07E0B442510165D87d82e",
+    "gasZipChainId": 54
   },
   "blast": {
     "name": "Blast",
@@ -93,7 +98,8 @@
     "explorerApiUrl": "https://api.blastscan.io/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeApiUrl": "https://transaction.blast-safe.io/api",
-    "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1"
+    "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
+    "gasZipChainId": 96
   },
   "boba": {
     "name": "Boba Network",
@@ -109,7 +115,8 @@
     "explorerApiUrl": "https://api.bobascan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://safe-transaction.mainnet.boba.network/api",
-    "safeAddress": "0x05d34Bd70E0CBf8b82423d0C2ee8b2a8f02E4128"
+    "safeAddress": "0x05d34Bd70E0CBf8b82423d0C2ee8b2a8f02E4128",
+    "gasZipChainId": 140
   },
   "bsc": {
     "name": "BNB Smart Chain",
@@ -125,7 +132,8 @@
     "explorerApiUrl": "https://api.bscscan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://safe-transaction-bsc.safe.global/api",
-    "safeAddress": "0x20B6b31D76E054C3e4de6154fEca385Ca58c7C15"
+    "safeAddress": "0x20B6b31D76E054C3e4de6154fEca385Ca58c7C15",
+    "gasZipChainId": 148
   },
   "celo": {
     "name": "Celo",
@@ -141,7 +149,8 @@
     "explorerApiUrl": "https://api.celoscan.io/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeApiUrl": "https://safe-transaction-celo.safe.global/api",
-    "safeAddress": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772"
+    "safeAddress": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
+    "gasZipChainId": 21
   },
   "fantom": {
     "name": "Fantom",
@@ -157,7 +166,8 @@
     "explorerApiUrl": "https://api.ftmscan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://safe-txservice.fantom.network/api",
-    "safeAddress": "0x9B325B1c43BB3c018FcDB24A64E05EF4B8B8057b"
+    "safeAddress": "0x9B325B1c43BB3c018FcDB24A64E05EF4B8B8057b",
+    "gasZipChainId": 20
   },
   "fraxtal": {
     "name": "Fraxtal",
@@ -173,7 +183,8 @@
     "explorerApiUrl": "https://api.fraxscan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://transaction-frax.safe.optimism.io/api",
-    "safeAddress": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772"
+    "safeAddress": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
+    "gasZipChainId": 10
   },
   "fuse": {
     "name": "Fuse",
@@ -189,7 +200,8 @@
     "explorerApiUrl": "https://explorer.fuse.io/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://transaction-fuse.safe.fuse.io/api",
-    "safeAddress": "0x5336e97bA7332FAC20281Bda8B790c8892245Ded"
+    "safeAddress": "0x5336e97bA7332FAC20281Bda8B790c8892245Ded",
+    "gasZipChainId": 31
   },
   "gnosis": {
     "name": "Gnosis Chain",
@@ -205,7 +217,8 @@
     "explorerApiUrl": "https://api.gnosisscan.io/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://safe-transaction-gnosis-chain.safe.global/api",
-    "safeAddress": "0x2bC523875b59A1Ddd03CEB1F1b28c5B0e8e6654A"
+    "safeAddress": "0x2bC523875b59A1Ddd03CEB1F1b28c5B0e8e6654A",
+    "gasZipChainId": 16
   },
   "gravity": {
     "name": "Gravity Alpha Mainnet",
@@ -221,7 +234,8 @@
     "explorerApiUrl": "https://explorer.gravity.xyz/api",
     "multicallAddress": "0xf8ac4BEB2F75d2cFFb588c63251347fdD629B92c",
     "safeApiUrl": "https://safe.gravity.xyz/txs/api",
-    "safeAddress": "0x245B16CaCE8730b009c5352186DcE7d73c3037A1"
+    "safeAddress": "0x245B16CaCE8730b009c5352186DcE7d73c3037A1",
+    "gasZipChainId": 240
   },
   "immutablezkevm": {
     "name": "Immutable zkEVM",
@@ -237,7 +251,8 @@
     "explorerApiUrl": "https://explorer.immutable.com/api",
     "multicallAddress": "0x236bdA4589e44e6850f5aC6a74BfCa398a86c6c0",
     "safeApiUrl": "https://transaction.safe.immutable.com/api",
-    "safeAddress": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772"
+    "safeAddress": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
+    "gasZipChainId": 95
   },
   "kaia": {
     "name": "Kaia",
@@ -253,7 +268,8 @@
     "explorerApiUrl": "https://api-cypress.klaytnscope.com/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeApiUrl": "https://docs-safe.kaia.io/txs-cypress/api",
-    "safeAddress": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772"
+    "safeAddress": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
+    "gasZipChainId": 33
   },
   "linea": {
     "name": "Linea",
@@ -269,7 +285,8 @@
     "explorerApiUrl": "https://api.lineascan.build/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeApiUrl": "https://safe-transaction-linea.safe.global/api",
-    "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1"
+    "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
+    "gasZipChainId": 59
   },
   "mantle": {
     "name": "Mantle",
@@ -285,7 +302,8 @@
     "explorerApiUrl": "https://api.mantlescan.xyz/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeApiUrl": "https://transaction.multisig.mantle.xyz/api",
-    "safeAddress": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772"
+    "safeAddress": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
+    "gasZipChainId": 13
   },
   "metis": {
     "name": "Metis Andromeda Mainnet",
@@ -301,7 +319,8 @@
     "explorerApiUrl": "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://metissafe.tech/txs/api",
-    "safeAddress": "0x925cD8289Ac2d617F52974da8338867f3bB62d56"
+    "safeAddress": "0x925cD8289Ac2d617F52974da8338867f3bB62d56",
+    "gasZipChainId": 30
   },
   "mode": {
     "name": "Mode",
@@ -317,7 +336,8 @@
     "explorerApiUrl": "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://transaction-mode.safe.optimism.io/api",
-    "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1"
+    "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
+    "gasZipChainId": 73
   },
   "moonbeam": {
     "name": "Moonbeam",
@@ -333,7 +353,8 @@
     "explorerApiUrl": "https://api-moonbeam.moonscan.io/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeApiUrl": "https://transaction.multisig.moonbeam.network/api",
-    "safeAddress": "0xB51E43CeCAB8A42cD6225e16C9C3a3ba1A76871A"
+    "safeAddress": "0xB51E43CeCAB8A42cD6225e16C9C3a3ba1A76871A",
+    "gasZipChainId": 28
   },
   "moonriver": {
     "name": "Moonriver",
@@ -349,7 +370,8 @@
     "explorerApiUrl": "https://api-moonriver.moonscan.io/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeApiUrl": "https://transaction.moonriver.multisig.moonbeam.network/api",
-    "safeAddress": "0xfC78B018B4daD77351095f00D92934A9A851DA34"
+    "safeAddress": "0xfC78B018B4daD77351095f00D92934A9A851DA34",
+    "gasZipChainId": 29
   },
   "optimism": {
     "name": "Optimism",
@@ -365,7 +387,25 @@
     "explorerApiUrl": "https://api-optimistic.etherscan.io/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://safe-transaction-optimism.safe.global/api",
-    "safeAddress": "0xa8892eA3fdDeF2aa8AfB1E3643a3284f978A5114"
+    "safeAddress": "0xa8892eA3fdDeF2aa8AfB1E3643a3284f978A5114",
+    "gasZipChainId": 55
+  },
+  "opbnb": {
+    "name": "OP BNB",
+    "chainId": 204,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "BNB",
+    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
+    "status": "inactive",
+    "type": "mainnet",
+    "rpcUrl": "https://opbnb.drpc.org",
+    "verificationType": "etherscan",
+    "explorerUrl": "https://opbnb.bscscan.com/",
+    "explorerApiUrl": "",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeApiUrl": "",
+    "safeAddress": "",
+    "gasZipChainId": 58
   },
   "polygon": {
     "name": "Polygon",
@@ -381,7 +421,8 @@
     "explorerApiUrl": "https://api.polygonscan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://safe-transaction-polygon.safe.global/api",
-    "safeAddress": "0x8BCC385948C73736423D38cc567cFEdE0F1826A3"
+    "safeAddress": "0x8BCC385948C73736423D38cc567cFEdE0F1826A3",
+    "gasZipChainId": 17
   },
   "polygonzkevm": {
     "name": "Polygon zkEVM",
@@ -397,7 +438,8 @@
     "explorerApiUrl": "https://api-zkevm.polygonscan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://safe-transaction-zkevm.safe.global/api",
-    "safeAddress": "0x9575B9fC42dec56D3772B3df5DA047a1f1D55582"
+    "safeAddress": "0x9575B9fC42dec56D3772B3df5DA047a1f1D55582",
+    "gasZipChainId": 52
   },
   "rootstock": {
     "name": "Rootstock",
@@ -413,10 +455,11 @@
     "explorerApiUrl": "https://rootstock.blockscout.com/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeApiUrl": "https://transaction.safe.rootstock.io/api",
-    "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1"
+    "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
+    "gasZipChainId": 254
   },
   "scroll": {
-    "name": "Scroll",
+    "name": "zkScroll",
     "chainId": 534352,
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "ETH",
@@ -429,7 +472,8 @@
     "explorerApiUrl": "https://api.scrollscan.com/api",
     "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
     "safeApiUrl": "https://safe-transaction-scroll.safe.global/api",
-    "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1"
+    "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
+    "gasZipChainId": 41
   },
   "sei": {
     "name": "Sei Network",
@@ -445,7 +489,8 @@
     "explorerApiUrl": "https://seitrace.com/pacific-1/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeApiUrl": "https://transaction.sei-safe.protofire.io/api",
-    "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1"
+    "safeAddress": "0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1",
+    "gasZipChainId": 246
   },
   "taiko": {
     "name": "Taiko",
@@ -461,7 +506,8 @@
     "explorerApiUrl": "https://api.taikoscan.io/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeApiUrl": "https://transaction.safe.taiko.xyz/api",
-    "safeAddress": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772"
+    "safeAddress": "0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772",
+    "gasZipChainId": 249
   },
   "xlayer": {
     "name": "X Layer",
@@ -477,7 +523,8 @@
     "explorerApiUrl": "https://www.oklink.com/api/v5/explorer/xlayer/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeApiUrl": "https://safe-transaction-xlayer.safe.global/api",
-    "safeAddress": "0x3fD21B437b5E0a903A8376D33824F9BA658756C2"
+    "safeAddress": "0x3fD21B437b5E0a903A8376D33824F9BA658756C2",
+    "gasZipChainId": 146
   },
   "zksync": {
     "name": "zkSync Era Mainnet",
@@ -493,7 +540,8 @@
     "explorerApiUrl": "https://api-era.zksync.network/api",
     "multicallAddress": "0xF9cda624FBC7e059355ce98a31693d299FACd963",
     "safeApiUrl": "https://safe-transaction-zksync.safe.global/api",
-    "safeAddress": "0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744"
+    "safeAddress": "0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744",
+    "gasZipChainId": 51
   },
   "localanvil": {
     "name": "Local Anvil (temporary Foundry test network)",
@@ -509,6 +557,7 @@
     "explorerApiUrl": "",
     "multicallAddress": "",
     "safeApiUrl": "",
-    "safeAddress": ""
+    "safeAddress": "",
+    "gasZipChainId": 0
   }
 }
