@@ -112,6 +112,18 @@
       "0xa137Fe4C41A2E04ca34578DC9023ad45cC194389": {
         "Name": "",
         "Version": ""
+      },
+      "0x6124C65B6264bE13f059b7C3A891a5b77DA8Bd95": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x4352459F6BE1C7D1278F8c34Bb598b0feeB50f8b": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x9a0988b17D4419807DfC8E8fd2182A21eabB1361": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

@@ -1,16 +1,10 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { Vm } from "forge-std/Vm.sol";
-import { SwapperV2, LibSwap } from "lifi/Helpers/SwapperV2.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
 import { TestAMM } from "../utils/TestAMM.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
-import { LibAsset } from "lifi/Libraries/LibAsset.sol";
+import { LibAllowList, LibSwap, LibAsset, TestBase, console, LiFiDiamond, ILiFi } from "../utils/TestBase.sol";
+import { SwapperV2 } from "lifi/Helpers/SwapperV2.sol";
 
 // Stub SwapperV2 Contract
 contract TestSwapperV2 is SwapperV2 {
@@ -41,14 +35,12 @@ contract TestSwapperV2 is SwapperV2 {
     }
 }
 
-contract SwapperV2Test is DSTest, DiamondTest {
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
-    LiFiDiamond internal diamond;
+contract SwapperV2Test is TestBase {
     TestAMM internal amm;
     TestSwapperV2 internal swapper;
 
     function setUp() public {
-        diamond = createDiamond();
+        diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
         amm = new TestAMM();
         swapper = new TestSwapperV2();
 
