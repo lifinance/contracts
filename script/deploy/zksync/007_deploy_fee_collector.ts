@@ -1,13 +1,13 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
-import { PeripheryRegistryFacet } from '../typechain'
+import { PeripheryRegistryFacet } from '../../../typechain'
 import {
   diamondContractName,
   updateDeploymentLogs,
   verifyContract,
 } from './9999_utils'
-import globalConfig from '../config/global.json'
+import globalConfig from '../../../config/global.json'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Protect against unwanted redeployments
@@ -19,7 +19,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  const WITHDRAW_WALLET_ADDR = globalConfig.withdrawWallet
+  const WITHDRAW_WALLET = globalConfig.withdrawWallet
 
   const diamond = await ethers.getContract(diamondContractName)
 
@@ -27,41 +27,37 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     await ethers.getContractAt('PeripheryRegistryFacet', diamond.address)
   )
 
-  const deployedServiceFeeCollector = await deploy('ServiceFeeCollector', {
+  const deployedFeeCollector = await deploy('FeeCollector', {
     from: deployer,
-    args: [WITHDRAW_WALLET_ADDR],
+    args: [WITHDRAW_WALLET],
     log: true,
     skipIfAlreadyDeployed: true,
   })
 
-  const serviceFeeCollector = await ethers.getContract('ServiceFeeCollector')
-  const serviceFeeCollectorAddr = await registryFacet.getPeripheryContract(
-    'ServiceFeeCollector'
+  const feeCollector = await ethers.getContract('FeeCollector')
+  const feeCollectorAddr = await registryFacet.getPeripheryContract(
+    'FeeCollector'
   )
 
-  if (serviceFeeCollectorAddr !== serviceFeeCollector.address) {
+  if (feeCollectorAddr !== feeCollector.address) {
     console.log('Updating periphery registry...')
     await registryFacet.registerPeripheryContract(
-      'ServiceFeeCollector',
-      serviceFeeCollector.address
+      'FeeCollector',
+      feeCollector.address
     )
     console.log('Done!')
   }
 
-  const isVerified = await verifyContract(hre, 'ServiceFeeCollector', {
-    address: serviceFeeCollector.address,
-    args: [WITHDRAW_WALLET_ADDR],
+  const isVerified = await verifyContract(hre, 'FeeCollector', {
+    address: feeCollector.address,
+    args: [WITHDRAW_WALLET],
   })
 
-  await updateDeploymentLogs(
-    'ServiceFeeCollector',
-    deployedServiceFeeCollector,
-    isVerified
-  )
+  await updateDeploymentLogs('FeeCollector', deployedFeeCollector, isVerified)
 }
 
 export default func
 
-func.id = 'deploy_service_fee_collector'
-func.tags = ['DeployServiceFeeCollector']
+func.id = 'deploy_fee_collector'
+func.tags = ['DeployFeeCollector']
 func.dependencies = ['DeployPeripheryRegistryFacet']

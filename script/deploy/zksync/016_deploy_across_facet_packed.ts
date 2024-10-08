@@ -2,7 +2,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { network } from 'hardhat'
 import { diamondContractName, deployFacet } from './9999_utils'
-import config from '../config/across.json'
+import config from '../../../config/across.json'
 
 interface AcrossConfig {
   [network: string]: {
@@ -19,17 +19,20 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const SPOKE_POOL = (config as AcrossConfig)[network.name].acrossSpokePool
   const WETH = (config as AcrossConfig)[network.name].weth
+  const { deployer } = await hre.getNamedAccounts()
 
-  await deployFacet(hre, 'AcrossFacet', { args: [SPOKE_POOL, WETH] })
+  await deployFacet(hre, 'AcrossFacetPacked', {
+    args: [SPOKE_POOL, WETH, deployer],
+  })
 }
 
 export default func
 
-func.id = 'deploy_across_facet'
-func.tags = ['DeployAcrossFacet']
+func.id = 'deploy_across_facet_packed'
+func.tags = ['DeployAcrossFacetPacked']
 func.dependencies = [
-  // 'InitialFacets',
-  // diamondContractName,
-  // 'InitFacets',
-  // 'DeployDexManagerFacet',
+  'InitialFacets',
+  diamondContractName,
+  'InitFacets',
+  'DeployDexManagerFacet',
 ]

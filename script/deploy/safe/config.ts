@@ -17,6 +17,7 @@ export const safeApiUrls: Record<string, string> = {
   gnosis: 'https://safe-transaction-gnosis-chain.safe.global/api',
   gravity: 'https://safe.gravity.xyz/txs/api',
   immutablezkevm: 'https://transaction.safe.immutable.com/api',
+  kaia: 'https://docs-safe.kaia.io/txs-cypress/api',
   linea: 'https://transaction.safe.linea.build/api',
   mantle: 'https://transaction.multisig.mantle.xyz/api',
   metis: 'https://metissafe.tech/txs/api',
@@ -29,7 +30,8 @@ export const safeApiUrls: Record<string, string> = {
   rootstock: 'https://transaction.safe.rootstock.io/api',
   scroll: 'https://safe-transaction-scroll.safe.global/api',
   sei: 'https://transaction.sei-safe.protofire.io/api',
-  taiko: 'https://api.taikoscan.io/api',
+  taiko: 'https://transaction.safe.taiko.xyz/api',
+  xlayer: 'https://safe-transaction-xlayer.safe.global/api',
   zksync: 'https://safe-transaction-zksync.safe.global/api',
 }
 
@@ -49,6 +51,7 @@ export const safeAddresses: Record<string, string> = {
   gnosis: '0x2bC523875b59A1Ddd03CEB1F1b28c5B0e8e6654A',
   gravity: '0x245B16CaCE8730b009c5352186DcE7d73c3037A1',
   immutablezkevm: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
+  kaia: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
   linea: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   mantle: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
   metis: '0x925cD8289Ac2d617F52974da8338867f3bB62d56',
@@ -62,6 +65,7 @@ export const safeAddresses: Record<string, string> = {
   scroll: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   sei: '0xdf61270fDC1A892874Fd3C0143A0A4CBA74F4EF1',
   taiko: '0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772',
+  xlayer: '0x3fD21B437b5E0a903A8376D33824F9BA658756C2',
   zksync: '0x02f1272aEaCaf7BD8b30278bc2AA381Cc623A744',
 }
 

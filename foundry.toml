@@ -34,6 +34,7 @@ harmony = "${ETH_NODE_URI_HARMONY}"
 gnosis = "${ETH_NODE_URI_GNOSIS}"
 gravity = "${ETH_NODE_URI_GRAVITY}"
 immutablezkevm = "${ETH_NODE_URI_IMMUTABLEZKEVM}"
+kaia = "${ETH_NODE_URI_KAIA}"
 linea = "${ETH_NODE_URI_LINEA}"
 moonbeam = "${ETH_NODE_URI_MOONBEAM}"
 moonriver = "${ETH_NODE_URI_MOONRIVER}"
@@ -50,6 +51,7 @@ rootstock = "${ETH_NODE_URI_ROOTSTOCK}"
 sei = "${ETH_NODE_URI_SEI}"
 taiko = "${ETH_NODE_URI_TAIKO}"
 velas = "${ETH_NODE_URI_VELAS}"
+xlayer = "${ETH_NODE_URI_XLAYER}"
 zksync = "${ETH_NODE_URI_ZKSYNC}"
 scroll = "${ETH_NODE_URI_SCROLL}"
 
@@ -78,6 +80,7 @@ fuse = { key = "${FUSE_ETHERSCAN_API_KEY}", url = "https://explorer.fuse.io/api"
 gnosis = { key = "${GNOSIS_ETHERSCAN_API_KEY}", url = "https://api.gnosisscan.io/api", chain = "100" }
 gravity = { key = "${GRAVITY_ETHERSCAN_API_KEY}", url = "https://explorer.gravity.xyz/api", chain = "1625", verifier = "blockscout" }
 immutablezkevm = { key = "${IMMUTABLEZKEVM_ETHERSCAN_API_KEY}", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout" }
+kaia = { key = "${KAIA_ETHERSCAN_API_KEY}", url = "https://api-cypress.klaytnscope.com/api", chain = "8217", verifier = "blockscout" }
 linea = { key = "${LINEA_ETHERSCAN_API_KEY}", url = "https://api.lineascan.build/api", chain = "59144" }
 mantle = { key = "${MANTLE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/5000/etherscan", chain = "5000" }
 metis = { key = "${METIS_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan", chain = "1088" }
@@ -85,11 +88,13 @@ mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/n
 moonbeam = { key = "${MOONBEAM_ETHERSCAN_API_KEY}", url = "https://api-moonbeam.moonscan.io/api", chain = "1284" }
 moonriver = { key = "${MOONRIVER_ETHERSCAN_API_KEY}", url = "https://api-moonriver.moonscan.io/api", chain = "1285" }
 optimism = { key = "${OPTIMISM_ETHERSCAN_API_KEY}", url = "https://api-optimistic.etherscan.io/api", chain = "10" }
+opbnb = { key = "${OPBNB_ETHERSCAN_API_KEY}", url = "https://open-platform.nodereal.io/2462d1f4552043fba279ef0cee4661d9/op-bnb-mainnet/contract/", chain = "204" }
 polygon = { key = "${POLYGON_ETHERSCAN_API_KEY}", url = "https://api.polygonscan.com/api", chain = "137" }
 polygonzkevm = { key = "${POLYGONZKEVM_ETHERSCAN_API_KEY}", url = "https://api-zkevm.polygonscan.com/api", chain = "1101" }
 scroll = { key = "${SCROLL_ETHERSCAN_API_KEY}", url = "https://api.scrollscan.com/api", chain = "534352" }
 sei = { key = "${SEI_ETHERSCAN_API_KEY}", url = "https://seitrace.com/pacific-1/api", chain = "1329" }
 taiko = { key = "${TAIKO_ETHERSCAN_API_KEY}", url = "https://api.taikoscan.io/api", chain = "167000" }
+xlayer = { key = "${XLAYER_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/xlayer/api", chain = "196" }
 
 #testnets
 goerli = { key = "${MAINNET_ETHERSCAN_API_KEY}" }

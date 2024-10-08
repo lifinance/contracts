@@ -54,7 +54,7 @@ jobs:
         run: |
           forge coverage --report lcov --force
           echo "Filtering coverage report to only contain coverage info about src/ folder now"
-          npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+          npx ts-node script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
           echo "Coverage report filtered"
 
       - name: Generate Coverage Summary

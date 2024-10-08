@@ -1429,7 +1429,6 @@ function verifyContract() {
         forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
 
         # TODO: add code that automatically identifies blockscout verification
-        # forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --verifier blockscout --verifier-url "https://explorer.immutable.com/api?"
       else
         forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
       fi
@@ -2117,7 +2116,7 @@ function checkFailure() {
 # >>>>> output to console
 function echoDebug() {
   # read function arguments into variables
-  local MESSAGE=$1
+  local MESSAGE="$1"
 
   # write message to console if debug flag is set to true
   if [[ $DEBUG == "true" ]]; then
@@ -2946,6 +2945,10 @@ function getChainId() {
     ;;
   "immutablezkevm")
     echo "13371"
+    return 0
+    ;;
+  "xlayer")
+    echo "196"
     return 0
     ;;
   "taiko")

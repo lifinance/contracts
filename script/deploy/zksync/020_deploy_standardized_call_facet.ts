@@ -1,7 +1,7 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
-import { addOrReplaceFacets } from '../utils/diamond'
+import { addOrReplaceFacets } from '../../utils/diamond'
 import {
   diamondContractName,
   updateDeploymentLogs,
@@ -18,25 +18,25 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  const deployedFacet = await deploy('LIFuelFacet', {
+  const deployedFacet = await deploy('StandardizedCallFacet', {
     from: deployer,
     log: true,
     skipIfAlreadyDeployed: true,
   })
 
-  const facet = await ethers.getContract('LIFuelFacet')
+  const accessManagerFacet = await ethers.getContract('StandardizedCallFacet')
   const diamond = await ethers.getContract(diamondContractName)
 
-  await addOrReplaceFacets([facet], diamond.address)
+  await addOrReplaceFacets([accessManagerFacet], diamond.address)
 
-  const isVerified = await verifyContract(hre, 'LIFuelFacet', {
-    address: facet.address,
+  const isVerified = await verifyContract(hre, 'StandardizedCallFacet', {
+    address: accessManagerFacet.address,
   })
 
-  await updateDeploymentLogs('LIFuelFacet', deployedFacet, isVerified)
+  await updateDeploymentLogs('StandardizedCallFacet', deployedFacet, isVerified)
 }
 
 export default func
 
-func.id = 'deploy_lifuel_facet'
-func.tags = ['DeployLIFuelFacet']
+func.id = 'deploy_standardized_call_facet'
+func.tags = ['DeployStandardizedCallFacet']

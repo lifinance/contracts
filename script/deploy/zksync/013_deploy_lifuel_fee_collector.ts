@@ -1,13 +1,13 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { ethers, network } from 'hardhat'
-import { PeripheryRegistryFacet } from '../typechain'
+import { PeripheryRegistryFacet } from '../../../typechain'
 import {
   diamondContractName,
   updateDeploymentLogs,
   verifyContract,
 } from './9999_utils'
-import globalConfig from '../config/global.json'
+import globalConfig from '../../../config/global.json'
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Protect against unwanted redeployments
@@ -19,7 +19,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
-  const WITHDRAW_WALLET = globalConfig.withdrawWallet
+  const LIFUEL_REBALANCE_WALLET_ADDR = globalConfig.lifuelRebalanceWallet
 
   const diamond = await ethers.getContract(diamondContractName)
 
@@ -27,37 +27,41 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     await ethers.getContractAt('PeripheryRegistryFacet', diamond.address)
   )
 
-  const deployedFeeCollector = await deploy('FeeCollector', {
+  const deployedLiFuelFeeCollector = await deploy('LiFuelFeeCollector', {
     from: deployer,
-    args: [WITHDRAW_WALLET],
+    args: [LIFUEL_REBALANCE_WALLET_ADDR],
     log: true,
     skipIfAlreadyDeployed: true,
   })
 
-  const feeCollector = await ethers.getContract('FeeCollector')
-  const feeCollectorAddr = await registryFacet.getPeripheryContract(
-    'FeeCollector'
+  const lifuelFeeCollector = await ethers.getContract('LiFuelFeeCollector')
+  const lifuelFeeCollectorAddr = await registryFacet.getPeripheryContract(
+    'LiFuelFeeCollector'
   )
 
-  if (feeCollectorAddr !== feeCollector.address) {
+  if (lifuelFeeCollectorAddr !== lifuelFeeCollector.address) {
     console.log('Updating periphery registry...')
     await registryFacet.registerPeripheryContract(
-      'FeeCollector',
-      feeCollector.address
+      'LiFuelFeeCollector',
+      lifuelFeeCollector.address
     )
     console.log('Done!')
   }
 
-  const isVerified = await verifyContract(hre, 'FeeCollector', {
-    address: feeCollector.address,
-    args: [WITHDRAW_WALLET],
+  const isVerified = await verifyContract(hre, 'LiFuelFeeCollector', {
+    address: lifuelFeeCollector.address,
+    args: [LIFUEL_REBALANCE_WALLET_ADDR],
   })
 
-  await updateDeploymentLogs('FeeCollector', deployedFeeCollector, isVerified)
+  await updateDeploymentLogs(
+    'LiFuelFeeCollector',
+    deployedLiFuelFeeCollector,
+    isVerified
+  )
 }
 
 export default func
 
-func.id = 'deploy_fee_collector'
-func.tags = ['DeployFeeCollector']
-func.dependencies = ['DeployPeripheryRegistryFacet']
+func.id = 'deploy_lifuel_fee_collector'
+func.tags = ['DeployLiFuelFeeCollector']
+// func.dependencies = ['DeployPeripheryRegistryFacet']

@@ -7,7 +7,10 @@ import { ethers } from 'ethers6'
 import consola from 'consola'
 import * as chains from 'viem/chains'
 import { getSafeUtilityContracts, safeAddresses, safeApiUrls } from './config'
-import { getViemChainForNetworkName } from '../../../utils/viemScriptHelpers'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import * as dotenv from 'dotenv'
+import { SafeMultisigTransactionResponse } from '@safe-global/safe-core-sdk-types'
+dotenv.config()
 
 const ABI_LOOKUP_URL = `https://api.openchain.xyz/signature-database/v1/lookup?function=%SELECTOR%&filter=true`
 
@@ -29,6 +32,7 @@ const skipNetworks: string[] = [
   // 'gnosis',
   // 'gravity',
   // 'immutablezkevm',
+  // 'kaia',
   // 'linea',
   // 'mantle',
   // 'metis',
@@ -41,6 +45,7 @@ const skipNetworks: string[] = [
   // 'rootstock',
   // 'scroll',
   // 'sei',
+  // 'taiko',
   // 'zksync',
 ]
 const defaultNetworks = allNetworks.filter(
@@ -92,6 +97,7 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
 
   const signerAddress = await signer.getAddress()
 
+  consola.info('-'.repeat(80))
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)
 
@@ -109,6 +115,31 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
   const allTx = await retry(() =>
     safeService.getPendingTransactions(safeAddress)
   )
+
+  // Function to sign a transaction
+  const signTransaction = async (
+    txToConfirm: SafeMultisigTransactionResponse
+  ) => {
+    consola.info('Signing transaction', txToConfirm.safeTxHash)
+    const signedTx = await protocolKit.signTransaction(txToConfirm)
+    const dataToBeSigned = signedTx.getSignature(signerAddress)?.data
+    if (!dataToBeSigned) throw Error(`error while preparing data to be signed)`)
+
+    await retry(() =>
+      safeService.confirmTransaction(txToConfirm.safeTxHash, dataToBeSigned)
+    )
+    consola.success('Transaction signed', txToConfirm.safeTxHash)
+  }
+
+  // Function to execute a transaction
+  async function executeTransaction(
+    txToConfirm: SafeMultisigTransactionResponse
+  ) {
+    consola.info('Executing transaction', txToConfirm.safeTxHash)
+    const exec = await protocolKit.executeTransaction(txToConfirm)
+    await exec.transactionResponse?.wait()
+    consola.success('Transaction executed', txToConfirm.safeTxHash)
+  }
 
   // only show transaction Signer has not confirmed yet
   const txs = allTx.results.filter(
@@ -177,7 +208,7 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
       storedResponse ??
       (await consola.prompt('Action', {
         type: 'select',
-        options: ['Sign & Execute Later', 'Execute Now'],
+        options: ['Sign & Execute Now', 'Sign', 'Execute Now'],
       }))
     storedResponses[tx.data!] = action
 
@@ -198,11 +229,17 @@ const func = async (network: string, privateKey: string, rpcUrl?: string) => {
       consola.success('Transaction signed', tx.safeTxHash)
     }
 
+    if (action === 'Sign') {
+      await signTransaction(txToConfirm)
+    }
+
+    if (action === 'Sign & Execute Now') {
+      await signTransaction(txToConfirm)
+      await executeTransaction(txToConfirm)
+    }
+
     if (action === 'Execute Now') {
-      consola.info('Executing transaction', tx.safeTxHash)
-      const exec = await protocolKit.executeTransaction(txToConfirm)
-      await exec.transactionResponse?.wait()
-      consola.success('Transaction executed', tx.safeTxHash)
+      await executeTransaction(txToConfirm)
     }
   }
 }
@@ -224,14 +261,31 @@ const main = defineCommand({
     privateKey: {
       type: 'string',
       description: 'Private key of the signer',
-      required: true,
+      required: false,
     },
   },
   async run({ args }) {
     const networks = args.network ? [args.network] : defaultNetworks
 
+    // if no privateKey was supplied, read directly from env
+    let privateKey = args.privateKey
+    if (!privateKey) {
+      const key = await consola.prompt(
+        'Which private key do you want to use from your .env file?',
+        {
+          type: 'select',
+          options: ['PRIVATE_KEY_PRODUCTION', 'SAFE_SIGNER_PRIVATE_KEY'],
+        }
+      )
+
+      privateKey = process.env[key] ?? ''
+
+      if (privateKey == '')
+        throw Error(`could not find a key named ${key} in your .env file`)
+    }
+
     for (const network of networks) {
-      await func(network, args.privateKey, args.rpcUrl)
+      await func(network, privateKey, args.rpcUrl)
     }
   },
 })

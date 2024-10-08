@@ -134,6 +134,15 @@
     "status": "inactive",
     "type": "mainnet"
   },
+  "kaia": {
+    "name": "Kaia",
+    "chainId": 8217,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "KLAYTN",
+    "wrappedNativeAddress": "0x19aac5f612f524b754ca7e7c41cbfa2e981a4432",
+    "status": "inactive",
+    "type": "mainnet"
+  },
   "linea": {
     "name": "Linea",
     "chainId": 59144,
@@ -239,6 +248,15 @@
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "SEI",
     "wrappedNativeAddress": "0xe30fedd158a2e3b13e9badaeabafc5516e95e8c7",
+    "status": "active",
+    "type": "mainnet"
+  },
+  "xlayer": {
+    "name": "X Layer",
+    "chainId": 196,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "OKB",
+    "wrappedNativeAddress": "0xe538905cf8410324e03a5a23c1c177a474d59b2b",
     "status": "active",
     "type": "mainnet"
   },
