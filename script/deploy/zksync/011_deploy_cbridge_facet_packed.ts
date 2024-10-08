@@ -2,7 +2,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 import { network } from 'hardhat'
 import { diamondContractName, deployFacet } from './9999_utils'
-import config from '../config/cbridge.json'
+import config from '../../../config/cbridge.json'
 
 interface CBridgeConfig {
   [network: string]: {
