@@ -112,12 +112,16 @@
       "0x21571D628B0bCBeb954D5933A604eCac35bAF2c7": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0xaF5001e4cd39B3515B244B18A88DD5b2fE65c5cD": {
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "0xF6d5cf7a12d89BC0fD34E27d2237875b564A6ADf",
+      "ERC20Proxy": "",
       "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
-      "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
+      "FeeCollector": "",
       "GasRebateDistributor": "",
       "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x94EA56D8049e93E0308B9c7d1418Baf6A7C68280",

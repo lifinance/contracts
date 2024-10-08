@@ -1,4 +1,4 @@
-import deployments from '../../deployments/mainnet.staging.json'
+import deployments from '../../deployments/arbitrum.staging.json'
 import {
   DeBridgeDlnFacet__factory,
   ILiFi,
