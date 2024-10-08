@@ -98,6 +98,7 @@ jobs:
             }
 
             // Filter to only include reviews that have "APPROVED" status
+            console.log(JSON.stringify(review,null,2));
             const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
 
             if(!approvedReviews.length) {
