@@ -159,6 +159,9 @@ processGitDiff() {
     if [ "$FILE" = "deployments/_deployments_log_file.json" ]; then
       continue
     fi
+    if [ "$FILE" = "config/networks.json" ]; then
+      continue
+    fi
 
     #skip libraries
     if [[ "$FILE" == "lib/"* ]]; then
