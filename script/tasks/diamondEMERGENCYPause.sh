@@ -42,7 +42,7 @@ function diamondEMERGENCYPause {
     # get array with all network names
     NETWORKS=($(getAllNetworksArray))
   else
-    NETWORKS=($NETWORK)
+    NETWORKS=("$NETWORK")
   fi
 
   # if no DIAMOND_CONTRACT_NAME was passed to this function, ask user to select it
