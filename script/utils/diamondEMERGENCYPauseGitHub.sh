@@ -64,6 +64,7 @@ function handleNetwork() {
   # check if the diamond is already paused by calling owner() function and analyzing the response
   echo "[network: $NETWORK] Checking if diamond is already paused."
   local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL")
+  echo "RESPONSE: $RESPONSE"
   if [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
       success "[network: $NETWORK] The diamond is already paused."
       echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
