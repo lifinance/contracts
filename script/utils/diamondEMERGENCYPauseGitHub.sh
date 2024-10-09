@@ -158,8 +158,6 @@ function printStatus() {
   else
       error "[network: $NETWORK] The diamond is not paused."
       exit 1
-  else
-
   fi
 }
 
