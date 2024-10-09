@@ -12,7 +12,6 @@
 source ./script/helperFunctions.sh
 
 DIAMOND_IS_PAUSED_SELECTOR="0x0149422e"
-FUNCTION_DOES_NOT_EXIST_SELECTOR="0xa9ad62f8"
 
 # the number of attempts the script will max try to execute the pause transaction
 MAX_ATTEMPTS=10
@@ -62,13 +61,11 @@ function handleNetwork() {
   fi
 
   # check if the diamond is already paused by calling owner() function and analyzing the response
-  echo "[network: $NETWORK] Checking if diamond is already paused."
   local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
-  echo "RESPONSE: $RESPONSE"
     # Check for errors in the response
   if [[ "$RESPONSE" == 0x* ]]; then
       # If the response starts with "0x", it is a valid response, and the diamond is not paused
-      error "[network: $NETWORK] The diamond is not paused."
+      echo "[network: $NETWORK] The diamond is not yet paused. Proceeding..."
   elif [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
       # If the response contains the pause selector or "DiamondIsPaused", the diamond is paused
       success "[network: $NETWORK] The diamond is already paused."
@@ -165,10 +162,10 @@ function printStatus() {
     # Check for errors in the response
   if [[ "$RESPONSE" == 0x* ]]; then
       # If the response starts with "0x", it is a valid response, and the diamond is not paused
-      error "[network: $NETWORK] The diamond is not paused."
+      error "[network: $NETWORK] diamond not paused."
   elif [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
       # If the response contains the pause selector or "DiamondIsPaused", the diamond is paused
-      success "[network: $NETWORK] The diamond is already paused."
+      success "[network: $NETWORK] diamond paused."
   else
       # Handle other RPC or network errors
       error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $RESPONSE"

@@ -12,7 +12,7 @@ export type Networks = {
     status: string
     type: string
     rpcUrl: string
-    explorerType: string
+    verificationType: string
     explorerUrl: string
     explorerApiUrl: string
     multicallAddress: string
