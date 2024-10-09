@@ -19,12 +19,6 @@
     "EmergencyPauseFacet": {
       "1.0.0": ["audit20240913"]
     },
-    "GenericErrors": {
-      "1.0.0": ["audit20240913"]
-    },
-    "LibDiamondLoupe": {
-      "1.0.0": ["audit20240913"]
-    },
     "StargateFacetV2": {
       "1.0.1": ["audit20240814"]
     }

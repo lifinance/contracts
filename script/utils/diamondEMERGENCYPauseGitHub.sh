@@ -49,8 +49,7 @@ function handleNetwork() {
   fi
 
   # get diamond address for this network
-  # DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
-  DIAMOND_ADDRESS="0xD3b2b0aC0AFdd0d166a495f5E9fca4eCc715a782"  # TODO: remove <<<<<<<<<---------------------------------------------------------------------------------------- (STAGING DIAMOND ON POL, ARB, OPT)
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
   if [[ $? -ne 0 ]]; then
     error "[network: $NETWORK] could not find diamond address in PROD deploy log. Cannot continue for this network."
     return 1
@@ -152,8 +151,7 @@ function printStatus() {
   esac
 
   # get diamond address for this network
-  # DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
-  DIAMOND_ADDRESS="0xD3b2b0aC0AFdd0d166a495f5E9fca4eCc715a782"  # TODO: remove <<<<<<<<<---------------------------------------------------------------------------------------- (STAGING DIAMOND ON POL, ARB, OPT)
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
 
   # check if the diamond is paused by calling owner() function and analyzing the response
   local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
@@ -175,10 +173,9 @@ function main {
   local NETWORKS=()
 
   # loop through networks list and add each network to ARRAY that is not excluded
-  # while IFS= read -r line; do
-  #   NETWORKS+=("$line")
-  # done <"./networks"
-  NETWORKS=("arbitrum" "polygon" "optimism") # TODO: remove <<<<<<<<<---------------------------------------------------------------------------------------- (WILL MAKE SURE THAT THE TEST RUNS ONLY ON THREE
+  while IFS= read -r line; do
+    NETWORKS+=("$line")
+  done <"./networks"
 
   echo "networks found: ${NETWORKS[@]}"
 
