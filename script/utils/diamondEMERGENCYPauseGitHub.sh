@@ -130,6 +130,39 @@ function handleNetwork() {
   fi
 }
 
+function printStatus() {
+  local NETWORK="$1"
+
+  # get RPC URL for given network
+  local RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  # Use eval to read the environment variable named like the RPC_KEY (our normal syntax like 'RPC_URL=${!RPC_URL}' doesnt work on Github)
+  eval "RPC_URL=\$$(echo "$RPC_KEY" | tr '-' '_')"
+
+    # skip any non-prod networks
+  case "$NETWORK" in
+    "bsc-testnet" | "localanvil" | "sepolia" | "mumbai" | "lineatest")
+      echo "skipping $NETWORK (Testnet)"
+      return 0
+      ;;
+  esac
+
+  # get diamond address for this network
+  # DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
+  DIAMOND_ADDRESS="0xD3b2b0aC0AFdd0d166a495f5E9fca4eCc715a782"  # TODO: remove <<<<<<<<<---------------------------------------------------------------------------------------- (STAGING DIAMOND ON POL, ARB, OPT)
+
+  # check if the diamond is paused by calling owner() function and analyzing the response
+  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL")
+  if [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
+      success "[network: $NETWORK] The diamond is paused."
+      exit 0
+  else
+      error "[network: $NETWORK] The diamond is not paused."
+      exit 1
+  else
+
+  fi
+}
+
 function main {
   # create array with network/s for which the script should be executed
   local NETWORKS=()
@@ -146,6 +179,7 @@ function main {
   echo "Address PauserWallet: $PRIV_KEY_ADDRESS"
   echo "Networks will be executed in parallel, therefore the log might appear messy."
   echo "Watch out for red and green colored entries as they mark endpoints of each network thread"
+  echo "A summary will be printed after all jobs/networks have been completed"
 
   # go through all networks and start background tasks for each network (to execute in parallel)
   RETURN=0
@@ -158,6 +192,15 @@ function main {
   # Check exit status of each background job
   for JOB in $(jobs -p); do
     wait $JOB || RETURN=1
+  done
+
+  # run through all networks to print a easy-to-read summary
+  for NETWORK in "${NETWORKS[@]}"; do
+      echo "-------------------------------------------------------------------------------------"
+      echo "--------------------------------ALL JOBS DONE----------------------------------------"
+      echo "-------------------------------------------------------------------------------------"
+      echo "[info] all jobs completed, now going through all networks again to print their status"
+      printStatus "$NETWORK" &
   done
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< script diamondEMERGENCYPause completed"
