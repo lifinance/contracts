@@ -1,27 +1,49 @@
-import { Chain } from 'viem'
+import { Chain, defineChain } from 'viem'
 import * as chains from 'viem/chains'
+import networksConfig from '../../config/networks.json'
 
-const chainNameMappings: Record<string, string> = {
-  zksync: 'zkSync',
-  polygonzkevm: 'polygonZkEvm',
-  immutablezkevm: 'immutableZkEvm',
-  xlayer: 'xLayer',
+export type Networks = {
+  [key: string]: {
+    name: string
+    chainId: number
+    nativeAddress: string
+    nativeCurrency: string
+    wrappedNativeAddress: string
+    status: string
+    type: string
+    rpcUrl: string
+    explorerType: string
+    explorerUrl: string
+    explorerApiUrl: string
+    multicallAddress: string
+    safeApiUrl: string
+    safeAddress: string
+  }
 }
 
-const chainMap: Record<string, Chain> = {}
-for (const [k, v] of Object.entries(chains)) {
-  // @ts-ignore
-  chainMap[k] = v
-}
+const networks: Networks = networksConfig
 
 export const getViemChainForNetworkName = (networkName: string): Chain => {
-  const chainName = chainNameMappings[networkName] || networkName
-  const chain: Chain = chainMap[chainName]
+  const network = networks[networkName]
 
-  if (!chain)
+  if (!network)
     throw new Error(
-      `Chain ${networkName} (aka '${chainName}', if a mapping exists) not supported by viem or requires name mapping. Check if you can find your chain here: https://github.com/wevm/viem/tree/main/src/chains/definitions`
+      `Chain ${networkName} does not exist. Please check that the network exists in 'config/networks.json'`
     )
 
+  const chain = defineChain({
+    id: network.chainId,
+    name: network.name,
+    nativeCurrency: {
+      decimals: 18,
+      name: network.nativeCurrency,
+      symbol: network.nativeCurrency,
+    },
+    rpcUrls: {
+      default: {
+        http: [network.rpcUrl],
+      },
+    },
+  })
   return chain
 }

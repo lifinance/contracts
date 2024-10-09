@@ -93,7 +93,7 @@ function diamondSyncDEXs {
     if [ ${#DEXS[@]} -eq 0 ]; then
       echoDebug "0 approved DEXs found on diamond $DIAMOND_ADDRESS"
     else
-      echoDebug "${#DEXS[@]} approved DEXs found on diamond $DIAMOND_ADDRESS: $DEXS ${DEXS[@]}"
+      echoDebug "${#DEXS[@]} approved DEXs found on diamond $DIAMOND_ADDRESS: [${DEXS[*]}]"
     fi
 
     # Loop through all DEX addresses from config and check if they are already known by the diamond

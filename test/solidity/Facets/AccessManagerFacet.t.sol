@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
-import { LibAccess } from "lifi/Libraries/LibAccess.sol";
 import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import { TestBase, LibAccess, console, LiFiDiamond } from "../utils/TestBase.sol";
 
 contract RestrictedContract {
     function restrictedMethod() external view returns (bool) {
@@ -16,14 +12,13 @@ contract RestrictedContract {
     }
 }
 
-contract AccessManagerFacetTest is DSTest, DiamondTest {
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
-    LiFiDiamond internal diamond;
+contract AccessManagerFacetTest is TestBase {
     AccessManagerFacet internal accessMgr;
     RestrictedContract internal restricted;
 
     function setUp() public {
-        diamond = createDiamond();
+        initTestBase();
+
         accessMgr = new AccessManagerFacet();
         restricted = new RestrictedContract();
 
@@ -36,6 +31,9 @@ contract AccessManagerFacetTest is DSTest, DiamondTest {
 
         accessMgr = AccessManagerFacet(address(diamond));
         restricted = RestrictedContract(address(diamond));
+
+        // set facet address in TestBase
+        setFacetAddressInTestBase(address(accessMgr), "AccessManagerFacet");
     }
 
     function testAccessIsRestricted() public {
