@@ -134,6 +134,7 @@ function handleNetwork() {
   RPC_URL=$(getRPCUrl "$NETWORK")
 
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "$DIAMOND_CONTRACT_NAME")
+  DIAMOND_ADDRESS="0xD3b2b0aC0AFdd0d166a495f5E9fca4eCc715a782"  # TODO: remove <<<<<<<<<---------------------------------------------------------------------------------------- (STAGING DIAMOND ON POL, ARB, OPT)
 
   if [[ $? -ne 0 ]]; then
     error "[network: $NETWORK] could not find diamond address in PROD deploy log. Cannot continue for this network."
@@ -150,6 +151,20 @@ function handleNetwork() {
   echoDebug "FACET_CONTRACT_NAME=$FACET_CONTRACT_NAME"
   echoDebug "BLACKLIST=$BLACKLIST"
   echo ""
+
+  # check if the diamond is already paused by calling owner() function and analyzing the response
+  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL")
+  if [[ "$ACTION" != "unpause the diamond" && "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
+      if [[ "$ACTION" == "remove a single facet" ]]; then
+        error "[network: $NETWORK] Cannot remove a facet while diamond is paused."
+        echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+        exit 1
+      else
+        success "[network: $NETWORK] The diamond is already paused. No further action required."
+        echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+        exit 0
+      fi
+  fi
 
   # execute the requested action
   local ATTEMPTS=1

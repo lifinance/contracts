@@ -4,9 +4,15 @@
 # it can only pause the main PROD diamond on all networks
 # for all other actions the diamondEMERGENCYPause.sh script should be called
 # via scriptMaster.sh in local CLI for more flexibility
+#   FunctionDoesNotExist.selector: 0xa9ad62f8
+#   DiamondIsPaused.selector: 0x0149422e
+
 
 # load helper functions
 source ./script/helperFunctions.sh
+
+DIAMOND_IS_PAUSED_SELECTOR="0x0149422e"
+FUNCTION_DOES_NOT_EXIST_SELECTOR="0xa9ad62f8"
 
 # the number of attempts the script will max try to execute the pause transaction
 MAX_ATTEMPTS=10
@@ -45,16 +51,6 @@ function handleNetwork() {
     echo "[network: $NETWORK] RPC URL found"
   fi
 
-  # ensure PauserWallet has positive balance
-  BALANCE_PAUSER_WALLET=$(cast balance "$PRIV_KEY_ADDRESS" --rpc-url "$RPC_URL")
-  if [[ "$BALANCE_PAUSER_WALLET" == 0 ]]; then
-    error "[network: $NETWORK] PauserWallet has no balance. Cannot continue"
-    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
-    return 1
-  else
-    echo "[network: $NETWORK] balance pauser wallet: $BALANCE_PAUSER_WALLET"
-  fi
-
   # get diamond address for this network
   # DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
   DIAMOND_ADDRESS="0xD3b2b0aC0AFdd0d166a495f5E9fca4eCc715a782"  # TODO: remove <<<<<<<<<---------------------------------------------------------------------------------------- (STAGING DIAMOND ON POL, ARB, OPT)
@@ -63,6 +59,24 @@ function handleNetwork() {
     return 1
   else
     echo "[network: $NETWORK] diamond address found in deploy log file: $DIAMOND_ADDRESS"
+  fi
+
+  # check if the diamond is already paused by calling owner() function and analyzing the response
+  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL")
+  if [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
+      success "[network: $NETWORK] The diamond is already paused."
+      echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+      exit 0
+  fi
+
+  # ensure PauserWallet has positive balance
+  BALANCE_PAUSER_WALLET=$(cast balance "$PRIV_KEY_ADDRESS" --rpc-url "$RPC_URL")
+  if [[ "$BALANCE_PAUSER_WALLET" == 0 ]]; then
+    error "[network: $NETWORK] PauserWallet has no balance. Cannot continue"
+    echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+    return 1
+  else
+    echo "[network: $NETWORK] balance pauser wallet: $BALANCE_PAUSER_WALLET"
   fi
 
   # this fails currently since the EmergencyPauseFacet is not yet deployed to all diamonds
