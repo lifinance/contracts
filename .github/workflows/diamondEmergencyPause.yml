@@ -15,10 +15,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4.1.7
 
-      - name: Check input
-        run: |
-          echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed.\033[0m"
-          exit 1
+      # - name: Check input
+      #   if: ${{ inputs.Warning == 'UNDERSTOOD' }}
+      #   run: |
+      #     echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed.\033[0m"
+      #     exit 1
 
       # Keeping this code for now until team member authentication has been tested successfully
       # - name: Authenticate user
