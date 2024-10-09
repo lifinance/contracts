@@ -7,7 +7,8 @@ on:
       Warning:
         description: 'By clicking the next button you are pausing all PROUCTION diamonds. Please proceed with extreme caution !!!'
         required: true
-        default: 'Type UNDERSTOOD to continue'
+        default: 'UNDERSTOOD'
+        #default: 'Type UNDERSTOOD to continue'
 
 jobs:
   diamond-emergency-pause:
