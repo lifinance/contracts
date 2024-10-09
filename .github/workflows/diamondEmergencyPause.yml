@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4.1.7
 
       - name: Check input
-        if: ${{ inputs.Warning == 'UNDERSTOOD' }}
+        if: ${{ inputs.Warning != 'UNDERSTOOD' }}
         run: |
           echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed. Please try again. \033[0m"
           exit 1

@@ -67,7 +67,7 @@ function handleNetwork() {
       # If the response contains the pause selector or "DiamondIsPaused", the diamond is paused
       success "[network: $NETWORK] The diamond is already paused."
       echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
-      exit 0
+      return 0
   else
       # Handle other RPC or network errors
       error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $RESPONSE"

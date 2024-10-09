@@ -23378,7 +23378,7 @@
             "TIMESTAMP": "2024-10-09 13:37:13",
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
             "SALT": "20241009",
-            "VERIFIED": "false"
+            "VERIFIED": "true"
           }
         ]
       }
