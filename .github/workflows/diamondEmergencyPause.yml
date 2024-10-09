@@ -5,10 +5,8 @@ on:
   workflow_dispatch:
     inputs:
       Warning:
-        description: 'By clicking the next button you are pausing all PROUCTION diamonds. Please proceed with extreme caution !!!'
+        description: 'By clicking the next button you are pausing all PROUCTION diamonds. Please proceed with extreme caution !!! You must type UNDERSTOOD to proceed'
         required: true
-        default: 'UNDERSTOOD'
-        #default: 'Type UNDERSTOOD to continue'
 
 jobs:
   diamond-emergency-pause:
@@ -18,7 +16,6 @@ jobs:
         uses: actions/checkout@v4.1.7
 
       - name: Check input
-        if: ${{ inputs.Warning != 'UNDERSTOOD' }}
         run: |
           echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed.\033[0m"
           exit 1
@@ -39,7 +36,6 @@ jobs:
       #   shell: bash
 
       - name: Authenticate git user (check membership in 'DiamondPauser' group)
-        if: ${{ inputs.Warning == 'UNDERSTOOD' }}
         id: authenticate-user
         uses: tspascoal/get-user-teams-membership@v3
         with:
@@ -49,7 +45,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
 
       - name: Check team membership
-        if: ${{ inputs.Warning == 'UNDERSTOOD' }}
         run: |
           if [[ "${{ steps.authenticate-user.outputs.isTeamMember }}" != "true" ]]; then
             echo -e "\033[31mUser ${{ github.actor }} is not a member of the DiamondPauser team. Please ask one of the team members to execute this action:\033[0m"
@@ -100,10 +95,10 @@ jobs:
           ETH_NODE_URI_ZKSYNC: ${{ secrets.ETH_NODE_URI_ZKSYNC }}
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_PRIV_KEY_SECRET }}
 
-      - name: Send Discord message
-        uses: Ilshidur/action-discord@0.3.2
-        with:
-          args: |
-            :warning: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
+      # - name: Send Discord message
+      #   uses: Ilshidur/action-discord@0.3.2
+      #   with:
+      #     args: |
+      #       :warning: 'ATTENTION - the emergency diamond pause action was just executed by ${{ github.actor }}'
+      #   env:
+      #     DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_DEV_SMARTCONTRACTS }}
