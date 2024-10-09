@@ -176,4 +176,89 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
             initialETHBalance - swapData[0].fromAmount - FIXED_FEE
         );
     }
+
+    function test_CanBridgeToNonEVMAddress()
+        public
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+        // store initial balances
+        uint256 initialETHBalance = USER_SENDER.balance;
+
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        // prepare swap data
+        address[] memory path = new address[](2);
+
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+
+        uint256 amountOut = defaultUSDCAmount;
+
+        // Calculate USDC input amount
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapETHForExactTokens.selector,
+                    amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        //prepare check for events
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            address(0),
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        // This is just a random Solana Address for testing
+        validDeBridgeDlnData
+            .receiver = hex"e275bc4764effea023f35f3c60b2260c93248b74ec8d63ee215d40317e98b014";
+        // SOL Token
+        validDeBridgeDlnData
+            .receivingAssetId = hex"0000000000000000000000000000000000000000000000000000000000000000";
+
+        // Setup to bridge to Solana
+        bridgeData.destinationChainId = 7565164;
+        bridgeData.receiver = 0x11f111f111f111F111f111f111F111f111f111F1;
+
+        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
+        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
+        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        // execute call in child contract
+        initiateSwapAndBridgeTxWithFacet(true);
+
+        // check balances after call
+        assertEq(
+            USER_SENDER.balance,
+            initialETHBalance - swapData[0].fromAmount - FIXED_FEE
+        );
+    }
 }
