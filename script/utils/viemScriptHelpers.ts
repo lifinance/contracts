@@ -1,4 +1,4 @@
-import { Chain, defineChain } from 'viem'
+import { Chain, defineChain, getAddress } from 'viem'
 import * as chains from 'viem/chains'
 import networksConfig from '../../config/networks.json'
 
@@ -45,7 +45,7 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
       },
     },
     contracts: {
-      multicall3: { address: network.multicallAddress as `0x${string}` },
+      multicall3: { address: getAddress(network.multicallAddress) },
     },
   })
   return chain
