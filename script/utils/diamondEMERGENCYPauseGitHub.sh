@@ -63,7 +63,7 @@ function handleNetwork() {
 
   # check if the diamond is already paused by calling owner() function and analyzing the response
   echo "[network: $NETWORK] Checking if diamond is already paused."
-  local RESPONSE=$(cast call "$DIAMOND" "owner()" --rpc-url "$RPC_URL" 2>&1)
+  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
   echo "RESPONSE: $RESPONSE"
     # Check for errors in the response
   if [[ "$RESPONSE" == 0x* ]]; then
