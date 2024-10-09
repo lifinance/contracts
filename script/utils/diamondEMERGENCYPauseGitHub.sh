@@ -4,8 +4,6 @@
 # it can only pause the main PROD diamond on all networks
 # for all other actions the diamondEMERGENCYPause.sh script should be called
 # via scriptMaster.sh in local CLI for more flexibility
-#   FunctionDoesNotExist.selector: 0xa9ad62f8
-#   DiamondIsPaused.selector: 0x0149422e
 
 
 # load helper functions
