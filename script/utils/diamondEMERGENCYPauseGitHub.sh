@@ -63,14 +63,21 @@ function handleNetwork() {
 
   # check if the diamond is already paused by calling owner() function and analyzing the response
   echo "[network: $NETWORK] Checking if diamond is already paused."
-  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL")
+  local RESPONSE=$(cast call "$DIAMOND" "owner()" --rpc-url "$RPC_URL" 2>&1)
   echo "RESPONSE: $RESPONSE"
-  if [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
+    # Check for errors in the response
+  if [[ "$RESPONSE" == 0x* ]]; then
+      # If the response starts with "0x", it is a valid response, and the diamond is not paused
+      error "[network: $NETWORK] The diamond is not paused."
+  elif [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
+      # If the response contains the pause selector or "DiamondIsPaused", the diamond is paused
       success "[network: $NETWORK] The diamond is already paused."
       echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
       exit 0
+  else
+      # Handle other RPC or network errors
+      error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $RESPONSE"
   fi
-  echo "[network: $NETWORK] diamond is not paused."
 
   # ensure PauserWallet has positive balance
   BALANCE_PAUSER_WALLET=$(cast balance "$PRIV_KEY_ADDRESS" --rpc-url "$RPC_URL")
