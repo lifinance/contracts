@@ -10,7 +10,7 @@ import { ISquidMulticall } from "lifi/Interfaces/ISquidMulticall.sol";
 
 // Stub SquidFacet Contract
 contract TestSquidFacet is SquidFacet {
-    address internal constant ADDRESS_WETH =
+    address internal constant ADDRESS_WRAPPED_NATIVE =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     constructor(ISquidRouter _squidRouter) SquidFacet(_squidRouter) {}
@@ -321,7 +321,7 @@ contract SquidFacetTest is TestBaseFacet {
         // prepare swap data
         address[] memory path = new address[](2);
         path[0] = ADDRESS_USDC;
-        path[1] = ADDRESS_WETH;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
 
         uint256 amountOut = 1e17; // 0.1 eth
 

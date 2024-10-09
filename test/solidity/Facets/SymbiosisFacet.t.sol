@@ -143,7 +143,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
         // prepare swap data
         address[] memory path = new address[](2);
         path[0] = ADDRESS_USDC;
-        path[1] = ADDRESS_WETH;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
 
         uint256 amountOut = defaultNativeAmount;
 
