@@ -237,10 +237,10 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         // This is just a random Solana Address for testing
         validDeBridgeDlnData
-            .receiver = hex"e275bc4764effea023f35f3c60b2260c93248b74ec8d63ee215d40317e98b014";
+            .receiver = hex"e275bc4764effea023f35f3c60b2260c93248b74ec8d63ee215d40317e98b014"; // [pre-commit-checker: not a secret]
         // SOL Token
         validDeBridgeDlnData
-            .receivingAssetId = hex"0000000000000000000000000000000000000000000000000000000000000000";
+            .receivingAssetId = hex"0000000000000000000000000000000000000000000000000000000000000000"; // [pre-commit-checker: not a secret]
 
         // Setup to bridge to Solana
         bridgeData.destinationChainId = 7565164;
