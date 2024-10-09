@@ -161,13 +161,17 @@ function printStatus() {
   DIAMOND_ADDRESS="0xD3b2b0aC0AFdd0d166a495f5E9fca4eCc715a782"  # TODO: remove <<<<<<<<<---------------------------------------------------------------------------------------- (STAGING DIAMOND ON POL, ARB, OPT)
 
   # check if the diamond is paused by calling owner() function and analyzing the response
-  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL")
-  if [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
-      success "[network: $NETWORK] The diamond is paused."
-      exit 0
-  else
+  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
+    # Check for errors in the response
+  if [[ "$RESPONSE" == 0x* ]]; then
+      # If the response starts with "0x", it is a valid response, and the diamond is not paused
       error "[network: $NETWORK] The diamond is not paused."
-      exit 1
+  elif [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
+      # If the response contains the pause selector or "DiamondIsPaused", the diamond is paused
+      success "[network: $NETWORK] The diamond is already paused."
+  else
+      # Handle other RPC or network errors
+      error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $RESPONSE"
   fi
 }
 
@@ -202,12 +206,12 @@ function main {
     wait $JOB || RETURN=1
   done
 
+  echo "-------------------------------------------------------------------------------------"
+  echo "--------------------------------ALL JOBS DONE----------------------------------------"
+  echo "-------------------------------------------------------------------------------------"
+  echo "[info] all jobs completed, now going through all networks again to print their status"
   # run through all networks to print a easy-to-read summary
   for NETWORK in "${NETWORKS[@]}"; do
-      echo "-------------------------------------------------------------------------------------"
-      echo "--------------------------------ALL JOBS DONE----------------------------------------"
-      echo "-------------------------------------------------------------------------------------"
-      echo "[info] all jobs completed, now going through all networks again to print their status"
       printStatus "$NETWORK" &
   done
 
