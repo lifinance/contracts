@@ -54,10 +54,10 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Bridges tokens via DeBridgeDLN
     /// @param _bridgeData The core information needed for bridging
-    /// @param _deBridgeDlnData Data specific to DeBridgeDLN
+    /// @param _deBridgeData Data specific to DeBridgeDLN
     function startBridgeTokensViaDeBridgeDln(
         ILiFi.BridgeData memory _bridgeData,
-        DeBridgeDlnData calldata _deBridgeDlnData
+        DeBridgeDlnData calldata _deBridgeData
     )
         external
         payable
@@ -73,7 +73,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
         _startBridge(
             _bridgeData,
-            _deBridgeDlnData,
+            _deBridgeData,
             dlnSource.globalFixedNativeFee()
         );
     }
@@ -81,11 +81,11 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Performs a swap before bridging via DeBridgeDLN
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _deBridgeDlnData Data specific to DeBridgeDLN
+    /// @param _deBridgeData Data specific to DeBridgeDLN
     function swapAndStartBridgeTokensViaDeBridgeDln(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        DeBridgeDlnData calldata _deBridgeDlnData
+        DeBridgeDlnData calldata _deBridgeData
     )
         external
         payable
@@ -104,29 +104,29 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             payable(msg.sender),
             LibAsset.isNativeAsset(assetId) ? 0 : fee
         );
-        _startBridge(_bridgeData, _deBridgeDlnData, fee);
+        _startBridge(_bridgeData, _deBridgeData, fee);
     }
 
     /// Internal Methods ///
 
     /// @dev Contains the business logic for the bridge via DeBridgeDLN
     /// @param _bridgeData The core information needed for bridging
-    /// @param _deBridgeDlnData Data specific to DeBridgeDLN
+    /// @param _deBridgeData Data specific to DeBridgeDLN
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        DeBridgeDlnData calldata _deBridgeDlnData,
+        DeBridgeDlnData calldata _deBridgeData,
         uint256 _fee
     ) internal {
         IDlnSource.OrderCreation memory orderCreation = IDlnSource
             .OrderCreation({
                 giveTokenAddress: _bridgeData.sendingAssetId,
                 giveAmount: _bridgeData.minAmount,
-                takeTokenAddress: _deBridgeDlnData.receivingAssetId,
-                takeAmount: _deBridgeDlnData.minAmountOut,
+                takeTokenAddress: _deBridgeData.receivingAssetId,
+                takeAmount: _deBridgeData.minAmountOut,
                 takeChainId: _bridgeData.destinationChainId,
-                receiverDst: _deBridgeDlnData.receiver,
+                receiverDst: _deBridgeData.receiver,
                 givePatchAuthoritySrc: msg.sender,
-                orderAuthorityAddressDst: _deBridgeDlnData.receiver,
+                orderAuthorityAddressDst: _deBridgeData.receiver,
                 allowedTakerDst: "",
                 externalCall: "",
                 allowedCancelBeneficiarySrc: ""
@@ -163,7 +163,7 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             emit BridgeToNonEVMChain(
                 _bridgeData.transactionId,
                 _bridgeData.destinationChainId,
-                _deBridgeDlnData.receiver
+                _deBridgeData.receiver
             );
         }
 
