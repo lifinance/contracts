@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { IAcrossSpokePool } from "../Interfaces/IAcrossSpokePool.sol";
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
@@ -8,7 +8,6 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { console2 } from "forge-std/console2.sol";
 
 /// @title AcrossFacetPacked
 /// @author LI.FI (https://li.fi)

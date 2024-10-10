@@ -2,6 +2,7 @@
 pragma solidity 0.8.17;
 
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
+import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
@@ -17,7 +18,7 @@ contract LiFiDiamondTest is DSTest {
     address public diamondOwner;
 
     event DiamondCut(
-        IDiamondCut.FacetCut[] _diamondCut,
+        LibDiamond.FacetCut[] _diamondCut,
         address _init,
         bytes _calldata
     );
@@ -40,10 +41,10 @@ contract LiFiDiamondTest is DSTest {
         functionSelectors[0] = ownershipFacet.owner.selector;
 
         // prepare parameters for diamondCut (OwnershipFacet)
-        IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
-        cut[0] = IDiamondCut.FacetCut({
+        LibDiamond.FacetCut[] memory cut = new LibDiamond.FacetCut[](1);
+        cut[0] = LibDiamond.FacetCut({
             facetAddress: address(ownershipFacet),
-            action: IDiamondCut.FacetCutAction.Add,
+            action: LibDiamond.FacetCutAction.Add,
             functionSelectors: functionSelectors
         });
 
@@ -77,10 +78,10 @@ contract LiFiDiamondTest is DSTest {
         functionSelectors[3] = diamondLoupe.facetAddress.selector;
 
         // prepare diamondCut
-        IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](1);
-        cuts[0] = IDiamondCut.FacetCut({
+        LibDiamond.FacetCut[] memory cuts = new LibDiamond.FacetCut[](1);
+        cuts[0] = LibDiamond.FacetCut({
             facetAddress: address(diamondLoupe),
-            action: IDiamondCut.FacetCutAction.Add,
+            action: LibDiamond.FacetCutAction.Add,
             functionSelectors: functionSelectors
         });
 

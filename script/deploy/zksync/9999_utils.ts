@@ -40,7 +40,9 @@ interface LogFile {
 export const useDefDiamond =
   process.env.USE_DEF_DIAMOND?.toLowerCase() !== 'false'
 
-export const isProduction = process.env.PRODUCTION?.toLowerCase() === 'true'
+// export const isProduction = process.env.PRODUCTION?.toLowerCase() === 'true'
+// since we currently do not have staging deployments on zkSync, we can set this to true
+export const isProduction = true
 
 export const diamondContractName = useDefDiamond
   ? 'LiFiDiamond'
@@ -184,23 +186,31 @@ export const deployFacet = async function (
   const { deploy } = deployments
   const { deployer } = await getNamedAccounts()
 
+  console.log(
+    `Deploying contract ${name} with the following constructor arguments: [${options?.args}]`
+  )
+
   const deployedFacet = await deploy(name, {
     from: deployer,
     log: true,
     args: options?.args,
-    skipIfAlreadyDeployed: true,
   })
 
+  console.log(
+    `Contract deployed at address ${deployedFacet.address} (redeployed: ${deployedFacet.newlyDeployed})`
+  )
   const facet = await ethers.getContract(name)
   const diamond = await ethers.getContract(diamondContractName)
 
-  await addOrReplaceFacets([facet], diamond.address)
+  // await addOrReplaceFacets([facet], diamond.address)
 
+  console.log(`Verifying contract ${name} now`)
   const isVerified = await verifyContract(hre, name, {
     address: facet.address,
     args: options?.args,
   })
 
+  console.log(`Updating deployment logs now (verified: ${isVerified})`)
   await updateDeploymentLogs(name, deployedFacet, isVerified)
 }
 

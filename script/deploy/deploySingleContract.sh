@@ -134,6 +134,7 @@ deploySingleContract() {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "VERSION=$VERSION"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
+  echoDebug "DIAMOND_TYPE=$DIAMOND_TYPE"
   echo ""
 
   # prepare bytecode
@@ -279,7 +280,7 @@ deploySingleContract() {
   # check if log entry exists for this file and if yes, if contract is verified already
   LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
   LOG_ENTRY_RETURN_CODE=$?
-  echoDebug "existing log entry (RETURN CODE: $LOG_ENTRY_RETURN_CODE): $LOG_ENTRY"
+  echoDebug "existing log entry, may have a different address in case of a redeployment (RETURN CODE: $LOG_ENTRY_RETURN_CODE): $LOG_ENTRY"
 
   if [[ "$LOG_ENTRY_RETURN_CODE" -eq 0 ]]; then
     VERIFIED_LOG=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED")
@@ -291,6 +292,8 @@ deploySingleContract() {
     REDEPLOYMENT=false
   else
     REDEPLOYMENT=true
+    # overwirte VERIFIED_LOG value since it was a redeployment, we dont care if the last contract was already verified or not
+    VERIFIED_LOG=""
   fi
 
   # verify contract, if needed

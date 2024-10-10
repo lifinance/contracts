@@ -5,7 +5,7 @@ import { UpdateScriptBase } from "../../deploy/facets/utils/UpdateScriptBase.sol
 import { stdJson } from "forge-std/Script.sol";
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
-import { DiamondCutFacet, IDiamondCut } from "lifi/Facets/DiamondCutFacet.sol";
+import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { CREATE3Factory } from "create3-factory/CREATE3Factory.sol";
 
 contract ImmutableDiamondOwnershipTransfer {
@@ -89,9 +89,9 @@ contract DeployScript is UpdateScriptBase {
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = DiamondCutFacet.diamondCut.selector;
         cut.push(
-            IDiamondCut.FacetCut({
+            LibDiamond.FacetCut({
                 facetAddress: address(0),
-                action: IDiamondCut.FacetCutAction.Remove,
+                action: LibDiamond.FacetCutAction.Remove,
                 functionSelectors: selectors
             })
         );

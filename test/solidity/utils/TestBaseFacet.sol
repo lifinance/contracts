@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { TestBase, LiFiDiamond, DSTest, LibSwap, ILiFi, LibAllowList, LibAsset, console, InvalidAmount, ERC20, UniswapV2Router02 } from "./TestBase.sol";
 import { NoSwapDataProvided, InformationMismatch, NativeAssetTransferFailed, ReentrancyError, InsufficientBalance, CannotBridgeToSameNetwork, InvalidReceiver, InvalidAmount, InvalidConfig, InvalidSendingToken, AlreadyInitialized, NotInitialized } from "src/Errors/GenericErrors.sol";
@@ -125,6 +125,7 @@ abstract contract TestBaseFacet is TestBase {
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
     {
         vm.startPrank(USER_SENDER);
+
         // customize bridgeData
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = defaultNativeAmount;

@@ -1,5 +1,5 @@
 // // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";

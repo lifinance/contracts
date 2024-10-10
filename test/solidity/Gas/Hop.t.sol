@@ -1,4 +1,4 @@
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { IHopBridge } from "lifi/Interfaces/IHopBridge.sol";
 import { HopFacet } from "lifi/Facets/HopFacet.sol";

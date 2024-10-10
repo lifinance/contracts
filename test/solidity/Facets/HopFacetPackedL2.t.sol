@@ -1,5 +1,5 @@
 // // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { IHopBridge, IL2AmmWrapper } from "lifi/Interfaces/IHopBridge.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";

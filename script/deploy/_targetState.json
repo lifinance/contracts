@@ -556,7 +556,8 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0"
       }
     }
   },
@@ -671,7 +672,16 @@
         "LiFiDEXAggregator": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "RelayerCelerIM": "2.0.0",
-        "CelerIMFacetMutable": "2.0.0"
+        "CelerIMFacetMutable": "2.0.0",
+        "CircleBridgeFacet": "1.0.0",
+        "HopFacet": "2.0.0",
+        "HopFacetPacked": "1.0.6",
+        "HyphenFacet": "1.0.0",
+        "StargateFacet": "2.2.0",
+        "HopFacetOptimized": "2.0.0",
+        "AmarokFacetPacked": "1.0.0",
+        "SymbiosisFacet": "1.0.0",
+        "ReceiverAcrossV3": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",

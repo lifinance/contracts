@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
 import { TestBase, ILiFi, console, LiFiDiamond } from "../utils/TestBase.sol";

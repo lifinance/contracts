@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
