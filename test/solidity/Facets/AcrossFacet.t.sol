@@ -7,12 +7,12 @@ import { IAcrossSpokePool } from "lifi/Interfaces/IAcrossSpokePool.sol";
 
 // Stub AcrossFacet Contract
 contract TestAcrossFacet is AcrossFacet {
-    address internal constant ADDRESS_WETH =
+    address internal constant ADDRESS_WRAPPED_NATIVE =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     constructor(
         IAcrossSpokePool _spokePool
-    ) AcrossFacet(_spokePool, ADDRESS_WETH) {}
+    ) AcrossFacet(_spokePool, ADDRESS_WRAPPED_NATIVE) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -111,7 +111,7 @@ contract AcrossFacetTest is TestBaseFacet {
     function testFailsToBridgeERC20TokensDueToQuoteTimeout() public {
         console.logBytes4(IAcrossSpokePool.deposit.selector);
         vm.startPrank(WETH_HOLDER);
-        ERC20 weth = ERC20(ADDRESS_WETH);
+        ERC20 weth = ERC20(ADDRESS_WRAPPED_NATIVE);
         weth.approve(address(acrossFacet), 10_000 * 10 ** weth.decimals());
 
         AcrossFacet.AcrossData memory data = AcrossFacet.AcrossData(

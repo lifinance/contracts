@@ -31,8 +31,6 @@ contract AcrossFacetV3Test is TestBaseFacet {
         0xD022510A3414f255150Aa54b2e42DB6129a20d9E;
     address internal constant SPOKE_POOL =
         0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
-    address internal constant ADDRESS_USDC_POL =
-        0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
     // -----
     AcrossFacetV3.AcrossV3Data internal validAcrossData;
     TestAcrossFacetV3 internal acrossFacetV3;
@@ -123,7 +121,6 @@ contract AcrossFacetV3Test is TestBaseFacet {
 
     function testFailsToBridgeERC20TokensDueToQuoteTimeout() public {
         vm.startPrank(WETH_HOLDER);
-        ERC20 weth = ERC20(ADDRESS_WETH);
         weth.approve(address(acrossFacetV3), 10_000 * 10 ** weth.decimals());
 
         validAcrossData.quoteTimestamp = uint32(block.timestamp + 20 minutes);
@@ -139,6 +136,9 @@ contract AcrossFacetV3Test is TestBaseFacet {
         acrossFacetV3 = new TestAcrossFacetV3(IAcrossSpokePool(SPOKE_POOL));
 
         assertEq(address(acrossFacetV3.spokePool()) == SPOKE_POOL, true);
-        assertEq(acrossFacetV3.wrappedNative() == ADDRESS_WETH, true);
+        assertEq(
+            acrossFacetV3.wrappedNative() == ADDRESS_WRAPPED_NATIVE,
+            true
+        );
     }
 }

@@ -27,6 +27,7 @@
 #   -  add low balance warnings and currency symbols for deployer wallet balance
 
 scriptMaster() {
+  trap 'cleanupBackgroundJobs' SIGINT # this ensures that function "cleanup" is called when pressing CTRL+C to kill a process in console
   echo "[info] loading required resources and compiling contracts"
   # load env variables
   source .env
@@ -99,12 +100,13 @@ scriptMaster() {
       "3) Deploy all contracts to one selected network (=new network)" \
       "4) Deploy all (missing) contracts for all networks (actual vs. target) - NOT YET ACTIVATED" \
       "5) Execute a script" \
-      "6) Batch update _targetState.json file" \
-      "7) Verify all unverified contracts" \
-      "8) Review deploy status (vs. target state)" \
-      "9) Create updated target state from Google Docs (STAGING or PRODUCTION)" \
-      "10) Update all diamond log files" \
-      "11) Propose upgrade TX to Gnosis SAFE"
+      "6) EMERGENCY >> Remove a facet or pause the whole diamond" \
+      "7) Batch update _targetState.json file" \
+      "8) Verify all unverified contracts" \
+      "9) Review deploy status (vs. target state)" \
+      "10) Create updated target state from Google Docs (STAGING or PRODUCTION)" \
+      "11) Update all diamond log files" \
+      "12) Propose upgrade TX to Gnosis SAFE"
   )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -275,8 +277,19 @@ scriptMaster() {
     eval "$SCRIPT" '""' "$ENVIRONMENT"
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 6: Update _targetState.json file
+  # use case 6: EMERGENCY >> Remove a facet or pause the whole diamond
   elif [[ "$SELECTION" == "6)"* ]]; then
+    echo ""
+    echo "[info] selected use case: EMERGENCY >> Remove a facet or pause the whole diamond ⚠️"
+
+    # execute the emergency script
+    eval "diamondEMERGENCYPause" '""' "$ENVIRONMENT"
+
+    playNotificationSound
+
+  #---------------------------------------------------------------------------------------------------------------------
+  # use case 6: Update _targetState.json file
+  elif [[ "$SELECTION" == "7)"* ]]; then
     echo ""
     echo "[info] selected use case: Batch update _targetState.json file"
 
@@ -439,24 +452,24 @@ scriptMaster() {
     echo "[info] ...Batch update _targetState.json file successfully completed"
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 7: Verify all unverified contracts
-  elif [[ "$SELECTION" == "7)"* ]]; then
+  # use case 8: Verify all unverified contracts
+  elif [[ "$SELECTION" == "8)"* ]]; then
     verifyAllUnverifiedContractsInLogFile
     playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 8: Review deploy status (vs. target state)
-  elif [[ "$SELECTION" == "8)"* ]]; then
+  # use case 9: Review deploy status (vs. target state)
+  elif [[ "$SELECTION" == "9)"* ]]; then
     printDeploymentsStatusV2 "$ENVIRONMENT"
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 9: Create updated target state from Google Docs
-  elif [[ "$SELECTION" == "9)"* ]]; then
+  # use case 10: Create updated target state from Google Docs
+  elif [[ "$SELECTION" == "10)"* ]]; then
     parseTargetStateGoogleSpreadsheet "$ENVIRONMENT"
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 10: Update all diamond log files
-  elif [[ "$SELECTION" == "10)"* ]]; then
+  # use case 11: Update all diamond log files
+  elif [[ "$SELECTION" == "11)"* ]]; then
     # ask user if logs should be updated only for one network or for all networks
     echo "Would you like to update all networks or one specific network?"
     SELECTION_NETWORK=$(
@@ -487,14 +500,17 @@ scriptMaster() {
       updateDiamondLogs "$NETWORK"
     fi
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 11: Propose upgrade TX to Gnosis SAFE
-  elif [[ "$SELECTION" == "11)"* ]]; then
+  # use case 12: Propose upgrade TX to Gnosis SAFE
+  elif [[ "$SELECTION" == "12)"* ]]; then
     deployUpgradesToSAFE $ENVIRONMENT
+
+
   else
     error "invalid use case selected ('$SELECTION') - exiting script"
     cleanup
     exit 1
   fi
+
 
   cleanup
 
