@@ -115,6 +115,11 @@
       },
       "0xaF5001e4cd39B3515B244B18A88DD5b2fE65c5cD": {
         "Name": "DeBridgeDlnFacet",
+        "Name": "",
+        "Version": ""
+      },
+      "0x17Bb203F42d8e404ac7E8dB6ff972B7E8473850b": {
+        "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       }
     },
@@ -132,4 +137,3 @@
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
   }
-}

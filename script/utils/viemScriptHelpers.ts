@@ -1,4 +1,4 @@
-import { Chain, defineChain } from 'viem'
+import { Chain, defineChain, getAddress } from 'viem'
 import * as chains from 'viem/chains'
 import networksConfig from '../../config/networks.json'
 
@@ -12,7 +12,7 @@ export type Networks = {
     status: string
     type: string
     rpcUrl: string
-    explorerType: string
+    verificationType: string
     explorerUrl: string
     explorerApiUrl: string
     multicallAddress: string
@@ -43,6 +43,9 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
       default: {
         http: [network.rpcUrl],
       },
+    },
+    contracts: {
+      multicall3: { address: getAddress(network.multicallAddress) },
     },
   })
   return chain
