@@ -70,14 +70,14 @@
     "lint:fix": "eslint --fix \"**/*.{js,ts}\" && solhint --fix src/**/*.sol",
     "format": "prettier --check \"**/*.{ts,js,sol}\"",
     "format:fix": "prettier --write \"**/*.{ts,js,sol}\"",
-    "compile": "make build",
+    "compile": "forge build",
     "test": "forge test --evm-version 'shanghai'",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
-    "gas": "make snapshot",
-    "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'shanghai' && ts-node script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage --rc derive_function_end_line=0 && open coverage/index.html",
+    "gas": "forge snapshot --match-path 'test/solidity/Gas/**/*' -vvv",
+    "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov && ts-node script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --branch-coverage --output-dir coverage && open coverage/index.html",
     "execute": "node ./_scripts.js run",
-    "abi:generate": "make clean && forge build --skip script --skip test --skip Base --skip Test && hardhat diamondABI",
-    "typechain": "make clean && forge build src && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
+    "abi:generate": "forge clean && rm -fr typechain/* && forge build --skip script --skip test --skip Base --skip Test && hardhat diamondABI",
+    "typechain": "forge clean && rm -rf typechain/* && forge build src && typechain --target ethers-v5 'out/*.sol/*.json' --out-dir typechain",
     "codegen": "plop",
     "healthcheck": "tsx ./script/deploy/healthCheck.mts",
     "propose-safe-tx": "ts-node ./script/deploy/safe/propose-to-safe.ts",
@@ -112,13 +112,7 @@
     "zx": "^8.0.2"
   },
   "lint-staged": {
-    "*.{ts,js}": [
-      "prettier --write",
-      "eslint --fix"
-    ],
-    "*.sol": [
-      "prettier --write",
-      "solhint --fix"
-    ]
+    "*.{ts,js}": ["prettier --write", "eslint --fix"],
+    "*.sol": ["prettier --write", "solhint --fix"]
   }
 }

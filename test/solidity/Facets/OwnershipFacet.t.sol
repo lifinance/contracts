@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { console } from "../utils/Console.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
+import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond } from "../utils/TestBase.sol";
 
-contract OwnershipFacetTest is DSTest, DiamondTest {
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
-    LiFiDiamond internal diamond;
+contract OwnershipFacetTest is TestBase {
     OwnershipFacet internal ownershipFacet;
 
     function setUp() public {
-        diamond = createDiamond();
+        initTestBase();
+
         ownershipFacet = OwnershipFacet(address(diamond));
     }
 

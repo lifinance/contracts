@@ -97,7 +97,7 @@ contract GasZipFacetTest is TestBaseFacet {
         bridgeData.bridge = "GasZip";
 
         vm.label(address(gasZipFacet), "LiFiDiamond");
-        vm.label(ADDRESS_WETH, "WETH_TOKEN");
+        vm.label(ADDRESS_WRAPPED_NATIVE, "WRAPPED_NATIVE_TOKEN");
         vm.label(ADDRESS_USDC, "USDC_TOKEN");
         vm.label(ADDRESS_UNISWAP, "UNISWAP_V2_ROUTER");
     }
@@ -226,7 +226,7 @@ contract GasZipFacetTest is TestBaseFacet {
         // Swap DAI -> ETH
         address[] memory path = new address[](2);
         path[0] = ADDRESS_DAI;
-        path[1] = ADDRESS_WETH;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
 
         // Calculate DAI amount
         uint256[] memory amounts = uniswap.getAmountsOut(daiAmount, path);
