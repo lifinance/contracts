@@ -23397,5 +23397,21 @@
         ]
       }
     }
+  },
+  "Permit2Proxy": {
+    "arbitrum": {
+      "staging": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xA3C7a31a2A97b847D967e0B755921D084C46a742",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-08-30 14:01:34",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d3b2b0ac0afdd0d166a495f5e9fca4ecc715a782000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3",
+            "SALT": "09072024",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    }
   }
 }

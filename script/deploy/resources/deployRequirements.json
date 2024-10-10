@@ -462,5 +462,14 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "Permit2Proxy": {
+    "configData": {
+      "permit2Address": {
+        "configFileName": "permit2Proxy.json",
+        "keyInConfigFile": ".<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
   }
 }
