@@ -1,32 +1,23 @@
 pragma solidity 0.8.17;
 
-import "ds-test/test.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
-import { Test } from "forge-std/Test.sol";
-import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { CBridgeFacetPacked } from "lifi/Facets/CBridgeFacetPacked.sol";
 import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
 import { HopFacetOptimized } from "lifi/Facets/HopFacetOptimized.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
-import { console } from "../utils/Console.sol";
+import { LibAllowList, LibSwap, TestBase, console, LiFiDiamond, ILiFi, ERC20 } from "../utils/TestBase.sol";
 
-contract CBridgeGasETHTest is Test, DiamondTest {
+contract CBridgeGasETHTest is TestBase {
     using SafeERC20 for IERC20;
 
     address internal constant CBRIDGE_ROUTER =
         0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820;
-    address internal constant USDC_ADDRESS =
-        0xdAC17F958D2ee523a2206206994597C13D831ec7; // is USDT
     address internal constant WHALE =
         0x72A53cDBBcc1b9efa39c834A540550e23463AAcB; // USDC + ETH
     address internal constant RECEIVER =
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
 
     ICBridge internal cbridge;
-    ERC20 internal usdc;
-    LiFiDiamond internal diamond;
     CBridgeFacetPacked internal cBridgeFacetPacked;
     CBridgeFacetPacked internal standAlone;
     CBridgeFacet internal cBridgeFacet;
@@ -48,17 +39,10 @@ contract CBridgeGasETHTest is Test, DiamondTest {
     ILiFi.BridgeData bridgeDataUSDC;
     CBridgeFacet.CBridgeData cbridgeDataUSDC;
 
-    function fork() internal {
-        string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = 15588208;
-        vm.createSelectFork(rpcUrl, blockNumber);
-    }
-
     function setUp() public {
-        fork();
+        customBlockNumberForForking = 15588208;
+        initTestBase();
 
-        usdc = ERC20(USDC_ADDRESS);
-        diamond = createDiamond();
         cbridge = ICBridge(CBRIDGE_ROUTER);
 
         /// Perpare CBridgeFacetPacked
@@ -122,7 +106,7 @@ contract CBridgeGasETHTest is Test, DiamondTest {
                 transactionId,
                 RECEIVER,
                 destinationChainId,
-                USDC_ADDRESS,
+                ADDRESS_USDT,
                 amountUSDC,
                 nonce,
                 maxSlippage
@@ -152,7 +136,7 @@ contract CBridgeGasETHTest is Test, DiamondTest {
             "cbridge",
             "",
             address(0),
-            USDC_ADDRESS,
+            ADDRESS_USDT,
             RECEIVER,
             amountUSDC,
             destinationChainId,
@@ -169,7 +153,7 @@ contract CBridgeGasETHTest is Test, DiamondTest {
         address[] memory bridges = new address[](1);
         bridges[0] = CBRIDGE_ROUTER;
         address[] memory tokens = new address[](1);
-        tokens[0] = USDC_ADDRESS;
+        tokens[0] = ADDRESS_USDT;
 
         // > The standalone facet exposes an approval function
         standAlone.setApprovalForBridge(tokens);
@@ -192,8 +176,14 @@ contract CBridgeGasETHTest is Test, DiamondTest {
 
         // or
         // vm.startPrank(address(diamond));
-        // IERC20(USDC_ADDRESS).safeApprove(address(CBRIDGE_ROUTER), type(uint256).max);
+        // IERC20(ADDRESS_USDT).safeApprove(address(CBRIDGE_ROUTER), type(uint256).max);
         // vm.stopPrank();
+
+        // set facet address in TestBase
+        setFacetAddressInTestBase(
+            address(cBridgeFacetPacked),
+            "CBridgeFacetPacked"
+        );
     }
 
     function testStartBridgeTokensViaCBridgeNativePacked() public {
@@ -234,7 +224,7 @@ contract CBridgeGasETHTest is Test, DiamondTest {
 
     function testStartBridgeTokensViaCBridgeERC20Packed() public {
         vm.startPrank(WHALE);
-        IERC20(USDC_ADDRESS).safeApprove(address(diamond), amountUSDC);
+        IERC20(ADDRESS_USDT).safeApprove(address(diamond), amountUSDC);
         (bool success, ) = address(diamond).call(packedUSDC);
         if (!success) {
             revert();
@@ -244,7 +234,7 @@ contract CBridgeGasETHTest is Test, DiamondTest {
 
     function testStartBridgeTokensViaCBridgeERC20Packed_StandAlone() public {
         vm.startPrank(WHALE);
-        IERC20(USDC_ADDRESS).safeApprove(address(standAlone), amountUSDC);
+        IERC20(ADDRESS_USDT).safeApprove(address(standAlone), amountUSDC);
         (bool success, ) = address(standAlone).call(packedUSDC);
         if (!success) {
             revert();
@@ -254,7 +244,7 @@ contract CBridgeGasETHTest is Test, DiamondTest {
 
     function testStartBridgeTokensViaCBridgeERC20Min() public {
         vm.startPrank(WHALE);
-        IERC20(USDC_ADDRESS).safeApprove(
+        IERC20(ADDRESS_USDT).safeApprove(
             address(cBridgeFacetPacked),
             amountUSDC
         );
@@ -262,7 +252,7 @@ contract CBridgeGasETHTest is Test, DiamondTest {
             transactionId,
             RECEIVER,
             uint64(destinationChainId),
-            USDC_ADDRESS,
+            ADDRESS_USDT,
             amountUSDC,
             nonce,
             maxSlippage
@@ -281,7 +271,7 @@ contract CBridgeGasETHTest is Test, DiamondTest {
 
     function testStartBridgeTokensViaCBridgeERC20() public {
         vm.startPrank(WHALE);
-        IERC20(USDC_ADDRESS).safeApprove(address(cBridgeFacet), amountUSDC);
+        IERC20(ADDRESS_USDT).safeApprove(address(cBridgeFacet), amountUSDC);
         cBridgeFacet.startBridgeTokensViaCBridge(
             bridgeDataUSDC,
             cbridgeDataUSDC
