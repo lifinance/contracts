@@ -11,7 +11,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
+import { NativeAssetTransferFailed, InvalidCallData } from "../Errors/GenericErrors.sol";
 
 /// @title GasZipPeriphery
 /// @author LI.FI (https://li.fi)
@@ -85,6 +85,9 @@ contract GasZipPeriphery is
         IGasZip.GasZipData calldata _gasZipData,
         uint256 _amount
     ) public payable {
+        // make sure that receiverAddress is not 0
+        if (_gasZipData.receiver == bytes32(0)) revert InvalidCallData();
+
         // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
         gasZipRouter.deposit{ value: _amount }(
             _gasZipData.destinationChains,
