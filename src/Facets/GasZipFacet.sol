@@ -9,6 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
 
 /// @title GasZipFacet
 /// @author LI.FI (https://li.fi)
@@ -38,7 +39,6 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
@@ -46,6 +46,9 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // this function / path shall only be used for native assets
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId))
             revert OnlyNativeAllowed();
+
+        // make sure that msg.value matches the to-be-deposited amount
+        if (msg.value != _bridgeData.minAmount) revert InvalidAmount();
 
         // deposit native to Gas.zip
         _startBridge(_bridgeData, _gasZipData);
@@ -64,9 +67,9 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         payable
         nonReentrant
         refundExcessNative(payable(msg.sender))
+        validateBridgeData(_bridgeData)
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
-        validateBridgeData(_bridgeData)
     {
         // deposit and swap ERC20 tokens to native
         _bridgeData.minAmount = _depositAndSwap(
