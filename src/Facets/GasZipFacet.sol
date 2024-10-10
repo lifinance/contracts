@@ -72,6 +72,13 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        // make sure that the output of the last swap step is native
+        if (
+            !LibAsset.isNativeAsset(
+                _swapData[_swapData.length - 1].receivingAssetId
+            )
+        ) revert InvalidCallData();
+
         // deposit and swap ERC20 tokens to native
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
