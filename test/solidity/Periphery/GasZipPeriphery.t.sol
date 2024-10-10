@@ -17,8 +17,9 @@ import { NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
 contract TestGasZipPeriphery is GasZipPeriphery {
     constructor(
         address gasZipRouter,
-        address liFiDEXAggregator
-    ) GasZipPeriphery(gasZipRouter, liFiDEXAggregator) {}
+        address liFiDEXAggregator,
+        address owner
+    ) GasZipPeriphery(gasZipRouter, liFiDEXAggregator, owner) {}
 
     function addDex(address _dex) external {
         LibAllowList.addAllowedContract(_dex);
@@ -60,7 +61,8 @@ contract GasZipPeripheryTest is TestBase {
         // deploy contracts
         gasZipPeriphery = new TestGasZipPeriphery(
             GAS_ZIP_ROUTER_MAINNET,
-            LIFI_DEX_AGGREGATOR_MAINNET
+            LIFI_DEX_AGGREGATOR_MAINNET,
+            USER_DIAMOND_OWNER
         );
         defaultUSDCAmount = 10 * 10 ** usdc.decimals(); // 10 USDC
 

@@ -8,6 +8,7 @@ import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
+import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
@@ -16,7 +17,13 @@ import { NativeAssetTransferFailed } from "../Errors/GenericErrors.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality to swap ERC20 tokens to use the gas.zip protocol as a pre-bridge step (https://www.gas.zip/)
 /// @custom:version 1.0.0
-contract GasZipPeriphery is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract GasZipPeriphery is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable,
+    WithdrawablePeriphery
+{
     using SafeTransferLib for address;
 
     /// State ///
@@ -27,7 +34,11 @@ contract GasZipPeriphery is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     error TooManyChainIds();
 
     /// Constructor ///
-    constructor(address _gasZipRouter, address _liFiDEXAggregator) {
+    constructor(
+        address _gasZipRouter,
+        address _liFiDEXAggregator,
+        address _owner
+    ) WithdrawablePeriphery(_owner) {
         gasZipRouter = IGasZip(_gasZipRouter);
         liFiDEXAggregator = _liFiDEXAggregator;
     }

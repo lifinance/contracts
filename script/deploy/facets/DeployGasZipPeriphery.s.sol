@@ -45,6 +45,15 @@ contract DeployScript is DeployScriptBase {
 
         address liFiDEXAggregator = json.readAddress(".LiFiDEXAggregator");
 
-        return abi.encode(gasZipRouter, liFiDEXAggregator);
+        // get network's SAFE address to become contract owner for potential fund withdrawals
+        string memory networks = string.concat(root, "/config/networks.json");
+
+        string memory networksJson = vm.readFile(networks);
+
+        address safeAddress = networksJson.readAddress(
+            string.concat(network, ".safeAdress")
+        );
+
+        return abi.encode(gasZipRouter, liFiDEXAggregator, safeAddress);
     }
 }
