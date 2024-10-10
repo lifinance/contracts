@@ -17,7 +17,6 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
 
-    error OnlySwapsFromERC20ToNativeAllowed();
     error OnlyNativeAllowed();
 
     /// State ///

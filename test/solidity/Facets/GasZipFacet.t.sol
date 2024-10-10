@@ -39,7 +39,6 @@ contract GasZipFacetTest is TestBaseFacet {
 
     event Deposit(address from, uint256 chains, uint256 amount, bytes32 to);
 
-    error OnlySwapsFromERC20ToNativeAllowed();
     error OnlyNativeAllowed();
 
     function setUp() public {
