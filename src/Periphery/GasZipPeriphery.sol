@@ -23,6 +23,9 @@ contract GasZipPeriphery is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     IGasZip public immutable gasZipRouter;
     address public immutable liFiDEXAggregator;
 
+    /// Errors ///
+    error TooManyChainIds();
+
     /// Constructor ///
     constructor(address _gasZipRouter, address _liFiDEXAggregator) {
         gasZipRouter = IGasZip(_gasZipRouter);
@@ -93,11 +96,13 @@ contract GasZipPeriphery is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Returns a value that signals to Gas.zip to which chains gas should be sent in equal parts
     /// @param _chainIds a list of Gas.zip-specific chainIds (not the original chainIds), see https://dev.gas.zip/gas/chain-support/outbound
     function getDestinationChainsValue(
-        uint8[] memory _chainIds
-    ) public pure returns (uint256 destinationChains) {
-        require(_chainIds.length <= 32, "Too many chain IDs");
+        uint8[] calldata _chainIds
+    ) external pure returns (uint256 destinationChains) {
+        uint256 length = _chainIds.length;
 
-        for (uint256 i = 0; i < _chainIds.length; i++) {
+        if (length > 32) revert TooManyChainIds();
+
+        for (uint256 i; i < length; ++i) {
             // Shift destinationChains left by 8 bits and add the next chainID
             destinationChains =
                 (destinationChains << 8) |

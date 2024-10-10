@@ -19,6 +19,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     using SafeTransferLib for address;
 
     error OnlyNativeAllowed();
+    error TooManyChainIds();
 
     /// State ///
     IGasZip public immutable gasZipRouter;
@@ -105,7 +106,8 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint8[] calldata _chainIds
     ) external pure returns (uint256 destinationChains) {
         uint256 length = _chainIds.length;
-        require(length <= 32, "Too many chain IDs");
+
+        if (length > 32) revert TooManyChainIds();
 
         for (uint256 i; i < length; ++i) {
             // Shift destinationChains left by 8 bits and add the next chainID
