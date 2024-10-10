@@ -99,16 +99,16 @@ contract WithdrawablePeripheryTest is TestBase {
     }
 
     function testRevert_FailsIfNativeTokenTransferFails() public {
-        uint256 withdrawAmount = 10 * 10 ** usdc.decimals();
+        uint256 withdrawAmount = 0.1 ether;
 
         address nonETHReceiver = address(new NonETHReceiver());
 
-        vm.startPrank(USER_SENDER);
+        vm.startPrank(USER_DIAMOND_OWNER);
 
-        vm.expectRevert(UnAuthorized.selector);
+        vm.expectRevert();
 
         withdrawable.withdrawToken(
-            ADDRESS_USDC,
+            address(0),
             payable(nonETHReceiver),
             withdrawAmount
         );
