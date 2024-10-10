@@ -138,8 +138,8 @@
         "Version": ""
       },
       "0xaF5001e4cd39B3515B244B18A88DD5b2fE65c5cD": {
-        "Name": "",
-        "Version": ""
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
