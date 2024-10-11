@@ -214,8 +214,8 @@ const createDestCallPayload = (
 }
 
 // ########################################## CONFIGURE SCRIPT HERE ##########################################
-const TRANSACTION_TYPE = TX_TYPE.ERC20_WITH_DEST as TX_TYPE // define which type of transaction you want to send
-const SEND_TX = true // allows you to the script run without actually sending a transaction (=false)
+const TRANSACTION_TYPE = TX_TYPE.ERC20 as TX_TYPE // define which type of transaction you want to send
+const SEND_TX = false // allows you to the script run without actually sending a transaction (=false)
 const DEBUG = false // set to true for higher verbosity in console output
 
 // change these values only if you need to
@@ -233,6 +233,8 @@ const fromAmount = isNativeTX(TRANSACTION_TYPE)
 const WITH_DEST_CALL =
   TRANSACTION_TYPE === TX_TYPE.ERC20_WITH_DEST ||
   TRANSACTION_TYPE === TX_TYPE.NATIVE_WITH_DEST
+const WITH_EXCLUSIVE_RELAYER = false
+const EXCLUSIVE_RELAYER = '0x07ae8551be970cb1cca11dd7a11f47ae82e70e67' // biggest across relayer
 const SRC_CHAIN = 'optimism'
 const DIAMOND_ADDRESS_SRC = deploymentsOPT.LiFiDiamond
 const RECEIVER_ADDRESS_DST = WITH_DEST_CALL
@@ -375,6 +377,16 @@ async function main() {
       .add(60 * 60)
       .toString(), // 60 minutes from now
     message: payload,
+    receiverAddress: WITH_DEST_CALL ? RECEIVER_ADDRESS_DST : walletAddress,
+    refundAddress: walletAddress,
+    exclusiveRelayer: WITH_EXCLUSIVE_RELAYER
+      ? EXCLUSIVE_RELAYER
+      : constants.AddressZero,
+    exclusivityDeadline: WITH_EXCLUSIVE_RELAYER
+      ? BigNumber.from(quote.timestamp)
+          .add(5 * 60)
+          .toString() // 5 minutes from now
+      : 0,
   }
   console.log('acrossV3Data prepared')
 
