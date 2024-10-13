@@ -143,7 +143,8 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "Permit2Proxy": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -513,7 +514,8 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "Permit2Proxy": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
@@ -601,7 +603,8 @@
         "StargateFacet": "2.2.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.0.0",
-        "SymbiosisFacet": "1.0.0"
+        "SymbiosisFacet": "1.0.0",
+        "Permit2Proxy": "1.0.0"
       },
       "LiFiDiamondImmutable": {
         "DiamondCutFacet": "1.0.0",
