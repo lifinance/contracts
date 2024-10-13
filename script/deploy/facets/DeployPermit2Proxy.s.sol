@@ -20,6 +20,7 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
+        // get the address of the LiFiDiamond for the given network
         string memory deployments = string.concat(
             root,
             "/deployments/",
@@ -32,20 +33,30 @@ contract DeployScript is DeployScriptBase {
 
         address diamond = deploymentsJSON.readAddress(".LiFiDiamond");
 
-        // get path of permit2 config file
+        // get the Permit2 contract address for the given network
         string memory permit2ProxyConfig = string.concat(
             root,
             "/config/permit2Proxy.json"
         );
 
-        // read file into json variable
         string memory permit2ProxyConfigJSON = vm.readFile(permit2ProxyConfig);
 
-        // extract Permit2 contract address for the given network
         address permit2Address = permit2ProxyConfigJSON.readAddress(
             string.concat(".", network)
         );
 
-        return abi.encode(diamond, permit2Address);
+        // get the multisig SAFE address for the given network
+        string memory networksConfig = string.concat(
+            root,
+            "/config/networks.json"
+        );
+
+        string memory networksConfigJSON = vm.readFile(networksConfig);
+
+        address safeAddress = networksConfigJSON.readAddress(
+            string.concat(".", network, ".safeAddress")
+        );
+
+        return abi.encode(diamond, permit2Address, safeAddress);
     }
 }
