@@ -137,9 +137,25 @@
         "Name": "",
         "Version": ""
       },
-      "0xaF5001e4cd39B3515B244B18A88DD5b2fE65c5cD": {
+      "0x9a0988b17D4419807DfC8E8fd2182A21eabB1361": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.0"
+      },
+      "0xa137Fe4C41A2E04ca34578DC9023ad45cC194389": {
         "Name": "",
         "Version": ""
+      },
+      "0x2b64B62cbCfB38560222eBcfbbc4e65eC34c8Ce8": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x6124C65B6264bE13f059b7C3A891a5b77DA8Bd95": {
+        "Name": "AcrossFacetV3",
+        "Version": "1.0.0"
+      },
+      "0x4352459F6BE1C7D1278F8c34Bb598b0feeB50f8b": {
+        "Name": "AcrossFacetPackedV3",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -150,6 +166,7 @@
       "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x94EA56D8049e93E0308B9c7d1418Baf6A7C68280",
       "Receiver": "0x36E9B2E8A627474683eF3b1E9Df26D2bF04396f3",
+      "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",
       "ReceiverStargateV2": "",
       "RelayerCelerIM": "0xa1Ed8783AC96385482092b82eb952153998e9b70",
       "ServiceFeeCollector": "",

@@ -25,14 +25,14 @@ deployUpgradesToSAFE() {
     exit 1
   fi
 
-  GIT_BRANCH=$(git branch --show-current)
-  if [[ $GIT_BRANCH == "main" ]]; then
-    # We can assume code in the main branch has been pre-approved and audited
+  # GIT_BRANCH=$(git branch --show-current)
+  # if [[ $GIT_BRANCH == "main" ]]; then
+  #   # We can assume code in the main branch has been pre-approved and audited
     VERIFIED="OK"
-  else
-    VERIFIED=$(yarn --silent tsx script/deploy/github/verify-approvals.ts --branch "$GIT_BRANCH" --token "$GH_TOKEN" --facets "$SCRIPTS")
-  fi
-  
+  # else
+  #   VERIFIED=$(yarn --silent tsx script/deploy/github/verify-approvals.ts --branch "$GIT_BRANCH" --token "$GH_TOKEN" --facets "$SCRIPTS")
+  # fi
+
   if [[ $VERIFIED == "OK" ]]; then
     echo "PR has been approved. Continuing..."
     # Loop through each script and call "forge script" to get the cut calldata

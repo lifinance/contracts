@@ -169,7 +169,8 @@
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "RelayerCelerIM": "0x6a8b11bF29C0546991DEcD6E0Db8cC7Fda22bA97",
       "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
-      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+      "ReceiverAcrossV3": "0xB9CEc304899037E661F49DdFa7f64943b5920072"
     }
   }
 }

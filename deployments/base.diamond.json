@@ -123,7 +123,10 @@
       "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d",
       "GasRebateDistributor": "",
-      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc"
+      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+      "ReceiverAcrossV3": "0xB9CEc304899037E661F49DdFa7f64943b5920072",
+      "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
+      "RelayerCelerIM": ""
     }
   }
 }

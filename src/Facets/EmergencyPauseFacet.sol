@@ -157,11 +157,12 @@ contract EmergencyPauseFacet {
                 continue;
 
             // build FacetCut parameter
-            IDiamondCut.FacetCut[]
-                memory facetCut = new IDiamondCut.FacetCut[](1);
-            facetCut[0] = IDiamondCut.FacetCut({
+            LibDiamond.FacetCut[] memory facetCut = new LibDiamond.FacetCut[](
+                1
+            );
+            facetCut[0] = LibDiamond.FacetCut({
                 facetAddress: address(0), // needs to be address(0) for removals
-                action: IDiamondCut.FacetCutAction.Remove,
+                action: LibDiamond.FacetCutAction.Remove,
                 functionSelectors: currentSelectors
             });
 
