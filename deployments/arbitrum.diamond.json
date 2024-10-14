@@ -137,7 +137,8 @@
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d",
       "GasRebateDistributor": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-      "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A"
+      "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
+      "Permit2Proxy": "0x5c6e208468213999CB0Be4bAB6d1492c3139A4EE"
     }
   }
 }
