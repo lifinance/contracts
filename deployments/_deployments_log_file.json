@@ -23353,6 +23353,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 12:42:57",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "bsc": {
@@ -23365,6 +23377,18 @@
             "CONSTRUCTOR_ARGS": "0x00000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7",
             "SALT": "",
             "VERIFIED": "false"
+          }
+        ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:39:17",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
           }
         ]
       }
@@ -23381,6 +23405,18 @@
             "VERIFIED": "true"
           }
         ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:28:13",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
       }
     },
     "optimism": {
@@ -23393,6 +23429,396 @@
             "CONSTRUCTOR_ARGS": "0x000000000000000000000000b9c0de368bece5e76b52545a8e377a4c118f597b",
             "SALT": "20241009",
             "VERIFIED": "true"
+          }
+        ]
+      },
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 12:15:58",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mainnet": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:27:19",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "aurora": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:29:20",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "avalanche": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:30:00",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "base": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:31:16",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "blast": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:32:16",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "boba": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:32:16",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "celo": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:40:27",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fantom": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:41:59",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fraxtal": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:43:03",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "fuse": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:47:57",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "gnosis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:51:20",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "gravity": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:51:46",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "immutablezkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:52:46",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "kaia": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x5b4dd05850A3f373500e7fC90E94b581A45ACBFa",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:59:03",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "linea": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xe07c030dDC7Fb9ca23b633b1028106DAA5fdbF96",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 11:59:36",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "mantle": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 12:02:41",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "metis": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xD5734b44Bb7Ada52ea6503088612E70a2a612371",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 12:12:45",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "mode": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 12:13:23",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "moonbeam": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 12:14:37",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "moonriver": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 12:15:26",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "opbnb": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 12:15:26",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "polygonzkevm": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 12:45:16",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "sei": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 12:48:07",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "taiko": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0xe07c030dDC7Fb9ca23b633b1028106DAA5fdbF96",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 12:54:07",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "true"
+          }
+        ]
+      }
+    },
+    "xlayer": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 12:58:28",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "rootstock": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 13:37:09",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
+          }
+        ]
+      }
+    },
+    "scroll": {
+      "production": {
+        "1.0.0": [
+          {
+            "ADDRESS": "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2024-10-14 13:37:09",
+            "CONSTRUCTOR_ARGS": "0x000000000000000000000000d38743b48d26743c0ec6898d699394fbc94657ee",
+            "SALT": "",
+            "VERIFIED": "false"
           }
         ]
       }
