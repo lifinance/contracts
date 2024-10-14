@@ -22,6 +22,8 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     error TooManyChainIds();
 
     /// State ///
+    address public NON_EVM_RECEIVER_IDENTIFIER =
+        0x11f111f111f111F111f111f111F111f111f111F1;
     IGasZip public immutable gasZipRouter;
 
     /// Constructor ///
@@ -40,7 +42,6 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         external
         payable
         nonReentrant
-        validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
@@ -68,7 +69,6 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         payable
         nonReentrant
         refundExcessNative(payable(msg.sender))
-        validateBridgeData(_bridgeData)
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
@@ -98,6 +98,21 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         IGasZip.GasZipData calldata _gasZipData
     ) internal {
+        // make sure receiver address has a value to prevent potential loss of funds
+        if (_gasZipData.receiver == bytes32(0)) revert InvalidCallData();
+
+        // validate that receiverAddress matches with bridgeData in case of EVM target chain
+        if (
+            _bridgeData.receiver != NON_EVM_RECEIVER_IDENTIFIER &&
+            _gasZipData.receiver !=
+            bytes32(uint256(uint160(_bridgeData.receiver)))
+        ) revert InvalidCallData();
+
+        // validate bridgeData
+        // make sure destinationChainId is of a different network
+        if (_bridgeData.destinationChainId == block.chainid)
+            revert CannotBridgeToSameNetwork();
+
         // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
         gasZipRouter.deposit{ value: _bridgeData.minAmount }(
             _gasZipData.destinationChains,
