@@ -9,6 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IDlnSource } from "../Interfaces/IDlnSource.sol";
+import { InformationMismatch, AlreadyInitialized, NotInitialized } from "../Errors/GenericErrors.sol";
 
 /// @title DeBridgeDLN Facet
 /// @author LI.FI (https://li.fi)
@@ -16,6 +17,9 @@ import { IDlnSource } from "../Interfaces/IDlnSource.sol";
 /// @custom:version 1.0.0
 contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
+
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.debridgedln");
 
     address internal constant NON_EVM_ADDRESS =
         0x11f111f111f111F111f111f111F111f111f111F1;
@@ -32,9 +36,27 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 minAmountOut;
     }
 
+    struct Storage {
+        mapping(uint256 => uint256) deBridgeChainId;
+        bool initialized;
+    }
+
+    struct ChainIdConfig {
+        uint256 chainId;
+        uint256 deBridgeChainId;
+    }
+
+    /// Errors ///
+
+    error UnknownDeBridgeChain();
+
     /// Events ///
 
+    event DeBridgeInitialized(ChainIdConfig[] chainIdConfigs);
+
     event DlnOrderCreated(bytes32 indexed orderId);
+
+    event DeBridgeChainIdSet(uint256 indexed chainId, uint256 deBridgeChainId);
 
     event BridgeToNonEVMChain(
         bytes32 indexed transactionId,
@@ -48,6 +70,26 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _dlnSource The address of the DLN order creation contract
     constructor(IDlnSource _dlnSource) {
         dlnSource = _dlnSource;
+    }
+
+    /// Init ///
+
+    /// @notice Initialize local variables for the DeBridgeDln Facet
+    /// @param chainIdConfigs Chain Id configuration data
+    function initDeBridgeDln(
+        ChainIdConfig[] calldata chainIdConfigs
+    ) external {
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage sm = getStorage();
+
+        for (uint256 i = 0; i < chainIdConfigs.length; i++) {
+            sm.deBridgeChainId[chainIdConfigs[i].chainId] = chainIdConfigs[i]
+                .deBridgeChainId;
+        }
+
+        sm.initialized = true;
+        emit DeBridgeInitialized(chainIdConfigs);
     }
 
     /// External Methods ///
@@ -123,7 +165,9 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 giveAmount: _bridgeData.minAmount,
                 takeTokenAddress: _deBridgeData.receivingAssetId,
                 takeAmount: _deBridgeData.minAmountOut,
-                takeChainId: _bridgeData.destinationChainId,
+                takeChainId: getDeBridgeChainId(
+                    _bridgeData.destinationChainId
+                ),
                 receiverDst: _deBridgeData.receiver,
                 givePatchAuthoritySrc: msg.sender,
                 orderAuthorityAddressDst: _deBridgeData.receiver,
@@ -168,5 +212,47 @@ contract DeBridgeDlnFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// Mappings management ///
+
+    /// @notice Sets the Layer 0 chain ID for a given chain ID
+    /// @param _chainId uint256 of the chain ID
+    /// @param _deBridgeChainId uint256 of the Layer 0 chain ID
+    /// @dev This is used to map a chain ID to its Layer 0 chain ID
+    function setDeBridgeChainId(
+        uint256 _chainId,
+        uint256 _deBridgeChainId
+    ) external {
+        LibDiamond.enforceIsContractOwner();
+        Storage storage sm = getStorage();
+
+        if (!sm.initialized) {
+            revert NotInitialized();
+        }
+
+        sm.deBridgeChainId[_chainId] = _deBridgeChainId;
+        emit DeBridgeChainIdSet(_chainId, _deBridgeChainId);
+    }
+
+    /// @notice Gets the Layer 0 chain ID for a given chain ID
+    /// @param _chainId uint256 of the chain ID
+    /// @return uint256 of the Layer 0 chain ID
+    function getDeBridgeChainId(
+        uint256 _chainId
+    ) public view returns (uint256) {
+        Storage storage sm = getStorage();
+        uint256 chainId = sm.deBridgeChainId[_chainId];
+        if (chainId == 0) revert UnknownDeBridgeChain();
+        return chainId;
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }
