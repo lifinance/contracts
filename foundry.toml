@@ -16,8 +16,9 @@ ffi = true
 libs = ["node_modules", "lib"]
 cache = true
 
-[profile.default.zksync]
-zksolc = '1.3.17'
+[profile.zksync]
+test = "notest"
+script = "noscript"
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
