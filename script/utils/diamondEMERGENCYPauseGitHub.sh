@@ -5,8 +5,11 @@
 # for all other actions the diamondEMERGENCYPause.sh script should be called
 # via scriptMaster.sh in local CLI for more flexibility
 
+
 # load helper functions
 source ./script/helperFunctions.sh
+
+DIAMOND_IS_PAUSED_SELECTOR="0x0149422e"
 
 # the number of attempts the script will max try to execute the pause transaction
 MAX_ATTEMPTS=10
@@ -45,6 +48,31 @@ function handleNetwork() {
     echo "[network: $NETWORK] RPC URL found"
   fi
 
+  # get diamond address for this network
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
+  if [[ $? -ne 0 ]]; then
+    error "[network: $NETWORK] could not find diamond address in PROD deploy log. Cannot continue for this network."
+    return 1
+  else
+    echo "[network: $NETWORK] diamond address found in deploy log file: $DIAMOND_ADDRESS"
+  fi
+
+  # check if the diamond is already paused by calling owner() function and analyzing the response
+  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
+    # Check for errors in the response
+  if [[ "$RESPONSE" == 0x* ]]; then
+      # If the response starts with "0x", it is a valid response, and the diamond is not paused
+      echo "[network: $NETWORK] The diamond is not yet paused. Proceeding..."
+  elif [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
+      # If the response contains the pause selector or "DiamondIsPaused", the diamond is paused
+      success "[network: $NETWORK] The diamond is already paused."
+      echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+      return 0
+  else
+      # Handle other RPC or network errors
+      error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $RESPONSE"
+  fi
+
   # ensure PauserWallet has positive balance
   BALANCE_PAUSER_WALLET=$(cast balance "$PRIV_KEY_ADDRESS" --rpc-url "$RPC_URL")
   if [[ "$BALANCE_PAUSER_WALLET" == 0 ]]; then
@@ -53,16 +81,6 @@ function handleNetwork() {
     return 1
   else
     echo "[network: $NETWORK] balance pauser wallet: $BALANCE_PAUSER_WALLET"
-  fi
-
-  # get diamond address for this network
-  # DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
-  DIAMOND_ADDRESS="0xD3b2b0aC0AFdd0d166a495f5E9fca4eCc715a782"  # TODO: remove <<<<<<<<<---------------------------------------------------------------------------------------- (STAGING DIAMOND ON POL, ARB, OPT)
-  if [[ $? -ne 0 ]]; then
-    error "[network: $NETWORK] could not find diamond address in PROD deploy log. Cannot continue for this network."
-    return 1
-  else
-    echo "[network: $NETWORK] diamond address found in deploy log file: $DIAMOND_ADDRESS"
   fi
 
   # this fails currently since the EmergencyPauseFacet is not yet deployed to all diamonds
@@ -116,15 +134,48 @@ function handleNetwork() {
   fi
 }
 
+function printStatus() {
+  local NETWORK="$1"
+
+  # get RPC URL for given network
+  local RPC_KEY="ETH_NODE_URI_$(tr '[:lower:]' '[:upper:]' <<<"$NETWORK")"
+  # Use eval to read the environment variable named like the RPC_KEY (our normal syntax like 'RPC_URL=${!RPC_URL}' doesnt work on Github)
+  eval "RPC_URL=\$$(echo "$RPC_KEY" | tr '-' '_')"
+
+    # skip any non-prod networks
+  case "$NETWORK" in
+    "bsc-testnet" | "localanvil" | "sepolia" | "mumbai" | "lineatest")
+      echo "skipping $NETWORK (Testnet)"
+      return 0
+      ;;
+  esac
+
+  # get diamond address for this network
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
+
+  # check if the diamond is paused by calling owner() function and analyzing the response
+  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
+    # Check for errors in the response
+  if [[ "$RESPONSE" == 0x* ]]; then
+      # If the response starts with "0x", it is a valid response, and the diamond is not paused
+      error "[network: $NETWORK] diamond not paused."
+  elif [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
+      # If the response contains the pause selector or "DiamondIsPaused", the diamond is paused
+      success "[network: $NETWORK] diamond paused."
+  else
+      # Handle other RPC or network errors
+      error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $RESPONSE"
+  fi
+}
+
 function main {
   # create array with network/s for which the script should be executed
   local NETWORKS=()
 
   # loop through networks list and add each network to ARRAY that is not excluded
-  # while IFS= read -r line; do
-  #   NETWORKS+=("$line")
-  # done <"./networks"
-  NETWORKS=("arbitrum" "polygon" "optimism") # TODO: remove <<<<<<<<<---------------------------------------------------------------------------------------- (WILL MAKE SURE THAT THE TEST RUNS ONLY ON THREE
+  while IFS= read -r line; do
+    NETWORKS+=("$line")
+  done <"./networks"
 
   echo "networks found: ${NETWORKS[@]}"
 
@@ -132,6 +183,7 @@ function main {
   echo "Address PauserWallet: $PRIV_KEY_ADDRESS"
   echo "Networks will be executed in parallel, therefore the log might appear messy."
   echo "Watch out for red and green colored entries as they mark endpoints of each network thread"
+  echo "A summary will be printed after all jobs/networks have been completed"
 
   # go through all networks and start background tasks for each network (to execute in parallel)
   RETURN=0
@@ -144,6 +196,15 @@ function main {
   # Check exit status of each background job
   for JOB in $(jobs -p); do
     wait $JOB || RETURN=1
+  done
+
+  echo "-------------------------------------------------------------------------------------"
+  echo "--------------------------------ALL JOBS DONE----------------------------------------"
+  echo "-------------------------------------------------------------------------------------"
+  echo "[info] all jobs completed, now going through all networks again to print their status"
+  # run through all networks to print a easy-to-read summary
+  for NETWORK in "${NETWORKS[@]}"; do
+      printStatus "$NETWORK" &
   done
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< script diamondEMERGENCYPause completed"
