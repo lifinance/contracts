@@ -216,7 +216,7 @@ contract Permit2ProxyTest is TestBase {
             );
 
         // expect call to revert since signature is invalid
-        vm.expectRevert("EIP2612: invalid signature");
+        vm.expectRevert("ECRecover: invalid signature 'v' value");
 
         // call Permit2Proxy with signature
         permit2Proxy.callDiamondWithEIP2612Signature(
