@@ -22,6 +22,3 @@
 [submodule "lib/solady"]
 	path = lib/solady
 	url = https://github.com/Vectorized/solady
-[submodule "lib/era-contracts"]
-	path = lib/era-contracts
-	url = https://github.com/matter-labs/era-contracts

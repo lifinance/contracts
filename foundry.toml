@@ -17,6 +17,7 @@ libs = ["node_modules", "lib"]
 cache = true
 
 [profile.zksync]
+solc_version = '0.8.26'
 test = "notest"
 script = "script/deploy/zksync"
 

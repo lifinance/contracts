@@ -195,8 +195,9 @@ deploySingleContract() {
 
     if [[ $NETWORK == "zksync" ]]; then
       echo "!!!Using ZkSync deploy scripts!!!"
-      forge clean
-      RAW_RETURN_DATA=$(docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") foundry-zksync forge script "./script/deploy/zksync/DeployAcrossFacetV3.s.sol" -f $NETWORK -vvvvvv --json --silent --broadcast --skip-simulation --legacy --slow --use 0.8.28) 
+      docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) foundry-zksync forge clean 
+      docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge build --zksync 
+      RAW_RETURN_DATA=$(docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync -e NETWORK=$NETWORK -e FILE_SUFFIX=$FILE_SUFFIX -e PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") foundry-zksync forge script "./script/deploy/zksync/DeployAcrossFacetV3.s.sol" -f $NETWORK -vvv --json --silent --broadcast --skip-simulation --slow --zksync) 
     else
       # try to execute call
       RAW_RETURN_DATA=$(DEPLOYSALT=$DEPLOYSALT CREATE3_FACTORY_ADDRESS=$CREATE3_FACTORY_ADDRESS NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") DIAMOND_TYPE=$DIAMOND_TYPE forge script "$FULL_SCRIPT_PATH" -f $NETWORK -vvvvvv --json --silent --broadcast --skip-simulation --legacy)
