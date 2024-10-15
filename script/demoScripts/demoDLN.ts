@@ -24,7 +24,7 @@ const main = async () => {
 
   // Bridge 5 ARB from Polygon to USDC on Optimism
   const resp = await fetch(
-    'https://api.dln.trade/v1.0/dln/order/quote?srcChainId=42161&srcChainTokenIn=0x912CE59144191C1204E64559FE8253a0e49E6548&srcChainTokenInAmount=5000000000000000000&dstChainId=10&dstChainTokenOut=0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85&prependOperatingExpenses=false'
+    'https://api.dln.trade/v1.0/dln/order/quote?srcChainId=42161&srcChainTokenIn=0x912CE59144191C1204E64559FE8253a0e49E6548&srcChainTokenInAmount=95000000000000000000&dstChainId=100000002&dstChainTokenOut=0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d&prependOperatingExpenses=false'
   )
   const quote = await resp.json()
 
@@ -42,7 +42,7 @@ const main = async () => {
     sendingAssetId: srcChainTokenIn.address,
     receiver: address,
     minAmount: srcChainTokenIn.amount,
-    destinationChainId: 10,
+    destinationChainId: 100,
     hasSourceSwaps: false,
     hasDestinationCall: false,
   }
@@ -65,7 +65,7 @@ const main = async () => {
       value: quote.fixFee,
     })
   await tx.wait()
-  console.info('Bridged USDC')
+  console.info('Bridged ARB')
 }
 
 main()
