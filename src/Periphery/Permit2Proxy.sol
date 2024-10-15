@@ -22,7 +22,7 @@ contract Permit2Proxy is WithdrawablePeriphery {
         "LiFiCall witness)LiFiCall(address tokenReceiver,address diamondAddress,bytes32 diamondCalldataHash)TokenPermissions(address token,uint256 amount)";
     bytes32 public constant WITNESS_TYPEHASH =
         keccak256(
-            "LiFiCall(address tokenReceiver,address diamondAddress,bytes32 diamondCalldataHash)"
+            "LiFiCall(address diamondAddress,bytes32 diamondCalldataHash)"
         );
     bytes32 public immutable PERMIT_WITH_WITNESS_TYPEHASH;
 
