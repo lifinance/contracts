@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import { DeployScriptBase } from "./DeployScriptBase.sol";
+import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
 

@@ -90,6 +90,11 @@ deploySingleContract() {
     echo ""
   fi
 
+  # Handle ZkSync
+  if [[ $NETWORK == "zksync" ]]; then
+    DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
+  fi
+  
   if [[ -z "$CONTRACT" ]]; then
     # get user-selected deploy script and contract from list
     SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
