@@ -44,9 +44,11 @@ jobs:
       - name: Install Dependencies
         run: forge install
 
-      - name: Generate Coverage Report
+      - name: Generate and Filter Coverage Report
         run: |
-          forge coverage --report lcov --force
+          echo "Generating coverage report now"
+
+          forge coverage --report lcov --force --evm-version shanghai --ir-minimum
 
           echo "Filtering coverage report to only contain coverage info for 'src/'' folder now"
 
