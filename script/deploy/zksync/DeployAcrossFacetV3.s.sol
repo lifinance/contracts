@@ -3,10 +3,12 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
+import { AcrossFacetV3, IAcrossSpokePool } from "lifi/Facets/AcrossFacetV3.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
+
+    constructor() DeployScriptBase("AcrossFacetV3") {}
 
     function run()
         public

@@ -1426,18 +1426,34 @@ function verifyContract() {
     if [ "$ARGS" = "0x" ]; then
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+        if [[ $NETWORK == "zksync" ]]; then
+          docker run --rm -it -v .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge verify-contract --zksync --watch --chain 324 "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+        else
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
+        fi
 
         # TODO: add code that automatically identifies blockscout verification
       else
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        if [[ $NETWORK == "zksync" ]]; then
+          docker run --rm -it -v .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        else
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        fi
       fi
     else
       # only show output if DEBUG flag is activated
       if [[ "$DEBUG" == *"true"* ]]; then
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
+        if [[ $NETWORK == "zksync" ]]; then
+         docker run --rm -it -v .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
+        else
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}"
+        fi
       else
-        forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        if [[ $NETWORK == "zksync" ]]; then
+         docker run --rm -it -v .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge verify-contract --zksync --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-args $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        else
+          forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --constructor-ar --zksyncgs $ARGS --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
+        fi
       fi
     fi
     COMMAND_STATUS=$?
@@ -1446,18 +1462,18 @@ function verifyContract() {
 
   # check the return status of the contract verification call
   if [ $COMMAND_STATUS -ne 0 ]; then
-    warning "$CONTRACT on $NETWORK with address $ADDRESS could not be verified"
+    warning "$CONTRACT on $ --zksyncNETWORK with address $ADDRESS could not be verified"
   else
     echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
     return 0
   fi
 
-  echo "[info] trying to verify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
+  echo "[info] trying to ve --zksync --zksyncrify $CONTRACT on $NETWORK with address $ADDRESS using Sourcify now"
   forge verify-contract \
     "$ADDRESS" \
     "$CONTRACT" \
     --chain-id "$CHAIN_ID" \
-    --verifier sourcify
+    --verifier  --zksyncsourcify
 
   echo "[info] checking Sourcify verification now"
   forge verify-check $ADDRESS \

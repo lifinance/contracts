@@ -3,22 +3,20 @@ pragma solidity ^0.8.17;
 
 import { ScriptBase } from "./ScriptBase.sol";
 
-interface Deployer {
-    /// @dev While the `_salt` parameter is not used anywhere here,
-    /// it is still needed for consistency between `create` and
-    /// `create2` functions (required by the compiler).
-    function create(
-        bytes32 _salt,
-        bytes32 _bytecodeHash,
-        bytes calldata _input
-    ) external payable returns (address newAddress);
-}
+import { stdJson } from "forge-std/Script.sol";
 
 contract DeployScriptBase is ScriptBase {
+    using stdJson for string;
+
     /// @dev The prefix used to create CREATE2 addresses.
-    bytes32 private constant CREATE2_PREFIX = keccak256("zksyncCreate2");
-    address internal constant DEPLOYER =
-        0x0000000000000000000000000000000000008006;
+    bytes32 internal salt;
+    string internal contractName;
+
+    constructor(string memory _contractName) {
+        contractName = _contractName;
+        string memory saltPrefix = vm.envString("DEPLOYSALT");
+        salt = keccak256(abi.encodePacked(saltPrefix, contractName));
+    }
 
     function getConstructorArgs() internal virtual returns (bytes memory) {}
 
@@ -27,16 +25,38 @@ contract DeployScriptBase is ScriptBase {
     ) internal virtual returns (address payable deployed) {
         bytes memory constructorArgs = getConstructorArgs();
 
+        string memory path = string.concat(
+            root,
+            "/zkout/",
+            contractName,
+            ".sol/",
+            contractName,
+            ".json"
+        );
+        string memory json = vm.readFile(path);
+        bytes32 bytecodeHash = json.readBytes32(".hash");
+        bytes memory deploymentBytecode = bytes.concat(
+            creationCode,
+            constructorArgs
+        );
         vm.startBroadcast(deployerPrivateKey);
 
-        bytes32 salt = bytes32(0);
-        deployed = payable(
-            Deployer(DEPLOYER).create(
-                salt,
-                keccak256(creationCode),
-                constructorArgs
-            )
+        address predicted = computeCreate2Address(
+            deployerAddress,
+            salt,
+            bytecodeHash,
+            keccak256(constructorArgs)
         );
+
+        if (isContract(predicted)) {
+            return payable(predicted);
+        }
+
+        assembly {
+            let len := mload(deploymentBytecode)
+            let data := add(deploymentBytecode, 0x20)
+            deployed := create2(0, data, len, sload(salt.slot))
+        }
 
         vm.stopBroadcast();
     }
@@ -67,7 +87,7 @@ contract DeployScriptBase is ScriptBase {
         bytes32 data = keccak256(
             // solhint-disable-next-line func-named-parameters
             bytes.concat(
-                CREATE2_PREFIX,
+                keccak256("zksyncCreate2"),
                 senderBytes,
                 _salt,
                 _bytecodeHash,

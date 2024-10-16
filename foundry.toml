@@ -11,6 +11,7 @@ fs_permissions = [
   { access = "read", path = "./deployments/" },
   { access = "read", path = "./config/" },
   { access = "read-write", path = "./test/logs/" },
+  { access = "read", path = "./zkout/" },
 ]
 ffi = true
 libs = ["node_modules", "lib"]
