@@ -5,12 +5,23 @@ import { ScriptBase } from "./ScriptBase.sol";
 
 import { stdJson } from "forge-std/Script.sol";
 
+interface IContractDeployer {
+    function getNewAddressCreate2(
+        address _sender,
+        bytes32 _bytecodeHash,
+        bytes32 _salt,
+        bytes calldata _input
+    ) external view returns (address newAddress);
+}
+
 contract DeployScriptBase is ScriptBase {
     using stdJson for string;
 
     /// @dev The prefix used to create CREATE2 addresses.
     bytes32 internal salt;
     string internal contractName;
+    address internal constant DEPLOYER_CONTRACT_ADDRESS =
+        0x0000000000000000000000000000000000008006;
 
     constructor(string memory _contractName) {
         contractName = _contractName;
@@ -41,12 +52,13 @@ contract DeployScriptBase is ScriptBase {
         );
         vm.startBroadcast(deployerPrivateKey);
 
-        address predicted = computeCreate2Address(
-            deployerAddress,
-            salt,
-            bytecodeHash,
-            keccak256(constructorArgs)
-        );
+        address predicted = IContractDeployer(DEPLOYER_CONTRACT_ADDRESS)
+            .getNewAddressCreate2(
+                deployerAddress,
+                salt,
+                bytecodeHash,
+                constructorArgs
+            );
 
         if (isContract(predicted)) {
             return payable(predicted);
