@@ -22,7 +22,7 @@ uint160 constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970
 /// @title LiFi DEX Aggregator
 /// @author Ilya Lyalin (contract copied from: https://github.com/sushiswap/sushiswap/blob/c8c80dec821003eb72eb77c7e0446ddde8ca9e1e/protocols/route-processor/contracts/RouteProcessor4.sol)
 /// @notice Processes calldata to swap using various DEXs
-/// @custom:version 1.1.0
+/// @custom:version 1.2.0
 contract LiFiDEXAggregator is Ownable {
     using SafeERC20 for IERC20;
     using Approve for IERC20;
@@ -583,6 +583,36 @@ contract LiFiDEXAggregator is Ownable {
     /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
     /// @param data Any data passed through by the caller via the RaExchangeV3#swap call
     function ramsesV2SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    /// @notice Called to `msg.sender` after executing a swap via XeiV3#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the XeiV3#swap call
+    function xeiV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        uniswapV3SwapCallback(amount0Delta, amount1Delta, data);
+    }
+
+    /// @notice Called to `msg.sender` after executing a swap via DragonSwapV2#swap.
+    /// @dev In the implementation you must pay the pool tokens owed for the swap.
+    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
+    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
+    /// @param data Any data passed through by the caller via the DragonSwapV2#swap call
+    function dragonswapV2SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata data
