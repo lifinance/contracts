@@ -1429,7 +1429,6 @@ function verifyContract() {
         forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --skip-is-verified-check -e "${!API_KEY}"
 
         # TODO: add code that automatically identifies blockscout verification
-        # forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH" --verifier blockscout --verifier-url "https://explorer.immutable.com/api?"
       else
         forge verify-contract --watch --chain "$CHAIN_ID" "$ADDRESS" "$FULL_PATH"  --skip-is-verified-check -e "${!API_KEY}" >/dev/null 2>&1
       fi
@@ -2117,21 +2116,21 @@ function checkFailure() {
 # >>>>> output to console
 function echoDebug() {
   # read function arguments into variables
-  MESSAGE=$1
+  local MESSAGE="$1"
 
   # write message to console if debug flag is set to true
   if [[ $DEBUG == "true" ]]; then
     printf "$BLUE[debug] %s$NC\n" "$MESSAGE"
   fi
 }
-function success() {
-  printf '\033[32m%s\033[0m\n' "$1"
-}
 function error() {
   printf '\033[31m[error] %s\033[0m\n' "$1"
 }
 function warning() {
   printf '\033[33m[warning] %s\033[0m\n' "$1"
+}
+function success() {
+  printf '\033[0;32m[success] %s\033[0m\n' "$1"
 }
 # <<<<< output to console
 
@@ -2948,6 +2947,10 @@ function getChainId() {
     echo "13371"
     return 0
     ;;
+  "xlayer")
+    echo "196"
+    return 0
+    ;;
   "taiko")
     echo "167000"
     return 0
@@ -3484,6 +3487,56 @@ function compareAddresses() {
     return 1
   fi
 }
+function sendMessageToDiscordSmartContractsChannel() {
+  # read function arguments into variable
+  local MESSAGE=$1
+
+  if [ -z "$DISCORD_WEBHOOK_DEV_SMARTCONTRACTS" ]; then
+    echo ""
+    warning "Discord webhook URL for dev-smartcontracts is missing. Cannot send log message."
+    echo ""
+    return 1
+  fi
+
+  echo ""
+  echoDebug "sending the following message to Discord webhook ('dev-smartcontracts' channel):"
+  echoDebug "$MESSAGE"
+  echo ""
+
+  # Send the message
+  curl -H "Content-Type: application/json" \
+     -X POST \
+     -d "{\"content\": \"$MESSAGE\"}" \
+     $DISCORD_WEBHOOK_DEV_SMARTCONTRACTS
+
+  echoDebug "Log message sent to Discord"
+
+  return 0
+
+
+}
+
+function getUserInfo() {
+  # log local username
+  local USERNAME=$(whoami)
+
+  # log Github email address
+  EMAIL=$(git config --global user.email)
+  if [ -z "$EMAIL" ]; then
+      EMAIL=$(git config --local user.email)
+  fi
+
+  # return collected info
+  echo "Username: $USERNAME, Github email: $EMAIL"
+
+}
+function cleanupBackgroundJobs() {
+  echo "Cleaning up..."
+  # Kill all background jobs
+  pkill -P $$
+  echo "All background jobs killed. Script execution aborted."
+  exit 1
+}
 # <<<<<< miscellaneous
 
 # >>>>>> helpers to set/update deployment files/logs/etc
@@ -3822,40 +3875,3 @@ function test_getContractNameFromDeploymentLogs() {
   echo "should return 'LiFiDiamond': $(getContractNameFromDeploymentLogs "mainnet" "production" "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE")"
 }
 
-function test_tmp() {
-
-  CONTRACT="LiFiDEXAggregator"
-  NETWORK="immutablezkevm"
-  ADDRESS=""
-  ENVIRONMENT="production"
-  VERSION="2.0.0"
-  DIAMOND_CONTRACT_NAME="LiFiDiamondImmutable"
-  ARGS="0x"
-  RPC_URL=$(getRPCUrl "$NETWORK" "$ENVIRONMENT")
-  #  ADDRESS=$(getContractOwner "$NETWORK" "$ENVIRONMENT" "ERC20Proxy");
-  #  if [[ "$ADDRESS" != "$ZERO_ADDRESS" ]]; then
-  #    error "ERC20Proxy ownership was not transferred to address(0)"
-  #    exit 1
-  #  fi
-  #getPeripheryAddressFromDiamond "$NETWORK" "0x9b11bc9FAc17c058CAB6286b0c785bE6a65492EF" "RelayerCelerIM"
-  # verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS"
-
-  # forge verify-contract "$ADDRESS" "$CONTRACT" --chain-id 13371 --verifier blockscout --verifier-url https://explorer.immutable.com/api --skip-is-verified-check
-  # forge verify-contract 0x8CDDE82cFB4555D6ca21B5b28F97630265DA94c4 Counter --verifier oklink --verifier-url https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER  --api-key $OKLINK_API_KEY
-
-
-  # transferContractOwnership "$PRIVATE_KEY_PRODUCTION" "$PRIVATE_KEY" "$ADDRESS" "$NETWORK"
-  # RESPONSE=$(cast call "$ADDRESS" "owner()" --rpc-url $(getRPCUrl "$NETWORK"))
-  # echo "RESPONSE: $RESPONSE"
-  # ADDRESS_NEW_OWNER=0xa89a87986e8ee1Ac8fDaCc5Ac91627010Ec9f772
-  # cast call "$ADDRESS" "pendingOwner()" --rpc-url $(getRPCUrl "$NETWORK")
-  # cast call "$ADDRESS" "facets() returns ((address,bytes4[])[] )" --rpc-url $(getRPCUrl "$NETWORK")
-  # RESPONSE=$(cast send "$ADDRESS" "transferOwnership(address)" "$ADDRESS_NEW_OWNER" --private-key $PRIVATE_KEY_PRODUCTION --rpc-url "$RPC_URL")
-  # echo "RESPONSE: $RESPONSE"
-
-  # RESULT=$(yarn add-safe-owners --network immutablezkevm --rpc-url "$(getRPCUrl "$NETWORK" "$ENVIRONMENT")" --privateKey "$PRIVATE_KEY_PRODUCTION" --owners "0xb78FbE12d9C09d98ce7271Fa089c2fe437B7B4D5,0x65f6F29D3eb871254d71A79CC4F74dB3AAF3b86e,0x24767E3A1cb07ee500BA9A5621F2B608440Ca270,0x81Dbb716aA13869323974A1766120D0854188e3e,0x11F1022cA6AdEF6400e5677528a80d49a069C00c,0x498E8fF83B503aDe5e905719D27b2f11B605b45A")
-
-  # RESPONSE=$(yarn add-safe-owners --network taiko --rpc-url $(getRPCUrl $NETWORK $ENVIRONMENT) --privateKey $PRIVATE_KEY_PRODUCTION --owners "0xb78FbE12d9C09d98ce7271Fa089c2fe437B7B4D5,0x65f6F29D3eb871254d71A79CC4F74dB3AAF3b86e,0x24767E3A1cb07ee500BA9A5621F2B608440Ca270,0x81Dbb716aA13869323974A1766120D0854188e3e,0x11F1022cA6AdEF6400e5677528a80d49a069C00c,0x498E8fF83B503aDe5e905719D27b2f11B605b45A")
-  # echo "RESPONSE: $RESPONSE"
-}
-test_tmp

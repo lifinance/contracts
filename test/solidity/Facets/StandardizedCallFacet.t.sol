@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.17;
 
-import { Test } from "forge-std/Test.sol";
 import { StandardizedCallFacet } from "lifi/Facets/StandardizedCallFacet.sol";
-import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
-import { DiamondTest } from "../utils/DiamondTest.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { TestBase, ILiFi, console, LiFiDiamond } from "../utils/TestBase.sol";
 
 interface Diamond {
     function standardizedCall(bytes calldata _data) external payable;
@@ -67,18 +64,19 @@ contract NotAContract {
     function notAFunction() external {}
 }
 
-contract StandardizedCallFacetTest is DiamondTest, Test {
-    Diamond internal diamond;
+contract StandardizedCallFacetTest is TestBase {
+    Diamond internal mockDiamond;
     StandardizedCallFacet internal standardizedCallFacet;
     MockFacet internal mockFacet;
 
     event ContextEvent(string);
-    event LiFiTransferStarted(ILiFi.BridgeData bridgeData);
-
     error FunctionDoesNotExist();
 
     function setUp() public {
-        LiFiDiamond tmpDiamond = createDiamond();
+        LiFiDiamond tmpDiamond = createDiamond(
+            USER_DIAMOND_OWNER,
+            USER_PAUSER
+        );
         standardizedCallFacet = new StandardizedCallFacet();
         mockFacet = new MockFacet();
 
@@ -108,75 +106,75 @@ contract StandardizedCallFacetTest is DiamondTest, Test {
             address(mockFacet),
             abi.encodeWithSelector(mockFacet.init.selector)
         );
-        diamond = Diamond(address(tmpDiamond));
+        mockDiamond = Diamond(address(tmpDiamond));
     }
 
     function testMakeACallWithinTheContextOfTheDiamond() public {
         ILiFi.BridgeData memory bridgeData;
         bytes memory data = abi.encodeWithSelector(
-            diamond.startBridgeTokensViaMock.selector,
+            mockDiamond.startBridgeTokensViaMock.selector,
             bridgeData
         );
 
-        // This call should be made within the context of the diamond
-        // and should show that it can access diamond storage
-        vm.expectEmit(address(diamond));
+        // This call should be made within the context of the mockDiamond
+        // and should show that it can access mockDiamond storage
+        vm.expectEmit(address(mockDiamond));
         emit ContextEvent("LIFI");
-        vm.expectEmit(address(diamond));
+        vm.expectEmit(address(mockDiamond));
         emit LiFiTransferStarted(bridgeData);
 
-        diamond.standardizedCall(data);
+        mockDiamond.standardizedCall(data);
     }
 
     function testMakeASwapCallWithinTheContextOfTheDiamond() public {
         ILiFi.BridgeData memory bridgeData;
         bytes memory data = abi.encodeWithSelector(
-            diamond.startBridgeTokensViaMock.selector,
+            mockDiamond.startBridgeTokensViaMock.selector,
             bridgeData
         );
 
         // This call should be made within the context of the diamond
         // and should show that it can access diamond storage
-        vm.expectEmit(address(diamond));
+        vm.expectEmit(address(mockDiamond));
         emit ContextEvent("LIFI");
-        vm.expectEmit(address(diamond));
+        vm.expectEmit(address(mockDiamond));
         emit LiFiTransferStarted(bridgeData);
 
-        diamond.standardizedSwapCall(data);
+        mockDiamond.standardizedSwapCall(data);
     }
 
     function testMakeABridgeCallWithinTheContextOfTheDiamond() public {
         ILiFi.BridgeData memory bridgeData;
         bytes memory data = abi.encodeWithSelector(
-            diamond.startBridgeTokensViaMock.selector,
+            mockDiamond.startBridgeTokensViaMock.selector,
             bridgeData
         );
 
         // This call should be made within the context of the diamond
         // and should show that it can access diamond storage
-        vm.expectEmit(address(diamond));
+        vm.expectEmit(address(mockDiamond));
         emit ContextEvent("LIFI");
-        vm.expectEmit(address(diamond));
+        vm.expectEmit(address(mockDiamond));
         emit LiFiTransferStarted(bridgeData);
 
-        diamond.standardizedBridgeCall(data);
+        mockDiamond.standardizedBridgeCall(data);
     }
 
     function testMakeASwapAndBridgeCallWithinTheContextOfTheDiamond() public {
         ILiFi.BridgeData memory bridgeData;
         bytes memory data = abi.encodeWithSelector(
-            diamond.startBridgeTokensViaMock.selector,
+            mockDiamond.startBridgeTokensViaMock.selector,
             bridgeData
         );
 
         // This call should be made within the context of the diamond
         // and should show that it can access diamond storage
-        vm.expectEmit(address(diamond));
+        vm.expectEmit(address(mockDiamond));
         emit ContextEvent("LIFI");
-        vm.expectEmit(address(diamond));
+        vm.expectEmit(address(mockDiamond));
         emit LiFiTransferStarted(bridgeData);
 
-        diamond.standardizedSwapAndBridgeCall(data);
+        mockDiamond.standardizedSwapAndBridgeCall(data);
     }
 
     function testRevertsWhenCallingANonExistentFunction() public {
@@ -186,7 +184,7 @@ contract StandardizedCallFacetTest is DiamondTest, Test {
 
         vm.expectRevert(FunctionDoesNotExist.selector);
 
-        diamond.standardizedCall(data);
+        mockDiamond.standardizedCall(data);
     }
 
     function testRevertsWhenCallingANonExistentSwapFunction() public {
@@ -196,7 +194,7 @@ contract StandardizedCallFacetTest is DiamondTest, Test {
 
         vm.expectRevert(FunctionDoesNotExist.selector);
 
-        diamond.standardizedSwapCall(data);
+        mockDiamond.standardizedSwapCall(data);
     }
 
     function testRevertsWhenCallingANonExistentBridgeFunction() public {
@@ -206,7 +204,7 @@ contract StandardizedCallFacetTest is DiamondTest, Test {
 
         vm.expectRevert(FunctionDoesNotExist.selector);
 
-        diamond.standardizedBridgeCall(data);
+        mockDiamond.standardizedBridgeCall(data);
     }
 
     function testRevertsWhenCallingANonExistentSwapAndBridgeFunction() public {
@@ -216,6 +214,6 @@ contract StandardizedCallFacetTest is DiamondTest, Test {
 
         vm.expectRevert(FunctionDoesNotExist.selector);
 
-        diamond.standardizedSwapAndBridgeCall(data);
+        mockDiamond.standardizedSwapAndBridgeCall(data);
     }
 }

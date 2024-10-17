@@ -1,6 +1,10 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0x17Bb203F42d8e404ac7E8dB6ff972B7E8473850b": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.0"
+      },
       "0xB2A8517734CDf985d53F303A1f7759A34fdC772F": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
@@ -116,6 +120,26 @@
       "0x21571D628B0bCBeb954D5933A604eCac35bAF2c7": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0xa137Fe4C41A2E04ca34578DC9023ad45cC194389": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x2b64B62cbCfB38560222eBcfbbc4e65eC34c8Ce8": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x6124C65B6264bE13f059b7C3A891a5b77DA8Bd95": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x4352459F6BE1C7D1278F8c34Bb598b0feeB50f8b": {
+        "Name": "",
+        "Version": ""
+      },
+      "0xaF5001e4cd39B3515B244B18A88DD5b2fE65c5cD": {
+        "Name": "",
+        "Version": ""
       }
     },
     "Periphery": {
@@ -123,6 +147,7 @@
       "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "GasRebateDistributor": "",
+      "LiFiDEXAggregator": "",
       "LiFuelFeeCollector": "0x94EA56D8049e93E0308B9c7d1418Baf6A7C68280",
       "Receiver": "0x36E9B2E8A627474683eF3b1E9Df26D2bF04396f3",
       "ReceiverStargateV2": "",

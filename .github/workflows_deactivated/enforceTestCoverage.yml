@@ -1,10 +1,18 @@
-name: Enforce Test Coverage
+name: Enforce Min Test Coverage
+
+# - will make sure that (Foundry) unit test coverage is above min threshold
+# - we start with 75%, planning to increase to 100% until EOY 2024
+# - Only the 'lines' coverage counts as 'branch' coverage is not reliable
+
 on:
-  push:
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
-  enforce-coverage:
+  enforce-min-test-coverage:
     runs-on: ubuntu-latest
+    # will only run once the PR is in "Ready for Review" state
+    if: ${{ github.event.pull_request.draft == false }}
 
     permissions:
       pull-requests: write
@@ -17,22 +25,25 @@ jobs:
       ETH_NODE_URI_BSC: ${{ secrets.ETH_NODE_URI_BSC }}
       ETH_NODE_URI_GNOSIS: ${{ secrets.ETH_NODE_URI_GNOSIS }}
       GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
-      MIN_TEST_COVERAGE: 80 # 80 percent for now, will be increased to 100% gradually
+      MIN_TEST_COVERAGE: 75 # 75 percent for now, will be increased to 100% gradually until the end of 2024
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.7
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install Dependencies
-        run: npm install --save-dev ts-node @types/node --legacy-peer-deps
+      - name: Install dev dependencies
+        run: yarn install
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1.0.10
+        uses: foundry-rs/foundry-toolchain@v1.2.0
         with:
           version: nightly
+
+      - name: Install Dependencies
+        run: forge install
 
       - name: Install Git Submodules
         run: |
@@ -43,7 +54,7 @@ jobs:
         run: |
           forge coverage --report lcov --force
           echo "Filtering coverage report to only contain coverage info about src/ folder now"
-          npx ts-node utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+          npx ts-node script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
           echo "Coverage report filtered"
 
       - name: Generate Coverage Summary

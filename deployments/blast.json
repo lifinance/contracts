@@ -23,5 +23,6 @@
   "TokenWrapper": "0xF2ee649caB7a0edEdED7a27821B0aCDF77778aeD",
   "GenericSwapFacetV3": "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F",
   "AcrossFacet": "0x9535A1AFd986FA9a2D324657116F02C364edebFf",
-  "AcrossFacetPacked": "0xFd796bf7Ff74d414b99CacF6F216eAC24bF3aC8E"
+  "AcrossFacetPacked": "0xFd796bf7Ff74d414b99CacF6F216eAC24bF3aC8E",
+  "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc"
 }

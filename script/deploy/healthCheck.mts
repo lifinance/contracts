@@ -34,7 +34,7 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
 
   if (!chain)
     throw new Error(
-      `Chain ${networkName} (aka '${chainName}', if a mapping exists) not supported by viem or requires name mapping. Check if you can find your chain here: https://github.com/wevm/viem/tree/main/src/chains/definitions`
+      `Chain ${networkName} (aka '${chainName}', if a mapping exists) not supported by viem or requires name mapping. Check if you can find your chain here: https://github.com/wevm/viem/tree/main/src/chains/definitions`,
     )
 
   return chain
@@ -88,12 +88,12 @@ const main = defineCommand({
         'Louper CLI is required but not installed. Would you like to install it now?',
         {
           type: 'confirm',
-        }
+        },
       )
       if (answer) {
         await spinner(
           'Installing...',
-          () => $`npm install -g @mark3labs/louper-cli`
+          () => $`npm install -g @mark3labs/louper-cli`,
         )
       } else {
         consola.error('Louper CLI is required to run this script')
@@ -109,7 +109,7 @@ const main = defineCommand({
       `../../script/deploy/_targetState.json`
     )
     const nonCoreFacets = Object.keys(
-      targetStateJson[network.toLowerCase()].production.LiFiDiamond
+      targetStateJson[network.toLowerCase()].production.LiFiDiamond,
     ).filter((k) => {
       return (
         !coreFacets.includes(k) &&
@@ -141,7 +141,7 @@ const main = defineCommand({
     const diamondDeployed = await checkIsDeployed(
       'LiFiDiamond',
       deployedContracts,
-      publicClient
+      publicClient,
     )
     if (!diamondDeployed) {
       logError(`LiFiDiamond not deployed`)
@@ -160,7 +160,7 @@ const main = defineCommand({
       const isDeployed = await checkIsDeployed(
         facet,
         deployedContracts,
-        publicClient
+        publicClient,
       )
       if (!isDeployed) {
         logError(`Facet ${facet} not deployed`)
@@ -178,7 +178,7 @@ const main = defineCommand({
       const isDeployed = await checkIsDeployed(
         facet,
         deployedContracts,
-        publicClient
+        publicClient,
       )
       if (!isDeployed) {
         logError(`Facet ${facet} not deployed`)
@@ -199,13 +199,13 @@ const main = defineCommand({
       await $`${louperCmd} inspect diamond -a ${diamondAddress} -n ${network} --json`
 
     const registeredFacets = JSON.parse(facetsResult.stdout).facets.map(
-      (f: { name: string }) => f.name
+      (f: { name: string }) => f.name,
     )
 
     for (const facet of [...coreFacets, ...nonCoreFacets]) {
       if (!registeredFacets.includes(facet)) {
         logError(
-          `Facet ${facet} not registered in Diamond or possibly unverified`
+          `Facet ${facet} not registered in Diamond or possibly unverified`,
         )
       } else {
         consola.success(`Facet ${facet} registered in Diamond`)
@@ -220,7 +220,7 @@ const main = defineCommand({
       const isDeployed = await checkIsDeployed(
         contract,
         deployedContracts,
-        publicClient
+        publicClient,
       )
       if (!isDeployed) {
         logError(`Periphery contract ${contract} not deployed`)
@@ -241,7 +241,9 @@ const main = defineCommand({
       client: publicClient,
     })
     const addresses = await Promise.all(
-      corePeriphery.map((c) => peripheryRegistry.read.getPeripheryContract([c]))
+      corePeriphery.map((c) =>
+        peripheryRegistry.read.getPeripheryContract([c]),
+      ),
     )
 
     for (const periphery of corePeriphery) {
@@ -269,7 +271,7 @@ const main = defineCommand({
       // Loop through dexs excluding the address for FeeCollector, LiFuelFeeCollector and ServiceFeeCollector and TokenWrapper
       let numMissing = 0
       for (const dex of dexs.filter(
-        (d) => !corePeriphery.includes(getAddress(d))
+        (d) => !corePeriphery.includes(getAddress(d)),
       )) {
         if (!approvedDexs.includes(getAddress(dex))) {
           logError(`Dex ${dex} not approved in Diamond`)
@@ -282,7 +284,7 @@ const main = defineCommand({
         (p) =>
           p === 'FeeCollector' ||
           p === 'LiFuelFeeCollector' ||
-          p === 'TokenWrapper'
+          p === 'TokenWrapper',
       )
       for (const f of feeCollectors) {
         if (!approvedDexs.includes(getAddress(deployedContracts[f]))) {
@@ -294,7 +296,7 @@ const main = defineCommand({
       }
 
       consola.info(
-        `Found ${numMissing} missing dex${numMissing === 1 ? '' : 's'}`
+        `Found ${numMissing} missing dex${numMissing === 1 ? '' : 's'}`,
       )
 
       //          ╭─────────────────────────────────────────────────────────╮
@@ -313,7 +315,7 @@ const main = defineCommand({
           'LiFiDiamond',
           safeAddress,
           deployedContracts,
-          publicClient
+          publicClient,
         )
       }
 
@@ -322,7 +324,7 @@ const main = defineCommand({
         'FeeCollector',
         withdrawWallet,
         deployedContracts,
-        publicClient
+        publicClient,
       )
 
       // LiFuelFeeCollector
@@ -330,7 +332,7 @@ const main = defineCommand({
         'LiFuelFeeCollector',
         rebalanceWallet,
         deployedContracts,
-        publicClient
+        publicClient,
       )
 
       // Receiver
@@ -338,7 +340,7 @@ const main = defineCommand({
         'Receiver',
         refundWallet,
         deployedContracts,
-        publicClient
+        publicClient,
       )
 
       //          ╭─────────────────────────────────────────────────────────╮
@@ -368,11 +370,11 @@ const main = defineCommand({
           ]))
         ) {
           logError(
-            `Deployer wallet ${deployerWallet} cannot execute ${sig.name} (${sig.sig})`
+            `Deployer wallet ${deployerWallet} cannot execute ${sig.name} (${sig.sig})`,
           )
         } else {
           consola.success(
-            `Deployer wallet ${deployerWallet} can execute ${sig.name} (${sig.sig})`
+            `Deployer wallet ${deployerWallet} can execute ${sig.name} (${sig.sig})`,
           )
         }
       }
@@ -391,11 +393,11 @@ const main = defineCommand({
           ]))
         ) {
           logError(
-            `Refund wallet ${refundWallet} cannot execute ${sig.name} (${sig.sig})`
+            `Refund wallet ${refundWallet} cannot execute ${sig.name} (${sig.sig})`,
           )
         } else {
           consola.success(
-            `Refund wallet ${refundWallet} can execute ${sig.name} (${sig.sig})`
+            `Refund wallet ${refundWallet} can execute ${sig.name} (${sig.sig})`,
           )
         }
       }
@@ -459,19 +461,19 @@ const checkOwnership = async (
   name: string,
   expectedOwner: Address,
   deployedContracts: Record<string, Address>,
-  publicClient: PublicClient
+  publicClient: PublicClient,
 ) => {
   if (deployedContracts[name]) {
     const contractAddress = deployedContracts[name]
     const owner = await getOwnableContract(
       contractAddress,
-      publicClient
+      publicClient,
     ).read.owner()
     if (getAddress(owner) !== getAddress(expectedOwner)) {
       logError(
         `${name} owner is ${getAddress(owner)}, expected ${getAddress(
-          expectedOwner
-        )}`
+          expectedOwner,
+        )}`,
       )
     } else {
       consola.success(`${name} owner is correct`)
@@ -482,7 +484,7 @@ const checkOwnership = async (
 const checkIsDeployed = async (
   contract: string,
   deployedContracts: Record<string, Address>,
-  publicClient: PublicClient
+  publicClient: PublicClient,
 ): Promise<boolean> => {
   if (!deployedContracts[contract]) {
     return false
