@@ -1,12 +1,11 @@
-name: Pause PRODUCTION diamond (CAREFUL)
+name: EMERGENCY >> Pause all PROD diamonds
 
 on:
   workflow_dispatch:
     inputs:
       Warning:
-        description: 'By clicking the next button you are pausing all PROUCTION diamonds. Please proceed with extreme caution !!!'
+        description: "By clicking the next button you are pausing all PROUCTION diamonds. Please proceed with extreme caution !!! You must type 'UNDERSTOOD' to proceed"
         required: true
-        default: 'Type UNDERSTOOD to continue'
 
 jobs:
   diamond-emergency-pause:
@@ -18,23 +17,8 @@ jobs:
       - name: Check input
         if: ${{ inputs.Warning != 'UNDERSTOOD' }}
         run: |
-          echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed.\033[0m"
+          echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed. Please try again. \033[0m"
           exit 1
-
-      # Keeping this code for now until team member authentication has been tested successfully
-      # - name: Authenticate user
-      #   id: check_user
-      #   run: |
-      #     ALLOWED_USERS=("0xDEnYO" "maxklenk" "ezynda3")
-      #     USER=${{ github.actor }}
-      #     if [[ ! " ${ALLOWED_USERS[@]} " =~ " $USER " ]]; then
-      #       echo "User $USER is not allowed to run this workflow. Only the following users are:"
-      #       echo "$ALLOWED_USERS"
-      #       exit 1
-      #     else
-      #       echo "User $USER is allowed to run this workflow."
-      #     fi
-      #   shell: bash
 
       - name: Authenticate git user (check membership in 'DiamondPauser' group)
         if: ${{ inputs.Warning == 'UNDERSTOOD' }}
@@ -96,7 +80,7 @@ jobs:
           ETH_NODE_URI_TAIKO: ${{ secrets.ETH_NODE_URI_TAIKO }}
           ETH_NODE_URI_XLAYER: ${{ secrets.ETH_NODE_URI_XLAYER }}
           ETH_NODE_URI_ZKSYNC: ${{ secrets.ETH_NODE_URI_ZKSYNC }}
-          PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.TEST_PRIV_KEY_SECRET }}
+          PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
 
       - name: Send Discord message
         uses: Ilshidur/action-discord@0.3.2

@@ -44,6 +44,9 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
         http: [network.rpcUrl],
       },
     },
+    contracts: {
+      multicall3: { address: getAddress(network.multicallAddress) },
+    },
   })
   return chain
 }
