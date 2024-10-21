@@ -19,7 +19,7 @@ contract Permit2Proxy is WithdrawablePeriphery {
     ISignatureTransfer public immutable PERMIT2;
 
     string public constant WITNESS_TYPE_STRING =
-        "LiFiCall witness)LiFiCall(address tokenReceiver,address diamondAddress,bytes32 diamondCalldataHash)TokenPermissions(address token,uint256 amount)";
+        "LiFiCall witness)LiFiCall(address diamondAddress,bytes32 diamondCalldataHash)TokenPermissions(address token,uint256 amount)";
     bytes32 public constant WITNESS_TYPEHASH =
         keccak256(
             "LiFiCall(address diamondAddress,bytes32 diamondCalldataHash)"
