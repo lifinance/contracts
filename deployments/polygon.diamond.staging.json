@@ -112,6 +112,14 @@
       "0x21571D628B0bCBeb954D5933A604eCac35bAF2c7": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0xaF5001e4cd39B3515B244B18A88DD5b2fE65c5cD": {
+        "Name": "",
+        "Version": ""
+      },
+      "0x17Bb203F42d8e404ac7E8dB6ff972B7E8473850b": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
