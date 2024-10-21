@@ -17,6 +17,7 @@
     "./deploy",
     "./test",
     "typechain/**/*",
-    "config"
+    "config",
+    "archive/scripts/Deploy/zkSync/008_deploy_service_fee_collector.ts"
   ]
 }
