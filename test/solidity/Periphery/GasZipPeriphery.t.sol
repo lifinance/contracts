@@ -11,7 +11,7 @@ import { TestBase, console, ILiFi, ERC20 } from "../utils/TestBase.sol";
 import { IXDaiBridge } from "lifi/Interfaces/IXDaiBridge.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
-import { NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
+import { NativeAssetTransferFailed, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGasZipPeriphery is GasZipPeriphery {
@@ -53,6 +53,8 @@ contract GasZipPeripheryTest is TestBase {
     uint256 public defaultDestinationChains = 96;
 
     event Deposit(address from, uint256 chains, uint256 amount, bytes32 to);
+
+    error TooManyChainIds();
 
     function setUp() public {
         customBlockNumberForForking = 20931877;
@@ -396,6 +398,29 @@ contract GasZipPeripheryTest is TestBase {
             gasZipSwapData,
             defaultGasZipData
         );
+    }
+
+    function testRevert_WillFailIfMoreThan32ChainIds() public {
+        vm.startPrank(USER_SENDER);
+
+        uint8[] memory chainIds = new uint8[](33);
+
+        vm.expectRevert(TooManyChainIds.selector);
+
+        gasZipPeriphery.getDestinationChainsValue(chainIds);
+    }
+
+    function testRevert_WillFailIfCalledWithInvalidReceiverAddress() public {
+        vm.startPrank(USER_SENDER);
+
+        defaultGasZipData.receiverAddress = bytes32(0);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        // deposit via GasZip periphery contract
+        gasZipPeriphery.depositToGasZipNative{
+            value: defaultNativeDepositAmount
+        }(defaultGasZipData, defaultNativeDepositAmount);
     }
 
     function _getGnosisBridgeFacet()
