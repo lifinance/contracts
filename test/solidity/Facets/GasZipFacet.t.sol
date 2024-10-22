@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 import { GasZipFacet } from "lifi/Facets/GasZipFacet.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { ILiFi, LibSwap, LibAllowList, TestBaseFacet, console, ERC20 } from "../utils/TestBaseFacet.sol";
-import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGasZipFacet is GasZipFacet {
@@ -25,6 +25,8 @@ contract TestGasZipFacet is GasZipFacet {
 contract GasZipFacetTest is TestBaseFacet {
     address public constant GAS_ZIP_ROUTER_MAINNET =
         0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762;
+    address public constant NON_EVM_RECEIVER_IDENTIFIER =
+        0x11f111f111f111F111f111f111F111f111f111F1;
 
     TestGasZipFacet internal gasZipFacet;
     IGasZip.GasZipData internal gasZipData;
@@ -40,6 +42,7 @@ contract GasZipFacetTest is TestBaseFacet {
     event Deposit(address from, uint256 chains, uint256 amount, bytes32 to);
 
     error OnlyNativeAllowed();
+    error TooManyChainIds();
 
     function setUp() public {
         // set custom block no for mainnet forking
@@ -159,7 +162,6 @@ contract GasZipFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         // customize bridgeData
         bridgeData.sendingAssetId = address(0);
-        bridgeData.minAmount = 10000000000000000; // ~2 USD
         bridgeData.minAmount = defaultNativeDepositAmount; // ~2 USD
 
         //prepare check for events
@@ -274,6 +276,106 @@ contract GasZipFacetTest is TestBaseFacet {
         initiateSwapAndBridgeTxWithFacet(false);
     }
 
+    function testBase_Revert_BridgeAndSwapWithInvalidReceiverAddress()
+        public
+        override
+    {
+        // since the 'validateBridgeData' modifier is not used, a different error is thrown here
+
+        vm.startPrank(USER_SENDER);
+        // prepare bridgeData
+        bridgeData.receiver = address(0);
+        bridgeData.hasSourceSwaps = true;
+
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_SwapAndBridgeWithInvalidAmount() public override {
+        // since the '' modifier is not used, a different error is thrown here
+
+        vm.startPrank(USER_SENDER);
+        // prepare bridgeData
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.minAmount = 0;
+
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_BridgeToSameChainId() public override {
+        // we need to test this with native instead of ERC20 for this facet, therefore override
+
+        vm.startPrank(USER_SENDER);
+        // customize bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeDepositAmount; // ~2 USD
+        bridgeData.destinationChainId = block.chainid;
+
+        vm.expectRevert(CannotBridgeToSameNetwork.selector);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_BridgeWithInvalidAmount() public override {
+        // we need to test this with native instead of ERC20 for this facet, therefore override
+
+        vm.startPrank(USER_SENDER);
+        // customize bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 0;
+
+        // will fail when trying to send value that it doesnt have
+        vm.expectRevert();
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_BridgeWithInvalidReceiverAddress()
+        public
+        override
+    {
+        // we need to test this with native instead of ERC20 for this facet, therefore override
+
+        vm.startPrank(USER_SENDER);
+        // prepare bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeDepositAmount; // ~2 USD
+        gasZipData.receiver = bytes32(0);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_SwapAndBridgeToSameChainId() public override {
+        // we need to test this with native swap output instead of ERC20 for this facet, therefore override
+
+        vm.startPrank(USER_SENDER);
+        // prepare bridgeData
+        bridgeData.destinationChainId = block.chainid;
+        bridgeData.hasSourceSwaps = true;
+
+        setDefaultSwapDataSingleDAItoETH(); // changed to native output calldata
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(CannotBridgeToSameNetwork.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function test_getDestinationChainsValueReturnsCorrectValues() public {
         // case 1
         uint8[] memory chainIds = new uint8[](1);
@@ -297,5 +399,55 @@ contract GasZipFacetTest is TestBaseFacet {
         chainIds[4] = 59; // Linea
 
         assertEq(gasZipFacet.getDestinationChainsValue(chainIds), 65336774203);
+    }
+
+    function testRevert_WillFailIfMsgValueDoesNotMatchBridgeDataAmount()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+
+        // update bridgeData to use native
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultERC20DepositAmount;
+
+        vm.expectRevert(InvalidAmount.selector);
+
+        gasZipFacet.startBridgeTokensViaGasZip{
+            value: bridgeData.minAmount - 1
+        }(bridgeData, gasZipData);
+    }
+
+    function testRevert_WillFailIfMoreThan32ChainIds() public {
+        vm.startPrank(USER_SENDER);
+
+        uint8[] memory chainIds = new uint8[](33);
+
+        vm.expectRevert(TooManyChainIds.selector);
+
+        gasZipFacet.getDestinationChainsValue(chainIds);
+    }
+
+    function testRevert_WillFailIfEVMReceiverAddressesDontMatch() public {
+        vm.startPrank(USER_SENDER);
+        // customize bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeDepositAmount; // ~2 USD
+        bridgeData.receiver = USER_PAUSER;
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function test_WillNotFailIfNonEVMReceiverAddressesDontMatch() public {
+        vm.startPrank(USER_SENDER);
+        // customize bridgeData
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeDepositAmount; // ~2 USD
+        bridgeData.receiver = NON_EVM_RECEIVER_IDENTIFIER;
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
     }
 }

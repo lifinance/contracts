@@ -46,12 +46,14 @@ const skipNetworks: string[] = [
   // 'moonbeam',
   // 'moonriver',
   // 'optimism',
+  // 'opbnb',
   // 'polygon',
   // 'polygonzkevm',
   // 'rootstock',
   // 'scroll',
   // 'sei',
   // 'taiko',
+  // 'xlayer',
   // 'zksync',
 ]
 const defaultNetworks = allNetworks.filter(

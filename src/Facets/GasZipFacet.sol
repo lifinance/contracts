@@ -22,7 +22,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     error TooManyChainIds();
 
     /// State ///
-    address public NON_EVM_RECEIVER_IDENTIFIER =
+    address public constant NON_EVM_RECEIVER_IDENTIFIER =
         0x11f111f111f111F111f111f111F111f111f111F1;
     IGasZip public immutable gasZipRouter;
 
