@@ -92,8 +92,8 @@ contract GasZipFacetTest is TestBaseFacet {
         uint8[] memory chainIds = new uint8[](1);
         chainIds[0] = 17; // polygon
         gasZipData = IGasZip.GasZipData({
-            destinationChains: defaultDestinationChains,
-            receiver: bytes32(uint256(uint160(USER_RECEIVER)))
+            receiverAddress: bytes32(uint256(uint160(USER_RECEIVER))),
+            destinationChains: defaultDestinationChains
         });
 
         bridgeData.bridge = "GasZip";
@@ -351,7 +351,7 @@ contract GasZipFacetTest is TestBaseFacet {
         // prepare bridgeData
         bridgeData.sendingAssetId = address(0);
         bridgeData.minAmount = defaultNativeDepositAmount; // ~2 USD
-        gasZipData.receiver = bytes32(0);
+        gasZipData.receiverAddress = bytes32(0);
 
         vm.expectRevert(InvalidCallData.selector);
 

@@ -99,12 +99,13 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         IGasZip.GasZipData calldata _gasZipData
     ) internal {
         // make sure receiver address has a value to prevent potential loss of funds
-        if (_gasZipData.receiver == bytes32(0)) revert InvalidCallData();
+        if (_gasZipData.receiverAddress == bytes32(0))
+            revert InvalidCallData();
 
         // validate that receiverAddress matches with bridgeData in case of EVM target chain
         if (
             _bridgeData.receiver != NON_EVM_RECEIVER_IDENTIFIER &&
-            _gasZipData.receiver !=
+            _gasZipData.receiverAddress !=
             bytes32(uint256(uint160(_bridgeData.receiver)))
         ) revert InvalidCallData();
 
@@ -116,7 +117,7 @@ contract GasZipFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
         gasZipRouter.deposit{ value: _bridgeData.minAmount }(
             _gasZipData.destinationChains,
-            _gasZipData.receiver
+            _gasZipData.receiverAddress
         );
 
         emit LiFiTransferStarted(_bridgeData);

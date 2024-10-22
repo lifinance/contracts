@@ -86,12 +86,13 @@ contract GasZipPeriphery is
         uint256 _amount
     ) public payable {
         // make sure that receiverAddress is not 0
-        if (_gasZipData.receiver == bytes32(0)) revert InvalidCallData();
+        if (_gasZipData.receiverAddress == bytes32(0))
+            revert InvalidCallData();
 
         // We are depositing to a new contract that supports deposits for EVM chains + Solana (therefore 'receiver' address is bytes32)
         gasZipRouter.deposit{ value: _amount }(
             _gasZipData.destinationChains,
-            _gasZipData.receiver
+            _gasZipData.receiverAddress
         );
 
         // return unused native value to msg.sender, if any

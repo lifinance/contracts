@@ -70,8 +70,8 @@ contract GasZipPeripheryTest is TestBase {
         gnosisBridgeFacet = _getGnosisBridgeFacet();
 
         defaultGasZipData = IGasZip.GasZipData({
-            destinationChains: defaultDestinationChains,
-            receiver: defaultReceiverBytes32
+            receiverAddress: defaultReceiverBytes32,
+            destinationChains: defaultDestinationChains
         });
 
         bridgeData.bridge = "gnosis";
