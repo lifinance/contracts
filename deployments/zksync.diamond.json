@@ -41,16 +41,16 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x1c21F1De46ff4f29D47517d753454E2EB8BEbe31": {
-        "Name": "LIFuelFacet",
-        "Version": "1.0.1"
-      },
       "0x2e47355B70D6935C6A69d5F67e0aFe437791138e": {
         "Name": "AcrossFacetV3",
         "Version": "1.0.0"
       },
       "0x9243578F60a2A3821642481b5851578cE92d9a78": {
         "Name": "AcrossFacetPackedV3",
+        "Version": "1.0.0"
+      },
+      "0x57C72BFf1514cd5b66FE84Ac462412B15e286Fa8": {
+        "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       }
     },
