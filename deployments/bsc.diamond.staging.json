@@ -2,8 +2,8 @@
   "LiFiDiamond": {
     "Facets": {
       "0xf03AFcA857918BE01EBD6C6800Fc2974b8a9eBA2": {
-        "Name": "",
-        "Version": ""
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.0"
       },
       "0xE871874D8AC30E8aCD0eC67529b4a5dDD73Bf0d6": {
         "Name": "GenericSwapFacetV3",
@@ -53,9 +53,9 @@
         "Name": "",
         "Version": ""
       },
-      "0xd596C903d78870786c5DB0E448ce7F87A65A0daD": {
-        "Name": "MayanFacet",
-        "Version": "1.0.0"
+      "0x297aF81049744284874A7e5E90A907bAF6ACbbb5": {
+        "Name": "",
+        "Version": ""
       },
       "0xAfcC5c55d5Ec3082675D51331E7Ed9AdE195db48": {
         "Name": "StargateFacet",
@@ -81,7 +81,7 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x88c9Ed1C3d723F4F5fe14B18b4C91737208791bD": {
+      "0x0DAff7e73fDb2bbaDa232A16a5BEA72463893E35": {
         "Name": "GasZipFacet",
         "Version": "2.0.0"
       }
@@ -91,7 +91,7 @@
       "Executor": "0x4f3B1b1075cC19daA15b7cc681b28e2fB82145eD",
       "FeeCollector": "0x7f98D45c7902f079fDb65811B633522e2d227BB6",
       "GasRebateDistributor": "",
-      "GasZipPeriphery": "0xa76B7FdA492fA0a936E62C8a4166c407eD853074",
+      "GasZipPeriphery": "0x0292F451AF707e85a2ada6A72034cA11242E14C6",
       "LiFiDEXAggregator": "0xD6f02718B9df9FAd2665c7304BC5b26D5bbD8642",
       "LiFuelFeeCollector": "0xc4f7A34b8d283f66925eF0f5CCdFC2AF3030DeaE",
       "Receiver": "0x76EE0F8fb09047284B6ea89881595Fc6F5B09E12",

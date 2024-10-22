@@ -51,7 +51,7 @@ contract DeployScript is DeployScriptBase {
         string memory networksJson = vm.readFile(networks);
 
         address safeAddress = networksJson.readAddress(
-            string.concat(network, ".safeAdress")
+            string.concat(".", network, ".safeAddress")
         );
 
         return abi.encode(gasZipRouter, liFiDEXAggregator, safeAddress);
