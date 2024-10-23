@@ -190,6 +190,14 @@ deploySingleContract() {
   fi
 
   if [[ $NETWORK == "zksync" ]]; then
+      DEPLOYED=$(findContractInMasterLog $CONTRACT $NETWORK $ENVIRONMENT $VERSION $LOG_FILE_PATH)
+      if [[ $? == 0 ]]; then
+        gum style \
+	        --foreground 220 --border-foreground 220 --border double \
+	        --align center --width 50 --margin "1 2" --padding "2 4" \
+	        'WARNING' "$CONTRACT v$VERSION is already deployed to $NETWORK" 'Deployment might fail'
+        gum confirm "Deploy anyway?" || exit 0
+      fi
       rm -fr ./out
       rm -fr ./zkout
       docker run --rm -it --volume .:/foundry -u $(id -u):$(id -g) -e FOUNDRY_PROFILE=zksync foundry-zksync forge cache clean
