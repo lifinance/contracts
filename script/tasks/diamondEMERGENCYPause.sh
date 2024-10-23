@@ -151,6 +151,38 @@ function handleNetwork() {
   echoDebug "BLACKLIST=$BLACKLIST"
   echo ""
 
+  # check if the diamond is already paused by calling owner() function and analyzing the response
+  local RESPONSE=$(cast call "$DIAMOND_ADDRESS" "owner()" --rpc-url "$RPC_URL" 2>&1)
+  # only required if we dont expect the diamond to be paused
+  if [[ "$ACTION" != "unpause the diamond" ]]; then
+    # Check for errors in the response
+    if [[ "$RESPONSE" == 0x* ]]; then
+        # If the response starts with "0x", it is a valid response, and the diamond is not paused
+        echo "[network: $NETWORK] The diamond is not yet paused. Proceeding..."
+    elif [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
+        # If the response contains the pause selector or "DiamondIsPaused", the diamond is paused
+        success "[network: $NETWORK] The diamond is already paused."
+        echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+        exit 0
+    else
+        # Handle other RPC or network errors
+        error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $RESPONSE"
+    fi
+  fi
+
+
+  if [[ "$ACTION" != "unpause the diamond" && ( "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ) ]]; then
+      if [[ "$ACTION" == "remove a single facet" ]]; then
+        error "[network: $NETWORK] Cannot remove a facet while diamond is paused."
+        echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+        exit 1
+      else
+        success "[network: $NETWORK] The diamond is already paused. No further action required."
+        echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+        exit 0
+      fi
+  fi
+
   # execute the requested action
   local ATTEMPTS=1
   while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do

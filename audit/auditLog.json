@@ -20,6 +20,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2024.10.07_AcrossV3.pdf",
       "auditCommitHash": "ef2d7bc478ce1e7f5ad6f1060f657864124fa85e"
+    },
+    "audit20241014": {
+      "auditCompletedOn": "14.10.2024",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2024.10.14_WithdrawablePeriphery.pdf",
+      "auditCommitHash": "b03e658b359f1696388e2aaeaf24a7c107ba462a"
     }
   },
   "auditedContracts": {
@@ -37,6 +44,9 @@
     },
     "StargateFacetV2": {
       "1.0.1": ["audit20240814"]
+    },
+    "WithdrawablePeriphery": {
+      "1.0.0": ["audit20241014"]
     }
   }
 }
