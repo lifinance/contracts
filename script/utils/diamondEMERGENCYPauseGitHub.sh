@@ -179,8 +179,6 @@ function main {
 
   echo "networks found: ${NETWORKS[@]}"
 
-  echo "PRIVATE_KEY_PAUSER_WALLET=${PRIVATE_KEY_PAUSER_WALLET:0:4}********"  # Print first few characters for validation
-
   PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
   echo "Address PauserWallet: $PRIV_KEY_ADDRESS"
   echo "Networks will be executed in parallel, therefore the log might appear messy."
