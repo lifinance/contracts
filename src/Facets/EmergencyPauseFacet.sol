@@ -11,7 +11,7 @@ import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 /// @title EmergencyPauseFacet (Admin only)
 /// @author LI.FI (https://li.fi)
 /// @notice Allows a LI.FI-owned and -controlled, non-multisig "PauserWallet" to remove a facet or pause the diamond in case of emergency
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 /// @dev Admin-Facet for emergency purposes only
 contract EmergencyPauseFacet {
     /// Events ///
